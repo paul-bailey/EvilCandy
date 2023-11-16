@@ -202,7 +202,7 @@ cmp_helper(struct qvar_t *a, struct qvar_t *b)
         case QFUNCTION_MAGIC:
                 /* '==' means 'they point to the same execution code */
                 if (!CMP(a->fn.mk.ns, b->fn.mk.ns))
-                        return CMP(a->fn.mk.s, b->fn.mk.s);
+                        return CMP(a->fn.mk.oc, b->fn.mk.oc);
                 return false;
         case QFLOAT_MAGIC:
                 return CMP(a->f, b->f);
@@ -412,7 +412,7 @@ qop_mov(struct qvar_t *to, struct qvar_t *from)
                         token_puts(&to->s, from->s.s);
                         break;
                 case QFUNCTION_MAGIC:
-                        to->fn.mk.s  = from->fn.mk.s;
+                        to->fn.mk.oc = from->fn.mk.oc;
                         to->fn.mk.ns = from->fn.mk.ns;
                         /*
                          * Even if @to and @from are not the same
@@ -425,7 +425,7 @@ qop_mov(struct qvar_t *to, struct qvar_t *from)
                         break;
                 case QPTRX_MAGIC:
                         to->px.ns = from->px.ns;
-                        to->px.s  = from->px.s;
+                        to->px.oc = from->px.oc;
                         break;
                 case QINT_MAGIC:
                         to->i = from->i;
@@ -438,11 +438,11 @@ qop_mov(struct qvar_t *to, struct qvar_t *from)
         } else if (to->magic == QPTRX_MAGIC
                    && from->magic == QFUNCTION_MAGIC) {
                 to->px.ns = from->fn.mk.ns;
-                to->px.s  = from->fn.mk.s;
+                to->px.oc = from->fn.mk.oc;
         } else if (to->magic == QFUNCTION_MAGIC
                    && from->magic == QPTRX_MAGIC) {
                 to->fn.mk.ns = from->px.ns;
-                to->fn.mk.s  = from->px.s;
+                to->fn.mk.oc = from->px.oc;
         } else if (to->magic == QINT_MAGIC) {
                 if (from->magic == QINT_MAGIC)
                         to->i = from->i;

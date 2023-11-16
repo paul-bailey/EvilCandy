@@ -19,15 +19,7 @@
 static int
 qlineno(void)
 {
-        int n = q_.pc.px.ns->lineno;
-        const char *pc = q_.pc.px.s;
-        char *s;
-        for (s = q_.pc.px.ns->pgm.s; s != pc; s++) {
-                if (*s == '\n')
-                        ++n;
-                bug_on(*s == '\0');
-        }
-        return n;
+        return q_.pc.px.oc->line;
 }
 
 /* helper to bug__ and breakpoint__ */
@@ -120,6 +112,6 @@ qsyntax(const char *msg, ...)
 void
 qerr_expected(const char *what)
 {
-        qsyntax("Expected '%s' but got '%s'", what, q_.tok.s);
+        qsyntax("Expected '%s' but got '%s'", what, q_.pc.px.oc->s);
 }
 

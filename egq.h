@@ -83,11 +83,17 @@ enum {
  *      may invoke a reallocation function that moves it.  So do not
  *      store the @s pointer unless you are finished filling it in.
  *
+ * ANOTHER WARNING!!!!   Do not use the string-related functions
+ *                      on the same token where you use token_putcode
+ *
  * XXX: Poorly specific name for what's being used for more than
  * just tokens.
  */
 struct token_t {
-        char *s;
+        union {
+                char *s;
+                struct opcode_t *oc;
+        };
         ssize_t p;
         ssize_t size;
 };
@@ -120,7 +126,7 @@ struct ns_t {
  */
 struct qmarker_t {
         struct ns_t *ns;
-        const char *s;
+        struct opcode_t *oc;
 };
 
 struct qvar_t;
@@ -172,28 +178,34 @@ struct qvar_t {
         };
 };
 
+struct opcode_t {
+        unsigned int t;
+        unsigned int line; /* for error tracing */
+        char *s;
+        union {
+                double f;
+                long long i;
+        };
+};
+
 /* This library's private data */
 struct q_private_t {
-        bool lib_init;
         unsigned char charmap[128];
         unsigned char char_xtbl[128];
         unsigned char char_x2tbl[128];
         struct hashtable_t *kw_htbl;
         struct hashtable_t *literals;
-        struct qvar_t *gbl;
-        struct token_t tok;
-        int t; /* last token type */
+        struct qvar_t *gbl; /* "__gbl__" as user sees it */
         struct ns_t *ns_top;
-        int lineno;
-        char *infilename;
-        FILE *infile;
         struct qvar_t pc;
-        struct qvar_t pclast;
         struct qvar_t *fp; /* "frame pointer" */
         struct qvar_t *sp; /* "stack pointer" */
         struct qvar_t lr;  /* "link register */
         struct qvar_t stack[QSTACKMAX];
 };
+
+/* I really hate typing this everywhere */
+#define cur_oc  q_.pc.px.oc
 
 /* script.c */
 extern struct q_private_t q_;
@@ -225,12 +237,13 @@ extern void qerr_expected(const char *what);
 extern void fail(const char *msg, ...);
 extern void warning(const char *msg, ...);
 extern void bug__(const char *, int);
+extern void breakpoint__(const char *file, int line);
 
 /* eval.c */
 extern void q_eval(struct qvar_t *v);
 
 /* exec.c */
-extern int exec_script(struct ns_t *ns);
+extern void exec_script(struct ns_t *ns);
 extern void qcall_function(struct qvar_t *fn, struct qvar_t *retval);
 
 /* helpers.c */
@@ -243,8 +256,8 @@ static inline bool isquote(int c) { return c == '"' || c == '\''; }
 
 /* lex.c */
 extern int qlex(void);
-/* Only guaranteed to work once */
-#define q_unlex() qop_mov(&q_.pc, &q_.pclast)
+extern void q_unlex(void);
+extern struct ns_t *prescan(const char *filename);
 
 /* list.c */
 extern void list_insert_before(struct list_t *a,
@@ -310,6 +323,7 @@ extern void token_putc(struct token_t *tok, int c);
 extern void token_puts(struct token_t *tok, const char *s);
 extern void token_rstrip(struct token_t *tok);
 extern void token_free(struct token_t *tok);
+extern void token_putcode(struct token_t *tok, struct opcode_t *oc);
 
 /* var.c */
 extern struct qvar_t *qvar_init(struct qvar_t *v);

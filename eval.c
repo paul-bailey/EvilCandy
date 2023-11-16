@@ -119,7 +119,7 @@ eval_atomic_function(struct qvar_t *v)
 
         v->magic = QFUNCTION_MAGIC;
         qlex();
-        if (q_.t != TO_DTOK(QD_LPAR))
+        if (q_.pc.px.oc->t != TO_DTOK(QD_LPAR))
                 qerr_expected("(");
 
         /*
@@ -138,25 +138,25 @@ eval_atomic_function(struct qvar_t *v)
         v->fn.owner = q_.fp;
         do {
                 qlex();
-                if (q_.t != 'u')
+                if (q_.pc.px.oc->t != 'u')
                         qerr_expected("identifier");
                 qlex();
-        } while (q_.t == TO_DTOK(QD_COMMA));
-        if (q_.t != TO_DTOK(QD_RPAR))
+        } while (q_.pc.px.oc->t == TO_DTOK(QD_COMMA));
+        if (q_.pc.px.oc->t != TO_DTOK(QD_RPAR))
                 qerr_expected(")");
         qlex();
-        if (q_.t != TO_DTOK(QD_LBRACE))
+        if (q_.pc.px.oc->t != TO_DTOK(QD_LBRACE))
                 qerr_expected("{");
 
         brace = 1;
-        while (brace && q_.t != EOF) {
+        while (brace && q_.pc.px.oc->t != EOF) {
                 qlex();
-                if (q_.t == TO_DTOK(QD_LBRACE))
+                if (q_.pc.px.oc->t == TO_DTOK(QD_LBRACE))
                         brace++;
-                else if (q_.t == TO_DTOK(QD_RBRACE))
+                else if (q_.pc.px.oc->t == TO_DTOK(QD_RBRACE))
                         brace--;
         }
-        if (q_.t == EOF)
+        if (q_.pc.px.oc->t == EOF)
                 qsyntax("Unbalanced brace");
 }
 
@@ -171,7 +171,7 @@ eval_atomic_function(struct qvar_t *v)
 static void
 eval_atomic_symbol(struct qvar_t *v)
 {
-        char *name = q_.tok.s;
+        char *name = q_.pc.px.oc->s;
         struct qvar_t *w = qsymbol_lookup(name);
         if (!w)
                 qsyntax("symbol %s not found", name);
@@ -199,18 +199,18 @@ static void
 eval_atomic(struct qvar_t *v)
 {
         /* TODO: Check type of @v before clobbering it! */
-        switch (q_.t) {
+        switch (q_.pc.px.oc->t) {
         case 'u':
                 eval_atomic_symbol(v);
                 break;
         case 'i':
-                qop_assign_int(v, strtoull(q_.pclast.px.s, NULL, 0));
+                qop_assign_int(v, q_.pc.px.oc->i);
                 break;
         case 'f':
-                qop_assign_float(v, strtod(q_.pclast.px.s, NULL));
+                qop_assign_float(v, q_.pc.px.oc->f);
                 break;
         case 'q':
-                qop_assign_cstring(v, q_.tok.s);
+                qop_assign_cstring(v, q_.pc.px.oc->s);
                 break;
         case TO_KTOK(KW_FUNC):
                 eval_atomic_function(v);
@@ -225,7 +225,7 @@ eval_atomic(struct qvar_t *v)
                 break;
         default:
                 qsyntax("Cannot evaluate atomic expression toktype=%c/%d",
-                        tok_type(q_.t), tok_delim(q_.t));
+                        tok_type(q_.pc.px.oc->t), tok_delim(q_.pc.px.oc->t));
         }
         qlex();
 }
@@ -234,7 +234,7 @@ eval_atomic(struct qvar_t *v)
 static void
 eval8(struct qvar_t *v)
 {
-        int t = q_.t;
+        int t = q_.pc.px.oc->t;
         switch (t) {
         case TO_DTOK(QD_LPAR):
                 t = TO_DTOK(QD_RPAR);
@@ -250,7 +250,7 @@ eval8(struct qvar_t *v)
 
         qlex();
         eval0(v);
-        if (q_.t != t) {
+        if (q_.pc.px.oc->t != t) {
                 if (t == TO_DTOK(QD_LPAR))
                         qerr_expected(")");
                 else
@@ -278,7 +278,7 @@ eval6(struct qvar_t *v)
         int t;
 
         eval7(v);
-        while (ismuldivmod(t = q_.t)) {
+        while (ismuldivmod(t = q_.pc.px.oc->t)) {
                 struct qvar_t *w = eval_push();
                 qlex();
                 eval7(w);
@@ -305,7 +305,7 @@ eval5(struct qvar_t *v)
         int t;
 
         eval6(v);
-        while (isadd(t = q_.t)) {
+        while (isadd(t = q_.pc.px.oc->t)) {
                 struct qvar_t *w = eval_push();
                 qlex();
                 eval6(w);
@@ -324,7 +324,7 @@ eval4(struct qvar_t *v)
         int t;
 
         eval5(v);
-        while (isshift(t = q_.t)) {
+        while (isshift(t = q_.pc.px.oc->t)) {
                 struct qvar_t *w = eval_push();
                 qlex();
                 eval5(w);
@@ -343,7 +343,7 @@ eval3(struct qvar_t *v)
         int t;
 
         eval4(v);
-        while (iscmp(t = q_.t)) {
+        while (iscmp(t = q_.pc.px.oc->t)) {
                 struct qvar_t *w = eval_push();
                 qlex();
                 eval4(w);
@@ -364,7 +364,7 @@ eval2(struct qvar_t *v)
         int t;
 
         eval3(v);
-        while (isbinary(t = q_.t)) {
+        while (isbinary(t = q_.pc.px.oc->t)) {
                 struct qvar_t *w = eval_push();
                 qlex();
                 eval3(w);
@@ -392,7 +392,7 @@ eval1(struct qvar_t *v)
         int t;
 
         eval2(v);
-        while (islogical(t = q_.t)) {
+        while (islogical(t = q_.pc.px.oc->t)) {
                 struct qvar_t *w = eval_push();
                 qlex();
                 eval2(w);
@@ -409,7 +409,7 @@ eval1(struct qvar_t *v)
 static void
 eval0(struct qvar_t *v)
 {
-        switch (q_.t) {
+        switch (q_.pc.px.oc->t) {
         case TO_DTOK(QD_MUL):
                 qsyntax("Pointers not yet supported");
         case TO_DTOK(QD_PLUSPLUS):

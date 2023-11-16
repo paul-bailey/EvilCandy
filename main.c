@@ -92,15 +92,9 @@ init_lib(void)
         for (s = DELIMDBL, i = QD_PLUSPLUS; *s != '\0'; s++, i++)
                 q_.char_x2tbl[(int)*s] = i;
 
-        token_init(&q_.tok);
-        /* Hack to ensure q_.tok.s can always be de-referenced */
-        token_putc(&q_.tok, 'a');
-        token_reset(&q_.tok);
-
         /* Initialize PC (its initial location will be set later) */
         qvar_init(&q_.pc);
-        qvar_init(&q_.pclast);
-        q_.pc.magic = q_.pclast.magic = QPTRX_MAGIC;
+        q_.pc.magic = QPTRX_MAGIC;
 
         q_builtin_initlib();
 
@@ -108,8 +102,6 @@ init_lib(void)
          * Some other modules automatically initialize on first
          * call to some of their functions.
          */
-
-        q_.lib_init = true;
 }
 
 /**
@@ -122,32 +114,20 @@ main(int argc, char **argv)
 
         init_lib();
 
-        q_.lineno = 0;
-        q_.infile = NULL;
-        q_.infilename = NULL;
-
         if (argc < 2)
                 fprintf(stderr, "Expected: file name\n");
 
-        file_push(argv[1]);
-
-
         /* create & init new namespace */
         ns = ecalloc(sizeof(*ns));
-        ns->fname = estrdup(q_.infilename);
-        ns->lineno = q_.lineno + 1;
+        ns->fname = estrdup(argv[1]);
+        ns->lineno = 0;
         token_init(&ns->pgm);
 
-        for (;;) {
-                char *line = next_line(0);
-                if (!line)
-                        break;
-                token_puts(&ns->pgm, line);
-        }
-
-        if (!ns->pgm.s || ns->pgm.s[0] == '\0')
-                return 0;
-
+        ns = prescan(argv[1]);
+        /*
+         * TODO: The following should be done from interpret_block,
+         * when getting an `import' token
+         */
         if (!q_.ns_top) {
                 q_.ns_top = ns;
         } else {

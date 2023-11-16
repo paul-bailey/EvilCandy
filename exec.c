@@ -9,7 +9,7 @@ qstack_pop(struct qvar_t *to)
         if (to)
                 qop_mov(to, q_.sp);
         if (q_.sp->name) {
-                q_literal_free(q_.sp->name);
+                /* Don't free it, it's in literal heaven now */
                 q_.sp->name = NULL;
         }
         qvar_reset(q_.sp);
@@ -47,8 +47,7 @@ pcsanity(void)
         for (ns = q_.ns_top; ns != NULL; ns = ns->next) {
                 if (ns == q_.pc.px.ns) {
                         struct token_t *t = &ns->pgm;
-                        const char *pc = q_.pc.px.s;
-                        ok = pc >= t->s && pc < &t->s[t->p];
+                        ok = cur_oc >= t->oc && cur_oc < &t->oc[t->p];
                         break;
                 }
         }
@@ -90,7 +89,7 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
         qstack_push(fn->magic == QINTL_MAGIC ? q_.gbl : fn->fn.owner);
 
         qlex();
-        if (q_.t != TO_DTOK(QD_LPAR))
+        if (cur_oc->t != TO_DTOK(QD_LPAR))
                 qerr_expected("(");
 
         /* push args, don't name them yet */
@@ -98,8 +97,8 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                 struct qvar_t *v = qstack_getpush();
                 q_eval(v);
                 qlex();
-        } while (q_.t == TO_DTOK(QD_COMMA));
-        if (q_.t != TO_DTOK(QD_RPAR))
+        } while (cur_oc->t == TO_DTOK(QD_COMMA));
+        if (cur_oc->t != TO_DTOK(QD_RPAR))
                 qerr_expected(")");
 
         fpsav = q_.fp;
@@ -140,7 +139,7 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                  */
                 for (argptr = q_.fp + 1; argptr < q_.sp; argptr++) {
                         qlex();
-                        if (q_.t != 'u')
+                        if (cur_oc->t != 'u')
                                 qerr_expected("identifier");
                         bug_on(argptr->name != NULL);
                         /*
@@ -149,11 +148,11 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                          * data in small amounts.  But I still have
                          * to do that for stack-variable names.
                          */
-                        argptr->name = q_literal(q_.tok.s);
+                        argptr->name = cur_oc->s;
                         qlex();
 
                         /* If not vararg, we should break here */
-                        if (q_.t != TO_DTOK(QD_COMMA))
+                        if (cur_oc->t != TO_DTOK(QD_COMMA))
                                 break;
                 }
 
@@ -161,12 +160,12 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                         qsyntax("Argument number mismatch");
 
                 /*
-                 * XXX: if varargs, q_.t is for ',' and next tok is "..."
+                 * XXX: if varargs, cur_oc->t is for ',' and next tok is "..."
                  */
-                if (q_.t != TO_DTOK(QD_RPAR))
+                if (cur_oc->t != TO_DTOK(QD_RPAR))
                         qerr_expected(")");
                 qlex();
-                if (q_.t != TO_DTOK(QD_LBRACE))
+                if (cur_oc->t != TO_DTOK(QD_LBRACE))
                         qerr_expected("{");
 
                 /* execute it */
@@ -195,19 +194,19 @@ do_let(void)
         struct qvar_t *v, *p;
 
         qlex();
-        if (q_.t != 'u')
+        if (cur_oc->t != 'u')
                 qerr_expected("identifier");
         /* Make sure name is not same as other automatic vars */
         for (p = q_.fp + 1; p < q_.sp; p++) {
-                if (p->name && !strcmp(q_.tok.s, p->name))
+                if (p->name && !strcmp(cur_oc->s, p->name))
                         qsyntax("Variable `%s' is already declared", p->name);
         }
 
         v = qstack_getpush();
-        v->name = q_literal(q_.tok.s);
+        v->name = cur_oc->s;
 
         qlex();
-        switch (q_.t) {
+        switch (cur_oc->t) {
         case TO_DTOK(QD_SEMI):
                 /* empty declaration, like "let x;" */
                 break;
@@ -215,7 +214,7 @@ do_let(void)
                 /* assign v with the "something" of "let x = something" */
                 q_eval(v);
                 qlex();
-                if (q_.t != TO_DTOK(QD_SEMI))
+                if (cur_oc->t != TO_DTOK(QD_SEMI))
                         qerr_expected(";");
                 break;
         }
@@ -235,13 +234,13 @@ interpret_block(struct qvar_t *retval)
         int brace = 1;
         while (brace) {
                 qlex();
-                switch (q_.t) {
+                switch (cur_oc->t) {
                 case 'u':
                     {
-                        struct qvar_t *v = qsymbol_lookup(q_.tok.s);
+                        struct qvar_t *v = qsymbol_lookup(cur_oc->s);
                         if (!v) {
                                 qsyntax("Unrecognized symbol `%s'",
-                                        q_.tok.s);
+                                        cur_oc->s);
                         }
                         if (v->magic == QFUNCTION_MAGIC
                             || v->magic == QINTL_MAGIC) {
@@ -251,15 +250,15 @@ interpret_block(struct qvar_t *retval)
                                 qvar_reset(&dummy);
 
                                 qlex();
-                                if (q_.t != TO_DTOK(QD_SEMI))
+                                if (cur_oc->t != TO_DTOK(QD_SEMI))
                                         qerr_expected(";");
                         } else {
                                 qlex();
-                                if (q_.t != TO_DTOK(QD_EQ))
+                                if (cur_oc->t != TO_DTOK(QD_EQ))
                                         qerr_expected("assignment");
                                 q_eval(v);
                                 qlex();
-                                if (q_.t != TO_DTOK(QD_SEMI))
+                                if (cur_oc->t != TO_DTOK(QD_SEMI))
                                         qerr_expected(";");
                         }
                         break;
@@ -276,21 +275,21 @@ interpret_block(struct qvar_t *retval)
                         if (q_.fp == q_.stack)
                                 qsyntax("Cannot return from global scope");
                         qlex();
-                        if (q_.t != TO_DTOK(QD_SEMI)) {
+                        if (cur_oc->t != TO_DTOK(QD_SEMI)) {
                                 q_unlex();
                                 q_eval(retval);
                                 qlex();
-                                if (q_.t != TO_DTOK(QD_SEMI))
+                                if (cur_oc->t != TO_DTOK(QD_SEMI))
                                         qerr_expected(";");
                         }
-                        while (brace && q_.t != EOF)
+                        while (brace && cur_oc->t != EOF)
                                 qlex();
                         return true;
                 case TO_KTOK(KW_BREAK):
                         qlex();
-                        if (q_.t != TO_DTOK(QD_SEMI))
+                        if (cur_oc->t != TO_DTOK(QD_SEMI))
                                 qerr_expected(";");
-                        while (brace && q_.t != EOF)
+                        while (brace && cur_oc->t != EOF)
                                 qlex();
                         return false;
 
@@ -299,20 +298,20 @@ interpret_block(struct qvar_t *retval)
                                 qsyntax("Unexpected end of script");
                         return false;
                 default:
-                        qsyntax("Token not allowed here");
+                        qsyntax("Token '%s' not allowed here", cur_oc->s);
                 }
         }
         return false;
 }
 
-int
+void
 exec_script(struct ns_t *ns)
 {
-        int t;
+        bug_on(!ns->pgm.oc);
 
         /* Initialize program counter */
-        q_.pc.px.ns = q_.pclast.px.ns = ns;
-        q_.pc.px.s  = q_.pclast.px.s  = ns->pgm.s;
+        q_.pc.px.ns = ns;
+        cur_oc = ns->pgm.oc;
         /* Initialize stack regs */
         q_.sp = q_.stack;
         q_.fp = q_.stack;
@@ -323,17 +322,20 @@ exec_script(struct ns_t *ns)
         qvar_init(&q_.lr);
         qop_mov(&q_.lr, &q_.pc);
 
-        t = qlex();
-        if (t == EOF)
-                return -1;
+        if (cur_oc->t == EOF)
+                return;
 
-        q_unlex();
+        /*
+         * dirty, but we only do it here: we want the first
+         * call to qlex() to get the FIRST opcode, not the SECOND.
+         * We don't call q_unlex, because that will trap an
+         * out-of-bounds bug.  Like I said, it's dirty.
+         */
+        cur_oc--;
 
         /*
          * interpret_block won't fill retval, because "return" is
          * invalidated before that could happen, so NULL
          */
         interpret_block(NULL);
-
-        return 0;
 }

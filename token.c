@@ -1,6 +1,7 @@
 #include "egq.h"
 #include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 
 /**
  * token_init - Initialize @tok
@@ -63,6 +64,22 @@ token_free(struct token_t *tok)
         token_init(tok);
 }
 
+static void
+token_maybe_realloc(struct token_t *tok, size_t amt)
+{
+        /* if amt == sizeof opcode, we expect a lot of these */
+        size_t blklen = amt == 2 ? 128 : 1024;
+        size_t needsize = tok->p * amt + amt;
+        while (needsize >= tok->size) {
+                char *tmp = realloc(tok->s, tok->size + blklen);
+                if (!tmp)
+                        fail("EOM");
+
+                tok->s = tmp;
+                tok->size += blklen;
+        }
+}
+
 /**
  * token_putc - put a character in buffer
  * @tok: Buffer storage.
@@ -75,15 +92,8 @@ token_free(struct token_t *tok)
 void
 token_putc(struct token_t *tok, int c)
 {
-        enum { BLKLEN = 128 };
-        while ((tok->p + 1) >= tok->size) {
-                char *tmp = realloc(tok->s, tok->size + BLKLEN);
-                if (!tmp)
-                        fail("EOM");
-
-                tok->s = tmp;
-                tok->size += BLKLEN;
-        }
+        /* +2 because we always want at least a null char termination */
+        token_maybe_realloc(tok, 2);
         tok->s[tok->p] = c;
         /* Don't allow placing nulchars except as terminations */
         if (c != '\0')
@@ -91,6 +101,14 @@ token_putc(struct token_t *tok, int c)
 
         /* Keep always nulchar terminated */
         tok->s[tok->p] = '\0';
+}
+
+void
+token_putcode(struct token_t *tok, struct opcode_t *oc)
+{
+        token_maybe_realloc(tok, sizeof(*oc));
+        memcpy(&tok->oc[tok->p], oc, sizeof(*oc));
+        tok->p++;
 }
 
 /**
@@ -107,5 +125,6 @@ token_puts(struct token_t *tok, const char *s)
         while ((c = *s++) != '\0')
                 token_putc(tok, c);
 }
+
 
 

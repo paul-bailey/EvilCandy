@@ -1,5 +1,23 @@
 #include "egq.h"
 #include <ctype.h>
+#include <stdlib.h>
+
+/* we do not recurse here, so just let it be a static struct */
+static struct {
+        int lineno;
+        struct token_t tok;
+        char *s;
+        size_t _slen; /* for getline calls */
+        char *line;   /* ditto */
+        FILE *fp;
+} lexer = {
+        .lineno = 0,
+        .tok.s = NULL,
+        .tok.p = 0,
+        .tok.size = 0,
+        .s = NULL,
+        ._slen = 0,
+};
 
 static inline bool q_isascii(int c) { return c && c == (c & 0x7fu); }
 static inline bool
@@ -13,20 +31,36 @@ static inline bool q_isident(int c) { return q_isflags(c, QIDENT); }
 static inline bool q_isident1(int c) { return q_isflags(c, QIDENT1); }
 static inline bool q_isdelim2(int c) { return q_isflags(c, QDDELIM); }
 
+static int
+lexer_next_line(void)
+{
+        int res = getline(&lexer.line, &lexer._slen, lexer.fp);
+        if (res != -1) {
+                lexer.s = lexer.line;
+                lexer.lineno++;
+        } else {
+                lexer.s = NULL;
+        }
+        return res;
+}
+
 /*
  * because this is @#$%!-ing tedious to type,
  * and we don't go to next ns in this module
  */
-#define cur_pc q_.pc.px.s
+#define cur_pc lexer.s
 
 /* if at '\0' after this, then end of namespace */
 static void
 qslide(void)
 {
-        const char *s = cur_pc;
-        while (*s != '\0' && isspace((int)(*s)))
-                ++s;
-        cur_pc = s;
+        char *s;
+        do {
+                s = lexer.s;
+                while (*s != '\0' && isspace((int)(*s)))
+                        ++s;
+        } while (*s == '\0' && lexer_next_line() != -1);
+        lexer.s = s;
 
         /*
          * If '\0', do not advance to next ns.
@@ -36,9 +70,9 @@ qslide(void)
 
 /* parse the usual backslash suspects */
 static bool
-bksl_char(const char **src, int *c, int q)
+bksl_char(char **src, int *c, int q)
 {
-        const char *p = *src;
+        char *p = *src;
         if (!!q && *p == q) {
                 *c = q;
         } else switch (*p) {
@@ -72,9 +106,9 @@ bksl_char(const char **src, int *c, int q)
 
 /* parse \NNN, 1 to 3 digits */
 static bool
-bksl_octal(const char **src, int *c)
+bksl_octal(char **src, int *c)
 {
-        const char *p = *src;
+        char *p = *src;
         int v = 0, i;
         for (i = 0; i < 3; i++) {
                 if (!isodigit(*p)) {
@@ -93,9 +127,9 @@ bksl_octal(const char **src, int *c)
 
 /* parse \xHH, 1 to 2 digits */
 static bool
-bksl_hex(const char **src, int *c)
+bksl_hex(char **src, int *c)
 {
-        const char *p = *src;
+        char *p = *src;
         int v, nybble;
         if (*p++ != 'x')
                 return false;
@@ -116,12 +150,13 @@ bksl_hex(const char **src, int *c)
 static bool
 qlex_string(void)
 {
-        struct token_t *tok = &q_.tok;
-        const char *pc = cur_pc;
+        struct token_t *tok = &lexer.tok;
+        char *pc = lexer.s;
         int c, q = *pc++;
         if (!isquote(q))
                 return false;
 
+retry:
         while ((c = *pc++) != q && c != '\0') {
                 if (c == '\\') {
                         do {
@@ -139,17 +174,20 @@ qlex_string(void)
                 token_putc(tok, c);
         }
 
-        if (c == '\0')
-                qsyntax("Unterminated quote");
+        if (c == '\0') {
+                if (lexer_next_line() == -1)
+                        qsyntax("Unterminated quote");
+                goto retry;
+        }
 
-        cur_pc = pc;
+        lexer.s = pc;
         return true;
 }
 
 static bool
 qlex_comment(void)
 {
-        const char *pc = cur_pc;
+        char *pc = lexer.s;
         if (*pc++ != '/')
                 return false;
 
@@ -157,7 +195,7 @@ qlex_comment(void)
                 /* single-line comment */
                 while (*pc != '\n' && *pc != '\0')
                         ++pc;
-                cur_pc = pc;
+                lexer.s = pc;
                 return true;
         }
 
@@ -169,7 +207,7 @@ qlex_comment(void)
                          && !(pc[0] == '*' && pc[1] == '/'));
                 if (*pc == '\0')
                         qsyntax("Unterminated comment");
-                cur_pc = pc;
+                lexer.s = pc;
                 return true;
         }
         return false;
@@ -178,23 +216,23 @@ qlex_comment(void)
 static bool
 qlex_identifier(void)
 {
-        struct token_t *tok = &q_.tok;
-        const char *pc = cur_pc;
+        struct token_t *tok = &lexer.tok;
+        char *pc = lexer.s;
         if (!q_isident1(*pc))
                 return false;
         while (q_isident(*pc))
                 token_putc(tok, *pc++);
         if (!q_isdelim(*pc))
                 qsyntax("invalid chars in identifier or keyword");
-        cur_pc = pc;
+        lexer.s = pc;
         return true;
 }
 
 static bool
 qlex_hex(void)
 {
-        struct token_t *tok = &q_.tok;
-        const char *pc = cur_pc;
+        struct token_t *tok = &lexer.tok;
+        char *pc = lexer.s;
         if (pc[0] != '0' || toupper((int)(pc[1])) != 'x')
                 return false;
         token_putc(tok, *pc++);
@@ -205,20 +243,20 @@ qlex_hex(void)
                 token_putc(tok, *pc++);
         if (!q_isdelim(*pc))
                 qsyntax("Excess characters after hex literal");
-        cur_pc = pc;
+        lexer.s = pc;
         return true;
 }
 
 static int
 qlex_number(void)
 {
-        const char *pc, *start;
+        char *pc, *start;
         int ret;
 
         if (qlex_hex())
                 return 'i';
 
-        pc = start = cur_pc;
+        pc = start = lexer.s;
 
         while (isdigit((int)*pc))
                 ++pc;
@@ -234,7 +272,7 @@ qlex_number(void)
                 while (isdigit(*pc))
                         ++pc;
                 if (*pc == 'e' || *pc == 'E') {
-                        const char *e = pc;
+                        char *e = pc;
                         ++pc;
                         if (*pc == '-' || *pc == '+') {
                                 ++e;
@@ -253,8 +291,8 @@ qlex_number(void)
                 goto malformed;
 
         while (start < pc)
-                token_putc(&q_.tok, *start++);
-        cur_pc = pc;
+                token_putc(&lexer.tok, *start++);
+        lexer.s = pc;
         return ret;
 
 malformed:
@@ -263,9 +301,9 @@ malformed:
 }
 
 static int
-qlex_delim2(const char **src, int *d)
+qlex_delim2(char **src, int *d)
 {
-        const char *s = *src;
+        char *s = *src;
         if (!q_isdelim2(*d))
                 return false;
         if (*s == *d) {
@@ -286,41 +324,50 @@ qlex_delim2(const char **src, int *d)
                 return false;
         }
         *src = s + 1;
-        token_putc(&q_.tok, *(s-1));
-        token_putc(&q_.tok, *s);
+        token_putc(&lexer.tok, *(s-1));
+        token_putc(&lexer.tok, *s);
         return true;
 }
 
 static bool
 qlex_delim(int *res)
 {
-        const char *s = cur_pc;
+        char *s = lexer.s;
         int d = *s++;
         if (!q_isdelim(d))
                 return false;
         if (!qlex_delim2(&s, &d)) {
-                token_putc(&q_.tok, d);
+                token_putc(&lexer.tok, d);
                 d = q_.char_xtbl[d];
         }
 
         bug_on(!d);
         *res = TO_DTOK(d);
-        cur_pc = s;
+        lexer.s = s;
         return true;
 }
 
+/*
+ * returns:
+ * 'd' OR'd with delim<<8 if token was a delimiter
+ * 'k' OR'd with code<<8 for keyword if token was a keyword
+ * 'q' if quoted string.
+ * 'i' if integer
+ * 'f' if float
+ * 'u' if identifier
+ * EOF if end of file
+ */
 static int
 qlex_helper(void)
 {
-        struct token_t *tok = &q_.tok;
+        struct token_t *tok = &lexer.tok;
         int ret;
 
         token_reset(tok);
-        qop_mov(&q_.pclast, &q_.pc);
 
         do {
                 qslide();
-                if (*cur_pc == '\0')
+                if (*lexer.s == '\0')
                         return EOF;
         } while (qlex_comment());
 
@@ -330,7 +377,7 @@ qlex_helper(void)
                 return 'q';
         } else if (qlex_identifier()) {
                 int *lu = hashtable_get(q_.kw_htbl, tok->s, NULL);
-                return lu ?  TO_KTOK(*lu) : 'u';
+                return lu ? TO_KTOK(*lu) : 'u';
         } else if ((ret = qlex_number()) != 0) {
                 return ret;
         }
@@ -339,21 +386,65 @@ qlex_helper(void)
         return 0;
 }
 
-/*
- * returns:
- * 'd' OR'd with delim<<8 if token was a delimiter
- * 'k' OR'd with code<<8 for keyword if token was a keyword
- * 'q' if q_.tok is filled with quoted string.
- * 'i' if integer
- * 'f' if float
- * 'u' if q_.tok has identifier
- * EOF if end of namespace
- */
 int
 qlex(void)
 {
-        int t = qlex_helper();
-        q_.t = t;
-        return t;
+        bug_on(!cur_oc);
+
+        cur_oc++;
+        return cur_oc->t;
 }
 
+void
+q_unlex(void)
+{
+        bug_on(cur_oc <= q_.pc.px.ns->pgm.oc);
+        cur_oc--;
+}
+
+struct ns_t *
+prescan(const char *filename)
+{
+        struct opcode_t oc;
+        struct ns_t *ns;
+        int t;
+
+        lexer.fp = fopen(filename, "r");
+        if (!lexer.fp)
+                fail("Cannot open %s\n", filename);
+        lexer.lineno = 0;
+        if (lexer_next_line() == -1) {
+                ns = NULL;
+                goto done;
+        }
+
+        ns = ecalloc(sizeof(*ns));
+        ns->fname = q_literal(filename);
+        token_init(&ns->pgm);
+        while ((t = qlex_helper()) != EOF) {
+                struct opcode_t oc;
+                oc.t    = t;
+                oc.line = lexer.lineno;
+                oc.s    = q_literal(lexer.tok.s);
+                bug_on(lexer.tok.s == NULL);
+                if (oc.t == 'f') {
+                        double f = strtod(lexer.tok.s, NULL);
+                        oc.f = f;
+                } else if (oc.t == 'i') {
+                        long long i = strtoul(lexer.tok.s, NULL, 0);
+                        oc.i = i;
+                } else {
+                        oc.i = 0LL;
+                }
+                token_putcode(&ns->pgm, &oc);
+        }
+        oc.t    = EOF;
+        oc.line = 0;
+        oc.s    = NULL;
+        oc.i    = 0LL;
+        token_putcode(&ns->pgm, &oc);
+done:
+        fclose(lexer.fp);
+        lexer.fp = 0;
+        return ns;
+}

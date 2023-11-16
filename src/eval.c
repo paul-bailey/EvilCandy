@@ -72,7 +72,7 @@ eval_pop(struct qvar_t *v)
 static bool
 islogical(int t)
 {
-        return t == TO_DTOK(QD_OROR) || t == TO_DTOK(QD_ANDAND);
+        return t == OC_OROR || t == OC_ANDAND;
 }
 
 static bool
@@ -90,20 +90,20 @@ iscmp(int t)
 static bool
 isshift(int t)
 {
-        return t == TO_DTOK(QD_LSHIFT) || t == TO_DTOK(QD_RSHIFT);
+        return t == OC_LSHIFT || t == OC_RSHIFT;
 }
 
 static bool
 isadd(int t)
 {
-        return t == TO_DTOK(QD_PLUS) || t == TO_DTOK(QD_MINUS);
+        return t == OC_PLUS || t == OC_MINUS;
 }
 
 static bool
 ismuldivmod(int t)
 {
-        return t == TO_DTOK(QD_MUL) ||
-               t == TO_DTOK(QD_DIV) || t == TO_DTOK(QD_MOD);
+        return t == OC_MUL ||
+               t == OC_DIV || t == OC_MOD;
 }
 
 static void eval0(struct qvar_t *v);
@@ -119,7 +119,7 @@ eval_atomic_function(struct qvar_t *v)
 
         v->magic = QFUNCTION_MAGIC;
         qlex();
-        if (q_.pc.px.oc->t != TO_DTOK(QD_LPAR))
+        if (q_.pc.px.oc->t != OC_LPAR)
                 qerr_expected("(");
 
         /*
@@ -141,19 +141,19 @@ eval_atomic_function(struct qvar_t *v)
                 if (q_.pc.px.oc->t != 'u')
                         qerr_expected("identifier");
                 qlex();
-        } while (q_.pc.px.oc->t == TO_DTOK(QD_COMMA));
-        if (q_.pc.px.oc->t != TO_DTOK(QD_RPAR))
+        } while (q_.pc.px.oc->t == OC_COMMA);
+        if (q_.pc.px.oc->t != OC_RPAR)
                 qerr_expected(")");
         qlex();
-        if (q_.pc.px.oc->t != TO_DTOK(QD_LBRACE))
+        if (q_.pc.px.oc->t != OC_LBRACE)
                 qerr_expected("{");
 
         brace = 1;
         while (brace && q_.pc.px.oc->t != EOF) {
                 qlex();
-                if (q_.pc.px.oc->t == TO_DTOK(QD_LBRACE))
+                if (q_.pc.px.oc->t == OC_LBRACE)
                         brace++;
-                else if (q_.pc.px.oc->t == TO_DTOK(QD_RBRACE))
+                else if (q_.pc.px.oc->t == OC_RBRACE)
                         brace--;
         }
         if (q_.pc.px.oc->t == EOF)
@@ -181,7 +181,7 @@ eval_atomic_symbol(struct qvar_t *v)
            {
                 int t = qlex(); /* need to peek */
                 q_unlex();
-                if (t == TO_DTOK(QD_LPAR)) {
+                if (t == OC_LPAR) {
                         /* It's a function call */
                         qcall_function(w, v);
                         return;
@@ -212,14 +212,14 @@ eval_atomic(struct qvar_t *v)
         case 'q':
                 qop_assign_cstring(v, q_.pc.px.oc->s);
                 break;
-        case TO_KTOK(KW_FUNC):
+        case OC_FUNC:
                 eval_atomic_function(v);
                 break;
-        case TO_DTOK(QD_RPAR):
-        case TO_DTOK(QD_RBRACK):
+        case OC_RPAR:
+        case OC_RBRACK:
                 /* XXX: Why is this ok? */
                 break;
-        case TO_DTOK(QD_LBRACE):
+        case OC_LBRACE:
                 /* TODO: Evaluate object */
                 qsyntax("Evaluate object not supported yet");
                 break;
@@ -236,11 +236,11 @@ eval8(struct qvar_t *v)
 {
         int t = q_.pc.px.oc->t;
         switch (t) {
-        case TO_DTOK(QD_LPAR):
-                t = TO_DTOK(QD_RPAR);
+        case OC_LPAR:
+                t = OC_RPAR;
                 break;
-        case TO_DTOK(QD_LBRACK):
-                t = TO_DTOK(QD_RBRACK);
+        case OC_LBRACK:
+                t = OC_RBRACK;
                 break;
         default:
                 /* Not parenthesized, carry on */
@@ -251,7 +251,7 @@ eval8(struct qvar_t *v)
         qlex();
         eval0(v);
         if (q_.pc.px.oc->t != t) {
-                if (t == TO_DTOK(QD_LPAR))
+                if (t == OC_LPAR)
                         qerr_expected(")");
                 else
                         qerr_expected("]");
@@ -283,14 +283,14 @@ eval6(struct qvar_t *v)
                 qlex();
                 eval7(w);
                 switch (t) {
-                case TO_DTOK(QD_MUL):
+                case OC_MUL:
                         qop_mul(v, w);
                         break;
-                case TO_DTOK(QD_DIV):
+                case OC_DIV:
                         qop_div(v, w);
                         break;
                 default:
-                case TO_DTOK(QD_MOD):
+                case OC_MOD:
                         qop_mod(v, w);
                         break;
                 }
@@ -309,7 +309,7 @@ eval5(struct qvar_t *v)
                 struct qvar_t *w = eval_push();
                 qlex();
                 eval6(w);
-                if (t == TO_DTOK(QD_PLUS))
+                if (t == OC_PLUS)
                         qop_add(v, w);
                 else  /* minus */
                         qop_sub(v, w);
@@ -370,14 +370,14 @@ eval2(struct qvar_t *v)
                 eval3(w);
 
                 switch (t) {
-                case TO_DTOK(QD_AND):
+                case OC_AND:
                         qop_bit_and(v, w);
                         break;
-                case TO_DTOK(QD_OR):
+                case OC_OR:
                         qop_bit_or(v, w);
                         break;
                 default:
-                case TO_DTOK(QD_XOR):
+                case OC_XOR:
                         qop_xor(v, w);
                         break;
                 }
@@ -397,7 +397,7 @@ eval1(struct qvar_t *v)
                 qlex();
                 eval2(w);
 
-                if (t == TO_DTOK(QD_OROR))
+                if (t == OC_OROR)
                         qop_land(v, w);
                 else
                         qop_lor(v, w);
@@ -410,11 +410,11 @@ static void
 eval0(struct qvar_t *v)
 {
         switch (q_.pc.px.oc->t) {
-        case TO_DTOK(QD_MUL):
+        case OC_MUL:
                 qsyntax("Pointers not yet supported");
-        case TO_DTOK(QD_PLUSPLUS):
+        case OC_PLUSPLUS:
                 qsyntax("Pre-increment not yet supported");
-        case TO_DTOK(QD_MINUSMINUS):
+        case OC_MINUSMINUS:
                 qsyntax("Pre-decrement not yet supported");
         default:
                 break;

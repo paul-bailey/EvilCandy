@@ -17,7 +17,7 @@ qsymbol_walk(struct qvar_t *o)
         struct qvar_t *v;
 
         /* Descend */
-        while ((t = qlex()) == TO_DTOK(QD_PER)) {
+        while ((t = qlex()) == OC_PER) {
                 qlex();
                 if (cur_oc->t != 'u')
                         qsyntax("Malformed symbol name");

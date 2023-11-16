@@ -89,7 +89,7 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
         qstack_push(fn->magic == QINTL_MAGIC ? q_.gbl : fn->fn.owner);
 
         qlex();
-        if (cur_oc->t != TO_DTOK(QD_LPAR))
+        if (cur_oc->t != OC_LPAR)
                 qerr_expected("(");
 
         /* push args, don't name them yet */
@@ -97,8 +97,8 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                 struct qvar_t *v = qstack_getpush();
                 q_eval(v);
                 qlex();
-        } while (cur_oc->t == TO_DTOK(QD_COMMA));
-        if (cur_oc->t != TO_DTOK(QD_RPAR))
+        } while (cur_oc->t == OC_COMMA);
+        if (cur_oc->t != OC_RPAR)
                 qerr_expected(")");
 
         fpsav = q_.fp;
@@ -152,7 +152,7 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                         qlex();
 
                         /* If not vararg, we should break here */
-                        if (cur_oc->t != TO_DTOK(QD_COMMA))
+                        if (cur_oc->t != OC_COMMA)
                                 break;
                 }
 
@@ -162,10 +162,10 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                 /*
                  * XXX: if varargs, cur_oc->t is for ',' and next tok is "..."
                  */
-                if (cur_oc->t != TO_DTOK(QD_RPAR))
+                if (cur_oc->t != OC_RPAR)
                         qerr_expected(")");
                 qlex();
-                if (cur_oc->t != TO_DTOK(QD_LBRACE))
+                if (cur_oc->t != OC_LBRACE)
                         qerr_expected("{");
 
                 /* execute it */
@@ -207,14 +207,14 @@ do_let(void)
 
         qlex();
         switch (cur_oc->t) {
-        case TO_DTOK(QD_SEMI):
+        case OC_SEMI:
                 /* empty declaration, like "let x;" */
                 break;
-        case TO_DTOK(QD_EQ):
+        case OC_EQ:
                 /* assign v with the "something" of "let x = something" */
                 q_eval(v);
                 qlex();
-                if (cur_oc->t != TO_DTOK(QD_SEMI))
+                if (cur_oc->t != OC_SEMI)
                         qerr_expected(";");
                 break;
         }
@@ -250,44 +250,44 @@ interpret_block(struct qvar_t *retval)
                                 qvar_reset(&dummy);
 
                                 qlex();
-                                if (cur_oc->t != TO_DTOK(QD_SEMI))
+                                if (cur_oc->t != OC_SEMI)
                                         qerr_expected(";");
                         } else {
                                 qlex();
-                                if (cur_oc->t != TO_DTOK(QD_EQ))
+                                if (cur_oc->t != OC_EQ)
                                         qerr_expected("assignment");
                                 q_eval(v);
                                 qlex();
-                                if (cur_oc->t != TO_DTOK(QD_SEMI))
+                                if (cur_oc->t != OC_SEMI)
                                         qerr_expected(";");
                         }
                         break;
                     }
-                case TO_KTOK(KW_LET):
+                case OC_LET:
                         do_let();
                         break;
-                case TO_DTOK(QD_RBRACE):
+                case OC_RBRACE:
                         brace--;
                         if (!brace && q_.fp == q_.stack)
                                 qsyntax("Unexpected '}'");
                         break;
-                case TO_KTOK(KW_RETURN):
+                case OC_RETURN:
                         if (q_.fp == q_.stack)
                                 qsyntax("Cannot return from global scope");
                         qlex();
-                        if (cur_oc->t != TO_DTOK(QD_SEMI)) {
+                        if (cur_oc->t != OC_SEMI) {
                                 q_unlex();
                                 q_eval(retval);
                                 qlex();
-                                if (cur_oc->t != TO_DTOK(QD_SEMI))
+                                if (cur_oc->t != OC_SEMI)
                                         qerr_expected(";");
                         }
                         while (brace && cur_oc->t != EOF)
                                 qlex();
                         return true;
-                case TO_KTOK(KW_BREAK):
+                case OC_BREAK:
                         qlex();
-                        if (cur_oc->t != TO_DTOK(QD_SEMI))
+                        if (cur_oc->t != OC_SEMI)
                                 qerr_expected(";");
                         while (brace && cur_oc->t != EOF)
                                 qlex();

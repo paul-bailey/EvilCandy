@@ -1,6 +1,7 @@
 #ifndef EGQ_H
 #define EGQ_H
 
+#include "opcodes.h"
 #include "hashtable.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,14 +9,6 @@
 enum {
         /* Tunable parameters */
         QSTACKMAX = 8192,
-
-        /* keyword codes */
-        KW_APPEND = 1,
-        KW_FUNC,
-        KW_LET,
-        KW_THIS,
-        KW_RETURN,
-        KW_BREAK,
 
         /* magic numbers */
         QOBJECT_MAGIC = 0x72346578,
@@ -32,43 +25,6 @@ enum {
         QIDENT = 0x02,
         QIDENT1 = 0x04,
         QDDELIM = 0x08,
-
-        /* delimiter codes */
-        QD_PLUS = 1,
-        QD_MINUS,
-        QD_GT,
-        QD_LT,
-        QD_EQ,
-        QD_AND,
-        QD_OR,
-        QD_PER,
-        QD_EXCLAIM,
-        QD_SEMI,
-        QD_COMMA,
-        QD_DIV,
-        QD_MUL,
-        QD_MOD,
-        QD_XOR,
-        QD_LPAR,
-        QD_RPAR,
-        QD_LBRACK,
-        QD_RBRACK,
-        QD_LBRACE,
-        QD_RBRACE,
-
-        QD_PLUSPLUS,
-        QD_MINUSMINUS,
-        QD_LSHIFT,
-        QD_RSHIFT,
-        QD_EQEQ,
-        QD_ANDAND,
-        QD_OROR,
-
-        QD_LEQ,
-        QD_GEQ,
-        QD_NEQ,
-        /* technically this is one more, but whatever... */
-        QD_NCODES,
 };
 
 /**
@@ -216,9 +172,6 @@ extern const char *q_nameof(struct qvar_t *v);
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
-#define TO_TOK(c1_, c2_)        ((c1_) | ((c2_) << 8))
-#define TO_DTOK(c_)             TO_TOK('d', c_)
-#define TO_KTOK(c_)             TO_TOK('k', c_)
 
 /* builtin.c */
 extern struct qvar_t *q_builtin_seek(const char *key);

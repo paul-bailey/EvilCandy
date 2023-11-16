@@ -235,7 +235,7 @@ er:
 
 /**
  * qop_cmp - compare @a to @b and store result in @a
- * @op: An delimiter token indicating a comparison, e.g. TO_DTOK(QD_LT)
+ * @op: An delimiter token indicating a comparison, e.g. OC_LT
  *
  * WARNING!! this re-casts @a, deleting what it had before.
  */
@@ -244,17 +244,17 @@ qop_cmp(struct qvar_t *a, struct qvar_t *b, int op)
 {
         int ret, cmp = cmp_helper(a, b);
         switch (op) {
-        case TO_DTOK(QD_EQEQ):
+        case OC_EQEQ:
                 ret = cmp == 0;
-        case TO_DTOK(QD_LEQ):
+        case OC_LEQ:
                 ret = cmp <= 0;
-        case TO_DTOK(QD_GEQ):
+        case OC_GEQ:
                 ret = cmp >= 0;
-        case TO_DTOK(QD_NEQ):
+        case OC_NEQ:
                 ret = cmp != 0;
-        case TO_DTOK(QD_LT):
+        case OC_LT:
                 ret = cmp < 0;
-        case TO_DTOK(QD_GT):
+        case OC_GT:
                 ret = cmp > 0;
         default:
                 ret = 0;
@@ -270,16 +270,16 @@ qop_cmp(struct qvar_t *a, struct qvar_t *b, int op)
 /**
  * qop_shift - left-shift value of @a by amount specified in @b
  *              and store result in @a
- * @op: Must be either TO_DTOK(QD_LSFHIT) or TO_DTOK(QD_RSHIFT)
+ * @op: Must be either OC_LSFHIT or OC_RSHIFT
  */
 void
 qop_shift(struct qvar_t *a, struct qvar_t *b, int op)
 {
         long long amt;
 
-        bug_on(op != TO_DTOK(QD_LSHIFT) && op != TO_DTOK(QD_RSHIFT));
+        bug_on(op != OC_LSHIFT && op != OC_RSHIFT);
         if (a->magic != QINT_MAGIC || b->magic != QINT_MAGIC)
-                epermit(op == TO_DTOK(QD_LSHIFT) ? "<<" : ">>");
+                epermit(op == OC_LSHIFT ? "<<" : ">>");
 
         amt = b->i;
 
@@ -290,7 +290,7 @@ qop_shift(struct qvar_t *a, struct qvar_t *b, int op)
                         qsyntax("Cannot shift by negative amount");
                 /* else, don't change i */
                 return;
-        } else if (op == TO_DTOK(QD_LSHIFT)) {
+        } else if (op == OC_LSHIFT) {
                 a->i <<= (int)amt;
         } else {
                 a->i >>= (int)amt;

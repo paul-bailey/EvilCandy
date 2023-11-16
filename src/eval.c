@@ -36,39 +36,6 @@ init_module(void)
         module_is_init = true;
 }
 
-#define EVAL_STACK_SIZE 8192
-static struct qvar_t *eval_stack = NULL;
-static struct qvar_t *eval_sp = NULL;
-static struct qvar_t *eval_stack_top = NULL;
-
-static struct qvar_t *
-eval_push(void)
-{
-        struct qvar_t *ret;
-        if (!eval_sp) {
-                eval_stack = emalloc(EVAL_STACK_SIZE);
-                eval_sp = eval_stack;
-                eval_stack_top = eval_stack + EVAL_STACK_SIZE;
-        } else if (eval_sp >= eval_stack_top) {
-                qsyntax("Eval stack overrun");
-        }
-        ret = eval_sp;
-        ++eval_sp;
-        qvar_init(ret);
-        return ret;
-}
-
-static void
-eval_pop(struct qvar_t *v)
-{
-        /* XXX: arg is a sanity check, not actually needed */
-        bug_on(v != (eval_sp - 1));
-        bug_on(eval_sp <= eval_stack);
-
-        qvar_reset(v);
-        --eval_sp;
-}
-
 static bool
 islogical(int t)
 {
@@ -117,6 +84,7 @@ eval_atomic_function(struct qvar_t *v)
 {
         int brace;
 
+        bug_on(v->magic != QEMPTY_MAGIC);
         v->magic = QFUNCTION_MAGIC;
         qlex();
         if (q_.pc.px.oc->t != OC_LPAR)
@@ -172,7 +140,7 @@ static void
 eval_atomic_symbol(struct qvar_t *v)
 {
         char *name = q_.pc.px.oc->s;
-        struct qvar_t *w = qsymbol_lookup(name);
+        struct qvar_t *w = qsymbol_lookup(name, 0);
         if (!w)
                 qsyntax("symbol %s not found", name);
         switch (w->magic) {
@@ -279,7 +247,7 @@ eval6(struct qvar_t *v)
 
         eval7(v);
         while (ismuldivmod(t = q_.pc.px.oc->t)) {
-                struct qvar_t *w = eval_push();
+                struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval7(w);
                 switch (t) {
@@ -294,7 +262,7 @@ eval6(struct qvar_t *v)
                         qop_mod(v, w);
                         break;
                 }
-                eval_pop(w);
+                qstack_pop(NULL);
         }
 }
 
@@ -306,14 +274,14 @@ eval5(struct qvar_t *v)
 
         eval6(v);
         while (isadd(t = q_.pc.px.oc->t)) {
-                struct qvar_t *w = eval_push();
+                struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval6(w);
                 if (t == OC_PLUS)
                         qop_add(v, w);
                 else  /* minus */
                         qop_sub(v, w);
-                eval_pop(w);
+                qstack_pop(NULL);
         }
 }
 
@@ -325,11 +293,11 @@ eval4(struct qvar_t *v)
 
         eval5(v);
         while (isshift(t = q_.pc.px.oc->t)) {
-                struct qvar_t *w = eval_push();
+                struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval5(w);
                 qop_shift(v, w, t);
-                eval_pop(w);
+                qstack_pop(NULL);
         }
 }
 
@@ -344,16 +312,16 @@ eval3(struct qvar_t *v)
 
         eval4(v);
         while (iscmp(t = q_.pc.px.oc->t)) {
-                struct qvar_t *w = eval_push();
+                struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval4(w);
                 /*
-                 * sanity check.  qop_cmp clobbers v, which is fine if
+                 * Need sanity check.
+                 * qop_cmp clobbers v, which is fine if
                  * script was written correctly.
                  */
-                bug_on(!(v >= eval_stack && v < eval_sp));
                 qop_cmp(v, w, t);
-                eval_pop(w);
+                qstack_pop(NULL);
         }
 }
 
@@ -365,7 +333,7 @@ eval2(struct qvar_t *v)
 
         eval3(v);
         while (isbinary(t = q_.pc.px.oc->t)) {
-                struct qvar_t *w = eval_push();
+                struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval3(w);
 
@@ -381,7 +349,7 @@ eval2(struct qvar_t *v)
                         qop_xor(v, w);
                         break;
                 }
-                eval_pop(w);
+                qstack_pop(NULL);
         }
 }
 
@@ -393,7 +361,7 @@ eval1(struct qvar_t *v)
 
         eval2(v);
         while (islogical(t = q_.pc.px.oc->t)) {
-                struct qvar_t *w = eval_push();
+                struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval2(w);
 
@@ -401,7 +369,7 @@ eval1(struct qvar_t *v)
                         qop_land(v, w);
                 else
                         qop_lor(v, w);
-                eval_pop(w);
+                qstack_pop(NULL);
         }
 }
 

@@ -52,7 +52,7 @@ enum {
         KW_THIS,
         KW_RETURN,
         KW_BREAK,
-
+        KW_IMPORT,
 };
 
 enum {
@@ -98,6 +98,7 @@ enum {
         OC_THIS         = TO_KTOK(KW_THIS),
         OC_RETURN       = TO_KTOK(KW_RETURN),
         OC_BREAK        = TO_KTOK(KW_BREAK),
+        OC_IMPORT       = TO_KTOK(KW_IMPORT),
 };
 
 #endif /* EGQ_OPCODES_H */

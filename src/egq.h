@@ -162,6 +162,7 @@ struct q_private_t {
 
 /* I really hate typing this everywhere */
 #define cur_oc  q_.pc.px.oc
+#define cur_ns  q_.pc.px.ns
 
 /* script.c */
 extern struct q_private_t q_;
@@ -265,9 +266,15 @@ extern void qop_assign_cstring(struct qvar_t *v, const char *s);
 extern void qop_assign_int(struct qvar_t *v, long long i);
 extern void qop_assign_float(struct qvar_t *v, double f);
 
+/* stack.c */
+extern void qstack_pop(struct qvar_t *to);
+extern struct qvar_t *qstack_getpush(void);
+extern void qstack_push(struct qvar_t *v);
+
 /* symbol.c */
-extern struct qvar_t *qsymbol_walk(struct qvar_t *o);
-extern struct qvar_t *qsymbol_lookup(const char *s);
+enum { F_FORCE = 0x1 };
+extern struct qvar_t *qsymbol_walk(struct qvar_t *o, unsigned int flags);
+extern struct qvar_t *qsymbol_lookup(const char *s, unsigned int flags);
 
 /* token.c */
 extern void token_init(struct token_t *tok);

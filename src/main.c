@@ -38,11 +38,13 @@ init_lib(void)
                 { "let",        KW_LET },
                 { "return",     KW_RETURN },
                 { "this",       KW_THIS },
+                { "break",      KW_BREAK },
+                { "import",     KW_IMPORT },
                 { NULL, 0 }
         };
         /*
          * IMPORTANT!! These two strings must be in same order as
-         *             their QD_* enums
+         *             their QD_* enums in opcode.h
          */
         static const char *const DELIMS = "+-<>=&|.!;,/*%^()[]{} \t\n";
         static const char *const DELIMDBL = "+-<>=&|";
@@ -50,8 +52,6 @@ init_lib(void)
         const char *s;
         const struct kw_tbl_t *tkw;
         int i;
-
-        memset(&q_, 0, sizeof(q_));
 
         /* Initialize hash tables */
         q_.kw_htbl = hashtable_create(HTBL_COPY_KEY|HTBL_COPY_DATA, NULL);
@@ -123,11 +123,11 @@ main(int argc, char **argv)
         ns->lineno = 0;
         token_init(&ns->pgm);
 
-        ns = prescan(argv[1]);
         /*
          * TODO: The following should be done from interpret_block,
          * when getting an `import' token
          */
+        ns = prescan(argv[1]);
         if (!q_.ns_top) {
                 q_.ns_top = ns;
         } else {
@@ -137,6 +137,7 @@ main(int argc, char **argv)
                 p->next = ns;
         }
         exec_script(ns);
+        return 0;
 }
 
 

@@ -398,7 +398,7 @@ qlex(void)
 void
 q_unlex(void)
 {
-        bug_on(cur_oc <= q_.pc.px.ns->pgm.oc);
+        bug_on(cur_oc <= cur_ns->pgm.oc);
         cur_oc--;
 }
 

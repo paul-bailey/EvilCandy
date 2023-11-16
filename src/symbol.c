@@ -3,29 +3,41 @@
 #include <string.h>
 
 /**
- * qsymbol_walk - find descendant of @o from input in source
- * @o: An object to walk down
+ * qsymbol_walk - walk down an object's "child.grandchild..." path
+ *                as specified by the input tokens.
+ * @o: The object to be the starting point.
+ * @flags: Determines a corner case of return value, see below.
  *
- * Return: @o if there is no ".child.granchild..." after the PC
- *      Descendant of @o if there is, or NULL if the descendant
- *      does not exist.
+ * Return:
+ *    - If every descendant of n-size path exists, return nth descendant
+ *    - If a non-object descendant is found first, return that.
+ *    - If next descendant on path is not found, then...
+ *            - if F_FORCE is set in @flags, return the parent.
+ *              We may be appending a new child to the object.
+ *            - if F_FORCE is not set, return NULL.  We're probably
+ *              evaluating an object, not assigning it.
  */
 struct qvar_t *
-qsymbol_walk(struct qvar_t *o)
+qsymbol_walk(struct qvar_t *o, unsigned int flags)
 {
         int t;
         struct qvar_t *v;
 
-        /* Descend */
         while ((t = qlex()) == OC_PER) {
                 qlex();
                 if (cur_oc->t != 'u')
                         qsyntax("Malformed symbol name");
-                v = qobject_child(v, cur_oc->s);
-                if (!v)
-                        return NULL;
+                v = qobject_child(o, cur_oc->s);
+                if (!v) {
+                        if (!(flags & F_FORCE))
+                                return NULL;
+                        q_unlex();
+                        q_unlex();
+                        return o;
+                }
                 if (v->magic != QOBJECT_MAGIC)
                         return v;
+                o = v;
         }
         q_unlex();
         return v;
@@ -48,9 +60,11 @@ trystack(const char *s)
 static struct qvar_t *
 trythis(const char *s)
 {
-        struct qvar_t *v;
-        struct qvar_t *o = q_.fp;
-        /* FIXME: Some objects don't trace all the way up to q_.gbl */
+        struct qvar_t *v, *o = q_.fp;
+        /*
+         * FIXME: Some objects don't trace all the way up to q_.gbl
+         * and some functions' "this" could be such objects.
+         */
         while (o) {
                 if ((v = qobject_child(o, s)) != NULL)
                         return v;
@@ -59,10 +73,13 @@ trythis(const char *s)
         return NULL;
 }
 
-/*
- * @s is first token of something.something.something...
- * 1. Look for first "something," in following order
- *    of precedence:
+/**
+ * symbol_lookup - Look up a symbol
+ * @s: first token of "something.something.something..."
+ * @flags: same as with qsymbol_walk, see comment there
+ *
+ * The process is...
+ * 1. Look for first "something":
  *      a. if s==__gbl__, assume q_.gbl
  *      b. look in stack frame
  *      c. look in `this'
@@ -71,10 +88,13 @@ trythis(const char *s)
  *      e. look in built-in function list
  *
  * 2. If first "something" is an object and next tok is '.',
- *    walk down the name until the final descendant is reached.
+ *    return result of "qsymbol_walk(result, @flags)"
+ *
+ * Return NULL if top-level @s can't be found, regardless
+ * of flags.
  */
 struct qvar_t *
-qsymbol_lookup(const char *s)
+qsymbol_lookup(const char *s, unsigned int flags)
 {
         struct qvar_t *v = NULL;
 
@@ -93,7 +113,7 @@ qsymbol_lookup(const char *s)
         } while (0);
 
         if (v->magic == QOBJECT_MAGIC)
-                return qsymbol_walk(v);
+                return qsymbol_walk(v, flags);
 
         return v;
 }

@@ -2,35 +2,10 @@
 #include <string.h>
 
 static void
-qstack_pop(struct qvar_t *to)
+expect(int opcode, const char *what)
 {
-        bug_on(q_.sp <= &q_.stack[0]);
-        q_.sp--;
-        if (to)
-                qop_mov(to, q_.sp);
-        if (q_.sp->name) {
-                /* Don't free it, it's in literal heaven now */
-                q_.sp->name = NULL;
-        }
-        qvar_reset(q_.sp);
-}
-
-static struct qvar_t *
-qstack_getpush(void)
-{
-        struct qvar_t *res = q_.sp;
-        if (res >= &q_.stack[QSTACKMAX])
-                qsyntax("Stack overflow");
-        ++q_.sp;
-        qvar_init(res);
-        return res;
-}
-
-static void
-qstack_push(struct qvar_t *v)
-{
-        struct qvar_t *to = qstack_getpush();
-        qop_mov(to, v);
+        if (cur_oc->t != opcode)
+                qerr_expected(what);
 }
 
 static bool interpret_block(struct qvar_t *retval);
@@ -45,7 +20,7 @@ pcsanity(void)
         struct ns_t *ns;
         bool ok = false;
         for (ns = q_.ns_top; ns != NULL; ns = ns->next) {
-                if (ns == q_.pc.px.ns) {
+                if (ns == cur_ns) {
                         struct token_t *t = &ns->pgm;
                         ok = cur_oc >= t->oc && cur_oc < &t->oc[t->p];
                         break;
@@ -89,8 +64,7 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
         qstack_push(fn->magic == QINTL_MAGIC ? q_.gbl : fn->fn.owner);
 
         qlex();
-        if (cur_oc->t != OC_LPAR)
-                qerr_expected("(");
+        expect(OC_LPAR, "(");
 
         /* push args, don't name them yet */
         do {
@@ -98,8 +72,7 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                 q_eval(v);
                 qlex();
         } while (cur_oc->t == OC_COMMA);
-        if (cur_oc->t != OC_RPAR)
-                qerr_expected(")");
+        expect(OC_RPAR, ")");
 
         fpsav = q_.fp;
         q_.fp = new_fp;
@@ -139,8 +112,7 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                  */
                 for (argptr = q_.fp + 1; argptr < q_.sp; argptr++) {
                         qlex();
-                        if (cur_oc->t != 'u')
-                                qerr_expected("identifier");
+                        expect('u', "identifier");
                         bug_on(argptr->name != NULL);
                         /*
                          * FIXME: The whole point of a stack array
@@ -162,11 +134,9 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                 /*
                  * XXX: if varargs, cur_oc->t is for ',' and next tok is "..."
                  */
-                if (cur_oc->t != OC_RPAR)
-                        qerr_expected(")");
+                expect(OC_RPAR, ")");
                 qlex();
-                if (cur_oc->t != OC_LBRACE)
-                        qerr_expected("{");
+                expect(OC_LBRACE, "{");
 
                 /* execute it */
                 interpret_block(retval);
@@ -194,8 +164,7 @@ do_let(void)
         struct qvar_t *v, *p;
 
         qlex();
-        if (cur_oc->t != 'u')
-                qerr_expected("identifier");
+        expect('u', "identifier");
         /* Make sure name is not same as other automatic vars */
         for (p = q_.fp + 1; p < q_.sp; p++) {
                 if (p->name && !strcmp(cur_oc->s, p->name))
@@ -214,8 +183,7 @@ do_let(void)
                 /* assign v with the "something" of "let x = something" */
                 q_eval(v);
                 qlex();
-                if (cur_oc->t != OC_SEMI)
-                        qerr_expected(";");
+                expect(OC_SEMI, ";");
                 break;
         }
 }
@@ -237,7 +205,8 @@ interpret_block(struct qvar_t *retval)
                 switch (cur_oc->t) {
                 case 'u':
                     {
-                        struct qvar_t *v = qsymbol_lookup(cur_oc->s);
+                        /* TODO: Add F_FORCE, we might be assigning new member */
+                        struct qvar_t *v = qsymbol_lookup(cur_oc->s, 0);
                         if (!v) {
                                 qsyntax("Unrecognized symbol `%s'",
                                         cur_oc->s);
@@ -250,16 +219,13 @@ interpret_block(struct qvar_t *retval)
                                 qvar_reset(&dummy);
 
                                 qlex();
-                                if (cur_oc->t != OC_SEMI)
-                                        qerr_expected(";");
+                                expect(OC_SEMI, ";");
                         } else {
                                 qlex();
-                                if (cur_oc->t != OC_EQ)
-                                        qerr_expected("assignment");
+                                expect(OC_EQ, "assignment");
                                 q_eval(v);
                                 qlex();
-                                if (cur_oc->t != OC_SEMI)
-                                        qerr_expected(";");
+                                expect(OC_SEMI, ";");
                         }
                         break;
                     }
@@ -279,16 +245,14 @@ interpret_block(struct qvar_t *retval)
                                 q_unlex();
                                 q_eval(retval);
                                 qlex();
-                                if (cur_oc->t != OC_SEMI)
-                                        qerr_expected(";");
+                                expect(OC_SEMI, ";");
                         }
                         while (brace && cur_oc->t != EOF)
                                 qlex();
                         return true;
                 case OC_BREAK:
                         qlex();
-                        if (cur_oc->t != OC_SEMI)
-                                qerr_expected(";");
+                        expect(OC_SEMI, ";");
                         while (brace && cur_oc->t != EOF)
                                 qlex();
                         return false;
@@ -310,7 +274,7 @@ exec_script(struct ns_t *ns)
         bug_on(!ns->pgm.oc);
 
         /* Initialize program counter */
-        q_.pc.px.ns = ns;
+        cur_ns = ns;
         cur_oc = ns->pgm.oc;
         /* Initialize stack regs */
         q_.sp = q_.stack;

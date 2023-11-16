@@ -38,6 +38,7 @@ CC := gcc
 LD := gcc
 DEPDIR := .deps
 OBJDIR := .objs
+SRCDIR := src
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
 
 quiet_cmd_cc = CC $@
@@ -47,8 +48,8 @@ quiet_cmd_ld = LD $@
 
 prog := ./egq
 
-objs := $(patsubst %.c,%.o,$(wildcard *.c))
-objs := $(addprefix $(OBJDIR)/,$(objs))
+objs := $(patsubst %.c,%.o,$(wildcard $(SRCDIR)/*.c))
+objs := $(addprefix $(OBJDIR)/,$(notdir $(objs)))
 
 # Inspired from Linux's scripts/Kbuild.include file
 #
@@ -60,8 +61,8 @@ cmd = @$(if $($(quiet)cmd_$(1)), \
 
 all: $(prog)
 
-$(OBJDIR)/%.o: %.c
-$(OBJDIR)/%.o: %.c $(DEPDIR)/%.d | $(DEPDIR) $(OBJDIR)
+$(OBJDIR)/%.o: $(SRCDIR)/%.c
+$(OBJDIR)/%.o: $(SRCDIR)/%.c $(DEPDIR)/%.d | $(DEPDIR) $(OBJDIR)
 	$(call cmd,cc)
 
 $(DEPDIR) $(OBJDIR): ; @mkdir -p $@

@@ -218,73 +218,50 @@ eval_atomic_object(struct qvar_t *v)
 }
 
 static void
-eval_atomic_int(struct qvar_t *v)
+eval_atomic_assign(struct qvar_t *v, struct opcode_t *oc)
 {
-        long long value = cur_oc->i;
-        qlex();
-        if (cur_oc->t == OC_PER) {
-                struct qvar_t *method;
-                struct qvar_t *w = qstack_getpush();
-
-                qop_assign_int(w, value);
-
-                qlex();
-                expect('u');
-                method = builtin_method(w, cur_oc->s);
-                if (!method)
-                        nomethod(QINT_MAGIC, cur_oc->s);
-                qcall_function(method, v, w);
-                qstack_pop(NULL);
-        } else {
-                q_unlex();
-                qop_assign_int(v, value);
+        switch (oc->t) {
+        case 'i':
+                qop_assign_int(v, oc->i);
+                break;
+        case 'f':
+                qop_assign_float(v, oc->f);
+                break;
+        case 'q':
+                qop_assign_cstring(v, oc->s);
+                break;
+        default:
+                bug();
         }
 }
 
+/* magic is one of "ifq" */
 static void
-eval_atomic_float(struct qvar_t *v)
+eval_atomic_literal(struct qvar_t *v)
 {
-        double value = cur_oc->f;
+        struct opcode_t *oc = cur_oc;
         qlex();
         if (cur_oc->t == OC_PER) {
                 struct qvar_t *method;
                 struct qvar_t *w = qstack_getpush();
-                qop_assign_float(w, value);
+                eval_atomic_assign(w, oc);
                 qlex();
                 expect('u');
                 method = builtin_method(w, cur_oc->s);
-                if (!method)
-                        nomethod(QFLOAT_MAGIC, cur_oc->s);
+                if (!method) {
+                        int magic = oc->t == 'f'
+                                    ? QFLOAT_MAGIC
+                                    : (oc->t == 'i'
+                                       ? QINT_MAGIC : QSTRING_MAGIC);
+                        nomethod(magic, cur_oc->s);
+                }
                 qcall_function(method, v, w);
                 qstack_pop(NULL);
         } else {
                 q_unlex();
-                qop_assign_float(v, value);
+                eval_atomic_assign(v, oc);
         }
 }
-
-static void
-eval_atomic_string(struct qvar_t *v)
-{
-        char *value = cur_oc->s;
-        qlex();
-        if (cur_oc->t == OC_PER) {
-                struct qvar_t *method;
-                struct qvar_t *w = qstack_getpush();
-                qop_assign_cstring(w, value);
-                qlex();
-                expect('u');
-                method = builtin_method(w, cur_oc->s);
-                if (!method)
-                        nomethod(QSTRING_MAGIC, cur_oc->s);
-                qcall_function(method, v, w);
-                qstack_pop(NULL);
-        } else {
-                q_unlex();
-                qop_assign_cstring(v, value);
-        }
-}
-
 
 /* find value of number, string, function, or object */
 static void
@@ -295,13 +272,9 @@ eval_atomic(struct qvar_t *v)
                 eval_atomic_symbol(v);
                 break;
         case 'i':
-                eval_atomic_int(v);
-                break;
         case 'f':
-                eval_atomic_float(v);
-                break;
         case 'q':
-                eval_atomic_string(v);
+                eval_atomic_literal(v);
                 break;
         case OC_FUNC:
                 eval_atomic_function(v);

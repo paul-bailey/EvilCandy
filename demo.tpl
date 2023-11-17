@@ -69,5 +69,8 @@ iterator.whoami();
 
 let s = "This is a string";
 print("length '{}' for '{}'\n".format(s.len(), s));
+print("iterator.len()=={}\n".format(iterator.len()));
+print("length {} should equal {}\n".format(s.len(), len(s)));
+print("Length of __gbl__ is {}\n".format(len()));
 
 // : vim: set syntax=javascript :

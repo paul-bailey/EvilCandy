@@ -282,7 +282,7 @@ qobject_child(struct qvar_t *o, const char *s)
                 if (!strcmp(v->name, s))
                         return v;
         }
-        return NULL;
+        return builtin_method(o, s);
 }
 
 /* n begins at zero, not one */

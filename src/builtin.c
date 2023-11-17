@@ -29,12 +29,28 @@ static void
 object_len(struct qvar_t *ret)
 {
         struct list_t *list;
-        struct qvar_t *self = getself();
+        struct qvar_t *v;
         int i = 0;
 
-        bug_on(self->magic != QOBJECT_MAGIC);
-        list_foreach(list, &self->o.h->children)
-                ++i;
+        v = getarg(0);
+        if (!v) {
+                v = getself();
+                bug_on(v->magic != QOBJECT_MAGIC);
+        }
+        switch (v->magic) {
+        case QOBJECT_MAGIC:
+                i = 0;
+                list_foreach(list, &v->o.h->children)
+                        ++i;
+                break;
+        case QSTRING_MAGIC:
+                i = 0;
+                if (v->s.s)
+                      i = strlen(v->s.s);
+                break;
+        default:
+                i = 1;
+        }
         qop_assign_int(ret, i);
 }
 
@@ -244,7 +260,7 @@ static const struct inittbl_t typemethods[] = {
         /* QEMPTY_MAGIC */
         TBLEND,
         /* QOBJECT_MAGIC */
-        TOFTBL("len",    object_len, 0, 0),
+        TOFTBL("len",    object_len,    0, 0),
         TOFTBL("append", object_append, 0, 0),
         TBLEND,
         /* QFUNCTION_MAGIC */

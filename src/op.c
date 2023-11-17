@@ -246,16 +246,22 @@ qop_cmp(struct qvar_t *a, struct qvar_t *b, int op)
         switch (op) {
         case OC_EQEQ:
                 ret = cmp == 0;
+                break;
         case OC_LEQ:
                 ret = cmp <= 0;
+                break;
         case OC_GEQ:
                 ret = cmp >= 0;
+                break;
         case OC_NEQ:
                 ret = cmp != 0;
+                break;
         case OC_LT:
                 ret = cmp < 0;
+                break;
         case OC_GT:
                 ret = cmp > 0;
+                break;
         default:
                 ret = 0;
                 bug();

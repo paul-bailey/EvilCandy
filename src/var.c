@@ -3,9 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define container_of(x, type, member) \
-        ((type *)(((void *)(x)) - offsetof(type, member)))
-
 /*
  * So I don't have to keep malloc'ing and freeing these
  * in tiny bits.
@@ -50,7 +47,6 @@ qvar_alloc(void)
 
         for (i = 0, x = 1; !!(b->used & x) && i < 64; x <<= 1, i++)
                 ;
-
         bug_on(i == 64);
         b->used |= x;
         return &b->a[i];
@@ -193,7 +189,8 @@ qobject_reset(struct qvar_t *o)
         struct qvar_t *p = object_first_child(o);
         while (p != NULL) {
                 struct qvar_t *q = object_next_child(p, o);
-                qvar_delete(q);
+                if (q)
+                        qvar_delete(p);
                 p = q;
         }
 }
@@ -292,13 +289,13 @@ qobject_nth_child(struct qvar_t *o, int n)
 }
 
 void
-qobject_add_child(struct qvar_t *o, struct qvar_t *var)
+qobject_add_child(struct qvar_t *parent, struct qvar_t *child)
 {
-        if (var->magic == QOBJECT_MAGIC) {
-                o->o.owner = o;
-        } else if (var->magic == QFUNCTION_MAGIC) {
-                o->fn.owner = o;
+        if (child->magic == QOBJECT_MAGIC) {
+                child->o.owner = parent;
+        } else if (child->magic == QFUNCTION_MAGIC) {
+                child->fn.owner = parent;
         }
-        list_add_tail(&var->siblings, &o->o.h->children);
+        list_add_tail(&child->siblings, &parent->o.h->children);
 }
 

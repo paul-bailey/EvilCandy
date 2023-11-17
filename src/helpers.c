@@ -57,4 +57,17 @@ x2bin(int c)
 }
 
 
+/* Amazinglly, this is not C libraries */
+char *
+my_strrchrnul(const char *s, int c)
+{
+        const char *ret = NULL;
+        do {
+                if (*s == (char)c)
+                        ret = s;
+                ++s;
+        } while (*s != '\0');
+        return ret ? (char *)ret : (char *)(s-1);
+}
+
 

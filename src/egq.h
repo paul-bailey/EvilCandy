@@ -9,6 +9,7 @@
 enum {
         /* Tunable parameters */
         QSTACKMAX = 8192,
+        NS_STACKSIZE = 128,
 
         /* magic numbers */
         QOBJECT_MAGIC = 0x72346578,
@@ -61,18 +62,16 @@ struct list_t {
 
 /**
  * struct ns_t - metadata for everything between a @script...@end block
- * @next:       Handle to the next @script command for the same namespace
+ * @list:       Sibling list
  * @pgm:        Text of the script as a C string
- * @lineno:     Line number of the first line of this script
  * @fname:      File name of this script.
  *
  * FIXME: Badly named, this isn't a namespace.
  * struct object_t is the closest thing we have to a namespace.
  */
 struct ns_t {
-        struct ns_t *next;
+        struct list_t list;
         struct token_t pgm;
-        int lineno;
         char *fname;
 };
 
@@ -152,8 +151,8 @@ struct q_private_t {
         struct hashtable_t *kw_htbl;
         struct hashtable_t *literals;
         struct qvar_t *gbl; /* "__gbl__" as user sees it */
-        struct ns_t *ns_top;
-        struct qvar_t pc;
+        struct list_t ns;
+        struct qvar_t pc;  /* "program counter" */
         struct qvar_t *fp; /* "frame pointer" */
         struct qvar_t *sp; /* "stack pointer" */
         struct qvar_t lr;  /* "link register */
@@ -164,7 +163,7 @@ struct q_private_t {
 #define cur_oc  q_.pc.px.oc
 #define cur_ns  q_.pc.px.ns
 
-/* script.c */
+/* main.c */
 extern struct q_private_t q_;
 extern const char *q_typestr(int magic);
 extern const char *q_nameof(struct qvar_t *v);
@@ -173,6 +172,7 @@ extern const char *q_nameof(struct qvar_t *v);
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
+extern char *my_strrchrnul(const char *s, int c);
 
 /* builtin.c */
 extern struct qvar_t *q_builtin_seek(const char *key);
@@ -187,18 +187,27 @@ extern char *next_line(unsigned int flags);
 #define breakpoint() breakpoint__(__FILE__, __LINE__)
 #define bug_on(cond_) do { if (cond_) bug(); } while (0)
 extern void qsyntax(const char *msg, ...);
-extern void qerr_expected(const char *what);
 extern void fail(const char *msg, ...);
 extern void warning(const char *msg, ...);
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
+extern void qerr_expected__(int opcode);
+static inline void
+expect(int opcode)
+{
+        if (cur_oc->t != opcode)
+                qerr_expected__(opcode);
+}
 
 /* eval.c */
 extern void q_eval(struct qvar_t *v);
 
 /* exec.c */
-extern void exec_script(struct ns_t *ns);
+extern int exec_block(struct qvar_t *retval, int brace);
 extern void qcall_function(struct qvar_t *fn, struct qvar_t *retval);
+
+/* file.c */
+extern void load_file(const char *filename);
 
 /* helpers.c */
 extern char *estrdup(const char *s);
@@ -241,6 +250,12 @@ list_first(struct list_t *list)
 static inline struct list_t *
 list_last(struct list_t *list)
         { return list_prev(list, list); }
+#define list_foreach(i_, src_) \
+        for (i_ = list_first(src_); i_ != NULL; i_ = list_next(i_, src_))
+
+/* Why isn't this in stdlib.h? */
+#define container_of(x, type, member) \
+        ((type *)(((void *)(x)) - offsetof(type, member)))
 
 /* literal.c */
 extern char *q_literal(const char *s);

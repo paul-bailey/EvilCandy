@@ -40,18 +40,22 @@ init_lib(void)
                 { "this",       KW_THIS },
                 { "break",      KW_BREAK },
                 { "import",     KW_IMPORT },
+                { "if",         KW_IF },
+                { "while",      KW_WHILE },
                 { NULL, 0 }
         };
         /*
          * IMPORTANT!! These two strings must be in same order as
          *             their QD_* enums in opcode.h
          */
-        static const char *const DELIMS = "+-<>=&|.!;,/*%^()[]{} \t\n";
+        static const char *const DELIMS = "+-<>=&|.!;,/*%^()[]{}: \t\n";
         static const char *const DELIMDBL = "+-<>=&|";
 
         const char *s;
         const struct kw_tbl_t *tkw;
         int i;
+
+        list_init(&q_.ns);
 
         /* Initialize hash tables */
         q_.kw_htbl = hashtable_create(HTBL_COPY_KEY|HTBL_COPY_DATA, NULL);
@@ -110,33 +114,30 @@ init_lib(void)
 int
 main(int argc, char **argv)
 {
-        struct ns_t *ns;
-
         init_lib();
 
         if (argc < 2)
                 fprintf(stderr, "Expected: file name\n");
 
-        /* create & init new namespace */
-        ns = ecalloc(sizeof(*ns));
-        ns->fname = estrdup(argv[1]);
-        ns->lineno = 0;
-        token_init(&ns->pgm);
 
-        /*
-         * TODO: The following should be done from interpret_block,
-         * when getting an `import' token
-         */
-        ns = prescan(argv[1]);
-        if (!q_.ns_top) {
-                q_.ns_top = ns;
-        } else {
-                struct ns_t *p;
-                for (p = q_.ns_top; p->next != NULL; p = p->next)
-                        ;
-                p->next = ns;
-        }
-        exec_script(ns);
+        /* Initialize stack regs */
+        q_.sp = q_.stack;
+        q_.fp = q_.stack;
+
+        /* Initialize program counter */
+        qvar_init(&q_.pc);
+        q_.pc.magic = QPTRX_MAGIC;
+        cur_ns = NULL;
+        cur_oc = NULL;
+
+        /* Initialize link register */
+        qvar_init(&q_.lr);
+        qop_mov(&q_.lr, &q_.pc);
+
+        qstack_push(q_.gbl);
+        /* Now frame pointer points to "__gbl__" */
+
+        load_file(argv[1]);
         return 0;
 }
 

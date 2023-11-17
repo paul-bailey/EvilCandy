@@ -203,11 +203,13 @@ qlex_comment(void)
                 /* block comment */
                 do {
                         ++pc;
-                } while (*pc != '\0'
-                         && !(pc[0] == '*' && pc[1] == '/'));
-                if (*pc == '\0')
-                        qsyntax("Unterminated comment");
-                lexer.s = pc;
+                        if (*pc == '\0') {
+                                if (lexer_next_line() == -1)
+                                        qsyntax("Unterminated comment");
+                                pc = lexer.s;
+                        }
+                } while (!(pc[0] == '*' && pc[1] == '/'));
+                lexer.s = pc + 2;
                 return true;
         }
         return false;
@@ -304,9 +306,9 @@ static int
 qlex_delim2(char **src, int *d)
 {
         char *s = *src;
-        if (!q_isdelim2(*d))
+        if (!q_isdelim2(*d) && *d != '!')
                 return false;
-        if (*s == *d) {
+        if (*s == *d && *d != '!') {
                 *d = q_.char_x2tbl[*d];
         } else if (*s != '=') {
                 return false;
@@ -409,9 +411,11 @@ prescan(const char *filename)
         struct ns_t *ns;
         int t;
 
+        bug_on(!filename);
         lexer.fp = fopen(filename, "r");
         if (!lexer.fp)
-                fail("Cannot open %s\n", filename);
+                fail("Cannot open %s", filename);
+
         lexer.lineno = 0;
         if (lexer_next_line() == -1) {
                 ns = NULL;
@@ -438,13 +442,23 @@ prescan(const char *filename)
                 }
                 token_putcode(&ns->pgm, &oc);
         }
+
+        if (!ns->pgm.oc) {
+                free(ns);
+                return NULL;
+        }
+
+        list_add_tail(&ns->list, &q_.ns);
+
         oc.t    = EOF;
         oc.line = 0;
         oc.s    = NULL;
         oc.i    = 0LL;
         token_putcode(&ns->pgm, &oc);
+
 done:
         fclose(lexer.fp);
         lexer.fp = 0;
         return ns;
 }
+

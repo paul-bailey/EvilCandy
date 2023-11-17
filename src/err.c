@@ -19,7 +19,7 @@
 static int
 qlineno(void)
 {
-        return q_.pc.px.oc->line;
+        return cur_oc ? cur_oc->line : 0;
 }
 
 /* helper to bug__ and breakpoint__ */
@@ -110,8 +110,45 @@ qsyntax(const char *msg, ...)
 
 /* Commonplace error message */
 void
-qerr_expected(const char *what)
+qerr_expected__(int opcode)
 {
+        const char *what = "";
+
+        switch (opcode) {
+        case OC_EQ:
+                what = "=";
+                break;
+        case OC_SEMI:
+                what = ";";
+                break;
+        case OC_LPAR:
+                what = "(";
+                break;
+        case OC_RPAR:
+                what = ")";
+                break;
+        case 'u':
+                what = "identifier";
+                break;
+        case 'q':
+                what = "string literal";
+                break;
+        case 'f':
+                what = "floating point expression";
+                break;
+        case 'i':
+                what = "integer expression";
+                break;
+        case OC_LBRACE:
+                what = "{";
+                break;
+        case OC_RBRACE:
+                what = "}";
+                break;
+        default:
+                bug(); /* not true yet */
+        }
         qsyntax("Expected '%s' but got '%s'", what, q_.pc.px.oc->s);
 }
+
 

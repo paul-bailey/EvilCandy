@@ -81,6 +81,15 @@ qb_print(struct qvar_t *ret)
         /* return empty */
 }
 
+static void
+qb_exit(struct qvar_t *ret)
+{
+        struct qvar_t *p = getarg(0);
+        if (p && p->magic == QSTRING_MAGIC)
+                printf("%s\n", p->s.s);
+        exit(0);
+}
+
 struct qb_tbl_t {
         struct qvar_t v;
         const struct qfunc_intl_t h;
@@ -91,8 +100,9 @@ struct qb_tbl_t {
         { .name = n, .h = { .fn = cb, .minargs = m, .maxargs = M }}
 
 static struct qb_tbl_t BUILTIN_LUT[] = {
-        TOTBL("PRINT", qb_print, 1, -1),
+        TOTBL("print",  qb_print, 1, -1),
         TOTBL("typeof", qb_typeof, 1, 1),
+        TOTBL("exit",   qb_exit, 0, -1),
         { .name = NULL },
 };
 

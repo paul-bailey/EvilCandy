@@ -1,5 +1,9 @@
 #include "egq.h"
 
+/**
+ * qstack_pop - Pop a variable out of the stack
+ * @to: Variable to qop_mov the popped variable's data into
+ */
 void
 qstack_pop(struct qvar_t *to)
 {
@@ -15,6 +19,13 @@ qstack_pop(struct qvar_t *to)
         qvar_reset(q_.sp);
 }
 
+/**
+ * qstack_getpush - Get next unused stack variable and advance
+ *                  SP accordingly
+ *
+ * Use this instead of qstack_push if you need a variable to be in a
+ * certain location on the stack but you cannot fill it yet.
+ */
 struct qvar_t *
 qstack_getpush(void)
 {
@@ -26,6 +37,10 @@ qstack_getpush(void)
         return res;
 }
 
+/**
+ * qstack_push - Push a variable onto the stack
+ * @v: Variable to push.
+ */
 void
 qstack_push(struct qvar_t *v)
 {

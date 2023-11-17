@@ -87,8 +87,7 @@ eval_atomic_function(struct qvar_t *v)
         bug_on(v->magic != QEMPTY_MAGIC);
         v->magic = QFUNCTION_MAGIC;
         qlex();
-        if (q_.pc.px.oc->t != OC_LPAR)
-                qerr_expected("(");
+        expect(OC_LPAR);
 
         /*
          * PC is now at start of function call.
@@ -106,25 +105,22 @@ eval_atomic_function(struct qvar_t *v)
         v->fn.owner = q_.fp;
         do {
                 qlex();
-                if (q_.pc.px.oc->t != 'u')
-                        qerr_expected("identifier");
+                expect('u');
                 qlex();
-        } while (q_.pc.px.oc->t == OC_COMMA);
-        if (q_.pc.px.oc->t != OC_RPAR)
-                qerr_expected(")");
+        } while (cur_oc->t == OC_COMMA);
+        expect(OC_RPAR);
         qlex();
-        if (q_.pc.px.oc->t != OC_LBRACE)
-                qerr_expected("{");
+        expect(OC_LBRACE);
 
         brace = 1;
-        while (brace && q_.pc.px.oc->t != EOF) {
+        while (brace && cur_oc->t != EOF) {
                 qlex();
-                if (q_.pc.px.oc->t == OC_LBRACE)
+                if (cur_oc->t == OC_LBRACE)
                         brace++;
-                else if (q_.pc.px.oc->t == OC_RBRACE)
+                else if (cur_oc->t == OC_RBRACE)
                         brace--;
         }
-        if (q_.pc.px.oc->t == EOF)
+        if (cur_oc->t == EOF)
                 qsyntax("Unbalanced brace");
 }
 
@@ -139,7 +135,7 @@ eval_atomic_function(struct qvar_t *v)
 static void
 eval_atomic_symbol(struct qvar_t *v)
 {
-        char *name = q_.pc.px.oc->s;
+        char *name = cur_oc->s;
         struct qvar_t *w = qsymbol_lookup(name, 0);
         if (!w)
                 qsyntax("symbol %s not found", name);
@@ -162,23 +158,47 @@ eval_atomic_symbol(struct qvar_t *v)
         qop_mov(v, w);
 }
 
+static void
+eval_atomic_object(struct qvar_t *v)
+{
+        if (v->magic != QEMPTY_MAGIC)
+                qsyntax("Cannot assign object to existing variable");
+        qobject_from_empty(v);
+        do {
+                struct qvar_t *child;
+                qlex();
+                expect('u');
+                child = qvar_new();
+                child->name = q_literal(cur_oc->s);
+                qlex();
+                if (cur_oc->t != OC_COMMA) {
+                        /* not declaring empty child */
+                        expect(OC_COLON);
+                        q_eval(child);
+                }
+                qobject_add_child(v, child);
+                qlex();
+        } while (cur_oc->t == OC_COMMA);
+        expect(OC_RBRACE);
+}
+
 /* find value of number, string, function, or object */
 static void
 eval_atomic(struct qvar_t *v)
 {
         /* TODO: Check type of @v before clobbering it! */
-        switch (q_.pc.px.oc->t) {
+        switch (cur_oc->t) {
         case 'u':
                 eval_atomic_symbol(v);
                 break;
         case 'i':
-                qop_assign_int(v, q_.pc.px.oc->i);
+                qop_assign_int(v, cur_oc->i);
                 break;
         case 'f':
-                qop_assign_float(v, q_.pc.px.oc->f);
+                qop_assign_float(v, cur_oc->f);
                 break;
         case 'q':
-                qop_assign_cstring(v, q_.pc.px.oc->s);
+                qop_assign_cstring(v, cur_oc->s);
                 break;
         case OC_FUNC:
                 eval_atomic_function(v);
@@ -188,12 +208,12 @@ eval_atomic(struct qvar_t *v)
                 /* XXX: Why is this ok? */
                 break;
         case OC_LBRACE:
-                /* TODO: Evaluate object */
-                qsyntax("Evaluate object not supported yet");
+                eval_atomic_object(v);
                 break;
         default:
+                /* TODO: OC_THIS */
                 qsyntax("Cannot evaluate atomic expression toktype=%c/%d",
-                        tok_type(q_.pc.px.oc->t), tok_delim(q_.pc.px.oc->t));
+                        tok_type(cur_oc->t), tok_delim(cur_oc->t));
         }
         qlex();
 }
@@ -202,7 +222,7 @@ eval_atomic(struct qvar_t *v)
 static void
 eval8(struct qvar_t *v)
 {
-        int t = q_.pc.px.oc->t;
+        int t = cur_oc->t;
         switch (t) {
         case OC_LPAR:
                 t = OC_RPAR;
@@ -218,12 +238,7 @@ eval8(struct qvar_t *v)
 
         qlex();
         eval0(v);
-        if (q_.pc.px.oc->t != t) {
-                if (t == OC_LPAR)
-                        qerr_expected(")");
-                else
-                        qerr_expected("]");
-        }
+        expect(t);
         qlex();
 }
 
@@ -246,7 +261,7 @@ eval6(struct qvar_t *v)
         int t;
 
         eval7(v);
-        while (ismuldivmod(t = q_.pc.px.oc->t)) {
+        while (ismuldivmod(t = cur_oc->t)) {
                 struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval7(w);
@@ -273,7 +288,7 @@ eval5(struct qvar_t *v)
         int t;
 
         eval6(v);
-        while (isadd(t = q_.pc.px.oc->t)) {
+        while (isadd(t = cur_oc->t)) {
                 struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval6(w);
@@ -292,7 +307,7 @@ eval4(struct qvar_t *v)
         int t;
 
         eval5(v);
-        while (isshift(t = q_.pc.px.oc->t)) {
+        while (isshift(t = cur_oc->t)) {
                 struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval5(w);
@@ -311,12 +326,12 @@ eval3(struct qvar_t *v)
         int t;
 
         eval4(v);
-        while (iscmp(t = q_.pc.px.oc->t)) {
+        while (iscmp(t = cur_oc->t)) {
                 struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval4(w);
                 /*
-                 * Need sanity check.
+                 * FIXME: Need sanity check.
                  * qop_cmp clobbers v, which is fine if
                  * script was written correctly.
                  */
@@ -332,7 +347,7 @@ eval2(struct qvar_t *v)
         int t;
 
         eval3(v);
-        while (isbinary(t = q_.pc.px.oc->t)) {
+        while (isbinary(t = cur_oc->t)) {
                 struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval3(w);
@@ -360,7 +375,7 @@ eval1(struct qvar_t *v)
         int t;
 
         eval2(v);
-        while (islogical(t = q_.pc.px.oc->t)) {
+        while (islogical(t = cur_oc->t)) {
                 struct qvar_t *w = qstack_getpush();
                 qlex();
                 eval2(w);
@@ -377,7 +392,7 @@ eval1(struct qvar_t *v)
 static void
 eval0(struct qvar_t *v)
 {
-        switch (q_.pc.px.oc->t) {
+        switch (cur_oc->t) {
         case OC_MUL:
                 qsyntax("Pointers not yet supported");
         case OC_PLUSPLUS:

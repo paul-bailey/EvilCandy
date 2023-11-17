@@ -9,8 +9,8 @@
 enum {
         QD_PLUS = 1,
         QD_MINUS,
-        QD_GT,
         QD_LT,
+        QD_GT,
         QD_EQ,
         QD_AND,
         QD_OR,
@@ -28,6 +28,7 @@ enum {
         QD_RBRACK,
         QD_LBRACE,
         QD_RBRACE,
+        QD_COLON,
 
         QD_PLUSPLUS,
         QD_MINUSMINUS,
@@ -53,6 +54,8 @@ enum {
         KW_RETURN,
         KW_BREAK,
         KW_IMPORT,
+        KW_IF,
+        KW_WHILE,
 };
 
 enum {
@@ -81,6 +84,7 @@ enum {
         OC_RBRACK       = TO_DTOK(QD_RBRACK),
         OC_LBRACE       = TO_DTOK(QD_LBRACE),
         OC_RBRACE       = TO_DTOK(QD_RBRACE),
+        OC_COLON        = TO_DTOK(QD_COLON),
         OC_PLUSPLUS     = TO_DTOK(QD_PLUSPLUS),
         OC_MINUSMINUS   = TO_DTOK(QD_MINUSMINUS),
         OC_LSHIFT       = TO_DTOK(QD_LSHIFT),
@@ -99,6 +103,8 @@ enum {
         OC_RETURN       = TO_KTOK(KW_RETURN),
         OC_BREAK        = TO_KTOK(KW_BREAK),
         OC_IMPORT       = TO_KTOK(KW_IMPORT),
+        OC_IF           = TO_KTOK(KW_IF),
+        OC_WHILE        = TO_KTOK(KW_WHILE),
 };
 
 #endif /* EGQ_OPCODES_H */

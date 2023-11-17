@@ -29,9 +29,10 @@ pcsanity(void)
  * @retval: Return value of the function being called.
  */
 void
-qcall_function(struct qvar_t *fn, struct qvar_t *retval)
+qcall_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
 {
         struct qvar_t *fpsav, *new_fp;
+        int nargs; /* for sanity checking */
 
         /*
          * Stack order after call is:
@@ -54,32 +55,30 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
         new_fp = q_.sp;
 
         /* push "this" */
-        qstack_push(fn->magic == QINTL_MAGIC ? q_.gbl : fn->fn.owner);
+        qstack_push(owner ? owner :
+                    (fn->magic == QINTL_MAGIC ? q_.gbl : fn->fn.owner));
 
         qlex();
         expect(OC_LPAR);
 
-        /* push args, don't name them yet */
-        do {
-                struct qvar_t *v = qstack_getpush();
-                q_eval(v);
-                qlex();
-        } while (cur_oc->t == OC_COMMA);
-        expect(OC_RPAR);
+        qlex();
+        if (cur_oc->t != OC_RPAR) {
+                q_unlex();
+                /* push args, don't name them yet */
+                do {
+                        struct qvar_t *v = qstack_getpush();
+                        q_eval(v);
+                        qlex();
+                } while (cur_oc->t == OC_COMMA);
+                expect(OC_RPAR);
+        }
 
         fpsav = q_.fp;
         q_.fp = new_fp;
 
-        /*
-         * Return address is _before_ semicolon, not after,
-         * since we don't always expect a semicolon afterward.
-         */
-        /* move PC into LR */
-        qop_mov(&q_.lr, &q_.pc);
-
+        nargs = q_.sp - 1 - q_.fp;
         if (fn->magic == QINTL_MAGIC) {
                 /* Internal function, we don't touch LR or PC for this */
-                int nargs = (q_.sp - 1 - q_.fp);
                 bug_on(!fn->fni);
                 bug_on(!fn->fni->fn);
                 if (nargs != fn->fni->minargs) {
@@ -95,6 +94,13 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                 /* User function */
                 struct qvar_t *argptr;
 
+                /*
+                 * Return address is _before_ semicolon, not after,
+                 * since we don't always expect a semicolon afterward.
+                 */
+                /* move PC into LR */
+                qop_mov(&q_.lr, &q_.pc);
+
                 /* move destination into PC */
                 qop_mov(&q_.pc, fn);
 
@@ -103,30 +109,29 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval)
                  * to the 1st token after the opening
                  * parenthesis of the declaration of their arguments.
                  */
+                argptr = q_.fp + 1;
                 for (argptr = q_.fp + 1; argptr < q_.sp; argptr++) {
                         qlex();
                         expect('u');
                         bug_on(argptr->name != NULL);
-                        /*
-                         * FIXME: The whole point of a stack array
-                         * is to avoid all this mallocing and freeing
-                         * data in small amounts.  But I still have
-                         * to do that for stack-variable names.
-                         */
                         argptr->name = cur_oc->s;
                         qlex();
+                        --nargs;
 
                         /* If not vararg, we should break here */
-                        if (cur_oc->t != OC_COMMA)
+                        if (cur_oc->t != OC_COMMA) {
+                                q_unlex();
                                 break;
+                        }
                 }
 
-                if (argptr != q_.sp - 1)
+                if (nargs)
                         qsyntax("Argument number mismatch");
 
                 /*
                  * XXX: if varargs, cur_oc->t is for ',' and next tok is "..."
                  */
+                qlex();
                 expect(OC_RPAR);
                 qlex();
                 expect(OC_LBRACE);
@@ -181,29 +186,89 @@ do_let(void)
         }
 }
 
+/* We throw away the return value at this scope */
+static void
+call_empty_function(struct qvar_t *fn, struct qvar_t *owner)
+{
+        struct qvar_t dummy;
+        qvar_init(&dummy);
+        qcall_function(fn, &dummy, owner);
+        qvar_reset(&dummy);
+}
+
+/*
+ * helper to do_identifier.
+ * non-object type acting object-ish,
+ * maybe it's calling a built-in type method.
+ */
+static void
+try_builtin(struct qvar_t *v)
+{
+        struct qvar_t *w;
+
+        qlex();
+        expect('u');
+        w = builtin_method(v, cur_oc->s);
+        if (!w) {
+                qsyntax("type %s has no method %s",
+                        q_typestr(v->magic), cur_oc->s);
+        }
+        call_empty_function(w, v);
+}
+
 static void
 do_identifier(void)
 {
-        /* TODO: Add F_FORCE, we might be assigning new member */
-        struct qvar_t *v = qsymbol_lookup(cur_oc->s, 0);
+        struct qvar_t *v = qsymbol_lookup(cur_oc->s, F_FIRST);
         if (!v)
                 qsyntax("Unrecognized symbol `%s'", cur_oc->s);
-        if (v->magic == QFUNCTION_MAGIC
-            || v->magic == QINTL_MAGIC) {
-                struct qvar_t dummy;
-                qvar_init(&dummy);
-                qcall_function(v, &dummy);
-                qvar_reset(&dummy);
 
+        for (;;) {
+                if (v->magic == QFUNCTION_MAGIC
+                    || v->magic == QINTL_MAGIC) {
+                        call_empty_function(v, NULL);
+                        break;
+                }
                 qlex();
-                expect(OC_SEMI);
-        } else {
-                qlex();
-                expect(OC_EQ);
-                q_eval(v);
-                qlex();
-                expect(OC_SEMI);
+                if (cur_oc->t != OC_PER) {
+                        struct qvar_t w;
+                        qvar_init(&w);
+                        expect(OC_EQ);
+                        q_eval(&w);
+                        qop_mov(v, &w);
+                        qvar_reset(&w);
+                        break;
+                }
+
+                do {
+                        struct qvar_t *w;
+                        if (v->magic != QOBJECT_MAGIC) {
+                                try_builtin(v);
+                                return;
+                        }
+
+                        qlex();
+                        expect('u');
+                        w = qobject_child(v, cur_oc->s);
+                        if (!w) {
+                                /* assigning a new member */
+                                w = qvar_new();
+                                w->name = cur_oc->s;
+                                qlex();
+                                expect(OC_EQ);
+                                q_eval(w);
+                                qobject_add_child(v, w);
+                                goto out;
+                        }
+                        v = w;
+                        qlex();
+                } while (cur_oc->t == OC_PER);
+                q_unlex();
         }
+
+out:
+        qlex();
+        expect(OC_SEMI);
 }
 
 static void

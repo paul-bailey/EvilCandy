@@ -12,12 +12,9 @@ struct q_private_t q_;
 const char *
 q_typestr(int magic)
 {
-        const char *typetbl[] = { "object", "function", "float", "int",
-                                  "string", "empty", "pointer", "built_in_function" };
-        magic -= QOBJECT_MAGIC;
-        if (magic < 0 || magic >= arraylen(typetbl))
+        if (magic < 0 || magic >= Q_NMAGIC)
                 return "[bug]";
-        return typetbl[magic];
+        return TYPEDEFS[magic].name;
 }
 
 const char *
@@ -27,7 +24,7 @@ q_nameof(struct qvar_t *v)
 }
 
 static void
-init_lib(void)
+initialize_keywords(void)
 {
         static const struct kw_tbl_t {
                 const char *name;
@@ -44,20 +41,8 @@ init_lib(void)
                 { "while",      KW_WHILE },
                 { NULL, 0 }
         };
-        /*
-         * IMPORTANT!! These two strings must be in same order as
-         *             their QD_* enums in opcode.h
-         */
-        static const char *const DELIMS = "+-<>=&|.!;,/*%^()[]{}: \t\n";
-        static const char *const DELIMDBL = "+-<>=&|";
-
-        const char *s;
         const struct kw_tbl_t *tkw;
-        int i;
 
-        list_init(&q_.ns);
-
-        /* Initialize hash tables */
         q_.kw_htbl = hashtable_create(HTBL_COPY_KEY|HTBL_COPY_DATA, NULL);
         if (!q_.kw_htbl)
                 fail("hashtable_create failed");
@@ -67,6 +52,14 @@ init_lib(void)
                                         (void *)&tkw->v, sizeof(tkw->v), 0);
                 bug_on(res < 0);
         }
+}
+
+static void
+init_lib(void)
+{
+        list_init(&q_.ns);
+
+        initialize_keywords();
 
         q_.literals = hashtable_create(0, NULL);
         if (!q_.literals)
@@ -74,51 +67,14 @@ init_lib(void)
 
         q_.gbl = qobject_new(NULL, "__gbl__");
 
-        /* Set up q_.charmap */
-        /* delimiter */
-        for (s = DELIMS; *s != '\0'; s++)
-                q_.charmap[(int)*s] |= QDELIM;
-        /* double-delimeters */
-        for (s = DELIMDBL; *s != '\0'; s++)
-                q_.charmap[(int)*s] |= QDDELIM;
-        /* permitted identifier chars */
-        for (i = 'a'; i < 'z'; i++)
-                q_.charmap[i] |= QIDENT | QIDENT1;
-        for (i = 'A'; i < 'Z'; i++)
-                q_.charmap[i] |= QIDENT | QIDENT1;
-        for (i = '0'; i < '9'; i++)
-                q_.charmap[i] |= QIDENT;
-        q_.charmap['_'] |= QIDENT | QIDENT1;
-
-        /* Set up q_.char_x*tbl */
-        for (s = DELIMS, i = QD_PLUS; !isspace((int)*s); s++, i++)
-                q_.char_xtbl[(int)*s] = i;
-        for (s = DELIMDBL, i = QD_PLUSPLUS; *s != '\0'; s++, i++)
-                q_.char_x2tbl[(int)*s] = i;
+        initialize_lexer();
 
         /* Initialize PC (its initial location will be set later) */
         qvar_init(&q_.pc);
         q_.pc.magic = QPTRX_MAGIC;
 
+        /* Set up the global object */
         q_builtin_initlib();
-
-        /*
-         * Some other modules automatically initialize on first
-         * call to some of their functions.
-         */
-}
-
-/**
- * script_read - Read and execute a script
- */
-int
-main(int argc, char **argv)
-{
-        init_lib();
-
-        if (argc < 2)
-                fprintf(stderr, "Expected: file name\n");
-
 
         /* Initialize stack regs */
         q_.sp = q_.stack;
@@ -134,8 +90,20 @@ main(int argc, char **argv)
         qvar_init(&q_.lr);
         qop_mov(&q_.lr, &q_.pc);
 
+        /* point initial fp to "__gbl__" */
         qstack_push(q_.gbl);
-        /* Now frame pointer points to "__gbl__" */
+}
+
+/**
+ * script_read - Read and execute a script
+ */
+int
+main(int argc, char **argv)
+{
+        init_lib();
+
+        if (argc < 2)
+                fprintf(stderr, "Expected: file name\n");
 
         load_file(argv[1]);
         return 0;

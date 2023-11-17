@@ -73,6 +73,12 @@ ismuldivmod(int t)
                t == OC_DIV || t == OC_MOD;
 }
 
+static void
+nomethod(int magic, const char *method)
+{
+        qsyntax("type %s has no method %s", q_typestr(magic), method);
+}
+
 static void eval0(struct qvar_t *v);
 
 /*
@@ -105,6 +111,8 @@ eval_atomic_function(struct qvar_t *v)
         v->fn.owner = q_.fp;
         do {
                 qlex();
+                if (cur_oc->t == OC_RPAR)
+                        break; /* no args */
                 expect('u');
                 qlex();
         } while (cur_oc->t == OC_COMMA);
@@ -131,31 +139,58 @@ eval_atomic_function(struct qvar_t *v)
  *      If function NOT followed by '(',
  *              assign function pointer to v.
  *      If variable, assign its value to v.
+ *
+ * FIXME: egregious DRY violation, see d_identifier in exec.c
  */
 static void
 eval_atomic_symbol(struct qvar_t *v)
 {
         char *name = cur_oc->s;
-        struct qvar_t *w = qsymbol_lookup(name, 0);
+        struct qvar_t *w = qsymbol_lookup(name, F_FIRST);
         if (!w)
-                qsyntax("symbol %s not found", name);
-        switch (w->magic) {
-        case QINTL_MAGIC:
-        case QFUNCTION_MAGIC:
-           {
-                int t = qlex(); /* need to peek */
-                q_unlex();
-                if (t == OC_LPAR) {
-                        /* It's a function call */
-                        qcall_function(w, v);
+                qsyntax("Symbol %s not found", name);
+        for (;;) {
+                if (w->magic == QFUNCTION_MAGIC
+                    || w->magic == QINTL_MAGIC) {
+                        int t = qlex(); /* need to peek */
+                        q_unlex();
+                        if (t == OC_LPAR) {
+                                /* It's a function call */
+                                qcall_function(w, v, NULL);
+                                return;
+                        }
+                        /* else, it's a variable assignment, fall through */
+                }
+                qlex();
+                if (cur_oc->t != OC_PER) {
+                        q_unlex();
+                        qop_mov(v, w);
                         return;
                 }
-                /* else, it's a variable assignment, fall through */
-           }
-        default:
-                break;
+                do {
+                        struct qvar_t *tmp;
+                        if (w->magic != QOBJECT_MAGIC) {
+                                struct qvar_t *method;
+                                qlex();
+                                expect('u');
+                                method = builtin_method(w, cur_oc->s);
+                                if (!method)
+                                        nomethod(w->magic, cur_oc->s);
+                                qcall_function(method, v, w);
+                                return;
+                        }
+                        qlex();
+                        expect('u');
+                        tmp = qobject_child(w, cur_oc->s);
+                        if (!tmp) {
+                                qsyntax("Symbol %s not found in %s",
+                                        cur_oc->s, w->name);
+                        }
+                        w = tmp;
+                        qlex();
+                } while (cur_oc->t == OC_PER);
+                q_unlex();
         }
-        qop_mov(v, w);
 }
 
 static void
@@ -182,23 +217,91 @@ eval_atomic_object(struct qvar_t *v)
         expect(OC_RBRACE);
 }
 
+static void
+eval_atomic_int(struct qvar_t *v)
+{
+        long long value = cur_oc->i;
+        qlex();
+        if (cur_oc->t == OC_PER) {
+                struct qvar_t *method;
+                struct qvar_t *w = qstack_getpush();
+
+                qop_assign_int(w, value);
+
+                qlex();
+                expect('u');
+                method = builtin_method(w, cur_oc->s);
+                if (!method)
+                        nomethod(QINT_MAGIC, cur_oc->s);
+                qcall_function(method, v, w);
+                qstack_pop(NULL);
+        } else {
+                q_unlex();
+                qop_assign_int(v, value);
+        }
+}
+
+static void
+eval_atomic_float(struct qvar_t *v)
+{
+        double value = cur_oc->f;
+        qlex();
+        if (cur_oc->t == OC_PER) {
+                struct qvar_t *method;
+                struct qvar_t *w = qstack_getpush();
+                qop_assign_float(w, value);
+                qlex();
+                expect('u');
+                method = builtin_method(w, cur_oc->s);
+                if (!method)
+                        nomethod(QFLOAT_MAGIC, cur_oc->s);
+                qcall_function(method, v, w);
+                qstack_pop(NULL);
+        } else {
+                q_unlex();
+                qop_assign_float(v, value);
+        }
+}
+
+static void
+eval_atomic_string(struct qvar_t *v)
+{
+        char *value = cur_oc->s;
+        qlex();
+        if (cur_oc->t == OC_PER) {
+                struct qvar_t *method;
+                struct qvar_t *w = qstack_getpush();
+                qop_assign_cstring(w, value);
+                qlex();
+                expect('u');
+                method = builtin_method(w, cur_oc->s);
+                if (!method)
+                        nomethod(QSTRING_MAGIC, cur_oc->s);
+                qcall_function(method, v, w);
+                qstack_pop(NULL);
+        } else {
+                q_unlex();
+                qop_assign_cstring(v, value);
+        }
+}
+
+
 /* find value of number, string, function, or object */
 static void
 eval_atomic(struct qvar_t *v)
 {
-        /* TODO: Check type of @v before clobbering it! */
         switch (cur_oc->t) {
         case 'u':
                 eval_atomic_symbol(v);
                 break;
         case 'i':
-                qop_assign_int(v, cur_oc->i);
+                eval_atomic_int(v);
                 break;
         case 'f':
-                qop_assign_float(v, cur_oc->f);
+                eval_atomic_float(v);
                 break;
         case 'q':
-                qop_assign_cstring(v, cur_oc->s);
+                eval_atomic_string(v);
                 break;
         case OC_FUNC:
                 eval_atomic_function(v);
@@ -212,9 +315,9 @@ eval_atomic(struct qvar_t *v)
                 break;
         default:
                 /* TODO: OC_THIS */
-                qsyntax("Cannot evaluate atomic expression toktype=%c/%d",
-                        tok_type(cur_oc->t), tok_delim(cur_oc->t));
+                qsyntax("Cannot evaluate atomic expression '%s'", cur_oc->s);
         }
+
         qlex();
 }
 
@@ -332,8 +435,9 @@ eval3(struct qvar_t *v)
                 eval4(w);
                 /*
                  * FIXME: Need sanity check.
-                 * qop_cmp clobbers v, which is fine if
-                 * script was written correctly.
+                 * qop_cmp clobbers v.
+                 * v SHOULD be an unassigned temporary
+                 * variable, so this SHOULD be find.
                  */
                 qop_cmp(v, w, t);
                 qstack_pop(NULL);
@@ -430,4 +534,5 @@ q_eval(struct qvar_t *v)
 
         --recursion;
 }
+
 

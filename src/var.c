@@ -3,6 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct type_t TYPEDEFS[Q_NMAGIC] = {
+        { .name = "empty" },
+        { .name = "object" },
+        { .name = "function" },
+        { .name = "float" },
+        { .name = "int" },
+        { .name = "string" },
+        { .name = "pointer" },
+        { .name = "built_in_function" },
+};
+
 /*
  * So I don't have to keep malloc'ing and freeing these
  * in tiny bits.

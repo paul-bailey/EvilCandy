@@ -46,7 +46,7 @@ breakpoint__(const char *file, int line)
 static void
 syntax_msg__(const char *msg, const char *what, va_list ap)
 {
-        fprintf(stderr, "[versify] %s in file %s line %d: ",
+        fprintf(stderr, "[egq] %s in file %s line %d: ",
                 what, cur_ns->fname, qlineno());
         vfprintf(stderr, msg, ap);
         fputc('\n', stderr);

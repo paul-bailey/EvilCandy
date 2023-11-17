@@ -2,37 +2,21 @@
 
 /* insert new @a before @b */
 void
-list_insert_before(struct list_t *a,
-                   struct list_t *b, struct list_t *owner)
+list_insert_before(struct list_t *a, struct list_t *b)
 {
-        struct list_t *q = list_prev(b, owner);
-        if (!q) {
-                /* empty list */
-                owner->next = owner->prev = a;
-                a->next = a->prev = owner;
-        } else {
-                a->prev = q;
-                a->next = b;
-                b->prev = a;
-                q->next = a;
-        }
+        a->next = b;
+        a->prev = b->prev;
+        b->prev = a;
+        a->prev->next = a;
 }
 
 void
-list_insert_after(struct list_t *a,
-                struct list_t *b, struct list_t *owner)
+list_insert_after(struct list_t *a, struct list_t *b)
 {
-        struct list_t *q = list_next(b, owner);
-        if (!q) {
-                /* empty list */
-                owner->next = owner->prev = a;
-                a->next = a->prev = owner;
-        } else {
-                b->prev = b;
-                a->next = q;
-                b->next = a;
-                q->prev = a;
-        }
+        a->next = b->next;
+        a->prev = b;
+        b->next = a;
+        a->next->prev = a;
 }
 
 void

@@ -38,21 +38,25 @@ let pow = function(x, y) {
 let iterator = {
         tonine: function(x) {
                 while (x < 10) {
-                        print("x is {1}\n", x);
+                        print("x is {}\n".format(x));
                         x = x + 1;
                 }
         },
         toten: function(x) {
                 while (x < 11) {
-                        print("{}\n", x);
+                        print("{}\n".format(x));
                         x = x + 1;
                 }
         }
 };
 
+iterator.whoami = function() {
+    print("me, of course!\n");
+};
+
 let toten = function(x) {
         while (x < 11) {
-                print("{}\n", x);
+                print("{}\n".format(x));
                 x = x + 1;
         }
 };
@@ -60,7 +64,10 @@ let toten = function(x) {
 iterator.tonine(4);
 print("That was to nine. This is to ten:\n");
 iterator.toten(4);
-print("4^4 = {}\n", pow(4, 4));
+print("4^4 = {}\n".format(pow(4, 4)));
+iterator.whoami();
 
+let s = "This is a string";
+print("length '{}' for '{}'\n".format(s.len(), s));
 
 // : vim: set syntax=javascript :

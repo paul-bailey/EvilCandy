@@ -16,6 +16,8 @@
  *              We may be appending a new child to the object.
  *            - if F_FORCE is not set, return NULL.  We're probably
  *              evaluating an object, not assigning it.
+ *
+ * TODO: if fail, check type's built-in methods
  */
 struct qvar_t *
 qsymbol_walk(struct qvar_t *o, unsigned int flags)
@@ -76,7 +78,8 @@ trythis(const char *s)
 /**
  * symbol_lookup - Look up a symbol
  * @s: first token of "something.something.something..."
- * @flags: same as with qsymbol_walk, see comment there
+ * @flags: same as with qsymbol_walk, except also F_FIRST
+ *      means "just get @s, don't walk down"
  *
  * The process is...
  * 1. Look for first "something":
@@ -85,7 +88,8 @@ trythis(const char *s)
  *      c. look in `this'
  *      d. look in `this'->owner, loop until found or NULL
  *         (careful, s may not be name of an ancestor)
- *      e. look in built-in function list
+ *      e. look __gbl__ (since in step d. we might not
+ *         ascend all the way up to global)
  *
  * 2. If first "something" is an object and next tok is '.',
  *    return result of "qsymbol_walk(result, @flags)"
@@ -107,15 +111,14 @@ qsymbol_lookup(const char *s, unsigned int flags)
                         break;
                 if ((v = trythis(s)) != NULL)
                         break;
-                if ((v = q_builtin_seek(s)) != NULL)
-                        break;
-                return NULL;
+                v = qobject_child(q_.gbl, s);
+                if (!v)
+                        return NULL;
         } while (0);
 
-        if (v->magic == QOBJECT_MAGIC)
+        if (v->magic == QOBJECT_MAGIC && !(flags & F_FIRST))
                 return qsymbol_walk(v, flags);
 
         return v;
 }
-
 

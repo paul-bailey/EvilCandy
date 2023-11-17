@@ -12,14 +12,15 @@ enum {
         NS_STACKSIZE = 128,
 
         /* magic numbers */
-        QOBJECT_MAGIC = 0x72346578,
+        QEMPTY_MAGIC = 0,
+        QOBJECT_MAGIC,
         QFUNCTION_MAGIC,
         QFLOAT_MAGIC,
         QINT_MAGIC,
         QSTRING_MAGIC,
-        QEMPTY_MAGIC,
         QPTRX_MAGIC,
         QINTL_MAGIC,
+        Q_NMAGIC,
 
         /* q_.charmap flags */
         QDELIM = 0x01,
@@ -58,6 +59,11 @@ struct token_t {
 struct list_t {
         struct list_t *next;
         struct list_t *prev;
+};
+
+struct type_t {
+        const char *name;
+        struct list_t methods;
 };
 
 /**
@@ -145,9 +151,6 @@ struct opcode_t {
 
 /* This library's private data */
 struct q_private_t {
-        unsigned char charmap[128];
-        unsigned char char_xtbl[128];
-        unsigned char char_x2tbl[128];
         struct hashtable_t *kw_htbl;
         struct hashtable_t *literals;
         struct qvar_t *gbl; /* "__gbl__" as user sees it */
@@ -175,8 +178,9 @@ static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 extern char *my_strrchrnul(const char *s, int c);
 
 /* builtin.c */
-extern struct qvar_t *q_builtin_seek(const char *key);
 extern void q_builtin_initlib(void);
+extern struct qvar_t *builtin_method(struct qvar_t *v,
+                                const char *method_name);
 
 /* file.c */
 extern void file_push(const char *name);
@@ -204,7 +208,8 @@ extern void q_eval(struct qvar_t *v);
 
 /* exec.c */
 extern int exec_block(struct qvar_t *retval, int brace);
-extern void qcall_function(struct qvar_t *fn, struct qvar_t *retval);
+extern void qcall_function(struct qvar_t *fn,
+                        struct qvar_t *retval, struct qvar_t *owner);
 
 /* file.c */
 extern void load_file(const char *filename);
@@ -221,12 +226,11 @@ static inline bool isquote(int c) { return c == '"' || c == '\''; }
 extern int qlex(void);
 extern void q_unlex(void);
 extern struct ns_t *prescan(const char *filename);
+extern void initialize_lexer(void);
 
 /* list.c */
-extern void list_insert_before(struct list_t *a,
-                        struct list_t *b, struct list_t *owner);
-extern void list_insert_after(struct list_t *a,
-                        struct list_t *b, struct list_t *owner);
+extern void list_insert_before(struct list_t *a, struct list_t *b);
+extern void list_insert_after(struct list_t *a, struct list_t *b);
 extern void list_remove(struct list_t *list);
 static inline void list_init(struct list_t *list)
         { list->next = list->prev = list; }
@@ -240,18 +244,21 @@ list_next(struct list_t *list, struct list_t *owner)
         { return list->next == owner ? NULL : list->next; }
 static inline void
 list_add_tail(struct list_t *list, struct list_t *owner)
-        { list_insert_before(list, owner, owner); }
+        { list_insert_before(list, owner); }
 static inline void
 list_add_front(struct list_t *list, struct list_t *owner)
-        { list_insert_after(list, owner, owner); }
+        { list_insert_after(list, owner); }
 static inline struct list_t *
 list_first(struct list_t *list)
         { return list_next(list, list); }
 static inline struct list_t *
 list_last(struct list_t *list)
         { return list_prev(list, list); }
-#define list_foreach(i_, src_) \
-        for (i_ = list_first(src_); i_ != NULL; i_ = list_next(i_, src_))
+#define list_foreach(iter_, top_) \
+        for (iter_ = (top_)->next; iter_ != (top_); iter_ = (iter_)->next)
+#define list_foreach_safe(iter_, tmp_, top_) \
+        for (iter_ = (toi_)->next, tmp_ = (iter_)->next; \
+             iter_ != (top_); iter_ = tmp)
 
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
@@ -287,7 +294,10 @@ extern struct qvar_t *qstack_getpush(void);
 extern void qstack_push(struct qvar_t *v);
 
 /* symbol.c */
-enum { F_FORCE = 0x1 };
+enum {
+        F_FORCE = 0x1u,
+        F_FIRST = 0x2u,
+};
 extern struct qvar_t *qsymbol_walk(struct qvar_t *o, unsigned int flags);
 extern struct qvar_t *qsymbol_lookup(const char *s, unsigned int flags);
 
@@ -310,5 +320,8 @@ extern struct qvar_t *qobject_from_empty(struct qvar_t *v);
 extern struct qvar_t *qobject_child(struct qvar_t *o, const char *s);
 extern struct qvar_t *qobject_nth_child(struct qvar_t *o, int n);
 extern void qobject_add_child(struct qvar_t *o, struct qvar_t *v);
+
+/* Indexed by Q*_MAGIC */
+extern struct type_t TYPEDEFS[];
 
 #endif /* EGQ_H */

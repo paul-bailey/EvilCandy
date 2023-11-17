@@ -10,20 +10,20 @@ static struct {
         size_t _slen; /* for getline calls */
         char *line;   /* ditto */
         FILE *fp;
+        /* look up tables */
+        unsigned char charmap[128];
+        unsigned char char_xtbl[128];
+        unsigned char char_x2tbl[128];
 } lexer = {
         .lineno = 0,
-        .tok.s = NULL,
-        .tok.p = 0,
-        .tok.size = 0,
         .s = NULL,
-        ._slen = 0,
 };
 
 static inline bool q_isascii(int c) { return c && c == (c & 0x7fu); }
 static inline bool
 q_isflags(int c, unsigned char flags)
 {
-        return q_isascii(c) && (q_.charmap[c] & flags) == flags;
+        return q_isascii(c) && (lexer.charmap[c] & flags) == flags;
 }
 
 static inline bool q_isdelim(int c) { return q_isflags(c, QDELIM); }
@@ -309,7 +309,7 @@ qlex_delim2(char **src, int *d)
         if (!q_isdelim2(*d) && *d != '!')
                 return false;
         if (*s == *d && *d != '!') {
-                *d = q_.char_x2tbl[*d];
+                *d = lexer.char_x2tbl[*d];
         } else if (*s != '=') {
                 return false;
         } else switch (*d) {
@@ -340,7 +340,7 @@ qlex_delim(int *res)
                 return false;
         if (!qlex_delim2(&s, &d)) {
                 token_putc(&lexer.tok, d);
-                d = q_.char_xtbl[d];
+                d = lexer.char_xtbl[d];
         }
 
         bug_on(!d);
@@ -462,3 +462,43 @@ done:
         return ns;
 }
 
+void
+initialize_lexer(void)
+{
+        /*
+         * IMPORTANT!! These two strings must be in same order as
+         *             their QD_* enums in opcode.h
+         */
+        static const char *const DELIMS = "+-<>=&|.!;,/*%^()[]{}: \t\n";
+        static const char *const DELIMDBL = "+-<>=&|";
+        const char *s;
+        int i;
+
+        token_init(&lexer.tok);
+
+        lexer.line = NULL;
+        lexer._slen = 0;
+        lexer.s = NULL;
+
+        /* Set up lexer.charmap */
+        /* delimiter */
+        for (s = DELIMS; *s != '\0'; s++)
+                lexer.charmap[(int)*s] |= QDELIM;
+        /* double-delimeters */
+        for (s = DELIMDBL; *s != '\0'; s++)
+                lexer.charmap[(int)*s] |= QDDELIM;
+        /* permitted identifier chars */
+        for (i = 'a'; i < 'z'; i++)
+                lexer.charmap[i] |= QIDENT | QIDENT1;
+        for (i = 'A'; i < 'Z'; i++)
+                lexer.charmap[i] |= QIDENT | QIDENT1;
+        for (i = '0'; i < '9'; i++)
+                lexer.charmap[i] |= QIDENT;
+        lexer.charmap['_'] |= QIDENT | QIDENT1;
+
+        /* Set up lexer.char_x*tbl */
+        for (s = DELIMS, i = QD_PLUS; !isspace((int)*s); s++, i++)
+                lexer.char_xtbl[(int)*s] = i;
+        for (s = DELIMDBL, i = QD_PLUSPLUS; *s != '\0'; s++, i++)
+                lexer.char_x2tbl[(int)*s] = i;
+}

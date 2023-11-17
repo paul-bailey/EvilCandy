@@ -1,6 +1,8 @@
 #include "egq.h"
 #include <string.h>
 
+static int expression(struct qvar_t *retval, bool top);
+
 /*
  * We just popped lr to pc, make sure it's valid
  * TODO: Wrap this with #ifndef NDEBUG
@@ -93,6 +95,7 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
         } else {
                 /* User function */
                 struct qvar_t *argptr;
+                int exres;
 
                 /*
                  * Return address is _before_ semicolon, not after,
@@ -133,11 +136,19 @@ qcall_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
                  */
                 qlex();
                 expect(OC_RPAR);
+
+                /* peek but don't stay;
+                 * expression() expects us to be before the brace
+                 */
                 qlex();
                 expect(OC_LBRACE);
+                q_unlex();
 
                 /* execute it */
-                exec_block(retval, 1);
+                exres = expression(retval, 0);
+                if (exres != 1 && exres != 0) {
+                        qsyntax("Unexpected %s", exres == 2 ? "break" : "EOF");
+                }
 
                 /* restore PC */
                 qop_mov(&q_.pc, &q_.lr);
@@ -217,12 +228,8 @@ try_builtin(struct qvar_t *v)
 }
 
 static void
-do_identifier(void)
+do_childof(struct qvar_t *v)
 {
-        struct qvar_t *v = qsymbol_lookup(cur_oc->s, F_FIRST);
-        if (!v)
-                qsyntax("Unrecognized symbol `%s'", cur_oc->s);
-
         for (;;) {
                 if (v->magic == QFUNCTION_MAGIC
                     || v->magic == QINTL_MAGIC) {
@@ -231,12 +238,8 @@ do_identifier(void)
                 }
                 qlex();
                 if (cur_oc->t != OC_PER) {
-                        struct qvar_t w;
-                        qvar_init(&w);
                         expect(OC_EQ);
-                        q_eval(&w);
-                        qop_mov(v, &w);
-                        qvar_reset(&w);
+                        q_eval_safe(v);
                         break;
                 }
 
@@ -272,7 +275,17 @@ out:
 }
 
 static void
-seek_end_of_block(int depth)
+do_identifier(void)
+{
+        struct qvar_t *v = qsymbol_lookup(cur_oc->s, F_FIRST);
+        if (!v)
+                qsyntax("Unrecognized symbol `%s'", cur_oc->s);
+
+        do_childof(v);
+}
+
+static void
+seek_eob_helper(int depth)
 {
         while (depth && cur_oc->t != EOF) {
                 qlex();
@@ -280,6 +293,23 @@ seek_end_of_block(int depth)
                         ++depth;
                 else if (cur_oc->t == OC_RBRACE)
                         --depth;
+        }
+}
+
+static void
+seek_eob(int depth)
+{
+        if (!depth) {
+                qlex();
+                if (cur_oc->t == OC_LBRACE) {
+                        seek_eob_helper(1);
+                } else while (cur_oc->t != OC_SEMI) {
+                        qlex();
+                        if (cur_oc->t == OC_LBRACE)
+                                seek_eob_helper(1);
+                }
+        } else {
+                seek_eob_helper(depth);
         }
 }
 
@@ -312,15 +342,9 @@ static int
 do_if(struct qvar_t *retval)
 {
         bool cond = get_condition(true);
-        /*
-         * TODO: In future, figure out a way to do this
-         * for unbraced, single-line expressions.
-         */
-        qlex();
-        expect(OC_LBRACE);
         if (cond)
-                return exec_block(retval, 1);
-        seek_end_of_block(1);
+                return expression(retval, 0);
+        seek_eob(0);
         return false;
 }
 
@@ -332,42 +356,42 @@ do_while(struct qvar_t *retval)
         qop_mov(&pc, &q_.pc);
         while (get_condition(true)) {
                 int r;
-                qlex();
-                expect(OC_LBRACE);
-                if ((r = exec_block(retval, 1)) != 0)
+                if ((r = expression(retval, 0)) != 0)
                         return r;
                 qop_mov(&q_.pc, &pc);
         }
-        qlex();
-        expect(OC_LBRACE);
-        seek_end_of_block(1);
+        seek_eob(0);
         return false;
 }
 
 /**
- * exec_block - execute a {...} statement
+ * expression - execute a {...} statement
  * @retval:     Variable to store result, if "return xyz;"
- * @brace:      1 if PC points directly after opening '{',
- *              0 otherwise (ie we're at a script's top level)
+ * @top:        1 if at the top level (not in a function)
+ *              0 otherwise
  *
  * Return:      0       if encountered end of block
  *              1       if encountered return
  *              2       if encountered break
+ *              3       if encountered EOF
  *
  * If we're not at the top level and EOF is encountered,
  * then an error will be thrown.
  */
-int
-exec_block(struct qvar_t *retval, int brace)
+static int
+expression(struct qvar_t *retval, bool top)
 {
         struct qvar_t *sp = q_.sp;
         int ret = 0;
-        bool top = false;
-        if (!brace) {
-                top = true;
-                brace++;
+        int brace = 0;
+        if (!top) {
+                qlex();
+                if (cur_oc->t == OC_LBRACE)
+                        brace++;
+                else
+                        q_unlex();
         }
-        while (brace) {
+        do {
                 qlex();
                 switch (cur_oc->t) {
                 case 'u':
@@ -377,13 +401,11 @@ exec_block(struct qvar_t *retval, int brace)
                         do_let();
                         break;
                 case OC_RBRACE:
-                        brace--;
-                        if (!brace && q_.fp == q_.stack)
+                        if (!brace)
                                 qsyntax("Unexpected '}'");
+                        brace--;
                         break;
                 case OC_RETURN:
-                        if (q_.fp == q_.stack)
-                                qsyntax("Cannot return from global scope");
                         qlex();
                         if (cur_oc->t != OC_SEMI) {
                                 q_unlex();
@@ -396,7 +418,6 @@ exec_block(struct qvar_t *retval, int brace)
                 case OC_BREAK:
                         qlex();
                         expect(OC_SEMI);
-                        seek_end_of_block(brace);
                         ret = 2;
                         goto done;
                 case OC_IF:
@@ -411,18 +432,42 @@ exec_block(struct qvar_t *retval, int brace)
                         /* don't accidentally double-break */
                         ret = 0;
                         break;
+                case OC_THIS:
+                        do_childof(get_this());
+                        break;
                 case EOF:
                         if (!top)
                                 qsyntax("Unexpected EOF");
+                        ret = 3;
                         goto done;
                 default:
                         qsyntax("Token '%s' not allowed here", cur_oc->s);
                 }
-        }
+        } while (brace);
 done:
-        while (q_.sp != sp)
-                qstack_pop(NULL);
+        if (!top) {
+                while (q_.sp != sp)
+                        qstack_pop(NULL);
+        }
         return ret;
 }
 
-
+void
+exec_block(void)
+{
+        static struct qvar_t dummy;
+        struct qvar_t *sp = q_.sp;
+        for (;;) {
+                qvar_init(&dummy);
+                int ret = expression(&dummy, 1);
+                if (ret) {
+                        if (ret == 3)
+                                break;
+                        qsyntax("Cannot '%s' from top level",
+                                ret == 1 ? "return" : "break");
+                }
+                qvar_reset(&dummy);
+        }
+        while (q_.sp != sp)
+                qstack_pop(NULL);
+}

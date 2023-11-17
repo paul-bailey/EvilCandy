@@ -57,6 +57,7 @@ object_len(struct qvar_t *ret)
 static void
 object_append(struct qvar_t *ret)
 {
+        warning("object .append method not supported yet");
 }
 
 static void

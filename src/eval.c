@@ -132,23 +132,10 @@ eval_atomic_function(struct qvar_t *v)
                 qsyntax("Unbalanced brace");
 }
 
-/*
- * helper to eval_atomic
- * look up symbol,
- *      If function followed by '(', call it.
- *      If function NOT followed by '(',
- *              assign function pointer to v.
- *      If variable, assign its value to v.
- *
- * FIXME: egregious DRY violation, see d_identifier in exec.c
- */
+/* v is result, w is parent */
 static void
-eval_atomic_symbol(struct qvar_t *v)
+eval_atomic_childof(struct qvar_t *v, struct qvar_t *w)
 {
-        char *name = cur_oc->s;
-        struct qvar_t *w = qsymbol_lookup(name, F_FIRST);
-        if (!w)
-                qsyntax("Symbol %s not found", name);
         for (;;) {
                 if (w->magic == QFUNCTION_MAGIC
                     || w->magic == QINTL_MAGIC) {
@@ -191,6 +178,26 @@ eval_atomic_symbol(struct qvar_t *v)
                 } while (cur_oc->t == OC_PER);
                 q_unlex();
         }
+}
+
+/*
+ * helper to eval_atomic
+ * look up symbol,
+ *      If function followed by '(', call it.
+ *      If function NOT followed by '(',
+ *              assign function pointer to v.
+ *      If variable, assign its value to v.
+ *
+ * FIXME: egregious DRY violation, see d_identifier in exec.c
+ */
+static void
+eval_atomic_symbol(struct qvar_t *v)
+{
+        char *name = cur_oc->s;
+        struct qvar_t *w = qsymbol_lookup(name, F_FIRST);
+        if (!w)
+                qsyntax("Symbol %s not found", name);
+        eval_atomic_childof(v, w);
 }
 
 static void
@@ -285,6 +292,9 @@ eval_atomic(struct qvar_t *v)
                 break;
         case OC_LBRACE:
                 eval_atomic_object(v);
+                break;
+        case OC_THIS:
+                eval_atomic_childof(v, get_this());
                 break;
         default:
                 /* TODO: OC_THIS */
@@ -508,4 +518,12 @@ q_eval(struct qvar_t *v)
         --recursion;
 }
 
+void
+q_eval_safe(struct qvar_t *v)
+{
+        struct qvar_t *w = qstack_getpush();
+        q_eval(w);
+        qop_mov(v, w);
+        qstack_pop(NULL);
+}
 

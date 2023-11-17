@@ -411,11 +411,7 @@ qop_mov(struct qvar_t *to, struct qvar_t *from)
                         to->o.h->nref++;
                         break;
                 case QSTRING_MAGIC:
-                        if (to->magic == QEMPTY_MAGIC)
-                                token_init(&to->s);
-                        else
-                                token_reset(&to->s);
-                        token_puts(&to->s, from->s.s);
+                        qop_assign_cstring(to, from->s.s);
                         break;
                 case QFUNCTION_MAGIC:
                         to->fn.mk.oc = from->fn.mk.oc;
@@ -482,7 +478,12 @@ qop_assign_cstring(struct qvar_t *v, const char *s)
         } else {
                 type_err(v, QSTRING_MAGIC);
         }
-        token_puts(&v->s, s);
+        if (!s) {
+                token_putc(&v->s, 'a');
+                token_reset(&v->s);
+        } else {
+                token_puts(&v->s, s);
+        }
 }
 
 void

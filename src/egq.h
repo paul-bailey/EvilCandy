@@ -170,6 +170,7 @@ struct q_private_t {
 extern struct q_private_t q_;
 extern const char *q_typestr(int magic);
 extern const char *q_nameof(struct qvar_t *v);
+static inline struct qvar_t *get_this(void) { return q_.fp; }
 
 /* helpers for return value of qlex */
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
@@ -205,9 +206,10 @@ expect(int opcode)
 
 /* eval.c */
 extern void q_eval(struct qvar_t *v);
+extern void q_eval_safe(struct qvar_t *v);
 
 /* exec.c */
-extern int exec_block(struct qvar_t *retval, int brace);
+extern void exec_block(void);
 extern void qcall_function(struct qvar_t *fn,
                         struct qvar_t *retval, struct qvar_t *owner);
 
@@ -257,8 +259,8 @@ list_last(struct list_t *list)
 #define list_foreach(iter_, top_) \
         for (iter_ = (top_)->next; iter_ != (top_); iter_ = (iter_)->next)
 #define list_foreach_safe(iter_, tmp_, top_) \
-        for (iter_ = (toi_)->next, tmp_ = (iter_)->next; \
-             iter_ != (top_); iter_ = tmp)
+        for (iter_ = (top_)->next, tmp_ = (iter_)->next; \
+             iter_ != (top_); iter_ = tmp_)
 
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \

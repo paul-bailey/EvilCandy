@@ -45,6 +45,8 @@ let iterator = {
         toten: function(x) {
                 while (x < 11) {
                         print("{}\n".format(x));
+                        if (x == 7)
+                            print("(seven!)\n");
                         x = x + 1;
                 }
         }

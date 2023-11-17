@@ -159,7 +159,6 @@ void
 load_file(const char *filename)
 {
         struct ns_t *ns;
-        struct qvar_t dummy;
         char *path;
 
         bug_on(!filename);
@@ -184,9 +183,7 @@ load_file(const char *filename)
          */
         cur_oc--;
 
-        qvar_init(&dummy);
-        exec_block(&dummy, 0);
-        qvar_reset(&dummy);
+        exec_block();
         nspop();
 
         /*

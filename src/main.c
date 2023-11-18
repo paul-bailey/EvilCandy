@@ -39,6 +39,8 @@ initialize_keywords(void)
                 { "import",     KW_IMPORT },
                 { "if",         KW_IF },
                 { "while",      KW_WHILE },
+                { "else",       KW_ELSE },
+                { "do",         KW_DO },
                 { NULL, 0 }
         };
         const struct kw_tbl_t *tkw;

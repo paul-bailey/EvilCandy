@@ -36,20 +36,18 @@ let pow = function(x, y) {
 };
 
 let iterator = {
-        tonine: function(x) {
-                while (x < 10) {
-                        print("x is {}\n".format(x));
-                        x = x + 1;
-                }
-        },
-        toten: function(x) {
-                while (x < 11) {
-                        print("{}\n".format(x));
-                        if (x == 7)
-                            print("(seven!)\n");
-                        x = x + 1;
-                }
+    tonine: function(x) {
+        while (x < 10) {
+                print("x is {}\n".format(x));
+                x = x + 1;
         }
+    },
+    toten: function(x) {
+        do {
+            print("{}\n".format(x));
+            x = x + 1;
+        } while (x < 11);
+    }
 };
 
 iterator.whoami = function() {
@@ -57,16 +55,17 @@ iterator.whoami = function() {
 };
 
 let toten = function(x) {
-        while (x < 11) {
-                print("{}\n".format(x));
-                x = x + 1;
-        }
+    while (x < 11) {
+        print("{}\n".format(x));
+        x = x + 1;
+    }
 };
 
 iterator.tonine(4);
 print("That was to nine. This is to ten:\n");
 iterator.toten(4);
 print("4^4 = {}\n".format(pow(4, 4)));
+print("Who am I?\n");
 iterator.whoami();
 
 let s = "This is a string";

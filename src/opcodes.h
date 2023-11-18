@@ -56,6 +56,8 @@ enum {
         KW_IMPORT,
         KW_IF,
         KW_WHILE,
+        KW_ELSE,
+        KW_DO,
 };
 
 enum {
@@ -105,6 +107,8 @@ enum {
         OC_IMPORT       = TO_KTOK(KW_IMPORT),
         OC_IF           = TO_KTOK(KW_IF),
         OC_WHILE        = TO_KTOK(KW_WHILE),
+        OC_ELSE         = TO_KTOK(KW_ELSE),
+        OC_DO           = TO_KTOK(KW_DO),
 };
 
 #endif /* EGQ_OPCODES_H */

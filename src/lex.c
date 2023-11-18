@@ -393,6 +393,10 @@ qlex(void)
 {
         bug_on(!cur_oc);
 
+        /* safety net */
+        if (cur_oc->t == EOF)
+                return EOF;
+
         cur_oc++;
         return cur_oc->t;
 }

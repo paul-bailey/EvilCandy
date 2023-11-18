@@ -216,16 +216,42 @@ do_identifier(void)
         do_childof(v);
 }
 
+/*
+ * helper to seek_eob.
+ * this is somehow more complicated than
+ * just looking for a brace
+ */
 static void
-seek_eob_helper(int depth)
+seek_eob_1line(void)
 {
-        while (depth && cur_oc->t != EOF) {
-                qlex();
-                if (cur_oc->t == OC_LBRACE)
-                        ++depth;
+        int par = 0;
+        int brace = 0;
+        while (cur_oc->t != OC_SEMI || par || brace) {
+                if (cur_oc->t == OC_LPAR)
+                        ++par;
+                else if (cur_oc->t == OC_RPAR)
+                        --par;
+                else if (cur_oc->t == OC_LBRACE)
+                        ++brace;
                 else if (cur_oc->t == OC_RBRACE)
-                        --depth;
+                        --brace;
+                qlex();
+                if (cur_oc->t == EOF)
+                        break;
         }
+}
+
+/* Helper to seek_eob - skip (...) */
+static void
+skip_par(int lpar)
+{
+        do {
+                qlex();
+                if (cur_oc->t == OC_LPAR)
+                        lpar++;
+                else if (cur_oc->t == OC_RPAR)
+                        lpar--;
+        } while (lpar);
 }
 
 static void
@@ -234,14 +260,36 @@ seek_eob(int depth)
         if (!depth) {
                 qlex();
                 if (cur_oc->t == OC_LBRACE) {
-                        seek_eob_helper(1);
-                } else while (cur_oc->t != OC_SEMI) {
+                        seek_eob(1);
+                } else if (cur_oc->t == OC_IF) {
+                        /* special case: there might be an ELSE */
                         qlex();
-                        if (cur_oc->t == OC_LBRACE)
-                                seek_eob_helper(1);
+                        expect(OC_LPAR);
+                        skip_par(1);
+                        seek_eob(0);
+                        qlex();
+                        if (cur_oc->t == OC_ELSE)
+                                seek_eob(0);
+                        else
+                                q_unlex();
+                } else if (cur_oc->t == OC_DO) {
+                        seek_eob(0);
+                        qlex();
+                        expect(OC_WHILE);
+                        qlex();
+                        expect(OC_LPAR);
+                        skip_par(1);
+                        qlex();
+                        expect(OC_SEMI);
+                } else {
+                        seek_eob_1line();
                 }
-        } else {
-                seek_eob_helper(depth);
+        } else while (depth && cur_oc->t != EOF) {
+                qlex();
+                if (cur_oc->t == OC_LBRACE)
+                        ++depth;
+                else if (cur_oc->t == OC_RBRACE)
+                        --depth;
         }
 }
 
@@ -270,30 +318,81 @@ get_condition(bool par)
         return ret;
 }
 
+/*
+ * wrapper to expression() which returns PC to beginning of the
+ * expression.  In some cases, this is superfluous, but it's not a lot of
+ * overhead and it makes it a lot easier to keep track of program counter
+ * at end of a possibly deep thread.
+ */
+static int
+expression_and_back(struct qvar_t *retval)
+{
+        int ret;
+        qstack_push(&q_.pc);
+        ret = expression(retval, 0);
+        qstack_pop(&q_.pc);
+        return ret;
+}
+
 static int
 do_if(struct qvar_t *retval)
 {
+        int ret = 0;
         bool cond = get_condition(true);
         if (cond)
-                return expression(retval, 0);
+                ret = expression_and_back(retval);
         seek_eob(0);
-        return false;
+        qlex();
+        if (cur_oc->t == OC_ELSE) {
+                if (!cond)
+                        ret = expression_and_back(retval);
+                seek_eob(0);
+        } else {
+                q_unlex();
+        }
+        return ret;
 }
 
 static int
 do_while(struct qvar_t *retval)
 {
-        struct qvar_t pc;
-        qvar_init(&pc);
-        qop_mov(&pc, &q_.pc);
+        int r = 0;
+        struct qvar_t *pc = qstack_getpush();
+        qop_mov(pc, &q_.pc);
         while (get_condition(true)) {
-                int r;
                 if ((r = expression(retval, 0)) != 0)
-                        return r;
-                qop_mov(&q_.pc, &pc);
+                        break;
+                qop_mov(&q_.pc, pc);
         }
+        qstack_pop(&q_.pc);
         seek_eob(0);
-        return false;
+        return r;
+}
+
+/* he he... he he... "dodo" */
+static int
+do_do(struct qvar_t *retval)
+{
+        int cond;
+        for (;;) {
+                int r;
+                qstack_push(&q_.pc);
+                if ((r = expression(retval, 0)) != 0) {
+                        qstack_pop(NULL);
+                        return r;
+                }
+                qlex();
+                expect(OC_WHILE);
+                cond = get_condition(true);
+                if (cond) {
+                        qstack_pop(&q_.pc);
+                } else {
+                        qstack_pop(NULL);
+                        qlex();
+                        expect(OC_SEMI);
+                        return 0;
+                }
+        }
 }
 
 /**
@@ -362,6 +461,11 @@ expression(struct qvar_t *retval, bool top)
                         if ((ret = do_while(retval)) == 1)
                                 goto done;
                         /* don't accidentally double-break */
+                        ret = 0;
+                        break;
+                case OC_DO:
+                        if ((ret = do_do(retval)) == 1)
+                                goto done;
                         ret = 0;
                         break;
                 case OC_THIS:

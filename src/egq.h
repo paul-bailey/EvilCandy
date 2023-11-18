@@ -176,7 +176,6 @@ static inline struct qvar_t *get_this(void) { return q_.fp; }
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
-extern char *my_strrchrnul(const char *s, int c);
 
 /* builtin.c */
 extern void q_builtin_initlib(void);
@@ -212,7 +211,7 @@ extern void q_eval_safe(struct qvar_t *v);
 
 /* exec.c */
 extern void exec_block(void);
-extern void qcall_function(struct qvar_t *fn,
+extern void call_function(struct qvar_t *fn,
                         struct qvar_t *retval, struct qvar_t *owner);
 
 /* file.c */
@@ -221,10 +220,11 @@ extern void load_file(const char *filename);
 /* helpers.c */
 extern char *estrdup(const char *s);
 extern void *emalloc(size_t size);
-extern void * ecalloc(size_t size);
+extern void *ecalloc(size_t size);
 extern int x2bin(int c);
 static inline bool isodigit(int c) { return c >= '0' && c <= '7'; }
 static inline bool isquote(int c) { return c == '"' || c == '\''; }
+extern char *my_strrchrnul(const char *s, int c);
 
 /* lex.c */
 extern int qlex(void);

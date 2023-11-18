@@ -30,7 +30,6 @@ initialize_keywords(void)
                 const char *name;
                 int v;
         } KEYWORDS[] = {
-                { "append",     KW_APPEND },
                 { "function",   KW_FUNC },
                 { "let",        KW_LET },
                 { "return",     KW_RETURN },
@@ -45,6 +44,10 @@ initialize_keywords(void)
         };
         const struct kw_tbl_t *tkw;
 
+        /*
+         * XXX REVISIT: Not as many keywords as I thought, maybe a linear
+         * search would be quicker.
+         */
         q_.kw_htbl = hashtable_create(HTBL_COPY_KEY|HTBL_COPY_DATA, NULL);
         if (!q_.kw_htbl)
                 fail("hashtable_create failed");

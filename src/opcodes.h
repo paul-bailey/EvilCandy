@@ -47,8 +47,7 @@ enum {
 
 /* keyword codes */
 enum {
-        KW_APPEND = 1,
-        KW_FUNC,
+        KW_FUNC = 1,
         KW_LET,
         KW_THIS,
         KW_RETURN,
@@ -98,7 +97,6 @@ enum {
         OC_GEQ          = TO_DTOK(QD_GEQ),
         OC_NEQ          = TO_DTOK(QD_NEQ),
 
-        OC_APPEND       = TO_KTOK(KW_APPEND),
         OC_FUNC         = TO_KTOK(KW_FUNC),
         OC_LET          = TO_KTOK(KW_LET),
         OC_THIS         = TO_KTOK(KW_THIS),

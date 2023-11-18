@@ -139,6 +139,8 @@ convert_path(const char *name)
 {
         char *old_path;
 
+        if (!path.s)
+                token_putc(&path, 'a');
         token_reset(&path);
 
         /* The old path was relative to CWD, so use that */

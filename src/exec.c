@@ -26,12 +26,12 @@ pcsanity(void)
 }
 
 /**
- * qcall_function - Call a function and execute it
+ * call_function - Call a function and execute it
  * @fn: Function handle, which may be user-defined or built-in
  * @retval: Return value of the function being called.
  */
 void
-qcall_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
+call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
 {
         struct qvar_t *fpsav, *new_fp;
         int nargs; /* for sanity checking */
@@ -373,35 +373,39 @@ do_while(struct qvar_t *retval)
 static int
 do_do(struct qvar_t *retval)
 {
-        int cond;
+        int r = 0;
+        struct qvar_t *saved_pc = qstack_getpush();
+        qop_mov(saved_pc, &q_.pc);
         for (;;) {
-                int r;
-                qstack_push(&q_.pc);
-                if ((r = expression(retval, 0)) != 0) {
-                        qstack_pop(NULL);
-                        return r;
-                }
+                if ((r = expression(retval, 0)) != 0)
+                        break;
                 qlex();
                 expect(OC_WHILE);
-                cond = get_condition(true);
-                if (cond) {
-                        qstack_pop(&q_.pc);
+                if (get_condition(true)) {
+                        qop_mov(&q_.pc, saved_pc);
                 } else {
-                        qstack_pop(NULL);
                         qlex();
                         expect(OC_SEMI);
-                        return 0;
+                        break;
                 }
         }
+        /*
+         * we are either at the end of "while(cond);" or
+         * we encountered "break;", so no need to restore
+         * PC and find the end of block, etc.
+         */
+        qstack_pop(NULL);
+        return r;
 }
 
 /**
- * expression - execute a {...} statement
+ * expression - execute a {...} statement, which may be unbraced and on
+ *              a single line.
  * @retval:     Variable to store result, if "return xyz;"
  * @top:        1 if at the top level (not in a function)
  *              0 otherwise
  *
- * Return:      0       if encountered end of block
+ * Return:      0       if encountered end of statement
  *              1       if encountered return
  *              2       if encountered break
  *              3       if encountered EOF
@@ -412,6 +416,10 @@ do_do(struct qvar_t *retval)
 static int
 expression(struct qvar_t *retval, bool top)
 {
+        /*
+         * Save position of the stack pointer so we unwind lower-scope
+         * variables at the end.
+         */
         struct qvar_t *sp = q_.sp;
         int ret = 0;
         int brace = 0;
@@ -427,6 +435,8 @@ expression(struct qvar_t *retval, bool top)
                 switch (cur_oc->t) {
                 case 'u':
                         do_identifier();
+                        break;
+                case OC_SEMI: /* empty statement */
                         break;
                 case OC_LET:
                         do_let();

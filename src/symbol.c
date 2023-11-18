@@ -17,7 +17,7 @@ walk_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
                          */
                         struct qvar_t *method;
                         method = ebuiltin_method(parent, cur_oc->s);
-                        qcall_function(method, result, parent);
+                        call_function(method, result, parent);
                         return NULL;
                 }
                 child = qobject_child(parent, cur_oc->s);
@@ -71,7 +71,7 @@ symbol_walk(struct qvar_t *result, struct qvar_t *parent, bool expression)
                 if (parent->magic == QFUNCTION_MAGIC
                     || parent->magic == QINTL_MAGIC) {
                         if (expression) {
-                                qcall_function(parent, result, NULL);
+                                call_function(parent, result, NULL);
                                 qlex();
                                 expect(OC_SEMI);
                                 break;
@@ -80,7 +80,7 @@ symbol_walk(struct qvar_t *result, struct qvar_t *parent, bool expression)
                                 q_unlex();
                                 if (t == OC_LPAR) {
                                         /* it's a function call */
-                                        qcall_function(parent, result, NULL);
+                                        call_function(parent, result, NULL);
                                         break;
                                 }
                         }

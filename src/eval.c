@@ -160,7 +160,7 @@ eval_atomic_literal(struct qvar_t *v)
                 qlex();
                 expect('u');
                 method = ebuiltin_method(w, cur_oc->s);
-                qcall_function(method, v, w);
+                call_function(method, v, w);
                 qstack_pop(NULL);
         } else {
                 q_unlex();

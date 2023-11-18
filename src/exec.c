@@ -197,87 +197,19 @@ do_let(void)
         }
 }
 
-/* We throw away the return value at this scope */
 static void
-call_empty_function(struct qvar_t *fn, struct qvar_t *owner)
+do_childof(struct qvar_t *parent)
 {
         struct qvar_t dummy;
         qvar_init(&dummy);
-        qcall_function(fn, &dummy, owner);
+        symbol_walk(&dummy, parent, true);
         qvar_reset(&dummy);
-}
-
-/*
- * helper to do_identifier.
- * non-object type acting object-ish,
- * maybe it's calling a built-in type method.
- */
-static void
-try_builtin(struct qvar_t *v)
-{
-        struct qvar_t *w;
-
-        qlex();
-        expect('u');
-        w = builtin_method(v, cur_oc->s);
-        if (!w) {
-                qsyntax("type %s has no method %s",
-                        q_typestr(v->magic), cur_oc->s);
-        }
-        call_empty_function(w, v);
-}
-
-static void
-do_childof(struct qvar_t *v)
-{
-        for (;;) {
-                if (v->magic == QFUNCTION_MAGIC
-                    || v->magic == QINTL_MAGIC) {
-                        call_empty_function(v, NULL);
-                        break;
-                }
-                qlex();
-                if (cur_oc->t != OC_PER) {
-                        expect(OC_EQ);
-                        q_eval_safe(v);
-                        break;
-                }
-
-                do {
-                        struct qvar_t *w;
-                        if (v->magic != QOBJECT_MAGIC) {
-                                try_builtin(v);
-                                return;
-                        }
-
-                        qlex();
-                        expect('u');
-                        w = qobject_child(v, cur_oc->s);
-                        if (!w) {
-                                /* assigning a new member */
-                                w = qvar_new();
-                                w->name = cur_oc->s;
-                                qlex();
-                                expect(OC_EQ);
-                                q_eval(w);
-                                qobject_add_child(v, w);
-                                goto out;
-                        }
-                        v = w;
-                        qlex();
-                } while (cur_oc->t == OC_PER);
-                q_unlex();
-        }
-
-out:
-        qlex();
-        expect(OC_SEMI);
 }
 
 static void
 do_identifier(void)
 {
-        struct qvar_t *v = qsymbol_lookup(cur_oc->s, F_FIRST);
+        struct qvar_t *v = symbol_seek(cur_oc->s);
         if (!v)
                 qsyntax("Unrecognized symbol `%s'", cur_oc->s);
 

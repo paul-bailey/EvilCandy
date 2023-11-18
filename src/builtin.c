@@ -338,5 +338,15 @@ builtin_method(struct qvar_t *v, const char *method_name)
         return NULL;
 }
 
-
+/* like builtin_method, but trap an error here. */
+struct qvar_t *
+ebuiltin_method(struct qvar_t *v, const char *method_name)
+{
+        struct qvar_t *ret = builtin_method(v, method_name);
+        if (!ret) {
+                qsyntax("type %s has no method %s",
+                        q_typestr(v->magic), method_name);
+        }
+        return ret;
+}
 

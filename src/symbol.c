@@ -1,51 +1,121 @@
-/* q-symbol.c - Code that looks for symbol from input */
+/* symbol.c - Code that looks for symbol from input */
 #include "egq.h"
 #include <string.h>
 
-/**
- * qsymbol_walk - walk down an object's "child.grandchild..." path
- *                as specified by the input tokens.
- * @o: The object to be the starting point.
- * @flags: Determines a corner case of return value, see below.
- *
- * Return:
- *    - If every descendant of n-size path exists, return nth descendant
- *    - If a non-object descendant is found first, return that.
- *    - If next descendant on path is not found, then...
- *            - if F_FORCE is set in @flags, return the parent.
- *              We may be appending a new child to the object.
- *            - if F_FORCE is not set, return NULL.  We're probably
- *              evaluating an object, not assigning it.
- *
- * TODO: if fail, check type's built-in methods
- */
-struct qvar_t *
-qsymbol_walk(struct qvar_t *o, unsigned int flags)
+/* either returns pointer to new parent, or NULL, meaning "wrap it up" */
+static struct qvar_t *
+walk_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
 {
-        int t;
-        struct qvar_t *v;
-
-        while ((t = qlex()) == OC_PER) {
+        do {
+                struct qvar_t *child;
                 qlex();
-                if (cur_oc->t != 'u')
-                        qsyntax("Malformed symbol name");
-                v = qobject_child(o, cur_oc->s);
-                if (!v) {
-                        if (!(flags & F_FORCE))
-                                return NULL;
-                        q_unlex();
-                        q_unlex();
-                        return o;
+                expect('u');
+                if (parent->magic != QOBJECT_MAGIC) {
+                        /*
+                         * calling a typedef's built-in methods.
+                         * All types are slightly objects, slightly not.
+                         */
+                        struct qvar_t *method;
+                        method = ebuiltin_method(parent, cur_oc->s);
+                        qcall_function(method, result, parent);
+                        return NULL;
                 }
-                if (v->magic != QOBJECT_MAGIC)
-                        return v;
-                o = v;
-        }
-        q_unlex();
-        return v;
+                child = qobject_child(parent, cur_oc->s);
+                if (!child) {
+                        if (!expression)
+                                qsyntax("symbol %s not found in %s",
+                                        cur_oc->s, parent->name);
+                        /*
+                         * Parsing "alice.bob = something;", where
+                         * "alice" exists and "bob" does not.
+                         * Append "bob" as a new child of "alice",
+                         * and evaluate the "something" of "bob".
+                         */
+                        child = qvar_new();
+                        child->name = cur_oc->s;
+                        qlex();
+                        expect(OC_EQ);
+                        q_eval(child);
+                        qobject_add_child(parent, child);
+                        qlex();
+                        expect(OC_SEMI);
+                        return NULL;
+                }
+                parent = child;
+                qlex();
+        } while (cur_oc->t == OC_PER);
+        return parent;
 }
 
-/* Helper to qsymbol_lookup - look in stack */
+/**
+ * symbol_walk: walk down the ".child.grandchild..." path of a parent
+ *              and take certain actions.
+ * @result: If the symbol is assigned, this stores the result.  It may
+ *          be a dummy, but it may not be NULL
+ * @parent: Parent of the ".child.grandchild..."
+ * @expression: true if called from expression(), false if called from
+ *              eval(); This whole function doesn't belong here, it
+ *              should be split between eval.c and exec.c, for it does
+ *              VERY DIFFERENT things based on this flag.  Unfortunately,
+ *              splitting the function between the two modules would
+ *              result in an egregious DRY violation.
+ *
+ * Program counter must be before the first '.', if it exists.
+ * Note, the operation might happen with the parent itself, if no
+ * '.something' is expressed.
+ */
+void
+symbol_walk(struct qvar_t *result, struct qvar_t *parent, bool expression)
+{
+        for (;;) {
+                if (parent->magic == QFUNCTION_MAGIC
+                    || parent->magic == QINTL_MAGIC) {
+                        if (expression) {
+                                qcall_function(parent, result, NULL);
+                                qlex();
+                                expect(OC_SEMI);
+                                break;
+                        } else {
+                                int t = qlex(); /* need to peek */
+                                q_unlex();
+                                if (t == OC_LPAR) {
+                                        /* it's a function call */
+                                        qcall_function(parent, result, NULL);
+                                        break;
+                                }
+                        }
+                        /* else, it's a variable assignment, fall through */
+                }
+                qlex();
+                if (cur_oc->t == OC_PER) {
+                        parent = walk_helper(result, parent, expression);
+                        if (!parent)
+                                break;
+                        q_unlex();
+                } else {
+                        if (expression) {
+                                /*
+                                 * we're at the "that" of "this = that;",
+                                 * where @parent is the "this".
+                                 */
+                                expect(OC_EQ);
+                                q_eval_safe(parent);
+                                qlex();
+                                expect(OC_SEMI);
+                        } else {
+                                /*
+                                 * we've been evaluating an atomic,
+                                 * and we found the end of it
+                                 */
+                                q_unlex();
+                                qop_mov(result, parent);
+                        }
+                        break;
+                }
+        }
+}
+
+/* Helper to symbol_seek - look in stack */
 static struct qvar_t *
 trystack(const char *s)
 {
@@ -58,7 +128,7 @@ trystack(const char *s)
         return NULL;
 }
 
-/* Helper to qsymbol_lookup - walk up namespace */
+/* Helper to symbol_seek - walk up namespace */
 static struct qvar_t *
 trythis(const char *s)
 {
@@ -76,10 +146,8 @@ trythis(const char *s)
 }
 
 /**
- * symbol_lookup - Look up a symbol
+ * symbol_seek - Look up a symbol
  * @s: first token of "something.something.something..."
- * @flags: same as with qsymbol_walk, except also F_FIRST
- *      means "just get @s, don't walk down"
  *
  * The process is...
  * 1. Look for first "something":
@@ -91,34 +159,21 @@ trythis(const char *s)
  *      e. look __gbl__ (since in step d. we might not
  *         ascend all the way up to global)
  *
- * 2. If first "something" is an object and next tok is '.',
- *    return result of "qsymbol_walk(result, @flags)"
- *
- * Return NULL if top-level @s can't be found, regardless
- * of flags.
+ * Return: token matching @s if found, NULL otherwise.
+ *      Calling code must decide what to do if it's followed
+ *      by ".child.grandchild...."
  */
 struct qvar_t *
-qsymbol_lookup(const char *s, unsigned int flags)
+symbol_seek(const char *s)
 {
-        struct qvar_t *v = NULL;
+        struct qvar_t *v;
 
-        do {
-                if (!strcmp(s, "__gbl__")) {
-                        v = q_.gbl;
-                        break;
-                }
-                if ((v = trystack(s)) != NULL)
-                        break;
-                if ((v = trythis(s)) != NULL)
-                        break;
-                v = qobject_child(q_.gbl, s);
-                if (!v)
-                        return NULL;
-        } while (0);
-
-        if (v->magic == QOBJECT_MAGIC && !(flags & F_FIRST))
-                return qsymbol_walk(v, flags);
-
-        return v;
+        if (!strcmp(s, "__gbl__"))
+                return q_.gbl;
+        if ((v = trystack(s)) != NULL)
+                return v;
+        if ((v = trythis(s)) != NULL)
+                return v;
+        return qobject_child(q_.gbl, s);
 }
 

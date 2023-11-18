@@ -182,6 +182,8 @@ extern char *my_strrchrnul(const char *s, int c);
 extern void q_builtin_initlib(void);
 extern struct qvar_t *builtin_method(struct qvar_t *v,
                                 const char *method_name);
+extern struct qvar_t *ebuiltin_method(struct qvar_t *v,
+                                const char *method_name);
 
 /* file.c */
 extern void file_push(const char *name);
@@ -296,12 +298,9 @@ extern struct qvar_t *qstack_getpush(void);
 extern void qstack_push(struct qvar_t *v);
 
 /* symbol.c */
-enum {
-        F_FORCE = 0x1u,
-        F_FIRST = 0x2u,
-};
-extern struct qvar_t *qsymbol_walk(struct qvar_t *o, unsigned int flags);
-extern struct qvar_t *qsymbol_lookup(const char *s, unsigned int flags);
+extern struct qvar_t *symbol_seek(const char *s);
+extern void symbol_walk(struct qvar_t *result,
+                        struct qvar_t *parent, bool expression);
 
 /* token.c */
 extern void token_init(struct token_t *tok);

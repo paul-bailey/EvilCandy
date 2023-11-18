@@ -3,55 +3,25 @@
 #include <string.h>
 #include <stdlib.h>
 
-static unsigned char optbl[QD_NCODES];
-static bool module_is_init = false;
-
-enum {
-        F_LOG = 0x01,
-        F_BIN = 0x02,
-        F_CMP = 0x04,
-        F_SFT = 0x08,
-};
-
-static void
-init_module(void)
-{
-        memset(optbl, 0, sizeof(optbl));
-        optbl[QD_AND] = F_BIN;
-        optbl[QD_OR]  = F_BIN;
-        optbl[QD_XOR] = F_BIN;
-
-        optbl[QD_EQEQ] = F_CMP;
-        optbl[QD_LEQ]  = F_CMP;
-        optbl[QD_GEQ]  = F_CMP;
-        optbl[QD_NEQ]  = F_CMP;
-        optbl[QD_LT]   = F_CMP;
-        optbl[QD_GT]   = F_CMP;
-
-        optbl[QD_OROR]   = F_LOG;
-        optbl[QD_ANDAND] = F_LOG;
-
-        optbl[QD_LSHIFT] = F_SFT;
-        optbl[QD_RSHIFT] = F_SFT;
-        module_is_init = true;
-}
-
+/* && or || */
 static bool
 islogical(int t)
 {
         return t == OC_OROR || t == OC_ANDAND;
 }
 
+/* & | ^ */
 static bool
 isbinary(int t)
 {
-        return tok_type(t) == 'd' && !!(optbl[tok_delim(t)] & F_BIN);
+        return t == OC_AND || t == OC_OR || t == OC_XOR;
 }
 
 static bool
 iscmp(int t)
 {
-        return tok_type(t) == 'd' && !!(optbl[tok_delim(t)] & F_CMP);
+        return t == OC_EQEQ || t == OC_LEQ || t == OC_GEQ
+                || t == OC_NEQ || t == OC_LT || t == OC_GT;
 }
 
 static bool
@@ -69,14 +39,7 @@ isadd(int t)
 static bool
 ismuldivmod(int t)
 {
-        return t == OC_MUL ||
-               t == OC_DIV || t == OC_MOD;
-}
-
-static void
-nomethod(int magic, const char *method)
-{
-        qsyntax("type %s has no method %s", q_typestr(magic), method);
+        return t == OC_MUL || t == OC_DIV || t == OC_MOD;
 }
 
 static void eval0(struct qvar_t *v);
@@ -132,72 +95,14 @@ eval_atomic_function(struct qvar_t *v)
                 qsyntax("Unbalanced brace");
 }
 
-/* v is result, w is parent */
-static void
-eval_atomic_childof(struct qvar_t *v, struct qvar_t *w)
-{
-        for (;;) {
-                if (w->magic == QFUNCTION_MAGIC
-                    || w->magic == QINTL_MAGIC) {
-                        int t = qlex(); /* need to peek */
-                        q_unlex();
-                        if (t == OC_LPAR) {
-                                /* It's a function call */
-                                qcall_function(w, v, NULL);
-                                return;
-                        }
-                        /* else, it's a variable assignment, fall through */
-                }
-                qlex();
-                if (cur_oc->t != OC_PER) {
-                        q_unlex();
-                        qop_mov(v, w);
-                        return;
-                }
-                do {
-                        struct qvar_t *tmp;
-                        if (w->magic != QOBJECT_MAGIC) {
-                                struct qvar_t *method;
-                                qlex();
-                                expect('u');
-                                method = builtin_method(w, cur_oc->s);
-                                if (!method)
-                                        nomethod(w->magic, cur_oc->s);
-                                qcall_function(method, v, w);
-                                return;
-                        }
-                        qlex();
-                        expect('u');
-                        tmp = qobject_child(w, cur_oc->s);
-                        if (!tmp) {
-                                qsyntax("Symbol %s not found in %s",
-                                        cur_oc->s, w->name);
-                        }
-                        w = tmp;
-                        qlex();
-                } while (cur_oc->t == OC_PER);
-                q_unlex();
-        }
-}
-
-/*
- * helper to eval_atomic
- * look up symbol,
- *      If function followed by '(', call it.
- *      If function NOT followed by '(',
- *              assign function pointer to v.
- *      If variable, assign its value to v.
- *
- * FIXME: egregious DRY violation, see d_identifier in exec.c
- */
 static void
 eval_atomic_symbol(struct qvar_t *v)
 {
         char *name = cur_oc->s;
-        struct qvar_t *w = qsymbol_lookup(name, F_FIRST);
+        struct qvar_t *w = symbol_seek(name);
         if (!w)
                 qsyntax("Symbol %s not found", name);
-        eval_atomic_childof(v, w);
+        symbol_walk(v, w, false);
 }
 
 static void
@@ -254,14 +159,7 @@ eval_atomic_literal(struct qvar_t *v)
                 eval_atomic_assign(w, oc);
                 qlex();
                 expect('u');
-                method = builtin_method(w, cur_oc->s);
-                if (!method) {
-                        int magic = oc->t == 'f'
-                                    ? QFLOAT_MAGIC
-                                    : (oc->t == 'i'
-                                       ? QINT_MAGIC : QSTRING_MAGIC);
-                        nomethod(magic, cur_oc->s);
-                }
+                method = ebuiltin_method(w, cur_oc->s);
                 qcall_function(method, v, w);
                 qstack_pop(NULL);
         } else {
@@ -294,7 +192,7 @@ eval_atomic(struct qvar_t *v)
                 eval_atomic_object(v);
                 break;
         case OC_THIS:
-                eval_atomic_childof(v, get_this());
+                symbol_walk(v, get_this(), false);
                 break;
         default:
                 /* TODO: OC_THIS */
@@ -500,16 +398,13 @@ eval0(struct qvar_t *v)
 void
 q_eval(struct qvar_t *v)
 {
-        /* We probably have a 64kB stack, but let's be paranoid */
+        /* We probably have a 64kB stack irl, but let's be paranoid */
         enum { RECURSION_SAFETY = 256 };
         static int recursion = 0;
 
         if (recursion >= RECURSION_SAFETY)
                 qsyntax("Excess expression recursion");
         ++recursion;
-
-        if (!module_is_init)
-                init_module();
 
         qlex();
         eval0(v);

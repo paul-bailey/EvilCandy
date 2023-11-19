@@ -435,6 +435,24 @@ qop_mov(struct qvar_t *to, struct qvar_t *from)
                 case QFLOAT_MAGIC:
                         to->f = from->f;
                         break;
+                case QARRAY_MAGIC:
+                    {
+                        /*
+                         * clobber @to and replace its elements
+                         * with _copies_ of @from's elements
+                         */
+                        struct list_t *child;
+                        qvar_reset(to);
+                        qarray_from_empty(to);
+                        list_foreach(child, &from->a) {
+                                struct qvar_t *item, *new;
+                                new = qvar_new();
+                                item = container_of(child, struct qvar_t, a);
+                                qop_mov(new, item);
+                                qarray_add_child(to, new);
+                        }
+                        break;
+                    }
                 }
                 to->magic = from->magic;
         } else if (to->magic == QPTRX_MAGIC

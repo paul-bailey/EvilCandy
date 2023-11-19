@@ -12,6 +12,7 @@ struct type_t TYPEDEFS[Q_NMAGIC] = {
         { .name = "string" },
         { .name = "pointer" },
         { .name = "built_in_function" },
+        { .name = "array" },
 };
 
 /*
@@ -206,6 +207,14 @@ qobject_reset(struct qvar_t *o)
         }
 }
 
+static void
+qarray_reset(struct qvar_t *a)
+{
+        struct list_t *child, *tmp;
+        list_foreach_safe(child, tmp, &a->a)
+                qvar_delete(container_of(child, struct qvar_t, a));
+}
+
 /**
  * qvar_reset - Empty a variable
  * @v: variable to empty.
@@ -234,6 +243,9 @@ qvar_reset(struct qvar_t *v)
                         bug_on(v->o.h->nref < 0);
                         qobject_reset(v);
                 }
+                break;
+        case QARRAY_MAGIC:
+                qarray_reset(v);
                 break;
         default:
                 bug();
@@ -308,5 +320,48 @@ qobject_add_child(struct qvar_t *parent, struct qvar_t *child)
                 child->fn.owner = parent;
         }
         list_add_tail(&child->siblings, &parent->o.h->children);
+}
+
+/**
+ * similar to qobject_nth_child, but specifically for arrays
+ * @n is indexed from zero.
+ */
+struct qvar_t *
+qarray_child(struct qvar_t *array, int n)
+{
+        struct list_t *child;
+        int i = 0;
+        if (n < 0)
+                return NULL;
+        list_foreach(child, &array->a) {
+                if (i == n)
+                        return container_of(child, struct qvar_t, a);
+                i++;
+        }
+        return NULL;
+}
+
+void
+qarray_add_child(struct qvar_t *array, struct qvar_t *child)
+{
+        if (!list_is_empty(&child->a))
+                qsyntax("Adding an element already owned by something else");
+
+        if (!list_is_empty(&array->a)) {
+                struct qvar_t *check = qarray_child(array, 0);
+                if (child->magic != check->magic)
+                        qsyntax("Array cannot append elements of different type");
+        }
+        list_add_tail(&child->siblings, &array->a);
+}
+
+struct qvar_t *
+qarray_from_empty(struct qvar_t *array)
+{
+        bug_on(array->magic != QEMPTY_MAGIC);
+        array->magic = QARRAY_MAGIC;
+
+        list_init(&array->a);
+        return array;
 }
 

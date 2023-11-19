@@ -168,6 +168,25 @@ eval_atomic_literal(struct qvar_t *v)
         }
 }
 
+static void
+eval_atomic_array(struct qvar_t *v)
+{
+        bug_on(v->magic != QEMPTY_MAGIC);
+        qarray_from_empty(v);
+        qlex();
+        if (cur_oc->t == OC_RBRACK) /* empty array */
+                return;
+        q_unlex();
+        do {
+                struct qvar_t *child = qvar_new();
+                qlex();
+                q_eval(child);
+                qlex();
+                qarray_add_child(v, child);
+        } while(cur_oc->t == OC_COMMA);
+        expect(OC_RBRACK);
+}
+
 /* find value of number, string, function, or object */
 static void
 eval_atomic(struct qvar_t *v)
@@ -183,6 +202,9 @@ eval_atomic(struct qvar_t *v)
                 break;
         case OC_FUNC:
                 eval_atomic_function(v);
+                break;
+        case OC_LBRACK:
+                eval_atomic_array(v);
                 break;
         case OC_RPAR:
         case OC_RBRACK:

@@ -4,7 +4,7 @@
 
 /* either returns pointer to new parent, or NULL, meaning "wrap it up" */
 static struct qvar_t *
-walk_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
+walk_obj_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
 {
         do {
                 struct qvar_t *child;
@@ -45,6 +45,31 @@ walk_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
                 qlex();
         } while (cur_oc->t == OC_PER);
         return parent;
+}
+
+/*
+ * FIXME: "array[x]=y;" should be valid if x is out of bounds of the array.
+ * It just means we have to grow the array.
+ */
+static struct qvar_t *
+walk_arr_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
+{
+        struct qvar_t *idx;
+        struct qvar_t *child;
+        /* Don't try to evaluate associative-array indexes this way */
+        if (parent->magic != QARRAY_MAGIC) {
+                qsyntax("Cannot de-reference type %s with [",
+                        q_typestr(parent->magic));
+        }
+        idx = qstack_getpush();
+        q_eval(idx);
+        if (idx->magic != QINT_MAGIC)
+                qsyntax("Array index must be integer");
+        child = qarray_child(parent, idx->i);
+        if (!child)
+                qsyntax("Array de-reference out of bounds");
+        qstack_pop(NULL);
+        return child;
 }
 
 /**
@@ -88,10 +113,12 @@ symbol_walk(struct qvar_t *result, struct qvar_t *parent, bool expression)
                 }
                 qlex();
                 if (cur_oc->t == OC_PER) {
-                        parent = walk_helper(result, parent, expression);
+                        parent = walk_obj_helper(result, parent, expression);
                         if (!parent)
                                 break;
                         q_unlex();
+                } else if (cur_oc->t == OC_LBRACK) {
+                        parent = walk_arr_helper(result, parent, expression);
                 } else {
                         if (expression) {
                                 /*

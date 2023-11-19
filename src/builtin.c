@@ -282,6 +282,8 @@ static const struct inittbl_t typemethods[] = {
         TBLEND,
         /* QINTL_MAGIC */
         TBLEND,
+        /* QARRAY_MAGIC */
+        TBLEND,
         /* Q_NMAGIC */
         { .name = "SANITY" },
 };

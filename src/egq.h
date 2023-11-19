@@ -20,6 +20,7 @@ enum {
         QSTRING_MAGIC,
         QPTRX_MAGIC,
         QINTL_MAGIC,
+        QARRAY_MAGIC,
         Q_NMAGIC,
 
         /* q_.charmap flags */
@@ -130,6 +131,14 @@ struct qvar_t {
                         struct qvar_t *owner;
                         struct qmarker_t mk;
                 } fn;
+                /*
+                 * FIXME: This makes numerical arrays (which can get
+                 * quite large) extremely inefficient, in both
+                 * computation and memory usage.  I need some kind
+                 * of look-up table, compressed to the size of the
+                 * values instead.
+                 */
+                struct list_t a;
                 double f;
                 long long i;
                 const struct qfunc_intl_t *fni;
@@ -321,6 +330,9 @@ extern struct qvar_t *qobject_from_empty(struct qvar_t *v);
 extern struct qvar_t *qobject_child(struct qvar_t *o, const char *s);
 extern struct qvar_t *qobject_nth_child(struct qvar_t *o, int n);
 extern void qobject_add_child(struct qvar_t *o, struct qvar_t *v);
+extern struct qvar_t *qarray_child(struct qvar_t *array, int n);
+extern void qarray_add_child(struct qvar_t *array, struct qvar_t *child);
+extern struct qvar_t *qarray_from_empty(struct qvar_t *array);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];

@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 static struct var_t *
 getarg(int n)
@@ -15,7 +16,7 @@ getarg(int n)
 static struct var_t *
 getself(void)
 {
-        return q_.fp;
+        return get_this();
 }
 
 static void
@@ -23,6 +24,23 @@ qb_typeof(struct var_t *ret)
 {
         struct var_t *p = getarg(0);
         qop_assign_cstring(ret, typestr(p->magic));
+}
+
+static void
+object_foreach(struct var_t *ret)
+{
+        struct list_t *child, *tmp;
+        struct var_t *self = getself();
+        struct var_t *fn = getarg(0);
+
+        if (!fn || !isfunction(fn))
+                syntax("Expected: function");
+        bug_on(self->magic != QOBJECT_MAGIC);
+
+        list_foreach_safe(child, tmp, &self->o.h->children) {
+                struct var_t *elem = list2var(child);
+                call_function_from_intl(fn, NULL, NULL, 1, &elem);
+        }
 }
 
 static void
@@ -63,11 +81,26 @@ object_append(struct var_t *ret)
 static void
 float_tostr(struct var_t *ret)
 {
+        char buf[64];
+        ssize_t len;
+        struct var_t *self = getself();
+        bug_on(self->magic != QFLOAT_MAGIC);
+        len = snprintf(buf, sizeof(buf), "%.8g", self->f);
+        /* this should be impossible */
+        bug_on(len >= sizeof(buf));
+        qop_assign_cstring(ret, buf);
 }
 
 static void
 int_tostr(struct var_t *ret)
 {
+        char buf[64];
+        ssize_t len;
+        struct var_t *self = getself();
+        bug_on(self->magic != QINT_MAGIC);
+        len = snprintf(buf, sizeof(buf), "%lld", self->i);
+        bug_on(len >= sizeof(buf));
+        qop_assign_cstring(ret, buf);
 }
 
 static void
@@ -158,11 +191,35 @@ done:
 static void
 string_toint(struct var_t *ret)
 {
+        struct var_t *self = getself();
+        long long i = 0LL;
+        bug_on(self->magic != QSTRING_MAGIC);
+        if (self->s.s) {
+                int errno_save = errno;
+                char *endptr;
+                i = strtoll(self->s.s, &endptr, 0);
+                if (endptr == self->s.s || errno)
+                        i = 0;
+                errno = errno_save;
+        }
+        qop_assign_int(ret, i);
 }
 
 static void
 string_tofloat(struct var_t *ret)
 {
+        struct var_t *self = getself();
+        double f = 0.;
+        bug_on(self->magic != QSTRING_MAGIC);
+        if (self->s.s) {
+                int errno_save = errno;
+                char *endptr;
+                f = strtod(self->s.s, &endptr);
+                if (endptr == self->s.s || errno)
+                        f = 0.;
+                errno = errno_save;
+        }
+        qop_assign_float(ret, f);
 }
 
 
@@ -263,6 +320,7 @@ static const struct inittbl_t typemethods[] = {
         /* QOBJECT_MAGIC */
         TOFTBL("len",    object_len,    0, 0),
         TOFTBL("append", object_append, 0, 0),
+        TOFTBL("foreach", object_foreach, 1, 1),
         TBLEND,
         /* QFUNCTION_MAGIC */
         TBLEND,
@@ -337,7 +395,7 @@ builtin_method(struct var_t *v, const char *method_name)
 
         methods = &TYPEDEFS[magic].methods;
         list_foreach(m, methods) {
-                w = container_of(m, struct var_t, siblings);
+                w = list2var(m);
                 if (!strcmp(w->name, method_name))
                         return w;
         }

@@ -187,7 +187,7 @@ object_reset(struct var_t *o)
         struct list_t *child, *tmp;
         bug_on(o->magic != QOBJECT_MAGIC);
         list_foreach_safe(child, tmp, &o->o.h->children)
-                var_delete(container_of(child, struct var_t, siblings));
+                var_delete(list2var(child));
 }
 
 static void
@@ -196,7 +196,7 @@ array_reset(struct var_t *a)
         struct list_t *child, *tmp;
         bug_on(a->magic != QARRAY_MAGIC);
         list_foreach_safe(child, tmp, &a->a)
-                var_delete(container_of(child, struct var_t, a));
+                var_delete(list2var(child));
 }
 
 /**
@@ -287,8 +287,7 @@ object_child(struct var_t *o, const char *s)
         struct list_t *child, *parent = &o->o.h->children;
         bug_on(!parent);
         list_foreach(child, parent) {
-                struct var_t *v = container_of(child,
-                                        struct var_t, siblings);
+                struct var_t *v = list2var(child);
                 if (!strcmp(v->name, s))
                         return v;
         }
@@ -303,7 +302,7 @@ object_nth_child(struct var_t *o, int n)
         struct list_t *child, *parent = &o->o.h->children;
         list_foreach(child, parent) {
                 if (i == n)
-                        return container_of(child, struct var_t, siblings);
+                        return list2var(child);
                 i++;
         }
         return NULL;
@@ -334,7 +333,7 @@ array_child(struct var_t *array, int n)
                 return NULL;
         list_foreach(child, &array->a) {
                 if (i == n)
-                        return container_of(child, struct var_t, a);
+                        return list2var(child);
                 i++;
         }
         return NULL;

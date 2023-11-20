@@ -497,7 +497,10 @@ eval0(struct var_t *v)
 
 /**
  * eval - Evaluate an expression
- * @v: An empty, unattached variable to store result.
+ * @v:  An variable to store result, or NULL to throw away the result.
+ *      If not NULL, it must be either empty or a type that may receive
+ *      the result, or user-error will be assumed and  a syntax error
+ *      will be thrown.
  */
 void
 eval(struct var_t *v)
@@ -505,15 +508,17 @@ eval(struct var_t *v)
         /* We probably have a 64kB stack irl, but let's be paranoid */
         enum { RECURSION_SAFETY = 256 };
         static int recursion = 0;
+        struct var_t *w;
 
         if (recursion >= RECURSION_SAFETY)
                 syntax("Excess expression recursion");
         ++recursion;
 
         qlex();
-        struct var_t *w = tstack_getpush();
+        w = tstack_getpush();
         eval0(w);
-        qop_mov(v, w);
+        if (v)
+                qop_mov(v, w);
         tstack_pop(NULL);
         q_unlex();
 

@@ -174,6 +174,11 @@ extern struct global_t q_;
 extern const char *typestr(int magic);
 extern const char *nameof(struct var_t *v);
 static inline struct var_t *get_this(void) { return q_.fp; }
+static inline bool
+isfunction(struct var_t *v)
+{
+        return v->magic == QFUNCTION_MAGIC || v->magic == QINTL_MAGIC;
+}
 
 /* helpers for return value of qlex */
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
@@ -228,12 +233,18 @@ extern struct var_t *earray_child(struct var_t *array, int n);
 extern struct var_t *esymbol_seek(const char *name);
 
 /* exec.c */
+extern int expression(struct var_t *retval, bool top);
 extern void exec_block(void);
-extern void call_function(struct var_t *fn,
-                        struct var_t *retval, struct var_t *owner);
 
 /* file.c */
 extern void load_file(const char *filename);
+
+/* function.c */
+extern void call_function(struct var_t *fn,
+                        struct var_t *retval, struct var_t *owner);
+extern void call_function_from_intl(struct var_t *fn,
+                        struct var_t *retval, struct var_t *owner,
+                        int argc, struct var_t *argv[]);
 
 /* helpers.c */
 extern int x2bin(int c);
@@ -243,6 +254,11 @@ extern char *my_strrchrnul(const char *s, int c);
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)(((void *)(x)) - offsetof(type, member)))
+static inline struct var_t *
+list2var(struct list_t *list)
+{
+        return container_of(list, struct var_t, siblings);
+}
 
 /* lex.c */
 extern int qlex(void);

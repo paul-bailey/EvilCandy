@@ -1,4 +1,4 @@
-#include "egq.h"
+#include "list.h"
 
 /* insert new @a before @b */
 void

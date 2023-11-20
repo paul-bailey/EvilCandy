@@ -16,28 +16,16 @@ static inline void list_init(struct list_t *list)
         { list->next = list->prev = list; }
 static inline bool list_is_empty(struct list_t *list)
         { return list->next == list; }
-static inline struct list_t *
-list_prev(struct list_t *list, struct list_t *owner)
-        { return list->prev == owner ? NULL : list->next; }
-static inline struct list_t *
-list_next(struct list_t *list, struct list_t *owner)
-        { return list->next == owner ? NULL : list->next; }
 static inline void
 list_add_tail(struct list_t *list, struct list_t *owner)
         { list_insert_before(list, owner); }
 static inline void
 list_add_front(struct list_t *list, struct list_t *owner)
         { list_insert_after(list, owner); }
-static inline struct list_t *
-list_first(struct list_t *list)
-        { return list_next(list, list); }
-static inline struct list_t *
-list_last(struct list_t *list)
-        { return list_prev(list, list); }
 #define list_foreach(iter_, top_) \
         for (iter_ = (top_)->next; iter_ != (top_); iter_ = (iter_)->next)
 #define list_foreach_safe(iter_, tmp_, top_) \
         for (iter_ = (top_)->next, tmp_ = (iter_)->next; \
-             iter_ != (top_); iter_ = tmp_)
+             iter_ != (top_); iter_ = tmp_, tmp_ = (iter_)->next)
 
 #endif /* LIST_H */

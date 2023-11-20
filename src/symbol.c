@@ -19,7 +19,13 @@ trystack(const char *s)
 static struct var_t *
 trythis(const char *s)
 {
-        struct var_t *v, *o = q_.fp;
+        struct var_t *v, *o = get_this();
+
+        if (!o || o->magic != QOBJECT_MAGIC) {
+                warn_once("[POTENTIAL BUG]: 'this' is not an object");
+                o = q_.gbl;
+        }
+
         /*
          * FIXME: Some objects don't trace all the way up to q_.gbl
          * and some functions' "this" could be such objects.
@@ -55,6 +61,8 @@ symbol_seek(const char *s)
 {
         struct var_t *v;
 
+        if (!s)
+                return NULL;
         if (!strcmp(s, "__gbl__"))
                 return q_.gbl;
         if ((v = trystack(s)) != NULL)

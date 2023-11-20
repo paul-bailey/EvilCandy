@@ -168,6 +168,7 @@ struct global_t {
 };
 
 /* I really hate typing this everywhere */
+#define cur_mk  (&q_.pc.px)
 #define cur_oc  q_.pc.px.oc
 #define cur_ns  q_.pc.px.ns
 
@@ -197,6 +198,13 @@ extern char *next_line(unsigned int flags);
 #define bug() bug__(__FILE__, __LINE__)
 #define breakpoint() breakpoint__(__FILE__, __LINE__)
 #define bug_on(cond_) do { if (cond_) bug(); } while (0)
+#define warn_once(...) do { \
+        static bool once_ = false; \
+        if (!once_) { \
+                warning(__VA_ARGS__); \
+                once_ = true; \
+        } \
+} while (0)
 extern void syntax(const char *msg, ...);
 extern void fail(const char *msg, ...);
 extern void warning(const char *msg, ...);
@@ -212,7 +220,6 @@ expect(int opcode)
 
 /* eval.c */
 extern void eval(struct var_t *v);
-extern void eval_safe(struct var_t *v);
 
 /* exec.c */
 extern void exec_block(void);

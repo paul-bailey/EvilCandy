@@ -8,21 +8,20 @@ static int expression(struct var_t *retval, bool top);
  * TODO: Wrap this with #ifndef NDEBUG
  */
 static void
-pcsanity(void)
+pcsanity(struct marker_t *mk)
 {
         struct list_t *i;
         bool ok = false;
         list_foreach(i, &q_.ns) {
                 struct ns_t *ns = container_of(i, struct ns_t, list);
-                if (ns == cur_ns) {
-                        struct token_t *t = &ns->pgm;
-                        ok = cur_oc >= t->oc && cur_oc < &t->oc[t->p];
+                if (ns == mk->ns) {
+                        struct token_t *t = &mk->ns->pgm;
+                        ok = mk->oc >= t->oc && mk->oc < &t->oc[t->p];
                         break;
                 }
         }
 
-        if (!ok)
-                bug();
+        bug_on(!ok);
 }
 
 /**
@@ -104,6 +103,8 @@ call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
                 /* move PC into LR */
                 qop_mov(&q_.lr, &q_.pc);
 
+                pcsanity(&fn->fn.mk);
+
                 /* move destination into PC */
                 qop_mov(&q_.pc, fn);
 
@@ -152,7 +153,7 @@ call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
 
                 /* restore PC */
                 qop_mov(&q_.pc, &q_.lr);
-                pcsanity();
+                pcsanity(cur_mk);
         }
 
         /* Unwind stack to beginning of args */
@@ -301,7 +302,7 @@ symbol_walk(struct var_t *result, struct var_t *parent)
                          * where @parent is the "this".
                          */
                         expect(OC_EQ);
-                        eval_safe(parent);
+                        eval(parent);
                         qlex();
                         expect(OC_SEMI);
                         break;

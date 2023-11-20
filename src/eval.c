@@ -267,6 +267,7 @@ eval_index(void)
         return (int)i;
 }
 
+/* check if we want "x" or return value of "x()" */
 static void
 eval9(struct var_t *v)
 {
@@ -520,18 +521,13 @@ eval(struct var_t *v)
         ++recursion;
 
         qlex();
-        eval0(v);
+        struct var_t *w = tstack_getpush();
+        eval0(w);
+        qop_mov(v, w);
+        tstack_pop(NULL);
         q_unlex();
 
         --recursion;
 }
 
-void
-eval_safe(struct var_t *v)
-{
-        struct var_t *w = tstack_getpush();
-        eval(w);
-        qop_mov(v, w);
-        tstack_pop(NULL);
-}
 

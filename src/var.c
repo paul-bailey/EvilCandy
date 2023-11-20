@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SIMPLE_ALLOC 0
+
 struct type_t TYPEDEFS[Q_NMAGIC] = {
         { .name = "empty" },
         { .name = "object" },
@@ -15,6 +17,20 @@ struct type_t TYPEDEFS[Q_NMAGIC] = {
         { .name = "array" },
 };
 
+#if SIMPLE_ALLOC
+static struct var_t *
+var_alloc(void)
+{
+        return emalloc(sizeof(struct var_t));
+}
+
+static void
+var_free(struct var_t *v)
+{
+        free(v);
+}
+
+#else
 /*
  * So I don't have to keep malloc'ing and freeing these
  * in tiny bits.
@@ -31,19 +47,19 @@ static struct list_t var_blk_list = {
         .prev = &var_blk_list
 };
 
-#define foreach_blk(b) \
-        for (b = (struct var_blk_t *)list_first(&var_blk_list); \
-             b != NULL; \
-             b = (struct var_blk_t *)list_next(&b->list, &var_blk_list))
+#define list2blk(li) container_of(li, struct var_blk_t, list)
 
 static struct var_t *
 var_alloc(void)
 {
-        struct var_blk_t *b;
+        return emalloc(sizeof(struct var_t));
+        struct list_t *iter;
+        struct var_blk_t *b = NULL;
         uint64_t x;
         int i;
 
-        foreach_blk(b) {
+        list_foreach(iter, &var_blk_list) {
+                b = list2blk(iter);
                 /* Quick way to check at least one bit clear */
                 if ((~b->used) != 0LL)
                         break;
@@ -75,9 +91,11 @@ static void
 var_free(struct var_t *v)
 {
         unsigned int idx;
-        struct var_blk_t *b;
+        struct list_t *iter;
+        struct var_blk_t *b = NULL;
 
-        foreach_blk(b) {
+        list_foreach(iter, &var_blk_list) {
+                b = list2blk(iter);
                 if (v >= b->a && v <= &b->a[64])
                         break;
         }
@@ -104,29 +122,7 @@ var_free(struct var_t *v)
                 free(b);
         }
 }
-
-/* object-specific iterators */
-static struct var_t *
-object_first_child(struct var_t *o)
-{
-        struct list_t *list = list_first(&o->o.h->children);
-        if (!list)
-                return NULL;
-        return container_of(list, struct var_t, siblings);
-}
-
-static struct var_t *
-object_next_child(struct var_t *v, struct var_t *owner)
-{
-        struct list_t *list = list_next(&v->siblings, &owner->o.h->children);
-        if (!list)
-                return NULL;
-        return container_of(list, struct var_t, siblings);
-}
-
-#define object_foreach_child(v_, o_) \
-        for (v_ = object_first_child(o_); \
-             v_ != NULL; v_ = object_next_child(v_, o_))
+#endif
 
 /**
  * var_init - Initialize a variable
@@ -188,29 +184,17 @@ var_copy(struct var_t *to, struct var_t *from)
 static void
 object_reset(struct var_t *o)
 {
-        /*
-         * FIXME: Get parent of @o, so any children whose objects cannot
-         * yet be deleted (there are handles to them in use) inherit
-         * their grandparent as their new daddy.
-         */
-
-        /*
-         * can't use the foreach macro,
-         * because it's not safe for removals.
-         */
-        struct var_t *p = object_first_child(o);
-        while (p != NULL) {
-                struct var_t *q = object_next_child(p, o);
-                if (q)
-                        var_delete(p);
-                p = q;
-        }
+        struct list_t *child, *tmp;
+        bug_on(o->magic != QOBJECT_MAGIC);
+        list_foreach_safe(child, tmp, &o->o.h->children)
+                var_delete(container_of(child, struct var_t, siblings));
 }
 
 static void
 array_reset(struct var_t *a)
 {
         struct list_t *child, *tmp;
+        bug_on(a->magic != QARRAY_MAGIC);
         list_foreach_safe(child, tmp, &a->a)
                 var_delete(container_of(child, struct var_t, a));
 }
@@ -243,6 +227,7 @@ var_reset(struct var_t *v)
                         bug_on(v->o.h->nref < 0);
                         object_reset(v);
                 }
+                v->o.owner = NULL;
                 break;
         case QARRAY_MAGIC:
                 array_reset(v);
@@ -250,6 +235,7 @@ var_reset(struct var_t *v)
         default:
                 bug();
         }
+        list_remove(&v->siblings);
         v->magic = QEMPTY_MAGIC;
 }
 
@@ -298,8 +284,11 @@ object_from_empty(struct var_t *v)
 struct var_t *
 object_child(struct var_t *o, const char *s)
 {
-        struct var_t *v;
-        object_foreach_child(v, o) {
+        struct list_t *child, *parent = &o->o.h->children;
+        bug_on(!parent);
+        list_foreach(child, parent) {
+                struct var_t *v = container_of(child,
+                                        struct var_t, siblings);
                 if (!strcmp(v->name, s))
                         return v;
         }
@@ -324,11 +313,11 @@ eobject_child(struct var_t *o, const char *s)
 struct var_t *
 object_nth_child(struct var_t *o, int n)
 {
-        struct var_t *v;
         int i = 0;
-        object_foreach_child(v, o) {
+        struct list_t *child, *parent = &o->o.h->children;
+        list_foreach(child, parent) {
                 if (i == n)
-                        return v;
+                        return container_of(child, struct var_t, siblings);
                 i++;
         }
         return NULL;
@@ -337,6 +326,7 @@ object_nth_child(struct var_t *o, int n)
 void
 object_add_child(struct var_t *parent, struct var_t *child)
 {
+
         if (child->magic == QOBJECT_MAGIC) {
                 child->o.owner = parent;
         } else if (child->magic == QFUNCTION_MAGIC) {

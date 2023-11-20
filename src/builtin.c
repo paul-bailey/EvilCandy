@@ -310,6 +310,10 @@ moduleinit_builtin(void)
 {
         int i;
         const struct inittbl_t *t = typemethods;
+
+        /* Do this first.  initialize_helper de-references it. */
+        q_.gbl = object_new(NULL, "__gbl__");
+
         initialize_helper(q_.gbl, gblinit);
         for (i = 0; i < Q_NMAGIC; i++) {
                 struct list_t *list = &TYPEDEFS[i].methods;

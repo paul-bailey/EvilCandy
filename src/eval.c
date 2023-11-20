@@ -155,13 +155,13 @@ eval_atomic_literal(struct var_t *v)
         qlex();
         if (cur_oc->t == OC_PER) {
                 struct var_t *method;
-                struct var_t *w = stack_getpush();
+                struct var_t *w = tstack_getpush();
                 eval_atomic_assign(w, oc);
                 qlex();
                 expect('u');
                 method = ebuiltin_method(w, cur_oc->s);
                 call_function(method, v, w);
-                stack_pop(NULL);
+                tstack_pop(NULL);
         } else {
                 q_unlex();
                 eval_atomic_assign(v, oc);
@@ -268,7 +268,7 @@ eval6(struct var_t *v)
 
         eval7(v);
         while (ismuldivmod(t = cur_oc->t)) {
-                struct var_t *w = stack_getpush();
+                struct var_t *w = tstack_getpush();
                 qlex();
                 eval7(w);
                 switch (t) {
@@ -283,7 +283,7 @@ eval6(struct var_t *v)
                         qop_mod(v, w);
                         break;
                 }
-                stack_pop(NULL);
+                tstack_pop(NULL);
         }
 }
 
@@ -295,14 +295,14 @@ eval5(struct var_t *v)
 
         eval6(v);
         while (isadd(t = cur_oc->t)) {
-                struct var_t *w = stack_getpush();
+                struct var_t *w = tstack_getpush();
                 qlex();
                 eval6(w);
                 if (t == OC_PLUS)
                         qop_add(v, w);
                 else  /* minus */
                         qop_sub(v, w);
-                stack_pop(NULL);
+                tstack_pop(NULL);
         }
 }
 
@@ -314,11 +314,11 @@ eval4(struct var_t *v)
 
         eval5(v);
         while (isshift(t = cur_oc->t)) {
-                struct var_t *w = stack_getpush();
+                struct var_t *w = tstack_getpush();
                 qlex();
                 eval5(w);
                 qop_shift(v, w, t);
-                stack_pop(NULL);
+                tstack_pop(NULL);
         }
 }
 
@@ -333,7 +333,7 @@ eval3(struct var_t *v)
 
         eval4(v);
         while (iscmp(t = cur_oc->t)) {
-                struct var_t *w = stack_getpush();
+                struct var_t *w = tstack_getpush();
                 qlex();
                 eval4(w);
                 /*
@@ -343,7 +343,7 @@ eval3(struct var_t *v)
                  * variable, so this SHOULD be find.
                  */
                 qop_cmp(v, w, t);
-                stack_pop(NULL);
+                tstack_pop(NULL);
         }
 }
 
@@ -355,7 +355,7 @@ eval2(struct var_t *v)
 
         eval3(v);
         while (isbinary(t = cur_oc->t)) {
-                struct var_t *w = stack_getpush();
+                struct var_t *w = tstack_getpush();
                 qlex();
                 eval3(w);
 
@@ -371,7 +371,7 @@ eval2(struct var_t *v)
                         qop_xor(v, w);
                         break;
                 }
-                stack_pop(NULL);
+                tstack_pop(NULL);
         }
 }
 
@@ -383,7 +383,7 @@ eval1(struct var_t *v)
 
         eval2(v);
         while (islogical(t = cur_oc->t)) {
-                struct var_t *w = stack_getpush();
+                struct var_t *w = tstack_getpush();
                 qlex();
                 eval2(w);
 
@@ -391,7 +391,7 @@ eval1(struct var_t *v)
                         qop_land(v, w);
                 else
                         qop_lor(v, w);
-                stack_pop(NULL);
+                tstack_pop(NULL);
         }
 }
 
@@ -438,9 +438,9 @@ eval(struct var_t *v)
 void
 eval_safe(struct var_t *v)
 {
-        struct var_t *w = stack_getpush();
+        struct var_t *w = tstack_getpush();
         eval(w);
         qop_mov(v, w);
-        stack_pop(NULL);
+        tstack_pop(NULL);
 }
 

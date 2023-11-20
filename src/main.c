@@ -60,6 +60,22 @@ initialize_keywords(void)
 }
 
 static void
+init_modules(void)
+{
+        static const struct initfn_tbl_t {
+                void (*initfn)(void);
+        } INITFNS[] = {
+                { .initfn = moduleinit_builtin },
+                { .initfn = moduleinit_stack },
+                { .initfn = NULL },
+        };
+        const struct initfn_tbl_t *t;
+
+        for (t = INITFNS; t->initfn != NULL; t++)
+                t->initfn();
+}
+
+static void
 init_lib(void)
 {
         list_init(&q_.ns);
@@ -70,16 +86,13 @@ init_lib(void)
         if (!q_.literals)
                 fail("hashtable_create failed");
 
-        q_.gbl = object_new(NULL, "__gbl__");
-
+        init_modules();
         initialize_lexer();
 
         /* Initialize PC (its initial location will be set later) */
         var_init(&q_.pc);
         q_.pc.magic = QPTRX_MAGIC;
 
-        /* Set up the global object */
-        moduleinit_builtin();
 
         /* Initialize stack regs */
         q_.sp = q_.stack;

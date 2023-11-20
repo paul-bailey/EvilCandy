@@ -164,7 +164,7 @@ struct global_t {
         struct var_t *fp; /* "frame pointer" */
         struct var_t *sp; /* "stack pointer" */
         struct var_t lr;  /* "link register */
-        struct var_t stack[QSTACKMAX];
+        struct var_t *stack;
 };
 
 /* I really hate typing this everywhere */
@@ -268,6 +268,11 @@ extern void qop_assign_float(struct var_t *v, double f);
 extern void stack_pop(struct var_t *to);
 extern struct var_t *stack_getpush(void);
 extern void stack_push(struct var_t *v);
+/* for temporary vars */
+extern void tstack_pop(struct var_t *to);
+extern struct var_t *tstack_getpush(void);
+extern void tstack_push(struct var_t *v);
+extern void moduleinit_stack(void);
 
 /* symbol.c */
 extern struct var_t *symbol_seek(const char *s);

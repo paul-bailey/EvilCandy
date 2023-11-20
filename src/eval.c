@@ -318,7 +318,7 @@ eval8(struct var_t *v)
                                 break;
                         case QSTRING_MAGIC:
                             {
-                                int c = etoken_substr(&v->s, eval_index());
+                                int c = ebuffer_substr(&v->s, eval_index());
                                 buffer_reset(&v->s);
                                 buffer_putc(&v->s, c);
                                 /*

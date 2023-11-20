@@ -45,9 +45,6 @@ enum {
  *
  * ANOTHER WARNING!!!!   Do not use the string-related functions
  *                      on the same token where you use buffer_putcode
- *
- * XXX: Poorly specific name for what's being used for more than
- * just tokens.
  */
 struct buffer_t {
         union {
@@ -187,8 +184,6 @@ static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 extern void moduleinit_builtin(void);
 extern struct var_t *builtin_method(struct var_t *v,
                                 const char *method_name);
-extern struct var_t *ebuiltin_method(struct var_t *v,
-                                const char *method_name);
 
 /* file.c */
 extern void file_push(const char *name);
@@ -221,6 +216,16 @@ expect(int opcode)
 /* eval.c */
 extern void eval(struct var_t *v);
 
+/* ewrappers.c */
+extern struct var_t *ebuiltin_method(struct var_t *v,
+                                const char *method_name);
+extern char *estrdup(const char *s);
+extern void *emalloc(size_t size);
+extern void *ecalloc(size_t size);
+extern int ebuffer_substr(struct buffer_t *tok, int i);
+extern struct var_t *eobject_child(struct var_t *o, const char *s);
+extern struct var_t *earray_child(struct var_t *array, int n);
+
 /* exec.c */
 extern void exec_block(void);
 extern void call_function(struct var_t *fn,
@@ -230,9 +235,6 @@ extern void call_function(struct var_t *fn,
 extern void load_file(const char *filename);
 
 /* helpers.c */
-extern char *estrdup(const char *s);
-extern void *emalloc(size_t size);
-extern void *ecalloc(size_t size);
 extern int x2bin(int c);
 static inline bool isodigit(int c) { return c >= '0' && c <= '7'; }
 static inline bool isquote(int c) { return c == '"' || c == '\''; }
@@ -292,7 +294,6 @@ extern void buffer_puts(struct buffer_t *tok, const char *s);
 extern void buffer_rstrip(struct buffer_t *tok);
 extern void buffer_free(struct buffer_t *tok);
 extern void buffer_putcode(struct buffer_t *tok, struct opcode_t *oc);
-extern int etoken_substr(struct buffer_t *tok, int i);
 extern int buffer_substr(struct buffer_t *tok, int i);
 
 /* var.c */
@@ -303,11 +304,9 @@ extern void var_reset(struct var_t *v);
 extern struct var_t *object_new(struct var_t *owner, const char *name);
 extern struct var_t *object_from_empty(struct var_t *v);
 extern struct var_t *object_child(struct var_t *o, const char *s);
-extern struct var_t *eobject_child(struct var_t *o, const char *s);
 extern struct var_t *object_nth_child(struct var_t *o, int n);
 extern void object_add_child(struct var_t *o, struct var_t *v);
 extern struct var_t *array_child(struct var_t *array, int n);
-extern struct var_t *earray_child(struct var_t *array, int n);
 extern void array_add_child(struct var_t *array, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
 

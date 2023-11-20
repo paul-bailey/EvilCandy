@@ -344,15 +344,4 @@ builtin_method(struct var_t *v, const char *method_name)
         return NULL;
 }
 
-/* like builtin_method, but trap an error here. */
-struct var_t *
-ebuiltin_method(struct var_t *v, const char *method_name)
-{
-        struct var_t *ret = builtin_method(v, method_name);
-        if (!ret) {
-                syntax("type %s has no method %s",
-                        typestr(v->magic), method_name);
-        }
-        return ret;
-}
 

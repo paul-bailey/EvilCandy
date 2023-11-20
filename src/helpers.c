@@ -5,41 +5,6 @@
 #include <ctype.h>
 
 /**
- * estrdup - error-handling wrapper to strdup
- */
-char *
-estrdup(const char *s)
-{
-        char *res = strdup(s);
-        if (!res)
-                fail("strdup failed");
-        return res;
-}
-
-/**
- * emalloc - error-handling wrapper to malloc
- */
-void *
-emalloc(size_t size)
-{
-        void *res = malloc(size);
-        if (!res)
-                fail("malloc failed");
-        return res;
-}
-
-/**
- * ecalloc - like emalloc but it initializes allocated memory to 0
- */
-void *
-ecalloc(size_t size)
-{
-        void *res = emalloc(size);
-        memset(res, 0, size);
-        return res;
-}
-
-/**
  * x2bin - interpret a hex char
  * @c: a character representing a hex digit
  *

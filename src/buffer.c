@@ -17,7 +17,7 @@ buffer_init(struct buffer_t *tok)
 }
 
 /**
- * buffer_reset - Reuse a token from start.
+ * buffer_reset - Reuse a buffer from start.
  */
 void
 buffer_reset(struct buffer_t *tok)
@@ -28,7 +28,7 @@ buffer_reset(struct buffer_t *tok)
 }
 
 /**
- * buffer_rstrip - Right-strip whitespace in token
+ * buffer_rstrip - Right-strip whitespace in buffer
  */
 void
 buffer_rstrip(struct buffer_t *tok)
@@ -45,7 +45,7 @@ buffer_rstrip(struct buffer_t *tok)
 }
 
 /**
- * buffer_free - Do all the stuff with token that makes
+ * buffer_free - Do all the stuff with buffer that makes
  *      it safe to throw away.
  *
  * @tok itself will not be freed.
@@ -54,9 +54,9 @@ void
 buffer_free(struct buffer_t *tok)
 {
         /*
-         * TODO: I want some kind of "token graveyard",
+         * TODO: I want some kind of "buffer graveyard",
          * so I can just copy this over into that,
-         * then re-fill another token on ``buffer_init'',
+         * then re-fill another buffer on ``buffer_init'',
          * just so I don't malloc() and free() so much.
          */
         if (tok->s)
@@ -146,11 +146,4 @@ buffer_substr(struct buffer_t *tok, int i)
         return tok->s[i];
 }
 
-int
-etoken_substr(struct buffer_t *tok, int i)
-{
-        int c = buffer_substr(tok, i);
-        if (c < 0)
-                syntax("String index out of bounds");
-        return c;
-}
+

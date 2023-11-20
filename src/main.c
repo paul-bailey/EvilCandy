@@ -18,7 +18,7 @@ typestr(int magic)
 }
 
 const char *
-nameof(struct qvar_t *v)
+nameof(struct var_t *v)
 {
         return v->name ? v->name : "[unnamed]";
 }
@@ -70,12 +70,12 @@ init_lib(void)
         if (!q_.literals)
                 fail("hashtable_create failed");
 
-        q_.gbl = qobject_new(NULL, "__gbl__");
+        q_.gbl = object_new(NULL, "__gbl__");
 
         initialize_lexer();
 
         /* Initialize PC (its initial location will be set later) */
-        qvar_init(&q_.pc);
+        var_init(&q_.pc);
         q_.pc.magic = QPTRX_MAGIC;
 
         /* Set up the global object */
@@ -86,13 +86,13 @@ init_lib(void)
         q_.fp = q_.stack;
 
         /* Initialize program counter */
-        qvar_init(&q_.pc);
+        var_init(&q_.pc);
         q_.pc.magic = QPTRX_MAGIC;
         cur_ns = NULL;
         cur_oc = NULL;
 
         /* Initialize link register */
-        qvar_init(&q_.lr);
+        var_init(&q_.lr);
         qop_mov(&q_.lr, &q_.pc);
 
         /* point initial fp to "__gbl__" */

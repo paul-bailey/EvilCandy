@@ -3,11 +3,11 @@
 #include <string.h>
 
 /* either returns pointer to new parent, or NULL, meaning "wrap it up" */
-static struct qvar_t *
-walk_obj_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
+static struct var_t *
+walk_obj_helper(struct var_t *result, struct var_t *parent, bool expression)
 {
         do {
-                struct qvar_t *child;
+                struct var_t *child;
                 qlex();
                 expect('u');
                 if (parent->magic != QOBJECT_MAGIC) {
@@ -15,12 +15,12 @@ walk_obj_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
                          * calling a typedef's built-in methods.
                          * All types are slightly objects, slightly not.
                          */
-                        struct qvar_t *method;
+                        struct var_t *method;
                         method = ebuiltin_method(parent, cur_oc->s);
                         call_function(method, result, parent);
                         return NULL;
                 }
-                child = qobject_child(parent, cur_oc->s);
+                child = object_child(parent, cur_oc->s);
                 if (!child) {
                         if (!expression)
                                 syntax("symbol %s not found in %s",
@@ -31,12 +31,12 @@ walk_obj_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
                          * Append "bob" as a new child of "alice",
                          * and evaluate the "something" of "bob".
                          */
-                        child = qvar_new();
+                        child = var_new();
                         child->name = cur_oc->s;
                         qlex();
                         expect(OC_EQ);
                         eval(child);
-                        qobject_add_child(parent, child);
+                        object_add_child(parent, child);
                         qlex();
                         expect(OC_SEMI);
                         return NULL;
@@ -51,11 +51,11 @@ walk_obj_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
  * FIXME: "array[x]=y;" should be valid if x is out of bounds of the array.
  * It just means we have to grow the array.
  */
-static struct qvar_t *
-walk_arr_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
+static struct var_t *
+walk_arr_helper(struct var_t *result, struct var_t *parent, bool expression)
 {
-        struct qvar_t *idx;
-        struct qvar_t *child;
+        struct var_t *idx;
+        struct var_t *child;
         /* Don't try to evaluate associative-array indexes this way */
         if (parent->magic != QARRAY_MAGIC) {
                 syntax("Cannot de-reference type %s with [",
@@ -65,7 +65,7 @@ walk_arr_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
         eval(idx);
         if (idx->magic != QINT_MAGIC)
                 syntax("Array index must be integer");
-        child = qarray_child(parent, idx->i);
+        child = array_child(parent, idx->i);
         if (!child)
                 syntax("Array de-reference out of bounds");
         stack_pop(NULL);
@@ -90,7 +90,7 @@ walk_arr_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
  * '.something' is expressed.
  */
 void
-symbol_walk(struct qvar_t *result, struct qvar_t *parent, bool expression)
+symbol_walk(struct var_t *result, struct var_t *parent, bool expression)
 {
         for (;;) {
                 if (parent->magic == QFUNCTION_MAGIC
@@ -143,11 +143,11 @@ symbol_walk(struct qvar_t *result, struct qvar_t *parent, bool expression)
 }
 
 /* Helper to symbol_seek - look in stack */
-static struct qvar_t *
+static struct var_t *
 trystack(const char *s)
 {
         /* Args actually begin 1st after FP */
-        struct qvar_t *p;
+        struct var_t *p;
         for (p = q_.fp + 1; p < q_.sp; p++) {
                 if (p->name && !strcmp(p->name, s))
                         return p;
@@ -156,16 +156,16 @@ trystack(const char *s)
 }
 
 /* Helper to symbol_seek - walk up namespace */
-static struct qvar_t *
+static struct var_t *
 trythis(const char *s)
 {
-        struct qvar_t *v, *o = q_.fp;
+        struct var_t *v, *o = q_.fp;
         /*
          * FIXME: Some objects don't trace all the way up to q_.gbl
          * and some functions' "this" could be such objects.
          */
         while (o) {
-                if ((v = qobject_child(o, s)) != NULL)
+                if ((v = object_child(o, s)) != NULL)
                         return v;
                 o = o->o.owner;
         }
@@ -190,10 +190,10 @@ trythis(const char *s)
  *      Calling code must decide what to do if it's followed
  *      by ".child.grandchild...."
  */
-struct qvar_t *
+struct var_t *
 symbol_seek(const char *s)
 {
-        struct qvar_t *v;
+        struct var_t *v;
 
         if (!strcmp(s, "__gbl__"))
                 return q_.gbl;
@@ -201,6 +201,6 @@ symbol_seek(const char *s)
                 return v;
         if ((v = trythis(s)) != NULL)
                 return v;
-        return qobject_child(q_.gbl, s);
+        return object_child(q_.gbl, s);
 }
 

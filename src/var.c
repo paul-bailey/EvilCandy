@@ -19,27 +19,27 @@ struct type_t TYPEDEFS[Q_NMAGIC] = {
  * So I don't have to keep malloc'ing and freeing these
  * in tiny bits.
  */
-struct qvar_blk_t {
+struct var_blk_t {
         /* Keep as first entry for easy de-reference */
         struct list_t list;
         uint64_t used;
-        struct qvar_t a[64];
+        struct var_t a[64];
 };
 
-static struct list_t qvar_blk_list = {
-        .next = &qvar_blk_list,
-        .prev = &qvar_blk_list
+static struct list_t var_blk_list = {
+        .next = &var_blk_list,
+        .prev = &var_blk_list
 };
 
 #define foreach_blk(b) \
-        for (b = (struct qvar_blk_t *)list_first(&qvar_blk_list); \
+        for (b = (struct var_blk_t *)list_first(&var_blk_list); \
              b != NULL; \
-             b = (struct qvar_blk_t *)list_next(&b->list, &qvar_blk_list))
+             b = (struct var_blk_t *)list_next(&b->list, &var_blk_list))
 
-static struct qvar_t *
-qvar_alloc(void)
+static struct var_t *
+var_alloc(void)
 {
-        struct qvar_blk_t *b;
+        struct var_blk_t *b;
         uint64_t x;
         int i;
 
@@ -54,7 +54,7 @@ qvar_alloc(void)
                 b = emalloc(sizeof(*b));
                 b->used = 0LL;
                 list_init(&b->list);
-                list_add_tail(&b->list, &qvar_blk_list);
+                list_add_tail(&b->list, &var_blk_list);
         }
 
         for (i = 0, x = 1; !!(b->used & x) && i < 64; x <<= 1, i++)
@@ -65,17 +65,17 @@ qvar_alloc(void)
 }
 
 static bool
-last_in_list(struct qvar_blk_t *b)
+last_in_list(struct var_blk_t *b)
 {
-        return b->list.next == &qvar_blk_list
-                && b->list.prev == &qvar_blk_list;
+        return b->list.next == &var_blk_list
+                && b->list.prev == &var_blk_list;
 }
 
 static void
-qvar_free(struct qvar_t *v)
+var_free(struct var_t *v)
 {
         unsigned int idx;
-        struct qvar_blk_t *b;
+        struct var_blk_t *b;
 
         foreach_blk(b) {
                 if (v >= b->a && v <= &b->a[64])
@@ -90,7 +90,7 @@ qvar_free(struct qvar_t *v)
         bug_on(!(b->used & (1ull << idx)));
         b->used &= ~(1ull << idx);
 
-        qvar_init(v);
+        var_init(v);
 
         /*
          * keep always at least one, else free it if no longer used.
@@ -106,22 +106,22 @@ qvar_free(struct qvar_t *v)
 }
 
 /* object-specific iterators */
-static struct qvar_t *
-object_first_child(struct qvar_t *o)
+static struct var_t *
+object_first_child(struct var_t *o)
 {
         struct list_t *list = list_first(&o->o.h->children);
         if (!list)
                 return NULL;
-        return container_of(list, struct qvar_t, siblings);
+        return container_of(list, struct var_t, siblings);
 }
 
-static struct qvar_t *
-object_next_child(struct qvar_t *v, struct qvar_t *owner)
+static struct var_t *
+object_next_child(struct var_t *v, struct var_t *owner)
 {
         struct list_t *list = list_next(&v->siblings, &owner->o.h->children);
         if (!list)
                 return NULL;
-        return container_of(list, struct qvar_t, siblings);
+        return container_of(list, struct var_t, siblings);
 }
 
 #define object_foreach_child(v_, o_) \
@@ -129,17 +129,17 @@ object_next_child(struct qvar_t *v, struct qvar_t *owner)
              v_ != NULL; v_ = object_next_child(v_, o_))
 
 /**
- * qvar_init - Initialize a variable
+ * var_init - Initialize a variable
  * @v: Variable to initialize.
  *
- * DO NOT call this on a struct you got from qvar_new(),
+ * DO NOT call this on a struct you got from var_new(),
  * or you might clobber and zombify data.  Instead, call
  * it for a newly-declared struct on the stack.
  *
  * return: @v
  */
-struct qvar_t *
-qvar_init(struct qvar_t *v)
+struct var_t *
+var_init(struct var_t *v)
 {
         v->magic = QEMPTY_MAGIC;
         v->name = NULL;
@@ -148,45 +148,45 @@ qvar_init(struct qvar_t *v)
 }
 
 /**
- * qvar_new - Get a new initialized, empty, and unattached variable
+ * var_new - Get a new initialized, empty, and unattached variable
  */
-struct qvar_t *
-qvar_new(void)
+struct var_t *
+var_new(void)
 {
-        return qvar_init(qvar_alloc());
+        return var_init(var_alloc());
 }
 
 /**
- * qvar_delete - Delete a variable.
+ * var_delete - Delete a variable.
  * @v: variable to delete.  If @v was just a temporary struct declared
- *      on the stack, call qvar_reset() only, not this.
+ *      on the stack, call var_reset() only, not this.
  *
  * Note: Calling code should deal with v->name before calling this.
- * qvar_new didn't set the name, so it won't free it either.
+ * var_new didn't set the name, so it won't free it either.
  */
 void
-qvar_delete(struct qvar_t *v)
+var_delete(struct var_t *v)
 {
-        qvar_reset(v);
+        var_reset(v);
         list_remove(&v->siblings);
         /* XXX REVISIT: we didn't set v->name, so we're not freeing it */
-        qvar_free(v);
+        var_free(v);
 }
 
 /**
- * qvar_copy - like qop_mov, but in the case of an object,
+ * var_copy - like qop_mov, but in the case of an object,
  *              all of @from's elements will be re-instantiated
  *              into @to
  */
 void
-qvar_copy(struct qvar_t *to, struct qvar_t *from)
+var_copy(struct var_t *to, struct var_t *from)
 {
         warning("%s not supported yet", __FUNCTION__);
         bug();
 }
 
 static void
-qobject_reset(struct qvar_t *o)
+object_reset(struct var_t *o)
 {
         /*
          * FIXME: Get parent of @o, so any children whose objects cannot
@@ -198,31 +198,31 @@ qobject_reset(struct qvar_t *o)
          * can't use the foreach macro,
          * because it's not safe for removals.
          */
-        struct qvar_t *p = object_first_child(o);
+        struct var_t *p = object_first_child(o);
         while (p != NULL) {
-                struct qvar_t *q = object_next_child(p, o);
+                struct var_t *q = object_next_child(p, o);
                 if (q)
-                        qvar_delete(p);
+                        var_delete(p);
                 p = q;
         }
 }
 
 static void
-qarray_reset(struct qvar_t *a)
+array_reset(struct var_t *a)
 {
         struct list_t *child, *tmp;
         list_foreach_safe(child, tmp, &a->a)
-                qvar_delete(container_of(child, struct qvar_t, a));
+                var_delete(container_of(child, struct var_t, a));
 }
 
 /**
- * qvar_reset - Empty a variable
+ * var_reset - Empty a variable
  * @v: variable to empty.
  *
  * This does not remove @v from its sibling list or delete its name.
  */
 void
-qvar_reset(struct qvar_t *v)
+var_reset(struct var_t *v)
 {
         switch (v->magic) {
         case QEMPTY_MAGIC:
@@ -241,11 +241,11 @@ qvar_reset(struct qvar_t *v)
                 v->o.h->nref--;
                 if (v->o.h->nref <= 0) {
                         bug_on(v->o.h->nref < 0);
-                        qobject_reset(v);
+                        object_reset(v);
                 }
                 break;
         case QARRAY_MAGIC:
-                qarray_reset(v);
+                array_reset(v);
                 break;
         default:
                 bug();
@@ -253,28 +253,28 @@ qvar_reset(struct qvar_t *v)
         v->magic = QEMPTY_MAGIC;
 }
 
-struct qvar_t *
-qobject_new(struct qvar_t *owner, const char *name)
+struct var_t *
+object_new(struct var_t *owner, const char *name)
 {
-        struct qvar_t *o = qobject_from_empty(qvar_new());
+        struct var_t *o = object_from_empty(var_new());
         o->name = literal(name);
         o->o.owner = owner;
         return o;
 }
 
 /**
- * qobject_from_empty - Convert an empty variable into an initialized
+ * object_from_empty - Convert an empty variable into an initialized
  *                      object type.
  * @v: variable
  *
  * Return: @v cast to an object type
  *
- * This is an alternative to qobject_new();
+ * This is an alternative to object_new();
  */
-struct qvar_t *
-qobject_from_empty(struct qvar_t *v)
+struct var_t *
+object_from_empty(struct var_t *v)
 {
-        struct qvar_t *o = (struct qvar_t*)v;
+        struct var_t *o = (struct var_t*)v;
 
         bug_on(o->magic != QEMPTY_MAGIC);
         o->magic = QOBJECT_MAGIC;
@@ -286,10 +286,10 @@ qobject_from_empty(struct qvar_t *v)
         return o;
 }
 
-struct qvar_t *
-qobject_child(struct qvar_t *o, const char *s)
+struct var_t *
+object_child(struct var_t *o, const char *s)
 {
-        struct qvar_t *v;
+        struct var_t *v;
         object_foreach_child(v, o) {
                 if (!strcmp(v->name, s))
                         return v;
@@ -298,10 +298,10 @@ qobject_child(struct qvar_t *o, const char *s)
 }
 
 /* n begins at zero, not one */
-struct qvar_t *
-qobject_nth_child(struct qvar_t *o, int n)
+struct var_t *
+object_nth_child(struct var_t *o, int n)
 {
-        struct qvar_t *v;
+        struct var_t *v;
         int i = 0;
         object_foreach_child(v, o) {
                 if (i == n)
@@ -312,7 +312,7 @@ qobject_nth_child(struct qvar_t *o, int n)
 }
 
 void
-qobject_add_child(struct qvar_t *parent, struct qvar_t *child)
+object_add_child(struct var_t *parent, struct var_t *child)
 {
         if (child->magic == QOBJECT_MAGIC) {
                 child->o.owner = parent;
@@ -323,11 +323,11 @@ qobject_add_child(struct qvar_t *parent, struct qvar_t *child)
 }
 
 /**
- * similar to qobject_nth_child, but specifically for arrays
+ * similar to object_nth_child, but specifically for arrays
  * @n is indexed from zero.
  */
-struct qvar_t *
-qarray_child(struct qvar_t *array, int n)
+struct var_t *
+array_child(struct var_t *array, int n)
 {
         struct list_t *child;
         int i = 0;
@@ -335,28 +335,28 @@ qarray_child(struct qvar_t *array, int n)
                 return NULL;
         list_foreach(child, &array->a) {
                 if (i == n)
-                        return container_of(child, struct qvar_t, a);
+                        return container_of(child, struct var_t, a);
                 i++;
         }
         return NULL;
 }
 
 void
-qarray_add_child(struct qvar_t *array, struct qvar_t *child)
+array_add_child(struct var_t *array, struct var_t *child)
 {
         if (!list_is_empty(&child->a))
                 syntax("Adding an element already owned by something else");
 
         if (!list_is_empty(&array->a)) {
-                struct qvar_t *check = qarray_child(array, 0);
+                struct var_t *check = array_child(array, 0);
                 if (child->magic != check->magic)
                         syntax("Array cannot append elements of different type");
         }
         list_add_tail(&child->siblings, &array->a);
 }
 
-struct qvar_t *
-qarray_from_empty(struct qvar_t *array)
+struct var_t *
+array_from_empty(struct var_t *array)
 {
         bug_on(array->magic != QEMPTY_MAGIC);
         array->magic = QARRAY_MAGIC;

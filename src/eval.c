@@ -42,14 +42,14 @@ ismuldivmod(int t)
         return t == OC_MUL || t == OC_DIV || t == OC_MOD;
 }
 
-static void eval0(struct qvar_t *v);
+static void eval0(struct var_t *v);
 
 /*
  * Helper to eval_atomic
  * got something like "v = function (a, b, c) { ..."
  */
 static void
-eval_atomic_function(struct qvar_t *v)
+eval_atomic_function(struct var_t *v)
 {
         int brace;
 
@@ -96,26 +96,26 @@ eval_atomic_function(struct qvar_t *v)
 }
 
 static void
-eval_atomic_symbol(struct qvar_t *v)
+eval_atomic_symbol(struct var_t *v)
 {
         char *name = cur_oc->s;
-        struct qvar_t *w = symbol_seek(name);
+        struct var_t *w = symbol_seek(name);
         if (!w)
                 syntax("Symbol %s not found", name);
         symbol_walk(v, w, false);
 }
 
 static void
-eval_atomic_object(struct qvar_t *v)
+eval_atomic_object(struct var_t *v)
 {
         if (v->magic != QEMPTY_MAGIC)
                 syntax("Cannot assign object to existing variable");
-        qobject_from_empty(v);
+        object_from_empty(v);
         do {
-                struct qvar_t *child;
+                struct var_t *child;
                 qlex();
                 expect('u');
-                child = qvar_new();
+                child = var_new();
                 child->name = literal(cur_oc->s);
                 qlex();
                 if (cur_oc->t != OC_COMMA) {
@@ -123,14 +123,14 @@ eval_atomic_object(struct qvar_t *v)
                         expect(OC_COLON);
                         eval(child);
                 }
-                qobject_add_child(v, child);
+                object_add_child(v, child);
                 qlex();
         } while (cur_oc->t == OC_COMMA);
         expect(OC_RBRACE);
 }
 
 static void
-eval_atomic_assign(struct qvar_t *v, struct opcode_t *oc)
+eval_atomic_assign(struct var_t *v, struct opcode_t *oc)
 {
         switch (oc->t) {
         case 'i':
@@ -149,13 +149,13 @@ eval_atomic_assign(struct qvar_t *v, struct opcode_t *oc)
 
 /* magic is one of "ifq" */
 static void
-eval_atomic_literal(struct qvar_t *v)
+eval_atomic_literal(struct var_t *v)
 {
         struct opcode_t *oc = cur_oc;
         qlex();
         if (cur_oc->t == OC_PER) {
-                struct qvar_t *method;
-                struct qvar_t *w = stack_getpush();
+                struct var_t *method;
+                struct var_t *w = stack_getpush();
                 eval_atomic_assign(w, oc);
                 qlex();
                 expect('u');
@@ -169,27 +169,27 @@ eval_atomic_literal(struct qvar_t *v)
 }
 
 static void
-eval_atomic_array(struct qvar_t *v)
+eval_atomic_array(struct var_t *v)
 {
         bug_on(v->magic != QEMPTY_MAGIC);
-        qarray_from_empty(v);
+        array_from_empty(v);
         qlex();
         if (cur_oc->t == OC_RBRACK) /* empty array */
                 return;
         q_unlex();
         do {
-                struct qvar_t *child = qvar_new();
+                struct var_t *child = var_new();
                 qlex();
                 eval(child);
                 qlex();
-                qarray_add_child(v, child);
+                array_add_child(v, child);
         } while(cur_oc->t == OC_COMMA);
         expect(OC_RBRACK);
 }
 
 /* find value of number, string, function, or object */
 static void
-eval_atomic(struct qvar_t *v)
+eval_atomic(struct var_t *v)
 {
         switch (cur_oc->t) {
         case 'u':
@@ -226,7 +226,7 @@ eval_atomic(struct qvar_t *v)
 
 /* Process parenthesized expression */
 static void
-eval8(struct qvar_t *v)
+eval8(struct var_t *v)
 {
         int t = cur_oc->t;
         switch (t) {
@@ -250,7 +250,7 @@ eval8(struct qvar_t *v)
 
 /* process unary operators, left to right */
 static void
-eval7(struct qvar_t *v)
+eval7(struct var_t *v)
 {
         /*
          * TODO: Support this.
@@ -262,13 +262,13 @@ eval7(struct qvar_t *v)
 
 /* multiply, divide, modulo, left to right */
 static void
-eval6(struct qvar_t *v)
+eval6(struct var_t *v)
 {
         int t;
 
         eval7(v);
         while (ismuldivmod(t = cur_oc->t)) {
-                struct qvar_t *w = stack_getpush();
+                struct var_t *w = stack_getpush();
                 qlex();
                 eval7(w);
                 switch (t) {
@@ -289,13 +289,13 @@ eval6(struct qvar_t *v)
 
 /* add or subtract two terms, left to right */
 static void
-eval5(struct qvar_t *v)
+eval5(struct var_t *v)
 {
         int t;
 
         eval6(v);
         while (isadd(t = cur_oc->t)) {
-                struct qvar_t *w = stack_getpush();
+                struct var_t *w = stack_getpush();
                 qlex();
                 eval6(w);
                 if (t == OC_PLUS)
@@ -308,13 +308,13 @@ eval5(struct qvar_t *v)
 
 /* process shift operation, left to right */
 static void
-eval4(struct qvar_t *v)
+eval4(struct var_t *v)
 {
         int t;
 
         eval5(v);
         while (isshift(t = cur_oc->t)) {
-                struct qvar_t *w = stack_getpush();
+                struct var_t *w = stack_getpush();
                 qlex();
                 eval5(w);
                 qop_shift(v, w, t);
@@ -327,13 +327,13 @@ eval4(struct qvar_t *v)
  * The expression `v' will have its data type changed to `int'
  */
 static void
-eval3(struct qvar_t *v)
+eval3(struct var_t *v)
 {
         int t;
 
         eval4(v);
         while (iscmp(t = cur_oc->t)) {
-                struct qvar_t *w = stack_getpush();
+                struct var_t *w = stack_getpush();
                 qlex();
                 eval4(w);
                 /*
@@ -349,13 +349,13 @@ eval3(struct qvar_t *v)
 
 /* Process binary operators */
 static void
-eval2(struct qvar_t *v)
+eval2(struct var_t *v)
 {
         int t;
 
         eval3(v);
         while (isbinary(t = cur_oc->t)) {
-                struct qvar_t *w = stack_getpush();
+                struct var_t *w = stack_getpush();
                 qlex();
                 eval3(w);
 
@@ -377,13 +377,13 @@ eval2(struct qvar_t *v)
 
 /* Process logical AND, OR, left to right */
 static void
-eval1(struct qvar_t *v)
+eval1(struct var_t *v)
 {
         int t;
 
         eval2(v);
         while (islogical(t = cur_oc->t)) {
-                struct qvar_t *w = stack_getpush();
+                struct var_t *w = stack_getpush();
                 qlex();
                 eval2(w);
 
@@ -397,7 +397,7 @@ eval1(struct qvar_t *v)
 
 /* Assign op. */
 static void
-eval0(struct qvar_t *v)
+eval0(struct var_t *v)
 {
         switch (cur_oc->t) {
         case OC_MUL:
@@ -418,7 +418,7 @@ eval0(struct qvar_t *v)
  * @v: An empty, unattached variable to store result.
  */
 void
-eval(struct qvar_t *v)
+eval(struct var_t *v)
 {
         /* We probably have a 64kB stack irl, but let's be paranoid */
         enum { RECURSION_SAFETY = 256 };
@@ -436,9 +436,9 @@ eval(struct qvar_t *v)
 }
 
 void
-eval_safe(struct qvar_t *v)
+eval_safe(struct var_t *v)
 {
-        struct qvar_t *w = stack_getpush();
+        struct var_t *w = stack_getpush();
         eval(w);
         qop_mov(v, w);
         stack_pop(NULL);

@@ -87,7 +87,7 @@ struct marker_t {
         struct opcode_t *oc;
 };
 
-struct qvar_t;
+struct var_t;
 
 /**
  * struct func_intl_t - descriptor for built-in function
@@ -97,7 +97,7 @@ struct qvar_t;
  *              (usu.=minargs) if not.
  */
 struct func_intl_t {
-        void (*fn)(struct qvar_t *ret);
+        void (*fn)(struct var_t *ret);
         int minargs;
         int maxargs;
 };
@@ -110,7 +110,7 @@ struct object_handle_t {
 /*
  * symbol types - object, function, float, integer, string
  */
-struct qvar_t {
+struct var_t {
         unsigned long magic;
         char *name;
         /*
@@ -120,11 +120,11 @@ struct qvar_t {
         struct list_t siblings;
         union {
                 struct {
-                        struct qvar_t *owner;
+                        struct var_t *owner;
                         struct object_handle_t *h;
                 } o;
                 struct {
-                        struct qvar_t *owner;
+                        struct var_t *owner;
                         struct marker_t mk;
                 } fn;
                 /*
@@ -140,7 +140,7 @@ struct qvar_t {
                 const struct func_intl_t *fni;
                 struct token_t s;
                 struct marker_t px;
-                struct qvar_t *ps;
+                struct var_t *ps;
         };
 };
 
@@ -158,13 +158,13 @@ struct opcode_t {
 struct global_t {
         struct hashtable_t *kw_htbl;
         struct hashtable_t *literals;
-        struct qvar_t *gbl; /* "__gbl__" as user sees it */
+        struct var_t *gbl; /* "__gbl__" as user sees it */
         struct list_t ns;
-        struct qvar_t pc;  /* "program counter" */
-        struct qvar_t *fp; /* "frame pointer" */
-        struct qvar_t *sp; /* "stack pointer" */
-        struct qvar_t lr;  /* "link register */
-        struct qvar_t stack[QSTACKMAX];
+        struct var_t pc;  /* "program counter" */
+        struct var_t *fp; /* "frame pointer" */
+        struct var_t *sp; /* "stack pointer" */
+        struct var_t lr;  /* "link register */
+        struct var_t stack[QSTACKMAX];
 };
 
 /* I really hate typing this everywhere */
@@ -174,8 +174,8 @@ struct global_t {
 /* main.c */
 extern struct global_t q_;
 extern const char *typestr(int magic);
-extern const char *nameof(struct qvar_t *v);
-static inline struct qvar_t *get_this(void) { return q_.fp; }
+extern const char *nameof(struct var_t *v);
+static inline struct var_t *get_this(void) { return q_.fp; }
 
 /* helpers for return value of qlex */
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
@@ -184,9 +184,9 @@ static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
 /* builtin.c */
 extern void moduleinit_builtin(void);
-extern struct qvar_t *builtin_method(struct qvar_t *v,
+extern struct var_t *builtin_method(struct var_t *v,
                                 const char *method_name);
-extern struct qvar_t *ebuiltin_method(struct qvar_t *v,
+extern struct var_t *ebuiltin_method(struct var_t *v,
                                 const char *method_name);
 
 /* file.c */
@@ -211,13 +211,13 @@ expect(int opcode)
 }
 
 /* eval.c */
-extern void eval(struct qvar_t *v);
-extern void eval_safe(struct qvar_t *v);
+extern void eval(struct var_t *v);
+extern void eval_safe(struct var_t *v);
 
 /* exec.c */
 extern void exec_block(void);
-extern void call_function(struct qvar_t *fn,
-                        struct qvar_t *retval, struct qvar_t *owner);
+extern void call_function(struct var_t *fn,
+                        struct var_t *retval, struct var_t *owner);
 
 /* file.c */
 extern void load_file(const char *filename);
@@ -245,34 +245,34 @@ extern void initialize_lexer(void);
 extern char *literal(const char *s);
 
 /* op.c */
-extern void qop_mul(struct qvar_t *a, struct qvar_t *b);
-extern void qop_div(struct qvar_t *a, struct qvar_t *b);
-extern void qop_mod(struct qvar_t *a, struct qvar_t *b);
-extern void qop_add(struct qvar_t *a, struct qvar_t *b);
-extern void qop_sub(struct qvar_t *a, struct qvar_t *b);
-extern void qop_cmp(struct qvar_t *a, struct qvar_t *b, int op);
-extern void qop_shift(struct qvar_t *a, struct qvar_t *b, int op);
-extern void qop_bit_and(struct qvar_t *a, struct qvar_t *b);
-extern void qop_bit_or(struct qvar_t *a, struct qvar_t *b);
-extern void qop_xor(struct qvar_t *a, struct qvar_t *b);
-extern void qop_land(struct qvar_t *a, struct qvar_t *b);
-extern void qop_lor(struct qvar_t *a, struct qvar_t *b);
-extern void qop_mov(struct qvar_t *to, struct qvar_t *from);
-extern bool qop_cmpz(struct qvar_t *v);
+extern void qop_mul(struct var_t *a, struct var_t *b);
+extern void qop_div(struct var_t *a, struct var_t *b);
+extern void qop_mod(struct var_t *a, struct var_t *b);
+extern void qop_add(struct var_t *a, struct var_t *b);
+extern void qop_sub(struct var_t *a, struct var_t *b);
+extern void qop_cmp(struct var_t *a, struct var_t *b, int op);
+extern void qop_shift(struct var_t *a, struct var_t *b, int op);
+extern void qop_bit_and(struct var_t *a, struct var_t *b);
+extern void qop_bit_or(struct var_t *a, struct var_t *b);
+extern void qop_xor(struct var_t *a, struct var_t *b);
+extern void qop_land(struct var_t *a, struct var_t *b);
+extern void qop_lor(struct var_t *a, struct var_t *b);
+extern void qop_mov(struct var_t *to, struct var_t *from);
+extern bool qop_cmpz(struct var_t *v);
 /* for assigning literals */
-extern void qop_assign_cstring(struct qvar_t *v, const char *s);
-extern void qop_assign_int(struct qvar_t *v, long long i);
-extern void qop_assign_float(struct qvar_t *v, double f);
+extern void qop_assign_cstring(struct var_t *v, const char *s);
+extern void qop_assign_int(struct var_t *v, long long i);
+extern void qop_assign_float(struct var_t *v, double f);
 
 /* stack.c */
-extern void stack_pop(struct qvar_t *to);
-extern struct qvar_t *stack_getpush(void);
-extern void stack_push(struct qvar_t *v);
+extern void stack_pop(struct var_t *to);
+extern struct var_t *stack_getpush(void);
+extern void stack_push(struct var_t *v);
 
 /* symbol.c */
-extern struct qvar_t *symbol_seek(const char *s);
-extern void symbol_walk(struct qvar_t *result,
-                        struct qvar_t *parent, bool expression);
+extern struct var_t *symbol_seek(const char *s);
+extern void symbol_walk(struct var_t *result,
+                        struct var_t *parent, bool expression);
 
 /* token.c */
 extern void token_init(struct token_t *tok);
@@ -284,18 +284,18 @@ extern void token_free(struct token_t *tok);
 extern void token_putcode(struct token_t *tok, struct opcode_t *oc);
 
 /* var.c */
-extern struct qvar_t *qvar_init(struct qvar_t *v);
-extern struct qvar_t *qvar_new(void);
-extern void qvar_delete(struct qvar_t *v);
-extern void qvar_reset(struct qvar_t *v);
-extern struct qvar_t *qobject_new(struct qvar_t *owner, const char *name);
-extern struct qvar_t *qobject_from_empty(struct qvar_t *v);
-extern struct qvar_t *qobject_child(struct qvar_t *o, const char *s);
-extern struct qvar_t *qobject_nth_child(struct qvar_t *o, int n);
-extern void qobject_add_child(struct qvar_t *o, struct qvar_t *v);
-extern struct qvar_t *qarray_child(struct qvar_t *array, int n);
-extern void qarray_add_child(struct qvar_t *array, struct qvar_t *child);
-extern struct qvar_t *qarray_from_empty(struct qvar_t *array);
+extern struct var_t *var_init(struct var_t *v);
+extern struct var_t *var_new(void);
+extern void var_delete(struct var_t *v);
+extern void var_reset(struct var_t *v);
+extern struct var_t *object_new(struct var_t *owner, const char *name);
+extern struct var_t *object_from_empty(struct var_t *v);
+extern struct var_t *object_child(struct var_t *o, const char *s);
+extern struct var_t *object_nth_child(struct var_t *o, int n);
+extern void object_add_child(struct var_t *o, struct var_t *v);
+extern struct var_t *array_child(struct var_t *array, int n);
+extern void array_add_child(struct var_t *array, struct var_t *child);
+extern struct var_t *array_from_empty(struct var_t *array);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];

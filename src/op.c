@@ -19,7 +19,7 @@ emismatch(const char *op)
  * assign a = a * b
  */
 void
-qop_mul(struct qvar_t *a, struct qvar_t *b)
+qop_mul(struct var_t *a, struct var_t *b)
 {
         if (a->magic == QINT_MAGIC) {
                 if (b->magic == QINT_MAGIC)
@@ -47,7 +47,7 @@ er:
  * assign a = a / b
  */
 void
-qop_div(struct qvar_t *a, struct qvar_t *b)
+qop_div(struct var_t *a, struct var_t *b)
 {
         if (a->magic == QINT_MAGIC) {
                 if (b->magic == QINT_MAGIC)
@@ -75,7 +75,7 @@ er:
  * assign a = a % b
  */
 void
-qop_mod(struct qvar_t *a, struct qvar_t *b)
+qop_mod(struct var_t *a, struct var_t *b)
 {
         if (a->magic == QINT_MAGIC) {
                 if (b->magic == QINT_MAGIC)
@@ -105,7 +105,7 @@ er:
  * assign a = a + b
  */
 void
-qop_add(struct qvar_t *a, struct qvar_t *b)
+qop_add(struct var_t *a, struct var_t *b)
 {
         /* TODO: If objects, maybe have @a inherit or append @b */
         if (a->magic == QSTRING_MAGIC) {
@@ -140,7 +140,7 @@ er:
  * assign a = a - b
  */
 void
-qop_sub(struct qvar_t *a, struct qvar_t *b)
+qop_sub(struct var_t *a, struct var_t *b)
 {
         if (a->magic == QINT_MAGIC) {
                 if (b->magic == QINT_MAGIC)
@@ -172,7 +172,7 @@ er:
 
 /* return <0 if a < b, >0 if a > b */
 static int
-cmp_helper(struct qvar_t *a, struct qvar_t *b)
+cmp_helper(struct var_t *a, struct var_t *b)
 {
         if (a->magic != b->magic) {
                 if (a->magic == QINT_MAGIC) {
@@ -240,7 +240,7 @@ er:
  * WARNING!! this re-casts @a, deleting what it had before.
  */
 void
-qop_cmp(struct qvar_t *a, struct qvar_t *b, int op)
+qop_cmp(struct var_t *a, struct var_t *b, int op)
 {
         int ret, cmp = cmp_helper(a, b);
         switch (op) {
@@ -268,7 +268,7 @@ qop_cmp(struct qvar_t *a, struct qvar_t *b, int op)
         }
 
         /* clobber @a and store ret in it */
-        qvar_reset(a);
+        var_reset(a);
         a->magic = QINT_MAGIC;
         a->i = ret;
 }
@@ -279,7 +279,7 @@ qop_cmp(struct qvar_t *a, struct qvar_t *b, int op)
  * @op: Must be either OC_LSFHIT or OC_RSHIFT
  */
 void
-qop_shift(struct qvar_t *a, struct qvar_t *b, int op)
+qop_shift(struct var_t *a, struct var_t *b, int op)
 {
         long long amt;
 
@@ -305,7 +305,7 @@ qop_shift(struct qvar_t *a, struct qvar_t *b, int op)
 
 /* set a = a & b */
 void
-qop_bit_and(struct qvar_t *a, struct qvar_t *b)
+qop_bit_and(struct var_t *a, struct var_t *b)
 {
         if (a->magic != QINT_MAGIC || b->magic != QINT_MAGIC)
                 epermit("&");
@@ -314,7 +314,7 @@ qop_bit_and(struct qvar_t *a, struct qvar_t *b)
 
 /* set a = a | b */
 void
-qop_bit_or(struct qvar_t *a, struct qvar_t *b)
+qop_bit_or(struct var_t *a, struct var_t *b)
 {
         if (a->magic != QINT_MAGIC || b->magic != QINT_MAGIC)
                 epermit("|");
@@ -323,7 +323,7 @@ qop_bit_or(struct qvar_t *a, struct qvar_t *b)
 
 /* set a = a ^ b */
 void
-qop_xor(struct qvar_t *a, struct qvar_t *b)
+qop_xor(struct var_t *a, struct var_t *b)
 {
         if (a->magic != QINT_MAGIC || b->magic != QINT_MAGIC)
                 epermit("^");
@@ -332,7 +332,7 @@ qop_xor(struct qvar_t *a, struct qvar_t *b)
 
 /* set a = a && b */
 void
-qop_land(struct qvar_t *a, struct qvar_t *b)
+qop_land(struct var_t *a, struct var_t *b)
 {
         if (a->magic != QINT_MAGIC || b->magic != QINT_MAGIC)
                 epermit("&&");
@@ -341,7 +341,7 @@ qop_land(struct qvar_t *a, struct qvar_t *b)
 
 /* set a = a || b */
 void
-qop_lor(struct qvar_t *a, struct qvar_t *b)
+qop_lor(struct var_t *a, struct var_t *b)
 {
         if (a->magic != QINT_MAGIC || b->magic != QINT_MAGIC)
                 epermit("^");
@@ -360,7 +360,7 @@ qop_lor(struct qvar_t *a, struct qvar_t *b)
  *      anything else:  false always
  */
 bool
-qop_cmpz(struct qvar_t *v)
+qop_cmpz(struct var_t *v)
 {
         switch (v->magic) {
         case QFLOAT_MAGIC:
@@ -377,7 +377,7 @@ qop_cmpz(struct qvar_t *v)
 }
 
 static void
-type_err(struct qvar_t *v, int magic)
+type_err(struct var_t *v, int magic)
 {
         syntax("You may not change variable %s from type %s to type %s",
                 nameof(v), typestr(v->magic), typestr(magic));
@@ -392,12 +392,12 @@ type_err(struct qvar_t *v, int magic)
  * a syntax error will be thrown.
  *
  * If @to and @from are objects, they will both contain the handle to
- * the same object.  Use qvar_copy() for @to to be distinct from @from
+ * the same object.  Use var_copy() for @to to be distinct from @from
  * FIXME: This will cause some jurisdictional problems if multiple
  * objects have handles to the same child object.
  */
 void
-qop_mov(struct qvar_t *to, struct qvar_t *from)
+qop_mov(struct var_t *to, struct var_t *from)
 {
         /* Don't laugh. there are reasons this could happen. */
         if (from == to)
@@ -442,14 +442,14 @@ qop_mov(struct qvar_t *to, struct qvar_t *from)
                          * with _copies_ of @from's elements
                          */
                         struct list_t *child;
-                        qvar_reset(to);
-                        qarray_from_empty(to);
+                        var_reset(to);
+                        array_from_empty(to);
                         list_foreach(child, &from->a) {
-                                struct qvar_t *item, *new;
-                                new = qvar_new();
-                                item = container_of(child, struct qvar_t, a);
+                                struct var_t *item, *new;
+                                new = var_new();
+                                item = container_of(child, struct var_t, a);
                                 qop_mov(new, item);
-                                qarray_add_child(to, new);
+                                array_add_child(to, new);
                         }
                         break;
                     }
@@ -486,7 +486,7 @@ er:
 }
 
 void
-qop_assign_cstring(struct qvar_t *v, const char *s)
+qop_assign_cstring(struct var_t *v, const char *s)
 {
         if (v->magic == QEMPTY_MAGIC) {
                 v->magic = QSTRING_MAGIC;
@@ -505,7 +505,7 @@ qop_assign_cstring(struct qvar_t *v, const char *s)
 }
 
 void
-qop_assign_int(struct qvar_t *v, long long i)
+qop_assign_int(struct var_t *v, long long i)
 {
         if (v->magic == QEMPTY_MAGIC)
                 v->magic = QINT_MAGIC;
@@ -519,7 +519,7 @@ qop_assign_int(struct qvar_t *v, long long i)
 }
 
 void
-qop_assign_float(struct qvar_t *v, double f)
+qop_assign_float(struct var_t *v, double f)
 {
         if (v->magic == QEMPTY_MAGIC)
                 v->magic = QFLOAT_MAGIC;

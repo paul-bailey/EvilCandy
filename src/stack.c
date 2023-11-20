@@ -5,7 +5,7 @@
  * @to: Variable to qop_mov the popped variable's data into
  */
 void
-stack_pop(struct qvar_t *to)
+stack_pop(struct var_t *to)
 {
         bug_on(q_.sp <= &q_.stack[0]);
         q_.sp--;
@@ -16,7 +16,7 @@ stack_pop(struct qvar_t *to)
         if (q_.sp->name)
                 q_.sp->name = NULL;
 
-        qvar_reset(q_.sp);
+        var_reset(q_.sp);
 }
 
 /**
@@ -26,14 +26,14 @@ stack_pop(struct qvar_t *to)
  * Use this instead of stack_push if you need a variable to be in a
  * certain location on the stack but you cannot fill it yet.
  */
-struct qvar_t *
+struct var_t *
 stack_getpush(void)
 {
-        struct qvar_t *res = q_.sp;
+        struct var_t *res = q_.sp;
         if (res >= &q_.stack[QSTACKMAX])
                 syntax("Stack overflow");
         ++q_.sp;
-        qvar_init(res);
+        var_init(res);
         return res;
 }
 
@@ -42,9 +42,9 @@ stack_getpush(void)
  * @v: Variable to push.
  */
 void
-stack_push(struct qvar_t *v)
+stack_push(struct var_t *v)
 {
-        struct qvar_t *to = stack_getpush();
+        struct var_t *to = stack_getpush();
         qop_mov(to, v);
 }
 

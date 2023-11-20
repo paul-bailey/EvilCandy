@@ -7,9 +7,9 @@ enum {
 };
 
 struct file_state_t {
-        struct qvar_t *sp;
-        struct qvar_t *fp;
-        struct qvar_t pc;
+        struct var_t *sp;
+        struct var_t *fp;
+        struct var_t pc;
 };
 
 static struct file_state_t ns_stack[NS_STACKSIZE];
@@ -23,7 +23,7 @@ nspush(struct ns_t *new)
 
         ns_sp->sp = q_.sp;
         ns_sp->fp = q_.fp;
-        qvar_init(&ns_sp->pc);
+        var_init(&ns_sp->pc);
         qop_mov(&ns_sp->pc, &q_.pc);
 
         cur_ns = new;

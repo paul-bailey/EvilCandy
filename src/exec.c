@@ -1,7 +1,7 @@
 #include "egq.h"
 #include <string.h>
 
-static int expression(struct qvar_t *retval, bool top);
+static int expression(struct var_t *retval, bool top);
 
 /*
  * We just popped lr to pc, make sure it's valid
@@ -31,9 +31,9 @@ pcsanity(void)
  * @retval: Return value of the function being called.
  */
 void
-call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
+call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
 {
-        struct qvar_t *fpsav, *new_fp;
+        struct var_t *fpsav, *new_fp;
         int nargs; /* for sanity checking */
 
         /*
@@ -68,7 +68,7 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
                 q_unlex();
                 /* push args, don't name them yet */
                 do {
-                        struct qvar_t *v = stack_getpush();
+                        struct var_t *v = stack_getpush();
                         eval(v);
                         qlex();
                 } while (cur_oc->t == OC_COMMA);
@@ -94,7 +94,7 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
                 fn->fni->fn(retval);
         } else {
                 /* User function */
-                struct qvar_t *argptr;
+                struct var_t *argptr;
                 int exres;
 
                 /*
@@ -170,7 +170,7 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
 static void
 do_let(void)
 {
-        struct qvar_t *v, *p;
+        struct var_t *v, *p;
 
         qlex();
         expect('u');
@@ -198,18 +198,18 @@ do_let(void)
 }
 
 static void
-do_childof(struct qvar_t *parent)
+do_childof(struct var_t *parent)
 {
-        struct qvar_t dummy;
-        qvar_init(&dummy);
+        struct var_t dummy;
+        var_init(&dummy);
         symbol_walk(&dummy, parent, true);
-        qvar_reset(&dummy);
+        var_reset(&dummy);
 }
 
 static void
 do_identifier(void)
 {
-        struct qvar_t *v = symbol_seek(cur_oc->s);
+        struct var_t *v = symbol_seek(cur_oc->s);
         if (!v)
                 syntax("Unrecognized symbol `%s'", cur_oc->s);
 
@@ -303,7 +303,7 @@ static bool
 get_condition(bool par)
 {
         bool ret;
-        struct qvar_t *cond = stack_getpush();
+        struct var_t *cond = stack_getpush();
         if (par) {
                 qlex();
                 expect(OC_LPAR);
@@ -325,7 +325,7 @@ get_condition(bool par)
  * at end of a possibly deep thread.
  */
 static int
-expression_and_back(struct qvar_t *retval)
+expression_and_back(struct var_t *retval)
 {
         int ret;
         stack_push(&q_.pc);
@@ -335,7 +335,7 @@ expression_and_back(struct qvar_t *retval)
 }
 
 static int
-do_if(struct qvar_t *retval)
+do_if(struct var_t *retval)
 {
         int ret = 0;
         bool cond = get_condition(true);
@@ -354,10 +354,10 @@ do_if(struct qvar_t *retval)
 }
 
 static int
-do_while(struct qvar_t *retval)
+do_while(struct var_t *retval)
 {
         int r = 0;
-        struct qvar_t *pc = stack_getpush();
+        struct var_t *pc = stack_getpush();
         qop_mov(pc, &q_.pc);
         while (get_condition(true)) {
                 if ((r = expression(retval, 0)) != 0)
@@ -371,10 +371,10 @@ do_while(struct qvar_t *retval)
 
 /* he he... he he... "dodo" */
 static int
-do_do(struct qvar_t *retval)
+do_do(struct var_t *retval)
 {
         int r = 0;
-        struct qvar_t *saved_pc = stack_getpush();
+        struct var_t *saved_pc = stack_getpush();
         qop_mov(saved_pc, &q_.pc);
         for (;;) {
                 if ((r = expression(retval, 0)) != 0)
@@ -414,13 +414,13 @@ do_do(struct qvar_t *retval)
  * then an error will be thrown.
  */
 static int
-expression(struct qvar_t *retval, bool top)
+expression(struct var_t *retval, bool top)
 {
         /*
          * Save position of the stack pointer so we unwind lower-scope
          * variables at the end.
          */
-        struct qvar_t *sp = q_.sp;
+        struct var_t *sp = q_.sp;
         int ret = 0;
         int brace = 0;
         if (!top) {
@@ -501,10 +501,10 @@ done:
 void
 exec_block(void)
 {
-        static struct qvar_t dummy;
-        struct qvar_t *sp = q_.sp;
+        static struct var_t dummy;
+        struct var_t *sp = q_.sp;
         for (;;) {
-                qvar_init(&dummy);
+                var_init(&dummy);
                 int ret = expression(&dummy, 1);
                 if (ret) {
                         if (ret == 3)
@@ -512,7 +512,7 @@ exec_block(void)
                         syntax("Cannot '%s' from top level",
                                 ret == 1 ? "return" : "break");
                 }
-                qvar_reset(&dummy);
+                var_reset(&dummy);
         }
         while (q_.sp != sp)
                 stack_pop(NULL);

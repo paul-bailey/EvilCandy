@@ -4,32 +4,32 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct qvar_t *
+static struct var_t *
 getarg(int n)
 {
         if (n < 0 || n >= (q_.sp - 1 - q_.fp))
                 return NULL;
-        return (struct qvar_t *)(q_.fp + 1 + n);
+        return (struct var_t *)(q_.fp + 1 + n);
 }
 
-static struct qvar_t *
+static struct var_t *
 getself(void)
 {
         return q_.fp;
 }
 
 static void
-qb_typeof(struct qvar_t *ret)
+qb_typeof(struct var_t *ret)
 {
-        struct qvar_t *p = getarg(0);
+        struct var_t *p = getarg(0);
         qop_assign_cstring(ret, typestr(p->magic));
 }
 
 static void
-object_len(struct qvar_t *ret)
+object_len(struct var_t *ret)
 {
         struct list_t *list;
-        struct qvar_t *v;
+        struct var_t *v;
         int i = 0;
 
         v = getarg(0);
@@ -55,25 +55,25 @@ object_len(struct qvar_t *ret)
 }
 
 static void
-object_append(struct qvar_t *ret)
+object_append(struct var_t *ret)
 {
         warning("object .append method not supported yet");
 }
 
 static void
-float_tostr(struct qvar_t *ret)
+float_tostr(struct var_t *ret)
 {
 }
 
 static void
-int_tostr(struct qvar_t *ret)
+int_tostr(struct var_t *ret)
 {
 }
 
 static void
-string_length(struct qvar_t *ret)
+string_length(struct var_t *ret)
 {
-        struct qvar_t *self = getself();
+        struct var_t *self = getself();
         int len = 0;
         bug_on(self->magic != QSTRING_MAGIC);
         if (self->s.s)
@@ -87,7 +87,7 @@ string_format_helper(char **src, struct token_t *t, int *lastarg)
         char vbuf[64];
         char *s = *src;
         int la = *lastarg;
-        struct qvar_t *q = NULL;
+        struct var_t *q = NULL;
         ++s;
         if (*s == '}') {
                 q = getarg(la++);
@@ -127,10 +127,10 @@ string_format_helper(char **src, struct token_t *t, int *lastarg)
 }
 
 static void
-string_format(struct qvar_t *ret)
+string_format(struct var_t *ret)
 {
         static struct token_t t = { 0 };
-        struct qvar_t *self = getself();
+        struct var_t *self = getself();
         int lastarg = 0;
         char *s;
         bug_on(self->magic != QSTRING_MAGIC);
@@ -156,18 +156,18 @@ done:
 }
 
 static void
-string_toint(struct qvar_t *ret)
+string_toint(struct var_t *ret)
 {
 }
 
 static void
-string_tofloat(struct qvar_t *ret)
+string_tofloat(struct var_t *ret)
 {
 }
 
 
 static bool
-qb_print_helper(struct qvar_t *v)
+qb_print_helper(struct var_t *v)
 {
         switch (v->magic) {
         case QINT_MAGIC:
@@ -189,9 +189,9 @@ qb_print_helper(struct qvar_t *v)
 }
 
 static void
-qb_print(struct qvar_t *ret)
+qb_print(struct var_t *ret)
 {
-        struct qvar_t *p = getarg(0);
+        struct var_t *p = getarg(0);
         if (p->magic == QSTRING_MAGIC) {
                 char *s = p->s.s;
                 while (*s)
@@ -203,9 +203,9 @@ qb_print(struct qvar_t *ret)
 }
 
 static void
-qb_exit(struct qvar_t *ret)
+qb_exit(struct var_t *ret)
 {
-        struct qvar_t *p = getarg(0);
+        struct var_t *p = getarg(0);
         if (p && p->magic == QSTRING_MAGIC)
                 printf("%s\n", p->s.s);
         exit(0);
@@ -230,22 +230,22 @@ struct inittbl_t {
 };
 
 static void
-initialize_helper(struct qvar_t *parent, const struct inittbl_t *tbl)
+initialize_helper(struct var_t *parent, const struct inittbl_t *tbl)
 {
         const struct inittbl_t *t;
         if (!tbl)
                 return;
         for (t = tbl; t->name != NULL; t++) {
-                struct qvar_t *child;
+                struct var_t *child;
                 if (t->magic == QOBJECT_MAGIC) {
-                        child = qobject_new(parent, t->name);
+                        child = object_new(parent, t->name);
                         initialize_helper(child, t->tbl);
                 } else {
-                        child = qvar_new();
+                        child = var_new();
                         child->name = literal(t->name);
                         child->magic = QINTL_MAGIC;
                         child->fni   = &t->h;
-                        qobject_add_child(parent, child);
+                        object_add_child(parent, child);
                 }
         }
 }
@@ -294,7 +294,7 @@ typemethod_helper(const struct inittbl_t *tbl,
 {
         const struct inittbl_t *t = tbl;
         while (t->name != NULL) {
-                struct qvar_t *v = qvar_new();
+                struct var_t *v = var_new();
                 bug_on(!strcmp(t->name, "SANITY"));
                 v->magic = QINTL_MAGIC;
                 v->name = literal(t->name);
@@ -322,18 +322,18 @@ moduleinit_builtin(void)
  * Check if @v's type has a built-in method named @method_name
  *      and return it if it does, NULL otherwise
  */
-struct qvar_t *
-builtin_method(struct qvar_t *v, const char *method_name)
+struct var_t *
+builtin_method(struct var_t *v, const char *method_name)
 {
         int magic = v->magic;
         struct list_t *methods, *m;
-        struct qvar_t *w;
+        struct var_t *w;
 
         bug_on(magic < 0 || magic > Q_NMAGIC);
 
         methods = &TYPEDEFS[magic].methods;
         list_foreach(m, methods) {
-                w = container_of(m, struct qvar_t, siblings);
+                w = container_of(m, struct var_t, siblings);
                 if (!strcmp(w->name, method_name))
                         return w;
         }
@@ -341,10 +341,10 @@ builtin_method(struct qvar_t *v, const char *method_name)
 }
 
 /* like builtin_method, but trap an error here. */
-struct qvar_t *
-ebuiltin_method(struct qvar_t *v, const char *method_name)
+struct var_t *
+ebuiltin_method(struct var_t *v, const char *method_name)
 {
-        struct qvar_t *ret = builtin_method(v, method_name);
+        struct var_t *ret = builtin_method(v, method_name);
         if (!ret) {
                 syntax("type %s has no method %s",
                         typestr(v->magic), method_name);

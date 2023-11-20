@@ -197,12 +197,124 @@ do_let(void)
         }
 }
 
+/* either returns pointer to new parent, or NULL, meaning "wrap it up" */
+static struct var_t *
+walk_obj_helper(struct var_t *result, struct var_t *parent)
+{
+        do {
+                struct var_t *child;
+                qlex();
+                expect('u');
+                if (parent->magic != QOBJECT_MAGIC) {
+                        /*
+                         * calling a typedef's built-in methods.
+                         * All types are slightly objects, slightly not.
+                         */
+                        struct var_t *method;
+                        method = ebuiltin_method(parent, cur_oc->s);
+                        call_function(method, result, parent);
+                        return NULL;
+                }
+                child = object_child(parent, cur_oc->s);
+                if (!child) {
+                        /*
+                         * Parsing "alice.bob = something;", where
+                         * "alice" exists and "bob" does not.
+                         * Append "bob" as a new child of "alice",
+                         * and evaluate the "something" of "bob".
+                         */
+                        child = var_new();
+                        child->name = cur_oc->s;
+                        qlex();
+                        expect(OC_EQ);
+                        eval(child);
+                        object_add_child(parent, child);
+                        qlex();
+                        expect(OC_SEMI);
+                        return NULL;
+                }
+                parent = child;
+                qlex();
+        } while (cur_oc->t == OC_PER);
+        return parent;
+}
+
+/*
+ * FIXME: "array[x]=y;" should be valid if x is out of bounds of the array.
+ * It just means we have to grow the array.
+ */
+static struct var_t *
+walk_arr_helper(struct var_t *result, struct var_t *parent)
+{
+        struct var_t *idx;
+        struct var_t *child;
+        /* Don't try to evaluate associative-array indexes this way */
+        if (parent->magic != QARRAY_MAGIC) {
+                syntax("Cannot de-reference type %s with [",
+                        typestr(parent->magic));
+        }
+        idx = stack_getpush();
+        eval(idx);
+        if (idx->magic != QINT_MAGIC)
+                syntax("Array index must be integer");
+        child = array_child(parent, idx->i);
+        if (!child)
+                syntax("Array de-reference out of bounds");
+        stack_pop(NULL);
+        return child;
+}
+
+/**
+ * symbol_walk: walk down the ".child.grandchild..." path of a parent
+ *              and take certain actions.
+ * @result: If the symbol is assigned, this stores the result.  It may
+ *          be a dummy, but it may not be NULL
+ * @parent: Parent of the ".child.grandchild..."
+ *
+ * Program counter must be before the first '.', if it exists.
+ * Note, the operation might happen with the parent itself, if no
+ * '.something' is expressed.
+ */
+static void
+symbol_walk(struct var_t *result, struct var_t *parent)
+{
+        for (;;) {
+                if (parent->magic == QFUNCTION_MAGIC
+                    || parent->magic == QINTL_MAGIC) {
+                        call_function(parent, result, NULL);
+                        qlex();
+                        expect(OC_SEMI);
+                        break;
+                        /* else, it's a variable assignment, fall through */
+                }
+                qlex();
+                if (cur_oc->t == OC_PER) {
+                        parent = walk_obj_helper(result, parent);
+                        if (!parent)
+                                break;
+                        q_unlex();
+                } else if (cur_oc->t == OC_LBRACK) {
+                        parent = walk_arr_helper(result, parent);
+                } else {
+                        /*
+                         * we're at the "that" of "this = that;",
+                         * where @parent is the "this".
+                         */
+                        expect(OC_EQ);
+                        eval_safe(parent);
+                        qlex();
+                        expect(OC_SEMI);
+                        break;
+                }
+        }
+}
+
 static void
 do_childof(struct var_t *parent)
 {
         struct var_t dummy;
         var_init(&dummy);
-        symbol_walk(&dummy, parent, true);
+        symbol_walk(&dummy, parent);
         var_reset(&dummy);
 }
 

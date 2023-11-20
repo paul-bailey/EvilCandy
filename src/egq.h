@@ -276,8 +276,6 @@ extern void moduleinit_stack(void);
 
 /* symbol.c */
 extern struct var_t *symbol_seek(const char *s);
-extern void symbol_walk(struct var_t *result,
-                        struct var_t *parent, bool expression);
 
 /* token.c */
 extern void token_init(struct token_t *tok);
@@ -287,6 +285,8 @@ extern void token_puts(struct token_t *tok, const char *s);
 extern void token_rstrip(struct token_t *tok);
 extern void token_free(struct token_t *tok);
 extern void token_putcode(struct token_t *tok, struct opcode_t *oc);
+extern int etoken_substr(struct token_t *tok, int i);
+extern int token_substr(struct token_t *tok, int i);
 
 /* var.c */
 extern struct var_t *var_init(struct var_t *v);
@@ -296,9 +296,11 @@ extern void var_reset(struct var_t *v);
 extern struct var_t *object_new(struct var_t *owner, const char *name);
 extern struct var_t *object_from_empty(struct var_t *v);
 extern struct var_t *object_child(struct var_t *o, const char *s);
+extern struct var_t *eobject_child(struct var_t *o, const char *s);
 extern struct var_t *object_nth_child(struct var_t *o, int n);
 extern void object_add_child(struct var_t *o, struct var_t *v);
 extern struct var_t *array_child(struct var_t *array, int n);
+extern struct var_t *earray_child(struct var_t *array, int n);
 extern void array_add_child(struct var_t *array, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
 

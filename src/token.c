@@ -126,5 +126,31 @@ token_puts(struct token_t *tok, const char *s)
                 token_putc(tok, c);
 }
 
+/**
+ * Get character from @tok with index @i, or -1 if @i out of bounds
+ * @tok: Token buffer
+ * @i:   Index.  If negative, then indexed from the end.
+ */
+int
+token_substr(struct token_t *tok, int i)
+{
+        if (!tok->s)
+                return -1;
+        if (i < 0) {
+                i = tok->p - 1 - i;
+                if (i < 0)
+                        return -1;
+        } else if (i >= tok->p) {
+                return -1;
+        }
+        return tok->s[i];
+}
 
-
+int
+etoken_substr(struct token_t *tok, int i)
+{
+        int c = token_substr(tok, i);
+        if (c < 0)
+                syntax("String index out of bounds");
+        return c;
+}

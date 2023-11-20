@@ -2,6 +2,7 @@
 #include "egq.h"
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 
 /* && or || */
 static bool
@@ -102,7 +103,7 @@ eval_atomic_symbol(struct var_t *v)
         struct var_t *w = symbol_seek(name);
         if (!w)
                 syntax("Symbol %s not found", name);
-        symbol_walk(v, w, false);
+        qop_mov(v, w);
 }
 
 static void
@@ -206,15 +207,11 @@ eval_atomic(struct var_t *v)
         case OC_LBRACK:
                 eval_atomic_array(v);
                 break;
-        case OC_RPAR:
-        case OC_RBRACK:
-                /* XXX: Why is this ok? */
-                break;
         case OC_LBRACE:
                 eval_atomic_object(v);
                 break;
         case OC_THIS:
-                symbol_walk(v, get_this(), false);
+                qop_mov(v, get_this());
                 break;
         default:
                 /* TODO: OC_THIS */
@@ -226,7 +223,7 @@ eval_atomic(struct var_t *v)
 
 /* Process parenthesized expression */
 static void
-eval8(struct var_t *v)
+eval10(struct var_t *v)
 {
         int t = cur_oc->t;
         switch (t) {
@@ -246,6 +243,100 @@ eval8(struct var_t *v)
         eval0(v);
         expect(t);
         qlex();
+}
+
+/*
+ * Helper to eval8.
+ * We got [, expect something that evaluates to number,
+ * then exepct ]
+ */
+static int
+eval_index(void)
+{
+        struct var_t *v = tstack_getpush();
+        long long i;
+        eval(v);
+        if (v->magic != QINT_MAGIC)
+                syntax("Array index must evaluate to integer");
+        i = v->i;
+        if (i > INT_MAX || i < INT_MIN)
+                syntax("Array index %lld unacceptably ginormous", i);
+        tstack_pop(NULL);
+        qlex();
+        expect(OC_RBRACK);
+        return (int)i;
+}
+
+static void
+eval9(struct var_t *v)
+{
+        eval10(v);
+        if (cur_oc->t == OC_LPAR &&
+            (v->magic == QFUNCTION_MAGIC || v->magic == QINTL_MAGIC)) {
+                /* it's a function call */
+                struct var_t *fn;
+                q_unlex();
+
+                fn = tstack_getpush();
+                qop_mov(fn, v);
+                var_reset(v);
+                call_function(fn, v, NULL);
+                tstack_pop(NULL);
+                qlex();
+        }
+}
+
+/* check if we're descending a parent.child.granchild...
+ * or parent['child']... or array[n] line.
+ */
+static void
+eval8(struct var_t *v)
+{
+        int t;
+        eval9(v);
+        while ((t = cur_oc->t) == OC_PER || t == OC_LBRACK) {
+                struct var_t *child = NULL;
+                if (t == OC_PER) {
+                        qlex();
+                        expect('u');
+                        if (v->magic != QOBJECT_MAGIC)
+                                child = ebuiltin_method(v, cur_oc->s);
+                        else
+                                child = eobject_child(v, cur_oc->s);
+                } else { /* t == OC_LBRACK */
+                        switch (v->magic) {
+                        case QOBJECT_MAGIC:
+                                qlex();
+                                expect('q');
+                                child = eobject_child(v, cur_oc->s);
+                                qlex();
+                                expect(OC_RBRACK);
+                                break;
+                        case QARRAY_MAGIC:
+                                child = earray_child(v, eval_index());
+                                break;
+                        case QSTRING_MAGIC:
+                            {
+                                int c = etoken_substr(&v->s, eval_index());
+                                token_reset(&v->s);
+                                token_putc(&v->s, c);
+                                /*
+                                 * special case: Substring is currently
+                                 * not a saved struct var_t, so we cannot
+                                 * get child. Skip the qop_mov... part.
+                                 */
+                                eval9(v);
+                                continue;
+                            }
+                        default:
+                                syntax("associate array syntax invalid for type %s",
+                                       typestr(v->magic));
+                        }
+                }
+                var_reset(v);
+                qop_mov(v, child);
+                eval9(v);
+        }
 }
 
 /* process unary operators, left to right */

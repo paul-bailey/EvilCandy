@@ -286,6 +286,15 @@ object_from_empty(struct var_t *v)
         return o;
 }
 
+/**
+ * object_child - Return an object's child
+ * @o:  Object to seek the child of.
+ * @s:  Name of the child
+ *
+ * Return:    - the child if found
+ *            - the built-in method matching @s if the child is not found
+ *            - NULL if neither are found.
+ */
 struct var_t *
 object_child(struct var_t *o, const char *s)
 {
@@ -295,6 +304,20 @@ object_child(struct var_t *o, const char *s)
                         return v;
         }
         return builtin_method(o, s);
+}
+
+/**
+ * eobject_child - like object_child, but throw an error if not found.
+ */
+struct var_t *
+eobject_child(struct var_t *o, const char *s)
+{
+        struct var_t *v;
+        bug_on(o->magic != QOBJECT_MAGIC);
+        v = object_child(o, s);
+        if (!v)
+                syntax("object %s has no child %s", nameof(o), cur_oc->s);
+        return v;
 }
 
 /* n begins at zero, not one */
@@ -339,6 +362,15 @@ array_child(struct var_t *array, int n)
                 i++;
         }
         return NULL;
+}
+
+struct var_t *
+earray_child(struct var_t *array, int n)
+{
+        struct var_t *ret = array_child(array, n);
+        if (!ret)
+                syntax("Array %s has no %llith element", nameof(array), n);
+        return ret;
 }
 
 void

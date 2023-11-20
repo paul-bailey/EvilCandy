@@ -1,0 +1,80 @@
+===
+egq
+===
+
+-----------------------------------------------------------------
+An Exercise In Implementing An Object-Oriented Scripting Language
+-----------------------------------------------------------------
+
+:Author: Paul Bailey <roscidcup@falstaffandme.com>
+:Date: November 2022
+
+**egq** is an interpreter for a programming language that bears some
+slight resemblance to Javascript.
+
+The intention was not to create a new programming language itself, hence
+the lack of syntactic creativity.  Rather, I wanted practice at the
+low-level *implementation* of a scripting language.  So I chose some
+elements of Javascript and Python that I like, but made it syntactically
+resemble Javascript than Python.  I also made it a rule for this exercise
+to forgo bison in favor of doing things the hard way.
+
+ISSUES, As of November 2023...
+==============================
+
+This project technically "works," but it's buggy as all hell.  **For the
+love of god do not try to pitch this as an actual programming language
+worth anyone's salt!**  Like I said, it's an *exercise*, nothing more.
+
+There is currently no interactive mode.  It prescans an entire file,
+converts it into byte code, then it executes the script.  To make an
+interactive mode, I will first need to make a more serial-friendly
+version of the byte code's array data structure.
+
+Some keywords are not implemented.  I haven't decided yet what I want to
+do for the ``for`` statement.  Some commonly-seen built-in methods like
+``foreach`` are not implemented yet, however the groundwork is laid for
+it.
+
+Numerical arrays are horribly inefficient, both in RAM and in execution.
+They are also currently pass-by value, but I have an idea to change that
+soon.
+
+Lots of recursion on the IRL stack is going on, since I'm using a
+recursive-descent parser, and some recursion on the script-variable stack
+can also be reduced.  I have in mind fixes for both of these, but that
+will require some major refactoring of both the ``expression`` and
+``q_eval`` functions.
+
+Why Is It Called ``egq``?
+=========================
+
+I will certainly rename it if I think of something better.  Until then,
+I am calling it ``egq``.
+
+The ``q`` part is because this actually started out as a library in
+another program I was writing (which later turned into a macro expander
+to make the HTML typing for my website_).  To keep the namespace clean
+for what were intended to be a lot of internal-use functions, I named
+them ``q``something.
+
+.. _website: https://wwww.falstaffandme.com
+
+
+The ``eg`` part stands for ``evil genius``.  I did not mean that as some
+sort of impudent proprietary claim.  It just happens to reduce clashing
+with other programs, especially since this would have otherwise been
+named just ``q``.  Besides, I just checked, and there already is a
+programming language named ``Q``.
+
+The Language
+============
+
+:TODO: I will write this section, when the whole thing is better developed.
+
+Licence
+=======
+
+See COPYING.
+
+.. : vim:set syntax=rst :

@@ -1,0 +1,19 @@
+Authors
+=======
+
+Paul Bailey <roscidcup@falstaffandme.com>
+
+Website: https://falstaffandme.com
+
+This branch of the project was derived from a private repo of mine.
+While all of the code is mine, some inspirations include:
+
+* Herbert Schildt's "Little C" interpreter, from where I learned about
+  recursive-descent parsers.
+
+* *The Unix Programming Environment*, by Brian W. Kernighan and Rob Pike,
+  which has a wonderful chapter on the development of programming
+  languages in general.
+
+
+.. : vim: set syntax=rst :

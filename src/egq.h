@@ -32,24 +32,24 @@ enum {
 };
 
 /**
- * struct token_t - Handle to metadata about a dynamically allocated
+ * struct buffer_t - Handle to metadata about a dynamically allocated
  *                  string
- * @s:  Pointer to the C string.  After token_init(), it's always either
+ * @s:  Pointer to the C string.  After buffer_init(), it's always either
  *      NULL or nulchar-terminated.
  * @p:  Current index into @s following last character in this struct.
  * @size: Size of allocated data for @s.
  *
- * WARNING!  @s is NOT a constant pointer!  A call to token_put{s|c}()
+ * WARNING!  @s is NOT a constant pointer!  A call to buffer_put{s|c}()
  *      may invoke a reallocation function that moves it.  So do not
  *      store the @s pointer unless you are finished filling it in.
  *
  * ANOTHER WARNING!!!!   Do not use the string-related functions
- *                      on the same token where you use token_putcode
+ *                      on the same token where you use buffer_putcode
  *
  * XXX: Poorly specific name for what's being used for more than
  * just tokens.
  */
-struct token_t {
+struct buffer_t {
         union {
                 char *s;
                 struct opcode_t *oc;
@@ -74,7 +74,7 @@ struct type_t {
  */
 struct ns_t {
         struct list_t list;
-        struct token_t pgm;
+        struct buffer_t pgm;
         char *fname;
 };
 
@@ -138,7 +138,7 @@ struct var_t {
                 double f;
                 long long i;
                 const struct func_intl_t *fni;
-                struct token_t s;
+                struct buffer_t s;
                 struct marker_t px;
                 struct var_t *ps;
         };
@@ -285,15 +285,15 @@ extern void moduleinit_stack(void);
 extern struct var_t *symbol_seek(const char *s);
 
 /* token.c */
-extern void token_init(struct token_t *tok);
-extern void token_reset(struct token_t *tok);
-extern void token_putc(struct token_t *tok, int c);
-extern void token_puts(struct token_t *tok, const char *s);
-extern void token_rstrip(struct token_t *tok);
-extern void token_free(struct token_t *tok);
-extern void token_putcode(struct token_t *tok, struct opcode_t *oc);
-extern int etoken_substr(struct token_t *tok, int i);
-extern int token_substr(struct token_t *tok, int i);
+extern void buffer_init(struct buffer_t *tok);
+extern void buffer_reset(struct buffer_t *tok);
+extern void buffer_putc(struct buffer_t *tok, int c);
+extern void buffer_puts(struct buffer_t *tok, const char *s);
+extern void buffer_rstrip(struct buffer_t *tok);
+extern void buffer_free(struct buffer_t *tok);
+extern void buffer_putcode(struct buffer_t *tok, struct opcode_t *oc);
+extern int etoken_substr(struct buffer_t *tok, int i);
+extern int buffer_substr(struct buffer_t *tok, int i);
 
 /* var.c */
 extern struct var_t *var_init(struct var_t *v);

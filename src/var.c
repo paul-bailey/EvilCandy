@@ -219,7 +219,7 @@ var_reset(struct var_t *v)
                 /* Nothing to free or be fancy with */
                 break;
         case QSTRING_MAGIC:
-                token_free(&v->s);
+                buffer_free(&v->s);
                 break;
         case QOBJECT_MAGIC:
                 v->o.h->nref--;

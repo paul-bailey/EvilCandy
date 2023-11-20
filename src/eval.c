@@ -319,8 +319,8 @@ eval8(struct var_t *v)
                         case QSTRING_MAGIC:
                             {
                                 int c = etoken_substr(&v->s, eval_index());
-                                token_reset(&v->s);
-                                token_putc(&v->s, c);
+                                buffer_reset(&v->s);
+                                buffer_putc(&v->s, c);
                                 /*
                                  * special case: Substring is currently
                                  * not a saved struct var_t, so we cannot

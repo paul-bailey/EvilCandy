@@ -15,7 +15,7 @@ pcsanity(struct marker_t *mk)
         list_foreach(i, &q_.ns) {
                 struct ns_t *ns = container_of(i, struct ns_t, list);
                 if (ns == mk->ns) {
-                        struct token_t *t = &mk->ns->pgm;
+                        struct buffer_t *t = &mk->ns->pgm;
                         ok = mk->oc >= t->oc && mk->oc < &t->oc[t->p];
                         break;
                 }

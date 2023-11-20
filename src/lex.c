@@ -5,7 +5,7 @@
 /* we do not recurse here, so just let it be a static struct */
 static struct {
         int lineno;
-        struct token_t tok;
+        struct buffer_t tok;
         char *s;
         size_t _slen; /* for getline calls */
         char *line;   /* ditto */
@@ -150,7 +150,7 @@ bksl_hex(char **src, int *c)
 static bool
 qlex_string(void)
 {
-        struct token_t *tok = &lexer.tok;
+        struct buffer_t *tok = &lexer.tok;
         char *pc = lexer.s;
         int c, q = *pc++;
         if (!isquote(q))
@@ -171,7 +171,7 @@ retry:
                         if (!c)
                                 continue;
                 }
-                token_putc(tok, c);
+                buffer_putc(tok, c);
         }
 
         if (c == '\0') {
@@ -218,12 +218,12 @@ qlex_comment(void)
 static bool
 qlex_identifier(void)
 {
-        struct token_t *tok = &lexer.tok;
+        struct buffer_t *tok = &lexer.tok;
         char *pc = lexer.s;
         if (!q_isident1(*pc))
                 return false;
         while (q_isident(*pc))
-                token_putc(tok, *pc++);
+                buffer_putc(tok, *pc++);
         if (!q_isdelim(*pc))
                 syntax("invalid chars in identifier or keyword");
         lexer.s = pc;
@@ -233,16 +233,16 @@ qlex_identifier(void)
 static bool
 qlex_hex(void)
 {
-        struct token_t *tok = &lexer.tok;
+        struct buffer_t *tok = &lexer.tok;
         char *pc = lexer.s;
         if (pc[0] != '0' || toupper((int)(pc[1])) != 'x')
                 return false;
-        token_putc(tok, *pc++);
-        token_putc(tok, *pc++);
+        buffer_putc(tok, *pc++);
+        buffer_putc(tok, *pc++);
         if (!isxdigit((int)(*pc)))
                 syntax("incorrectly expressed numerical value");
         while (isxdigit((int)(*pc)))
-                token_putc(tok, *pc++);
+                buffer_putc(tok, *pc++);
         if (!q_isdelim(*pc))
                 syntax("Excess characters after hex literal");
         lexer.s = pc;
@@ -293,7 +293,7 @@ qlex_number(void)
                 goto malformed;
 
         while (start < pc)
-                token_putc(&lexer.tok, *start++);
+                buffer_putc(&lexer.tok, *start++);
         lexer.s = pc;
         return ret;
 
@@ -326,8 +326,8 @@ qlex_delim2(char **src, int *d)
                 return false;
         }
         *src = s + 1;
-        token_putc(&lexer.tok, *(s-1));
-        token_putc(&lexer.tok, *s);
+        buffer_putc(&lexer.tok, *(s-1));
+        buffer_putc(&lexer.tok, *s);
         return true;
 }
 
@@ -339,7 +339,7 @@ qlex_delim(int *res)
         if (!q_isdelim(d))
                 return false;
         if (!qlex_delim2(&s, &d)) {
-                token_putc(&lexer.tok, d);
+                buffer_putc(&lexer.tok, d);
                 d = lexer.char_xtbl[d];
         }
 
@@ -362,10 +362,10 @@ qlex_delim(int *res)
 static int
 qlex_helper(void)
 {
-        struct token_t *tok = &lexer.tok;
+        struct buffer_t *tok = &lexer.tok;
         int ret;
 
-        token_reset(tok);
+        buffer_reset(tok);
 
         do {
                 qslide();
@@ -428,7 +428,7 @@ prescan(const char *filename)
 
         ns = ecalloc(sizeof(*ns));
         ns->fname = literal(filename);
-        token_init(&ns->pgm);
+        buffer_init(&ns->pgm);
         while ((t = qlex_helper()) != EOF) {
                 struct opcode_t oc;
                 oc.t    = t;
@@ -444,7 +444,7 @@ prescan(const char *filename)
                 } else {
                         oc.i = 0LL;
                 }
-                token_putcode(&ns->pgm, &oc);
+                buffer_putcode(&ns->pgm, &oc);
         }
 
         if (!ns->pgm.oc) {
@@ -458,7 +458,7 @@ prescan(const char *filename)
         oc.line = 0;
         oc.s    = NULL;
         oc.i    = 0LL;
-        token_putcode(&ns->pgm, &oc);
+        buffer_putcode(&ns->pgm, &oc);
 
 done:
         fclose(lexer.fp);
@@ -478,7 +478,7 @@ initialize_lexer(void)
         const char *s;
         int i;
 
-        token_init(&lexer.tok);
+        buffer_init(&lexer.tok);
 
         lexer.line = NULL;
         lexer._slen = 0;

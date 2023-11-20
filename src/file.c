@@ -64,7 +64,7 @@ issamedir(const char *s)
         return s[0] == '.' && s[1] == '/';
 }
 
-static struct token_t path = {
+static struct buffer_t path = {
         .s = NULL,
         .p = 0,
         .size = 0,
@@ -94,18 +94,18 @@ convert_path_helper(const char *src, const char *src_end)
                         if (dst == start ||
                             (dst - start >= 3 && isupdir(dst-3))) {
                                 /* We're upstream of CWD */
-                                token_putc(&path, *src++);
-                                token_putc(&path, *src++);
-                                token_putc(&path, *src++);
+                                buffer_putc(&path, *src++);
+                                buffer_putc(&path, *src++);
+                                buffer_putc(&path, *src++);
                         } else {
                                 /*
                                  * Downstream of CWD, we can reduce
-                                 * Reset struct token_t to previous '/'.
+                                 * Reset struct buffer_t to previous '/'.
                                  *
                                  *      Hack alert!
                                  * Requires knowledge of token.c code.
                                  * Even though we have '/' in place,
-                                 * move ptr to that pos and token_putc '/'
+                                 * move ptr to that pos and buffer_putc '/'
                                  * anyway.  It guarantees a nulchar right
                                  * afterward in case we finish here.
                                  */
@@ -113,16 +113,16 @@ convert_path_helper(const char *src, const char *src_end)
                                 bug_on(dst - start < 2);
                                 dst = prev_or_start(dst - 2, start, '/');
                                 path.p = dst - start;
-                                token_putc(&path, '/');
+                                buffer_putc(&path, '/');
                                 src += 3;
                         }
                 } else {
                         /* Just copy this dir */
                         int c;
                         while (src < src_end && (c = *src++) != '/')
-                                token_putc(&path, c);
+                                buffer_putc(&path, c);
                         if (src < src_end)
-                                token_putc(&path, '/');
+                                buffer_putc(&path, '/');
                 }
         }
 }
@@ -140,14 +140,14 @@ convert_path(const char *name)
         char *old_path;
 
         if (!path.s)
-                token_putc(&path, 'a');
-        token_reset(&path);
+                buffer_putc(&path, 'a');
+        buffer_reset(&path);
 
         /* The old path was relative to CWD, so use that */
         old_path = cur_ns ? cur_ns->fname : "";
         convert_path_helper(old_path, my_strrchrnul(old_path, '/'));
         if (path.s[0] != '\0')
-                token_putc(&path, '/');
+                buffer_putc(&path, '/');
 
         /* skip the most frequently-typed redundancy in path */
         while (issamedir(name))

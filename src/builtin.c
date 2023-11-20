@@ -82,7 +82,7 @@ string_length(struct var_t *ret)
 }
 
 static bool
-string_format_helper(char **src, struct token_t *t, int *lastarg)
+string_format_helper(char **src, struct buffer_t *t, int *lastarg)
 {
         char vbuf[64];
         char *s = *src;
@@ -106,17 +106,17 @@ string_format_helper(char **src, struct token_t *t, int *lastarg)
         switch (q->magic) {
         case QINT_MAGIC:
                 sprintf(vbuf, "%lld", q->i);
-                token_puts(t, vbuf);
+                buffer_puts(t, vbuf);
                 break;
         case QFLOAT_MAGIC:
                 sprintf(vbuf, "%g", q->f);
-                token_puts(t, vbuf);
+                buffer_puts(t, vbuf);
                 break;
         case QEMPTY_MAGIC:
-                token_puts(t, "(null)");
+                buffer_puts(t, "(null)");
                 break;
         case QSTRING_MAGIC:
-                token_puts(t, q->s.s);
+                buffer_puts(t, q->s.s);
                 break;
         default:
                 return false;
@@ -129,17 +129,17 @@ string_format_helper(char **src, struct token_t *t, int *lastarg)
 static void
 string_format(struct var_t *ret)
 {
-        static struct token_t t = { 0 };
+        static struct buffer_t t = { 0 };
         struct var_t *self = getself();
         int lastarg = 0;
         char *s;
         bug_on(self->magic != QSTRING_MAGIC);
 
-        token_reset(&t);
+        buffer_reset(&t);
         if (!self->s.s) {
                 if (!t.s)
-                        token_putc(&t, 'a');
-                token_reset(&t);
+                        buffer_putc(&t, 'a');
+                buffer_reset(&t);
                 goto done;
         }
 
@@ -148,7 +148,7 @@ string_format(struct var_t *ret)
                     string_format_helper(&s, &t, &lastarg)) {
                         continue;
                 }
-                token_putc(&t, *s);
+                buffer_putc(&t, *s);
         }
 
 done:

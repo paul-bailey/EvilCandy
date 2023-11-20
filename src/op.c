@@ -112,7 +112,7 @@ qop_add(struct var_t *a, struct var_t *b)
                 /* '+' means 'concatenate' for strings */
                 if (b->magic != QSTRING_MAGIC)
                         emismatch("'+'");
-                token_puts(&a->s, b->s.s);
+                buffer_puts(&a->s, b->s.s);
         } else if (a->magic == QINT_MAGIC) {
                 if (b->magic == QINT_MAGIC)
                         a->i += b->i;
@@ -490,17 +490,17 @@ qop_assign_cstring(struct var_t *v, const char *s)
 {
         if (v->magic == QEMPTY_MAGIC) {
                 v->magic = QSTRING_MAGIC;
-                token_init(&v->s);
+                buffer_init(&v->s);
         } else if (v->magic == QSTRING_MAGIC) {
-                token_reset(&v->s);
+                buffer_reset(&v->s);
         } else {
                 type_err(v, QSTRING_MAGIC);
         }
         if (!s) {
-                token_putc(&v->s, 'a');
-                token_reset(&v->s);
+                buffer_putc(&v->s, 'a');
+                buffer_reset(&v->s);
         } else {
-                token_puts(&v->s, s);
+                buffer_puts(&v->s, s);
         }
 }
 

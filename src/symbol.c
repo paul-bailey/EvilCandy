@@ -22,15 +22,20 @@ trythis(const char *s)
         struct var_t *v, *o = get_this();
 
         if (!o || o->magic != QOBJECT_MAGIC) {
-                warn_once("[POTENTIAL BUG]: 'this' is not an object");
+                /*
+                 * FIXME: Is this a bug? if get_this() is not an object,
+                 * we should be in a built-in function, which would not
+                 * call symbol_seek().
+                 */
                 o = q_.gbl;
         }
 
         /*
-         * FIXME: Some objects don't trace all the way up to q_.gbl
-         * and some functions' "this" could be such objects.
+         * FIXME: Some objects don't trace all the way up to q_.gbl,
+         * and some functions' "this" could be such objects.  Need to
+         * re-think how we figure out "ownership."
          */
-        while (o) {
+        while (o && o->magic == QOBJECT_MAGIC) {
                 if ((v = object_child(o, s)) != NULL)
                         return v;
                 o = o->o.owner;

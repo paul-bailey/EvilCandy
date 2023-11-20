@@ -416,11 +416,8 @@ qop_mov(struct var_t *to, struct var_t *from)
                 case QFUNCTION_MAGIC:
                         to->fn.mk.oc = from->fn.mk.oc;
                         to->fn.mk.ns = from->fn.mk.ns;
-                        /*
-                         * Even if @to and @from are not the same
-                         * instance, a function's owner is immutable
-                         */
-                        to->fn.owner = from->fn.owner;
+                        if (to->magic == QEMPTY_MAGIC || !to->fn.owner)
+                                to->fn.owner = from->fn.owner;
                         break;
                 case QINTL_MAGIC:
                         to->fni = from->fni;

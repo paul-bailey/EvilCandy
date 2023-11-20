@@ -225,6 +225,7 @@ extern void *ecalloc(size_t size);
 extern int ebuffer_substr(struct buffer_t *tok, int i);
 extern struct var_t *eobject_child(struct var_t *o, const char *s);
 extern struct var_t *earray_child(struct var_t *array, int n);
+extern struct var_t *esymbol_seek(const char *name);
 
 /* exec.c */
 extern void exec_block(void);

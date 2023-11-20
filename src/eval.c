@@ -72,7 +72,7 @@ eval_atomic_function(struct var_t *v)
          * we want our namespace to be in the current function
          * when returning to this.
          */
-        v->fn.owner = q_.fp;
+        v->fn.owner = get_this();
         do {
                 qlex();
                 if (cur_oc->t == OC_RPAR)
@@ -94,16 +94,6 @@ eval_atomic_function(struct var_t *v)
         }
         if (cur_oc->t == EOF)
                 syntax("Unbalanced brace");
-}
-
-static void
-eval_atomic_symbol(struct var_t *v)
-{
-        char *name = cur_oc->s;
-        struct var_t *w = symbol_seek(name);
-        if (!w)
-                syntax("Symbol %s not found", name);
-        qop_mov(v, w);
 }
 
 static void
@@ -194,7 +184,7 @@ eval_atomic(struct var_t *v)
 {
         switch (cur_oc->t) {
         case 'u':
-                eval_atomic_symbol(v);
+                qop_mov(v, esymbol_seek(cur_oc->s));
                 break;
         case 'i':
         case 'f':

@@ -56,8 +56,14 @@ call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
         new_fp = q_.sp;
 
         /* push "this" */
-        stack_push(owner ? owner :
-                    (fn->magic == QINTL_MAGIC ? q_.gbl : fn->fn.owner));
+        if (!owner) {
+                if (fn->magic == QFUNCTION_MAGIC)
+                        owner = fn->fn.owner;
+                if (!owner)
+                        owner = get_this();
+                bug_on(!owner);
+        }
+        stack_push(owner);
 
         qlex();
         expect(OC_LPAR);
@@ -319,16 +325,6 @@ do_childof(struct var_t *parent)
         var_reset(&dummy);
 }
 
-static void
-do_identifier(void)
-{
-        struct var_t *v = symbol_seek(cur_oc->s);
-        if (!v)
-                syntax("Unrecognized symbol `%s'", cur_oc->s);
-
-        do_childof(v);
-}
-
 /*
  * helper to seek_eob.
  * this is somehow more complicated than
@@ -547,7 +543,7 @@ expression(struct var_t *retval, bool top)
                 qlex();
                 switch (cur_oc->t) {
                 case 'u':
-                        do_identifier();
+                        do_childof(esymbol_seek(cur_oc->s));
                         break;
                 case OC_SEMI: /* empty statement */
                         break;

@@ -9,18 +9,6 @@
 
 extern struct var_t *earray_child(struct var_t *array, int n);
 
-/* like builtin_method, but trap an error here. */
-struct var_t *
-ebuiltin_method(struct var_t *v, const char *method_name)
-{
-        struct var_t *ret = builtin_method(v, method_name);
-        if (!ret) {
-                syntax("type %s has no method %s",
-                        typestr(v->magic), method_name);
-        }
-        return ret;
-}
-
 /**
  * estrdup - error-handling wrapper to strdup
  */
@@ -56,6 +44,17 @@ ecalloc(size_t size)
         return res;
 }
 
+struct var_t *
+ebuiltin_method(struct var_t *v, const char *method_name)
+{
+        struct var_t *ret = builtin_method(v, method_name);
+        if (!ret) {
+                syntax("type %s has no method %s",
+                        typestr(v->magic), method_name);
+        }
+        return ret;
+}
+
 int
 ebuffer_substr(struct buffer_t *tok, int i)
 {
@@ -85,4 +84,12 @@ earray_child(struct var_t *array, int n)
         return ret;
 }
 
+struct var_t *
+esymbol_seek(const char *name)
+{
+        struct var_t *ret = symbol_seek(name);
+        if (!ret)
+                syntax("Symbol %s not found", name);
+        return ret;
+}
 

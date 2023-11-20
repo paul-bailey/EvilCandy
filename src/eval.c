@@ -92,7 +92,7 @@ eval_atomic_function(struct qvar_t *v)
                         brace--;
         }
         if (cur_oc->t == EOF)
-                qsyntax("Unbalanced brace");
+                syntax("Unbalanced brace");
 }
 
 static void
@@ -101,7 +101,7 @@ eval_atomic_symbol(struct qvar_t *v)
         char *name = cur_oc->s;
         struct qvar_t *w = symbol_seek(name);
         if (!w)
-                qsyntax("Symbol %s not found", name);
+                syntax("Symbol %s not found", name);
         symbol_walk(v, w, false);
 }
 
@@ -109,19 +109,19 @@ static void
 eval_atomic_object(struct qvar_t *v)
 {
         if (v->magic != QEMPTY_MAGIC)
-                qsyntax("Cannot assign object to existing variable");
+                syntax("Cannot assign object to existing variable");
         qobject_from_empty(v);
         do {
                 struct qvar_t *child;
                 qlex();
                 expect('u');
                 child = qvar_new();
-                child->name = q_literal(cur_oc->s);
+                child->name = literal(cur_oc->s);
                 qlex();
                 if (cur_oc->t != OC_COMMA) {
                         /* not declaring empty child */
                         expect(OC_COLON);
-                        q_eval(child);
+                        eval(child);
                 }
                 qobject_add_child(v, child);
                 qlex();
@@ -155,13 +155,13 @@ eval_atomic_literal(struct qvar_t *v)
         qlex();
         if (cur_oc->t == OC_PER) {
                 struct qvar_t *method;
-                struct qvar_t *w = qstack_getpush();
+                struct qvar_t *w = stack_getpush();
                 eval_atomic_assign(w, oc);
                 qlex();
                 expect('u');
                 method = ebuiltin_method(w, cur_oc->s);
                 call_function(method, v, w);
-                qstack_pop(NULL);
+                stack_pop(NULL);
         } else {
                 q_unlex();
                 eval_atomic_assign(v, oc);
@@ -180,7 +180,7 @@ eval_atomic_array(struct qvar_t *v)
         do {
                 struct qvar_t *child = qvar_new();
                 qlex();
-                q_eval(child);
+                eval(child);
                 qlex();
                 qarray_add_child(v, child);
         } while(cur_oc->t == OC_COMMA);
@@ -218,7 +218,7 @@ eval_atomic(struct qvar_t *v)
                 break;
         default:
                 /* TODO: OC_THIS */
-                qsyntax("Cannot evaluate atomic expression '%s'", cur_oc->s);
+                syntax("Cannot evaluate atomic expression '%s'", cur_oc->s);
         }
 
         qlex();
@@ -268,7 +268,7 @@ eval6(struct qvar_t *v)
 
         eval7(v);
         while (ismuldivmod(t = cur_oc->t)) {
-                struct qvar_t *w = qstack_getpush();
+                struct qvar_t *w = stack_getpush();
                 qlex();
                 eval7(w);
                 switch (t) {
@@ -283,7 +283,7 @@ eval6(struct qvar_t *v)
                         qop_mod(v, w);
                         break;
                 }
-                qstack_pop(NULL);
+                stack_pop(NULL);
         }
 }
 
@@ -295,14 +295,14 @@ eval5(struct qvar_t *v)
 
         eval6(v);
         while (isadd(t = cur_oc->t)) {
-                struct qvar_t *w = qstack_getpush();
+                struct qvar_t *w = stack_getpush();
                 qlex();
                 eval6(w);
                 if (t == OC_PLUS)
                         qop_add(v, w);
                 else  /* minus */
                         qop_sub(v, w);
-                qstack_pop(NULL);
+                stack_pop(NULL);
         }
 }
 
@@ -314,11 +314,11 @@ eval4(struct qvar_t *v)
 
         eval5(v);
         while (isshift(t = cur_oc->t)) {
-                struct qvar_t *w = qstack_getpush();
+                struct qvar_t *w = stack_getpush();
                 qlex();
                 eval5(w);
                 qop_shift(v, w, t);
-                qstack_pop(NULL);
+                stack_pop(NULL);
         }
 }
 
@@ -333,7 +333,7 @@ eval3(struct qvar_t *v)
 
         eval4(v);
         while (iscmp(t = cur_oc->t)) {
-                struct qvar_t *w = qstack_getpush();
+                struct qvar_t *w = stack_getpush();
                 qlex();
                 eval4(w);
                 /*
@@ -343,7 +343,7 @@ eval3(struct qvar_t *v)
                  * variable, so this SHOULD be find.
                  */
                 qop_cmp(v, w, t);
-                qstack_pop(NULL);
+                stack_pop(NULL);
         }
 }
 
@@ -355,7 +355,7 @@ eval2(struct qvar_t *v)
 
         eval3(v);
         while (isbinary(t = cur_oc->t)) {
-                struct qvar_t *w = qstack_getpush();
+                struct qvar_t *w = stack_getpush();
                 qlex();
                 eval3(w);
 
@@ -371,7 +371,7 @@ eval2(struct qvar_t *v)
                         qop_xor(v, w);
                         break;
                 }
-                qstack_pop(NULL);
+                stack_pop(NULL);
         }
 }
 
@@ -383,7 +383,7 @@ eval1(struct qvar_t *v)
 
         eval2(v);
         while (islogical(t = cur_oc->t)) {
-                struct qvar_t *w = qstack_getpush();
+                struct qvar_t *w = stack_getpush();
                 qlex();
                 eval2(w);
 
@@ -391,7 +391,7 @@ eval1(struct qvar_t *v)
                         qop_land(v, w);
                 else
                         qop_lor(v, w);
-                qstack_pop(NULL);
+                stack_pop(NULL);
         }
 }
 
@@ -401,11 +401,11 @@ eval0(struct qvar_t *v)
 {
         switch (cur_oc->t) {
         case OC_MUL:
-                qsyntax("Pointers not yet supported");
+                syntax("Pointers not yet supported");
         case OC_PLUSPLUS:
-                qsyntax("Pre-increment not yet supported");
+                syntax("Pre-increment not yet supported");
         case OC_MINUSMINUS:
-                qsyntax("Pre-decrement not yet supported");
+                syntax("Pre-decrement not yet supported");
         default:
                 break;
         }
@@ -414,18 +414,18 @@ eval0(struct qvar_t *v)
 }
 
 /**
- * q_eval - Evaluate an expression
+ * eval - Evaluate an expression
  * @v: An empty, unattached variable to store result.
  */
 void
-q_eval(struct qvar_t *v)
+eval(struct qvar_t *v)
 {
         /* We probably have a 64kB stack irl, but let's be paranoid */
         enum { RECURSION_SAFETY = 256 };
         static int recursion = 0;
 
         if (recursion >= RECURSION_SAFETY)
-                qsyntax("Excess expression recursion");
+                syntax("Excess expression recursion");
         ++recursion;
 
         qlex();
@@ -436,11 +436,11 @@ q_eval(struct qvar_t *v)
 }
 
 void
-q_eval_safe(struct qvar_t *v)
+eval_safe(struct qvar_t *v)
 {
-        struct qvar_t *w = qstack_getpush();
-        q_eval(w);
+        struct qvar_t *w = stack_getpush();
+        eval(w);
         qop_mov(v, w);
-        qstack_pop(NULL);
+        stack_pop(NULL);
 }
 

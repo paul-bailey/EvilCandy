@@ -23,7 +23,7 @@ walk_obj_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
                 child = qobject_child(parent, cur_oc->s);
                 if (!child) {
                         if (!expression)
-                                qsyntax("symbol %s not found in %s",
+                                syntax("symbol %s not found in %s",
                                         cur_oc->s, parent->name);
                         /*
                          * Parsing "alice.bob = something;", where
@@ -35,7 +35,7 @@ walk_obj_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
                         child->name = cur_oc->s;
                         qlex();
                         expect(OC_EQ);
-                        q_eval(child);
+                        eval(child);
                         qobject_add_child(parent, child);
                         qlex();
                         expect(OC_SEMI);
@@ -58,17 +58,17 @@ walk_arr_helper(struct qvar_t *result, struct qvar_t *parent, bool expression)
         struct qvar_t *child;
         /* Don't try to evaluate associative-array indexes this way */
         if (parent->magic != QARRAY_MAGIC) {
-                qsyntax("Cannot de-reference type %s with [",
-                        q_typestr(parent->magic));
+                syntax("Cannot de-reference type %s with [",
+                        typestr(parent->magic));
         }
-        idx = qstack_getpush();
-        q_eval(idx);
+        idx = stack_getpush();
+        eval(idx);
         if (idx->magic != QINT_MAGIC)
-                qsyntax("Array index must be integer");
+                syntax("Array index must be integer");
         child = qarray_child(parent, idx->i);
         if (!child)
-                qsyntax("Array de-reference out of bounds");
-        qstack_pop(NULL);
+                syntax("Array de-reference out of bounds");
+        stack_pop(NULL);
         return child;
 }
 
@@ -126,7 +126,7 @@ symbol_walk(struct qvar_t *result, struct qvar_t *parent, bool expression)
                                  * where @parent is the "this".
                                  */
                                 expect(OC_EQ);
-                                q_eval_safe(parent);
+                                eval_safe(parent);
                                 qlex();
                                 expect(OC_SEMI);
                         } else {

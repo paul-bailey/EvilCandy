@@ -166,7 +166,7 @@ retry:
                                         break;
                                 if (bksl_hex(&pc, &c))
                                         break;
-                                qsyntax("Unsupported escape `%c'", *pc);
+                                syntax("Unsupported escape `%c'", *pc);
                         } while (0);
                         if (!c)
                                 continue;
@@ -176,7 +176,7 @@ retry:
 
         if (c == '\0') {
                 if (lexer_next_line() == -1)
-                        qsyntax("Unterminated quote");
+                        syntax("Unterminated quote");
                 goto retry;
         }
 
@@ -205,7 +205,7 @@ qlex_comment(void)
                         ++pc;
                         if (*pc == '\0') {
                                 if (lexer_next_line() == -1)
-                                        qsyntax("Unterminated comment");
+                                        syntax("Unterminated comment");
                                 pc = lexer.s;
                         }
                 } while (!(pc[0] == '*' && pc[1] == '/'));
@@ -225,7 +225,7 @@ qlex_identifier(void)
         while (q_isident(*pc))
                 token_putc(tok, *pc++);
         if (!q_isdelim(*pc))
-                qsyntax("invalid chars in identifier or keyword");
+                syntax("invalid chars in identifier or keyword");
         lexer.s = pc;
         return true;
 }
@@ -240,11 +240,11 @@ qlex_hex(void)
         token_putc(tok, *pc++);
         token_putc(tok, *pc++);
         if (!isxdigit((int)(*pc)))
-                qsyntax("incorrectly expressed numerical value");
+                syntax("incorrectly expressed numerical value");
         while (isxdigit((int)(*pc)))
                 token_putc(tok, *pc++);
         if (!q_isdelim(*pc))
-                qsyntax("Excess characters after hex literal");
+                syntax("Excess characters after hex literal");
         lexer.s = pc;
         return true;
 }
@@ -298,7 +298,7 @@ qlex_number(void)
         return ret;
 
 malformed:
-        qsyntax("Malformed numerical expression");
+        syntax("Malformed numerical expression");
         return 0;
 }
 
@@ -384,7 +384,7 @@ qlex_helper(void)
                 return ret;
         }
 
-        qsyntax("Unrecognized token");
+        syntax("Unrecognized token");
         return 0;
 }
 
@@ -427,13 +427,13 @@ prescan(const char *filename)
         }
 
         ns = ecalloc(sizeof(*ns));
-        ns->fname = q_literal(filename);
+        ns->fname = literal(filename);
         token_init(&ns->pgm);
         while ((t = qlex_helper()) != EOF) {
                 struct opcode_t oc;
                 oc.t    = t;
                 oc.line = lexer.lineno;
-                oc.s    = q_literal(lexer.tok.s);
+                oc.s    = literal(lexer.tok.s);
                 bug_on(lexer.tok.s == NULL);
                 if (oc.t == 'f') {
                         double f = strtod(lexer.tok.s, NULL);

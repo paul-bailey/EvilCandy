@@ -19,7 +19,7 @@ static void
 nspush(struct ns_t *new)
 {
         if (ns_sp >= &ns_stack[NS_STACKSIZE])
-                qsyntax("Too many imports; stack overflow");
+                syntax("Too many imports; stack overflow");
 
         ns_sp->sp = q_.sp;
         ns_sp->fp = q_.fp;
@@ -48,7 +48,7 @@ nspop(void)
          */
         bug_on(q_.sp < ns_sp->sp);
         while (q_.sp != ns_sp->sp)
-                qstack_pop(NULL);
+                stack_pop(NULL);
 }
 
 
@@ -154,7 +154,7 @@ convert_path(const char *name)
                 name += 2;
 
         convert_path_helper(name, name + strlen(name));
-        return q_literal(path.s);
+        return literal(path.s);
 }
 
 void
@@ -170,7 +170,7 @@ load_file(const char *filename)
          * interactive mode.
          */
         path = filename[0] == '/'
-                ? q_literal(filename) : convert_path(filename);
+                ? literal(filename) : convert_path(filename);
         ns = prescan(path);
         if (!ns)
                 return;

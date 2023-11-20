@@ -96,7 +96,7 @@ qvar_free(struct qvar_t *v)
          * keep always at least one, else free it if no longer used.
          *
          * XXX REVISIT: what if I keep mallocing and freeing because
-         * q_eval keeps grabbing and throwing away vars right on the
+         * eval() keeps grabbing and throwing away vars right on the
          * boundary of a used table?  (sim. to hashtable problem)
          */
         if (b->used == 0LL && !last_in_list(b)) {
@@ -257,7 +257,7 @@ struct qvar_t *
 qobject_new(struct qvar_t *owner, const char *name)
 {
         struct qvar_t *o = qobject_from_empty(qvar_new());
-        o->name = q_literal(name);
+        o->name = literal(name);
         o->o.owner = owner;
         return o;
 }
@@ -345,12 +345,12 @@ void
 qarray_add_child(struct qvar_t *array, struct qvar_t *child)
 {
         if (!list_is_empty(&child->a))
-                qsyntax("Adding an element already owned by something else");
+                syntax("Adding an element already owned by something else");
 
         if (!list_is_empty(&array->a)) {
                 struct qvar_t *check = qarray_child(array, 0);
                 if (child->magic != check->magic)
-                        qsyntax("Array cannot append elements of different type");
+                        syntax("Array cannot append elements of different type");
         }
         list_add_tail(&child->siblings, &array->a);
 }

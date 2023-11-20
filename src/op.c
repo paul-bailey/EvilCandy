@@ -6,13 +6,13 @@
 static void
 epermit(const char *op)
 {
-        qsyntax("%s operation not permitted for this type", op);
+        syntax("%s operation not permitted for this type", op);
 }
 
 static void
 emismatch(const char *op)
 {
-        qsyntax("cannot perform %s operation on mismatched types", op);
+        syntax("cannot perform %s operation on mismatched types", op);
 }
 
 /**
@@ -293,7 +293,7 @@ qop_shift(struct qvar_t *a, struct qvar_t *b, int op)
                 a->i = 0;
         } else if (amt <= 0) {
                 if (amt < 0)
-                        qsyntax("Cannot shift by negative amount");
+                        syntax("Cannot shift by negative amount");
                 /* else, don't change i */
                 return;
         } else if (op == OC_LSHIFT) {
@@ -379,8 +379,8 @@ qop_cmpz(struct qvar_t *v)
 static void
 type_err(struct qvar_t *v, int magic)
 {
-        qsyntax("You may not change variable %s from type %s to type %s",
-                q_nameof(v), q_typestr(v->magic), q_typestr(magic));
+        syntax("You may not change variable %s from type %s to type %s",
+                nameof(v), typestr(v->magic), typestr(magic));
 }
 
 /**

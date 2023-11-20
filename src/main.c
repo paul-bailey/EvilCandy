@@ -2,7 +2,7 @@
 #include <string.h>
 #include <ctype.h>
 
-struct q_private_t q_;
+struct global_t q_;
 
 #ifndef arraylen
 # define arraylen(a) (sizeof(a) / sizeof((a)[0]))
@@ -10,7 +10,7 @@ struct q_private_t q_;
 
 /* for debugging and builtin functions */
 const char *
-q_typestr(int magic)
+typestr(int magic)
 {
         if (magic < 0 || magic >= Q_NMAGIC)
                 return "[bug]";
@@ -18,7 +18,7 @@ q_typestr(int magic)
 }
 
 const char *
-q_nameof(struct qvar_t *v)
+nameof(struct qvar_t *v)
 {
         return v->name ? v->name : "[unnamed]";
 }
@@ -79,7 +79,7 @@ init_lib(void)
         q_.pc.magic = QPTRX_MAGIC;
 
         /* Set up the global object */
-        q_builtin_initlib();
+        moduleinit_builtin();
 
         /* Initialize stack regs */
         q_.sp = q_.stack;
@@ -96,7 +96,7 @@ init_lib(void)
         qop_mov(&q_.lr, &q_.pc);
 
         /* point initial fp to "__gbl__" */
-        qstack_push(q_.gbl);
+        stack_push(q_.gbl);
 }
 
 /**

@@ -94,11 +94,11 @@ fail(const char *msg, ...)
 
 
 /**
- * qsyntax - Like syntax, except that it gets the line number and file
+ * syntax - Like syntax, except that it gets the line number and file
  *              from the program counter in @state
  */
 void
-qsyntax(const char *msg, ...)
+syntax(const char *msg, ...)
 {
         va_list ap;
 
@@ -110,7 +110,7 @@ qsyntax(const char *msg, ...)
 
 /* Commonplace error message */
 void
-qerr_expected__(int opcode)
+err_expected__(int opcode)
 {
         const char *what = "";
 
@@ -148,7 +148,7 @@ qerr_expected__(int opcode)
         default:
                 bug(); /* not true yet */
         }
-        qsyntax("Expected '%s' but got '%s'", what, q_.pc.px.oc->s);
+        syntax("Expected '%s' but got '%s'", what, q_.pc.px.oc->s);
 }
 
 

@@ -22,7 +22,7 @@ static void
 qb_typeof(struct qvar_t *ret)
 {
         struct qvar_t *p = getarg(0);
-        qop_assign_cstring(ret, q_typestr(p->magic));
+        qop_assign_cstring(ret, typestr(p->magic));
 }
 
 static void
@@ -224,7 +224,7 @@ struct inittbl_t {
         int magic;
         const char *name;
         union {
-                struct qfunc_intl_t h;
+                struct func_intl_t h;
                 struct inittbl_t *tbl;
         };
 };
@@ -242,7 +242,7 @@ initialize_helper(struct qvar_t *parent, const struct inittbl_t *tbl)
                         initialize_helper(child, t->tbl);
                 } else {
                         child = qvar_new();
-                        child->name = q_literal(t->name);
+                        child->name = literal(t->name);
                         child->magic = QINTL_MAGIC;
                         child->fni   = &t->h;
                         qobject_add_child(parent, child);
@@ -297,7 +297,7 @@ typemethod_helper(const struct inittbl_t *tbl,
                 struct qvar_t *v = qvar_new();
                 bug_on(!strcmp(t->name, "SANITY"));
                 v->magic = QINTL_MAGIC;
-                v->name = q_literal(t->name);
+                v->name = literal(t->name);
                 v->fni = &t->h;
                 list_add_tail(&v->siblings, parent_list);
                 t++;
@@ -306,7 +306,7 @@ typemethod_helper(const struct inittbl_t *tbl,
 }
 
 void
-q_builtin_initlib(void)
+moduleinit_builtin(void)
 {
         int i;
         const struct inittbl_t *t = typemethods;
@@ -346,8 +346,8 @@ ebuiltin_method(struct qvar_t *v, const char *method_name)
 {
         struct qvar_t *ret = builtin_method(v, method_name);
         if (!ret) {
-                qsyntax("type %s has no method %s",
-                        q_typestr(v->magic), method_name);
+                syntax("type %s has no method %s",
+                        typestr(v->magic), method_name);
         }
         return ret;
 }

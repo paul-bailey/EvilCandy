@@ -49,7 +49,7 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
          */
 
         /* push lr */
-        qstack_push(&q_.lr);
+        stack_push(&q_.lr);
         /*
          * can't change this yet because we need old frame pointer
          * while evaluating args.
@@ -57,7 +57,7 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
         new_fp = q_.sp;
 
         /* push "this" */
-        qstack_push(owner ? owner :
+        stack_push(owner ? owner :
                     (fn->magic == QINTL_MAGIC ? q_.gbl : fn->fn.owner));
 
         qlex();
@@ -68,8 +68,8 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
                 q_unlex();
                 /* push args, don't name them yet */
                 do {
-                        struct qvar_t *v = qstack_getpush();
-                        q_eval(v);
+                        struct qvar_t *v = stack_getpush();
+                        eval(v);
                         qlex();
                 } while (cur_oc->t == OC_COMMA);
                 expect(OC_RPAR);
@@ -87,7 +87,7 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
                         if (nargs < fn->fni->minargs ||
                             (fn->fni->maxargs > 0 &&
                              nargs > fn->fni->maxargs)) {
-                                qsyntax("Expected %d args but got %d",
+                                syntax("Expected %d args but got %d",
                                         fn->fni->minargs, nargs);
                         }
                 }
@@ -129,7 +129,7 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
                 }
 
                 if (nargs)
-                        qsyntax("Argument number mismatch");
+                        syntax("Argument number mismatch");
 
                 /*
                  * XXX: if varargs, cur_oc->t is for ',' and next tok is "..."
@@ -147,7 +147,7 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
                 /* execute it */
                 exres = expression(retval, 0);
                 if (exres != 1 && exres != 0) {
-                        qsyntax("Unexpected %s", exres == 2 ? "break" : "EOF");
+                        syntax("Unexpected %s", exres == 2 ? "break" : "EOF");
                 }
 
                 /* restore PC */
@@ -157,10 +157,10 @@ call_function(struct qvar_t *fn, struct qvar_t *retval, struct qvar_t *owner)
 
         /* Unwind stack to beginning of args */
         while (q_.sp != q_.fp)
-                qstack_pop(NULL);
+                stack_pop(NULL);
 
         /* restore LR */
-        qstack_pop(&q_.lr);
+        stack_pop(&q_.lr);
 
         /* restore FP */
         q_.fp = fpsav;
@@ -177,10 +177,10 @@ do_let(void)
         /* Make sure name is not same as other automatic vars */
         for (p = q_.fp + 1; p < q_.sp; p++) {
                 if (p->name && !strcmp(cur_oc->s, p->name))
-                        qsyntax("Variable `%s' is already declared", p->name);
+                        syntax("Variable `%s' is already declared", p->name);
         }
 
-        v = qstack_getpush();
+        v = stack_getpush();
         v->name = cur_oc->s;
 
         qlex();
@@ -190,7 +190,7 @@ do_let(void)
                 break;
         case OC_EQ:
                 /* assign v with the "something" of "let x = something" */
-                q_eval(v);
+                eval(v);
                 qlex();
                 expect(OC_SEMI);
                 break;
@@ -211,7 +211,7 @@ do_identifier(void)
 {
         struct qvar_t *v = symbol_seek(cur_oc->s);
         if (!v)
-                qsyntax("Unrecognized symbol `%s'", cur_oc->s);
+                syntax("Unrecognized symbol `%s'", cur_oc->s);
 
         do_childof(v);
 }
@@ -303,18 +303,18 @@ static bool
 get_condition(bool par)
 {
         bool ret;
-        struct qvar_t *cond = qstack_getpush();
+        struct qvar_t *cond = stack_getpush();
         if (par) {
                 qlex();
                 expect(OC_LPAR);
-                q_eval(cond);
+                eval(cond);
                 qlex();
                 expect(OC_RPAR);
         } else {
-                q_eval(cond);
+                eval(cond);
         }
         ret = !qop_cmpz(cond);
-        qstack_pop(NULL);
+        stack_pop(NULL);
         return ret;
 }
 
@@ -328,9 +328,9 @@ static int
 expression_and_back(struct qvar_t *retval)
 {
         int ret;
-        qstack_push(&q_.pc);
+        stack_push(&q_.pc);
         ret = expression(retval, 0);
-        qstack_pop(&q_.pc);
+        stack_pop(&q_.pc);
         return ret;
 }
 
@@ -357,14 +357,14 @@ static int
 do_while(struct qvar_t *retval)
 {
         int r = 0;
-        struct qvar_t *pc = qstack_getpush();
+        struct qvar_t *pc = stack_getpush();
         qop_mov(pc, &q_.pc);
         while (get_condition(true)) {
                 if ((r = expression(retval, 0)) != 0)
                         break;
                 qop_mov(&q_.pc, pc);
         }
-        qstack_pop(&q_.pc);
+        stack_pop(&q_.pc);
         seek_eob(0);
         return r;
 }
@@ -374,7 +374,7 @@ static int
 do_do(struct qvar_t *retval)
 {
         int r = 0;
-        struct qvar_t *saved_pc = qstack_getpush();
+        struct qvar_t *saved_pc = stack_getpush();
         qop_mov(saved_pc, &q_.pc);
         for (;;) {
                 if ((r = expression(retval, 0)) != 0)
@@ -394,7 +394,7 @@ do_do(struct qvar_t *retval)
          * we encountered "break;", so no need to restore
          * PC and find the end of block, etc.
          */
-        qstack_pop(NULL);
+        stack_pop(NULL);
         return r;
 }
 
@@ -443,14 +443,14 @@ expression(struct qvar_t *retval, bool top)
                         break;
                 case OC_RBRACE:
                         if (!brace)
-                                qsyntax("Unexpected '}'");
+                                syntax("Unexpected '}'");
                         brace--;
                         break;
                 case OC_RETURN:
                         qlex();
                         if (cur_oc->t != OC_SEMI) {
                                 q_unlex();
-                                q_eval(retval);
+                                eval(retval);
                                 qlex();
                                 expect(OC_SEMI);
                         }
@@ -483,17 +483,17 @@ expression(struct qvar_t *retval, bool top)
                         break;
                 case EOF:
                         if (!top)
-                                qsyntax("Unexpected EOF");
+                                syntax("Unexpected EOF");
                         ret = 3;
                         goto done;
                 default:
-                        qsyntax("Token '%s' not allowed here", cur_oc->s);
+                        syntax("Token '%s' not allowed here", cur_oc->s);
                 }
         } while (brace);
 done:
         if (!top) {
                 while (q_.sp != sp)
-                        qstack_pop(NULL);
+                        stack_pop(NULL);
         }
         return ret;
 }
@@ -509,11 +509,11 @@ exec_block(void)
                 if (ret) {
                         if (ret == 3)
                                 break;
-                        qsyntax("Cannot '%s' from top level",
+                        syntax("Cannot '%s' from top level",
                                 ret == 1 ? "return" : "break");
                 }
                 qvar_reset(&dummy);
         }
         while (q_.sp != sp)
-                qstack_pop(NULL);
+                stack_pop(NULL);
 }

@@ -79,10 +79,10 @@ struct ns_t {
 };
 
 /**
- * struct qmarker_t - Used for saving a place, either for
+ * struct marker_t - Used for saving a place, either for
  *      declaring a symbol or for recalling an earlier token.
  */
-struct qmarker_t {
+struct marker_t {
         struct ns_t *ns;
         struct opcode_t *oc;
 };
@@ -90,19 +90,19 @@ struct qmarker_t {
 struct qvar_t;
 
 /**
- * struct qfunc_intl_t - descriptor for built-in function
+ * struct func_intl_t - descriptor for built-in function
  * @fn:         Pointer to the function
  * @minargs:    Minimum number of arguments allowed
  * @maxargs:    <0 if varargs allowed, maximum number of args
  *              (usu.=minargs) if not.
  */
-struct qfunc_intl_t {
+struct func_intl_t {
         void (*fn)(struct qvar_t *ret);
         int minargs;
         int maxargs;
 };
 
-struct qobject_handle_t {
+struct object_handle_t {
         struct list_t children;
         int nref;
 };
@@ -121,11 +121,11 @@ struct qvar_t {
         union {
                 struct {
                         struct qvar_t *owner;
-                        struct qobject_handle_t *h;
+                        struct object_handle_t *h;
                 } o;
                 struct {
                         struct qvar_t *owner;
-                        struct qmarker_t mk;
+                        struct marker_t mk;
                 } fn;
                 /*
                  * FIXME: This makes numerical arrays (which can get
@@ -137,9 +137,9 @@ struct qvar_t {
                 struct list_t a;
                 double f;
                 long long i;
-                const struct qfunc_intl_t *fni;
+                const struct func_intl_t *fni;
                 struct token_t s;
-                struct qmarker_t px;
+                struct marker_t px;
                 struct qvar_t *ps;
         };
 };
@@ -155,7 +155,7 @@ struct opcode_t {
 };
 
 /* This library's private data */
-struct q_private_t {
+struct global_t {
         struct hashtable_t *kw_htbl;
         struct hashtable_t *literals;
         struct qvar_t *gbl; /* "__gbl__" as user sees it */
@@ -172,9 +172,9 @@ struct q_private_t {
 #define cur_ns  q_.pc.px.ns
 
 /* main.c */
-extern struct q_private_t q_;
-extern const char *q_typestr(int magic);
-extern const char *q_nameof(struct qvar_t *v);
+extern struct global_t q_;
+extern const char *typestr(int magic);
+extern const char *nameof(struct qvar_t *v);
 static inline struct qvar_t *get_this(void) { return q_.fp; }
 
 /* helpers for return value of qlex */
@@ -183,7 +183,7 @@ static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
 /* builtin.c */
-extern void q_builtin_initlib(void);
+extern void moduleinit_builtin(void);
 extern struct qvar_t *builtin_method(struct qvar_t *v,
                                 const char *method_name);
 extern struct qvar_t *ebuiltin_method(struct qvar_t *v,
@@ -197,22 +197,22 @@ extern char *next_line(unsigned int flags);
 #define bug() bug__(__FILE__, __LINE__)
 #define breakpoint() breakpoint__(__FILE__, __LINE__)
 #define bug_on(cond_) do { if (cond_) bug(); } while (0)
-extern void qsyntax(const char *msg, ...);
+extern void syntax(const char *msg, ...);
 extern void fail(const char *msg, ...);
 extern void warning(const char *msg, ...);
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
-extern void qerr_expected__(int opcode);
+extern void err_expected__(int opcode);
 static inline void
 expect(int opcode)
 {
         if (cur_oc->t != opcode)
-                qerr_expected__(opcode);
+                err_expected__(opcode);
 }
 
 /* eval.c */
-extern void q_eval(struct qvar_t *v);
-extern void q_eval_safe(struct qvar_t *v);
+extern void eval(struct qvar_t *v);
+extern void eval_safe(struct qvar_t *v);
 
 /* exec.c */
 extern void exec_block(void);
@@ -242,8 +242,7 @@ extern void initialize_lexer(void);
 
 
 /* literal.c */
-extern char *q_literal(const char *s);
-extern void q_literal_free(char *s);
+extern char *literal(const char *s);
 
 /* op.c */
 extern void qop_mul(struct qvar_t *a, struct qvar_t *b);
@@ -266,9 +265,9 @@ extern void qop_assign_int(struct qvar_t *v, long long i);
 extern void qop_assign_float(struct qvar_t *v, double f);
 
 /* stack.c */
-extern void qstack_pop(struct qvar_t *to);
-extern struct qvar_t *qstack_getpush(void);
-extern void qstack_push(struct qvar_t *v);
+extern void stack_pop(struct qvar_t *to);
+extern struct qvar_t *stack_getpush(void);
+extern void stack_push(struct qvar_t *v);
 
 /* symbol.c */
 extern struct qvar_t *symbol_seek(const char *s);

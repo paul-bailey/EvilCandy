@@ -3,6 +3,88 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct bufblk_t {
+        struct list_t list;
+        struct buffer_t bufs[64];
+        uint64_t b;
+};
+
+/*
+ * Graveyard of discarded struct buffer_t's, so we don't have to keep
+ * malloc'ing and free'ing whenever we push and pop strings on and off
+ * the stack.
+ *
+ * FIXME: This looks like a DRY violation with the memory management
+ * in var.c (because it sort of is), but I cannot combine the two,
+ * because they are fundamentally different from each other.
+ */
+struct list_t bufblk_list = {
+        .next = &bufblk_list,
+        .prev = &bufblk_list
+};
+
+#define list2blk(li)    container_of(li, struct bufblk_t, list)
+
+static struct buffer_t *
+buffer_from_graveyard(void)
+{
+        struct list_t *list;
+        struct bufblk_t *blk = NULL;
+        uint64_t x;
+        unsigned int i;
+        list_foreach(list, &bufblk_list) {
+                struct bufblk_t *tblk = list2blk(list);
+                if (tblk->b) {
+                        blk = tblk;
+                        break;
+                }
+        }
+        if (!blk)
+                return NULL;
+        for (i = 0, x = 1; !(blk->b & x) && i < 64; x <<= 1, i++)
+                ;
+        bug_on(i == 64);
+        blk->b &= ~x;
+        return &blk->bufs[i];
+}
+
+static void
+buffer_to_graveyard(struct buffer_t *b)
+{
+        struct list_t *list;
+        struct bufblk_t *blk = NULL;
+        uint64_t x;
+        unsigned int i;
+
+        list_foreach(list, &bufblk_list) {
+                struct bufblk_t *tblk = list2blk(list);
+                if (~tblk->b) {
+                        blk = tblk;
+                        break;
+                }
+        }
+        if (!blk) {
+                blk = emalloc(sizeof(*blk));
+                list_init(&blk->list);
+                blk->b = 0LL;
+                list_add_tail(&blk->list, &bufblk_list);
+        }
+        for (i = 0, x = 1; !!(blk->b & x) && i < 64; x <<= 1, i++)
+                ;
+        bug_on(i == 64);
+        blk->b &= ~x;
+
+        blk->bufs[i].s    = b->s;
+        blk->bufs[i].size = b->size;
+        blk->bufs[i].p    = 0;
+}
+
+static void
+buffer_init_(struct buffer_t *b)
+{
+        memset(b, 0, sizeof(*b));
+}
+
 /**
  * buffer_init - Initialize @tok
  *
@@ -11,9 +93,15 @@
 void
 buffer_init(struct buffer_t *tok)
 {
-        tok->s = NULL;
-        tok->p = 0;
-        tok->size = 0;
+        struct buffer_t *old = buffer_from_graveyard();
+        if (old) {
+                tok->s    = old->s;
+                tok->size = old->size;
+                tok->p = 0;
+                buffer_init_(old);
+        } else {
+                buffer_init_(tok);
+        }
 }
 
 /**
@@ -53,15 +141,8 @@ buffer_rstrip(struct buffer_t *tok)
 void
 buffer_free(struct buffer_t *tok)
 {
-        /*
-         * TODO: I want some kind of "buffer graveyard",
-         * so I can just copy this over into that,
-         * then re-fill another buffer on ``buffer_init'',
-         * just so I don't malloc() and free() so much.
-         */
-        if (tok->s)
-                free(tok->s);
-        buffer_init(tok);
+        buffer_to_graveyard(tok);
+        buffer_init_(tok);
 }
 
 static void

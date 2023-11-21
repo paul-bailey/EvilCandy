@@ -22,12 +22,6 @@ let iterator = {
     tonine: function(x) {
         for (let n = 10; x < n; x++)
                 print("\titerator.tonine: x is {}\n".format(x));
-        // for (;;) {
-        //     if (x == 10)
-        //         break;
-        //     print("\titerator.tonine: x is {}\n".format(x));
-        //     x++;
-        // }
     },
 
     toten: function(x) {
@@ -55,6 +49,12 @@ print("length '{}' for '{}'\n".format(s.len(), s));
 print("iterator.len()=={}\n".format(iterator.len()));
 print("length {} should equal {}\n".format(s.len(), len(s)));
 print("Length of __gbl__ is {}\n".format(len()));
+
+print("\n");
+print("~0xfffffffffffffffa is {}\n".format(~0xfffffffffffffffa));
+
+print("\n");
+print("The 3rd character in '{}' is '{}'\n".format(s, s[2]));
 
 print("\n");
 print("Now here's a test of foreach:\n");

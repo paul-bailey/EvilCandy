@@ -400,6 +400,36 @@ qop_decr(struct var_t *v)
                 epermit("--");
 }
 
+/* ~v */
+void
+qop_bit_not(struct var_t *v)
+{
+        if (v->magic != QINT_MAGIC)
+                epermit("~");
+        v->i = ~v->i;
+}
+
+/* -v */
+void
+qop_negate(struct var_t *v)
+{
+        if (v->magic == QINT_MAGIC)
+                v->i = -v->i;
+        else if (v->magic == QFLOAT_MAGIC)
+                v->f = -v->f;
+        else
+                epermit("-");
+}
+
+/* !v WARNING! this clobbers v's type */
+void
+qop_lnot(struct var_t *v)
+{
+        bool cond = qop_cmpz(v);
+        var_reset(v);
+        qop_assign_int(v, (int)cond);
+}
+
 static void
 type_err(struct var_t *v, int magic)
 {

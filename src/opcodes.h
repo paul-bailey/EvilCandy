@@ -29,6 +29,7 @@ enum {
         QD_LBRACE,
         QD_RBRACE,
         QD_COLON,
+        QD_TILDE,
 
         QD_PLUSPLUS,
         QD_MINUSMINUS,
@@ -87,6 +88,7 @@ enum {
         OC_LBRACE       = TO_DTOK(QD_LBRACE),
         OC_RBRACE       = TO_DTOK(QD_RBRACE),
         OC_COLON        = TO_DTOK(QD_COLON),
+        OC_TILDE        = TO_DTOK(QD_TILDE),
         OC_PLUSPLUS     = TO_DTOK(QD_PLUSPLUS),
         OC_MINUSMINUS   = TO_DTOK(QD_MINUSMINUS),
         OC_LSHIFT       = TO_DTOK(QD_LSHIFT),

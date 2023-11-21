@@ -232,11 +232,17 @@ qlex_identifier(void)
 }
 
 static bool
+ishexheader(char *s)
+{
+        return (s[0] == '0' && toupper((int)s[1]) == 'X');
+}
+
+static bool
 qlex_hex(void)
 {
         struct buffer_t *tok = &lexer.tok;
         char *pc = lexer.s;
-        if (pc[0] != '0' || toupper((int)(pc[1])) != 'x')
+        if (!ishexheader(pc))
                 return false;
         buffer_putc(tok, *pc++);
         buffer_putc(tok, *pc++);
@@ -474,7 +480,7 @@ initialize_lexer(void)
          * IMPORTANT!! These two strings must be in same order as
          *             their QD_* enums in opcode.h
          */
-        static const char *const DELIMS = "+-<>=&|.!;,/*%^()[]{}: \t\n";
+        static const char *const DELIMS = "+-<>=&|.!;,/*%^()[]{}:~ \t\n";
         static const char *const DELIMDBL = "+-<>=&|";
         const char *s;
         int i;

@@ -345,12 +345,35 @@ eval8(struct var_t *v)
 static void
 eval7(struct var_t *v)
 {
-        /*
-         * TODO: Support this.
-         * things like ~ or ! before number,
-         * '-' before number too, for negative value.
-         */
-        eval8(v);
+        switch (cur_oc->t) {
+        case OC_TILDE:
+                qlex();
+                eval8(v);
+                qop_bit_not(v);
+                break;
+        case OC_MINUS:
+                qlex();
+                eval8(v);
+                qop_negate(v);
+                break;
+        case OC_EXCLAIM:
+                qlex();
+                eval8(v);
+                qop_lnot(v);
+                break;
+        case OC_PLUS:
+                qlex();
+                eval8(v);
+                /*
+                 * TODO: I don't need to check this, but that means I'm
+                 * allowing user to express things like
+                 *     +"string"
+                 */
+                break;
+        default:
+                eval8(v);
+                break;
+        }
 }
 
 /* multiply, divide, modulo, left to right */
@@ -429,12 +452,6 @@ eval3(struct var_t *v)
                 struct var_t *w = tstack_getpush();
                 qlex();
                 eval4(w);
-                /*
-                 * FIXME: Need sanity check.
-                 * qop_cmp clobbers v.
-                 * v SHOULD be an unassigned temporary
-                 * variable, so this SHOULD be find.
-                 */
                 qop_cmp(v, w, t);
                 tstack_pop(NULL);
         }

@@ -350,6 +350,9 @@ extern void qop_lor(struct var_t *a, struct var_t *b);
 extern bool qop_cmpz(struct var_t *v);
 extern void qop_incr(struct var_t *v);
 extern void qop_decr(struct var_t *v);
+extern void qop_bit_not(struct var_t *v);
+extern void qop_negate(struct var_t *v);
+extern void qop_lnot(struct var_t *v);
 extern void qop_mov(struct var_t *to, struct var_t *from);
 extern bool qop_cmpz(struct var_t *v);
 /* for assigning literals */

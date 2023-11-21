@@ -2,38 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* Declare automatic variable */
-static void
-do_let(void)
-{
-        struct var_t *v, *p;
-
-        qlex();
-        expect('u');
-
-        /* Make sure name is not same as other automatic vars */
-        for (p = q_.fp + 1; p < q_.sp; p++) {
-                if (p->name && !strcmp(cur_oc->s, p->name))
-                        syntax("Variable `%s' is already declared", p->name);
-        }
-
-        v = stack_getpush();
-        v->name = cur_oc->s;
-
-        qlex();
-        switch (cur_oc->t) {
-        case OC_SEMI:
-                /* empty declaration, like "let x;" */
-                break;
-        case OC_EQ:
-                /* assign v with the "something" of "let x = something" */
-                eval(v);
-                qlex();
-                expect(OC_SEMI);
-                break;
-        }
-}
-
 /* either returns pointer to new parent, or NULL, meaning "wrap it up" */
 static struct var_t *
 walk_obj_helper(struct var_t *parent)
@@ -319,8 +287,44 @@ expression_and_back(struct var_t *retval)
         return ret;
 }
 
+/* Declare automatic variable */
 static int
-do_if(struct var_t *retval)
+do_let(struct var_t *unused, unsigned int flags)
+{
+        struct var_t *v, *p;
+
+        if (!!(flags & FE_FOR))
+                syntax("'let' not allowed at this part of 'for' header");
+
+        qlex();
+        expect('u');
+
+        /* Make sure name is not same as other automatic vars */
+        for (p = q_.fp + 1; p < q_.sp; p++) {
+                if (p->name && !strcmp(cur_oc->s, p->name))
+                        syntax("Variable `%s' is already declared", p->name);
+        }
+
+        v = stack_getpush();
+        v->name = cur_oc->s;
+
+        qlex();
+        switch (cur_oc->t) {
+        case OC_SEMI:
+                /* empty declaration, like "let x;" */
+                break;
+        case OC_EQ:
+                /* assign v with the "something" of "let x = something" */
+                eval(v);
+                qlex();
+                expect(OC_SEMI);
+                break;
+        }
+        return 0;
+}
+
+static int
+do_if(struct var_t *retval, unsigned int unused)
 {
         int ret = 0;
         bool cond = get_condition(true);
@@ -339,7 +343,7 @@ do_if(struct var_t *retval)
 }
 
 static int
-do_while(struct var_t *retval)
+do_while(struct var_t *retval, unsigned int unused)
 {
         int r = 0;
         struct var_t *seekstart = tstack_getpush();
@@ -357,11 +361,15 @@ do_while(struct var_t *retval)
         tstack_pop(NULL);
         tstack_pop(NULL);
         seek_eob(0);
+
+        /* don't double break */
+        if (r == 2)
+                r = 0;
         return r;
 }
 
 static int
-do_for(struct var_t *retval)
+do_for(struct var_t *retval, unsigned int unused)
 {
         struct var_t *start   = tstack_getpush();
         struct var_t *pc_cond = tstack_getpush();
@@ -411,24 +419,15 @@ do_for(struct var_t *retval)
         while (q_.sp != sp)
                 stack_pop(NULL);
 
+        /* don't double break */
+        if (r == 2)
+                r = 0;
         return r;
-}
-
-static void
-do_load(void)
-{
-        const char *filename;
-        qlex();
-        expect('q');
-        filename = cur_oc->s;
-        qlex();
-        expect(OC_SEMI);
-        load_file(filename);
 }
 
 /* he he... he he... "dodo" */
 static int
-do_do(struct var_t *retval)
+do_do(struct var_t *retval, unsigned int unused)
 {
         int r = 0;
         struct var_t *saved_pc = stack_getpush();
@@ -452,7 +451,80 @@ do_do(struct var_t *retval)
          * PC and find the end of block, etc.
          */
         stack_pop(NULL);
+
+        /* if we break'd out of loop, don't double-break */
+        if (r == 2)
+                r = 0;
         return r;
+}
+
+static int
+do_return(struct var_t *retval, unsigned int unused)
+{
+        qlex();
+        if (cur_oc->t != OC_SEMI) {
+                q_unlex();
+                eval(retval);
+                qlex();
+                expect(OC_SEMI);
+        }
+        return 1;
+}
+
+static int
+do_break(struct var_t *retval, unsigned int unused)
+{
+        qlex();
+        expect(OC_SEMI);
+        return 2;
+}
+
+static int
+do_this(struct var_t *unused, unsigned int flags)
+{
+        do_childof(get_this(), flags);
+        return 0;
+}
+
+static int
+do_load(struct var_t *unused, unsigned int flags)
+{
+        const char *filename;
+        if (!(flags & FE_TOP))
+                syntax("Cannot load file except at top level execution");
+        qlex();
+        expect('q');
+        filename = cur_oc->s;
+        qlex();
+        expect(OC_SEMI);
+        load_file(filename);
+        return 0;
+}
+
+/* when the first token of a statement is a keyword */
+static int
+do_keyword(struct var_t *retval, unsigned int flags)
+{
+        typedef int (*lufn_t)(struct var_t*, unsigned int);
+        static const lufn_t lut[N_KW] = {
+                NULL,           /* 0 */
+                NULL,           /* KW_FUNC */
+                do_let,         /* KW_LET */
+                do_this,        /* KW_THIS */
+                do_return,      /* KW_RETURN */
+                do_break,       /* KW_BREAK */
+                do_if,          /* KW_IF */
+                do_while,       /* KW_WHILE */
+                NULL,           /* KW_ELSE */
+                do_do,          /* KW_DO */
+                do_for,         /* KW_FOR */
+                do_load,        /* KW_LOAD */
+        };
+
+        unsigned int k = tok_keyword(cur_oc->t);
+        if (k > N_KW || lut[k] == NULL)
+                return -1;
+        return lut[k](retval, flags);
 }
 
 /**
@@ -487,92 +559,59 @@ expression(struct var_t *retval, unsigned int flags)
                         sp = q_.sp;
                         brace++;
                 } else {
+                        /* single line statement */
                         q_unlex();
                 }
         }
+
         do {
                 qlex();
-                switch (cur_oc->t) {
-                case 'u':
-                        do_childof(esymbol_seek(cur_oc->s), flags);
-                        break;
-                case OC_SEMI: /* empty statement */
-                        break;
-                case OC_LET:
-                        if (!!(flags & FE_FOR))
-                                syntax("'let' not allowed at this part of 'for' header");
-                        do_let();
-                        break;
-                case OC_RBRACE:
-                        if (!brace)
-                                syntax("Unexpected '}'");
-                        brace--;
-                        break;
-                case OC_RPAR:
+                if (cur_oc->t == 'u') {
                         /*
-                         * If FE_FOR, then this is the closing brace
-                         * of the for loop's header
+                         * identifier, line is probably
+                         * "this = that;" or "this();"
                          */
-                        if (!(flags & FE_FOR))
-                                goto bad_tok;
-                        q_unlex();
-                        goto done;
-                case OC_RETURN:
-                        qlex();
-                        if (cur_oc->t != OC_SEMI) {
+                        do_childof(esymbol_seek(cur_oc->s), flags);
+                } else if (tok_type(cur_oc->t) == 'd') {
+                        /* delimiter */
+                        switch (cur_oc->t) {
+                        case OC_SEMI:
+                                /* empty statement */
+                                break;
+                        case OC_RBRACE:
+                                if (!brace)
+                                        syntax("Unexpected '}'");
+                                brace--;
+                                break;
+                        case OC_RPAR:
+                                /*
+                                 * If FE_FOR, then this is the closing brace
+                                 * of the for loop's header. Fake it by
+                                 * setting "brace" to zero.
+                                 */
+                                if (!(flags & FE_FOR))
+                                        goto bad_tok;
                                 q_unlex();
-                                eval(retval);
-                                qlex();
-                                expect(OC_SEMI);
+                                brace = 0;
+                                break;
+                        default:
+                                goto bad_tok;
                         }
-                        ret = 1;
-                        goto done;
-                case OC_BREAK:
-                        qlex();
-                        expect(OC_SEMI);
-                        ret = 2;
-                        goto done;
-                case OC_IF:
-                        ret = do_if(retval);
-                        /* "break" descends "if" */
-                        if (ret != 0)
-                                goto done;
-                        break;
-                case OC_WHILE:
-                        if ((ret = do_while(retval)) == 1)
-                                goto done;
-                        /* don't accidentally double-break */
-                        ret = 0;
-                        break;
-                case OC_FOR:
-                        if ((ret = do_for(retval)) == 1)
-                                goto done;
-                        ret = 0;
-                        break;
-                case OC_DO:
-                        if ((ret = do_do(retval)) == 1)
-                                goto done;
-                        ret = 0;
-                        break;
-                case OC_THIS:
-                        do_childof(get_this(), flags);
-                        break;
-                case OC_LOAD:
-                        if (!(flags & FE_TOP))
-                                syntax("Cannot load file except at top level execution");
-                        do_load();
-                        break;
-                case EOF:
+                } else if (tok_type(cur_oc->t) == 'k') {
+                        ret = do_keyword(retval, flags);
+                        if (ret) {
+                                if (ret < 0)
+                                        goto bad_tok;
+                        }
+                } else if (cur_oc->t == EOF) {
                         if (!(flags & FE_TOP))
                                 syntax("Unexpected EOF");
                         ret = 3;
-                        goto done;
-                default:
-bad_tok:
-                        syntax("Token '%s' not allowed here", cur_oc->s);
+                } else {
+                        goto bad_tok;
                 }
-        } while (brace);
-done:
+        } while (brace && !ret);
+
         if (sp) {
                 /*
                  * This was not a single-line expression,
@@ -589,6 +628,10 @@ done:
         RECURSION_DECR();
 
         return ret;
+
+bad_tok:
+        syntax("Token '%s' not allowed here", cur_oc->s);
+        return 0;
 }
 
 void

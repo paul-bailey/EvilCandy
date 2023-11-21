@@ -38,6 +38,7 @@ initialize_keywords(void)
                 { "else",       KW_ELSE },
                 { "do",         KW_DO },
                 { "for",        KW_FOR },
+                { "load",       KW_LOAD },
                 { NULL, 0 }
         };
         const struct kw_tbl_t *tkw;

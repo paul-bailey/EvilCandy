@@ -414,7 +414,17 @@ do_for(struct var_t *retval)
         return r;
 }
 
-
+static void
+do_load(void)
+{
+        const char *filename;
+        qlex();
+        expect('q');
+        filename = cur_oc->s;
+        qlex();
+        expect(OC_SEMI);
+        load_file(filename);
+}
 
 /* he he... he he... "dodo" */
 static int
@@ -547,6 +557,11 @@ expression(struct var_t *retval, unsigned int flags)
                 case OC_THIS:
                         do_childof(get_this(), flags);
                         break;
+                case OC_LOAD:
+                        if (!(flags & FE_TOP))
+                                syntax("Cannot load file except at top level execution");
+                        do_load();
+                        break;
                 case EOF:
                         if (!(flags & FE_TOP))
                                 syntax("Unexpected EOF");
@@ -579,18 +594,16 @@ done:
 void
 exec_block(void)
 {
-        static struct var_t dummy;
+        /* Note: keep this re-entrant */
         struct var_t *sp = q_.sp;
         for (;;) {
-                var_init(&dummy);
-                int ret = expression(&dummy, FE_TOP);
+                int ret = expression(NULL, FE_TOP);
                 if (ret) {
                         if (ret == 3)
                                 break;
                         syntax("Cannot '%s' from top level",
                                 ret == 1 ? "return" : "break");
                 }
-                var_reset(&dummy);
         }
         while (q_.sp != sp)
                 stack_pop(NULL);

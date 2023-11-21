@@ -8,7 +8,7 @@ enum {
 
 struct file_state_t {
         struct var_t *sp;
-        struct var_t *fp;
+        struct var_t *fp; /* "frame pointer", not "file pointer" */
         struct var_t pc;
 };
 
@@ -145,6 +145,8 @@ convert_path(const char *name)
 
         /* The old path was relative to CWD, so use that */
         old_path = cur_ns ? cur_ns->fname : "";
+        if (!old_path)  /* <- in case of stdin */
+                old_path = "";
         convert_path_helper(old_path, my_strrchrnul(old_path, '/'));
         if (path.s[0] != '\0')
                 buffer_putc(&path, '/');

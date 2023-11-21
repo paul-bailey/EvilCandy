@@ -59,6 +59,7 @@ enum {
         KW_ELSE,
         KW_DO,
         KW_FOR,
+        KW_LOAD,
 };
 
 enum {
@@ -111,6 +112,7 @@ enum {
         OC_ELSE         = TO_KTOK(KW_ELSE),
         OC_DO           = TO_KTOK(KW_DO),
         OC_FOR          = TO_KTOK(KW_FOR),
+        OC_LOAD         = TO_KTOK(KW_LOAD),
 };
 
 #endif /* EGQ_OPCODES_H */

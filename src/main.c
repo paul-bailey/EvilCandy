@@ -40,6 +40,7 @@ initialize_keywords(void)
                 { "while",      KW_WHILE },
                 { "else",       KW_ELSE },
                 { "do",         KW_DO },
+                { "for",        KW_FOR },
                 { NULL, 0 }
         };
         const struct kw_tbl_t *tkw;

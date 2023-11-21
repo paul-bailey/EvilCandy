@@ -233,7 +233,11 @@ extern struct var_t *earray_child(struct var_t *array, int n);
 extern struct var_t *esymbol_seek(const char *name);
 
 /* exec.c */
-extern int expression(struct var_t *retval, bool top);
+enum {
+        FE_FOR = 0x01,
+        FE_TOP = 0x02,
+};
+extern int expression(struct var_t *retval, unsigned int flags);
 extern void exec_block(void);
 
 /* file.c */

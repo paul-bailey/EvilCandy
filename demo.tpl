@@ -20,16 +20,16 @@ let pow = function(x, y) {
 
 let iterator = {
     tonine: function(x) {
-        while (x < 10) {
-                print("x is {}\n".format(x));
-                x++;
-        }
+        for (let n = 10; x < n; x++)
+                print("\titerator.tonine: x is {}\n".format(x));
     },
+
     toten: function(x) {
+        let n = 11;
         do {
-            print("{}\n".format(x));
+            print("\titerator.toten: x is {}\n".format(x));
             x++;
-        } while (x < 11);
+        } while (x < n);
     }
 };
 

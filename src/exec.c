@@ -9,6 +9,7 @@ do_let(void)
 
         qlex();
         expect('u');
+
         /* Make sure name is not same as other automatic vars */
         for (p = q_.fp + 1; p < q_.sp; p++) {
                 if (p->name && !strcmp(cur_oc->s, p->name))
@@ -64,8 +65,6 @@ walk_obj_helper(struct var_t *result, struct var_t *parent)
                         expect(OC_EQ);
                         eval(child);
                         object_add_child(parent, child);
-                        qlex();
-                        expect(OC_SEMI);
                         return NULL;
                 }
                 parent = child;
@@ -99,19 +98,21 @@ walk_arr_helper(struct var_t *result, struct var_t *parent)
         return child;
 }
 
-/**
+/*
  * symbol_walk: walk down the ".child.grandchild..." path of a parent
  *              and take certain actions.
  * @result: If the symbol is assigned, this stores the result.  It may
  *          be a dummy, but it may not be NULL
  * @parent: Parent of the ".child.grandchild..."
+ * @flags:  Same as @flags arg to expression(), so we can tell if we
+ *          need to skip looking for semicolon at the end.
  *
  * Program counter must be before the first '.', if it exists.
  * Note, the operation might happen with the parent itself, if no
  * '.something' is expressed.
  */
 static void
-symbol_walk(struct var_t *result, struct var_t *parent)
+symbol_walk(struct var_t *result, struct var_t *parent, unsigned int flags)
 {
         for (;;) {
                 if (parent->magic == QFUNCTION_MAGIC
@@ -124,8 +125,8 @@ symbol_walk(struct var_t *result, struct var_t *parent)
                 switch (cur_oc->t) {
                 case OC_PER:
                         parent = walk_obj_helper(result, parent);
-                        if (!parent) /* skip lex, expect semi below */
-                                return;
+                        if (!parent)
+                                goto expect_semi;
                         q_unlex();
                         break;
                 case OC_LBRACK:
@@ -147,17 +148,37 @@ symbol_walk(struct var_t *result, struct var_t *parent)
         }
 
 expect_semi:
-        qlex();
-        expect(OC_SEMI);
+        if (!(flags & FE_FOR)) {
+                qlex();
+                expect(OC_SEMI);
+        }
 }
 
 static void
-do_childof(struct var_t *parent)
+do_childof(struct var_t *parent, unsigned int flags)
 {
         struct var_t dummy;
         var_init(&dummy);
-        symbol_walk(&dummy, parent);
+        symbol_walk(&dummy, parent, flags);
         var_reset(&dummy);
+}
+
+static void
+seek_eob_1line_(int par, int brace, bool check_semi)
+{
+        while ((check_semi && cur_oc->t != OC_SEMI) || par || brace) {
+                qlex();
+                if (cur_oc->t == OC_LPAR)
+                        ++par;
+                else if (cur_oc->t == OC_RPAR)
+                        --par;
+                else if (cur_oc->t == OC_LBRACE)
+                        ++brace;
+                else if (cur_oc->t == OC_RBRACE)
+                        --brace;
+                else if (cur_oc->t == EOF)
+                        break;
+        }
 }
 
 /*
@@ -168,34 +189,14 @@ do_childof(struct var_t *parent)
 static void
 seek_eob_1line(void)
 {
-        int par = 0;
-        int brace = 0;
-        while (cur_oc->t != OC_SEMI || par || brace) {
-                if (cur_oc->t == OC_LPAR)
-                        ++par;
-                else if (cur_oc->t == OC_RPAR)
-                        --par;
-                else if (cur_oc->t == OC_LBRACE)
-                        ++brace;
-                else if (cur_oc->t == OC_RBRACE)
-                        --brace;
-                qlex();
-                if (cur_oc->t == EOF)
-                        break;
-        }
+        seek_eob_1line_(0, 0, true);
 }
 
 /* Helper to seek_eob - skip (...) */
 static void
 skip_par(int lpar)
 {
-        do {
-                qlex();
-                if (cur_oc->t == OC_LPAR)
-                        lpar++;
-                else if (cur_oc->t == OC_RPAR)
-                        lpar--;
-        } while (lpar);
+        seek_eob_1line_(lpar, 0, false);
 }
 
 static void
@@ -203,9 +204,15 @@ seek_eob(int depth)
 {
         if (!depth) {
                 qlex();
-                if (cur_oc->t == OC_LBRACE) {
+                switch (cur_oc->t) {
+                case OC_LBRACE:
                         seek_eob(1);
-                } else if (cur_oc->t == OC_IF) {
+                        break;
+                case OC_LPAR:
+                        skip_par(1);
+                        seek_eob(depth);
+                        break;
+                case OC_IF:
                         /* special case: there might be an ELSE */
                         qlex();
                         expect(OC_LPAR);
@@ -216,7 +223,8 @@ seek_eob(int depth)
                                 seek_eob(0);
                         else
                                 q_unlex();
-                } else if (cur_oc->t == OC_DO) {
+                        break;
+                case OC_DO:
                         seek_eob(0);
                         qlex();
                         expect(OC_WHILE);
@@ -225,21 +233,46 @@ seek_eob(int depth)
                         skip_par(1);
                         qlex();
                         expect(OC_SEMI);
-                } else {
+                        break;
+                case OC_WHILE:
+                        qlex();
+                        expect(OC_LPAR);
+                        skip_par(1);
+                        seek_eob(0);
+                        break;
+                case OC_FOR:
+                        qlex();
+                        expect(OC_LPAR);
+                        skip_par(1);
+                        seek_eob(0);
+                        break;
+                case OC_SEMI:
+                        break;
+                default:
                         seek_eob_1line();
+                        break;
                 }
         } else while (depth && cur_oc->t != EOF) {
                 qlex();
-                if (cur_oc->t == OC_LBRACE)
+                switch (cur_oc->t) {
+                case OC_LBRACE:
                         ++depth;
-                else if (cur_oc->t == OC_RBRACE)
+                        break;
+                case OC_RBRACE:
                         --depth;
+                        break;
+                default:
+                        break;
+                }
         }
 }
 
 /*
  * pc is at first parenthesis
- * if not @par, we're in a for loop
+ * @par:        true    if we start before a parenthesis and expect a
+ *                      closing parenthesis.
+ *              false   if we're in the middle of a for loop header
+ *                      and expect a semicolon
  *
  * return true if condition is true.
  */
@@ -247,7 +280,7 @@ static bool
 get_condition(bool par)
 {
         bool ret;
-        struct var_t *cond = stack_getpush();
+        struct var_t *cond = tstack_getpush();
         if (par) {
                 qlex();
                 expect(OC_LPAR);
@@ -256,9 +289,11 @@ get_condition(bool par)
                 expect(OC_RPAR);
         } else {
                 eval(cond);
+                qlex();
+                expect(OC_SEMI);
         }
         ret = !qop_cmpz(cond);
-        stack_pop(NULL);
+        tstack_pop(NULL);
         return ret;
 }
 
@@ -301,17 +336,79 @@ static int
 do_while(struct var_t *retval)
 {
         int r = 0;
-        struct var_t *pc = stack_getpush();
+        struct var_t *seekstart = tstack_getpush();
+        struct var_t *pc        = tstack_getpush();
         qop_mov(pc, &q_.pc);
         while (get_condition(true)) {
+                if (seekstart->magic == QEMPTY_MAGIC)
+                        qop_mov(seekstart, &q_.pc);
                 if ((r = expression(retval, 0)) != 0)
                         break;
                 qop_mov(&q_.pc, pc);
         }
-        stack_pop(&q_.pc);
+        if (seekstart->magic == QPTRX_MAGIC)
+                qop_mov(&q_.pc, seekstart);
+        tstack_pop(NULL);
+        tstack_pop(NULL);
         seek_eob(0);
         return r;
 }
+
+static int
+do_for(struct var_t *retval)
+{
+        struct var_t *start   = tstack_getpush();
+        struct var_t *pc_cond = tstack_getpush();
+        struct var_t *pc_op   = tstack_getpush();
+        struct var_t *pc_blk  = tstack_getpush();
+        struct var_t *sp = q_.sp;
+        int r = 0;
+
+        qop_mov(start, &q_.pc);
+        qlex();
+        expect(OC_LPAR);
+        if (expression(NULL, 0) != 0)
+                syntax("Unexpected break from for loop header");
+        qop_mov(pc_cond, &q_.pc);
+        for (;;) {
+                if (!get_condition(false))
+                        break;
+                if (pc_op->magic == QEMPTY_MAGIC) {
+                        qop_mov(pc_op, &q_.pc);
+                        seek_eob_1line_(1, 0, false);
+                        qop_mov(pc_blk, &q_.pc);
+                } else {
+                        qop_mov(&q_.pc, pc_blk);
+                }
+
+                if ((r = expression(retval, 0)) != 0)
+                        break;
+                qop_mov(&q_.pc, pc_op);
+                if (expression(NULL, FE_FOR) != 0)
+                        syntax("Unexpected break from loop header");
+                qop_mov(&q_.pc, pc_cond);
+        }
+
+        qop_mov(&q_.pc, start);
+        tstack_pop(NULL);
+        tstack_pop(NULL);
+        tstack_pop(NULL);
+        tstack_pop(NULL);
+
+        seek_eob(0);
+
+        /*
+         * This looks superfluous, but in the case of something like:
+         *      "for (let i = 0; ..."
+         * It keeps i out of the upper-level scope
+         */
+        while (q_.sp != sp)
+                stack_pop(NULL);
+
+        return r;
+}
+
+
 
 /* he he... he he... "dodo" */
 static int
@@ -346,8 +443,10 @@ do_do(struct var_t *retval)
  * expression - execute a {...} statement, which may be unbraced and on
  *              a single line.
  * @retval:     Variable to store result, if "return xyz;"
- * @top:        1 if at the top level (not in a function)
- *              0 otherwise
+ * @flags:      If FE_TOP, we're at the top level of a script (ie. not
+ *              in a function)
+ *              If FE_FOR, we're parsing the third part of the header of
+ *              a for loop, so we do not look for a semicolon.
  *
  * Return:      0       if encountered end of statement
  *              1       if encountered return
@@ -358,31 +457,35 @@ do_do(struct var_t *retval)
  * then an error will be thrown.
  */
 int
-expression(struct var_t *retval, bool top)
+expression(struct var_t *retval, unsigned int flags)
 {
         /*
          * Save position of the stack pointer so we unwind lower-scope
          * variables at the end.
          */
-        struct var_t *sp = q_.sp;
+        struct var_t *sp = NULL;
         int ret = 0;
         int brace = 0;
-        if (!top) {
+        if (!(flags & FE_TOP)) {
                 qlex();
-                if (cur_oc->t == OC_LBRACE)
+                if (cur_oc->t == OC_LBRACE) {
+                        sp = q_.sp;
                         brace++;
-                else
+                } else {
                         q_unlex();
+                }
         }
         do {
                 qlex();
                 switch (cur_oc->t) {
                 case 'u':
-                        do_childof(esymbol_seek(cur_oc->s));
+                        do_childof(esymbol_seek(cur_oc->s), flags);
                         break;
                 case OC_SEMI: /* empty statement */
                         break;
                 case OC_LET:
+                        if (!!(flags & FE_FOR))
+                                syntax("'let' not allowed at this part of 'for' header");
                         do_let();
                         break;
                 case OC_RBRACE:
@@ -417,16 +520,21 @@ expression(struct var_t *retval, bool top)
                         /* don't accidentally double-break */
                         ret = 0;
                         break;
+                case OC_FOR:
+                        if ((ret = do_for(retval)) == 1)
+                                goto done;
+                        ret = 0;
+                        break;
                 case OC_DO:
                         if ((ret = do_do(retval)) == 1)
                                 goto done;
                         ret = 0;
                         break;
                 case OC_THIS:
-                        do_childof(get_this());
+                        do_childof(get_this(), flags);
                         break;
                 case EOF:
-                        if (!top)
+                        if (!(flags & FE_TOP))
                                 syntax("Unexpected EOF");
                         ret = 3;
                         goto done;
@@ -435,7 +543,15 @@ expression(struct var_t *retval, bool top)
                 }
         } while (brace);
 done:
-        if (!top) {
+        if (sp) {
+                /*
+                 * This was not a single-line expression,
+                 * so unwind the stack pointer to where it was
+                 * before the brace.  This means things like
+                 *      if (cond) {
+                 *              let x = ....
+                 * will delete x after escaping the block
+                 */
                 while (q_.sp != sp)
                         stack_pop(NULL);
         }
@@ -449,7 +565,7 @@ exec_block(void)
         struct var_t *sp = q_.sp;
         for (;;) {
                 var_init(&dummy);
-                int ret = expression(&dummy, 1);
+                int ret = expression(&dummy, FE_TOP);
                 if (ret) {
                         if (ret == 3)
                                 break;

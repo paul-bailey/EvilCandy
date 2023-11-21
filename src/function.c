@@ -88,7 +88,11 @@ push_uargs(struct var_t *fn, struct var_t *owner)
         return fpsav;
 }
 
-/* internal args were set up by an internal function */
+/*
+ * internal args were set up by an internal function
+ * Set the stack up with these rather than parsing PC,
+ * otherwise same stack order as with push_uargs.
+ */
 static struct var_t *
 push_iargs(struct var_t *fn, struct var_t *owner,
            int argc, struct var_t *argv[])
@@ -99,14 +103,6 @@ push_iargs(struct var_t *fn, struct var_t *owner,
         stack_push(&q_.lr);
         new_fp = q_.sp;
         push_owner(fn, owner);
-        if (!owner) {
-                if (fn->magic == QFUNCTION_MAGIC)
-                        owner = fn->fn.owner;
-                if (!owner)
-                        owner = get_this();
-                bug_on(!owner);
-        }
-        stack_push(owner);
 
         for (i = 0; i < argc; i++)
                 stack_push(argv[i]);

@@ -74,4 +74,11 @@ print("iterator.len()=={}\n".format(iterator.len()));
 print("length {} should equal {}\n".format(s.len(), len(s)));
 print("Length of __gbl__ is {}\n".format(len()));
 
+print("\n");
+print("Now here's a test of foreach:\n");
+print("I'm gonna print the typeof(e) for each e in __gbl__\n");
+__gbl__.foreach(function (e) {
+    print("\t" + typeof(e) + "\n");
+});
+
 // : vim: set syntax=javascript :

@@ -32,7 +32,10 @@ ifneq ($(filter s% -s%,$(MAKEFLAGS)),)
   quiet=silent_
 endif
 
+pwd := $(shell pwd)
+
 CFLAGS += -Wall
+CPPFLAGS += -Isrc
 LDFLAGS += -Wall
 CC := gcc
 LD := gcc
@@ -48,8 +51,8 @@ quiet_cmd_ld = LD $@
 
 prog := ./egq
 
-objs := $(patsubst %.c,%.o,$(wildcard $(SRCDIR)/*.c))
-objs := $(addprefix $(OBJDIR)/,$(notdir $(objs)))
+srcs := $(wildcard $(SRCDIR)/builtin/*.c) $(wildcard $(SRCDIR)/*.c)
+objs := $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(patsubst %.c,%.o,$(srcs)))
 
 # Inspired from Linux's scripts/Kbuild.include file
 #
@@ -58,14 +61,14 @@ basic_echo = echo '    $(1)'
 cmd = @$(if $($(quiet)cmd_$(1)), \
             $(call basic_echo,$($(quiet)cmd_$(1))) ;) $(cmd_$(1))
 
-
 all: $(prog)
 
+dir_targets := $(DEPDIR) $(OBJDIR) $(DEPDIR)/builtin $(OBJDIR)/builtin
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
-$(OBJDIR)/%.o: $(SRCDIR)/%.c $(DEPDIR)/%.d | $(DEPDIR) $(OBJDIR)
+$(OBJDIR)/%.o: $(SRCDIR)/%.c $(DEPDIR)/%.d | $(dir_targets)
 	$(call cmd,cc)
 
-$(DEPDIR) $(OBJDIR): ; @mkdir -p $@
+$(dir_targets): ; @mkdir -p $@
 
 DEPFILES := $(objs:$(OBJDIR)/%.o=$(DEPDIR)/%.d)
 $(DEPFILES):

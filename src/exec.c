@@ -117,31 +117,38 @@ symbol_walk(struct var_t *result, struct var_t *parent)
                 if (parent->magic == QFUNCTION_MAGIC
                     || parent->magic == QINTL_MAGIC) {
                         call_function(parent, result, NULL);
-                        qlex();
-                        expect(OC_SEMI);
-                        break;
+                        goto expect_semi;
                         /* else, it's a variable assignment, fall through */
                 }
                 qlex();
-                if (cur_oc->t == OC_PER) {
+                switch (cur_oc->t) {
+                case OC_PER:
                         parent = walk_obj_helper(result, parent);
-                        if (!parent)
-                                break;
+                        if (!parent) /* skip lex, expect semi below */
+                                return;
                         q_unlex();
-                } else if (cur_oc->t == OC_LBRACK) {
-                        parent = walk_arr_helper(result, parent);
-                } else {
-                        /*
-                         * we're at the "that" of "this = that;",
-                         * where @parent is the "this".
-                         */
-                        expect(OC_EQ);
-                        eval(parent);
-                        qlex();
-                        expect(OC_SEMI);
                         break;
+                case OC_LBRACK:
+                        parent = walk_arr_helper(result, parent);
+                        break;
+                case OC_EQ:
+                        eval(parent);
+                        goto expect_semi;
+                case OC_PLUSPLUS:
+                        qop_incr(parent);
+                        goto expect_semi;
+                case OC_MINUSMINUS:
+                        qop_decr(parent);
+                        goto expect_semi;
+                default:
+                        /* TODO: +=, -=, <<=, >>=, &=, |=, etc. */
+                        syntax("Invalid token %s at location", cur_oc->s);
                 }
         }
+
+expect_semi:
+        qlex();
+        expect(OC_SEMI);
 }
 
 static void

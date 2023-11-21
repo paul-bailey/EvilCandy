@@ -376,6 +376,30 @@ qop_cmpz(struct var_t *v)
         }
 }
 
+/* v++ */
+void
+qop_incr(struct var_t *v)
+{
+        if (v->magic == QINT_MAGIC)
+                v->i += 1LL;
+        else if (v->magic == QFLOAT_MAGIC)
+                v->f += 1.0;
+        else
+                epermit("++");
+}
+
+/* v-- */
+void
+qop_decr(struct var_t *v)
+{
+        if (v->magic == QINT_MAGIC)
+                v->i -= 1LL;
+        else if (v->magic == QFLOAT_MAGIC)
+                v->i -= 1.0;
+        else
+                epermit("--");
+}
+
 static void
 type_err(struct var_t *v, int magic)
 {

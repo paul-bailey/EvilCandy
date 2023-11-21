@@ -1,21 +1,4 @@
 
-/*
-let x = 4.;
-
-let printit = function(s) {
-        let t = "...says I";
-        s = s + t;
-        print("{1}\n", s);
-        return s;
-};
-
-let y = printit("Hello" + " " + "world!");
-x = 10 - 5.5;
-print("x is {1}\n", x);
-print("Return value of printit was '{}'\n", y);
-print("typeof return value is `{}'\n", typeof(y));
-
-*/
 
 let pow = function(x, y) {
     if (typeof(x) != "int" || typeof(y) != "int") {
@@ -39,26 +22,19 @@ let iterator = {
     tonine: function(x) {
         while (x < 10) {
                 print("x is {}\n".format(x));
-                x = x + 1;
+                x++;
         }
     },
     toten: function(x) {
         do {
             print("{}\n".format(x));
-            x = x + 1;
+            x++;
         } while (x < 11);
     }
 };
 
 iterator.whoami = function() {
     print("me, of course!\n");
-};
-
-let toten = function(x) {
-    while (x < 11) {
-        print("{}\n".format(x));
-        x = x + 1;
-    }
 };
 
 iterator.tonine(4);

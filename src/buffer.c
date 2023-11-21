@@ -72,7 +72,7 @@ buffer_to_graveyard(struct buffer_t *b)
         for (i = 0, x = 1; !!(blk->b & x) && i < 64; x <<= 1, i++)
                 ;
         bug_on(i == 64);
-        blk->b &= ~x;
+        blk->b |= x;
 
         blk->bufs[i].s    = b->s;
         blk->bufs[i].size = b->size;

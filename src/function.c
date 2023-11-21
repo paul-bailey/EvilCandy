@@ -22,6 +22,7 @@ pcsanity(struct marker_t *mk)
         bug_on(!ok);
 }
 
+/* push @owner...or something...onto the stack */
 static void
 push_owner(struct var_t *fn, struct var_t *owner)
 {

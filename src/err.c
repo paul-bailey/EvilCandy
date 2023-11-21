@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
 
 #define CSI "\033["
 #define COLOR_RED CSI "31m"

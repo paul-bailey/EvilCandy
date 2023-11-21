@@ -22,6 +22,12 @@ let iterator = {
     tonine: function(x) {
         for (let n = 10; x < n; x++)
                 print("\titerator.tonine: x is {}\n".format(x));
+        // for (;;) {
+        //     if (x == 10)
+        //         break;
+        //     print("\titerator.tonine: x is {}\n".format(x));
+        //     x++;
+        // }
     },
 
     toten: function(x) {

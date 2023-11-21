@@ -1,12 +1,9 @@
 #include "egq.h"
 #include <string.h>
 #include <ctype.h>
+#include <stdio.h>
 
 struct global_t q_;
-
-#ifndef arraylen
-# define arraylen(a) (sizeof(a) / sizeof((a)[0]))
-#endif
 
 /* for debugging and builtin functions */
 const char *

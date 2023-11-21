@@ -1,5 +1,6 @@
 #include "egq.h"
 #include <string.h>
+#include <stdio.h>
 
 /* Declare automatic variable */
 static void
@@ -35,7 +36,7 @@ do_let(void)
 
 /* either returns pointer to new parent, or NULL, meaning "wrap it up" */
 static struct var_t *
-walk_obj_helper(struct var_t *result, struct var_t *parent)
+walk_obj_helper(struct var_t *parent)
 {
         do {
                 struct var_t *child;
@@ -48,7 +49,7 @@ walk_obj_helper(struct var_t *result, struct var_t *parent)
                          */
                         struct var_t *method;
                         method = ebuiltin_method(parent, cur_oc->s);
-                        call_function(method, result, parent);
+                        call_function(method, NULL, parent);
                         return NULL;
                 }
                 child = object_child(parent, cur_oc->s);
@@ -78,7 +79,7 @@ walk_obj_helper(struct var_t *result, struct var_t *parent)
  * It just means we have to grow the array.
  */
 static struct var_t *
-walk_arr_helper(struct var_t *result, struct var_t *parent)
+walk_arr_helper(struct var_t *parent)
 {
         struct var_t *idx;
         struct var_t *child;
@@ -99,10 +100,8 @@ walk_arr_helper(struct var_t *result, struct var_t *parent)
 }
 
 /*
- * symbol_walk: walk down the ".child.grandchild..." path of a parent
+ * do_childof: walk down the ".child.grandchild..." path of a parent
  *              and take certain actions.
- * @result: If the symbol is assigned, this stores the result.  It may
- *          be a dummy, but it may not be NULL
  * @parent: Parent of the ".child.grandchild..."
  * @flags:  Same as @flags arg to expression(), so we can tell if we
  *          need to skip looking for semicolon at the end.
@@ -112,25 +111,25 @@ walk_arr_helper(struct var_t *result, struct var_t *parent)
  * '.something' is expressed.
  */
 static void
-symbol_walk(struct var_t *result, struct var_t *parent, unsigned int flags)
+do_childof(struct var_t *parent, unsigned int flags)
 {
         for (;;) {
                 if (parent->magic == QFUNCTION_MAGIC
                     || parent->magic == QINTL_MAGIC) {
-                        call_function(parent, result, NULL);
+                        call_function(parent, NULL, NULL);
                         goto expect_semi;
                         /* else, it's a variable assignment, fall through */
                 }
                 qlex();
                 switch (cur_oc->t) {
                 case OC_PER:
-                        parent = walk_obj_helper(result, parent);
+                        parent = walk_obj_helper(parent);
                         if (!parent)
                                 goto expect_semi;
                         q_unlex();
                         break;
                 case OC_LBRACK:
-                        parent = walk_arr_helper(result, parent);
+                        parent = walk_arr_helper(parent);
                         break;
                 case OC_EQ:
                         eval(parent);
@@ -152,15 +151,6 @@ expect_semi:
                 qlex();
                 expect(OC_SEMI);
         }
-}
-
-static void
-do_childof(struct var_t *parent, unsigned int flags)
-{
-        struct var_t dummy;
-        var_init(&dummy);
-        symbol_walk(&dummy, parent, flags);
-        var_reset(&dummy);
 }
 
 static void
@@ -192,11 +182,22 @@ seek_eob_1line(void)
         seek_eob_1line_(0, 0, true);
 }
 
-/* Helper to seek_eob - skip (...) */
+/*
+ * Helper to seek_eob - skip (...)
+ * @lpar: Current depth, usu. 1
+ */
 static void
 skip_par(int lpar)
 {
         seek_eob_1line_(lpar, 0, false);
+}
+
+static void
+must_skip_par(void)
+{
+        qlex();
+        expect(OC_LPAR);
+        skip_par(1);
 }
 
 static void
@@ -214,9 +215,7 @@ seek_eob(int depth)
                         break;
                 case OC_IF:
                         /* special case: there might be an ELSE */
-                        qlex();
-                        expect(OC_LPAR);
-                        skip_par(1);
+                        must_skip_par();
                         seek_eob(0);
                         qlex();
                         if (cur_oc->t == OC_ELSE)
@@ -228,22 +227,16 @@ seek_eob(int depth)
                         seek_eob(0);
                         qlex();
                         expect(OC_WHILE);
-                        qlex();
-                        expect(OC_LPAR);
-                        skip_par(1);
+                        must_skip_par();
                         qlex();
                         expect(OC_SEMI);
                         break;
                 case OC_WHILE:
-                        qlex();
-                        expect(OC_LPAR);
-                        skip_par(1);
+                        must_skip_par();
                         seek_eob(0);
                         break;
                 case OC_FOR:
-                        qlex();
-                        expect(OC_LPAR);
-                        skip_par(1);
+                        must_skip_par();
                         seek_eob(0);
                         break;
                 case OC_SEMI:
@@ -288,11 +281,24 @@ get_condition(bool par)
                 qlex();
                 expect(OC_RPAR);
         } else {
-                eval(cond);
+                /*
+                 * peek special case: if just ';',
+                 * cond will be QEMPTY_MAGIC, which
+                 * normally evaluates to false.
+                 */
                 qlex();
-                expect(OC_SEMI);
+                if (cur_oc->t == OC_SEMI) {
+                        ret = true;
+                        goto done;
+                } else {
+                        q_unlex();
+                        eval(cond);
+                        qlex();
+                        expect(OC_SEMI);
+                }
         }
         ret = !qop_cmpz(cond);
+done:
         tstack_pop(NULL);
         return ret;
 }
@@ -375,7 +381,7 @@ do_for(struct var_t *retval)
                         break;
                 if (pc_op->magic == QEMPTY_MAGIC) {
                         qop_mov(pc_op, &q_.pc);
-                        seek_eob_1line_(1, 0, false);
+                        skip_par(1);
                         qop_mov(pc_blk, &q_.pc);
                 } else {
                         qop_mov(&q_.pc, pc_blk);
@@ -459,13 +465,12 @@ do_do(struct var_t *retval)
 int
 expression(struct var_t *retval, unsigned int flags)
 {
-        /*
-         * Save position of the stack pointer so we unwind lower-scope
-         * variables at the end.
-         */
         struct var_t *sp = NULL;
         int ret = 0;
         int brace = 0;
+
+        RECURSION_INCR();
+
         if (!(flags & FE_TOP)) {
                 qlex();
                 if (cur_oc->t == OC_LBRACE) {
@@ -493,6 +498,15 @@ expression(struct var_t *retval, unsigned int flags)
                                 syntax("Unexpected '}'");
                         brace--;
                         break;
+                case OC_RPAR:
+                        /*
+                         * If FE_FOR, then this is the closing brace
+                         * of the for loop's header
+                         */
+                        if (!(flags & FE_FOR))
+                                goto bad_tok;
+                        q_unlex();
+                        goto done;
                 case OC_RETURN:
                         qlex();
                         if (cur_oc->t != OC_SEMI) {
@@ -539,6 +553,7 @@ expression(struct var_t *retval, unsigned int flags)
                         ret = 3;
                         goto done;
                 default:
+bad_tok:
                         syntax("Token '%s' not allowed here", cur_oc->s);
                 }
         } while (brace);
@@ -555,6 +570,9 @@ done:
                 while (q_.sp != sp)
                         stack_pop(NULL);
         }
+
+        RECURSION_DECR();
+
         return ret;
 }
 

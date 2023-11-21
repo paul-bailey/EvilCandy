@@ -3,6 +3,7 @@
 #include <egq.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 static void
 qb_typeof(struct var_t *ret)

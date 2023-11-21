@@ -2,6 +2,7 @@
 #include "egq.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <limits.h>
 
 /* && or || */
@@ -216,23 +217,15 @@ static void
 eval10(struct var_t *v)
 {
         int t = cur_oc->t;
-        switch (t) {
-        case OC_LPAR:
-                t = OC_RPAR;
-                break;
-        case OC_LBRACK:
-                t = OC_RBRACK;
-                break;
-        default:
+        if (t == OC_LPAR) {
+                qlex();
+                eval0(v);
+                expect(OC_RPAR);
+                qlex();
+        } else {
                 /* Not parenthesized, carry on */
                 eval_atomic(v);
-                return;
         }
-
-        qlex();
-        eval0(v);
-        expect(t);
-        qlex();
 }
 
 /*
@@ -257,24 +250,33 @@ eval_index(void)
         return (int)i;
 }
 
-/* check if we want "x" or return value of "x()" */
+/*
+ * Helper for eval9 and eval8 both.
+ * It's a little unclean, but if @v is a function call for a
+ * built-in method, we need the parent of @v
+ */
 static void
-eval9(struct var_t *v)
+function_helper(struct var_t *v, struct var_t *parent)
 {
-        eval10(v);
-        if (cur_oc->t == OC_LPAR &&
-            (v->magic == QFUNCTION_MAGIC || v->magic == QINTL_MAGIC)) {
-                /* it's a function call */
+        if (cur_oc->t == OC_LPAR && isfunction(v)) {
                 struct var_t *fn;
                 q_unlex();
 
                 fn = tstack_getpush();
                 qop_mov(fn, v);
                 var_reset(v);
-                call_function(fn, v, NULL);
+                call_function(fn, v, parent);
                 tstack_pop(NULL);
                 qlex();
         }
+}
+
+/* check if we want "x" or return value of "x()" */
+static void
+eval9(struct var_t *v)
+{
+        eval10(v);
+        function_helper(v, NULL);
 }
 
 /* check if we're descending a parent.child.granchild...
@@ -284,9 +286,12 @@ static void
 eval8(struct var_t *v)
 {
         int t;
+        struct var_t *parent = tstack_getpush();
         eval9(v);
         while ((t = cur_oc->t) == OC_PER || t == OC_LBRACK) {
                 struct var_t *child = NULL;
+                var_reset(parent);
+                qop_mov(parent, v);
                 if (t == OC_PER) {
                         qlex();
                         expect('u');
@@ -308,15 +313,18 @@ eval8(struct var_t *v)
                                 break;
                         case QSTRING_MAGIC:
                             {
-                                int c = ebuffer_substr(&v->s, eval_index());
-                                buffer_reset(&v->s);
-                                buffer_putc(&v->s, c);
                                 /*
                                  * special case: Substring is currently
                                  * not a saved struct var_t, so we cannot
-                                 * get child. Skip the qop_mov... part.
+                                 * get child.  Save time by editing @v in
+                                 * place, Skip the qop_mov... part below.
                                  */
-                                eval9(v);
+                                int c = ebuffer_substr(&v->s, eval_index());
+                                buffer_reset(&v->s);
+                                buffer_putc(&v->s, c);
+
+                                qlex();
+                                function_helper(v, NULL);
                                 continue;
                             }
                         default:
@@ -326,8 +334,11 @@ eval8(struct var_t *v)
                 }
                 var_reset(v);
                 qop_mov(v, child);
-                eval9(v);
+
+                qlex();
+                function_helper(v, parent);
         }
+        tstack_pop(NULL);
 }
 
 /* process unary operators, left to right */
@@ -506,13 +517,9 @@ void
 eval(struct var_t *v)
 {
         /* We probably have a 64kB stack irl, but let's be paranoid */
-        enum { RECURSION_SAFETY = 256 };
-        static int recursion = 0;
         struct var_t *w;
 
-        if (recursion >= RECURSION_SAFETY)
-                syntax("Excess expression recursion");
-        ++recursion;
+        RECURSION_INCR();
 
         qlex();
         w = tstack_getpush();
@@ -522,7 +529,7 @@ eval(struct var_t *v)
         tstack_pop(NULL);
         q_unlex();
 
-        --recursion;
+        RECURSION_DECR();
 }
 
 

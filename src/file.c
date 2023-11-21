@@ -12,13 +12,13 @@ struct file_state_t {
         struct var_t pc;
 };
 
-static struct file_state_t ns_stack[NS_STACKSIZE];
+static struct file_state_t ns_stack[LOAD_MAX];
 static struct file_state_t *ns_sp = ns_stack;
 
 static void
 nspush(struct ns_t *new)
 {
-        if (ns_sp >= &ns_stack[NS_STACKSIZE])
+        if (ns_sp >= &ns_stack[LOAD_MAX])
                 syntax("Too many imports; stack overflow");
 
         ns_sp->sp = q_.sp;

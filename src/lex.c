@@ -1,6 +1,7 @@
 #include "egq.h"
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 /* we do not recurse here, so just let it be a static struct */
 static struct {

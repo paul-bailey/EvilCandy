@@ -23,7 +23,7 @@ static struct var_t *
 stack_getpush_(struct var_t *stack, struct var_t **spp)
 {
         struct var_t *res = *spp;
-        if (res >= &stack[QSTACKMAX])
+        if (res >= &stack[STACK_MAX])
                 syntax("Stack overflow");
         *spp = res + 1;
         var_init(res);
@@ -95,8 +95,8 @@ tstack_push(struct var_t *v)
 void
 moduleinit_stack(void)
 {
-        q_.stack = emalloc(QSTACKMAX);
-        tstack = emalloc(QSTACKMAX);
+        q_.stack = emalloc(STACK_MAX);
+        tstack = emalloc(STACK_MAX);
         q_.sp = q_.stack;
         tsp = tstack;
 }

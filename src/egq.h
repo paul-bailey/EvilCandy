@@ -5,13 +5,24 @@
 #include "list.h"
 #include "hashtable.h"
 #include <stdbool.h>
-#include <stdio.h>
+#include <sys/types.h>
 
+/**
+ * DOC: Tunable parameters
+ *
+ * @STACK_MAX:          Size of stack
+ * @LOAD_MAX:           Max number of external modules that may be loaded
+ * @RECURSION_MAX:      Max permissible recursion permitted by eval() and
+ *                      expression()
+ */
 enum {
         /* Tunable parameters */
-        QSTACKMAX = 8192,
-        NS_STACKSIZE = 128,
+        STACK_MAX       = 8192,
+        LOAD_MAX        = 128,
+        RECURSION_MAX   = 256,
+};
 
+enum {
         /* magic numbers */
         QEMPTY_MAGIC = 0,
         QOBJECT_MAGIC,
@@ -55,19 +66,23 @@ struct buffer_t {
         ssize_t size;
 };
 
+/**
+ * struct type_t - Used to get info about a typedef
+ * @name:       Name of the type
+ * @methods:    Linked list of built-in methods for the type
+ */
 struct type_t {
         const char *name;
         struct list_t methods;
 };
 
 /**
- * struct ns_t - metadata for everything between a @script...@end block
- * @list:       Sibling list
- * @pgm:        Text of the script as a C string
- * @fname:      File name of this script.
+ * struct ns_t - metadata for a loaded script
+ * @list:       list of fellow loaded files
+ * @pgm:        Byte code of the loaded file
+ * @fname:      File name of this script
  *
  * FIXME: Badly named, this isn't a namespace.
- * struct object_t is the closest thing we have to a namespace.
  */
 struct ns_t {
         struct list_t list;
@@ -78,6 +93,8 @@ struct ns_t {
 /**
  * struct marker_t - Used for saving a place, either for
  *      declaring a symbol or for recalling an earlier token.
+ * @ns: Which file we're executing
+ * @oc: A pointer into @ns.pgm.oc
  */
 struct marker_t {
         struct ns_t *ns;
@@ -99,6 +116,12 @@ struct func_intl_t {
         int maxargs;
 };
 
+/**
+ * struct object_handle_t - Descriptor for an object handle
+ * @children:   List of children members
+ * @nref:       Number of variables that have a handle to this object.
+ *              Used for garbage collection
+ */
 struct object_handle_t {
         struct list_t children;
         int nref;
@@ -141,6 +164,15 @@ struct var_t {
         };
 };
 
+/**
+ * struct opcode_t - The byte-code version of a token
+ * @t:          Type of opcode, an OC_* enum, or one of "fiuq"
+ * @line:       Line number in file where this opcode was parsed,
+ *              used for tracing for error messages.
+ * @s:          Content of the token parsed
+ * @f:          Value of the token, if @t is 'f'
+ * @i:          Value of the token, if @t is 'i'
+ */
 struct opcode_t {
         unsigned int t;
         unsigned int line; /* for error tracing */
@@ -151,7 +183,23 @@ struct opcode_t {
         };
 };
 
-/* This library's private data */
+/**
+ * struct global_t - This program's global data, declared as q_
+ * @kw_htbl:    Keyword hashtable
+ * @literals:   Saved string literals hashtable
+ * @gbl:        __gbl__, as the user sees it
+ * @ns:         Linked list of all loaded files' opcodes in RAM.
+ * @pc:         "program counter", often called PC in comments
+ * @fp:         "frame pointer", often called FP in comments
+ * @sp:         "stack pointer", often called SP in comments
+ * @lr:         "link register", often called LR in comments
+ * @stack:      Our variable stack, accessed with stack_* functions
+ *              (Another temporary-var stack is locally declared in
+ *              stack.c and accessed with the tstack_* functions)
+ * @recursion:  For the RECURSION_INCR and RECURSION_DECR macros,
+ *              to keep check on excess recursion with our eval()
+ *              and expression() functions.
+ */
 struct global_t {
         struct hashtable_t *kw_htbl;
         struct hashtable_t *literals;
@@ -162,12 +210,24 @@ struct global_t {
         struct var_t *sp; /* "stack pointer" */
         struct var_t lr;  /* "link register */
         struct var_t *stack;
+        int recursion;
 };
 
 /* I really hate typing this everywhere */
 #define cur_mk  (&q_.pc.px)
 #define cur_oc  q_.pc.px.oc
 #define cur_ns  q_.pc.px.ns
+
+#define RECURSION_INCR() do { \
+        if (q_.recursion >= RECURSION_MAX) \
+                fail("Recursion overflow"); \
+        q_.recursion++; \
+} while (0)
+
+#define RECURSION_DECR() do { \
+        bug_on(q_.recursion <= 0); \
+        q_.recursion--; \
+} while (0)
 
 /* main.c */
 extern struct global_t q_;

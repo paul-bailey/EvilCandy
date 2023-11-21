@@ -32,7 +32,6 @@ initialize_keywords(void)
                 { "return",     KW_RETURN },
                 { "this",       KW_THIS },
                 { "break",      KW_BREAK },
-                { "import",     KW_IMPORT },
                 { "if",         KW_IF },
                 { "while",      KW_WHILE },
                 { "else",       KW_ELSE },

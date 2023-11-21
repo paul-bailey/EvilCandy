@@ -53,13 +53,13 @@ enum {
         KW_THIS,
         KW_RETURN,
         KW_BREAK,
-        KW_IMPORT,
         KW_IF,
         KW_WHILE,
         KW_ELSE,
         KW_DO,
         KW_FOR,
         KW_LOAD,
+        N_KW,
 };
 
 enum {
@@ -106,7 +106,6 @@ enum {
         OC_THIS         = TO_KTOK(KW_THIS),
         OC_RETURN       = TO_KTOK(KW_RETURN),
         OC_BREAK        = TO_KTOK(KW_BREAK),
-        OC_IMPORT       = TO_KTOK(KW_IMPORT),
         OC_IF           = TO_KTOK(KW_IF),
         OC_WHILE        = TO_KTOK(KW_WHILE),
         OC_ELSE         = TO_KTOK(KW_ELSE),

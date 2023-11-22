@@ -55,6 +55,22 @@ my_strrspn(const char *s, const char *charset, const char *end)
 }
 
 /**
+ * bit_count16 - Count the number of '1' bits in an 16-bit datum
+ * @v: Data whose '1' bits are counted.
+ *
+ * Return: Number of '1' bits in @v.
+ */
+int
+bit_count16(uint16_t v)
+{
+        v = (v & 0x5555U) + ((v >> 1) & 0x5555U);
+        v = (v & 0x3333U) + ((v >> 2) & 0x3333U);
+        v = (v & 0x0F0FU) + ((v >> 4) & 0x0F0FU);
+        v = (v & 0x00FFU) + ((v >> 8) & 0x00FFU);
+        return v;
+}
+
+/**
  * bit_count32 - Count the number of '1' bits in an 32-bit datum
  * @v: Data whose '1' bits are counted.
  *
@@ -71,6 +87,43 @@ bit_count32(uint32_t v)
         v = (v & 0x00FF00FFU) + ((v >> 8) & 0x00FF00FFU);
         v = (v & 0x0000FFFFU) + ((v >> 16) & 0x0000FFFFU);
         return v;
+}
+
+/* Helper to match */
+static bool
+matchhere(const char *needle, const char *haystack)
+{
+        while (*haystack != '\0' && *haystack == *needle) {
+                haystack++;
+                needle++;
+        }
+        return *needle == '\0';
+}
+
+/**
+ * match - Find instance of needle in haystack
+ * @needle: String to match.  This is an exact expression, not a
+ *              pattern text or regular expression (use rematch
+ *              for that)
+ * @haystack: String that may contain match
+ *
+ * Return: First instance in @haystack containing @needle, in number
+ * of characters traversed. or -1 if @needle not found.
+ */
+ssize_t
+match(const char *needle, const char *haystack)
+{
+        const char *h = haystack;
+
+        if (*h == '\0' || *needle == '\0')
+                return -1;
+
+        while (*h) {
+                if (matchhere(needle, h))
+                        return h - haystack;
+                h++;
+        }
+        return -1;
 }
 
 

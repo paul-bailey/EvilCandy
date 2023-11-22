@@ -57,6 +57,9 @@ print("\n");
 print("The 3rd character in '{}' is '{}'\n".format(s, s[2]));
 
 print("\n");
+print("Old text is '{}'\nNew text is '{}'\n".format(s, s.replace("is", "at")));
+
+print("\n");
 print("Now here's a test of foreach:\n");
 print("I'm gonna print the typeof(e) for each e in __gbl__\n");
 __gbl__.foreach(function (e) {

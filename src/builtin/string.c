@@ -188,6 +188,46 @@ string_strip(struct var_t *ret)
         buffer_lstrip(&ret->s, charset);
 }
 
+static void
+string_replace(struct var_t *ret)
+{
+        struct var_t *self    = get_this();
+        struct var_t *vneedle = getarg(0);
+        struct var_t *vrepl   = getarg(1);
+        char *haystack, *end;
+
+        bug_on(self->magic != QSTRING_MAGIC);
+        bug_on(!vneedle || !vrepl);
+
+        arg_type_check(vneedle, QSTRING_MAGIC);
+        arg_type_check(vrepl, QSTRING_MAGIC);
+
+        qop_assign_cstring(ret, "");
+
+        /* end not technically needed, but in case of match() bugs */
+        haystack = self->s.s;
+        end = haystack + self->s.p;
+
+        if (!haystack || haystack[0] == '\0')
+                return;
+        if (!vneedle->s.s || vneedle->s.s[0] == '\0') {
+                buffer_puts(&ret->s, self->s.s);
+                return;
+        }
+
+        while (*haystack && haystack < end) {
+                ssize_t size = match(vneedle->s.s, haystack);
+                if (size == -1)
+                         break;
+                buffer_nputs(&ret->s, haystack, size);
+                buffer_puts(&ret->s, vrepl->s.s);
+                haystack += size + vneedle->s.p;
+        }
+        bug_on(haystack > end);
+        if (*haystack != '\0')
+                buffer_puts(&ret->s, haystack);
+}
+
 static struct inittbl_t string_methods[] = {
         TOFTBL("len",     string_length, 0, 0),
         TOFTBL("format",  string_format, 0, -1),
@@ -195,6 +235,7 @@ static struct inittbl_t string_methods[] = {
         TOFTBL("tofloat", string_tofloat, 0, 0),
         TOFTBL("lstrip",  string_lstrip, 0, 1),
         TOFTBL("rstrip",  string_rstrip, 0, 1),
+        TOFTBL("replace", string_replace, 2, 2),
         TOFTBL("strip",   string_strip, 0, 1),
         TBLEND,
 };

@@ -245,6 +245,12 @@ static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
+/* array.c */
+extern void array_reset(struct var_t *a);
+extern struct var_t *array_child(struct var_t *array, int n);
+extern void array_add_child(struct var_t *array, struct var_t *child);
+extern struct var_t *array_from_empty(struct var_t *array);
+
 /* builtin.c */
 extern void moduleinit_builtin(void);
 extern struct var_t *builtin_method(struct var_t *v,
@@ -397,9 +403,6 @@ extern struct var_t *object_from_empty(struct var_t *v);
 extern struct var_t *object_child(struct var_t *o, const char *s);
 extern struct var_t *object_nth_child(struct var_t *o, int n);
 extern void object_add_child(struct var_t *o, struct var_t *v);
-extern struct var_t *array_child(struct var_t *array, int n);
-extern void array_add_child(struct var_t *array, struct var_t *child);
-extern struct var_t *array_from_empty(struct var_t *array);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];

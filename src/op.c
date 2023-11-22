@@ -547,7 +547,7 @@ qop_assign_cstring(struct var_t *v, const char *s)
         } else {
                 type_err(v, QSTRING_MAGIC);
         }
-        if (!s) {
+        if (!s || s[0] == '\0') {
                 buffer_putc(&v->s, 'a');
                 buffer_reset(&v->s);
         } else {

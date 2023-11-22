@@ -29,6 +29,16 @@ getarg(int n)
         return q_.fp + 1 + n;
 }
 
+#define arg_type_err(v, want) do { \
+        syntax("Argument is type '%s' but '%s' is expected", \
+                typestr((v)->magic), typestr(want)); \
+} while (0)
+
+#define arg_type_check(v, want) do { \
+        if ((v)->magic != (want)) \
+                arg_type_err(v, want); \
+} while (0)
+
 /* builtin.c */
 extern void
 bi_init_type_methods__(const struct inittbl_t *tbl, int magic);

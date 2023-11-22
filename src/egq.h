@@ -289,6 +289,7 @@ extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
 extern int ebuffer_substr(struct buffer_t *tok, int i);
 extern struct var_t *eobject_child(struct var_t *o, const char *s);
+extern struct var_t *eobject_nth_child(struct var_t *o, int n);
 extern struct var_t *earray_child(struct var_t *array, int n);
 extern struct var_t *esymbol_seek(const char *name);
 
@@ -298,7 +299,6 @@ enum {
         FE_TOP = 0x02,
 };
 extern int expression(struct var_t *retval, unsigned int flags);
-extern void exec_block(void);
 
 /* file.c */
 extern void load_file(const char *filename);
@@ -315,6 +315,8 @@ extern int x2bin(int c);
 static inline bool isodigit(int c) { return c >= '0' && c <= '7'; }
 static inline bool isquote(int c) { return c == '"' || c == '\''; }
 extern char *my_strrchrnul(const char *s, int c);
+extern size_t my_strrspn(const char *s,
+                         const char *charset, const char *end);
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)(((void *)(x)) - offsetof(type, member)))
@@ -378,10 +380,12 @@ extern void buffer_init(struct buffer_t *tok);
 extern void buffer_reset(struct buffer_t *tok);
 extern void buffer_putc(struct buffer_t *tok, int c);
 extern void buffer_puts(struct buffer_t *tok, const char *s);
-extern void buffer_rstrip(struct buffer_t *tok);
 extern void buffer_free(struct buffer_t *tok);
 extern void buffer_putcode(struct buffer_t *tok, struct opcode_t *oc);
 extern int buffer_substr(struct buffer_t *tok, int i);
+extern void buffer_shrinkstr(struct buffer_t *buf, size_t new_size);
+extern void buffer_lstrip(struct buffer_t *buf, const char *charset);
+extern void buffer_rstrip(struct buffer_t *buf, const char *charset);
 
 /* var.c */
 extern struct var_t *var_init(struct var_t *v);

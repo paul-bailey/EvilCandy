@@ -139,11 +139,63 @@ string_tofloat(struct var_t *ret)
         qop_assign_float(ret, f);
 }
 
+static const char *
+strip_common(struct var_t *ret)
+{
+        struct var_t *arg = getarg(0);
+        struct var_t *self = get_this();
+        bug_on(self->magic != QSTRING_MAGIC);
+
+        /* arg may be NULL, else it must be string */
+        if (arg)
+                arg_type_check(arg, QSTRING_MAGIC);
+
+        qop_mov(ret, self);
+        return arg ? arg->s.s : NULL;
+}
+
+/*
+ * lstrip()             no args implies whitespace
+ * lstrip(charset)      charset is string
+ */
+static void
+string_lstrip(struct var_t *ret)
+{
+        const char *charset = strip_common(ret);
+        buffer_lstrip(&ret->s, charset);
+}
+
+/*
+ * rstrip()             no args implies whitespace
+ * rstrip(charset)      charset is string
+ */
+static void
+string_rstrip(struct var_t *ret)
+{
+        const char *charset = strip_common(ret);
+        buffer_rstrip(&ret->s, charset);
+}
+
+/*
+ *  strip()             no args implies whitespace
+ *  strip(charset)      charset is string
+ */
+static void
+string_strip(struct var_t *ret)
+{
+        const char *charset = strip_common(ret);
+        buffer_rstrip(&ret->s, charset);
+        buffer_lstrip(&ret->s, charset);
+}
+
 static struct inittbl_t string_methods[] = {
         TOFTBL("len",     string_length, 0, 0),
         TOFTBL("format",  string_format, 0, -1),
         TOFTBL("toint",   string_toint, 0, 0),
         TOFTBL("tofloat", string_tofloat, 0, 0),
+        TOFTBL("lstrip",  string_lstrip, 0, 1),
+        TOFTBL("rstrip",  string_rstrip, 0, 1),
+        TOFTBL("strip",   string_strip, 0, 1),
         TBLEND,
 };
 

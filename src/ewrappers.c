@@ -7,8 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern struct var_t *earray_child(struct var_t *array, int n);
-
 /**
  * estrdup - error-handling wrapper to strdup
  */
@@ -68,10 +66,19 @@ struct var_t *
 eobject_child(struct var_t *o, const char *s)
 {
         struct var_t *v;
-        bug_on(o->magic != QOBJECT_MAGIC);
         v = object_child(o, s);
         if (!v)
                 syntax("object %s has no child %s", nameof(o), cur_oc->s);
+        return v;
+}
+
+struct var_t *
+eobject_nth_child(struct var_t *o, int n)
+{
+        struct var_t *v;
+        v = object_nth_child(o, n);
+        if (!v)
+                syntax("object %s has no %dth child", nameof(o), n);
         return v;
 }
 

@@ -35,4 +35,22 @@ my_strrchrnul(const char *s, int c)
         return ret ? (char *)ret : (char *)s;
 }
 
+/*
+ * my_strrspn - Like strspn, but from the right
+ * @s:          Input string
+ * @charset:    Characters to filter
+ * @end:        Pointer to last character in @s before the nullchar
+ *              termination...since our struct buffer_t's happen to know
+ *              this without requiring a strlen call.
+ *
+ * Return: Number of characters spanned.
+ */
+size_t
+my_strrspn(const char *s, const char *charset, const char *end)
+{
+        const char *end_save = end;
+        while (end >= s && strchr(charset, *end))
+                end--;
+        return end_save - end;
+}
 

@@ -86,21 +86,21 @@ buffer_init_(struct buffer_t *b)
 }
 
 /**
- * buffer_init - Initialize @tok
+ * buffer_init - Initialize @buf
  *
  * This is NOT a reset function!
  */
 void
-buffer_init(struct buffer_t *tok)
+buffer_init(struct buffer_t *buf)
 {
         struct buffer_t *old = buffer_from_graveyard();
         if (old) {
-                tok->s    = old->s;
-                tok->size = old->size;
-                tok->p = 0;
+                buf->s    = old->s;
+                buf->size = old->size;
+                buf->p = 0;
                 buffer_init_(old);
         } else {
-                buffer_init_(tok);
+                buffer_init_(buf);
         }
 }
 
@@ -108,95 +108,78 @@ buffer_init(struct buffer_t *tok)
  * buffer_reset - Reuse a buffer from start.
  */
 void
-buffer_reset(struct buffer_t *tok)
+buffer_reset(struct buffer_t *buf)
 {
-        tok->p = 0;
-        if (tok->s)
-                tok->s[0] = '\0';
-}
-
-/**
- * buffer_rstrip - Right-strip whitespace in buffer
- */
-void
-buffer_rstrip(struct buffer_t *tok)
-{
-        char *s;
-        if (!tok->s || !tok->p)
-                return;
-        s = tok->s + tok->p - 1;
-        while (s >= tok->s && isspace((int)*s))
-                *s-- = '\0';
-        s++;
-        bug_on(s < tok->s);
-        tok->p = s - tok->s;
+        buf->p = 0;
+        if (buf->s)
+                buf->s[0] = '\0';
 }
 
 /**
  * buffer_free - Do all the stuff with buffer that makes
  *      it safe to throw away.
  *
- * @tok itself will not be freed.
+ * @buf itself will not be freed.
  */
 void
-buffer_free(struct buffer_t *tok)
+buffer_free(struct buffer_t *buf)
 {
-        buffer_to_graveyard(tok);
-        buffer_init_(tok);
+        buffer_to_graveyard(buf);
+        buffer_init_(buf);
 }
 
 static void
-buffer_maybe_realloc(struct buffer_t *tok, size_t amt)
+buffer_maybe_realloc(struct buffer_t *buf, size_t amt)
 {
         /* if amt == sizeof opcode, we expect a lot of these */
         size_t blklen = amt == 2 ? 128 : 1024;
-        size_t needsize = tok->p * amt + amt;
-        while (needsize >= tok->size) {
-                char *tmp = realloc(tok->s, tok->size + blklen);
+        size_t needsize = buf->p * amt + amt;
+        while (needsize >= buf->size) {
+                char *tmp = realloc(buf->s, buf->size + blklen);
                 if (!tmp)
-                        fail("EOM");
+                        fail("realloc failed");
 
-                tok->s = tmp;
-                tok->size += blklen;
+                buf->s = tmp;
+                buf->size += blklen;
         }
 }
 
 /**
  * buffer_putc - put a character in buffer
- * @tok: Buffer storage.
+ * @buf: Buffer storage.
  * @c: Character to store
  *
- * A nulchar character will be placed after @c, so tok->s
+ * A nulchar character will be placed after @c, so buf->s
  * can always be safely treated as a C string after the first
  * call to buffer_putc.
  */
 void
-buffer_putc(struct buffer_t *tok, int c)
+buffer_putc(struct buffer_t *buf, int c)
 {
         /* +2 because we always want at least a null char termination */
-        buffer_maybe_realloc(tok, 2);
-        tok->s[tok->p] = c;
+        buffer_maybe_realloc(buf, 2);
+        buf->s[buf->p] = c;
         /* Don't allow placing nulchars except as terminations */
         if (c != '\0')
-                tok->p++;
+                buf->p++;
 
         /* Keep always nulchar terminated */
-        tok->s[tok->p] = '\0';
+        buf->s[buf->p] = '\0';
 }
 
 void
-buffer_putcode(struct buffer_t *tok, struct opcode_t *oc)
+buffer_putcode(struct buffer_t *buf, struct opcode_t *oc)
 {
-        buffer_maybe_realloc(tok, sizeof(*oc));
-        memcpy(&tok->oc[tok->p], oc, sizeof(*oc));
-        tok->p++;
+        buffer_maybe_realloc(buf, sizeof(*oc));
+        memcpy(&buf->oc[buf->p], oc, sizeof(*oc));
+        buf->p++;
 }
 
 /**
  * buffer_puts - like buffer_putc, but with a WHOLE STRING!!!
  */
 void
-buffer_puts(struct buffer_t *tok, const char *s)
+buffer_puts(struct buffer_t *buf, const char *s)
 {
         int c;
 
@@ -204,27 +187,125 @@ buffer_puts(struct buffer_t *tok, const char *s)
                 return;
 
         while ((c = *s++) != '\0')
-                buffer_putc(tok, c);
+                buffer_putc(buf, c);
+
+        /* in case s="", make sure the nul-char termination exists */
+        buffer_putc(buf, '\0');
 }
 
 /**
- * Get character from @tok with index @i, or -1 if @i out of bounds
- * @tok: Token buffer
+ * buffer_nputs - like buffer_puts, but stop if @amt is reached
+ *                before end of @s
+ */
+void
+buffer_nputs(struct buffer_t *buf, const char *s, size_t amt)
+{
+        int c;
+        const char *end;
+
+        if (!s)
+                return;
+        end = s + amt;
+
+        while (s < end && (c = *s++) != '\0')
+                buffer_putc(buf, c);
+
+        /* same reason as in buffer_putc */
+        buffer_putc(buf, '\0');
+}
+
+/**
+ * buffer_shrinkstr - shrink C string in buffer
+ * @buf:        Buffer to shrink
+ * @new_size:   New size to shrink buffer to.
+ *
+ * If @new_size is bigger than the curernt buffer C string, then no
+ * action will occur.  Otherwise, A nulchar termination will be inserted
+ * and the buffer's metadata will be updated.
+ */
+void
+buffer_shrinkstr(struct buffer_t *buf, size_t new_size)
+{
+        if (new_size >= buf->p)
+                return;
+
+        buf->p = new_size;
+        buffer_putc(buf, '\0');
+}
+
+static const char *const STRIP_DEFAULT_CHARSET = " \n\t\f\v\r";
+
+/**
+ * buffer_lstrip - Strip all of @charset out of the front end of the
+ *                 buffer string.
+ * @buf:        Buffer to strip
+ * @charset:    nulchar-stopped character set to strip, or NULL to
+ *              have it be the common default of whitespace characters.
+ */
+void
+buffer_lstrip(struct buffer_t *buf, const char *charset)
+{
+        size_t spn;
+
+        if (!buf->s)
+                return;
+        if (!charset)
+                charset = STRIP_DEFAULT_CHARSET;
+        spn = strspn(buf->s, charset);
+        if (spn >= buf->p) {
+                bug_on(spn > buf->p);
+                buffer_reset(buf);
+        } else if (spn != 0) {
+                memmove(buf->s, buf->s + spn, buf->p - spn);
+                buf->p -= spn;
+                buffer_putc(buf, '\0');
+        }
+}
+
+/**
+ * buffer_rstrip - Strip all of @charset out of the tail end of the
+ *                 buffer string.
+ * @buf:        Buffer to strip
+ * @charset:    nulchar-stopped character set to strip, or NULL to
+ *              have it be the common default of whitespace characters.
+ */
+void
+buffer_rstrip(struct buffer_t *buf, const char *charset)
+{
+        size_t spn;
+
+        if (!buf->s)
+                return;
+        if (!charset)
+                charset = STRIP_DEFAULT_CHARSET;
+        spn = my_strrspn(buf->s, charset, buf->s + buf->p - 1);
+        if (spn >= buf->p) {
+                bug_on(spn > buf->p);
+                buffer_reset(buf);
+        } else if (spn != 0) {
+                buf->p -= spn;
+                buffer_putc(buf, '\0');
+        }
+}
+
+/**
+ * Get character from @buf with index @i, or -1 if @i out of bounds
+ * @buf: buffer
  * @i:   Index.  If negative, then indexed from the end.
  */
 int
-buffer_substr(struct buffer_t *tok, int i)
+buffer_substr(struct buffer_t *buf, int i)
 {
-        if (!tok->s)
+        if (!buf->s)
                 return -1;
         if (i < 0) {
-                i = tok->p - 1 - i;
+                i = buf->p - 1 - i;
                 if (i < 0)
                         return -1;
-        } else if (i >= tok->p) {
+        } else if (i >= buf->p) {
                 return -1;
         }
-        return tok->s[i];
+        return buf->s[i];
 }
 
 

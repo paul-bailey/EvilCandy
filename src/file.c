@@ -159,6 +159,24 @@ convert_path(const char *name)
         return literal(path.s);
 }
 
+static void
+exec_block(void)
+{
+        /* Note: keep this re-entrant */
+        struct var_t *sp = q_.sp;
+        for (;;) {
+                int ret = expression(NULL, FE_TOP);
+                if (ret) {
+                        if (ret == 3)
+                                break;
+                        syntax("Cannot '%s' from top level",
+                                ret == 1 ? "return" : "break");
+                }
+        }
+        while (q_.sp != sp)
+                stack_pop(NULL);
+}
+
 void
 load_file(const char *filename)
 {

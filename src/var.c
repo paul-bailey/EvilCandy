@@ -286,6 +286,7 @@ object_child(struct var_t *o, const char *s)
 {
         struct list_t *child, *parent = &o->o.h->children;
         bug_on(!parent);
+        bug_on(o->magic != QOBJECT_MAGIC);
         list_foreach(child, parent) {
                 struct var_t *v = list2var(child);
                 if (!strcmp(v->name, s))

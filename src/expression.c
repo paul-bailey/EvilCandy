@@ -2,6 +2,24 @@
 #include <string.h>
 #include <stdio.h>
 
+/*
+ * helper to walk_arr_helper and walk_obj_helper
+ *
+ * Parsing "alice.bob = something;", where "alice" exists and "bob"
+ * does not.  Append "bob" as a new child of "alice", and evaluate
+ * the "something" of "bob".
+ */
+static void
+maybe_new_child(struct var_t *parent, char *name)
+{
+        struct var_t *child = var_new();
+        child->name = name;
+        qlex();
+        expect(OC_EQ);
+        eval(child);
+        object_add_child(parent, child);
+}
+
 /* either returns pointer to new parent, or NULL, meaning "wrap it up" */
 static struct var_t *
 walk_obj_helper(struct var_t *parent)
@@ -22,48 +40,65 @@ walk_obj_helper(struct var_t *parent)
                 }
                 child = object_child(parent, cur_oc->s);
                 if (!child) {
-                        /*
-                         * Parsing "alice.bob = something;", where
-                         * "alice" exists and "bob" does not.
-                         * Append "bob" as a new child of "alice",
-                         * and evaluate the "something" of "bob".
-                         */
-                        child = var_new();
-                        child->name = cur_oc->s;
-                        qlex();
-                        expect(OC_EQ);
-                        eval(child);
-                        object_add_child(parent, child);
+                        maybe_new_child(parent, cur_oc->s);
                         return NULL;
                 }
                 parent = child;
                 qlex();
         } while (cur_oc->t == OC_PER);
+        q_unlex();
         return parent;
 }
 
 /*
  * FIXME: "array[x]=y;" should be valid if x is out of bounds of the array.
  * It just means we have to grow the array.
+ *
+ * Return: child of parent or NULL meaning "wrap it up"
  */
 static struct var_t *
 walk_arr_helper(struct var_t *parent)
 {
-        struct var_t *idx;
-        struct var_t *child;
-        /* Don't try to evaluate associative-array indexes this way */
-        if (parent->magic != QARRAY_MAGIC) {
+        struct var_t *child = NULL;
+        struct var_t *idx = tstack_getpush();
+
+        eval(idx);
+        if (parent->magic == QARRAY_MAGIC) {
+                if (idx->magic != QINT_MAGIC)
+                        syntax("Array index must be integer");
+                /*
+                 * TODO: Grow array instead of throw error.
+                 * First requires me to change nature of numerical
+                 * array.
+                 */
+                child = earray_child(parent, idx->i);
+        } else if (parent->magic == QOBJECT_MAGIC) {
+                /*
+                 * XXX REVISIT: Am I giving user too much power?  By
+                 * eval()ing the array index, I am creating a use for
+                 * associative-array syntax other than just an arbitrary
+                 * alternative.  Whereas "alice.bob" requires "bob" to be
+                 * hard-coded text, "alice[getbob()]" can be extremely
+                 * flexible and dynamic--and chaotic.
+                 */
+                if (idx->magic == QINT_MAGIC) {
+                        child = eobject_nth_child(parent, idx->i);
+                } else if (idx->magic == QSTRING_MAGIC) {
+                        child = object_child(parent, idx->s.s);
+                        if (!child)
+                                maybe_new_child(parent, idx->s.s);
+                } else {
+                        syntax("Array index cannot be type %s",
+                               typestr(idx->magic));
+                }
+        } else {
                 syntax("Cannot de-reference type %s with [",
                         typestr(parent->magic));
         }
-        idx = stack_getpush();
-        eval(idx);
-        if (idx->magic != QINT_MAGIC)
-                syntax("Array index must be integer");
-        child = array_child(parent, idx->i);
-        if (!child)
-                syntax("Array de-reference out of bounds");
-        stack_pop(NULL);
+
+        tstack_pop(NULL);
+        qlex();
+        expect(OC_RBRACK);
         return child;
 }
 
@@ -94,10 +129,11 @@ do_childof(struct var_t *parent, unsigned int flags)
                         parent = walk_obj_helper(parent);
                         if (!parent)
                                 goto expect_semi;
-                        q_unlex();
                         break;
                 case OC_LBRACK:
                         parent = walk_arr_helper(parent);
+                        if (!parent)
+                                goto expect_semi;
                         break;
                 case OC_EQ:
                         eval(parent);
@@ -634,20 +670,4 @@ bad_tok:
         return 0;
 }
 
-void
-exec_block(void)
-{
-        /* Note: keep this re-entrant */
-        struct var_t *sp = q_.sp;
-        for (;;) {
-                int ret = expression(NULL, FE_TOP);
-                if (ret) {
-                        if (ret == 3)
-                                break;
-                        syntax("Cannot '%s' from top level",
-                                ret == 1 ? "return" : "break");
-                }
-        }
-        while (q_.sp != sp)
-                stack_pop(NULL);
-}
+

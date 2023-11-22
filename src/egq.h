@@ -4,6 +4,7 @@
 #include "opcodes.h"
 #include "list.h"
 #include <stdbool.h>
+#include <stdint.h>
 #include <sys/types.h>
 
 /**
@@ -39,6 +40,12 @@ enum {
         QIDENT = 0x02,
         QIDENT1 = 0x04,
         QDDELIM = 0x08,
+};
+
+struct trie_t {
+        uint32_t bitmap;
+        void *value;
+        struct trie_t **ptrs;
 };
 
 /**
@@ -339,6 +346,7 @@ static inline bool isquote(int c) { return c == '"' || c == '\''; }
 extern char *my_strrchrnul(const char *s, int c);
 extern size_t my_strrspn(const char *s,
                          const char *charset, const char *end);
+extern int bit_count32(uint32_t v);
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)(((void *)(x)) - offsetof(type, member)))
@@ -361,6 +369,7 @@ extern void moduleinit_lex(void);
 
 /* literal.c */
 extern char *literal(const char *s);
+extern void literal_diag(void);
 extern void moduleinit_literal(void);
 
 /* object.c */
@@ -426,6 +435,13 @@ extern int buffer_substr(struct buffer_t *tok, int i);
 extern void buffer_shrinkstr(struct buffer_t *buf, size_t new_size);
 extern void buffer_lstrip(struct buffer_t *buf, const char *charset);
 extern void buffer_rstrip(struct buffer_t *buf, const char *charset);
+
+/* trie.c */
+extern struct trie_t *trie_new(void);
+extern int trie_insert(struct trie_t *trie, const char *key,
+                       void *data, bool clobber);
+extern void *trie_get(struct trie_t *trie, const char *key);
+extern size_t trie_size(struct trie_t *trie);
 
 /* var.c */
 extern struct var_t *var_init(struct var_t *v);

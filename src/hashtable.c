@@ -17,6 +17,11 @@
  * key/value/hash-number sets in linked lists.
  *
  * Copyright (C) 2016 Paul Bailey <baileyp2012@gmail.com>
+ *
+ * EGQ TWEAKS (PB 2023)
+ * This file and hashtable.h was cribbed from its original location at
+ * https://www.github.com/paul-bailey/egtools.git and had its diagnostic
+ * code modified a little bit.
  */
 #include "hashtable.h"
 #include <string.h>
@@ -606,11 +611,9 @@ hashtable_for_each_bucket(struct hashtable_t *tbl,
         return 0;
 }
 
-#ifdef TEST_HASHTABLE__
-# include <time.h>
+#include <stdio.h>
 void
-hashtable_diag(const struct test_data_t *test,
-               struct hashtable_t *tbl, FILE *fp)
+hashtable_diag(struct hashtable_t *tbl)
 {
         int i;
         int collisions = 0;
@@ -628,23 +631,11 @@ hashtable_diag(const struct test_data_t *test,
                 if (these_collisions > max_collisions)
                         max_collisions = these_collisions;
         }
-        fprintf(fp, "   %d collisions out of %d entries\n",
+        printf("   %d collisions out of %d entries\n",
                 collisions, (int)tbl->count);
-        fprintf(fp, "   Longest collision list has %d collisions\n",
+        printf("   Longest collision list has %d collisions\n",
                 max_collisions);
-        fprintf(fp, "   Table size is %d\n", (int)tbl->size);
-        if (test->num_lookups > 0) {
-                double max = test->max_lookup_time * 1e6;
-                double sum = test->sum_lookup_time * 1e6;
-                double ave = sum / (double)test->num_lookups;
-                fprintf(fp, "    Lookup times out of %d times:\n",
-                        test->num_lookups);
-                fprintf(fp, "    Max: %G microsec\n", max);
-                fprintf(fp, "    Ave: %G microsec\n", ave);
-                fprintf(fp, "    Precision: %G microsec\n",
-                        1e6 / (double)CLOCKS_PER_SEC);
-        }
+        printf("   Table size is %d\n", (int)tbl->size);
 }
 
-#endif /* TEST_HASHTABLE__ */
 

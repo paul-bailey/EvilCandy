@@ -73,16 +73,7 @@ extern int hashtable_for_each(struct hashtable_t *tbl,
 extern int hashtable_for_each_bucket(struct hashtable_t *tbl,
                                 int (*action)(struct bucket_t *));
 
-# ifdef TEST_HASHTABLE__
-#  include <stdio.h>
-struct test_data_t {
-        int num_lookups;
-        double max_lookup_time;
-        double sum_lookup_time;
-};
-extern void hashtable_diag(const struct test_data_t *test,
-                           struct hashtable_t *tbl, FILE *fp);
-# endif /* TEST_HASHTABLE__ */
+extern void hashtable_diag(struct hashtable_t *tbl);
 
 #endif /* HASHTABLE_H */
 

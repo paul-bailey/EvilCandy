@@ -1,7 +1,77 @@
 #include "egq.h"
-#include "hashtable.h"
 
-static struct hashtable_t *kw_htbl = NULL;
+/*
+ * Brute-force, dumbest-but-fastest version of a trie.  The only RAM
+ * optimization is in the fact that all keywords have just lower-case
+ * alphabet characters, therefore we can reduce the per-trie array to
+ * size 26.  At a point when there were eleven keywords, this was
+ * measured to consume ~9.7KB, as opposed to a bitwise trie, which
+ * consumed only ~1KB.  I can live with that.  Computers are no longer
+ * made of wood and sails.
+ */
+struct kwtrie_t {
+        int value;
+        struct kwtrie_t *ptrs[26];
+};
+
+static struct kwtrie_t *kw_trie;
+
+static struct kwtrie_t *
+new_kwtrie(void)
+{
+        struct kwtrie_t *ret = ecalloc(sizeof(*ret));
+        ret->value = -1;
+        return ret;
+}
+
+int
+keyword_seek(const char *key)
+{
+        struct kwtrie_t *trie = kw_trie;
+        while (*key) {
+                int c = *key - 'a';
+                if (c < 0 || c > 25)
+                        return -1;
+                trie = trie->ptrs[c];
+                if (!trie)
+                        return -1;
+                key++;
+        }
+        return trie->value;
+}
+
+static void
+keyword_insert(const char *key, int value)
+{
+        struct kwtrie_t *trie = kw_trie;
+        while (*key) {
+                struct kwtrie_t *child;
+                int c = *key - 'a';
+                bug_on(c < 0 || c > 25);
+                child = trie->ptrs[c];
+                if (!child) {
+                        trie->ptrs[c] = new_kwtrie();
+                        child = trie->ptrs[c];
+                }
+                trie = child;
+                key++;
+        }
+        trie->value = value;
+}
+
+size_t
+memused(struct kwtrie_t *trie)
+{
+        int i;
+        size_t size;
+        if (!trie)
+                return 0;
+
+        size = sizeof(*trie);
+        for (i = 0; i < 26; i++)
+                size += memused(trie->ptrs[i]);
+        return size;
+}
 
 void
 moduleinit_keyword(void)
@@ -24,32 +94,8 @@ moduleinit_keyword(void)
                 { NULL, 0 }
         };
         const struct kw_tbl_t *tkw;
-
-        /*
-         * XXX REVISIT: Not as many keywords as I thought, maybe a linear
-         * search would be quicker.
-         */
-        kw_htbl = hashtable_create(HTBL_COPY_KEY|HTBL_COPY_DATA, NULL);
-        if (!kw_htbl)
-                fail("hashtable_create failed");
-
-        for (tkw = KEYWORDS; tkw->name != NULL; tkw++) {
-                int res = hashtable_put(kw_htbl, tkw->name,
-                                        (void *)&tkw->v, sizeof(tkw->v), 0);
-                bug_on(res < 0);
-        }
+        kw_trie = new_kwtrie();
+        for (tkw = KEYWORDS; tkw->name != NULL; tkw++)
+                keyword_insert(tkw->name, tkw->v);
 }
-
-/**
- * keyword_seek - Get a keyword matching @s
- *
- * Return: an OC_* enum or -1 if not found
- */
-int
-keyword_seek(const char *s)
-{
-        int *p = hashtable_get(kw_htbl, s, NULL);
-        return p ? *p : -1;
-}
-
 

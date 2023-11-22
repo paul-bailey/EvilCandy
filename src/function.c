@@ -5,6 +5,7 @@
  * We just popped lr to pc, make sure it's valid
  * TODO: Wrap this with #ifndef NDEBUG
  */
+#ifndef NDEBUG
 static void
 pcsanity(struct marker_t *mk)
 {
@@ -21,6 +22,9 @@ pcsanity(struct marker_t *mk)
 
         bug_on(!ok);
 }
+#else
+# define pcsanity(...) do { (void)0; } while (0)
+#endif
 
 /* push @owner...or something...onto the stack */
 static void

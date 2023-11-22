@@ -3,7 +3,6 @@
 
 #include "opcodes.h"
 #include "list.h"
-#include "hashtable.h"
 #include <stdbool.h>
 #include <sys/types.h>
 
@@ -197,8 +196,6 @@ struct opcode_t {
 
 /**
  * struct global_t - This program's global data, declared as q_
- * @kw_htbl:    Keyword hashtable
- * @literals:   Saved string literals hashtable
  * @gbl:        __gbl__, as the user sees it
  * @ns:         Linked list of all loaded files' opcodes in RAM.
  * @pc:         "program counter", often called PC in comments
@@ -213,8 +210,6 @@ struct opcode_t {
  *              and expression() functions.
  */
 struct global_t {
-        struct hashtable_t *kw_htbl;
-        struct hashtable_t *literals;
         struct var_t *gbl; /* "__gbl__" as user sees it */
         struct list_t ns;
         struct var_t pc;  /* "program counter" */
@@ -258,32 +253,38 @@ static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
 /* array.c */
-extern void array_reset(struct var_t *a);
 extern int array_child(struct var_t *array, int idx, struct var_t *child);
 extern void array_add_child(struct var_t *array, struct var_t *child);
 extern int array_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
+/* only call from var.c */
+extern void array_reset(struct var_t *a);
 
-/* builtin.c */
+/* builtin/builtin.c */
 extern void moduleinit_builtin(void);
 extern struct var_t *builtin_method(struct var_t *v,
-                                const char *method_name);
+                                    const char *method_name);
 
 /* file.c */
 extern void file_push(const char *name);
 extern char *next_line(unsigned int flags);
 
 /* err.c */
-#define bug() bug__(__FILE__, __LINE__)
+#ifndef NDEBUG
+# define bug() bug__(__FILE__, __LINE__)
+# define bug_on(cond_) do { if (cond_) bug(); } while (0)
+#else
+# define bug()          do { (void)0; } while (0)
+# define bug_on(...)    do { (void)0; } while (0)
+#endif
 #define breakpoint() breakpoint__(__FILE__, __LINE__)
-#define bug_on(cond_) do { if (cond_) bug(); } while (0)
-#define warn_once(...) do { \
-        static bool once_ = false; \
-        if (!once_) { \
-                warning(__VA_ARGS__); \
-                once_ = true; \
-        } \
+#define warn_once(...) do {             \
+        static bool once_ = false;      \
+        if (!once_) {                   \
+                warning(__VA_ARGS__);   \
+                once_ = true;           \
+        }                               \
 } while (0)
 extern void syntax(const char *msg, ...);
 extern void fail(const char *msg, ...);
@@ -291,12 +292,10 @@ extern void warning(const char *msg, ...);
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
 extern void err_expected__(int opcode);
-static inline void
-expect(int opcode)
-{
-        if (cur_oc->t != opcode)
-                err_expected__(opcode);
-}
+#define expect(oc_) do {                \
+        if (cur_oc->t != oc_)           \
+                err_expected__(oc_);    \
+} while (0)
 
 /* eval.c */
 extern void eval(struct var_t *v);
@@ -309,6 +308,7 @@ extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
 extern int ebuffer_substr(struct buffer_t *tok, int i);
 extern struct var_t *eobject_child(struct var_t *o, const char *s);
+extern struct var_t *eobject_child_l(struct var_t *o, const char *s);
 extern struct var_t *eobject_nth_child(struct var_t *o, int n);
 extern int earray_child(struct var_t *array, int n, struct var_t *child);
 extern int earray_set_child(struct var_t *array,
@@ -348,15 +348,30 @@ list2var(struct list_t *list)
         return container_of(list, struct var_t, siblings);
 }
 
+/* keyword.c */
+extern int keyword_seek(const char *s);
+extern void moduleinit_keyword(void);
+
 /* lex.c */
 extern int qlex(void);
 extern void q_unlex(void);
 extern struct ns_t *prescan(const char *filename);
-extern void initialize_lexer(void);
+extern void moduleinit_lex(void);
 
 
 /* literal.c */
 extern char *literal(const char *s);
+extern void moduleinit_literal(void);
+
+/* object.c */
+extern struct var_t *object_new(struct var_t *owner, const char *name);
+extern struct var_t *object_from_empty(struct var_t *v);
+extern struct var_t *object_child(struct var_t *o, const char *s);
+extern struct var_t *object_child_l(struct var_t *o, const char *s);
+extern struct var_t *object_nth_child(struct var_t *o, int n);
+extern void object_add_child(struct var_t *o, struct var_t *v);
+/* only call from var.c */
+extern void object_reset(struct var_t *o);
 
 /* op.c */
 extern void qop_mul(struct var_t *a, struct var_t *b);
@@ -397,6 +412,8 @@ extern void moduleinit_stack(void);
 
 /* symbol.c */
 extern struct var_t *symbol_seek(const char *s);
+extern struct var_t *symbol_seek_stack(const char *s);
+extern struct var_t *symbol_seek_stack_l(const char *s);
 
 /* token.c */
 extern void buffer_init(struct buffer_t *tok);
@@ -415,11 +432,6 @@ extern struct var_t *var_init(struct var_t *v);
 extern struct var_t *var_new(void);
 extern void var_delete(struct var_t *v);
 extern void var_reset(struct var_t *v);
-extern struct var_t *object_new(struct var_t *owner, const char *name);
-extern struct var_t *object_from_empty(struct var_t *v);
-extern struct var_t *object_child(struct var_t *o, const char *s);
-extern struct var_t *object_nth_child(struct var_t *o, int n);
-extern void object_add_child(struct var_t *o, struct var_t *v);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];

@@ -150,6 +150,7 @@ bi_init_type_methods__(const struct inittbl_t *tbl, int magic)
         }
 }
 
+/* initialize the builtin/ C file modules */
 void
 moduleinit_builtin(void)
 {
@@ -169,8 +170,16 @@ moduleinit_builtin(void)
 }
 
 /**
- * Check if @v's type has a built-in method named @method_name
- *      and return it if it does, NULL otherwise
+ * builtin_method - Return a built-in method for a variable's type
+ * @v: Variable to check
+ * @method_name: Name of method, which MUST have been a return value
+ *              of literal().
+ *
+ * Note: any cur_oc->s was a literal(something), so don't keep calling
+ * literal() for those; it would be unnecessarily adding the overhead
+ * of a hashtable lookup again.
+ *
+ * Return: Built-in method matching @name for @v, or NULL otherwise.
  */
 struct var_t *
 builtin_method(struct var_t *v, const char *method_name)
@@ -184,7 +193,7 @@ builtin_method(struct var_t *v, const char *method_name)
         methods = &TYPEDEFS[magic].methods;
         list_foreach(m, methods) {
                 w = list2var(m);
-                if (!strcmp(w->name, method_name))
+                if (w->name == method_name)
                         return w;
         }
         return NULL;

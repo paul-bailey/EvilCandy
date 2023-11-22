@@ -9,6 +9,8 @@
  * Parsing "alice.bob = something;", where "alice" exists and "bob"
  * does not.  Append "bob" as a new child of "alice", and evaluate
  * the "something" of "bob".
+ *
+ * @name should be known to be a return value of literal()
  */
 static void
 maybe_new_child(struct var_t *parent, char *name)
@@ -40,7 +42,7 @@ walk_obj_helper(struct var_t *parent)
                         call_function(method, NULL, p);
                         return false;
                 }
-                child = object_child(p, cur_oc->s);
+                child = object_child_l(p, cur_oc->s);
                 if (!child) {
                         maybe_new_child(p, cur_oc->s);
                         return false;
@@ -116,9 +118,10 @@ walk_arr_helper(struct var_t *parent)
                         idx_bound_check(idx);
                         child = eobject_nth_child(parent, idx->i);
                 } else if (idx->magic == QSTRING_MAGIC) {
-                        child = object_child(parent, idx->s.s);
+                        char *name = literal(idx->s.s);
+                        child = object_child_l(parent, name);
                         if (!child)
-                                maybe_new_child(parent, idx->s.s);
+                                maybe_new_child(parent, name);
                 } else {
                         syntax("Array index cannot be type %s",
                                typestr(idx->magic));
@@ -366,7 +369,7 @@ expression_and_back(struct var_t *retval)
 static int
 do_let(struct var_t *unused, unsigned int flags)
 {
-        struct var_t *v, *p;
+        struct var_t *v;
 
         if (!!(flags & FE_FOR))
                 syntax("'let' not allowed at this part of 'for' header");
@@ -374,11 +377,14 @@ do_let(struct var_t *unused, unsigned int flags)
         qlex();
         expect('u');
 
-        /* Make sure name is not same as other automatic vars */
-        for (p = q_.fp + 1; p < q_.sp; p++) {
-                if (p->name && !strcmp(cur_oc->s, p->name))
-                        syntax("Variable `%s' is already declared", p->name);
-        }
+        /*
+         * Make sure name is not same as other automatic vars.
+         * If the symbol name already exists elsewhere in the namespace,
+         * that's fine, but this will have precedence in future
+         * symbol_seek calls until we leave this varible's scope.
+         */
+        if (symbol_seek_stack_l(cur_oc->s))
+                syntax("Variable `%s' is already declared", cur_oc->s);
 
         v = stack_getpush();
         v->name = cur_oc->s;

@@ -385,8 +385,8 @@ qlex_helper(void)
         } else if (qlex_string()) {
                 return 'q';
         } else if (qlex_identifier()) {
-                int *lu = hashtable_get(q_.kw_htbl, tok->s, NULL);
-                return lu ? TO_KTOK(*lu) : 'u';
+                int k = keyword_seek(tok->s);
+                return k >= 0 ? k : 'u';
         } else if ((ret = qlex_number()) != 0) {
                 return ret;
         }
@@ -474,7 +474,7 @@ done:
 }
 
 void
-initialize_lexer(void)
+moduleinit_lex(void)
 {
         /*
          * IMPORTANT!! These two strings must be in same order as
@@ -513,3 +513,4 @@ initialize_lexer(void)
         for (s = DELIMDBL, i = QD_PLUSPLUS; *s != '\0'; s++, i++)
                 lexer.char_x2tbl[(int)*s] = i;
 }
+

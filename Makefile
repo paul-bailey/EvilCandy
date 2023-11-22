@@ -34,7 +34,14 @@ endif
 
 pwd := $(shell pwd)
 
-CFLAGS += -Wall
+O ?=
+ifneq ($(O),)
+o_opt := -O$(O)
+else
+o_opt :=
+endif
+
+CFLAGS += -Wall $(o_opt)
 CPPFLAGS += -Isrc
 LDFLAGS += -Wall
 CC := gcc

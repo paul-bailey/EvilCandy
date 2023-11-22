@@ -65,10 +65,16 @@ ebuffer_substr(struct buffer_t *tok, int i)
 struct var_t *
 eobject_child(struct var_t *o, const char *s)
 {
+        return eobject_child_l(o, literal(s));
+}
+
+struct var_t *
+eobject_child_l(struct var_t *o, const char *s)
+{
         struct var_t *v;
-        v = object_child(o, s);
+        v = object_child_l(o, s);
         if (!v)
-                syntax("object %s has no child %s", nameof(o), cur_oc->s);
+                syntax("object %s has no child %s", nameof(o), s);
         return v;
 }
 

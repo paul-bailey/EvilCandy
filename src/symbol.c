@@ -9,7 +9,7 @@ trystack(const char *s)
         /* Args actually begin 1st after FP */
         struct var_t *p;
         for (p = q_.fp + 1; p < q_.sp; p++) {
-                if (p->name && !strcmp(p->name, s))
+                if (p->name == s)
                         return p;
         }
         return NULL;
@@ -44,6 +44,26 @@ trythis(const char *s)
 }
 
 /**
+ * symbol_seek_stack - Look up a symbol on the stack only
+ * @s: first token of "something.something.something..."
+ */
+struct var_t *
+symbol_seek_stack(const char *s)
+{
+        return trystack(literal(s));
+}
+
+/**
+ * symbol_seek_stack_l - Like symbol_seek_stack, but @s is known to be a
+ *                       return value of literal()
+ */
+struct var_t *
+symbol_seek_stack_l(const char *s)
+{
+        return trystack(s);
+}
+
+/**
  * symbol_seek - Look up a symbol
  * @s: first token of "something.something.something..."
  *
@@ -70,10 +90,12 @@ symbol_seek(const char *s)
                 return NULL;
         if (!strcmp(s, "__gbl__"))
                 return q_.gbl;
+
+        s = literal(s);
         if ((v = trystack(s)) != NULL)
                 return v;
         if ((v = trythis(s)) != NULL)
                 return v;
-        return object_child(q_.gbl, s);
+        return object_child_l(q_.gbl, s);
 }
 

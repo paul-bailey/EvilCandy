@@ -108,7 +108,7 @@ eval_atomic_object(struct var_t *v)
                 qlex();
                 expect('u');
                 child = var_new();
-                child->name = literal(cur_oc->s);
+                child->name = cur_oc->s;
                 qlex();
                 if (cur_oc->t != OC_COMMA) {
                         /* not declaring empty child */
@@ -292,18 +292,20 @@ eval8(struct var_t *v)
                 struct var_t *child = tstack_getpush();
                 qop_clobber(parent, v);
                 if (t == OC_PER) {
+                        struct var_t *tmp;
                         qlex();
                         expect('u');
                         if (parent->magic != QOBJECT_MAGIC)
-                                qop_mov(child, ebuiltin_method(parent, cur_oc->s));
+                                tmp = ebuiltin_method(parent, cur_oc->s);
                         else
-                                qop_mov(child, eobject_child(parent, cur_oc->s));
+                                tmp = eobject_child_l(parent, cur_oc->s);
+                        qop_mov(child, tmp);
                 } else { /* t == OC_LBRACK */
                         switch (parent->magic) {
                         case QOBJECT_MAGIC:
                                 qlex();
                                 expect('q');
-                                qop_mov(child, eobject_child(parent, cur_oc->s));
+                                qop_mov(child, eobject_child_l(parent, cur_oc->s));
                                 qlex();
                                 expect(OC_RBRACK);
                                 break;

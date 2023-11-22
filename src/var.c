@@ -235,7 +235,8 @@ object_new(struct var_t *owner, const char *name)
 {
         struct var_t *o = object_from_empty(var_new());
         o->name = literal(name);
-        o->o.owner = owner;
+        if (owner)
+                object_add_child(owner, o);
         return o;
 }
 

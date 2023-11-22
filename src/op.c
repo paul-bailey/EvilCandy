@@ -445,10 +445,8 @@ type_err(struct var_t *v, int magic)
  * If @to isn't empty and its type is different from @from,
  * a syntax error will be thrown.
  *
- * If @to and @from are objects, they will both contain the handle to
- * the same object.  Use var_copy() for @to to be distinct from @from
- * FIXME: This will cause some jurisdictional problems if multiple
- * objects have handles to the same child object.
+ * If @to and @from are objects or arrays, they will end up both
+ * containing the handle to the same object.
  */
 void
 qop_mov(struct var_t *to, struct var_t *from)
@@ -487,23 +485,9 @@ qop_mov(struct var_t *to, struct var_t *from)
                         to->f = from->f;
                         break;
                 case QARRAY_MAGIC:
-                    {
-                        /*
-                         * clobber @to and replace its elements
-                         * with _copies_ of @from's elements
-                         */
-                        struct list_t *child;
-                        var_reset(to);
-                        array_from_empty(to);
-                        list_foreach(child, &from->a) {
-                                struct var_t *item, *new;
-                                new = var_new();
-                                item = container_of(child, struct var_t, a);
-                                qop_mov(new, item);
-                                array_add_child(to, new);
-                        }
+                        to->a = from->a;
+                        to->a->nref++;
                         break;
-                    }
                 }
                 to->magic = from->magic;
         } else if (to->magic == QPTRX_MAGIC
@@ -534,6 +518,17 @@ qop_mov(struct var_t *to, struct var_t *from)
         return;
 er:
         type_err(to, from->magic);
+}
+
+/**
+ * like qop_mov, but if @to is an incompatible type,
+ * it will be reset and clobbered.
+ */
+void
+qop_clobber(struct var_t *to, struct var_t *from)
+{
+        var_reset(to);
+        qop_mov(to, from);
 }
 
 void

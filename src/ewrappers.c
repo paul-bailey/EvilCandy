@@ -82,12 +82,21 @@ eobject_nth_child(struct var_t *o, int n)
         return v;
 }
 
-struct var_t *
-earray_child(struct var_t *array, int n)
+int
+earray_child(struct var_t *array, int idx, struct var_t *child)
 {
-        struct var_t *ret = array_child(array, n);
-        if (!ret)
-                syntax("Array %s has no %llith element", nameof(array), n);
+        int ret = array_child(array, idx, child);
+        if (ret < 0)
+                syntax("Array %s has no %llith element", nameof(array), idx);
+        return ret;
+}
+
+int
+earray_set_child(struct var_t *array, int idx, struct var_t *child)
+{
+        int ret = array_set_child(array, idx, child);
+        if (ret < 0)
+                syntax("Array index %d out of bounds", idx);
         return ret;
 }
 

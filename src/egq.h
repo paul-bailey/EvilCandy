@@ -127,6 +127,25 @@ struct object_handle_t {
         int nref;
 };
 
+/**
+ * struct array_handle_t - Handle to a numerical array
+ * @nref:       Number of variables with access to this array
+ * @type:       type of data stored in the array, a Q*_MAGIC enum
+ * @nmemb:      Size of the array, in number of elements
+ * @allocsize:  Size of the array, in number of bytes currently allocated
+ *              for it
+ * @datasize:   Size of each member of the array (so we don't have to
+ *              keep figuring it out from @type all the time)
+ */
+struct array_handle_t {
+        int nref;
+        int type;
+        unsigned int nmemb;
+        size_t allocsize;
+        size_t datasize;
+        void *data;
+};
+
 /*
  * symbol types - object, function, float, integer, string
  */
@@ -147,14 +166,7 @@ struct var_t {
                         struct var_t *owner;
                         struct marker_t mk;
                 } fn;
-                /*
-                 * FIXME: This makes numerical arrays (which can get
-                 * quite large) extremely inefficient, in both
-                 * computation and memory usage.  I need some kind
-                 * of look-up table, compressed to the size of the
-                 * values instead.
-                 */
-                struct list_t a;
+                struct array_handle_t *a;
                 double f;
                 long long i;
                 const struct func_intl_t *fni;
@@ -247,8 +259,10 @@ static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
 /* array.c */
 extern void array_reset(struct var_t *a);
-extern struct var_t *array_child(struct var_t *array, int n);
+extern int array_child(struct var_t *array, int idx, struct var_t *child);
 extern void array_add_child(struct var_t *array, struct var_t *child);
+extern int array_set_child(struct var_t *array,
+                            int idx, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
 
 /* builtin.c */
@@ -296,7 +310,9 @@ extern void *ecalloc(size_t size);
 extern int ebuffer_substr(struct buffer_t *tok, int i);
 extern struct var_t *eobject_child(struct var_t *o, const char *s);
 extern struct var_t *eobject_nth_child(struct var_t *o, int n);
-extern struct var_t *earray_child(struct var_t *array, int n);
+extern int earray_child(struct var_t *array, int n, struct var_t *child);
+extern int earray_set_child(struct var_t *array,
+                            int idx, struct var_t *child);
 extern struct var_t *esymbol_seek(const char *name);
 
 /* exec.c */
@@ -362,6 +378,7 @@ extern void qop_bit_not(struct var_t *v);
 extern void qop_negate(struct var_t *v);
 extern void qop_lnot(struct var_t *v);
 extern void qop_mov(struct var_t *to, struct var_t *from);
+extern void qop_clobber(struct var_t *to, struct var_t *from);
 extern bool qop_cmpz(struct var_t *v);
 /* for assigning literals */
 extern void qop_assign_cstring(struct var_t *v, const char *s);

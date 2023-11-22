@@ -181,13 +181,11 @@ buffer_putcode(struct buffer_t *buf, struct opcode_t *oc)
 void
 buffer_puts(struct buffer_t *buf, const char *s)
 {
-        int c;
-
-        if (!s)
-                return;
-
-        while ((c = *s++) != '\0')
-                buffer_putc(buf, c);
+        if (s) {
+                int c;
+                while ((c = *s++) != '\0')
+                        buffer_putc(buf, c);
+        }
 
         /* in case s="", make sure the nul-char termination exists */
         buffer_putc(buf, '\0');

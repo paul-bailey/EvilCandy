@@ -289,55 +289,50 @@ eval8(struct var_t *v)
         struct var_t *parent = tstack_getpush();
         eval9(v);
         while ((t = cur_oc->t) == OC_PER || t == OC_LBRACK) {
-                struct var_t *child = NULL;
-                var_reset(parent);
-                qop_mov(parent, v);
+                struct var_t *child = tstack_getpush();
+                qop_clobber(parent, v);
                 if (t == OC_PER) {
                         qlex();
                         expect('u');
-                        if (v->magic != QOBJECT_MAGIC)
-                                child = ebuiltin_method(v, cur_oc->s);
+                        if (parent->magic != QOBJECT_MAGIC)
+                                qop_mov(child, ebuiltin_method(parent, cur_oc->s));
                         else
-                                child = eobject_child(v, cur_oc->s);
+                                qop_mov(child, eobject_child(parent, cur_oc->s));
                 } else { /* t == OC_LBRACK */
-                        switch (v->magic) {
+                        switch (parent->magic) {
                         case QOBJECT_MAGIC:
                                 qlex();
                                 expect('q');
-                                child = eobject_child(v, cur_oc->s);
+                                qop_mov(child, eobject_child(parent, cur_oc->s));
                                 qlex();
                                 expect(OC_RBRACK);
                                 break;
                         case QARRAY_MAGIC:
-                                child = earray_child(v, eval_index());
+                                earray_child(parent, eval_index(), child);
                                 break;
                         case QSTRING_MAGIC:
                             {
-                                /*
-                                 * special case: Substring is currently
-                                 * not a saved struct var_t, so we cannot
-                                 * get child.  Save time by editing @v in
-                                 * place, Skip the qop_mov... part below.
-                                 */
-                                int c = ebuffer_substr(&v->s, eval_index());
-                                buffer_reset(&v->s);
-                                buffer_putc(&v->s, c);
-
-                                qlex();
-                                function_helper(v, NULL);
-                                continue;
+                                char c[2];
+                                c[0] = ebuffer_substr(&parent->s, eval_index());
+                                c[1] = '\0';
+                                qop_assign_cstring(child, c);
+                                break;
                             }
                         default:
                                 syntax("associate array syntax invalid for type %s",
-                                       typestr(v->magic));
+                                       typestr(parent->magic));
                         }
                 }
-                var_reset(v);
-                qop_mov(v, child);
+                qop_clobber(v, child);
+
+                /* pop child */
+                tstack_pop(NULL);
 
                 qlex();
                 function_helper(v, parent);
         }
+
+        /* pop parent */
         tstack_pop(NULL);
 }
 

@@ -1,6 +1,7 @@
 #include "egq.h"
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 
 /*
  * helper to walk_arr_helper and walk_obj_helper
@@ -21,67 +22,98 @@ maybe_new_child(struct var_t *parent, char *name)
 }
 
 /* either returns pointer to new parent, or NULL, meaning "wrap it up" */
-static struct var_t *
+static bool
 walk_obj_helper(struct var_t *parent)
 {
+        struct var_t *p = parent;
         do {
                 struct var_t *child;
                 qlex();
                 expect('u');
-                if (parent->magic != QOBJECT_MAGIC) {
+                if (p->magic != QOBJECT_MAGIC) {
                         /*
                          * calling a typedef's built-in methods.
                          * All types are slightly objects, slightly not.
                          */
                         struct var_t *method;
-                        method = ebuiltin_method(parent, cur_oc->s);
-                        call_function(method, NULL, parent);
-                        return NULL;
+                        method = ebuiltin_method(p, cur_oc->s);
+                        call_function(method, NULL, p);
+                        return false;
                 }
-                child = object_child(parent, cur_oc->s);
+                child = object_child(p, cur_oc->s);
                 if (!child) {
-                        maybe_new_child(parent, cur_oc->s);
-                        return NULL;
+                        maybe_new_child(p, cur_oc->s);
+                        return false;
                 }
-                parent = child;
+                p = child;
                 qlex();
         } while (cur_oc->t == OC_PER);
         q_unlex();
-        return parent;
+        if (p != parent)
+                qop_clobber(parent, p);
+        return true;
+}
+
+/* because idx stores long long, but array indices fit in int */
+static void
+idx_bound_check(struct var_t *idx)
+{
+        if (idx->i > INT_MAX || idx->i < INT_MIN)
+                syntax("Array index out of bounds");
 }
 
 /*
- * FIXME: "array[x]=y;" should be valid if x is out of bounds of the array.
- * It just means we have to grow the array.
+ * Clobber @parent with child.  Parent is assumed to be a clobberable
+ * copy of the real thing.
  *
- * Return: child of parent or NULL meaning "wrap it up"
+ * Return: true to continue, false to wrap it up.
  */
-static struct var_t *
+static bool
 walk_arr_helper(struct var_t *parent)
 {
-        struct var_t *child = NULL;
         struct var_t *idx = tstack_getpush();
+        bool ret;
 
         eval(idx);
+        qlex();
+        expect(OC_RBRACK);
+
         if (parent->magic == QARRAY_MAGIC) {
+                struct var_t *child;
+
                 if (idx->magic != QINT_MAGIC)
                         syntax("Array index must be integer");
-                /*
-                 * TODO: Grow array instead of throw error.
-                 * First requires me to change nature of numerical
-                 * array.
-                 */
-                child = earray_child(parent, idx->i);
+                idx_bound_check(idx);
+
+                child = tstack_getpush();
+
+                /* peek */
+                qlex();
+                ret = cur_oc->t != OC_EQ;
+                if (!ret) {
+                        /* we got the "i" of "this[i] = that;" */
+                        eval(child);
+                        /* TODO: Grow array instead of throw error */
+                        earray_set_child(parent, idx->i, child);
+                } else {
+                        /* we got the "i" of "this[i].that... */
+                        q_unlex();
+                        earray_child(parent, idx->i, child);
+                        qop_clobber(parent, child);
+                }
+                tstack_pop(NULL);
         } else if (parent->magic == QOBJECT_MAGIC) {
                 /*
                  * XXX REVISIT: Am I giving user too much power?  By
                  * eval()ing the array index, I am creating a use for
                  * associative-array syntax other than just an arbitrary
                  * alternative.  Whereas "alice.bob" requires "bob" to be
-                 * hard-coded text, "alice[getbob()]" can be extremely
+                 * hard-coded text, "alice[getbobstr()]" can be extremely
                  * flexible and dynamic--and chaotic.
                  */
+                struct var_t *child = NULL;
                 if (idx->magic == QINT_MAGIC) {
+                        idx_bound_check(idx);
                         child = eobject_nth_child(parent, idx->i);
                 } else if (idx->magic == QSTRING_MAGIC) {
                         child = object_child(parent, idx->s.s);
@@ -91,15 +123,18 @@ walk_arr_helper(struct var_t *parent)
                         syntax("Array index cannot be type %s",
                                typestr(idx->magic));
                 }
+                ret = !!child;
+                if (ret)
+                        qop_clobber(parent, child);
         } else {
                 syntax("Cannot de-reference type %s with [",
                         typestr(parent->magic));
+                ret = false; /* compiler gripes otherwise */
         }
 
+        /* pop idx */
         tstack_pop(NULL);
-        qlex();
-        expect(OC_RBRACK);
-        return child;
+        return ret;
 }
 
 /*
@@ -116,24 +151,27 @@ walk_arr_helper(struct var_t *parent)
 static void
 do_childof(struct var_t *parent, unsigned int flags)
 {
+        /* safety, we do some clobbering downstream */
+        struct var_t *p = tstack_getpush();
+        qop_mov(p, parent);
         for (;;) {
-                if (parent->magic == QFUNCTION_MAGIC
-                    || parent->magic == QINTL_MAGIC) {
-                        call_function(parent, NULL, NULL);
+                if (p->magic == QFUNCTION_MAGIC
+                    || p->magic == QINTL_MAGIC) {
+                        call_function(p, NULL, NULL);
                         goto expect_semi;
                         /* else, it's a variable assignment, fall through */
                 }
                 qlex();
                 switch (cur_oc->t) {
                 case OC_PER:
-                        parent = walk_obj_helper(parent);
-                        if (!parent)
+                        if (!walk_obj_helper(p))
                                 goto expect_semi;
+                        parent = p;
                         break;
                 case OC_LBRACK:
-                        parent = walk_arr_helper(parent);
-                        if (!parent)
+                        if (!walk_arr_helper(p))
                                 goto expect_semi;
+                        parent = p;
                         break;
                 case OC_EQ:
                         eval(parent);
@@ -151,6 +189,7 @@ do_childof(struct var_t *parent, unsigned int flags)
         }
 
 expect_semi:
+        tstack_pop(NULL); /* pop p */
         if (!(flags & FE_FOR)) {
                 qlex();
                 expect(OC_SEMI);

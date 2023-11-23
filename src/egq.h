@@ -33,6 +33,7 @@ enum {
         QPTRX_MAGIC,
         QINTL_MAGIC,
         QARRAY_MAGIC,
+        QFILE_MAGIC,
         Q_NMAGIC,
 
         /* q_.charmap flags */
@@ -152,6 +153,18 @@ struct array_handle_t {
         void *data;
 };
 
+/**
+ * struct file_handle_t - Handle to a file
+ * @nref:       Number of variables with access to this same open file
+ * @fd:         File descriptor
+ * @flags:      Same as the flags to open (2)
+ */
+struct file_handle_t {
+        int nref;
+        int fd;
+        unsigned int flags;
+};
+
 /*
  * symbol types - object, function, float, integer, string
  */
@@ -172,6 +185,7 @@ struct var_t {
                         struct var_t *owner;
                         struct marker_t mk;
                 } fn;
+                struct file_handle_t *fp;
                 struct array_handle_t *a;
                 double f;
                 long long i;
@@ -273,10 +287,6 @@ extern void moduleinit_builtin(void);
 extern struct var_t *builtin_method(struct var_t *v,
                                     const char *method_name);
 
-/* file.c */
-extern void file_push(const char *name);
-extern char *next_line(unsigned int flags);
-
 /* err.c */
 #ifndef NDEBUG
 # define bug() bug__(__FILE__, __LINE__)
@@ -330,7 +340,8 @@ enum {
 extern int expression(struct var_t *retval, unsigned int flags);
 
 /* file.c */
-extern void load_file(const char *filename);
+extern void file_reset(struct var_t *v);
+extern struct var_t *file_new(const char *path, unsigned int flags);
 
 /* function.c */
 extern void call_function(struct var_t *fn,
@@ -368,11 +379,13 @@ extern void q_unlex(void);
 extern struct ns_t *prescan(const char *filename);
 extern void moduleinit_lex(void);
 
-
 /* literal.c */
 extern char *literal(const char *s);
 extern void literal_diag(void);
 extern void moduleinit_literal(void);
+
+/* load_file.c */
+extern void load_file(const char *filename);
 
 /* object.c */
 extern struct var_t *object_new(struct var_t *owner, const char *name);

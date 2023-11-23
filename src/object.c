@@ -1,14 +1,22 @@
 #include "egq.h"
 #include <string.h>
+#include <stdlib.h>
 
 /* only called from var_reset() */
 void
 object_reset(struct var_t *o)
 {
-        struct list_t *child, *tmp;
+        struct object_handle_t *h = o->o.h;
         bug_on(o->magic != QOBJECT_MAGIC);
-        list_foreach_safe(child, tmp, &o->o.h->children)
-                var_delete(list2var(child));
+        h->nref--;
+        if (h->nref <= 0) {
+                struct list_t *child, *tmp;
+                bug_on(h->nref < 0);
+                list_foreach_safe(child, tmp, &h->children)
+                        var_delete(list2var(child));
+                free(h);
+        }
+        o->o.h = NULL;
 }
 
 /**
@@ -38,10 +46,8 @@ object_new(struct var_t *owner, const char *name)
  * This is an alternative to object_new();
  */
 struct var_t *
-object_from_empty(struct var_t *v)
+object_from_empty(struct var_t *o)
 {
-        struct var_t *o = (struct var_t*)v;
-
         bug_on(o->magic != QEMPTY_MAGIC);
         o->magic = QOBJECT_MAGIC;
 

@@ -47,6 +47,9 @@ bi_init_type_methods__(const struct inittbl_t *tbl, int magic);
 extern void bi_moduleinit_string__(void);
 extern void bi_moduleinit_object__(void);
 
+/* io.c */
+extern const struct inittbl_t bi_io_inittbl__[];
+
 /* math.c */
 extern const struct inittbl_t bi_math_inittbl__[];
 

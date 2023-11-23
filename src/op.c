@@ -488,6 +488,10 @@ qop_mov(struct var_t *to, struct var_t *from)
                         to->a = from->a;
                         to->a->nref++;
                         break;
+                case QFILE_MAGIC:
+                        to->fp = from->fp;
+                        to->fp->nref++;
+                        break;
                 }
                 to->magic = from->magic;
         } else if (to->magic == QPTRX_MAGIC

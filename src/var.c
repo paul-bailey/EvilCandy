@@ -15,6 +15,7 @@ struct type_t TYPEDEFS[Q_NMAGIC] = {
         { .name = "pointer" },
         { .name = "built_in_function" },
         { .name = "array" },
+        { .name = "file" },
 };
 
 #if SIMPLE_ALLOC
@@ -204,15 +205,13 @@ var_reset(struct var_t *v)
                 buffer_free(&v->s);
                 break;
         case QOBJECT_MAGIC:
-                v->o.h->nref--;
-                if (v->o.h->nref <= 0) {
-                        bug_on(v->o.h->nref < 0);
-                        object_reset(v);
-                }
-                v->o.owner = NULL;
+                object_reset(v);
                 break;
         case QARRAY_MAGIC:
                 array_reset(v);
+                break;
+        case QFILE_MAGIC:
+                file_reset(v);
                 break;
         default:
                 bug();

@@ -171,6 +171,30 @@ array_child(struct var_t *array, int idx, struct var_t *child)
 }
 
 /**
+ * If array type is such that it holds a struct var, return that.
+ * Otherwise return NULL
+ */
+struct var_t *
+array_vchild(struct var_t *array, int idx)
+{
+        struct array_handle_t *h = array->a;
+
+        idx = index_of(h, idx);
+        if (h->nmemb <= idx || idx < 0)
+                return NULL;
+
+        switch (h->type) {
+        case QFLOAT_MAGIC:
+        case QINT_MAGIC:
+        case QSTRING_MAGIC:
+                return NULL;
+        default:
+                break;
+        }
+        return (struct var_t *)array_ptr(h, idx);
+}
+
+/**
  * array_set_child - Set the value of an array member
  * @array:      Array to operate on
  * @idx:        Index into the array

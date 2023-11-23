@@ -51,13 +51,6 @@ emismatch(const char *op)
         syntax("cannot perform %s operation on mismatched types", op);
 }
 
-/* true if v is float or int */
-static inline bool
-isnumvar(struct var_t *v)
-{
-        return v->magic == QINT_MAGIC || v->magic == QFLOAT_MAGIC;
-}
-
 static inline long long
 var2int(struct var_t *v, const char *op)
 {
@@ -713,6 +706,7 @@ qop_mov(struct var_t *to, struct var_t *from)
         bug_on(!from || !to);
         bug_on(from->magic == QEMPTY_MAGIC);
         if (to->magic == QEMPTY_MAGIC) {
+                bug_on(isconst(to));
                 p = primitives_of(from);
                 if (!p->mov)
                         epermit("mov");

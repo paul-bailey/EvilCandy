@@ -138,23 +138,34 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
         if (!tbl)
                 return;
         for (t = tbl; t->name != NULL; t++) {
-                struct var_t *child;
-                if (t->magic == QOBJECT_MAGIC) {
-                        child = object_new(parent, t->name);
+                struct var_t *child = var_new();
+                child->name = literal(t->name);
+                switch (t->magic) {
+                case QOBJECT_MAGIC:
+                        object_from_empty(child);
                         bi_build_internal_object__(child, t->tbl);
-                } else if (t->magic == QPTRXI_MAGIC) {
-                        child = var_new();
-                        child->name = literal(t->name);
-                        child->magic = QPTRXI_MAGIC;
-                        child->fni   = &t->h;
-                        object_add_child(parent, child);
-                } else {
-                        /*
-                         * TODO: support this.  Need some way of making
-                         * sure they're const.
-                         */
+                        break;
+                case QPTRXI_MAGIC:
+                        child->magic = t->magic;
+                        child->fni = &t->h;
+                        break;
+                case QSTRING_MAGIC:
+                        qop_assign_cstring(child, t->s);
+                        child->flags = VF_CONST;
+                        break;
+                case QINT_MAGIC:
+                        qop_assign_int(child, t->i);
+                        child->flags = VF_CONST;
+                        break;
+                case QFLOAT_MAGIC:
+                        qop_assign_float(child, t->f);
+                        child->flags = VF_CONST;
+                        break;
+                default:
                         bug();
                 }
+                bug_on(child->magic == QEMPTY_MAGIC);
+                object_add_child(parent, child);
         }
 }
 

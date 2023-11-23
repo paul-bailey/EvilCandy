@@ -10,6 +10,14 @@
 #define TOOTBL(n, p) \
         { .magic = QOBJECT_MAGIC, .name = n, .tbl = p }
 
+/* the following are for consts, always */
+#define TOITBL(n, iv) \
+        { .magic = QINT_MAGIC, .name = n, .i = iv }
+#define TOFLTB(n, fv) \
+        { .magic = QFLOAT_MAGIC, .name = n, .f = fv }
+#define TOSTBL(n, str) \
+        { .magic = QSTRING_MAGIC, .name = n, .s = str }
+
 #define TBLEND { .name = NULL }
 
 struct inittbl_t {
@@ -18,6 +26,9 @@ struct inittbl_t {
         union {
                 struct func_intl_t h;
                 const struct inittbl_t *tbl;
+                long long i;
+                double f;
+                const char *s;
         };
 };
 

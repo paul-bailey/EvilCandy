@@ -3,59 +3,6 @@
 #include <stdio.h>
 #include <limits.h>
 
-/*
- * helper to walk_arr_helper and walk_obj_helper
- *
- * Parsing "alice.bob = something;", where "alice" exists and "bob"
- * does not.  Append "bob" as a new child of "alice", and evaluate
- * the "something" of "bob".
- *
- * @name should be known to be a return value of literal()
- */
-static void
-maybe_new_child(struct var_t *parent, char *name)
-{
-        struct var_t *child = var_new();
-        child->name = name;
-        qlex();
-        expect(OC_EQ);
-        eval(child);
-        object_add_child(parent, child);
-}
-
-/* either returns pointer to new parent, or NULL, meaning "wrap it up" */
-static bool
-walk_obj_helper(struct var_t *parent)
-{
-        struct var_t *p = parent;
-        do {
-                struct var_t *child;
-                qlex();
-                expect('u');
-                if (p->magic != QOBJECT_MAGIC) {
-                        /*
-                         * calling a typedef's built-in methods.
-                         * All types are slightly objects, slightly not.
-                         */
-                        struct var_t *method;
-                        method = ebuiltin_method(p, cur_oc->s);
-                        call_function(method, NULL, p);
-                        return false;
-                }
-                child = object_child_l(p, cur_oc->s);
-                if (!child) {
-                        maybe_new_child(p, cur_oc->s);
-                        return false;
-                }
-                p = child;
-                qlex();
-        } while (cur_oc->t == OC_PER);
-        q_unlex();
-        if (p != parent)
-                qop_clobber(parent, p);
-        return true;
-}
-
 /* because idx stores long long, but array indices fit in int */
 static void
 idx_bound_check(struct var_t *idx)
@@ -64,82 +11,196 @@ idx_bound_check(struct var_t *idx)
                 syntax("Array index out of bounds");
 }
 
+#if 1
+
+/* some return values for do_childof_r, better than a bunch of goto's */
+enum {
+        ER_INDEX_TYPE = 1,
+        ER_BADTOK,
+        ER_NOTASSOC,
+};
+
+static int do_childof_r(struct var_t *v, struct var_t *parent);
+
+static void
+add_new_child(struct var_t *parent, char *name_lit)
+{
+        struct var_t *child;
+        qlex();
+        expect(OC_EQ);
+        child = var_new();
+        child->name = name_lit;
+        eval(child);
+        object_add_child(parent, child);
+}
+
+
 /*
- * Clobber @parent with child.  Parent is assumed to be a clobberable
- * copy of the real thing.
- *
- * Return: true to continue, false to wrap it up.
+ * helper to handle_lbrack --> do_childof_r
+ *      we got [nnn]
  */
-static bool
-walk_arr_helper(struct var_t *parent)
+static int
+handle_num_arr(struct var_t *parent, int idxi)
+{
+        struct var_t *child = array_vchild(parent, idxi);
+        if (child)
+                return do_childof_r(child, parent);
+
+        qlex();
+        expect(OC_EQ);
+
+        child = tstack_getpush();
+        eval(child);
+        earray_set_child(parent, idxi, child);
+        tstack_pop(NULL);
+        return 0;
+}
+
+/*
+ * helper to handle_lbrack --> do_childof_r
+ *      we got ["abc"]
+ */
+static int
+handle_assoc_arr(struct var_t *parent, char *idxs)
+{
+        struct var_t *child = eobject_child_l(parent, idxs);
+        if (child)
+                return do_childof_r(child, parent);
+        else
+                add_new_child(parent, idxs);
+        return 0;
+}
+
+/*
+ * helper to do_childof_r
+ * last token is [
+ */
+static int
+handle_lbrack(struct var_t *parent)
 {
         struct var_t *idx = tstack_getpush();
-        bool ret;
-
+        char *idxs = NULL;
+        int magic;
+        int idxi;
         eval(idx);
         qlex();
         expect(OC_RBRACK);
 
-        if (parent->magic == QARRAY_MAGIC) {
-                struct var_t *child;
-
-                if (idx->magic != QINT_MAGIC)
-                        syntax("Array index must be integer");
+        /*
+         * save this stuff because I'd rather pop idx now
+         * rather than later
+         */
+        magic = idx->magic;
+        if (magic == QSTRING_MAGIC) {
+                idxs = literal(idx->s.s);
+        } else if (magic == QINT_MAGIC) {
                 idx_bound_check(idx);
-
-                child = tstack_getpush();
-
-                /* peek */
-                qlex();
-                ret = cur_oc->t != OC_EQ;
-                if (!ret) {
-                        /* we got the "i" of "this[i] = that;" */
-                        eval(child);
-                        /* TODO: Grow array instead of throw error */
-                        earray_set_child(parent, idx->i, child);
-                } else {
-                        /* we got the "i" of "this[i].that... */
-                        q_unlex();
-                        earray_child(parent, idx->i, child);
-                        qop_clobber(parent, child);
-                }
-                tstack_pop(NULL);
-        } else if (parent->magic == QOBJECT_MAGIC) {
-                /*
-                 * XXX REVISIT: Am I giving user too much power?  By
-                 * eval()ing the array index, I am creating a use for
-                 * associative-array syntax other than just an arbitrary
-                 * alternative.  Whereas "alice.bob" requires "bob" to be
-                 * hard-coded text, "alice[getbobstr()]" can be extremely
-                 * flexible and dynamic--and chaotic.
-                 */
-                struct var_t *child = NULL;
-                if (idx->magic == QINT_MAGIC) {
-                        idx_bound_check(idx);
-                        child = eobject_nth_child(parent, idx->i);
-                } else if (idx->magic == QSTRING_MAGIC) {
-                        char *name = literal(idx->s.s);
-                        child = object_child_l(parent, name);
-                        if (!child)
-                                maybe_new_child(parent, name);
-                } else {
-                        syntax("Array index cannot be type %s",
-                               typestr(idx->magic));
-                }
-                ret = !!child;
-                if (ret)
-                        qop_clobber(parent, child);
+                idxi = idx->i;
         } else {
-                syntax("Cannot de-reference type %s with [",
-                        typestr(parent->magic));
-                ret = false; /* compiler gripes otherwise */
+                return ER_INDEX_TYPE;
         }
-
-        /* pop idx */
         tstack_pop(NULL);
-        return ret;
+
+        switch (parent->magic) {
+        case QARRAY_MAGIC:
+                if (magic != QINT_MAGIC)
+                        return ER_INDEX_TYPE;
+                return handle_num_arr(parent, idxi);
+        case QOBJECT_MAGIC:
+                if (magic == QINT_MAGIC) {
+                        return do_childof_r(eobject_nth_child(parent, idxi),
+                                            parent);
+                } else if (magic != QSTRING_MAGIC) {
+                        return ER_INDEX_TYPE;
+                }
+
+                return handle_assoc_arr(parent, idxs);
+        default:
+                return ER_NOTASSOC;
+        }
 }
 
+static void
+assert_settable(struct var_t *v)
+{
+        if (isconst(v))
+                syntax("You may not modify const '%s'", nameof(v));
+}
+
+static int
+do_childof_r(struct var_t *v, struct var_t *parent)
+{
+        if (isfunction(v)) {
+                call_function(v, NULL, parent);
+                return 0;
+        }
+
+        qlex();
+        switch (cur_oc->t) {
+        case OC_PER:
+            {
+                qlex();
+                expect('u');
+                if (v->magic == QOBJECT_MAGIC) {
+                        struct var_t *child;
+                        child = object_child_l(v, cur_oc->s);
+                        if (child)
+                                return do_childof_r(child, v);
+                        else
+                                add_new_child(v, cur_oc->s);
+                } else {
+                        do_childof_r(ebuiltin_method(v, cur_oc->s), v);
+                }
+                break;
+            }
+        case OC_LBRACK:
+                 return handle_lbrack(v);
+
+        case OC_EQ:
+                assert_settable(v);
+                eval(v);
+                break;
+
+        case OC_PLUSPLUS:
+                assert_settable(v);
+                qop_incr(v);
+                break;
+
+        case OC_MINUSMINUS:
+                assert_settable(v);
+                qop_decr(v);
+                break;
+        default:
+                /* TODO: +=, -=, <<=, >>=, &=, |=, etc. */
+                return ER_BADTOK;
+        }
+        return 0;
+}
+
+static void
+do_childof(struct var_t *parent, unsigned int flags)
+{
+        int res = do_childof_r(parent, NULL);
+        if (res) {
+                switch (res) {
+                case ER_INDEX_TYPE:
+                        syntax("Invalid type for array index");
+                case ER_BADTOK:
+                        syntax("Invalid token at location");
+                case ER_NOTASSOC:
+                        syntax("Array syntax is not valid for type");
+                default:
+                        bug();
+                }
+        }
+
+        if (!(flags & FE_FOR)) {
+                qlex();
+                expect(OC_SEMI);
+        }
+}
+
+#else
 /*
  * do_childof: walk down the ".child.grandchild..." path of a parent
  *              and take certain actions.
@@ -154,36 +215,125 @@ walk_arr_helper(struct var_t *parent)
 static void
 do_childof(struct var_t *parent, unsigned int flags)
 {
-        /* safety, we do some clobbering downstream */
-        struct var_t *p = tstack_getpush();
-        qop_mov(p, parent);
+        /* safety, our downstream helpers do some clobbering */
+        char *name_add = NULL;
+        bool isarrayi = false;
+        int ai = 0;
         for (;;) {
-                if (isfunction(p)) {
-                        call_function(p, NULL, NULL);
+                if (isfunction(parent)) {
+                        /*
+                         * can't change function pointers, so
+                         * assume this is "fn();" instead of, say,
+                         * "fn = something;"
+                         */
+                        call_function(parent, NULL, NULL);
                         goto expect_semi;
-                        /* else, it's a variable assignment, fall through */
                 }
+
                 qlex();
+                if (name_add) {
+                        struct var_t *child;
+                        expect(OC_EQ);
+                        child = var_new();
+                        child->name = name_add;
+                        eval(child);
+                        object_add_child(parent, child);
+                        goto expect_semi;
+                } else if (isarrayi) {
+                        /*
+                         * todo: what if empty statement,
+                         * like "something[i];" ?
+                         */
+                        struct var_t *child = tstack_getpush();
+                        expect(OC_EQ);
+                        eval(child);
+                        earray_set_child(parent, ai, child);
+                        tstack_pop(NULL);
+                        goto expect_semi;
+                }
+
                 switch (cur_oc->t) {
                 case OC_PER:
-                        if (!walk_obj_helper(p))
+                    {
+                        struct var_t *child;
+                        qlex();
+                        expect('u');
+                        if (parent->magic != QOBJECT_MAGIC) {
+                                struct var_t *method;
+                                method = ebuiltin_method(parent, cur_oc->s);
+                                call_function(method, NULL, parent);
                                 goto expect_semi;
-                        parent = p;
-                        break;
+                        }
+                        child = object_child_l(parent, cur_oc->s);
+                        if (!child)
+                                name_add = cur_oc->s;
+                        else
+                                parent = child;
+                        continue;
+                    }
+
                 case OC_LBRACK:
-                        if (!walk_arr_helper(p))
-                                goto expect_semi;
-                        parent = p;
-                        break;
+                    {
+                        struct var_t *idx = tstack_getpush();
+                        eval(idx);
+                        qlex();
+                        expect(OC_RBRACK);
+                        if (parent->magic == QARRAY_MAGIC) {
+                                struct var_t *child;
+                                if (idx->magic != QINT_MAGIC)
+                                        syntax("Array index must be an integer");
+                                idx_bound_check(idx);
+                                child = array_vchild(parent, idx);
+                                if (child) {
+                                        parent = child;
+                                } else {
+                                        isarrayi = true;
+                                        ai = idx->i;
+                                }
+                        } else if (parent->magic == QOBJECT_MAGIC) {
+                                struct var_t *child = NULL;
+                                if (idx->magic == QINT_MAGIC) {
+                                        idx_bound_check(idx);
+                                        child = eobject_nth_child(parent, idx->i);
+                                } else if (idx->magic == QSTRING_MAGIC) {
+                                        char *name = literal(idx->s.s);
+                                        child = eobject_child_l(parent, name);
+                                        if (!child)
+                                                name_add = name;
+                                        else
+                                                parent = child;
+                                } else {
+                                        syntax("Array index may not be type %s",
+                                               typestr(idx->magic));
+                                }
+                        } else {
+                                syntax("Cannot de-reference type %s with [",
+                                       typestr(parent->magic));
+                        }
+
+                        /* pop idx */
+                        tstack_pop(NULL);
+                        continue;
+                    }
+
                 case OC_EQ:
+                        if (isconst(parent))
+                                goto er_const;
                         eval(parent);
                         goto expect_semi;
+
                 case OC_PLUSPLUS:
+                        if (isconst(parent))
+                                goto er_const;
                         qop_incr(parent);
                         goto expect_semi;
+
                 case OC_MINUSMINUS:
+                        if (isconst(parent))
+                                goto er_const;
                         qop_decr(parent);
                         goto expect_semi;
+
                 default:
                         /* TODO: +=, -=, <<=, >>=, &=, |=, etc. */
                         syntax("Invalid token %s at location", cur_oc->s);
@@ -191,12 +341,16 @@ do_childof(struct var_t *parent, unsigned int flags)
         }
 
 expect_semi:
-        tstack_pop(NULL); /* pop p */
         if (!(flags & FE_FOR)) {
                 qlex();
                 expect(OC_SEMI);
         }
+        return;
+
+er_const:
+        syntax("Cannot modify const %s", nameof(parent));
 }
+#endif
 
 static void
 seek_eob_1line_(int par, int brace, bool check_semi)
@@ -364,18 +518,10 @@ expression_and_back(struct var_t *retval)
         return ret;
 }
 
-/* Declare automatic variable */
 static int
-do_let(struct var_t *unused, unsigned int flags)
+let_const_common(bool iscon)
 {
         struct var_t *v;
-
-        if (!!(flags & FE_FOR))
-                syntax("'let' not allowed at this part of 'for' header");
-
-        qlex();
-        expect('u');
-
         /*
          * Make sure name is not same as other automatic vars.
          * If the symbol name already exists elsewhere in the namespace,
@@ -392,15 +538,48 @@ do_let(struct var_t *unused, unsigned int flags)
         switch (cur_oc->t) {
         case OC_SEMI:
                 /* empty declaration, like "let x;" */
+                if (iscon)
+                        warning("Seting const empty variable");
                 break;
         case OC_EQ:
                 /* assign v with the "something" of "let x = something" */
                 eval(v);
+                if (iscon)
+                        v->flags |= VF_CONST;
                 qlex();
                 expect(OC_SEMI);
                 break;
         }
         return 0;
+}
+
+/* Declare automatic variable */
+static int
+do_let(struct var_t *unused, unsigned int flags)
+{
+        bool iscon = false;
+
+        if (!!(flags & FE_FOR))
+                syntax("'let' not allowed at this part of 'for' header");
+
+        qlex();
+        if (cur_oc->t == OC_CONST) {
+                iscon = true;
+                qlex();
+        }
+        expect('u');
+        return let_const_common(iscon);
+}
+
+static int
+do_const(struct var_t *unused, unsigned int flags)
+{
+        if (!!(flags & FE_FOR))
+                syntax("'const' not allowed at this part of 'for' header");
+
+        qlex();
+        expect('u');
+        return let_const_common(true);
 }
 
 static int
@@ -587,7 +766,7 @@ do_keyword(struct var_t *retval, unsigned int flags)
 {
         typedef int (*lufn_t)(struct var_t*, unsigned int);
         static const lufn_t lut[N_KW] = {
-                NULL,           /* 0 */
+                NULL,           /*  vvv keywords start at 1 vvv */
                 NULL,           /* KW_FUNC */
                 do_let,         /* KW_LET */
                 do_this,        /* KW_THIS */
@@ -599,6 +778,8 @@ do_keyword(struct var_t *retval, unsigned int flags)
                 do_do,          /* KW_DO */
                 do_for,         /* KW_FOR */
                 do_load,        /* KW_LOAD */
+                do_const,       /* KW_CONST */
+                NULL,           /* KW_PRIV */
         };
 
         unsigned int k = tok_keyword(cur_oc->t);

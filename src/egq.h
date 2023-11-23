@@ -176,11 +176,25 @@ struct array_handle_t {
         void *data;
 };
 
+/**
+ * DOC: Variable flags
+ * @VF_PRIV:    Private variable, only applies to object members
+ * @VF_CONST:   Constant variable, variable can be destroyed, but before
+ *              then, it cannot be changed.
+ *
+ * These are the .flags field of a struct var_t
+ */
+enum {
+        VF_PRIV = 0x1,
+        VF_CONST = 0x2,
+};
+
 /*
  * symbol types - object, function, float, integer, string
  */
 struct var_t {
-        unsigned int magic, flags;
+        unsigned int magic;
+        unsigned int flags;
         char *name;
         /*
          * TODO: waste alert! unused if stack var.
@@ -277,7 +291,22 @@ isfunction(struct var_t *v)
 {
         return v->magic == QFUNCTION_MAGIC || v->magic == QPTRXI_MAGIC;
 }
-
+static inline bool
+isconst(struct var_t *v)
+{
+        return !!(v->flags & VF_CONST);
+}
+static inline bool
+isprivate(struct var_t *v)
+{
+        return !!(v->flags & VF_PRIV);
+}
+/* true if v is float or int */
+static inline bool
+isnumvar(struct var_t *v)
+{
+        return v->magic == QINT_MAGIC || v->magic == QFLOAT_MAGIC;
+}
 /* helpers for return value of qlex */
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
@@ -285,6 +314,7 @@ static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
 /* array.c */
 extern int array_child(struct var_t *array, int idx, struct var_t *child);
+extern struct var_t *array_vchild(struct var_t *array, int idx);
 extern void array_add_child(struct var_t *array, struct var_t *child);
 extern int array_set_child(struct var_t *array,
                             int idx, struct var_t *child);

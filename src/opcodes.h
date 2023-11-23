@@ -59,6 +59,8 @@ enum {
         KW_DO,
         KW_FOR,
         KW_LOAD,
+        KW_CONST,
+        KW_PRIV,
         N_KW,
 };
 
@@ -112,6 +114,8 @@ enum {
         OC_DO           = TO_KTOK(KW_DO),
         OC_FOR          = TO_KTOK(KW_FOR),
         OC_LOAD         = TO_KTOK(KW_LOAD),
+        OC_CONST        = TO_KTOK(KW_CONST),
+        OC_PRIV         = TO_KTOK(KW_PRIV),
 };
 
 #endif /* EGQ_OPCODES_H */

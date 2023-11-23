@@ -41,6 +41,7 @@ do_sqrt(struct var_t *ret)
 const struct inittbl_t bi_math_inittbl__[] = {
         TOFTBL("sqrt",  do_sqrt,        1, 1),
         TOFTBL("pow",   do_pow,         2, 2),
+        TOFLTB("pi",    (double)M_PI),
         TBLEND,
 };
 

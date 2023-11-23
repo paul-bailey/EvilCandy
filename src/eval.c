@@ -104,11 +104,21 @@ eval_atomic_object(struct var_t *v)
                 syntax("Cannot assign object to existing variable");
         object_from_empty(v);
         do {
+                unsigned flags = 0;
                 struct var_t *child;
                 qlex();
+                if (cur_oc->t == OC_PRIV) {
+                        flags |= VF_PRIV;
+                        qlex();
+                }
+                if (cur_oc->t == OC_CONST) {
+                        flags |= VF_CONST;
+                        qlex();
+                }
                 expect('u');
                 child = var_new();
                 child->name = cur_oc->s;
+                child->flags = flags;
                 qlex();
                 if (cur_oc->t != OC_COMMA) {
                         /* not declaring empty child */

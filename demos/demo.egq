@@ -37,6 +37,7 @@ iterator.whoami = function() {
     print("me, of course!\n");
 };
 
+print("pi is: {}\n".format(Math.pi));
 iterator.tonine(4);
 print("That was to nine. This is to ten:\n");
 iterator.toten(4);

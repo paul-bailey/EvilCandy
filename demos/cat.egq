@@ -1,0 +1,10 @@
+let name = "demo.tpl";
+let f = Io.open(name, "r");
+if (typeof(f) == "string") {
+        print("Cannot open '{}', reason='{}'\n".format(name, f));
+        exit();
+}
+while (!f.eof()) {
+        print(f.readstr() + "\n");
+}
+

@@ -1,7 +1,8 @@
 /*
- * builtin/io.c - Implementation of __gbl__.io
+ * builtin/io.c - Implementation of the __gbl__.Io built-in object
  *
- * f = Io.open(name, mode)
+ * f = Io.open(name, mode) returns a file handle, an object with
+ * methods documented in the file below.  This is sort of like a fil
  */
 #include "builtin.h"
 #include <errno.h>
@@ -188,7 +189,8 @@ static void
 file_reset(struct object_handle_t *oh, void *data)
 {
         struct file_handle_t *fh = data;
-        bug_on(fh != NULL || fh->magic != FILE_HANDLE_MAGIC);
+        bug_on(!fh);
+        bug_on(fh->magic != FILE_HANDLE_MAGIC);
         fclose(fh->fp);
         free(fh);
 }
@@ -233,7 +235,7 @@ static void
 do_open(struct var_t *ret)
 {
         struct var_t *vname = getarg(0);
-        struct var_t *vmode = getarg(0);
+        struct var_t *vmode = getarg(1);
         struct file_handle_t *fh;
         int errno_save = errno;
 

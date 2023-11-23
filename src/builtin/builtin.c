@@ -83,34 +83,6 @@ qb_exit(struct var_t *ret)
         exit(0);
 }
 
-/* Initialize the global object */
-void
-bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
-{
-        const struct inittbl_t *t;
-        if (!tbl)
-                return;
-        for (t = tbl; t->name != NULL; t++) {
-                struct var_t *child;
-                if (t->magic == QOBJECT_MAGIC) {
-                        child = object_new(parent, t->name);
-                        bi_build_internal_object__(child, t->tbl);
-                } else if (t->magic == QPTRXI_MAGIC) {
-                        child = var_new();
-                        child->name = literal(t->name);
-                        child->magic = QPTRXI_MAGIC;
-                        child->fni   = &t->h;
-                        object_add_child(parent, child);
-                } else {
-                        /*
-                         * TODO: support this.  Need some way of making
-                         * sure they're const.
-                         */
-                        bug();
-                }
-        }
-}
-
 static const struct inittbl_t gblinit[] = {
         TOFTBL("print",  qb_print,  1, -1),
         TOFTBL("typeof", qb_typeof, 1, 1),
@@ -151,6 +123,41 @@ bi_init_type_methods__(const struct inittbl_t *tbl, int magic)
         }
 }
 
+/**
+ * bi_build_internal_object__ - build up a C-defined object with a
+ *                              linear table
+ * @parent: The object to add new children to.  This is already set
+ *          to be an object, and may or may not have children already
+ * @tbl: Table to scan.  A unique child will be created for each member
+ *       of this table.
+ */
+void
+bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
+{
+        const struct inittbl_t *t;
+        if (!tbl)
+                return;
+        for (t = tbl; t->name != NULL; t++) {
+                struct var_t *child;
+                if (t->magic == QOBJECT_MAGIC) {
+                        child = object_new(parent, t->name);
+                        bi_build_internal_object__(child, t->tbl);
+                } else if (t->magic == QPTRXI_MAGIC) {
+                        child = var_new();
+                        child->name = literal(t->name);
+                        child->magic = QPTRXI_MAGIC;
+                        child->fni   = &t->h;
+                        object_add_child(parent, child);
+                } else {
+                        /*
+                         * TODO: support this.  Need some way of making
+                         * sure they're const.
+                         */
+                        bug();
+                }
+        }
+}
+
 /* initialize the builtin/ C file modules */
 void
 moduleinit_builtin(void)
@@ -176,11 +183,8 @@ moduleinit_builtin(void)
  * @method_name: Name of method, which MUST have been a return value
  *              of literal().
  *
- * Note: any cur_oc->s was a literal(something), so don't keep calling
- * literal() for those; it would be unnecessarily adding the overhead
- * of a hashtable lookup again.
- *
  * Return: Built-in method matching @name for @v, or NULL otherwise.
+ *      This is the actual reference, not a copy. DO NOT CLOBBER IT.
  */
 struct var_t *
 builtin_method(struct var_t *v, const char *method_name)

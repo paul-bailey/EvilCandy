@@ -1,3 +1,6 @@
+/*
+ * builtin/math.c - Implementation of the __gbl__.Math built-in object
+ */
 #include "builtin.h"
 #include <math.h>
 
@@ -5,6 +8,7 @@ static double
 get_floatarg(int argno)
 {
         struct var_t *x = getarg(argno);
+        bug_on(!x);
         if (x->magic == QINT_MAGIC)
                 return (double)x->i;
         else if (x->magic == QFLOAT_MAGIC)

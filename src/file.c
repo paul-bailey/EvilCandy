@@ -5,9 +5,6 @@
  * in a script except as a return call from Io.open.
  */
 #include "egq.h"
-/* FIXME: This is for Apple, but I recall it's different for Linux */
-#include <fcntl.h>
-#include <unistd.h>
 #include <stdlib.h>
 
 /* only called from file_reset() */
@@ -19,35 +16,41 @@ file_reset(struct var_t *v)
         h->nref--;
         if (h->nref <= 0) {
                 bug_on(h->nref < 0);
-                close(h->fd);
+                fclose(h->fp);
                 free(h);
         }
         v->fp = NULL;
 }
 
+/**
+ * file_new - Open a file and create a QFILE_MAGIC-type handle
+ * @v:          empty struct var_t to store the result
+ * @path:       Path of the file to open, relative to the current working
+ *              directory--the irl one, *not* the one relative to the
+ *              script being executed (ie. we don't do the path
+ *              translation that load_file() does).  Path may also be
+ *              absolute.
+ * @flags:      Same as "mode" arg to fopen (3)
+ *
+ * Return: @v if success, NULL if not
+ */
 struct var_t *
-file_new(const char *path, unsigned int flags)
+file_new(struct var_t *v, const char *path, const char *mode)
 {
-        struct var_t *v;
         struct file_handle_t *h;
-        int fd;
+        FILE *fp;
 
-        if (!!(flags & O_CREAT))
-                fd = open(path, flags, 0666);
-        else
-                fd = open(path, flags);
+        bug_on(v->magic != QEMPTY_MAGIC);
 
-        /*
-         * If fail, don't reset errno.  Calling code is builtin method
-         * which returns a failure string to user if this happens.
-         */
-        if (fd == -1)
+        fp = fopen(path, mode);
+        if (!fp)
                 return NULL;
 
-        v = var_new();
+        v->magic = QFILE_MAGIC;
         h = emalloc(sizeof(*h));
-        h->fd = fd;
-        h->flags = flags;
+        h->fp = fp;
+        h->fd = fileno(fp);
+        h->err = 0;
         h->nref = 1;
         v->fp = h;
         return v;

@@ -5,6 +5,7 @@
 #include "list.h"
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <sys/types.h>
 
 /**
@@ -156,13 +157,15 @@ struct array_handle_t {
 /**
  * struct file_handle_t - Handle to a file
  * @nref:       Number of variables with access to this same open file
- * @fd:         File descriptor
- * @flags:      Same as the flags to open (2)
+ * @fp:         File pointer
+ * @fd:         File descriptor, so we don't have to keep using fileno()
+ * @err:        errno value that was set on last error
  */
 struct file_handle_t {
         int nref;
+        FILE *fp;
         int fd;
-        unsigned int flags;
+        int err;
 };
 
 /*
@@ -341,7 +344,8 @@ extern int expression(struct var_t *retval, unsigned int flags);
 
 /* file.c */
 extern void file_reset(struct var_t *v);
-extern struct var_t *file_new(const char *path, unsigned int flags);
+extern struct var_t *file_new(struct var_t *v,
+                        const char *path, const char *mode);
 
 /* function.c */
 extern void call_function(struct var_t *fn,

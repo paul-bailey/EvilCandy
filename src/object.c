@@ -14,6 +14,8 @@ object_reset(struct var_t *o)
                 bug_on(h->nref < 0);
                 list_foreach_safe(child, tmp, &h->children)
                         var_delete(list2var(child));
+                if (h->fh)
+                        file_handle_decrement(h->fh);
                 free(h);
         }
         o->o.h = NULL;
@@ -54,6 +56,7 @@ object_from_empty(struct var_t *o)
         o->o.h = emalloc(sizeof(*o->o.h));
         list_init(&o->o.h->children);
         o->o.h->nref = 1;
+        o->o.h->fh = NULL;
         o->o.owner = NULL;
         return o;
 }

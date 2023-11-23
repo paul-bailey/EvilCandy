@@ -7,18 +7,30 @@
 #include "egq.h"
 #include <stdlib.h>
 
+/**
+ * file_handle_decrement - "fh->nref--" and all the free-ey stuff if nref
+ *                         is now zero
+ * @fh: Handle to decrement, attached to either a QFILE_MAGIC- or
+ *      QOBJECT_MAGIC-type struct var_t
+ */
+void
+file_handle_decrement(struct file_handle_t *fh)
+{
+        fh->nref--;
+        if (fh->nref <= 0) {
+                bug_on(fh->nref < 0);
+                fclose(fh->fp);
+                free(fh);
+        }
+}
+
 /* only called from file_reset() */
 void
 file_reset(struct var_t *v)
 {
         struct file_handle_t *h = v->fp;
         bug_on(v->magic != QFILE_MAGIC);
-        h->nref--;
-        if (h->nref <= 0) {
-                bug_on(h->nref < 0);
-                fclose(h->fp);
-                free(h);
-        }
+        file_handle_decrement(h);
         v->fp = NULL;
 }
 

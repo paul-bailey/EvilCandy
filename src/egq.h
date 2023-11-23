@@ -124,14 +124,17 @@ struct func_intl_t {
         int maxargs;
 };
 
+struct file_handle_t;
 /**
  * struct object_handle_t - Descriptor for an object handle
  * @children:   List of children members
+ * @fh:         File handle, if inherited a file-type var
  * @nref:       Number of variables that have a handle to this object.
  *              Used for garbage collection
  */
 struct object_handle_t {
         struct list_t children;
+        struct file_handle_t *fh;
         int nref;
 };
 
@@ -346,6 +349,7 @@ extern int expression(struct var_t *retval, unsigned int flags);
 extern void file_reset(struct var_t *v);
 extern struct var_t *file_new(struct var_t *v,
                         const char *path, const char *mode);
+extern void file_handle_decrement(struct file_handle_t *fh);
 
 /* function.c */
 extern void call_function(struct var_t *fn,

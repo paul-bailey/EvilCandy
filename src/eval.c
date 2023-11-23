@@ -97,6 +97,16 @@ eval_atomic_function(struct var_t *v)
                 syntax("Unbalanced brace");
 }
 
+/*
+ * Parse something like...
+ * {
+ *      a1: b1,
+ *      a2: const b2,
+ *      a3: private b3,
+ *      a4: private const b4    [<- no comma on last elem]
+ * }
+ * We're starting just after the left brace.
+ */
 static void
 eval_atomic_object(struct var_t *v)
 {
@@ -106,6 +116,12 @@ eval_atomic_object(struct var_t *v)
         do {
                 unsigned flags = 0;
                 struct var_t *child;
+                char *name;
+                qlex();
+                expect('u');
+                name = cur_oc->s;
+                qlex();
+                expect(OC_COLON);
                 qlex();
                 if (cur_oc->t == OC_PRIV) {
                         flags |= VF_PRIV;
@@ -115,16 +131,11 @@ eval_atomic_object(struct var_t *v)
                         flags |= VF_CONST;
                         qlex();
                 }
-                expect('u');
+                q_unlex();
                 child = var_new();
-                child->name = cur_oc->s;
+                child->name = name;
+                eval(child);
                 child->flags = flags;
-                qlex();
-                if (cur_oc->t != OC_COMMA) {
-                        /* not declaring empty child */
-                        expect(OC_COLON);
-                        eval(child);
-                }
                 object_add_child(v, child);
                 qlex();
         } while (cur_oc->t == OC_COMMA);

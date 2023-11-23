@@ -11,8 +11,6 @@ idx_bound_check(struct var_t *idx)
                 syntax("Array index out of bounds");
 }
 
-#if 1
-
 /* some return values for do_childof_r, better than a bunch of goto's */
 enum {
         ER_INDEX_TYPE = 1,
@@ -25,12 +23,18 @@ static int do_childof_r(struct var_t *v, struct var_t *parent);
 static void
 add_new_child(struct var_t *parent, char *name_lit)
 {
+        unsigned int flags = 0;
         struct var_t *child;
         qlex();
+        if (cur_oc->t == OC_CONST) {
+                flags = VF_CONST;
+                qlex();
+        }
         expect(OC_EQ);
         child = var_new();
         child->name = name_lit;
         eval(child);
+        child->flags = flags;
         object_add_child(parent, child);
 }
 
@@ -200,158 +204,6 @@ do_childof(struct var_t *parent, unsigned int flags)
         }
 }
 
-#else
-/*
- * do_childof: walk down the ".child.grandchild..." path of a parent
- *              and take certain actions.
- * @parent: Parent of the ".child.grandchild..."
- * @flags:  Same as @flags arg to expression(), so we can tell if we
- *          need to skip looking for semicolon at the end.
- *
- * Program counter must be before the first '.', if it exists.
- * Note, the operation might happen with the parent itself, if no
- * '.something' is expressed.
- */
-static void
-do_childof(struct var_t *parent, unsigned int flags)
-{
-        /* safety, our downstream helpers do some clobbering */
-        char *name_add = NULL;
-        bool isarrayi = false;
-        int ai = 0;
-        for (;;) {
-                if (isfunction(parent)) {
-                        /*
-                         * can't change function pointers, so
-                         * assume this is "fn();" instead of, say,
-                         * "fn = something;"
-                         */
-                        call_function(parent, NULL, NULL);
-                        goto expect_semi;
-                }
-
-                qlex();
-                if (name_add) {
-                        struct var_t *child;
-                        expect(OC_EQ);
-                        child = var_new();
-                        child->name = name_add;
-                        eval(child);
-                        object_add_child(parent, child);
-                        goto expect_semi;
-                } else if (isarrayi) {
-                        /*
-                         * todo: what if empty statement,
-                         * like "something[i];" ?
-                         */
-                        struct var_t *child = tstack_getpush();
-                        expect(OC_EQ);
-                        eval(child);
-                        earray_set_child(parent, ai, child);
-                        tstack_pop(NULL);
-                        goto expect_semi;
-                }
-
-                switch (cur_oc->t) {
-                case OC_PER:
-                    {
-                        struct var_t *child;
-                        qlex();
-                        expect('u');
-                        if (parent->magic != QOBJECT_MAGIC) {
-                                struct var_t *method;
-                                method = ebuiltin_method(parent, cur_oc->s);
-                                call_function(method, NULL, parent);
-                                goto expect_semi;
-                        }
-                        child = object_child_l(parent, cur_oc->s);
-                        if (!child)
-                                name_add = cur_oc->s;
-                        else
-                                parent = child;
-                        continue;
-                    }
-
-                case OC_LBRACK:
-                    {
-                        struct var_t *idx = tstack_getpush();
-                        eval(idx);
-                        qlex();
-                        expect(OC_RBRACK);
-                        if (parent->magic == QARRAY_MAGIC) {
-                                struct var_t *child;
-                                if (idx->magic != QINT_MAGIC)
-                                        syntax("Array index must be an integer");
-                                idx_bound_check(idx);
-                                child = array_vchild(parent, idx);
-                                if (child) {
-                                        parent = child;
-                                } else {
-                                        isarrayi = true;
-                                        ai = idx->i;
-                                }
-                        } else if (parent->magic == QOBJECT_MAGIC) {
-                                struct var_t *child = NULL;
-                                if (idx->magic == QINT_MAGIC) {
-                                        idx_bound_check(idx);
-                                        child = eobject_nth_child(parent, idx->i);
-                                } else if (idx->magic == QSTRING_MAGIC) {
-                                        char *name = literal(idx->s.s);
-                                        child = eobject_child_l(parent, name);
-                                        if (!child)
-                                                name_add = name;
-                                        else
-                                                parent = child;
-                                } else {
-                                        syntax("Array index may not be type %s",
-                                               typestr(idx->magic));
-                                }
-                        } else {
-                                syntax("Cannot de-reference type %s with [",
-                                       typestr(parent->magic));
-                        }
-
-                        /* pop idx */
-                        tstack_pop(NULL);
-                        continue;
-                    }
-
-                case OC_EQ:
-                        if (isconst(parent))
-                                goto er_const;
-                        eval(parent);
-                        goto expect_semi;
-
-                case OC_PLUSPLUS:
-                        if (isconst(parent))
-                                goto er_const;
-                        qop_incr(parent);
-                        goto expect_semi;
-
-                case OC_MINUSMINUS:
-                        if (isconst(parent))
-                                goto er_const;
-                        qop_decr(parent);
-                        goto expect_semi;
-
-                default:
-                        /* TODO: +=, -=, <<=, >>=, &=, |=, etc. */
-                        syntax("Invalid token %s at location", cur_oc->s);
-                }
-        }
-
-expect_semi:
-        if (!(flags & FE_FOR)) {
-                qlex();
-                expect(OC_SEMI);
-        }
-        return;
-
-er_const:
-        syntax("Cannot modify const %s", nameof(parent));
-}
-#endif
-
 static void
 seek_eob_1line_(int par, int brace, bool check_semi)
 {
@@ -518,10 +370,19 @@ expression_and_back(struct var_t *retval)
         return ret;
 }
 
+/* Declare automatic variable */
 static int
-let_const_common(bool iscon)
+do_let(struct var_t *unused, unsigned int flags)
 {
+        unsigned vf = 0;
         struct var_t *v;
+
+        if (!!(flags & FE_FOR))
+                syntax("'let' not allowed at this part of 'for' header");
+
+        qlex();
+        expect('u');
+
         /*
          * Make sure name is not same as other automatic vars.
          * If the symbol name already exists elsewhere in the namespace,
@@ -535,51 +396,28 @@ let_const_common(bool iscon)
         v->name = cur_oc->s;
 
         qlex();
+        if (cur_oc->t == OC_CONST) {
+                vf = VF_CONST;
+                qlex();
+        }
+
         switch (cur_oc->t) {
         case OC_SEMI:
                 /* empty declaration, like "let x;" */
-                if (iscon)
-                        warning("Seting const empty variable");
+                if (vf == VF_CONST)
+                        syntax("Empty constants are invalid");
                 break;
         case OC_EQ:
                 /* assign v with the "something" of "let x = something" */
                 eval(v);
-                if (iscon)
-                        v->flags |= VF_CONST;
+                v->flags = vf;
                 qlex();
                 expect(OC_SEMI);
                 break;
+        default:
+                syntax("Invalid token");
         }
         return 0;
-}
-
-/* Declare automatic variable */
-static int
-do_let(struct var_t *unused, unsigned int flags)
-{
-        bool iscon = false;
-
-        if (!!(flags & FE_FOR))
-                syntax("'let' not allowed at this part of 'for' header");
-
-        qlex();
-        if (cur_oc->t == OC_CONST) {
-                iscon = true;
-                qlex();
-        }
-        expect('u');
-        return let_const_common(iscon);
-}
-
-static int
-do_const(struct var_t *unused, unsigned int flags)
-{
-        if (!!(flags & FE_FOR))
-                syntax("'const' not allowed at this part of 'for' header");
-
-        qlex();
-        expect('u');
-        return let_const_common(true);
 }
 
 static int
@@ -778,7 +616,7 @@ do_keyword(struct var_t *retval, unsigned int flags)
                 do_do,          /* KW_DO */
                 do_for,         /* KW_FOR */
                 do_load,        /* KW_LOAD */
-                do_const,       /* KW_CONST */
+                NULL,           /* KW_CONST */
                 NULL,           /* KW_PRIV */
         };
 

@@ -218,4 +218,3 @@ var_reset(struct var_t *v)
         v->flags = 0;
 }
 
-

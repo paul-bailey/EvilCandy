@@ -491,13 +491,16 @@ eval1(struct var_t *v)
         eval2(v);
         while (islogical(t = cur_oc->t)) {
                 struct var_t *w = tstack_getpush();
+                int res;
                 qlex();
                 eval2(w);
 
                 if (t == OC_OROR)
-                        qop_land(v, w);
+                        res = !qop_cmpz(v) || !qop_cmpz(w);
                 else
-                        qop_lor(v, w);
+                        res = !qop_cmpz(v) && !qop_cmpz(w);
+                var_reset(v);
+                qop_assign_int(v, res);
                 tstack_pop(NULL);
         }
 }

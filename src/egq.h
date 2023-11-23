@@ -92,7 +92,8 @@ struct buffer_t {
 /**
  * struct type_t - Used to get info about a typedef
  * @name:       Name of the type
- * @methods:    Linked list of built-in methods for the type
+ * @methods:    Linked list of built-in methods for the type; these are
+ *              things scripts call as functions.
  */
 struct type_t {
         const char *name;
@@ -413,8 +414,6 @@ extern void qop_shift(struct var_t *a, struct var_t *b, int op);
 extern void qop_bit_and(struct var_t *a, struct var_t *b);
 extern void qop_bit_or(struct var_t *a, struct var_t *b);
 extern void qop_xor(struct var_t *a, struct var_t *b);
-extern void qop_land(struct var_t *a, struct var_t *b);
-extern void qop_lor(struct var_t *a, struct var_t *b);
 extern bool qop_cmpz(struct var_t *v);
 extern void qop_incr(struct var_t *v);
 extern void qop_decr(struct var_t *v);

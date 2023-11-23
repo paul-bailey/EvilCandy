@@ -4,12 +4,7 @@
 static struct trie_t *
 insert_helper(struct trie_t *trie, unsigned char c)
 {
-        /*
-         * FIXME: Since I'm only using the lower 16 bits,
-         * couldn't I use the (slightly quicker) bit_count16
-         * instead of bit_count32?
-         */
-        uint32_t bit = 1u << (c & 0xfu);
+        uint16_t bit = 1u << (c & 0xfu);
         if (!trie->bitmap) {
                 bug_on(trie->ptrs != NULL);
                 trie->ptrs = emalloc(sizeof(void *));
@@ -17,15 +12,15 @@ insert_helper(struct trie_t *trie, unsigned char c)
                 trie->ptrs[0] = trie_new();
                 trie = trie->ptrs[0];
         } else if (!(trie->bitmap & bit)) {
-                uint32_t ones;
+                uint16_t ones;
                 int n, i, thisidx;
                 struct trie_t **newarr;
 
                 trie->bitmap |= bit;
                 ones = trie->bitmap & (bit - 1);
-                thisidx = bit_count32(ones);
+                thisidx = bit_count16(ones);
 
-                n = bit_count32(trie->bitmap) + 1;
+                n = bit_count16(trie->bitmap) + 1;
                 newarr = emalloc(sizeof(void *) * n);
                 for (i = 0; i < thisidx; i++)
                         newarr[i] = trie->ptrs[i];
@@ -36,8 +31,8 @@ insert_helper(struct trie_t *trie, unsigned char c)
                 trie->ptrs = newarr;
                 trie = trie->ptrs[thisidx];
         } else {
-                uint32_t ones = trie->bitmap & (bit - 1);
-                trie = trie->ptrs[bit_count32(ones)];
+                uint16_t ones = trie->bitmap & (bit - 1);
+                trie = trie->ptrs[bit_count16(ones)];
         }
         return trie;
 }
@@ -72,12 +67,12 @@ trie_get(struct trie_t *trie, const char *key)
         while (*key) {
                 unsigned char c = *key++;
                 while (c) {
-                        uint32_t ones;
-                        uint32_t bit = 1u << (c & 0xfu);
+                        uint16_t ones;
+                        uint16_t bit = 1u << (c & 0xfu);
                         if (!(trie->bitmap & bit))
                                 return NULL;
                         ones = trie->bitmap & (bit - 1);
-                        trie = trie->ptrs[bit_count32(ones)];
+                        trie = trie->ptrs[bit_count16(ones)];
                         c >>= 4;
                 }
         }
@@ -93,7 +88,7 @@ trie_size(struct trie_t *trie)
 {
         int i, n;
         size_t size;
-        n = bit_count32(trie->bitmap);
+        n = bit_count16(trie->bitmap);
         size = sizeof(*trie) + sizeof(void *) * n;
         for (i = 0; i < n; i++)
                 size += trie_size(trie->ptrs[i]);

@@ -1,3 +1,6 @@
 .*.swp
 src/.*.swp
 src/builtin/.*.swp
+.deps/
+.objs/
+./egq

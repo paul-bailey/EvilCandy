@@ -471,10 +471,10 @@ qop_mov(struct var_t *to, struct var_t *from)
                         if (to->magic == QEMPTY_MAGIC || !to->fn.owner)
                                 to->fn.owner = from->fn.owner;
                         break;
-                case QINTL_MAGIC:
+                case QPTRXI_MAGIC:
                         to->fni = from->fni;
                         break;
-                case QPTRX_MAGIC:
+                case QPTRXU_MAGIC:
                         to->px.ns = from->px.ns;
                         to->px.oc = from->px.oc;
                         break;
@@ -488,18 +488,14 @@ qop_mov(struct var_t *to, struct var_t *from)
                         to->a = from->a;
                         to->a->nref++;
                         break;
-                case QFILE_MAGIC:
-                        to->fp = from->fp;
-                        to->fp->nref++;
-                        break;
                 }
                 to->magic = from->magic;
-        } else if (to->magic == QPTRX_MAGIC
+        } else if (to->magic == QPTRXU_MAGIC
                    && from->magic == QFUNCTION_MAGIC) {
                 to->px.ns = from->fn.mk.ns;
                 to->px.oc = from->fn.mk.oc;
         } else if (to->magic == QFUNCTION_MAGIC
-                   && from->magic == QPTRX_MAGIC) {
+                   && from->magic == QPTRXU_MAGIC) {
                 to->fn.mk.ns = from->px.ns;
                 to->fn.mk.oc = from->px.oc;
         } else if (to->magic == QINT_MAGIC) {

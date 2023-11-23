@@ -6,17 +6,22 @@
 void
 object_reset(struct var_t *o)
 {
-        struct object_handle_t *h = o->o.h;
+        struct object_handle_t *oh;
         bug_on(o->magic != QOBJECT_MAGIC);
-        h->nref--;
-        if (h->nref <= 0) {
+        oh = o->o.h;
+        oh->nref--;
+        if (oh->nref <= 0) {
                 struct list_t *child, *tmp;
-                bug_on(h->nref < 0);
-                list_foreach_safe(child, tmp, &h->children)
+                bug_on(oh->nref < 0);
+                if (oh->priv) {
+                        if (oh->priv_cleanup)
+                                oh->priv_cleanup(oh, oh->priv);
+                        else
+                                free(oh->priv);
+                }
+                list_foreach_safe(child, tmp, &oh->children)
                         var_delete(list2var(child));
-                if (h->fh)
-                        file_handle_decrement(h->fh);
-                free(h);
+                free(oh);
         }
         o->o.h = NULL;
 }
@@ -53,11 +58,9 @@ object_from_empty(struct var_t *o)
         bug_on(o->magic != QEMPTY_MAGIC);
         o->magic = QOBJECT_MAGIC;
 
-        o->o.h = emalloc(sizeof(*o->o.h));
+        o->o.h = ecalloc(sizeof(*o->o.h));
         list_init(&o->o.h->children);
         o->o.h->nref = 1;
-        o->o.h->fh = NULL;
-        o->o.owner = NULL;
         return o;
 }
 

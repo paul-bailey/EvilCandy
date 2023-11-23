@@ -4,7 +4,7 @@
 #include <egq.h>
 
 #define TOFTBL(n, cb, m, M) \
-        { .magic = QINTL_MAGIC, .name = n, \
+        { .magic = QPTRXI_MAGIC, .name = n, \
                 .h = { .fn = cb, .minargs = m, .maxargs = M }}
 
 #define TOOTBL(n, p) \
@@ -40,8 +40,10 @@ getarg(int n)
 } while (0)
 
 /* builtin.c */
-extern void
-bi_init_type_methods__(const struct inittbl_t *tbl, int magic);
+extern void bi_init_type_methods__(const struct inittbl_t *tbl,
+                                   int magic);
+extern void bi_build_internal_object__(struct var_t *parent,
+                                       const struct inittbl_t *tbl);
 
 /* string.c */
 extern void bi_moduleinit_string__(void);

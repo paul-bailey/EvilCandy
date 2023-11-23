@@ -15,7 +15,6 @@ struct type_t TYPEDEFS[Q_NMAGIC] = {
         { .name = "pointer" },
         { .name = "built_in_function" },
         { .name = "array" },
-        { .name = "file" },
 };
 
 #if SIMPLE_ALLOC
@@ -197,8 +196,8 @@ var_reset(struct var_t *v)
         case QINT_MAGIC:
         case QFLOAT_MAGIC:
         case QFUNCTION_MAGIC:
-        case QINTL_MAGIC:
-        case QPTRX_MAGIC:
+        case QPTRXI_MAGIC:
+        case QPTRXU_MAGIC:
                 /* Nothing to free or be fancy with */
                 break;
         case QSTRING_MAGIC:
@@ -209,9 +208,6 @@ var_reset(struct var_t *v)
                 break;
         case QARRAY_MAGIC:
                 array_reset(v);
-                break;
-        case QFILE_MAGIC:
-                file_reset(v);
                 break;
         default:
                 bug();

@@ -158,8 +158,7 @@ do_childof(struct var_t *parent, unsigned int flags)
         struct var_t *p = tstack_getpush();
         qop_mov(p, parent);
         for (;;) {
-                if (p->magic == QFUNCTION_MAGIC
-                    || p->magic == QINTL_MAGIC) {
+                if (isfunction(p)) {
                         call_function(p, NULL, NULL);
                         goto expect_semi;
                         /* else, it's a variable assignment, fall through */
@@ -437,7 +436,7 @@ do_while(struct var_t *retval, unsigned int unused)
                         break;
                 qop_mov(&q_.pc, pc);
         }
-        if (seekstart->magic == QPTRX_MAGIC)
+        if (seekstart->magic == QPTRXU_MAGIC)
                 qop_mov(&q_.pc, seekstart);
         tstack_pop(NULL);
         tstack_pop(NULL);

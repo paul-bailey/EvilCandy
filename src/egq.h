@@ -23,21 +23,36 @@ enum {
         RECURSION_MAX   = 256,
 };
 
-enum {
-        /* magic numbers */
+/**
+ * DOC: Magic numbers for built-in typedefs
+ * @QEMPTY_MAGIC:       Uninitialized variable
+ * @QOBJECT_MAGIC:      Object, or to be egg-headed and more precise, an
+ *                      associative array
+ * @QFUNCTION_MAGIC:    User function.  This differs from QPTRXU_MAGIC in that
+ *                      the latter is only a branch point, while this contains
+ *                      meta-data about the function itself
+ * @QFLOAT_MAGIC:       Floating point number
+ * @QINT_MAGIC:         Integer number
+ * @QSTRING_MAGIC:      C-string and some useful metadata
+ * @QPTRXU_MAGIC:       Execution point
+ * @QPTRXI_MAGIC:       Built-in C function
+ * @QARRAY_MAGIC:       Numerical array, ie. [ a, b, c...]-type array
+ * @Q_NMAGIC:           Boundary to check a magic number against
+ */
+enum type_magic_t {
         QEMPTY_MAGIC = 0,
         QOBJECT_MAGIC,
         QFUNCTION_MAGIC,
         QFLOAT_MAGIC,
         QINT_MAGIC,
         QSTRING_MAGIC,
-        QPTRX_MAGIC,
-        QINTL_MAGIC,
+        QPTRXU_MAGIC,
+        QPTRXI_MAGIC,
         QARRAY_MAGIC,
-        QFILE_MAGIC,
         Q_NMAGIC,
+};
 
-        /* q_.charmap flags */
+enum {
         QDELIM = 0x01,
         QIDENT = 0x02,
         QIDENT1 = 0x04,
@@ -124,17 +139,20 @@ struct func_intl_t {
         int maxargs;
 };
 
-struct file_handle_t;
 /**
  * struct object_handle_t - Descriptor for an object handle
  * @children:   List of children members
- * @fh:         File handle, if inherited a file-type var
+ * @priv:       Internal private data, used by some built-in object types
+ * @priv_cleanup: Way to clean up @priv if destroying this object handle.
+ *              If this is NULL and @priv is not NULL, @priv will be
+ *              simply freed.
  * @nref:       Number of variables that have a handle to this object.
  *              Used for garbage collection
  */
 struct object_handle_t {
         struct list_t children;
-        struct file_handle_t *fh;
+        void *priv;
+        void (*priv_cleanup)(struct object_handle_t *, void *);
         int nref;
 };
 
@@ -157,20 +175,6 @@ struct array_handle_t {
         void *data;
 };
 
-/**
- * struct file_handle_t - Handle to a file
- * @nref:       Number of variables with access to this same open file
- * @fp:         File pointer
- * @fd:         File descriptor, so we don't have to keep using fileno()
- * @err:        errno value that was set on last error
- */
-struct file_handle_t {
-        int nref;
-        FILE *fp;
-        int fd;
-        int err;
-};
-
 /*
  * symbol types - object, function, float, integer, string
  */
@@ -191,7 +195,6 @@ struct var_t {
                         struct var_t *owner;
                         struct marker_t mk;
                 } fn;
-                struct file_handle_t *fp;
                 struct array_handle_t *a;
                 double f;
                 long long i;
@@ -271,7 +274,7 @@ static inline struct var_t *get_this(void) { return q_.fp; }
 static inline bool
 isfunction(struct var_t *v)
 {
-        return v->magic == QFUNCTION_MAGIC || v->magic == QINTL_MAGIC;
+        return v->magic == QFUNCTION_MAGIC || v->magic == QPTRXI_MAGIC;
 }
 
 /* helpers for return value of qlex */
@@ -344,12 +347,6 @@ enum {
         FE_TOP = 0x02,
 };
 extern int expression(struct var_t *retval, unsigned int flags);
-
-/* file.c */
-extern void file_reset(struct var_t *v);
-extern struct var_t *file_new(struct var_t *v,
-                        const char *path, const char *mode);
-extern void file_handle_decrement(struct file_handle_t *fh);
 
 /* function.c */
 extern void call_function(struct var_t *fn,

@@ -48,7 +48,7 @@ init_lib(void)
 
         /* Initialize PC (its initial location will be set later) */
         var_init(&q_.pc);
-        q_.pc.magic = QPTRX_MAGIC;
+        q_.pc.magic = QPTRXU_MAGIC;
 
         /* Initialize stack regs */
         q_.sp = q_.stack;
@@ -56,7 +56,7 @@ init_lib(void)
 
         /* Initialize program counter */
         var_init(&q_.pc);
-        q_.pc.magic = QPTRX_MAGIC;
+        q_.pc.magic = QPTRXU_MAGIC;
         cur_ns = NULL;
         cur_oc = NULL;
 

@@ -227,7 +227,7 @@ ufunction_helper(struct var_t *fn, struct var_t *retval)
 
 /**
  * call_function - Call a function from user code and execute it
- * @fn:         Function handle, which must be type QINTL_MAGIC or
+ * @fn:         Function handle, which must be type QPTRXI_MAGIC or
  *              QFUNCTION_MAGIC.
  * @retval:     Return value of the function being called, or NULL to
  *              ignore
@@ -246,7 +246,7 @@ call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
         if (!retval_save)
                 retval = tstack_getpush();
 
-        if (fn->magic == QINTL_MAGIC) {
+        if (fn->magic == QPTRXI_MAGIC) {
                 ifunction_helper(fn, retval);
         } else {
                 bug_on(fn->magic != QFUNCTION_MAGIC);
@@ -262,7 +262,7 @@ call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
 /**
  * call_function_from_intl - Call a function (user or internal) from
  *                           within an internal built-in function.
- * @fn:         Function handle, which must be type QINTL_MAGIC or
+ * @fn:         Function handle, which must be type QPTRXI_MAGIC or
  *              QFUNCTION_MAGIC.
  * @retval:     Return value of the function being called, or NULL to
  *              ignore
@@ -285,7 +285,7 @@ call_function_from_intl(struct var_t *fn, struct var_t *retval,
         if (!retval_save)
                 retval = tstack_getpush();
 
-        if (fn->magic == QINTL_MAGIC) {
+        if (fn->magic == QPTRXI_MAGIC) {
                 ifunction_helper(fn, retval);
         } else {
                 bug_on(fn->magic != QFUNCTION_MAGIC);

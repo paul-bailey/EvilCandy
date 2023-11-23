@@ -84,8 +84,8 @@ qb_exit(struct var_t *ret)
 }
 
 /* Initialize the global object */
-static void
-initialize_helper(struct var_t *parent, const struct inittbl_t *tbl)
+void
+bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
 {
         const struct inittbl_t *t;
         if (!tbl)
@@ -94,11 +94,11 @@ initialize_helper(struct var_t *parent, const struct inittbl_t *tbl)
                 struct var_t *child;
                 if (t->magic == QOBJECT_MAGIC) {
                         child = object_new(parent, t->name);
-                        initialize_helper(child, t->tbl);
-                } else if (t->magic == QINTL_MAGIC) {
+                        bi_build_internal_object__(child, t->tbl);
+                } else if (t->magic == QPTRXI_MAGIC) {
                         child = var_new();
                         child->name = literal(t->name);
-                        child->magic = QINTL_MAGIC;
+                        child->magic = QPTRXI_MAGIC;
                         child->fni   = &t->h;
                         object_add_child(parent, child);
                 } else {
@@ -143,7 +143,7 @@ bi_init_type_methods__(const struct inittbl_t *tbl, int magic)
         while (t->name != NULL) {
                 struct var_t *v = var_new();
                 bug_on(!strcmp(t->name, "SANITY"));
-                v->magic = QINTL_MAGIC;
+                v->magic = QPTRXI_MAGIC;
                 v->name = literal(t->name);
                 v->fni = &t->h;
                 list_add_tail(&v->siblings, parent_list);
@@ -157,10 +157,10 @@ moduleinit_builtin(void)
 {
         int i;
 
-        /* Do this first.  initialize_helper de-references it. */
+        /* Do this first.  bi_build_internal_object__ de-references it. */
         q_.gbl = object_new(NULL, "__gbl__");
 
-        initialize_helper(q_.gbl, gblinit);
+        bi_build_internal_object__(q_.gbl, gblinit);
         for (i = QEMPTY_MAGIC; i < Q_NMAGIC; i++)
                 list_init(&TYPEDEFS[i].methods);
         bi_moduleinit_string__();

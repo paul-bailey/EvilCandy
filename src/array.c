@@ -18,8 +18,8 @@ array_set_type(struct array_handle_t *h, int magic)
                 break;
         case QOBJECT_MAGIC:
         case QFUNCTION_MAGIC:
-        case QPTRX_MAGIC:
-        case QINTL_MAGIC:
+        case QPTRXU_MAGIC:
+        case QPTRXI_MAGIC:
         case QARRAY_MAGIC:
                 h->datasize = sizeof(struct var_t);
                 break;

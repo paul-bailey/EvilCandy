@@ -179,7 +179,7 @@ struct array_handle_t {
  * symbol types - object, function, float, integer, string
  */
 struct var_t {
-        unsigned long magic;
+        unsigned int magic, flags;
         char *name;
         /*
          * TODO: waste alert! unused if stack var.

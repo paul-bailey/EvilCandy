@@ -3,18 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct type_t TYPEDEFS[Q_NMAGIC] = {
-        { .name = "empty" },
-        { .name = "object" },
-        { .name = "function" },
-        { .name = "float" },
-        { .name = "int" },
-        { .name = "string" },
-        { .name = "pointer" },
-        { .name = "built_in_function" },
-        { .name = "array" },
-};
-
 static struct mempool_t *var_mempool = NULL;
 
 static struct var_t *
@@ -88,6 +76,12 @@ var_copy(struct var_t *to, struct var_t *from)
         bug();
 }
 
+static void
+string_reset(struct var_t *str)
+{
+        buffer_free(&str->s);
+}
+
 /**
  * var_reset - Empty a variable
  * @v: variable to empty.
@@ -97,29 +91,26 @@ var_copy(struct var_t *to, struct var_t *from)
 void
 var_reset(struct var_t *v)
 {
-        switch (v->magic) {
-        case QEMPTY_MAGIC:
-                return;
-        case QINT_MAGIC:
-        case QFLOAT_MAGIC:
-        case QFUNCTION_MAGIC:
-        case QPTRXI_MAGIC:
-        case QPTRXU_MAGIC:
-                /* Nothing to free or be fancy with */
-                break;
-        case QSTRING_MAGIC:
-                buffer_free(&v->s);
-                break;
-        case QOBJECT_MAGIC:
-                object_reset(v);
-                break;
-        case QARRAY_MAGIC:
-                array_reset(v);
-                break;
-        default:
-                bug();
-        }
+        bug_on(v->magic >= Q_NMAGIC);
+
+        void (*rst)(struct var_t *) = TYPEDEFS[v->magic].reset;
+        if (rst)
+                rst(v);
+
         v->magic = QEMPTY_MAGIC;
         v->flags = 0;
 }
+
+struct type_t TYPEDEFS[Q_NMAGIC] = {
+        { .name = "empty" },
+        { .name = "object",     .reset = object_reset__, },
+        { .name = "function" },
+        { .name = "float" },
+        { .name = "int" },
+        { .name = "string",     .reset = string_reset, },
+        { .name = "pointer" },
+        { .name = "built_in_function" },
+        { .name = "array",      .reset = array_reset__,},
+};
+
 

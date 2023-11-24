@@ -90,25 +90,13 @@ static const struct primitive_methods_t empty_primitives = {
         .bit_not        = empty_bit_not,
 };
 
-static void
-obj_mov(struct var_t *to, struct var_t *from)
-{
-        to->o.owner = NULL;
-
-        /* XXX is this the bug, or the fact that I'm not handling it? */
-        bug_on(!!to->o.h && to->magic == QOBJECT_MAGIC);
-
-        to->o.h = from->o.h;
-        to->o.h->nref++;
-}
-
 /*
  * FIXME: Would be nice if we could do like Python and let objects have
  * user-defined operator callbacks
  */
 static const struct primitive_methods_t object_primitives = {
         .cmpz           = cmpzfalse,
-        .mov            = obj_mov,
+        .mov            = object_mov__, /* in object.c */
 };
 
 static void

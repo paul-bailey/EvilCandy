@@ -2,6 +2,19 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* only called from op.c */
+void
+object_mov__(struct var_t *to, struct var_t *from)
+{
+        to->o.owner = NULL;
+
+        /* XXX is the bug this, or the fact that I'm not handling it? */
+        bug_on(!!to->o.h && to->magic == QOBJECT_MAGIC);
+
+        to->o.h = from->o.h;
+        to->o.h->nref++;
+}
+
 static void
 object_handle_reset(struct object_handle_t *oh)
 {
@@ -23,7 +36,7 @@ object_handle_reset(struct object_handle_t *oh)
 
 /* only called from var_reset() */
 void
-object_reset(struct var_t *o)
+object_reset__(struct var_t *o)
 {
         struct object_handle_t *oh;
         bug_on(o->magic != QOBJECT_MAGIC);

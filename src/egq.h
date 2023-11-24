@@ -86,15 +86,20 @@ struct buffer_t {
         ssize_t size;
 };
 
+struct var_t;
+
 /**
  * struct type_t - Used to get info about a typedef
  * @name:       Name of the type
  * @methods:    Linked list of built-in methods for the type; these are
  *              things scripts call as functions.
+ * @reset:      Callback to reset the variable, or NULL if no special
+ *              action is needed.
  */
 struct type_t {
         const char *name;
         struct list_t methods;
+        void (*reset)(struct var_t *);
 };
 
 /**
@@ -121,8 +126,6 @@ struct marker_t {
         struct ns_t *ns;
         struct opcode_t *oc;
 };
-
-struct var_t;
 
 /**
  * struct func_intl_t - descriptor for built-in function
@@ -313,7 +316,7 @@ extern int array_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
 /* only call from var.c */
-extern void array_reset(struct var_t *a);
+extern void array_reset__(struct var_t *a);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);
@@ -432,7 +435,9 @@ static inline size_t oh_nchildren(struct object_handle_t *oh)
 static inline struct var_t **oh_children(struct object_handle_t *oh)
         { return (struct var_t **)oh->children.s; }
 /* only call from var.c */
-extern void object_reset(struct var_t *o);
+extern void object_reset__(struct var_t *o);
+/* only call from op.c */
+extern void object_mov__(struct var_t *to, struct var_t *from);
 
 /* op.c */
 extern void qop_mul(struct var_t *a, struct var_t *b);

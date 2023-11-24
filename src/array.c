@@ -263,14 +263,14 @@ array_from_empty(struct var_t *array)
 }
 
 /**
- * array_reset - Reset array variable; only called from var_reset
+ * array_reset__ - Reset array variable; only called from var_reset
  * @a: Array to reset.
  *
  * If this was the last variable with a link to the array handle, the
  * handle will be destroyed.
  */
 void
-array_reset(struct var_t *a)
+array_reset__(struct var_t *a)
 {
         a->a->nref--;
         if (a->a->nref <= 0) {

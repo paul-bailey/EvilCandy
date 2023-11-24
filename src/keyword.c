@@ -104,7 +104,7 @@ moduleinit_keyword(void)
                 { "for",        OC_FOR },
                 { "load",       OC_LOAD },
                 { "const",      OC_CONST },
-                { "priv",       OC_PRIV },
+                { "private",    OC_PRIV },
                 { NULL, 0 }
         };
         const struct kw_tbl_t *tkw;

@@ -27,7 +27,7 @@ nspush(struct ns_t *new)
         qop_mov(&ns_sp->pc, &q_.pc);
 
         cur_ns = new;
-        cur_oc = new->pgm.oc;
+        cur_oc = (struct opcode_t *)new->pgm.s;
         ns_sp++;
 }
 

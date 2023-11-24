@@ -411,8 +411,14 @@ qlex(void)
 void
 q_unlex(void)
 {
-        bug_on(cur_oc <= cur_ns->pgm.oc);
+        bug_on((char *)cur_oc <= cur_ns->pgm.s);
         cur_oc--;
+}
+
+static void
+buffer_putcode(struct buffer_t *buf, struct opcode_t *oc)
+{
+        buffer_putd(buf, oc, sizeof(*oc));
 }
 
 struct ns_t *
@@ -454,7 +460,7 @@ prescan(const char *filename)
                 buffer_putcode(&ns->pgm, &oc);
         }
 
-        if (!ns->pgm.oc) {
+        if (!ns->pgm.s) {
                 free(ns);
                 return NULL;
         }

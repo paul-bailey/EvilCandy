@@ -11,11 +11,12 @@ pcsanity(struct marker_t *mk)
 {
         struct list_t *i;
         bool ok = false;
+        struct buffer_t *t = &mk->ns->pgm;
         list_foreach(i, &q_.ns) {
                 struct ns_t *ns = container_of(i, struct ns_t, list);
                 if (ns == mk->ns) {
-                        struct buffer_t *t = &mk->ns->pgm;
-                        ok = mk->oc >= t->oc && mk->oc < &t->oc[t->p];
+                        char *ocs = (char *)mk->oc;
+                        ok = ocs >= t->s && ocs < &t->s[t->p];
                         break;
                 }
         }

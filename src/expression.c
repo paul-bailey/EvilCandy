@@ -1,3 +1,7 @@
+/*
+ * expression.c - Code for parsing either a {...} block or a
+ * single-line statement.
+ */
 #include "egq.h"
 #include <string.h>
 #include <stdio.h>

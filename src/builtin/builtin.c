@@ -19,9 +19,12 @@ float_tostr(struct var_t *ret)
         ssize_t len;
         struct var_t *self = get_this();
         bug_on(self->magic != QFLOAT_MAGIC);
+
         len = snprintf(buf, sizeof(buf), "%.8g", self->f);
         /* this should be impossible */
         bug_on(len >= sizeof(buf));
+        (void)len; /* in case NDEBUG */
+
         qop_assign_cstring(ret, buf);
 }
 
@@ -32,8 +35,11 @@ int_tostr(struct var_t *ret)
         ssize_t len;
         struct var_t *self = get_this();
         bug_on(self->magic != QINT_MAGIC);
+
         len = snprintf(buf, sizeof(buf), "%lld", self->i);
         bug_on(len >= sizeof(buf));
+        (void)len; /* in case NDEBUG */
+
         qop_assign_cstring(ret, buf);
 }
 

@@ -69,7 +69,7 @@ struct trie_t {
  * struct buffer_t - Handle to metadata about a dynamically allocated
  *                  string
  * @s:  Pointer to the C string.  After buffer_init(), it's always either
- *      NULL or nulchar-terminated.
+ *      NULL or nulchar-terminated, unless you use the binary API
  * @p:  Current index into @s following last character in this struct.
  * @size: Size of allocated data for @s.
  *
@@ -78,13 +78,10 @@ struct trie_t {
  *      store the @s pointer unless you are finished filling it in.
  *
  * ANOTHER WARNING!!!!   Do not use the string-related functions
- *                      on the same token where you use buffer_putcode
+ *                       on the same buffer where you use buffer_putd
  */
 struct buffer_t {
-        union {
-                char *s;
-                struct opcode_t *oc;
-        };
+        char *s;
         ssize_t p;
         ssize_t size;
 };
@@ -396,6 +393,8 @@ extern size_t my_strrspn(const char *s,
                          const char *charset, const char *end);
 extern int bit_count32(uint32_t v);
 extern int bit_count16(uint16_t v);
+extern int clz32(uint32_t x);
+extern int clz64(uint64_t x);
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)(((void *)(x)) - offsetof(type, member)))
@@ -422,6 +421,12 @@ extern void moduleinit_literal(void);
 
 /* load_file.c */
 extern void load_file(const char *filename);
+
+/* mempool.c */
+struct mempool_t; /* opaque data type to user */
+extern struct mempool_t *mempool_new(size_t datalen);
+extern void *mempool_alloc(struct mempool_t *pool);
+extern void mempool_free(struct mempool_t *pool, void *data);
 
 /* object.c */
 extern struct var_t *object_new(struct var_t *owner, const char *name);
@@ -480,11 +485,12 @@ extern void buffer_putc(struct buffer_t *tok, int c);
 extern void buffer_nputs(struct buffer_t *buf, const char *s, size_t amt);
 extern void buffer_puts(struct buffer_t *tok, const char *s);
 extern void buffer_free(struct buffer_t *tok);
-extern void buffer_putcode(struct buffer_t *tok, struct opcode_t *oc);
 extern int buffer_substr(struct buffer_t *tok, int i);
 extern void buffer_shrinkstr(struct buffer_t *buf, size_t new_size);
 extern void buffer_lstrip(struct buffer_t *buf, const char *charset);
 extern void buffer_rstrip(struct buffer_t *buf, const char *charset);
+extern void buffer_putd(struct buffer_t *tok,
+                        const void *data, size_t datalen);
 
 /* trie.c */
 extern struct trie_t *trie_new(void);

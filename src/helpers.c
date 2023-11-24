@@ -89,6 +89,63 @@ bit_count32(uint32_t v)
         return v;
 }
 
+/*
+ * __builtin_clz is crashing on my x86 machine, and I don't want to have
+ * a bunch of architecture-specific assembly wrappers for this, so just
+ * do the fastest standard-C-only version.
+ *
+ * These are undefined if x is zero.
+ */
+int
+clz32(uint32_t x)
+{
+        int i = 0;
+        while (!(x & 0xffffu)) {
+                x >>= 16;
+                i += 16;
+        }
+        while (!(x & 0xffu)) {
+                x >>= 8;
+                i += 8;
+        }
+        while (!(x & 0xfu)) {
+                x >>= 4;
+                i += 4;
+        }
+        while (!(x & 1)) {
+                x >>= 1;
+                i++;
+        }
+        return i;
+}
+
+int
+clz64(uint64_t x)
+{
+        int i = 0;
+        while (!(x & 0xffffffffu)) {
+                x >>= 32;
+                i += 32;
+        }
+        while (!(x & 0xffffu)) {
+                x >>= 16;
+                i += 16;
+        }
+        while (!(x & 0xffu)) {
+                x >>= 8;
+                i += 8;
+        }
+        while (!(x & 0xfu)) {
+                x >>= 4;
+                i += 4;
+        }
+        while (!(x & 1)) {
+                x >>= 1;
+                i++;
+        }
+        return i;
+}
+
 /* Helper to match */
 static bool
 matchhere(const char *needle, const char *haystack)

@@ -1,3 +1,39 @@
+/*
+ * buffer.c - Append something to the tail of a buffer without
+ *              worrying about buffer overflow
+ *
+ * Use this if:
+ *      1. Nothing in the buffer will need pointers to them
+ *         persistently (eg. they aren't part of linked lists
+ *         or such.  THIS IS IMPORTANT, because realloc may
+ *         be called on the buffer at times.
+ *      2. You need each new datum to be tangential to the last
+ *
+ * See stack.c and mempool.c for different scenarios where those
+ * might be more appropriate.  This can be used in two ways:
+ *
+ *      binary API:     buffer_putd
+ *
+ *      C-string API:   buffer_puts
+ *                      buffer_nputs
+ *                      buffer_putc
+ *                      buffer_substr
+ *                      buffer_shrinkstr
+ *                      buffer_lstrip
+ *                      buffer_rstrip
+ *
+ *      common to both: buffer_init
+ *                      buffer_reset
+ *                      buffer_free
+ *
+ * Always call buffer_init before using it the first time.
+ * DO NOT call buffer_init a second time until you next call
+ * buffer_free.  If you want to re-init the buffer for re-use,
+ * call buffer_reset instead of buffer_init.
+ *
+ * DO NOT mix/match the binary API and the C-string API on the
+ * same buffer unless you call buffer_reset between them.
+ */
 #include "egq.h"
 #include <ctype.h>
 #include <stdlib.h>
@@ -133,7 +169,7 @@ buffer_maybe_realloc(struct buffer_t *buf, size_t amt)
 {
         /* if amt == sizeof opcode, we expect a lot of these */
         size_t blklen = amt == 2 ? 128 : 1024;
-        size_t needsize = buf->p * amt + amt;
+        size_t needsize = buf->p + amt;
         while (needsize >= buf->size) {
                 char *tmp = realloc(buf->s, buf->size + blklen);
                 if (!tmp)
@@ -165,14 +201,6 @@ buffer_putc(struct buffer_t *buf, int c)
 
         /* Keep always nulchar terminated */
         buf->s[buf->p] = '\0';
-}
-
-void
-buffer_putcode(struct buffer_t *buf, struct opcode_t *oc)
-{
-        buffer_maybe_realloc(buf, sizeof(*oc));
-        memcpy(&buf->oc[buf->p], oc, sizeof(*oc));
-        buf->p++;
 }
 
 /**
@@ -304,6 +332,23 @@ buffer_substr(struct buffer_t *buf, int i)
                 return -1;
         }
         return buf->s[i];
+}
+
+/**
+ * buffer_putd - The binary version of buffer_put*()
+ * @buf:        Buffer
+ * @data:       Data to append to buffer
+ * @datalen:    Length of @data
+ *
+ * DO NOT use the text-based buffer API if you are also using this!
+ * This does not ensure nulchar termination at the end of the data.
+ */
+void
+buffer_putd(struct buffer_t *buf, const void *data, size_t datalen)
+{
+        buffer_maybe_realloc(buf, datalen);
+        memcpy(&buf->s[buf->p], data, datalen);
+        buf->p += datalen;
 }
 
 

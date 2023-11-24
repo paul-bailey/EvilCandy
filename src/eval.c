@@ -264,7 +264,7 @@ eval_index(void)
                 syntax("Array index must evaluate to integer");
         i = v->i;
         if (i > INT_MAX || i < INT_MIN)
-                syntax("Array index %lld unacceptably ginormous", i);
+                syntax("Array index %lld out of range", i);
         tstack_pop(NULL);
         qlex();
         expect(OC_RBRACK);

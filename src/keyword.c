@@ -2,12 +2,12 @@
 
 /*
  * Brute-force, dumbest-but-fastest version of a trie.  The only RAM
- * optimization is in the fact that all keywords have just lower-case
- * alphabet characters, therefore we can reduce the per-trie array to
- * size 26.  At a point when there were eleven keywords, this was
- * measured to consume ~9.7KB, as opposed to a bitwise trie, which
- * consumed only ~1KB.  I can live with that.  Computers are no longer
- * made of wood and sails.
+ * optimizations are 1) since all keywords have just lower-case alphabet
+ * characters, we can reduce the per-trie array to 26 pointers; and
+ * 2) there aren't that many keywords.  At a point when there were eleven
+ * keywords, this was measured to consume ~9.7KB, as opposed to a bitwise
+ * trie, which consumed only ~1KB.  I can live with that.  Computers are
+ * no longer made of wood and sails.
  */
 struct kwtrie_t {
         int value;
@@ -24,6 +24,13 @@ new_kwtrie(void)
         return ret;
 }
 
+/**
+ * keyword_seek - Get a keyword's opcode
+ * @key: keyword
+ *
+ * Return: -1 if @key is not a keyword
+ *         an OC_* enum matching @key if it is
+ */
 int
 keyword_seek(const char *key)
 {
@@ -59,6 +66,10 @@ keyword_insert(const char *key, int value)
         trie->value = value;
 }
 
+#if 0
+/*
+ * TODO: Restore this, as a diagnostic function
+ */
 size_t
 memused(struct kwtrie_t *trie)
 {
@@ -72,6 +83,7 @@ memused(struct kwtrie_t *trie)
                 size += memused(trie->ptrs[i]);
         return size;
 }
+#endif
 
 void
 moduleinit_keyword(void)

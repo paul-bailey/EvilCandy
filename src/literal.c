@@ -60,7 +60,7 @@
  *      are probably faster, even bitwise ones, since there are no
  *      collisions.
  */
-#define TRIE_IT 0
+#define TRIE_IT 1
 
 #if TRIE_IT
 

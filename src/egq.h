@@ -63,6 +63,15 @@ struct var_t;
 struct object_handle_t;
 struct array_handle_t;
 
+/**
+ * struct trie_t - Node for bitwise trie
+ * @bitmap: Bitmap of hits for this node.
+ * @value: Value attached to this node, or NULL if this is purely a
+ *      pass-through node
+ * @ptrs: Array of pointers to the next nodes down.
+ *
+ * See comment header in trie.c for how it operates.
+ */
 struct trie_t {
         uint32_t bitmap;
         void *value;

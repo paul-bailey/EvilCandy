@@ -32,6 +32,11 @@ struct inittbl_t {
         };
 };
 
+struct var_wrapper_t {
+        struct list_t siblings;
+        struct var_t *v;
+};
+
 static inline struct var_t *
 getarg(int n)
 {

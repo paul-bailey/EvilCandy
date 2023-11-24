@@ -48,7 +48,6 @@ var_init(struct var_t *v)
         v->magic = QEMPTY_MAGIC;
         v->name = NULL;
         v->flags = 0;
-        list_init(&v->siblings);
         return v;
 }
 
@@ -73,7 +72,6 @@ void
 var_delete(struct var_t *v)
 {
         var_reset(v);
-        list_remove(&v->siblings);
         /* XXX REVISIT: we didn't set v->name, so we're not freeing it */
         var_free(v);
 }
@@ -94,7 +92,7 @@ var_copy(struct var_t *to, struct var_t *from)
  * var_reset - Empty a variable
  * @v: variable to empty.
  *
- * This does not remove @v from its sibling list or delete its name.
+ * This does not change @v's name
  */
 void
 var_reset(struct var_t *v)
@@ -121,7 +119,6 @@ var_reset(struct var_t *v)
         default:
                 bug();
         }
-        list_remove(&v->siblings);
         v->magic = QEMPTY_MAGIC;
         v->flags = 0;
 }

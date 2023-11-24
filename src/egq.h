@@ -148,15 +148,16 @@ struct func_intl_t {
  *              Used for garbage collection
  */
 struct object_handle_t {
-        struct list_t children;
         void *priv;
         void (*priv_cleanup)(struct object_handle_t *, void *);
         int nref;
+        struct buffer_t children;
 };
 
 /**
  * struct array_handle_t - Handle to a numerical array
  * @nref:       Number of variables with access to this array
+ *              Used for garbage collection
  * @type:       type of data stored in the array, a Q*_MAGIC enum
  * @nmemb:      Size of the array, in number of elements
  * @allocsize:  Size of the array, in number of bytes currently allocated
@@ -193,11 +194,6 @@ struct var_t {
         unsigned int magic;
         unsigned int flags;
         char *name;
-        /*
-         * TODO: waste alert! unused if stack var.
-         * maybe need special case for member var
-         */
-        struct list_t siblings;
         union {
                 struct {
                         struct var_t *owner;
@@ -398,11 +394,6 @@ extern int clz64(uint64_t x);
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)(((void *)(x)) - offsetof(type, member)))
-static inline struct var_t *
-list2var(struct list_t *list)
-{
-        return container_of(list, struct var_t, siblings);
-}
 
 /* keyword.c */
 extern int keyword_seek(const char *s);
@@ -435,6 +426,11 @@ extern struct var_t *object_child(struct var_t *o, const char *s);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
 extern struct var_t *object_nth_child(struct var_t *o, int n);
 extern void object_add_child(struct var_t *o, struct var_t *v);
+/* XXX: These are kinda private to object.c and builtin/object.c */
+static inline size_t oh_nchildren(struct object_handle_t *oh)
+        { return oh->children.p / sizeof(void *); }
+static inline struct var_t **oh_children(struct object_handle_t *oh)
+        { return (struct var_t **)oh->children.s; }
 /* only call from var.c */
 extern void object_reset(struct var_t *o);
 

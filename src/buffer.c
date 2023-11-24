@@ -167,16 +167,15 @@ buffer_free(struct buffer_t *buf)
 static void
 buffer_maybe_realloc(struct buffer_t *buf, size_t amt)
 {
-        /* if amt == sizeof opcode, we expect a lot of these */
-        size_t blklen = amt == 2 ? 128 : 1024;
+        enum { BLKLEN = 128 };
         size_t needsize = buf->p + amt;
         while (needsize >= buf->size) {
-                char *tmp = realloc(buf->s, buf->size + blklen);
+                char *tmp = realloc(buf->s, buf->size + BLKLEN);
                 if (!tmp)
                         fail("realloc failed");
 
                 buf->s = tmp;
-                buf->size += blklen;
+                buf->size += BLKLEN;
         }
 }
 

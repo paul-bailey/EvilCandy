@@ -2,6 +2,25 @@
 #include <string.h>
 #include <stdlib.h>
 
+static void
+object_handle_reset(struct object_handle_t *oh)
+{
+        struct buffer_t *buf = &oh->children;
+        int i, n = oh_nchildren(oh);
+        struct var_t **ppvar = oh_children(oh);
+        bug_on(oh->nref < 0);
+        if (oh->priv) {
+                if (oh->priv_cleanup)
+                        oh->priv_cleanup(oh, oh->priv);
+                else
+                        free(oh->priv);
+        }
+        for (i = 0; i < n; i++)
+                var_delete(ppvar[i]);
+        buffer_free(buf);
+        free(oh);
+}
+
 /* only called from var_reset() */
 void
 object_reset(struct var_t *o)
@@ -10,19 +29,8 @@ object_reset(struct var_t *o)
         bug_on(o->magic != QOBJECT_MAGIC);
         oh = o->o.h;
         oh->nref--;
-        if (oh->nref <= 0) {
-                struct list_t *child, *tmp;
-                bug_on(oh->nref < 0);
-                if (oh->priv) {
-                        if (oh->priv_cleanup)
-                                oh->priv_cleanup(oh, oh->priv);
-                        else
-                                free(oh->priv);
-                }
-                list_foreach_safe(child, tmp, &oh->children)
-                        var_delete(list2var(child));
-                free(oh);
-        }
+        if (oh->nref <= 0)
+                object_handle_reset(oh);
         o->o.h = NULL;
 }
 
@@ -59,7 +67,7 @@ object_from_empty(struct var_t *o)
         o->magic = QOBJECT_MAGIC;
 
         o->o.h = ecalloc(sizeof(*o->o.h));
-        list_init(&o->o.h->children);
+        buffer_init(&o->o.h->children);
         o->o.h->nref = 1;
         return o;
 }
@@ -71,21 +79,20 @@ object_from_empty(struct var_t *o)
 struct var_t *
 object_child_l(struct var_t *o, const char *s)
 {
-        struct list_t *child, *parent = &o->o.h->children;
-        bug_on(!parent);
-        bug_on(o->magic != QOBJECT_MAGIC);
+        int i, n;
+        struct var_t **ppvar;
 
-        /*
-         * TODO: This is still a linear search--O(#children) to be an
-         * egghead about it--Maybe objects should have their own built-in
-         * hashtables or tries, since some objects' lists can get quite
-         * long.
-         */
-        list_foreach(child, parent) {
-                struct var_t *v = list2var(child);
-                if (v->name == s)
-                        return v;
+        bug_on(o->magic != QOBJECT_MAGIC);
+        bug_on(!o->o.h);
+
+        n = oh_nchildren(o->o.h);
+        ppvar = oh_children(o->o.h);
+
+        for (i = 0; i < n; i++) {
+                if (ppvar[i] && ppvar[i]->name == s)
+                        return ppvar[i];
         }
+
         return builtin_method(o, s);
 }
 
@@ -108,14 +115,14 @@ object_child(struct var_t *o, const char *s)
 struct var_t *
 object_nth_child(struct var_t *o, int n)
 {
-        int i = 0;
-        struct list_t *child, *parent = &o->o.h->children;
-        list_foreach(child, parent) {
-                if (i == n)
-                        return list2var(child);
-                i++;
-        }
-        return NULL;
+        struct var_t **ppvar;
+        struct buffer_t *buf = &o->o.h->children;
+        size_t byteoffs = n * sizeof(void *);
+        if (byteoffs >= buf->p)
+                return NULL;
+
+        ppvar = (struct var_t **)buf->s + byteoffs;
+        return *ppvar;
 }
 
 void
@@ -126,6 +133,6 @@ object_add_child(struct var_t *parent, struct var_t *child)
         } else if (child->magic == QFUNCTION_MAGIC) {
                 child->fn.owner = parent;
         }
-        list_add_tail(&child->siblings, &parent->o.h->children);
+        buffer_putd(&parent->o.h->children, &child, sizeof(void *));
 }
 

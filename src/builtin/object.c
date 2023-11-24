@@ -9,22 +9,27 @@
  *      it happens to be.
  * Returns nothing
  */
-static void
+void
 object_foreach(struct var_t *ret)
 {
-        struct list_t *child, *tmp;
         struct var_t *self = get_this();
-        struct var_t *fn = getarg(0);
+        struct var_t *func = getarg(0);
+        struct var_t **ppvar;
+        int i, n;
 
-        if (!fn || !isfunction(fn))
+        if (!func || !isfunction(func))
                 syntax("Expected: function");
         bug_on(self->magic != QOBJECT_MAGIC);
 
-        list_foreach_safe(child, tmp, &self->o.h->children) {
-                struct var_t *elem = list2var(child);
-                call_function_from_intl(fn, NULL, NULL, 1, &elem);
+        n = oh_nchildren(self->o.h);
+        ppvar = oh_children(self->o.h);
+        for (i = 0; i < n; i++) {
+                if (!ppvar[i])
+                        continue;
+                call_function_from_intl(func, NULL, NULL, 1, &ppvar[i]);
         }
 }
+
 
 /*
  * len()  (no args)
@@ -33,7 +38,6 @@ object_foreach(struct var_t *ret)
 static void
 object_len(struct var_t *ret)
 {
-        struct list_t *list;
         struct var_t *v;
         int i = 0;
 
@@ -44,9 +48,7 @@ object_len(struct var_t *ret)
         }
         switch (v->magic) {
         case QOBJECT_MAGIC:
-                i = 0;
-                list_foreach(list, &v->o.h->children)
-                        ++i;
+                i = oh_nchildren(v->o.h);
                 break;
         case QSTRING_MAGIC:
                 i = 0;

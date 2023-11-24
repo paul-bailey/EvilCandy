@@ -119,12 +119,20 @@ bi_init_type_methods__(const struct inittbl_t *tbl, int magic)
         const struct inittbl_t *t = tbl;
         struct list_t *parent_list = &TYPEDEFS[magic].methods;
         while (t->name != NULL) {
+                /*
+                 * raw malloc, sure, we only need a few of these,
+                 * once at startup
+                 */
+                struct var_wrapper_t *w = emalloc(sizeof(*w));
                 struct var_t *v = var_new();
+
                 bug_on(!strcmp(t->name, "SANITY"));
                 v->magic = QPTRXI_MAGIC;
                 v->name = literal(t->name);
                 v->fni = &t->h;
-                list_add_tail(&v->siblings, parent_list);
+                w->v = v;
+                list_init(&w->siblings);
+                list_add_tail(&w->siblings, parent_list);
                 t++;
         }
 }
@@ -194,6 +202,9 @@ moduleinit_builtin(void)
         bi_init_type_methods__(int_methods, QINT_MAGIC);
 }
 
+#define list2wvar(li) \
+        (container_of(li, struct var_wrapper_t, siblings)->v)
+
 /**
  * builtin_method - Return a built-in method for a variable's type
  * @v: Variable to check
@@ -214,7 +225,7 @@ builtin_method(struct var_t *v, const char *method_name)
 
         methods = &TYPEDEFS[magic].methods;
         list_foreach(m, methods) {
-                w = list2var(m);
+                w = list2wvar(m);
                 if (w->name == method_name)
                         return w;
         }

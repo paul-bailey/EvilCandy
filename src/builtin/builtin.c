@@ -85,7 +85,7 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                 child->name = literal(t->name);
                 switch (t->magic) {
                 case QOBJECT_MAGIC:
-                        object_from_empty(child);
+                        object_init(child);
                         bi_build_internal_object__(child, t->tbl);
                         break;
                 case QPTRXI_MAGIC:
@@ -117,7 +117,9 @@ void
 moduleinit_builtin(void)
 {
         /* Do this first.  bi_build_internal_object__ de-references it. */
-        q_.gbl = object_new(NULL, "__gbl__");
+        q_.gbl = var_new();
+        q_.gbl->name = literal("__gbl__");
+        object_init(q_.gbl);
         bi_build_internal_object__(q_.gbl, gblinit);
 }
 

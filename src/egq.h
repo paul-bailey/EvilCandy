@@ -59,13 +59,15 @@ enum {
         QDDELIM = 0x08,
 };
 
+struct var_t;
+struct object_handle_t;
+struct array_handle_t;
+
 struct trie_t {
         uint32_t bitmap;
         void *value;
         struct trie_t **ptrs;
 };
-
-struct var_t;
 
 /*
  * Per-type callbacks for mathematical operators, like + or -
@@ -178,43 +180,6 @@ struct func_intl_t {
 };
 
 /**
- * struct object_handle_t - Descriptor for an object handle
- * @children:   List of children members
- * @priv:       Internal private data, used by some built-in object types
- * @priv_cleanup: Way to clean up @priv if destroying this object handle.
- *              If this is NULL and @priv is not NULL, @priv will be
- *              simply freed.
- * @nref:       Number of variables that have a handle to this object.
- *              Used for garbage collection
- */
-struct object_handle_t {
-        void *priv;
-        void (*priv_cleanup)(struct object_handle_t *, void *);
-        int nref;
-        struct buffer_t children;
-};
-
-/**
- * struct array_handle_t - Handle to a numerical array
- * @nref:       Number of variables with access to this array
- *              Used for garbage collection
- * @type:       type of data stored in the array, a Q*_MAGIC enum
- * @nmemb:      Size of the array, in number of elements
- * @allocsize:  Size of the array, in number of bytes currently allocated
- *              for it
- * @datasize:   Size of each member of the array (so we don't have to
- *              keep figuring it out from @type all the time)
- */
-struct array_handle_t {
-        int nref;
-        int type;
-        unsigned int nmemb;
-        size_t allocsize;
-        size_t datasize;
-        void *data;
-};
-
-/**
  * DOC: Variable flags
  * @VF_PRIV:    Private variable, only applies to object members
  * @VF_CONST:   Constant variable, variable can be destroyed, but before
@@ -226,6 +191,7 @@ enum {
         VF_PRIV = 0x1,
         VF_CONST = 0x2,
 };
+
 
 /*
  * symbol types - object, function, float, integer, string
@@ -345,14 +311,13 @@ static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
-/* array.c */
+/* types/array.c */
 extern int array_child(struct var_t *array, int idx, struct var_t *child);
 extern struct var_t *array_vchild(struct var_t *array, int idx);
 extern void array_add_child(struct var_t *array, struct var_t *child);
 extern int array_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
-extern void moduleinit_array(void);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);
@@ -402,36 +367,19 @@ extern int earray_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *esymbol_seek(const char *name);
 
-/* exec.c */
+/* expression.c */
 enum {
         FE_FOR = 0x01,
         FE_TOP = 0x02,
 };
 extern int expression(struct var_t *retval, unsigned int flags);
 
-/* function.c */
+/* types/function.c */
 extern void call_function(struct var_t *fn,
                         struct var_t *retval, struct var_t *owner);
 extern void call_function_from_intl(struct var_t *fn,
                         struct var_t *retval, struct var_t *owner,
                         int argc, struct var_t *argv[]);
-extern void moduleinit_function(void);
-/* XXX These are semi-private */
-static inline struct var_t *
-getarg(int n)
-{
-        if (n < 0 || n >= (q_.sp - 1 - q_.fp))
-                return NULL;
-        return q_.fp + 1 + n;
-}
-#define arg_type_err(v, want) do { \
-        syntax("Argument is type '%s' but '%s' is expected", \
-                typestr((v)->magic), typestr(want)); \
-} while (0)
-#define arg_type_check(v, want) do { \
-        if ((v)->magic != (want)) \
-                arg_type_err(v, want); \
-} while (0)
 
 /* helpers.c */
 extern int x2bin(int c);
@@ -473,19 +421,15 @@ extern struct mempool_t *mempool_new(size_t datalen);
 extern void *mempool_alloc(struct mempool_t *pool);
 extern void mempool_free(struct mempool_t *pool, void *data);
 
-/* object.c */
-extern struct var_t *object_new(struct var_t *owner, const char *name);
-extern struct var_t *object_from_empty(struct var_t *v);
+/* types/object.c */
+extern struct var_t *object_init(struct var_t *v);
 extern struct var_t *object_child(struct var_t *o, const char *s);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
 extern struct var_t *object_nth_child(struct var_t *o, int n);
 extern void object_add_child(struct var_t *o, struct var_t *v);
-/* XXX: These are kinda private to object.c and builtin/object.c */
-static inline size_t oh_nchildren(struct object_handle_t *oh)
-        { return oh->children.p / sizeof(void *); }
-static inline struct var_t **oh_children(struct object_handle_t *oh)
-        { return (struct var_t **)oh->children.s; }
-extern void moduleinit_object(void);
+extern void object_set_priv(struct var_t *o, void *priv,
+                      void (*cleanup)(struct object_handle_t *, void *));
+extern void *object_get_priv(struct var_t *o);
 
 /* op.c */
 extern void qop_mul(struct var_t *a, struct var_t *b);

@@ -2,6 +2,26 @@
 #include "var.h"
 #include <stdlib.h>
 
+/**
+ * struct array_handle_t - Handle to a numerical array
+ * @nref:       Number of variables with access to this array
+ *              Used for garbage collection
+ * @type:       type of data stored in the array, a Q*_MAGIC enum
+ * @nmemb:      Size of the array, in number of elements
+ * @allocsize:  Size of the array, in number of bytes currently allocated
+ *              for it
+ * @datasize:   Size of each member of the array (so we don't have to
+ *              keep figuring it out from @type all the time)
+ */
+struct array_handle_t {
+        int nref;
+        int type;
+        unsigned int nmemb;
+        size_t allocsize;
+        size_t datasize;
+        void *data;
+};
+
 static void
 array_set_type(struct array_handle_t *h, int magic)
 {

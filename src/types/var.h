@@ -2,6 +2,7 @@
 #define EGQ_VAR_H
 
 #include <egq.h>
+#include <uarg.h>
 
 /*
  * can't just be a-b, because if they're floats, a non-zero result

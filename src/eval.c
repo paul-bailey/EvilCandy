@@ -112,7 +112,7 @@ eval_atomic_object(struct var_t *v)
 {
         if (v->magic != QEMPTY_MAGIC)
                 syntax("Cannot assign object to existing variable");
-        object_from_empty(v);
+        object_init(v);
         do {
                 unsigned flags = 0;
                 struct var_t *child;

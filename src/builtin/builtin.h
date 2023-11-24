@@ -2,6 +2,7 @@
 #define EGQ_BUILTIN_H
 
 #include <egq.h>
+#include <uarg.h>
 
 #define TOFTBL(n, cb, m, M) \
         { .magic = QPTRXI_MAGIC, .name = n, \

@@ -31,7 +31,7 @@ getfh(void)
         struct var_t *self = get_this();
         struct file_handle_t *fh;
         bug_on(self->magic != QOBJECT_MAGIC);
-        fh = self->o.h->priv;
+        fh = object_get_priv(self);
         bug_on(fh->magic != FILE_HANDLE_MAGIC);
         return fh;
 }
@@ -249,9 +249,8 @@ do_open(struct var_t *ret)
         if ((fh = file_new(vname->s.s, vmode->s.s)) == NULL)
                 goto bad;
 
-        object_from_empty(ret);
-        ret->o.h->priv = fh;
-        ret->o.h->priv_cleanup = file_reset;
+        object_init(ret);
+        object_set_priv(ret, fh, file_reset);
         bi_build_internal_object__(ret, file_methods);
         return;
 

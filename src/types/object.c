@@ -2,6 +2,156 @@
 #include <string.h>
 #include <stdlib.h>
 
+/**
+ * struct object_handle_t - Descriptor for an object handle
+ * @children:   List of children members
+ * @priv:       Internal private data, used by some built-in object types
+ * @priv_cleanup: Way to clean up @priv if destroying this object handle.
+ *              If this is NULL and @priv is not NULL, @priv will be
+ *              simply freed.
+ * @nref:       Number of variables that have a handle to this object.
+ *              Used for garbage collection
+ */
+struct object_handle_t {
+        void *priv;
+        void (*priv_cleanup)(struct object_handle_t *, void *);
+        int nref;
+        struct buffer_t children;
+};
+
+static inline size_t oh_nchildren(struct object_handle_t *oh)
+        { return oh->children.p / sizeof(void *); }
+static inline struct var_t **oh_children(struct object_handle_t *oh)
+        { return (struct var_t **)oh->children.s; }
+
+/* **********************************************************************
+ *                              API functions
+ ***********************************************************************/
+
+/**
+ * object_init - Convert an empty variable into an initialized
+ *                      object type.
+ * @v: An empty variable to turn into an object
+ *
+ * Return: @v
+ */
+struct var_t *
+object_init(struct var_t *o)
+{
+        bug_on(o->magic != QEMPTY_MAGIC);
+        o->magic = QOBJECT_MAGIC;
+
+        o->o.h = ecalloc(sizeof(*o->o.h));
+        buffer_init(&o->o.h->children);
+        o->o.h->nref = 1;
+        return o;
+}
+
+/**
+ * object_set_priv - Set an object's private data
+ * @o: Object
+ * @priv: Private data to set
+ * @cleanup: Cleanup method to clean up private data at garbage
+ *           collection time, or NULL to let it be simply free'd
+ */
+void
+object_set_priv(struct var_t *o, void *priv,
+                void (*cleanup)(struct object_handle_t *, void *))
+{
+        bug_on(o->magic != QOBJECT_MAGIC);
+        o->o.h->priv = priv;
+        o->o.h->priv_cleanup = cleanup;
+}
+
+/**
+ * object_get_priv - Get an object's private data
+ */
+void *
+object_get_priv(struct var_t *o)
+{
+        return o->o.h->priv;
+}
+
+/**
+ * object_child_l - Like object_child, but @s is already known be a
+ *                  return value of literal()
+ */
+struct var_t *
+object_child_l(struct var_t *o, const char *s)
+{
+        int i, n;
+        struct var_t **ppvar;
+
+        bug_on(o->magic != QOBJECT_MAGIC);
+        bug_on(!o->o.h);
+
+        n = oh_nchildren(o->o.h);
+        ppvar = oh_children(o->o.h);
+
+        for (i = 0; i < n; i++) {
+                if (ppvar[i] && ppvar[i]->name == s)
+                        return ppvar[i];
+        }
+
+        return builtin_method(o, s);
+}
+
+/**
+ * object_child - Return an object's child
+ * @o:  Object to seek the child of.
+ * @s:  Name of the child
+ *
+ * Return:    - the child if found
+ *            - the built-in method matching @s if the child is not found
+ *            - NULL if neither are found.
+ */
+struct var_t *
+object_child(struct var_t *o, const char *s)
+{
+        return object_child_l(o, literal(s));
+}
+
+/**
+ * object_nth_child - Get the nth child of an object
+ * @o: object to seek
+ * @n: The "n" of "nth", indexed from zero
+ *
+ * Return: the nth child--which of course could be anything, since this
+ * is an associative array--or NULL if @n is out of bounds.
+ */
+struct var_t *
+object_nth_child(struct var_t *o, int n)
+{
+        struct var_t **ppvar;
+        struct buffer_t *buf = &o->o.h->children;
+        size_t byteoffs = n * sizeof(void *);
+        if (byteoffs >= buf->p)
+                return NULL;
+
+        ppvar = (struct var_t **)buf->s + byteoffs;
+        return *ppvar;
+}
+
+/**
+ * object_add_child - Append a child to an object
+ * @parent: object to append a child to
+ * @child: child to append to @parent
+ */
+void
+object_add_child(struct var_t *parent, struct var_t *child)
+{
+        if (child->magic == QOBJECT_MAGIC) {
+                child->o.owner = parent;
+        } else if (child->magic == QFUNCTION_MAGIC) {
+                child->fn.owner = parent;
+        }
+        buffer_putd(&parent->o.h->children, &child, sizeof(void *));
+}
+
+/* **********************************************************************
+ *              Built-in Operator Callbacks
+ ***********************************************************************/
+
 /* qop_mov callback for object */
 static void
 object_mov(struct var_t *to, struct var_t *from)
@@ -52,111 +202,9 @@ object_reset(struct var_t *o)
         o->o.h = NULL;
 }
 
-/**
- * object_new - Create a new object and set its owner and name
- * @owner: Owning object
- * @name: Name of the object
- *
- * Return: New object
- */
-struct var_t *
-object_new(struct var_t *owner, const char *name)
-{
-        struct var_t *o = object_from_empty(var_new());
-        o->name = literal(name);
-        if (owner)
-                object_add_child(owner, o);
-        return o;
-}
-
-/**
- * object_from_empty - Convert an empty variable into an initialized
- *                      object type.
- * @v: variable
- *
- * Return: @v
- *
- * This is an alternative to object_new();
- */
-struct var_t *
-object_from_empty(struct var_t *o)
-{
-        bug_on(o->magic != QEMPTY_MAGIC);
-        o->magic = QOBJECT_MAGIC;
-
-        o->o.h = ecalloc(sizeof(*o->o.h));
-        buffer_init(&o->o.h->children);
-        o->o.h->nref = 1;
-        return o;
-}
-
-/**
- * object_child_l - Like object_child, but @s is already known be a
- *                  return value of literal()
- */
-struct var_t *
-object_child_l(struct var_t *o, const char *s)
-{
-        int i, n;
-        struct var_t **ppvar;
-
-        bug_on(o->magic != QOBJECT_MAGIC);
-        bug_on(!o->o.h);
-
-        n = oh_nchildren(o->o.h);
-        ppvar = oh_children(o->o.h);
-
-        for (i = 0; i < n; i++) {
-                if (ppvar[i] && ppvar[i]->name == s)
-                        return ppvar[i];
-        }
-
-        return builtin_method(o, s);
-}
-
-/**
- * object_child - Return an object's child
- * @o:  Object to seek the child of.
- * @s:  Name of the child
- *
- * Return:    - the child if found
- *            - the built-in method matching @s if the child is not found
- *            - NULL if neither are found.
- */
-struct var_t *
-object_child(struct var_t *o, const char *s)
-{
-        return object_child_l(o, literal(s));
-}
-
-/* n begins at zero, not one */
-struct var_t *
-object_nth_child(struct var_t *o, int n)
-{
-        struct var_t **ppvar;
-        struct buffer_t *buf = &o->o.h->children;
-        size_t byteoffs = n * sizeof(void *);
-        if (byteoffs >= buf->p)
-                return NULL;
-
-        ppvar = (struct var_t **)buf->s + byteoffs;
-        return *ppvar;
-}
-
-void
-object_add_child(struct var_t *parent, struct var_t *child)
-{
-        if (child->magic == QOBJECT_MAGIC) {
-                child->o.owner = parent;
-        } else if (child->magic == QFUNCTION_MAGIC) {
-                child->fn.owner = parent;
-        }
-        buffer_putd(&parent->o.h->children, &child, sizeof(void *));
-}
-
-/*
- *                      built-in methods
- */
+/* **********************************************************************
+ *                      Built-in Methods
+ ***********************************************************************/
 
 /*
  * foreach(function)

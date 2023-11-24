@@ -235,7 +235,7 @@ eval_atomic(struct var_t *v)
 
 /* Process parenthesized expression */
 static void
-eval10(struct var_t *v)
+eval9(struct var_t *v)
 {
         int t = cur_oc->t;
         if (t == OC_LPAR) {
@@ -271,90 +271,96 @@ eval_index(void)
         return (int)i;
 }
 
+static bool
+clobbershift(struct var_t *v1, struct var_t *v2, struct var_t *v3)
+{
+        qop_clobber(v1, v2);
+        qop_clobber(v2, v3);
+        return true;
+}
+
 /*
- * Helper for eval9 and eval8 both.
- * It's a little unclean, but if @v is a function call for a
- * built-in method, we need the parent of @v
- */
-static void
-function_helper(struct var_t *v, struct var_t *parent)
-{
-        if (cur_oc->t == OC_LPAR && isfunction(v)) {
-                struct var_t *fn;
-                q_unlex();
-
-                fn = tstack_getpush();
-                qop_mov(fn, v);
-                var_reset(v);
-                call_function(fn, v, parent);
-                tstack_pop(NULL);
-                qlex();
-        }
-}
-
-/* check if we want "x" or return value of "x()" */
-static void
-eval9(struct var_t *v)
-{
-        eval10(v);
-        function_helper(v, NULL);
-}
-
-/* check if we're descending a parent.child.granchild...
- * or parent['child']... or array[n] line.
+ * Process indirection:
+ *  v followed by '.' ... v is parent of parent.child
+ *  v followed by '[' ... v is parent of parent['child'] or array[n]
+ *  v followed by '(' ... v is function call
  */
 static void
 eval8(struct var_t *v)
 {
-        int t;
+        /*
+         * FIXME: This would be so much cleaner were it not that
+         * onwer needs to be faked when calling built-in methods,
+         * since they do not have copies each with different
+         * ownership pointers.
+         */
+        bool have_parent = false;
         struct var_t *parent = tstack_getpush();
+
         eval9(v);
-        while ((t = cur_oc->t) == OC_PER || t == OC_LBRACK) {
-                struct var_t *child = tstack_getpush();
-                qop_clobber(parent, v);
-                if (t == OC_PER) {
-                        struct var_t *tmp;
+        for (;;) {
+                struct var_t *w;
+                switch (cur_oc->t) {
+                case OC_PER:
                         qlex();
                         expect('u');
-                        if (parent->magic != QOBJECT_MAGIC)
-                                tmp = ebuiltin_method(parent, cur_oc->s);
+                        if (v->magic != QOBJECT_MAGIC)
+                                w = ebuiltin_method(v, cur_oc->s);
                         else
-                                tmp = eobject_child_l(parent, cur_oc->s);
-                        qop_mov(child, tmp);
-                } else { /* t == OC_LBRACK */
-                        switch (parent->magic) {
+                                w = eobject_child(v, cur_oc->s);
+                        clobbershift(parent, v, w);
+                        have_parent = true;
+                        break;
+                case OC_LBRACK:
+                        switch (v->magic) {
                         case QOBJECT_MAGIC:
+                                /* TODO: Eval this, see expression.c */
                                 qlex();
                                 expect('q');
-                                qop_mov(child, eobject_child_l(parent, cur_oc->s));
+                                w = eobject_child_l(v, cur_oc->s);
                                 qlex();
                                 expect(OC_RBRACK);
-                                break;
-                        case QARRAY_MAGIC:
-                                earray_child(parent, eval_index(), child);
+                                clobbershift(parent, v, w);
+                                have_parent = true;
                                 break;
                         case QSTRING_MAGIC:
                             {
                                 char c[2];
-                                c[0] = ebuffer_substr(&parent->s, eval_index());
+                                c[0] = ebuffer_substr(&v->s, eval_index());
                                 c[1] = '\0';
-                                qop_assign_cstring(child, c);
+                                qop_assign_cstring(v, c);
+                                have_parent = false;
                                 break;
                             }
+                        case QARRAY_MAGIC:
+                                w = tstack_getpush();
+                                earray_child(v, eval_index(), w);
+                                qop_clobber(v, w);
+                                have_parent = false;
+                                tstack_pop(NULL);
+                                break;
                         default:
-                                syntax("associate array syntax invalid for type %s",
-                                       typestr(parent->magic));
+                                syntax("Associative array syntax invalid for type %s",
+                                       typestr(v->magic));
                         }
+                        break;
+
+                case OC_LPAR:
+                        if (!isfunction(v))
+                                syntax("%s is not a function", nameof(v));
+                        w = tstack_getpush();
+                        q_unlex();
+                        call_function(v, w, have_parent ? parent : NULL);
+                        qop_clobber(v, w);
+                        tstack_pop(NULL);
+                        have_parent = false;
+                        break;
+                default:
+                        goto done;
                 }
-                qop_clobber(v, child);
-
-                /* pop child */
-                tstack_pop(NULL);
-
                 qlex();
-                function_helper(v, parent);
         }
-
+done:
         /* pop parent */
         tstack_pop(NULL);
 }

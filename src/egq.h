@@ -356,8 +356,6 @@ extern void moduleinit_array(void);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);
-extern struct var_t *builtin_method(struct var_t *v,
-                                    const char *method_name);
 
 /* err.c */
 #ifndef NDEBUG
@@ -418,6 +416,22 @@ extern void call_function_from_intl(struct var_t *fn,
                         struct var_t *retval, struct var_t *owner,
                         int argc, struct var_t *argv[]);
 extern void moduleinit_function(void);
+/* XXX These are semi-private */
+static inline struct var_t *
+getarg(int n)
+{
+        if (n < 0 || n >= (q_.sp - 1 - q_.fp))
+                return NULL;
+        return q_.fp + 1 + n;
+}
+#define arg_type_err(v, want) do { \
+        syntax("Argument is type '%s' but '%s' is expected", \
+                typestr((v)->magic), typestr(want)); \
+} while (0)
+#define arg_type_check(v, want) do { \
+        if ((v)->magic != (want)) \
+                arg_type_err(v, want); \
+} while (0)
 
 /* helpers.c */
 extern int x2bin(int c);
@@ -497,7 +511,6 @@ extern bool qop_cmpz(struct var_t *v);
 extern void qop_assign_cstring(struct var_t *v, const char *s);
 extern void qop_assign_int(struct var_t *v, long long i);
 extern void qop_assign_float(struct var_t *v, double f);
-extern void moduleinit_operator(void);
 
 /* stack.c */
 extern void stack_pop(struct var_t *to);
@@ -540,9 +553,9 @@ extern struct var_t *var_init(struct var_t *v);
 extern struct var_t *var_new(void);
 extern void var_delete(struct var_t *v);
 extern void var_reset(struct var_t *v);
-extern void var_config_type(int magic, const char *name,
-                            const struct operator_methods_t *opm);
 extern void moduleinit_var(void);
+extern struct var_t *builtin_method(struct var_t *v,
+                                    const char *method_name);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];

@@ -12,38 +12,6 @@ qb_typeof(struct var_t *ret)
         qop_assign_cstring(ret, typestr(p->magic));
 }
 
-static void
-float_tostr(struct var_t *ret)
-{
-        char buf[64];
-        ssize_t len;
-        struct var_t *self = get_this();
-        bug_on(self->magic != QFLOAT_MAGIC);
-
-        len = snprintf(buf, sizeof(buf), "%.8g", self->f);
-        /* this should be impossible */
-        bug_on(len >= sizeof(buf));
-        (void)len; /* in case NDEBUG */
-
-        qop_assign_cstring(ret, buf);
-}
-
-static void
-int_tostr(struct var_t *ret)
-{
-        char buf[64];
-        ssize_t len;
-        struct var_t *self = get_this();
-        bug_on(self->magic != QINT_MAGIC);
-
-        len = snprintf(buf, sizeof(buf), "%lld", self->i);
-        bug_on(len >= sizeof(buf));
-        (void)len; /* in case NDEBUG */
-
-        qop_assign_cstring(ret, buf);
-}
-
-
 static bool
 qb_print_helper(struct var_t *v)
 {
@@ -98,45 +66,6 @@ static const struct inittbl_t gblinit[] = {
         { .name = NULL },
 };
 
-static const struct inittbl_t float_methods[] = {
-        TOFTBL("tostr", float_tostr, 0, 0),
-        TBLEND,
-};
-
-static const struct inittbl_t int_methods[] = {
-        TOFTBL("tostr", int_tostr, 0, 0),
-        TBLEND,
-};
-
-/**
- * bi_init_type_methods__ - Initialize a type's built-in methods
- * @tbl: Table describing methods
- * @magic: Q*_MAGIC enum corresponding to the typedef
- */
-void
-bi_init_type_methods__(const struct inittbl_t *tbl, int magic)
-{
-        const struct inittbl_t *t = tbl;
-        struct list_t *parent_list = &TYPEDEFS[magic].methods;
-        while (t->name != NULL) {
-                /*
-                 * raw malloc, sure, we only need a few of these,
-                 * once at startup
-                 */
-                struct var_wrapper_t *w = emalloc(sizeof(*w));
-                struct var_t *v = var_new();
-
-                bug_on(!strcmp(t->name, "SANITY"));
-                v->magic = QPTRXI_MAGIC;
-                v->name = literal(t->name);
-                v->fni = &t->h;
-                w->v = v;
-                list_init(&w->siblings);
-                list_add_tail(&w->siblings, parent_list);
-                t++;
-        }
-}
-
 /**
  * bi_build_internal_object__ - build up a C-defined object with a
  *                              linear table
@@ -187,49 +116,8 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
 void
 moduleinit_builtin(void)
 {
-        int i;
-
         /* Do this first.  bi_build_internal_object__ de-references it. */
         q_.gbl = object_new(NULL, "__gbl__");
-
         bi_build_internal_object__(q_.gbl, gblinit);
-        for (i = QEMPTY_MAGIC; i < Q_NMAGIC; i++)
-                list_init(&TYPEDEFS[i].methods);
-        bi_moduleinit_string__();
-        bi_moduleinit_object__();
-
-        bi_init_type_methods__(float_methods, QFLOAT_MAGIC);
-        bi_init_type_methods__(int_methods, QINT_MAGIC);
 }
-
-#define list2wvar(li) \
-        (container_of(li, struct var_wrapper_t, siblings)->v)
-
-/**
- * builtin_method - Return a built-in method for a variable's type
- * @v: Variable to check
- * @method_name: Name of method, which MUST have been a return value
- *              of literal().
- *
- * Return: Built-in method matching @name for @v, or NULL otherwise.
- *      This is the actual reference, not a copy. DO NOT CLOBBER IT.
- */
-struct var_t *
-builtin_method(struct var_t *v, const char *method_name)
-{
-        int magic = v->magic;
-        struct list_t *methods, *m;
-        struct var_t *w;
-
-        bug_on(magic < 0 || magic > Q_NMAGIC);
-
-        methods = &TYPEDEFS[magic].methods;
-        list_foreach(m, methods) {
-                w = list2wvar(m);
-                if (w->name == method_name)
-                        return w;
-        }
-        return NULL;
-}
-
 

@@ -1,5 +1,5 @@
 /* array.c - Code for managing numerical arrays */
-#include "egq.h"
+#include "var.h"
 #include <stdlib.h>
 
 static void
@@ -292,7 +292,7 @@ static const struct operator_methods_t array_primitives = {
 };
 
 void
-moduleinit_array(void)
+typedefinit_array(void)
 {
-        var_config_type(QARRAY_MAGIC, "array", &array_primitives);
+        var_config_type(QARRAY_MAGIC, "array", &array_primitives, NULL);
 }

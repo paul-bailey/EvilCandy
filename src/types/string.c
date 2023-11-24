@@ -1,10 +1,16 @@
 /* string.c - Built-in methods for string data types */
-#include "builtin.h"
+#include "var.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+
+static void
+emismatch(const char *op)
+{
+        syntax("Mismatched types for %s operation", op);
+}
 
 /* len() (no args)
  * returns length of C string stored in self
@@ -228,21 +234,73 @@ string_replace(struct var_t *ret)
                 buffer_puts(&ret->s, haystack);
 }
 
-static struct inittbl_t string_methods[] = {
-        TOFTBL("len",     string_length, 0, 0),
-        TOFTBL("format",  string_format, 0, -1),
-        TOFTBL("toint",   string_toint, 0, 0),
-        TOFTBL("tofloat", string_tofloat, 0, 0),
-        TOFTBL("lstrip",  string_lstrip, 0, 1),
-        TOFTBL("rstrip",  string_rstrip, 0, 1),
-        TOFTBL("replace", string_replace, 2, 2),
-        TOFTBL("strip",   string_strip, 0, 1),
+static struct type_inittbl_t string_methods[] = {
+        V_INITTBL("len",     string_length, 0, 0),
+        V_INITTBL("format",  string_format, 0, -1),
+        V_INITTBL("toint",   string_toint, 0, 0),
+        V_INITTBL("tofloat", string_tofloat, 0, 0),
+        V_INITTBL("lstrip",  string_lstrip, 0, 1),
+        V_INITTBL("rstrip",  string_rstrip, 0, 1),
+        V_INITTBL("replace", string_replace, 2, 2),
+        V_INITTBL("strip",   string_strip, 0, 1),
         TBLEND,
 };
 
-void
-bi_moduleinit_string__(void)
+static void
+string_reset(struct var_t *str)
 {
-        bi_init_type_methods__(string_methods, QSTRING_MAGIC);
+        buffer_free(&str->s);
+}
+
+static void
+string_add(struct var_t *a, struct var_t *b)
+{
+        if (b->magic != QSTRING_MAGIC)
+                emismatch("+");
+        buffer_puts(&a->s, b->s.s);
+}
+
+static int
+string_cmp(struct var_t *a, struct var_t *b)
+{
+        int r;
+        if (!a->s.s)
+                return b->s.s ? -1 : 1;
+        else if (!b->s.s)
+                return 1;
+        r = strcmp(a->s.s, b->s.s);
+        return r ? (r < 0 ? -1 : 1) : 0;
+}
+
+static bool
+string_cmpz(struct var_t *a)
+{
+        if (!a->s.s)
+                return true;
+        /* In C "" is non-NULL, but here we're calling it zero */
+        return a->s.s[0] == '\0';
+}
+
+static void
+string_mov(struct var_t *to, struct var_t *from)
+{
+        if (from->magic != QSTRING_MAGIC)
+                emismatch("mov");
+        qop_assign_cstring(to, from->s.s);
+}
+
+static const struct operator_methods_t string_primitives = {
+        .add            = string_add,
+        .cmp            = string_cmp,
+        .cmpz           = string_cmpz,
+        .mov            = string_mov,
+        .reset          = string_reset,
+};
+
+void
+typedefinit_string(void)
+{
+        var_config_type(QSTRING_MAGIC, "string",
+                        &string_primitives, string_methods);
 }
 

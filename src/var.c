@@ -1,4 +1,5 @@
 #include "egq.h"
+#include "types/var.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -102,19 +103,72 @@ var_reset(struct var_t *v)
 
 struct type_t TYPEDEFS[Q_NMAGIC];
 
+static void
+config_builtin_methods(const struct type_inittbl_t *tbl,
+                       struct list_t *parent_list)
+{
+        const struct type_inittbl_t *t = tbl;
+        while (t->name != NULL) {
+                /*
+                 * raw malloc, sure, we only need a few of these,
+                 * once at startup
+                 */
+                struct var_wrapper_t *w = emalloc(sizeof(*w));
+                struct var_t *v = var_new();
+
+                bug_on(!strcmp(t->name, "SANITY"));
+                v->magic = QPTRXI_MAGIC;
+                v->name = literal(t->name);
+                v->fni = &t->h;
+                w->v = v;
+                list_init(&w->siblings);
+                list_add_tail(&w->siblings, parent_list);
+                t++;
+        }
+}
+
+/* tbl may be NULL, the others may not */
 void
 var_config_type(int magic, const char *name,
-                const struct operator_methods_t *opm)
+                const struct operator_methods_t *opm,
+                const struct type_inittbl_t *tbl)
 {
-        /*
-         * TODO: The look-up table of built-in methods,
-         * I'm going to change builtin/ from being that
-         * to being the "standard" object library for this
-         * interpreter.
-         */
         TYPEDEFS[magic].opm = opm;
         TYPEDEFS[magic].name = name;
+        if (tbl)
+                config_builtin_methods(tbl, &TYPEDEFS[magic].methods);
 }
+
+#define list2wvar(li) \
+        (container_of(li, struct var_wrapper_t, siblings)->v)
+
+/**
+ * builtin_method - Return a built-in method for a variable's type
+ * @v: Variable to check
+ * @method_name: Name of method, which MUST have been a return value
+ *              of literal().
+ *
+ * Return: Built-in method matching @name for @v, or NULL otherwise.
+ *      This is the actual reference, not a copy. DO NOT CLOBBER IT.
+ */
+struct var_t *
+builtin_method(struct var_t *v, const char *method_name)
+{
+        int magic = v->magic;
+        struct list_t *methods, *m;
+        struct var_t *w;
+
+        bug_on(magic < 0 || magic > Q_NMAGIC);
+
+        methods = &TYPEDEFS[magic].methods;
+        list_foreach(m, methods) {
+                w = list2wvar(m);
+                if (w->name == method_name)
+                        return w;
+        }
+        return NULL;
+}
+
 
 /*
  * see main.c - this must be after all the typedef code
@@ -123,7 +177,26 @@ var_config_type(int magic, const char *name,
 void
 moduleinit_var(void)
 {
+        static const struct initfn_tbl_t {
+                void (*cb)(void);
+        } INIT_TBL[] = {
+                { typedefinit_array },
+                { typedefinit_empty },
+                { typedefinit_float },
+                { typedefinit_function },
+                { typedefinit_integer },
+                { typedefinit_object },
+                { typedefinit_string },
+                { NULL },
+        };
+        const struct initfn_tbl_t *t;
         int i;
+
+        for (i = QEMPTY_MAGIC; i < Q_NMAGIC; i++)
+                list_init(&TYPEDEFS[i].methods);
+        for (t = INIT_TBL; t->cb != NULL; t++)
+                t->cb();
+
         for (i = 0; i < Q_NMAGIC; i++) {
                 if (TYPEDEFS[i].name == NULL)
                         bug();

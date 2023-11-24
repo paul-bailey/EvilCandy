@@ -58,7 +58,11 @@ quiet_cmd_ld = LD $@
 
 prog := ./egq
 
-srcs := $(wildcard $(SRCDIR)/builtin/*.c) $(wildcard $(SRCDIR)/*.c)
+srcs := \
+ $(wildcard $(SRCDIR)/types/*.c) \
+ $(wildcard $(SRCDIR)/builtin/*.c) \
+ $(wildcard $(SRCDIR)/*.c)
+
 objs := $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(patsubst %.c,%.o,$(srcs)))
 
 # Inspired from Linux's scripts/Kbuild.include file
@@ -70,7 +74,11 @@ cmd = @$(if $($(quiet)cmd_$(1)), \
 
 all: $(prog)
 
-dir_targets := $(DEPDIR) $(OBJDIR) $(DEPDIR)/builtin $(OBJDIR)/builtin
+dir_targets := \
+ $(DEPDIR) $(OBJDIR) \
+ $(DEPDIR)/builtin $(OBJDIR)/builtin \
+ $(DEPDIR)/types $(OBJDIR)/types
+
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 $(OBJDIR)/%.o: $(SRCDIR)/%.c $(DEPDIR)/%.d | $(dir_targets)
 	$(call cmd,cc)

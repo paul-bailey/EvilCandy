@@ -4,7 +4,7 @@
  *      2. Code dealing specifically with struct var_t with
  *         function-like magic number
  */
-#include "egq.h"
+#include "var.h"
 
 /*
  * We just popped lr to pc, make sure it's valid
@@ -360,16 +360,19 @@ static const struct operator_methods_t function_primitives = {
 };
 
 void
-moduleinit_function(void)
+typedefinit_function(void)
 {
         var_config_type(QFUNCTION_MAGIC,
                         "function",
-                        &function_primitives);
+                        &function_primitives,
+                        NULL);
         var_config_type(QPTRXU_MAGIC,
                         "code_pointer",
-                        &ptrxu_primitives);
+                        &ptrxu_primitives,
+                        NULL);
         var_config_type(QPTRXI_MAGIC,
                         "built_in_function",
-                        &ptrxi_primitives);
+                        &ptrxi_primitives,
+                        NULL);
 }
 

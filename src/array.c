@@ -262,15 +262,8 @@ array_from_empty(struct var_t *array)
         return array;
 }
 
-/**
- * array_reset__ - Reset array variable; only called from var_reset
- * @a: Array to reset.
- *
- * If this was the last variable with a link to the array handle, the
- * handle will be destroyed.
- */
-void
-array_reset__(struct var_t *a)
+static void
+array_reset(struct var_t *a)
 {
         a->a->nref--;
         if (a->a->nref <= 0) {
@@ -281,4 +274,25 @@ array_reset__(struct var_t *a)
         a->a = NULL;
 }
 
+static void
+array_mov(struct var_t *to, struct var_t *from)
+{
+        if (from->magic != QARRAY_MAGIC) {
+                syntax("Cannot change type from array to %s",
+                       typestr(from->magic));
+        }
+        to->a = from->a;
+        to->a->nref++;
+}
 
+static const struct operator_methods_t array_primitives = {
+        /* To do, I may want to support some of these */
+        .mov = array_mov,
+        .reset = array_reset,
+};
+
+void
+moduleinit_array(void)
+{
+        var_config_type(QARRAY_MAGIC, "array", &array_primitives);
+}

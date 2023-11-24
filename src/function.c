@@ -1,4 +1,9 @@
-/* function.c - How to call a function */
+/*
+ * function.c - two part module
+ *      1. Code that calls a function (call_function() & family)
+ *      2. Code dealing specifically with struct var_t with
+ *         function-like magic number
+ */
 #include "egq.h"
 
 /*
@@ -299,4 +304,72 @@ call_function_from_intl(struct var_t *fn, struct var_t *retval,
         pop_args(fpsav);
 }
 
+static void
+ptrxu_mov(struct var_t *to, struct var_t *from)
+{
+        if (from->magic == QFUNCTION_MAGIC) {
+                to->px.ns = from->fn.mk.ns;
+                to->px.oc = from->fn.mk.oc;
+        } else if (from->magic == QPTRXU_MAGIC) {
+                to->px.ns = from->px.ns;
+                to->px.oc = from->px.oc;
+        } else {
+                syntax("MOV type mismatch");
+        }
+}
+
+static const struct operator_methods_t ptrxu_primitives = {
+        .mov = ptrxu_mov,
+};
+
+static void
+ptrxi_mov(struct var_t *to, struct var_t *from)
+{
+        if (from->magic != QPTRXI_MAGIC)
+                syntax("MOV type mismatch");
+        to->fni = from->fni;
+}
+
+static const struct operator_methods_t ptrxi_primitives = {
+        .mov = ptrxi_mov,
+};
+
+static bool
+func_cmpz(struct var_t *func)
+{
+        return false;
+}
+
+static void
+func_mov(struct var_t *to, struct var_t *from)
+{
+        if (from->magic == QPTRXU_MAGIC) {
+                to->fn.mk.ns = from->px.ns;
+                to->fn.mk.oc = from->px.oc;
+        } else {
+                to->fn.mk.oc = from->fn.mk.oc;
+                to->fn.mk.ns = from->fn.mk.ns;
+                if (to->magic == QEMPTY_MAGIC || !to->fn.owner)
+                        to->fn.owner = from->fn.owner;
+        }
+}
+
+static const struct operator_methods_t function_primitives = {
+        .cmpz = func_cmpz,
+        .mov  = func_mov,
+};
+
+void
+moduleinit_function(void)
+{
+        var_config_type(QFUNCTION_MAGIC,
+                        "function",
+                        &function_primitives);
+        var_config_type(QPTRXU_MAGIC,
+                        "code_pointer",
+                        &ptrxu_primitives);
+        var_config_type(QPTRXI_MAGIC,
+                        "built_in_function",
+                        &ptrxi_primitives);
+}
 

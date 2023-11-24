@@ -2,9 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* only called from op.c */
-void
-object_mov__(struct var_t *to, struct var_t *from)
+/* qop_mov callback for object */
+static void
+object_mov(struct var_t *to, struct var_t *from)
 {
         to->o.owner = NULL;
 
@@ -13,6 +13,12 @@ object_mov__(struct var_t *to, struct var_t *from)
 
         to->o.h = from->o.h;
         to->o.h->nref++;
+}
+
+static bool
+object_cmpz(struct var_t *obj)
+{
+        return false;
 }
 
 static void
@@ -34,9 +40,8 @@ object_handle_reset(struct object_handle_t *oh)
         free(oh);
 }
 
-/* only called from var_reset() */
-void
-object_reset__(struct var_t *o)
+static void
+object_reset(struct var_t *o)
 {
         struct object_handle_t *oh;
         bug_on(o->magic != QOBJECT_MAGIC);
@@ -147,5 +152,21 @@ object_add_child(struct var_t *parent, struct var_t *child)
                 child->fn.owner = parent;
         }
         buffer_putd(&parent->o.h->children, &child, sizeof(void *));
+}
+
+/*
+ * FIXME: Would be nice if we could do like Python and let objects have
+ * user-defined operator callbacks
+ */
+static const struct operator_methods_t object_primitives = {
+        .cmpz           = object_cmpz,
+        .mov            = object_mov,
+        .reset          = object_reset,
+};
+
+void
+moduleinit_object(void)
+{
+        var_config_type(QOBJECT_MAGIC, "object", &object_primitives);
 }
 

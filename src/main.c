@@ -26,9 +26,15 @@ init_modules(void)
         static const struct initfn_tbl_t {
                 void (*initfn)(void);
         } INITFNS[] = {
+                /* Note: the order of this table matters */
                 { .initfn = moduleinit_keyword },
                 { .initfn = moduleinit_literal },
                 { .initfn = moduleinit_builtin },
+                { .initfn = moduleinit_operator },
+                { .initfn = moduleinit_function },
+                { .initfn = moduleinit_object },
+                { .initfn = moduleinit_array },
+                { .initfn = moduleinit_var },
                 { .initfn = moduleinit_stack },
                 { .initfn = moduleinit_lex },
                 { .initfn = NULL },

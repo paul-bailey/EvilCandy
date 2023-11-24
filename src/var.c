@@ -8,6 +8,11 @@ static struct mempool_t *var_mempool = NULL;
 static struct var_t *
 var_alloc(void)
 {
+        /*
+         * check this here rather than do at modulinit time,
+         * because some vars will need to have been allocated
+         * already by the time our moduleinit has been called.
+         */
         if (!var_mempool)
                 var_mempool = mempool_new(sizeof(struct var_t));
 
@@ -76,12 +81,6 @@ var_copy(struct var_t *to, struct var_t *from)
         bug();
 }
 
-static void
-string_reset(struct var_t *str)
-{
-        buffer_free(&str->s);
-}
-
 /**
  * var_reset - Empty a variable
  * @v: variable to empty.
@@ -93,7 +92,7 @@ var_reset(struct var_t *v)
 {
         bug_on(v->magic >= Q_NMAGIC);
 
-        void (*rst)(struct var_t *) = TYPEDEFS[v->magic].reset;
+        void (*rst)(struct var_t *) = TYPEDEFS[v->magic].opm->reset;
         if (rst)
                 rst(v);
 
@@ -101,16 +100,33 @@ var_reset(struct var_t *v)
         v->flags = 0;
 }
 
-struct type_t TYPEDEFS[Q_NMAGIC] = {
-        { .name = "empty" },
-        { .name = "object",     .reset = object_reset__, },
-        { .name = "function" },
-        { .name = "float" },
-        { .name = "int" },
-        { .name = "string",     .reset = string_reset, },
-        { .name = "pointer" },
-        { .name = "built_in_function" },
-        { .name = "array",      .reset = array_reset__,},
-};
+struct type_t TYPEDEFS[Q_NMAGIC];
 
+void
+var_config_type(int magic, const char *name,
+                const struct operator_methods_t *opm)
+{
+        /*
+         * TODO: The look-up table of built-in methods,
+         * I'm going to change builtin/ from being that
+         * to being the "standard" object library for this
+         * interpreter.
+         */
+        TYPEDEFS[magic].opm = opm;
+        TYPEDEFS[magic].name = name;
+}
+
+/*
+ * see main.c - this must be after all the typedef code
+ * has had their moduleinit functions called, or it will fail.
+ */
+void
+moduleinit_var(void)
+{
+        int i;
+        for (i = 0; i < Q_NMAGIC; i++) {
+                if (TYPEDEFS[i].name == NULL)
+                        bug();
+        }
+}
 

@@ -65,6 +65,42 @@ struct trie_t {
         struct trie_t **ptrs;
 };
 
+struct var_t;
+
+/*
+ * Per-type callbacks for mathematical operators, like + or -
+ */
+struct operator_methods_t {
+        void (*mul)(struct var_t *, struct var_t *);    /* a = a * b */
+        void (*div)(struct var_t *, struct var_t *);    /* a = a / b */
+        void (*mod)(struct var_t *, struct var_t *);    /* a = a % b */
+        void (*add)(struct var_t *, struct var_t *);    /* a = a + b */
+        void (*sub)(struct var_t *, struct var_t *);    /* a = a - b */
+
+        /* <0 if a<b, 0 if a==b, >0 if a>b, doesn't set a or b */
+        int (*cmp)(struct var_t *, struct var_t *);
+
+        void (*lshift)(struct var_t *, struct var_t *); /* a = a << b */
+        void (*rshift)(struct var_t *, struct var_t *); /* a = a >> b */
+        void (*bit_and)(struct var_t *, struct var_t *); /* a = a & b */
+        void (*bit_or)(struct var_t *, struct var_t *); /* a = a | b */
+        void (*xor)(struct var_t *, struct var_t *);    /* a = a ^ b */
+        bool (*cmpz)(struct var_t *);                   /* a == 0 ? */
+        void (*incr)(struct var_t *);                   /* a++ */
+        void (*decr)(struct var_t *);                   /* a-- */
+        void (*bit_not)(struct var_t *);                /* ~a */
+        void (*negate)(struct var_t *);                 /* -a */
+        void (*mov)(struct var_t *, struct var_t *);    /* a = b */
+
+        /*
+         * hard reset, clobber var's type as well.
+         * Used for removing temporary vars from stack or freeing heap
+         * vars; if any type-specific garbage collection needs to be
+         * done, declare it here, or leave NULL for the generic cleanup.
+         */
+        void (*reset)(struct var_t *);
+};
+
 /**
  * struct buffer_t - Handle to metadata about a dynamically allocated
  *                  string
@@ -86,8 +122,6 @@ struct buffer_t {
         ssize_t size;
 };
 
-struct var_t;
-
 /**
  * struct type_t - Used to get info about a typedef
  * @name:       Name of the type
@@ -95,11 +129,14 @@ struct var_t;
  *              things scripts call as functions.
  * @reset:      Callback to reset the variable, or NULL if no special
  *              action is needed.
+ * @opm:        Callbacks for performing primitive operations like
+ *              + or - on type
  */
 struct type_t {
         const char *name;
         struct list_t methods;
         void (*reset)(struct var_t *);
+        const struct operator_methods_t *opm;
 };
 
 /**
@@ -315,8 +352,7 @@ extern void array_add_child(struct var_t *array, struct var_t *child);
 extern int array_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
-/* only call from var.c */
-extern void array_reset__(struct var_t *a);
+extern void moduleinit_array(void);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);
@@ -381,6 +417,7 @@ extern void call_function(struct var_t *fn,
 extern void call_function_from_intl(struct var_t *fn,
                         struct var_t *retval, struct var_t *owner,
                         int argc, struct var_t *argv[]);
+extern void moduleinit_function(void);
 
 /* helpers.c */
 extern int x2bin(int c);
@@ -434,10 +471,7 @@ static inline size_t oh_nchildren(struct object_handle_t *oh)
         { return oh->children.p / sizeof(void *); }
 static inline struct var_t **oh_children(struct object_handle_t *oh)
         { return (struct var_t **)oh->children.s; }
-/* only call from var.c */
-extern void object_reset__(struct var_t *o);
-/* only call from op.c */
-extern void object_mov__(struct var_t *to, struct var_t *from);
+extern void moduleinit_object(void);
 
 /* op.c */
 extern void qop_mul(struct var_t *a, struct var_t *b);
@@ -463,6 +497,7 @@ extern bool qop_cmpz(struct var_t *v);
 extern void qop_assign_cstring(struct var_t *v, const char *s);
 extern void qop_assign_int(struct var_t *v, long long i);
 extern void qop_assign_float(struct var_t *v, double f);
+extern void moduleinit_operator(void);
 
 /* stack.c */
 extern void stack_pop(struct var_t *to);
@@ -505,6 +540,9 @@ extern struct var_t *var_init(struct var_t *v);
 extern struct var_t *var_new(void);
 extern void var_delete(struct var_t *v);
 extern void var_reset(struct var_t *v);
+extern void var_config_type(int magic, const char *name,
+                            const struct operator_methods_t *opm);
+extern void moduleinit_var(void);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];

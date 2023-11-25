@@ -34,6 +34,12 @@
  *      [FIXME: since in egq, insertions will happen throughout execution
  *       time, this is inefficient, especially since it happens for
  *       *every insertion*]
+ *
+ * When not to use this
+ * --------------------
+ * This does not hash the key.  That makes it collisionless (good), but
+ * it also means that long lines of text will explode the number of nodes
+ * (very bad).  So it's best used to store dictionaries of one-word keys.
  */
 #include "egq.h"
 #include <stdlib.h>

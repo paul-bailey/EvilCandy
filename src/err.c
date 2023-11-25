@@ -23,6 +23,12 @@ qlineno(void)
         return cur_oc ? cur_oc->line : 0;
 }
 
+static char *
+qfileno(void)
+{
+        return cur_ns ? cur_ns->fname : "[no input yet]";
+}
+
 /* helper to bug__ and breakpoint__ */
 static void
 trap(const char *what, const char *file, int line)
@@ -47,8 +53,12 @@ breakpoint__(const char *file, int line)
 static void
 syntax_msg__(const char *msg, const char *what, va_list ap)
 {
-        fprintf(stderr, "[egq] %s in file %s line %d: ",
-                what, cur_ns->fname, qlineno());
+        if (cur_oc) {
+                fprintf(stderr, "[egq] %s in file %s line %d: ",
+                        what, qfileno(), qlineno());
+        } else {
+                fprintf(stderr, "[egq] %s: ", what);
+        }
         vfprintf(stderr, msg, ap);
         fputc('\n', stderr);
 }

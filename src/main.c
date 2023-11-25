@@ -29,6 +29,7 @@ init_modules(void)
                 /* Note: the order of this table matters */
                 { .initfn = moduleinit_keyword },
                 { .initfn = moduleinit_literal },
+                { .initfn = moduleinit_eval },
                 { .initfn = moduleinit_var },
                 { .initfn = moduleinit_builtin },
                 { .initfn = moduleinit_stack },

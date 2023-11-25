@@ -125,7 +125,7 @@ object_nth_child(struct var_t *o, int n)
         struct var_t **ppvar;
         struct buffer_t *buf = &o->o.h->children;
         size_t byteoffs = n * sizeof(void *);
-        if (byteoffs >= buf->p)
+        if (byteoffs >= buffer_size(buf))
                 return NULL;
 
         ppvar = (struct var_t **)buf->s + byteoffs;

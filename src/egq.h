@@ -239,7 +239,7 @@ struct var_t {
  */
 struct opcode_t {
         unsigned int t;
-        unsigned int line; /* for error tracing */
+        unsigned int line;
         char *s;
         union {
                 double f;
@@ -360,6 +360,7 @@ extern void err_expected__(int opcode);
 
 /* eval.c */
 extern void eval(struct var_t *v);
+extern void moduleinit_eval(void);
 
 /* ewrappers.c */
 extern struct var_t *ebuiltin_method(struct var_t *v,
@@ -367,7 +368,7 @@ extern struct var_t *ebuiltin_method(struct var_t *v,
 extern char *estrdup(const char *s);
 extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
-extern int ebuffer_substr(struct buffer_t *tok, int i);
+extern int ebuffer_substr(struct buffer_t *buf, int i);
 extern struct var_t *eobject_child(struct var_t *o, const char *s);
 extern struct var_t *eobject_child_l(struct var_t *o, const char *s);
 extern struct var_t *eobject_nth_child(struct var_t *o, int n);
@@ -481,18 +482,19 @@ extern struct var_t *symbol_seek_stack(const char *s);
 extern struct var_t *symbol_seek_stack_l(const char *s);
 
 /* token.c */
-extern void buffer_init(struct buffer_t *tok);
-extern void buffer_reset(struct buffer_t *tok);
-extern void buffer_putc(struct buffer_t *tok, int c);
+extern void buffer_init(struct buffer_t *buf);
+extern void buffer_reset(struct buffer_t *buf);
+extern void buffer_putc(struct buffer_t *buf, int c);
 extern void buffer_nputs(struct buffer_t *buf, const char *s, size_t amt);
-extern void buffer_puts(struct buffer_t *tok, const char *s);
-extern void buffer_free(struct buffer_t *tok);
-extern int buffer_substr(struct buffer_t *tok, int i);
+extern void buffer_puts(struct buffer_t *buf, const char *s);
+extern void buffer_free(struct buffer_t *buf);
+extern int buffer_substr(struct buffer_t *buf, int i);
 extern void buffer_shrinkstr(struct buffer_t *buf, size_t new_size);
 extern void buffer_lstrip(struct buffer_t *buf, const char *charset);
 extern void buffer_rstrip(struct buffer_t *buf, const char *charset);
-extern void buffer_putd(struct buffer_t *tok,
+extern void buffer_putd(struct buffer_t *buf,
                         const void *data, size_t datalen);
+static inline size_t buffer_size(struct buffer_t *buf) { return buf->p; }
 
 /* trie.c */
 extern struct trie_t *trie_new(void);

@@ -286,6 +286,13 @@ string_mov(struct var_t *to, struct var_t *from)
 {
         if (from->magic != QSTRING_MAGIC)
                 emismatch("mov");
+        /*
+         * FIXME: There's got to be a better way.  We're doing at best
+         * a string copy, at worst a string copy plus alloc, every time
+         * we move a string between variables, even if they're temporary
+         * or even intermediate variables.  But unlike objects and
+         * arrays, strings are pass-by value.
+         */
         qop_assign_cstring(to, from->s.s);
 }
 

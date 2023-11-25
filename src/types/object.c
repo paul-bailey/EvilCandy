@@ -2,23 +2,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/**
- * struct object_handle_t - Descriptor for an object handle
- * @children:   List of children members
- * @priv:       Internal private data, used by some built-in object types
- * @priv_cleanup: Way to clean up @priv if destroying this object handle.
- *              If this is NULL and @priv is not NULL, @priv will be
- *              simply freed.
- * @nref:       Number of variables that have a handle to this object.
- *              Used for garbage collection
- */
-struct object_handle_t {
-        void *priv;
-        void (*priv_cleanup)(struct object_handle_t *, void *);
-        int nref;
-        struct buffer_t children;
-};
-
 static inline size_t oh_nchildren(struct object_handle_t *oh)
         { return oh->children.p / sizeof(void *); }
 static inline struct var_t **oh_children(struct object_handle_t *oh)
@@ -64,15 +47,6 @@ object_set_priv(struct var_t *o, void *priv,
 }
 
 /**
- * object_get_priv - Get an object's private data
- */
-void *
-object_get_priv(struct var_t *o)
-{
-        return o->o.h->priv;
-}
-
-/**
  * object_child_l - Like object_child, but @s is already known be a
  *                  return value of literal()
  */
@@ -97,21 +71,6 @@ object_child_l(struct var_t *o, const char *s)
 }
 
 /**
- * object_child - Return an object's child
- * @o:  Object to seek the child of.
- * @s:  Name of the child
- *
- * Return:    - the child if found
- *            - the built-in method matching @s if the child is not found
- *            - NULL if neither are found.
- */
-struct var_t *
-object_child(struct var_t *o, const char *s)
-{
-        return object_child_l(o, literal(s));
-}
-
-/**
  * object_nth_child - Get the nth child of an object
  * @o: object to seek
  * @n: The "n" of "nth", indexed from zero
@@ -124,8 +83,10 @@ object_nth_child(struct var_t *o, int n)
 {
         struct var_t **ppvar;
         struct buffer_t *buf = &o->o.h->children;
-        size_t byteoffs = n * sizeof(void *);
-        if (byteoffs >= buffer_size(buf))
+        ssize_t byteoffs = n * sizeof(void *);
+
+        byteoffs = index_translate(byteoffs, buffer_size(buf));
+        if (byteoffs < 0)
                 return NULL;
 
         ppvar = (struct var_t **)buf->s + byteoffs;

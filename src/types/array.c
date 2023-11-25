@@ -136,17 +136,6 @@ array_handle_new(void)
         return ret;
 }
 
-static int
-index_of(struct array_handle_t *h, int idx)
-{
-        if (idx < 0) {
-                idx = -idx;
-                idx = h->nmemb - idx;
-        }
-        /* if still <0, error */
-        return idx;
-}
-
 /**
  * array_child - Get nth member of an array
  * @array: Array to seek
@@ -169,8 +158,8 @@ array_child(struct var_t *array, int idx, struct var_t *child)
          */
         struct array_handle_t *h = array->a;
         void *p;
-        idx = index_of(h, idx);
-        if (h->nmemb <= idx || idx < 0)
+        idx = index_translate(idx, h->nmemb);
+        if (idx < 0)
                 return -1;
 
         p = array_ptr(h, idx);
@@ -199,8 +188,8 @@ array_vchild(struct var_t *array, int idx)
 {
         struct array_handle_t *h = array->a;
 
-        idx = index_of(h, idx);
-        if (h->nmemb <= idx || idx < 0)
+        idx = index_translate(idx, h->nmemb);
+        if (idx < 0)
                 return NULL;
 
         switch (h->type) {
@@ -227,8 +216,8 @@ array_set_child(struct var_t *array, int idx, struct var_t *child)
 {
         struct array_handle_t *h = array->a;
 
-        idx = index_of(h, idx);
-        if (h->nmemb <= idx || idx < 0)
+        idx = index_translate(idx, h->nmemb);
+        if (idx < 0)
                 return -1;
         check_type_match(h, child);
         array_set_child_safe(h, idx, child);

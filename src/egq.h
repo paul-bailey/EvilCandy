@@ -176,6 +176,33 @@ struct marker_t {
         struct opcode_t *oc;
 };
 
+/*
+ * PRIVATE STRUCT, placed here so I can inline some things
+ */
+struct string_handle_t {
+        int nref;
+        struct buffer_t b;
+};
+
+/**
+ * struct object_handle_t - Descriptor for an object handle
+ * @children:   List of children members
+ * @priv:       Internal private data, used by some built-in object types
+ * @priv_cleanup: Way to clean up @priv if destroying this object handle.
+ *              If this is NULL and @priv is not NULL, @priv will be
+ *              simply freed.
+ * @nref:       Number of variables that have a handle to this object.
+ *              Used for garbage collection
+ *
+ * PRIVATE STRUCT, placed here so I can inline some things
+ */
+struct object_handle_t {
+        void *priv;
+        void (*priv_cleanup)(struct object_handle_t *, void *);
+        int nref;
+        struct buffer_t children;
+};
+
 /**
  * struct func_intl_t - descriptor for built-in function
  * @fn:         Pointer to the function
@@ -329,7 +356,26 @@ extern int array_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
 
-/* builtin/builtin.c */
+/* buffer.c */
+extern void buffer_init(struct buffer_t *buf);
+extern void buffer_putc(struct buffer_t *buf, int c);
+extern void buffer_nputs(struct buffer_t *buf, const char *s, size_t amt);
+extern void buffer_puts(struct buffer_t *buf, const char *s);
+extern void buffer_free(struct buffer_t *buf);
+extern int buffer_substr(struct buffer_t *buf, int i);
+extern void buffer_shrinkstr(struct buffer_t *buf, size_t new_size);
+extern void buffer_lstrip(struct buffer_t *buf, const char *charset);
+extern void buffer_rstrip(struct buffer_t *buf, const char *charset);
+extern void buffer_putd(struct buffer_t *buf,
+                        const void *data, size_t datalen);
+static inline size_t buffer_size(struct buffer_t *buf) { return buf->p; }
+static inline void
+buffer_reset(struct buffer_t *buf)
+{
+        buf->p = '\0';
+        if (buf->s)
+                buf->s[0] = '\0';
+}/* builtin/builtin.c */
 extern void moduleinit_builtin(void);
 
 /* err.c */
@@ -413,6 +459,7 @@ extern int clz64(uint64_t x);
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)(((void *)(x)) - offsetof(type, member)))
+extern ssize_t index_translate(ssize_t i, size_t size);
 
 /* keyword.c */
 extern int keyword_seek(const char *s);
@@ -440,13 +487,24 @@ extern void mempool_free(struct mempool_t *pool, void *data);
 
 /* types/object.c */
 extern struct var_t *object_init(struct var_t *v);
-extern struct var_t *object_child(struct var_t *o, const char *s);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
 extern struct var_t *object_nth_child(struct var_t *o, int n);
 extern void object_add_child(struct var_t *o, struct var_t *v);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
-extern void *object_get_priv(struct var_t *o);
+static inline void *object_get_priv(struct var_t *o)
+        { return o->o.h->priv; }
+
+/*
+ * Return:    - the child if found
+ *            - the built-in method matching @s if the child is not found
+ *            - NULL if neither are found.
+ */
+static inline struct var_t *
+object_child(struct var_t *o, const char *s)
+{
+        return object_child_l(o, literal(s));
+}
 
 /* op.c */
 extern void qop_mul(struct var_t *a, struct var_t *b);
@@ -485,35 +543,49 @@ extern void tstack_push(struct var_t *v);
 extern void moduleinit_stack(void);
 
 /* types/string.c */
-extern char *string_get_cstring(struct var_t *str);
+static inline struct buffer_t *string_buf__(struct var_t *str)
+        { return &str->s->b; }
 extern void string_assign_cstring(struct var_t *str, const char *s);
 extern struct var_t *string_init(struct var_t *var);
-extern size_t string_length(struct var_t *str);
-extern void string_putc(struct var_t *str, int c);
-extern void string_puts(struct var_t *str, const char *s);
 static inline void string_clear(struct var_t *str)
         { string_assign_cstring(str, ""); }
 extern int string_substr(struct var_t *str, int i);
+static inline size_t
+string_length(struct var_t *str)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+        return buffer_size(string_buf__(str));
+}
+/*
+ * WARNING!! This is not reentrance safe!  Whatever you are doing
+ * with the return value, do it now.
+ *
+ * FIXME: This is also not thread safe, and "do it quick" is not a good
+ * enough solution.
+ */
+static inline char *
+string_get_cstring(struct var_t *str)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+        return str->s->b.s;
+}
+static inline void
+string_putc(struct var_t *str, int c)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+        buffer_putc(string_buf__(str), c);
+}
+static inline void
+string_puts(struct var_t *str, const char *s)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+        buffer_puts(string_buf__(str), s);
+}
 
 /* symbol.c */
 extern struct var_t *symbol_seek(const char *s);
 extern struct var_t *symbol_seek_stack(const char *s);
 extern struct var_t *symbol_seek_stack_l(const char *s);
-
-/* buffer.c */
-extern void buffer_init(struct buffer_t *buf);
-extern void buffer_reset(struct buffer_t *buf);
-extern void buffer_putc(struct buffer_t *buf, int c);
-extern void buffer_nputs(struct buffer_t *buf, const char *s, size_t amt);
-extern void buffer_puts(struct buffer_t *buf, const char *s);
-extern void buffer_free(struct buffer_t *buf);
-extern int buffer_substr(struct buffer_t *buf, int i);
-extern void buffer_shrinkstr(struct buffer_t *buf, size_t new_size);
-extern void buffer_lstrip(struct buffer_t *buf, const char *charset);
-extern void buffer_rstrip(struct buffer_t *buf, const char *charset);
-extern void buffer_putd(struct buffer_t *buf,
-                        const void *data, size_t datalen);
-static inline size_t buffer_size(struct buffer_t *buf) { return buf->p; }
 
 /* trie.c */
 extern struct trie_t *trie_new(void);

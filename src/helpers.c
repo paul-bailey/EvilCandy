@@ -183,4 +183,22 @@ match(const char *needle, const char *haystack)
         return -1;
 }
 
+/**
+ * index_translate - Convert user index (or offset) to C index
+ * @i:          Index from user
+ * @size:       Size of the array being indexed
+ *
+ * Return: Transformed @i, or -1 if it is out of the range determined
+ *         by @size
+ *
+ * To user, "i<0" means "index from end."  This function converts that
+ * into an index from the start.
+ */
+ssize_t
+index_translate(ssize_t i, size_t size)
+{
+        if (i < 0)
+                i += size;
+        return (size_t)i >= size ? -1 : i;
+}
 

@@ -13,6 +13,7 @@
  * might be more appropriate.  This can be used in two ways:
  *
  *      binary API:     buffer_putd
+ *                      buffer_size     <- amt of data stored, in bytes
  *
  *      C-string API:   buffer_puts
  *                      buffer_nputs
@@ -21,6 +22,7 @@
  *                      buffer_shrinkstr
  *                      buffer_lstrip
  *                      buffer_rstrip
+ *                      buffer_size     <- strlen, not counting '\0'
  *
  *      common to both: buffer_init
  *                      buffer_reset
@@ -138,17 +140,6 @@ buffer_init(struct buffer_t *buf)
         } else {
                 buffer_init_(buf);
         }
-}
-
-/**
- * buffer_reset - Reuse a buffer from start.
- */
-void
-buffer_reset(struct buffer_t *buf)
-{
-        buf->p = 0;
-        if (buf->s)
-                buf->s[0] = '\0';
 }
 
 /**

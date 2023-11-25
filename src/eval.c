@@ -237,28 +237,6 @@ eval9(struct var_t *v)
         }
 }
 
-/*
- * Helper to eval8.
- * We got [, expect something that evaluates to number,
- * then exepct ]
- */
-static int
-eval_index(void)
-{
-        struct var_t *v = tstack_getpush();
-        long long i;
-        eval(v);
-        if (v->magic != QINT_MAGIC)
-                syntax("Array index must evaluate to integer");
-        i = v->i;
-        if (i > INT_MAX || i < INT_MIN)
-                syntax("Array index %lld out of range", i);
-        tstack_pop(NULL);
-        qlex();
-        expect(OC_RBRACK);
-        return (int)i;
-}
-
 static bool
 clobbershift(struct var_t *v1, struct var_t *v2, struct var_t *v3)
 {
@@ -300,38 +278,29 @@ eval8(struct var_t *v)
                         have_parent = true;
                         break;
                 case OC_LBRACK:
+                    {
+                        struct index_info_t ii;
+                        eval_index(&ii);
                         switch (v->magic) {
                         case QOBJECT_MAGIC:
-                                /* TODO: Eval this, see expression.c */
-                                qlex();
-                                expect('q');
-                                w = eobject_child_l(v, cur_oc->s);
-                                qlex();
-                                expect(OC_RBRACK);
+                                if (ii.magic == QSTRING_MAGIC)
+                                        w = eobject_child_l(v, ii.s);
+                                else
+                                        w = eobject_nth_child(v, ii.i);
                                 clobbershift(parent, v, w);
                                 have_parent = true;
                                 break;
                         case QSTRING_MAGIC:
-                            {
-                                char c[2];
-                                size_t len;
-                                int idx = eval_index();
-                                char *vs = string_get_cstring(v);
-                                len = string_length(v);
-                                if (idx < 0)
-                                        idx = len + idx;
-                                if (idx < 0 || idx >= len)
-                                        c[0] = '\0';
-                                else
-                                        c[0] = vs[idx];
-                                c[1] = '\0';
-                                qop_assign_cstring(v, c);
+                                if (ii.magic != QINT_MAGIC)
+                                        syntax("Invalid type for array index");
+                                qop_assign_char(v, string_substr(v, ii.i));
                                 have_parent = false;
                                 break;
-                            }
                         case QARRAY_MAGIC:
+                                if (ii.magic != QINT_MAGIC)
+                                        syntax("Invalid type for array index");
                                 w = tstack_getpush();
-                                earray_child(v, eval_index(), w);
+                                earray_child(v, ii.i, w);
                                 qop_clobber(v, w);
                                 have_parent = false;
                                 tstack_pop(NULL);
@@ -341,7 +310,7 @@ eval8(struct var_t *v)
                                        typestr(v->magic));
                         }
                         break;
-
+                    }
                 case OC_LPAR:
                         if (!isfunction(v))
                                 syntax("%s is not a function", nameof(v));
@@ -569,6 +538,40 @@ eval(struct var_t *v)
         q_unlex();
 
         RECURSION_DECR();
+}
+
+/**
+ * eval_index - Evaluate an array index
+ * @ii: pointer to struct to store results
+ *
+ * Before function call PC is at first token after opening bracket.
+ * After function call PC is at first token after closing bracket.
+ */
+void
+eval_index(struct index_info_t *ii)
+{
+        struct var_t *idx = tstack_getpush();
+        ii->s = NULL;
+        ii->i = 0;
+        eval(idx);
+        qlex();
+        expect(OC_RBRACK);
+        switch (ii->magic = idx->magic) {
+        case QSTRING_MAGIC:
+                ii->s = literal(string_get_cstring(idx));
+                ii->i = 0;
+                break;
+        case QINT_MAGIC:
+                ii->s = NULL;
+                /* because idx stores long long, but ii.i is int */
+                if (idx->i < INT_MIN || idx->i > INT_MAX)
+                        syntax("Array index out of range");
+                ii->i = idx->i;
+                break;
+        default:
+                syntax("Invalid type for array index");
+        }
+        tstack_pop(NULL);
 }
 
 void

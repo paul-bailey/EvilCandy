@@ -7,13 +7,7 @@
 #include <stdio.h>
 #include <limits.h>
 
-/* because idx stores long long, but array indices fit in int */
-static void
-idx_bound_check(struct var_t *idx)
-{
-        if (idx->i > INT_MAX || idx->i < INT_MIN)
-                syntax("Array index out of bounds");
-}
+
 
 /* some return values for do_childof_r, better than a bunch of goto's */
 enum {
@@ -48,9 +42,9 @@ add_new_child(struct var_t *parent, char *name_lit)
  *      we got [nnn]
  */
 static int
-handle_num_arr(struct var_t *parent, int idxi)
+handle_num_arr(struct var_t *parent, int i)
 {
-        struct var_t *child = array_vchild(parent, idxi);
+        struct var_t *child = array_vchild(parent, i);
         if (child)
                 return do_childof_r(child, parent);
 
@@ -59,7 +53,7 @@ handle_num_arr(struct var_t *parent, int idxi)
 
         child = tstack_getpush();
         eval(child);
-        earray_set_child(parent, idxi, child);
+        earray_set_child(parent, i, child);
         tstack_pop(NULL);
         return 0;
 }
@@ -69,13 +63,13 @@ handle_num_arr(struct var_t *parent, int idxi)
  *      we got ["abc"]
  */
 static int
-handle_assoc_arr(struct var_t *parent, char *idxs)
+handle_assoc_arr(struct var_t *parent, char *s)
 {
-        struct var_t *child = eobject_child_l(parent, idxs);
+        struct var_t *child = eobject_child_l(parent, s);
         if (child)
                 return do_childof_r(child, parent);
         else
-                add_new_child(parent, idxs);
+                add_new_child(parent, s);
         return 0;
 }
 
@@ -86,43 +80,24 @@ handle_assoc_arr(struct var_t *parent, char *idxs)
 static int
 handle_lbrack(struct var_t *parent)
 {
-        struct var_t *idx = tstack_getpush();
-        char *idxs = NULL;
-        int magic;
-        int idxi;
-        eval(idx);
-        qlex();
-        expect(OC_RBRACK);
-
-        /*
-         * save this stuff because I'd rather pop idx now
-         * rather than later
-         */
-        magic = idx->magic;
-        if (magic == QSTRING_MAGIC) {
-                idxs = literal(string_get_cstring(idx));
-        } else if (magic == QINT_MAGIC) {
-                idx_bound_check(idx);
-                idxi = idx->i;
-        } else {
-                return ER_INDEX_TYPE;
-        }
-        tstack_pop(NULL);
+        struct index_info_t ii;
+        eval_index(&ii);
 
         switch (parent->magic) {
         case QARRAY_MAGIC:
-                if (magic != QINT_MAGIC)
+                if (ii.magic != QINT_MAGIC)
                         return ER_INDEX_TYPE;
-                return handle_num_arr(parent, idxi);
-        case QOBJECT_MAGIC:
-                if (magic == QINT_MAGIC) {
-                        return do_childof_r(eobject_nth_child(parent, idxi),
-                                            parent);
-                } else if (magic != QSTRING_MAGIC) {
-                        return ER_INDEX_TYPE;
-                }
+                return handle_num_arr(parent, ii.i);
 
-                return handle_assoc_arr(parent, idxs);
+        case QOBJECT_MAGIC:
+                if (ii.magic == QINT_MAGIC) {
+                        return do_childof_r(eobject_nth_child(parent, ii.i),
+                                            parent);
+                } else if (ii.magic == QSTRING_MAGIC) {
+                        return handle_assoc_arr(parent, ii.s);
+                }
+                return ER_INDEX_TYPE;
+
         default:
                 return ER_NOTASSOC;
         }

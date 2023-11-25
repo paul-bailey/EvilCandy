@@ -362,6 +362,12 @@ extern void err_expected__(int opcode);
 /* eval.c */
 extern void eval(struct var_t *v);
 extern void moduleinit_eval(void);
+struct index_info_t {
+        int magic;
+        char *s;
+        int i;
+};
+extern void eval_index(struct index_info_t *ii);
 
 /* ewrappers.c */
 extern struct var_t *ebuiltin_method(struct var_t *v,
@@ -466,6 +472,7 @@ extern bool qop_cmpz(struct var_t *v);
 extern void qop_assign_cstring(struct var_t *v, const char *s);
 extern void qop_assign_int(struct var_t *v, long long i);
 extern void qop_assign_float(struct var_t *v, double f);
+extern void qop_assign_char(struct var_t *v, int c);
 
 /* stack.c */
 extern void stack_pop(struct var_t *to);
@@ -486,6 +493,7 @@ extern void string_putc(struct var_t *str, int c);
 extern void string_puts(struct var_t *str, const char *s);
 static inline void string_clear(struct var_t *str)
         { string_assign_cstring(str, ""); }
+extern int string_substr(struct var_t *str, int i);
 
 /* symbol.c */
 extern struct var_t *symbol_seek(const char *s);

@@ -291,6 +291,17 @@ qop_clobber(struct var_t *to, struct var_t *from)
         qop_mov(to, from);
 }
 
+/* helper to qop_assign_cstring and qop_assign_char */
+static void
+qop_string_maybeinit(struct var_t *v)
+{
+        if (v->magic == QEMPTY_MAGIC) {
+                string_init(v);
+        } else if (v->magic != QSTRING_MAGIC) {
+                type_err(v, QSTRING_MAGIC);
+        }
+}
+
 /**
  * Convert @v to string if it's empty type, and assign the C string @s to
  * it
@@ -298,12 +309,20 @@ qop_clobber(struct var_t *to, struct var_t *from)
 void
 qop_assign_cstring(struct var_t *v, const char *s)
 {
-        if (v->magic == QEMPTY_MAGIC) {
-                string_init(v);
-        } else if (v->magic != QSTRING_MAGIC) {
-                type_err(v, QSTRING_MAGIC);
-        }
+        qop_string_maybeinit(v);
         string_assign_cstring(v, s);
+}
+
+/**
+ * Convert @v to string if it's empty type, and assign the C string to be
+ * a single character length, character @c
+ */
+void
+qop_assign_char(struct var_t *v, int c)
+{
+        qop_string_maybeinit(v);
+        string_clear(v);
+        string_putc(v, c);
 }
 
 /**

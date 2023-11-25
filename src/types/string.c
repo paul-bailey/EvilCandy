@@ -420,6 +420,27 @@ string_puts(struct var_t *str, const char *s)
         buffer_puts(strbuf(str), s);
 }
 
+/**
+ * string_substr - Get substring
+ * @str: String object
+ * @i:  Index into the string to get.  <0 means indexed from the end.
+ *
+ * Return character at @i, or '\0' if @i is out of range.
+ */
+int
+string_substr(struct var_t *str, int i)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+        size_t len = str_len(str);
+        char *s;
+        if (i < 0)
+                i += len;
+        if (i < 0 || i >= len)
+                return '\0';
+        s = cstr(str);
+        return s[i];
+}
+
 void
 typedefinit_string(void)
 {

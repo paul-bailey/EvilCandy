@@ -1,4 +1,4 @@
-.PHONY: all clean test_scripter
+.PHONY: all clean test_scripter release
 
 # command-line options:
 #         V=1 : verbose
@@ -34,15 +34,12 @@ endif
 
 pwd := $(shell pwd)
 
-O ?=
-ifneq ($(O),)
-o_opt := -O$(O)
-else
-o_opt :=
-endif
-
-CFLAGS += -Wall $(o_opt)
+CFLAGS += -Wall
 CPPFLAGS += -Isrc
+ifeq ($(MAKECMDGOALS),release)
+CFLAGS += -O3
+CPPFLAGS += -DNDEBUG
+endif
 LDFLAGS += -Wall
 CC := gcc
 LD := gcc
@@ -73,6 +70,7 @@ cmd = @$(if $($(quiet)cmd_$(1)), \
             $(call basic_echo,$($(quiet)cmd_$(1))) ;) $(cmd_$(1))
 
 all: $(prog)
+release: all
 
 dir_targets := \
  $(DEPDIR) $(OBJDIR) \

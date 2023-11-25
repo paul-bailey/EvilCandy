@@ -35,7 +35,7 @@ endif
 pwd := $(shell pwd)
 
 CFLAGS += -Wall
-CPPFLAGS += -Isrc
+CPPFLAGS += -Iinc
 ifeq ($(MAKECMDGOALS),release)
 CFLAGS += -O3
 CPPFLAGS += -DNDEBUG

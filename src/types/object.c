@@ -255,9 +255,7 @@ object_len(struct var_t *ret)
                 i = oh_nchildren(v->o.h);
                 break;
         case QSTRING_MAGIC:
-                i = 0;
-                if (v->s.s)
-                      i = strlen(v->s.s);
+                i = string_length(v);
                 break;
         default:
                 i = 1;

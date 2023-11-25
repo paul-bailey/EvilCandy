@@ -120,7 +120,7 @@ array_set_child_safe(struct array_handle_t *h,
             {
                 struct buffer_t *buf = (struct buffer_t *)p;
                 buffer_reset(buf);
-                buffer_puts(buf, child->s.s);
+                buffer_puts(buf, string_get_cstring(child));
                 break;
             }
         default:

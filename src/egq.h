@@ -62,6 +62,7 @@ enum {
 struct var_t;
 struct object_handle_t;
 struct array_handle_t;
+struct string_handle_t;
 
 /**
  * struct trie_t - Node for bitwise trie
@@ -222,7 +223,7 @@ struct var_t {
                 double f;
                 long long i;
                 const struct func_intl_t *fni;
-                struct buffer_t s;
+                struct string_handle_t *s;
                 struct marker_t px;
                 struct var_t *ps;
         };
@@ -476,12 +477,22 @@ extern struct var_t *tstack_getpush(void);
 extern void tstack_push(struct var_t *v);
 extern void moduleinit_stack(void);
 
+/* types/string.c */
+extern char *string_get_cstring(struct var_t *str);
+extern void string_assign_cstring(struct var_t *str, const char *s);
+extern struct var_t *string_init(struct var_t *var);
+extern size_t string_length(struct var_t *str);
+extern void string_putc(struct var_t *str, int c);
+extern void string_puts(struct var_t *str, const char *s);
+static inline void string_clear(struct var_t *str)
+        { string_assign_cstring(str, ""); }
+
 /* symbol.c */
 extern struct var_t *symbol_seek(const char *s);
 extern struct var_t *symbol_seek_stack(const char *s);
 extern struct var_t *symbol_seek_stack_l(const char *s);
 
-/* token.c */
+/* buffer.c */
 extern void buffer_init(struct buffer_t *buf);
 extern void buffer_reset(struct buffer_t *buf);
 extern void buffer_putc(struct buffer_t *buf, int c);

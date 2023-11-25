@@ -90,9 +90,14 @@ do_readstr(struct var_t *ret)
         FILE *fp = fh->fp;
 
         errno = 0;
-        qop_assign_cstring(ret, "");
+        if (ret->magic == QEMPTY_MAGIC)
+                string_init(ret);
+        /* XXX bug, or syntax error? */
+        bug_on(ret->magic != QSTRING_MAGIC);
+
+        string_clear(ret);
         while ((c = getc(fp)) != '\n' && c != EOF)
-                buffer_putc(&ret->s, c);
+                string_putc(ret, c);
         if (errno)
                 fh->err = errno;
         errno = errno_save;
@@ -118,12 +123,13 @@ do_writestr(struct var_t *ret)
         bug_on(vs == NULL);
 
         arg_type_check(vs, QSTRING_MAGIC);
-        if (!vs->s.s)
+        s = string_get_cstring(vs);
+        if (!s)
                 goto done;
 
         errno = 0;
         fp = fh->fp;
-        for (s = vs->s.s; *s != '\0'; s++) {
+        for ( ; *s != '\0'; s++) {
                 if (putc((int)*s, fp) == EOF) {
                         res = -1;
                         break;
@@ -236,17 +242,20 @@ do_open(struct var_t *ret)
 {
         struct var_t *vname = getarg(0);
         struct var_t *vmode = getarg(1);
+        char *name, *mode;
         struct file_handle_t *fh;
         int errno_save = errno;
 
         arg_type_check(vname, QSTRING_MAGIC);
         arg_type_check(vmode, QSTRING_MAGIC);
-        if (vname->s.s == NULL || vmode->s.s == NULL) {
+        name = string_get_cstring(vname);
+        mode = string_get_cstring(vmode);
+        if (name == NULL || mode == NULL) {
                 errno = EINVAL;
                 goto bad;
         }
 
-        if ((fh = file_new(vname->s.s, vmode->s.s)) == NULL)
+        if ((fh = file_new(name, mode)) == NULL)
                 goto bad;
 
         object_init(ret);
@@ -255,8 +264,7 @@ do_open(struct var_t *ret)
         return;
 
 bad:
-        qop_assign_cstring(ret, "");
-        buffer_puts(&ret->s, strerror(errno));
+        qop_assign_cstring(ret, strerror(errno));
         errno = errno_save;
 }
 

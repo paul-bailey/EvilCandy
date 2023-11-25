@@ -291,25 +291,25 @@ qop_clobber(struct var_t *to, struct var_t *from)
         qop_mov(to, from);
 }
 
+/**
+ * Convert @v to string if it's empty type, and assign the C string @s to
+ * it
+ */
 void
 qop_assign_cstring(struct var_t *v, const char *s)
 {
         if (v->magic == QEMPTY_MAGIC) {
-                v->magic = QSTRING_MAGIC;
-                buffer_init(&v->s);
-        } else if (v->magic == QSTRING_MAGIC) {
-                buffer_reset(&v->s);
-        } else {
+                string_init(v);
+        } else if (v->magic != QSTRING_MAGIC) {
                 type_err(v, QSTRING_MAGIC);
         }
-        if (!s || s[0] == '\0') {
-                buffer_putc(&v->s, 'a');
-                buffer_reset(&v->s);
-        } else {
-                buffer_puts(&v->s, s);
-        }
+        string_assign_cstring(v, s);
 }
 
+/**
+ * Convert @v to int if it's empty type, and assign @i to it (cast to a
+ * double in the case that @v is float type)
+ */
 void
 qop_assign_int(struct var_t *v, long long i)
 {
@@ -324,6 +324,10 @@ qop_assign_int(struct var_t *v, long long i)
                 type_err(v, QINT_MAGIC);
 }
 
+/**
+ * Convert @v to float if it's empty type, and assign @f to it (cast to
+ * a long long in the case that @v is an integer
+ */
 void
 qop_assign_float(struct var_t *v, double f)
 {

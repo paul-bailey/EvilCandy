@@ -6,24 +6,50 @@
 #include <stdio.h>
 #include <errno.h>
 
+struct string_handle_t {
+        int nref;
+        struct buffer_t b;
+};
+
+static inline char *cstr(struct var_t *str) { return str->s->b.s; }
+static inline struct buffer_t *strbuf(struct var_t *str)
+        { return &str->s->b; }
+static inline size_t str_len(struct var_t *str)
+        { return buffer_size(strbuf(str)); }
+
 static void
 emismatch(const char *op)
 {
         syntax("Mismatched types for %s operation", op);
 }
 
+static struct string_handle_t *
+new_string_handle(void)
+{
+        struct string_handle_t *ret = emalloc(sizeof(*ret));
+        ret->nref = 0;
+        buffer_init(&ret->b);
+        return ret;
+}
+
+static void
+string_handle_reset(struct string_handle_t *sh)
+{
+        buffer_free(&sh->b);
+        free(sh);
+}
+
 /* len() (no args)
  * returns length of C string stored in self
+ *
+ * Gotta call it something different, "string_length" already taken
  */
 static void
-string_length(struct var_t *ret)
+string_length_method(struct var_t *ret)
 {
         struct var_t *self = get_this();
-        int len = 0;
         bug_on(self->magic != QSTRING_MAGIC);
-        if (self->s.s)
-                len = strlen(self->s.s);
-        qop_assign_int(ret, len);
+        qop_assign_int(ret, str_len(self));
 }
 
 static bool
@@ -61,7 +87,7 @@ string_format_helper(char **src, struct buffer_t *t, int *lastarg)
                 buffer_puts(t, "(null)");
                 break;
         case QSTRING_MAGIC:
-                buffer_puts(t, q->s.s);
+                buffer_puts(t, cstr(q));
                 break;
         default:
                 return false;
@@ -81,18 +107,19 @@ string_format(struct var_t *ret)
         static struct buffer_t t = { 0 };
         struct var_t *self = get_this();
         int lastarg = 0;
-        char *s;
+        char *s, *self_s;
         bug_on(self->magic != QSTRING_MAGIC);
 
         buffer_reset(&t);
-        if (!self->s.s) {
+        self_s = cstr(self);
+        if (!self_s) {
                 if (!t.s)
                         buffer_putc(&t, 'a');
                 buffer_reset(&t);
                 goto done;
         }
 
-        for (s = self->s.s; *s != '\0'; s++) {
+        for (s = self_s; *s != '\0'; s++) {
                 if (*s == '{' &&
                     string_format_helper(&s, &t, &lastarg)) {
                         continue;
@@ -112,12 +139,14 @@ string_toint(struct var_t *ret)
 {
         struct var_t *self = get_this();
         long long i = 0LL;
+        char *s;
         bug_on(self->magic != QSTRING_MAGIC);
-        if (self->s.s) {
+        s = cstr(self);
+        if (s) {
                 int errno_save = errno;
                 char *endptr;
-                i = strtoll(self->s.s, &endptr, 0);
-                if (endptr == self->s.s || errno)
+                i = strtoll(s, &endptr, 0);
+                if (endptr == s || errno)
                         i = 0;
                 errno = errno_save;
         }
@@ -133,12 +162,14 @@ string_tofloat(struct var_t *ret)
 {
         struct var_t *self = get_this();
         double f = 0.;
+        char *s;
         bug_on(self->magic != QSTRING_MAGIC);
-        if (self->s.s) {
+        s = cstr(self);
+        if (s) {
                 int errno_save = errno;
                 char *endptr;
-                f = strtod(self->s.s, &endptr);
-                if (endptr == self->s.s || errno)
+                f = strtod(s, &endptr);
+                if (endptr == s || errno)
                         f = 0.;
                 errno = errno_save;
         }
@@ -157,7 +188,7 @@ strip_common(struct var_t *ret)
                 arg_type_check(arg, QSTRING_MAGIC);
 
         qop_mov(ret, self);
-        return arg ? arg->s.s : NULL;
+        return arg ? cstr(arg) : NULL;
 }
 
 /*
@@ -168,7 +199,7 @@ static void
 string_lstrip(struct var_t *ret)
 {
         const char *charset = strip_common(ret);
-        buffer_lstrip(&ret->s, charset);
+        buffer_lstrip(strbuf(ret), charset);
 }
 
 /*
@@ -179,7 +210,7 @@ static void
 string_rstrip(struct var_t *ret)
 {
         const char *charset = strip_common(ret);
-        buffer_rstrip(&ret->s, charset);
+        buffer_rstrip(strbuf(ret), charset);
 }
 
 /*
@@ -190,8 +221,8 @@ static void
 string_strip(struct var_t *ret)
 {
         const char *charset = strip_common(ret);
-        buffer_rstrip(&ret->s, charset);
-        buffer_lstrip(&ret->s, charset);
+        buffer_rstrip(strbuf(ret), charset);
+        buffer_lstrip(strbuf(ret), charset);
 }
 
 static void
@@ -200,7 +231,8 @@ string_replace(struct var_t *ret)
         struct var_t *self    = get_this();
         struct var_t *vneedle = getarg(0);
         struct var_t *vrepl   = getarg(1);
-        char *haystack, *end;
+        char *haystack, *needle, *end;
+        size_t needle_len;
 
         bug_on(self->magic != QSTRING_MAGIC);
         bug_on(!vneedle || !vrepl);
@@ -208,34 +240,41 @@ string_replace(struct var_t *ret)
         arg_type_check(vneedle, QSTRING_MAGIC);
         arg_type_check(vrepl, QSTRING_MAGIC);
 
-        qop_assign_cstring(ret, "");
+        /* guarantee ret is string */
+        if (ret->magic == QEMPTY_MAGIC)
+                string_init(ret);
+        /* XXX bug, or syntax error? */
+        bug_on(ret->magic != QSTRING_MAGIC);
 
         /* end not technically needed, but in case of match() bugs */
-        haystack = self->s.s;
-        end = haystack + self->s.p;
+        haystack = cstr(self);
+        end = haystack + str_len(self);
+        needle = cstr(vneedle);
+        needle_len = str_len(vneedle);
 
         if (!haystack || haystack[0] == '\0')
+                buffer_putc(strbuf(ret), '\0');
                 return;
-        if (!vneedle->s.s || vneedle->s.s[0] == '\0') {
-                buffer_puts(&ret->s, self->s.s);
+        if (!needle || needle[0] == '\0') {
+                buffer_puts(strbuf(ret), cstr(self));
                 return;
         }
 
         while (*haystack && haystack < end) {
-                ssize_t size = match(vneedle->s.s, haystack);
+                ssize_t size = match(needle, haystack);
                 if (size == -1)
                          break;
-                buffer_nputs(&ret->s, haystack, size);
-                buffer_puts(&ret->s, vrepl->s.s);
-                haystack += size + vneedle->s.p;
+                buffer_nputs(strbuf(ret), haystack, size);
+                buffer_puts(strbuf(ret), cstr(vrepl));
+                haystack += size + needle_len;
         }
         bug_on(haystack > end);
         if (*haystack != '\0')
-                buffer_puts(&ret->s, haystack);
+                buffer_puts(strbuf(ret), haystack);
 }
 
 static struct type_inittbl_t string_methods[] = {
-        V_INITTBL("len",     string_length, 0, 0),
+        V_INITTBL("len",     string_length_method, 0, 0),
         V_INITTBL("format",  string_format, 0, -1),
         V_INITTBL("toint",   string_toint, 0, 0),
         V_INITTBL("tofloat", string_tofloat, 0, 0),
@@ -249,7 +288,11 @@ static struct type_inittbl_t string_methods[] = {
 static void
 string_reset(struct var_t *str)
 {
-        buffer_free(&str->s);
+        str->s->nref--;
+        if (str->s->nref <= 0) {
+                bug_on(str->s->nref < 0);
+                string_handle_reset(str->s);
+        }
 }
 
 static void
@@ -257,28 +300,27 @@ string_add(struct var_t *a, struct var_t *b)
 {
         if (b->magic != QSTRING_MAGIC)
                 emismatch("+");
-        buffer_puts(&a->s, b->s.s);
+        buffer_puts(strbuf(a), cstr(b));
 }
 
 static int
 string_cmp(struct var_t *a, struct var_t *b)
 {
         int r;
-        if (!a->s.s)
-                return b->s.s ? -1 : 1;
-        else if (!b->s.s)
+        if (!cstr(a))
+                return cstr(b) ? -1 : 1;
+        else if (!cstr(b))
                 return 1;
-        r = strcmp(a->s.s, b->s.s);
+        r = strcmp(cstr(a), cstr(b));
         return r ? (r < 0 ? -1 : 1) : 0;
 }
 
 static bool
 string_cmpz(struct var_t *a)
 {
-        if (!a->s.s)
-                return true;
-        /* In C "" is non-NULL, but here we're calling it zero */
-        return a->s.s[0] == '\0';
+        char *s = cstr(a);
+        /* treat "" same as NULL in comparisons */
+        return s ? s[0] == '\0' : true;
 }
 
 static void
@@ -286,14 +328,9 @@ string_mov(struct var_t *to, struct var_t *from)
 {
         if (from->magic != QSTRING_MAGIC)
                 emismatch("mov");
-        /*
-         * FIXME: There's got to be a better way.  We're doing at best
-         * a string copy, at worst a string copy plus alloc, every time
-         * we move a string between variables, even if they're temporary
-         * or even intermediate variables.  But unlike objects and
-         * arrays, strings are pass-by value.
-         */
-        qop_assign_cstring(to, from->s.s);
+        bug_on(!!to->s && to->magic == QSTRING_MAGIC);
+        to->s = from->s;
+        to->s->nref++;
 }
 
 static const struct operator_methods_t string_primitives = {
@@ -303,6 +340,85 @@ static const struct operator_methods_t string_primitives = {
         .mov            = string_mov,
         .reset          = string_reset,
 };
+
+/**
+ * string_init - Convert an empty variable into a string type
+ * @var: An empty variable to turn into a string
+ *
+ * Return: @var
+ */
+struct var_t *
+string_init(struct var_t *var)
+{
+        bug_on(var->magic != QEMPTY_MAGIC);
+        var->magic = QSTRING_MAGIC;
+        var->s = new_string_handle();
+        var->s->nref = 1;
+        return var;
+}
+
+/**
+ * string_clobber_with - Assign a new C string to a string type
+ * @str:  String var_t type
+ * @s:    C string to set it to
+ *
+ * Clobber old string in @str if one exists
+ */
+void
+string_assign_cstring(struct var_t *str, const char *s)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+
+        struct buffer_t *buf = strbuf(str);
+        buffer_reset(buf);
+        if (!s)
+                s = "";
+        buffer_puts(buf, s);
+}
+
+/**
+ * string_get_cstring - Get C-string contents of @str
+ *
+ * Return: C string in @str, which may be NULL
+ *
+ * WARNING!! This is not reentrance safe!  Whatever you are doing
+ * with the return value, do it now.
+ *
+ * FIXME: This is also not thread safe, and "do it quick" is not a good
+ * enough solution.
+ */
+char *
+string_get_cstring(struct var_t *str)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+        return cstr(str);
+}
+
+/**
+ * string_length - Get length of the C-string managed by @str
+ *
+ * Return: length of string. If the C-string is NULL, return 0;
+ */
+size_t
+string_length(struct var_t *str)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+        return str_len(str);
+}
+
+void
+string_putc(struct var_t *str, int c)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+        buffer_putc(strbuf(str), c);
+}
+
+void
+string_puts(struct var_t *str, const char *s)
+{
+        bug_on(str->magic != QSTRING_MAGIC);
+        buffer_puts(strbuf(str), s);
+}
 
 void
 typedefinit_string(void)

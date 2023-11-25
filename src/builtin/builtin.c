@@ -26,7 +26,7 @@ qb_print_helper(struct var_t *v)
                 printf("(null)");
                 break;
         case QSTRING_MAGIC:
-                printf("%s", v->s.s);
+                printf("%s", string_get_cstring(v));
                 break;
         default:
                 return false;
@@ -39,7 +39,7 @@ qb_print(struct var_t *ret)
 {
         struct var_t *p = getarg(0);
         if (p->magic == QSTRING_MAGIC) {
-                char *s = p->s.s;
+                char *s = string_get_cstring(p);
                 while (*s)
                         putchar((int)*s++);
         } else {
@@ -53,7 +53,7 @@ qb_exit(struct var_t *ret)
 {
         struct var_t *p = getarg(0);
         if (p && p->magic == QSTRING_MAGIC)
-                printf("%s\n", p->s.s);
+                printf("%s\n", string_get_cstring(p));
         exit(0);
 }
 

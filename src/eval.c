@@ -314,7 +314,16 @@ eval8(struct var_t *v)
                         case QSTRING_MAGIC:
                             {
                                 char c[2];
-                                c[0] = ebuffer_substr(&v->s, eval_index());
+                                size_t len;
+                                int idx = eval_index();
+                                char *vs = string_get_cstring(v);
+                                len = string_length(v);
+                                if (idx < 0)
+                                        idx = len + idx;
+                                if (idx < 0 || idx >= len)
+                                        c[0] = '\0';
+                                else
+                                        c[0] = vs[idx];
                                 c[1] = '\0';
                                 qop_assign_cstring(v, c);
                                 have_parent = false;

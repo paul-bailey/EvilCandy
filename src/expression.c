@@ -100,7 +100,7 @@ handle_lbrack(struct var_t *parent)
          */
         magic = idx->magic;
         if (magic == QSTRING_MAGIC) {
-                idxs = literal(idx->s.s);
+                idxs = literal(string_get_cstring(idx));
         } else if (magic == QINT_MAGIC) {
                 idx_bound_check(idx);
                 idxi = idx->i;

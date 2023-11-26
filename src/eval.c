@@ -142,7 +142,8 @@ eval8(struct var_t *v)
                                 if (ii.magic != QINT_MAGIC)
                                         syntax("Invalid type for array index");
                                 qop_clobber(parent, v);
-                                qop_assign_char(v, string_substr(v, ii.i));
+                                var_reset(v);
+                                qop_assign_char(v, string_substr(parent, ii.i));
                                 break;
                         case QARRAY_MAGIC:
                                 if (ii.magic != QINT_MAGIC)

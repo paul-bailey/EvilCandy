@@ -1,4 +1,5 @@
 #include "egq.h"
+#include <string.h>
 
 /*
  * Build a QFUNCTION_MAGIC struct var_t from code
@@ -10,9 +11,8 @@ void
 compile_function(struct var_t *v)
 {
         int brace;
+        struct marker_t mk;
 
-        bug_on(v->magic != QEMPTY_MAGIC);
-        v->magic = QFUNCTION_MAGIC;
         qlex();
         expect(OC_LPAR);
 
@@ -21,7 +21,8 @@ compile_function(struct var_t *v)
          * scan to end of function, first checking that
          * argument header is sane.
          */
-        qop_mov(v, &q_.pc);
+        PC_SAVE(&mk);
+        function_init_user(v, &mk);
         /*
          * Set owner to "this", since we're declaring it.
          * Even if we're parsing an element of an object,
@@ -29,7 +30,6 @@ compile_function(struct var_t *v)
          * we want our namespace to be in the current function
          * when returning to this.
          */
-        v->fn.owner = get_this();
         do {
                 qlex();
                 if (cur_oc->t == OC_RPAR)

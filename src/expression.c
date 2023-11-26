@@ -319,9 +319,10 @@ static int
 expression_and_back(struct var_t *retval)
 {
         int ret;
-        stack_push(&q_.pc);
+        struct marker_t lr;
+        PC_SAVE(&lr);
         ret = expression(retval, 0);
-        stack_pop(&q_.pc);
+        PC_GOTO(&lr);
         return ret;
 }
 
@@ -398,20 +399,20 @@ static int
 do_while(struct var_t *retval, unsigned int unused)
 {
         int r = 0;
-        struct var_t *seekstart = tstack_getpush();
-        struct var_t *pc        = tstack_getpush();
-        qop_mov(pc, &q_.pc);
+        bool have_seekstart = false;
+        struct marker_t seekstart;
+        struct marker_t pc;
+        PC_SAVE(&pc);
         while (get_condition(true)) {
-                if (seekstart->magic == QEMPTY_MAGIC)
-                        qop_mov(seekstart, &q_.pc);
+                if (!have_seekstart)
+                        PC_SAVE(&seekstart);
+                have_seekstart = true;
                 if ((r = expression(retval, 0)) != 0)
                         break;
-                qop_mov(&q_.pc, pc);
+                PC_GOTO(&pc);
         }
-        if (seekstart->magic == QPTRXU_MAGIC)
-                qop_mov(&q_.pc, seekstart);
-        tstack_pop(NULL);
-        tstack_pop(NULL);
+        if (have_seekstart)
+                PC_GOTO(&seekstart);
         seek_eob(0);
 
         /* don't double break */
@@ -423,44 +424,45 @@ do_while(struct var_t *retval, unsigned int unused)
 static int
 do_for(struct var_t *retval, unsigned int unused)
 {
-        struct var_t *start   = tstack_getpush();
-        struct var_t *pc_cond = tstack_getpush();
-        struct var_t *pc_op   = tstack_getpush();
-        struct var_t *pc_blk  = tstack_getpush();
+        struct marker_t start, pc_cond, pc_op, pc_blk;
         struct var_t *sp = q_.sp;
         int r = 0;
+        bool have_op = false;
 
-        qop_mov(start, &q_.pc);
+        PC_SAVE(&start);
+
         qlex();
         expect(OC_LPAR);
         if (expression(NULL, 0) != 0)
                 syntax("Unexpected break from for loop header");
-        qop_mov(pc_cond, &q_.pc);
+
+        PC_SAVE(&pc_cond);
+
         for (;;) {
                 if (!get_condition(false))
                         break;
-                if (pc_op->magic == QEMPTY_MAGIC) {
-                        qop_mov(pc_op, &q_.pc);
+
+                if (!have_op) {
+                        PC_SAVE(&pc_op);
                         skip_par(1);
-                        qop_mov(pc_blk, &q_.pc);
+                        have_op = true;
+                        PC_SAVE(&pc_blk);
                 } else {
-                        qop_mov(&q_.pc, pc_blk);
+                        PC_GOTO(&pc_blk);
                 }
 
                 if ((r = expression(retval, 0)) != 0)
                         break;
-                qop_mov(&q_.pc, pc_op);
+
+                PC_GOTO(&pc_op);
+
                 if (expression(NULL, FE_FOR) != 0)
                         syntax("Unexpected break from loop header");
-                qop_mov(&q_.pc, pc_cond);
+
+                PC_GOTO(&pc_cond);
         }
 
-        qop_mov(&q_.pc, start);
-        tstack_pop(NULL);
-        tstack_pop(NULL);
-        tstack_pop(NULL);
-        tstack_pop(NULL);
-
+        PC_GOTO(&start);
         seek_eob(0);
 
         /*
@@ -482,15 +484,15 @@ static int
 do_do(struct var_t *retval, unsigned int unused)
 {
         int r = 0;
-        struct var_t *saved_pc = stack_getpush();
-        qop_mov(saved_pc, &q_.pc);
+        struct marker_t saved_pc;
+        PC_SAVE(&saved_pc);
         for (;;) {
                 if ((r = expression(retval, 0)) != 0)
                         break;
                 qlex();
                 expect(OC_WHILE);
                 if (get_condition(true)) {
-                        qop_mov(&q_.pc, saved_pc);
+                        PC_GOTO(&saved_pc);
                 } else {
                         qlex();
                         expect(OC_SEMI);
@@ -502,7 +504,6 @@ do_do(struct var_t *retval, unsigned int unused)
          * we encountered "break;", so no need to restore
          * PC and find the end of block, etc.
          */
-        stack_pop(NULL);
 
         /* if we break'd out of loop, don't double-break */
         if (r == 2)

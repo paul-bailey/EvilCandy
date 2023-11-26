@@ -31,14 +31,10 @@ enum {
  * @QEMPTY_MAGIC:       Uninitialized variable
  * @QOBJECT_MAGIC:      Object, or to be egg-headed and more precise, an
  *                      associative array
- * @QFUNCTION_MAGIC:    User function.  This differs from QPTRXU_MAGIC in that
- *                      the latter is only a branch point, while this contains
- *                      meta-data about the function itself
+ * @QFUNCTION_MAGIC:    Function callable by script.
  * @QFLOAT_MAGIC:       Floating point number
  * @QINT_MAGIC:         Integer number
  * @QSTRING_MAGIC:      C-string and some useful metadata
- * @QPTRXU_MAGIC:       Execution point
- * @QPTRXI_MAGIC:       Built-in C function
  * @QARRAY_MAGIC:       Numerical array, ie. [ a, b, c...]-type array
  * @Q_NMAGIC:           Boundary to check a magic number against
  */
@@ -49,8 +45,6 @@ enum type_magic_t {
         QFLOAT_MAGIC,
         QINT_MAGIC,
         QSTRING_MAGIC,
-        QPTRXU_MAGIC,
-        QPTRXI_MAGIC,
         QARRAY_MAGIC,
         Q_NMAGIC,
 };
@@ -59,6 +53,7 @@ struct var_t;
 struct object_handle_t;
 struct array_handle_t;
 struct string_handle_t;
+struct function_handle_t;
 
 /*
  * Per-type callbacks for mathematical operators, like + or -
@@ -164,19 +159,6 @@ struct object_handle_t {
 };
 
 /**
- * struct func_intl_t - descriptor for built-in function
- * @fn:         Pointer to the function
- * @minargs:    Minimum number of arguments allowed
- * @maxargs:    <0 if varargs allowed, maximum number of args
- *              (usu.=minargs) if not.
- */
-struct func_intl_t {
-        void (*fn)(struct var_t *ret);
-        int minargs;
-        int maxargs;
-};
-
-/**
  * DOC: Variable flags
  * @VF_PRIV:    Private variable, only applies to object members
  * @VF_CONST:   Constant variable, variable can be destroyed, but before
@@ -220,14 +202,10 @@ struct var_t {
                         struct var_t *owner;
                         struct object_handle_t *h;
                 } o;
-                struct {
-                        struct var_t *owner;
-                        struct marker_t mk;
-                } fn;
+                struct function_handle_t *fn;
                 struct array_handle_t *a;
                 double f;
                 long long i;
-                const struct func_intl_t *fni;
                 struct string_handle_t *s;
                 struct marker_t px;
                 struct var_t *ps;
@@ -271,18 +249,30 @@ struct opcode_t {
 struct global_t {
         struct var_t *gbl; /* "__gbl__" as user sees it */
         struct list_t ns;
-        struct var_t pc;  /* "program counter" */
+        struct marker_t pc; /* "program counter" */
         struct var_t *fp; /* "frame pointer" */
         struct var_t *sp; /* "stack pointer" */
-        struct var_t lr;  /* "link register */
         struct var_t *stack;
         int recursion;
 };
 
+/* These PC macros require #include <string.h> */
+#define PC_SAVE(link) memcpy(link, cur_mk, sizeof(*cur_mk))
+
+/* simulation of the BL instruction */
+#define PC_BL(to, link) do { \
+        if ((link) != NULL) \
+                PC_SAVE(link); \
+        memcpy(cur_mk, to, sizeof(*cur_mk)); \
+} while (0)
+
+/* simulation of the B instruction */
+#define PC_GOTO(to) PC_BL(to, NULL)
+
 /* I really hate typing this everywhere */
-#define cur_mk  (&q_.pc.px)
-#define cur_oc  q_.pc.px.oc
-#define cur_ns  q_.pc.px.ns
+#define cur_mk  (&q_.pc)
+#define cur_oc  (cur_mk->oc)
+#define cur_ns  (cur_mk->ns)
 
 #define RECURSION_INCR() do { \
         if (q_.recursion >= RECURSION_MAX) \
@@ -303,7 +293,7 @@ static inline struct var_t *get_this(void) { return q_.fp; }
 
 /* helpers to classify a variable */
 static inline bool isfunction(struct var_t *v)
-        { return v->magic == QFUNCTION_MAGIC || v->magic == QPTRXI_MAGIC; }
+        { return v->magic == QFUNCTION_MAGIC; }
 static inline bool isconst(struct var_t *v)
         { return !!(v->flags & VF_CONST); }
 static inline bool isprivate(struct var_t *v)
@@ -482,6 +472,11 @@ extern void call_function(struct var_t *fn,
 extern void call_function_from_intl(struct var_t *fn,
                         struct var_t *retval, struct var_t *owner,
                         int argc, struct var_t *argv[]);
+extern void function_init_user(struct var_t *func,
+                        const struct marker_t *pc);
+extern void function_init_internal(struct var_t *func,
+                        void (*cb)(struct var_t *),
+                        int minargs, int maxargs);
 
 /* types/object.c */
 extern struct var_t *object_init(struct var_t *v);

@@ -5,53 +5,62 @@
  *         function-like magic number
  */
 #include "var.h"
+#include <stdlib.h>
+#include <string.h>
 
-/*
- * We just popped lr to pc, make sure it's valid
- * TODO: Wrap this with #ifndef NDEBUG
+/**
+ * struct function_handle_t - Handle to a callable function
+ * @nref:       Number of vars with access to this handle
+ * @f_magic:    If FUNC_INTERNAL, function is an internal function
+ *              If FUNC_USER, function is in the user's script
+ * @minargs:    Minimum number of args that may be passed to the
+ *              function
+ * @maxargs:    Maximum number of args that may be passed to the
+ *              function, or -1 if no maximum (cf. the string
+ *              format built-in method)
+ * @fni:        If @magic is FUNC_INTERNAL, pointer to the builtin
+ *              callback
+ * @mk:         If @magic is FUNC_USER, pointer to the user callback
  */
-#ifndef NDEBUG
-static void
-pcsanity(struct marker_t *mk)
-{
-        struct list_t *i;
-        bool ok = false;
-        struct buffer_t *t = &mk->ns->pgm;
-        void *start = t->s, *end = &t->s[buffer_size(t)];
-        list_foreach(i, &q_.ns) {
-                struct ns_t *ns = container_of(i, struct ns_t, list);
-                if (ns == mk->ns) {
-                        void *oc = mk->oc;
-                        ok = (oc >= start && oc < end);
-                        break;
-                }
-        }
+struct function_handle_t {
+        int nref;
+        enum {
+                FUNC_INTERNAL = 1,
+                FUNC_USER,
+        } f_magic;
+        int minargs;
+        int maxargs;
+        void (*fni)(struct var_t *ret);
+        struct marker_t mk;
+};
 
-        bug_on(!ok);
+static struct function_handle_t *
+function_handle_new(void)
+{
+        struct function_handle_t *ret = ecalloc(sizeof(*ret));
+        ret->nref = 1;
+        return ret;
 }
-#else
-# define pcsanity(...) do { (void)0; } while (0)
-#endif
+
+static void
+function_handle_reset(struct function_handle_t *fh)
+{
+        free(fh);
+}
 
 /* push @owner...or something...onto the stack */
 static void
 push_owner(struct var_t *fn, struct var_t *owner)
 {
-        /* push "this" */
-        if (!owner) {
-                if (fn->magic == QFUNCTION_MAGIC)
-                        owner = fn->fn.owner;
-                if (!owner)
-                        owner = get_this();
-                bug_on(!owner);
-        }
+        if (!owner)
+                owner = get_this();
+        bug_on(!owner);
         stack_push(owner);
 }
 
 /*
  * Stack order after call is:
  *
- *      LR
  *      owner object handle     <-- FP
  *      arg1
  *      ...
@@ -71,8 +80,6 @@ push_uargs(struct var_t *fn, struct var_t *owner)
 {
         struct var_t *fpsav, *new_fp;
 
-        /* push lr */
-        stack_push(&q_.lr);
         /*
          * can't change this yet because we need old frame pointer
          * while evaluating args.
@@ -112,7 +119,6 @@ push_iargs(struct var_t *fn, struct var_t *owner,
         struct var_t *fpsav, *new_fp;
         int i;
 
-        stack_push(&q_.lr);
         new_fp = q_.sp;
         push_owner(fn, owner);
 
@@ -131,9 +137,6 @@ pop_args(struct var_t *fpsav)
         /* Unwind stack to beginning of args */
         while (q_.sp != q_.fp)
                 stack_pop(NULL);
-
-        /* restore LR */
-        stack_pop(&q_.lr);
 
         /* restore FP */
         q_.fp = fpsav;
@@ -189,18 +192,19 @@ static void
 ifunction_helper(struct var_t *fn, struct var_t *retval)
 {
         /* Internal function, we don't touch LR or PC for this */
-        bug_on(!fn->fni);
-        bug_on(!fn->fni->fn);
         int nargs;
-        if ((nargs = n_args()) != fn->fni->minargs) {
-                if (nargs < fn->fni->minargs ||
-                    (fn->fni->maxargs > 0 &&
-                     nargs > fn->fni->maxargs)) {
+        struct function_handle_t *fh = fn->fn;
+        bug_on(!fh);
+        bug_on(!fh->fni);
+        if ((nargs = n_args()) != fh->minargs) {
+                if (nargs < fh->minargs ||
+                    (fh->maxargs > 0 &&
+                     nargs > fh->maxargs)) {
                         syntax("Expected %d args but got %d",
-                                fn->fni->minargs, nargs);
+                                fh->minargs, nargs);
                 }
         }
-        fn->fni->fn(retval);
+        fh->fni(retval);
 }
 
 /* Call a user-defined function */
@@ -208,18 +212,13 @@ static void
 ufunction_helper(struct var_t *fn, struct var_t *retval)
 {
         int exres;
+        struct function_handle_t *fh = fn->fn;
+        struct marker_t lr;
 
-        /*
-         * Return address is _before_ semicolon, not after,
-         * since we don't always expect a semicolon afterward.
-         */
-        /* move PC into LR */
-        qop_mov(&q_.lr, &q_.pc);
+        bug_on(!fh);
 
-        pcsanity(&fn->fn.mk);
-
-        /* move destination into PC */
-        qop_mov(&q_.pc, fn);
+        /* Return address is just after ')' of function call */
+        PC_BL(&fh->mk, &lr);
 
         resolve_uarg_names();
 
@@ -235,8 +234,33 @@ ufunction_helper(struct var_t *fn, struct var_t *retval)
         }
 
         /* restore PC */
-        qop_mov(&q_.pc, &q_.lr);
-        pcsanity(cur_mk);
+        PC_GOTO(&lr);
+}
+
+static void
+call_function_common(struct var_t *fn, struct var_t *retval,
+                     struct var_t *owner, struct var_t *fpsav)
+{
+        struct var_t *retval_save = retval;
+
+        /*
+         * This guarantees that callbacks' retval may always be
+         * de-referenced
+         */
+        if (!retval_save)
+                retval = tstack_getpush();
+
+        if (fn->fn->f_magic == FUNC_INTERNAL) {
+                ifunction_helper(fn, retval);
+        } else {
+                bug_on(fn->fn->f_magic != FUNC_USER);
+                ufunction_helper(fn, retval);
+        }
+
+        if (!retval_save)
+                tstack_pop(NULL);
+
+        pop_args(fpsav);
 }
 
 /**
@@ -254,23 +278,9 @@ ufunction_helper(struct var_t *fn, struct var_t *retval)
 void
 call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
 {
+        bug_on(fn->magic != QFUNCTION_MAGIC);
         struct var_t *fpsav = push_uargs(fn, owner);
-        struct var_t *retval_save = retval;
-
-        if (!retval_save)
-                retval = tstack_getpush();
-
-        if (fn->magic == QPTRXI_MAGIC) {
-                ifunction_helper(fn, retval);
-        } else {
-                bug_on(fn->magic != QFUNCTION_MAGIC);
-                ufunction_helper(fn, retval);
-        }
-
-        if (!retval_save)
-                tstack_pop(NULL);
-
-        pop_args(fpsav);
+        call_function_common(fn, retval, owner, fpsav);
 }
 
 /**
@@ -293,54 +303,52 @@ void
 call_function_from_intl(struct var_t *fn, struct var_t *retval,
                         struct var_t *owner, int argc, struct var_t *argv[])
 {
+        bug_on(fn->magic != QFUNCTION_MAGIC);
         struct var_t *fpsav = push_iargs(fn, owner, argc, argv);
-        struct var_t *retval_save = retval;
-
-        if (!retval_save)
-                retval = tstack_getpush();
-
-        if (fn->magic == QPTRXI_MAGIC) {
-                ifunction_helper(fn, retval);
-        } else {
-                bug_on(fn->magic != QFUNCTION_MAGIC);
-                ufunction_helper(fn, retval);
-        }
-
-        if (!retval_save)
-                tstack_pop(NULL);
-
-        pop_args(fpsav);
+        call_function_common(fn, retval, owner, fpsav);
 }
 
-static void
-ptrxu_mov(struct var_t *to, struct var_t *from)
+/**
+ * function_init_user - Initialize @func to be a user-defined function
+ * @func: Empty variable to configure
+ * @pc: Location in script of first '(' of argument list.
+ */
+void
+function_init_user(struct var_t *func, const struct marker_t *pc)
 {
-        if (from->magic == QFUNCTION_MAGIC) {
-                to->px.ns = from->fn.mk.ns;
-                to->px.oc = from->fn.mk.oc;
-        } else if (from->magic == QPTRXU_MAGIC) {
-                to->px.ns = from->px.ns;
-                to->px.oc = from->px.oc;
-        } else {
-                syntax("MOV type mismatch");
-        }
+        struct function_handle_t *fh;
+        bug_on(func->magic != QEMPTY_MAGIC);
+
+        fh = function_handle_new();
+        fh->f_magic = FUNC_USER;
+        memcpy(&fh->mk, pc, sizeof(fh->mk));
+        func->fn = fh;
+        func->magic = QFUNCTION_MAGIC;
 }
 
-static const struct operator_methods_t ptrxu_primitives = {
-        .mov = ptrxu_mov,
-};
-
-static void
-ptrxi_mov(struct var_t *to, struct var_t *from)
+/**
+ * function_init_internal - Initialize @func to be a callable
+ *                          builtin function
+ * @func: Empty variable to configure
+ * @cb: Callback that executes the function
+ * @minargs: Minimum number of args used by the function
+ * @maxargs: Maximum number of args used by the function
+ */
+void
+function_init_internal(struct var_t *func, void (*cb)(struct var_t *),
+                       int minargs, int maxargs)
 {
-        if (from->magic != QPTRXI_MAGIC)
-                syntax("MOV type mismatch");
-        to->fni = from->fni;
-}
+        struct function_handle_t *fh;
+        bug_on(func->magic != QEMPTY_MAGIC);
 
-static const struct operator_methods_t ptrxi_primitives = {
-        .mov = ptrxi_mov,
-};
+        fh = function_handle_new();
+        fh->f_magic = FUNC_INTERNAL;
+        fh->fni = cb;
+        fh->minargs = minargs;
+        fh->maxargs = maxargs;
+        func->fn = fh;
+        func->magic = QFUNCTION_MAGIC;
+}
 
 static bool
 func_cmpz(struct var_t *func)
@@ -351,20 +359,30 @@ func_cmpz(struct var_t *func)
 static void
 func_mov(struct var_t *to, struct var_t *from)
 {
-        if (from->magic == QPTRXU_MAGIC) {
-                to->fn.mk.ns = from->px.ns;
-                to->fn.mk.oc = from->px.oc;
-        } else {
-                to->fn.mk.oc = from->fn.mk.oc;
-                to->fn.mk.ns = from->fn.mk.ns;
-                if (to->magic == QEMPTY_MAGIC || !to->fn.owner)
-                        to->fn.owner = from->fn.owner;
+        if (from->magic != QFUNCTION_MAGIC ||
+            (to->magic != QEMPTY_MAGIC &&
+             to->magic != QFUNCTION_MAGIC)) {
+                syntax("Mov operation not permitted for this type");
+        }
+        to->fn = from->fn;
+        to->fn->nref++;
+}
+
+static void
+func_reset(struct var_t *func)
+{
+        --func->fn->nref;
+        if (func->fn->nref <= 0) {
+                bug_on(func->fn->nref < 0);
+                function_handle_reset(func->fn);
+                func->fn = NULL;
         }
 }
 
 static const struct operator_methods_t function_primitives = {
         .cmpz = func_cmpz,
         .mov  = func_mov,
+        .reset = func_reset,
 };
 
 void
@@ -373,14 +391,6 @@ typedefinit_function(void)
         var_config_type(QFUNCTION_MAGIC,
                         "function",
                         &function_primitives,
-                        NULL);
-        var_config_type(QPTRXU_MAGIC,
-                        "code_pointer",
-                        &ptrxu_primitives,
-                        NULL);
-        var_config_type(QPTRXI_MAGIC,
-                        "built_in_function",
-                        &ptrxi_primitives,
                         NULL);
 }
 

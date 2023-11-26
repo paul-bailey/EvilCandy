@@ -9,7 +9,7 @@ enum {
 struct file_state_t {
         struct var_t *sp;
         struct var_t *fp; /* "frame pointer", not "file pointer" */
-        struct var_t pc;
+        struct marker_t pc;
 };
 
 static struct file_state_t ns_stack[LOAD_MAX];
@@ -23,8 +23,7 @@ nspush(struct ns_t *new)
 
         ns_sp->sp = q_.sp;
         ns_sp->fp = q_.fp;
-        var_init(&ns_sp->pc);
-        qop_mov(&ns_sp->pc, &q_.pc);
+        PC_SAVE(&ns_sp->pc);
 
         cur_ns = new;
         cur_oc = (struct opcode_t *)new->pgm.s;
@@ -38,7 +37,7 @@ nspop(void)
         --ns_sp;
 
         q_.fp = ns_sp->fp;
-        qop_mov(&q_.pc, &ns_sp->pc);
+        PC_GOTO(&ns_sp->pc);
 
         /*
          * We may have "break"-en early, so some stuff is on stack

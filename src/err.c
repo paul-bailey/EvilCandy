@@ -159,7 +159,7 @@ err_expected__(int opcode)
         default:
                 bug(); /* not true yet */
         }
-        syntax("Expected '%s' but got '%s'", what, q_.pc.px.oc->s);
+        syntax("Expected '%s' but got '%s'", what, cur_oc->s);
 }
 
 

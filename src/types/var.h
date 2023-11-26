@@ -11,15 +11,16 @@
 #define OP_CMP(a_, b_) (a_ == b_ ? 0 : (a_ < b_ ? -1 : 1))
 
 #define V_INITTBL(n, cb, m, M) \
-        { .magic = QPTRXI_MAGIC, .name = n, \
-                .h = { .fn = cb, .minargs = m, .maxargs = M }}
+        { .name = n, .fn = cb, .minargs = m, .maxargs = M }
 
 #define TBLEND { .name = NULL }
 
+/* XXX: should be called type_methods_t or something */
 struct type_inittbl_t {
-        int magic;
         const char *name;
-        struct func_intl_t h;
+        void (*fn)(struct var_t *);
+        int minargs;
+        int maxargs;
 };
 
 struct var_wrapper_t {

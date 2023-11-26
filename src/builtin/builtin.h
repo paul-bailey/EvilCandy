@@ -4,9 +4,9 @@
 #include <egq.h>
 #include <uarg.h>
 
-#define TOFTBL(n, cb, m, M) \
-        { .magic = QPTRXI_MAGIC, .name = n, \
-                .h = { .fn = cb, .minargs = m, .maxargs = M }}
+#define TOFTBL(n, func, m, M) \
+        { .magic = QFUNCTION_MAGIC, .name = n, \
+                .cb = func, .minargs = m, .maxargs = M }
 
 #define TOOTBL(n, p) \
         { .magic = QOBJECT_MAGIC, .name = n, .tbl = p }
@@ -25,7 +25,11 @@ struct inittbl_t {
         int magic;
         const char *name;
         union {
-                struct func_intl_t h;
+                struct {
+                        void (*cb)(struct var_t *);
+                        int minargs;
+                        int maxargs;
+                };
                 const struct inittbl_t *tbl;
                 long long i;
                 double f;

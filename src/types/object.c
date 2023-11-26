@@ -117,11 +117,8 @@ object_nth_child(struct var_t *o, int n)
 void
 object_add_child(struct var_t *parent, struct var_t *child)
 {
-        if (child->magic == QOBJECT_MAGIC) {
+        if (child->magic == QOBJECT_MAGIC)
                 child->o.owner = parent;
-        } else if (child->magic == QFUNCTION_MAGIC) {
-                child->fn.owner = parent;
-        }
         buffer_putd(&parent->o.h->children, &child, sizeof(void *));
 }
 

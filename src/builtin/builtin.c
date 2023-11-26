@@ -117,9 +117,9 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                         object_init(child);
                         bi_build_internal_object__(child, t->tbl);
                         break;
-                case QPTRXI_MAGIC:
-                        child->magic = t->magic;
-                        child->fni = &t->h;
+                case QFUNCTION_MAGIC:
+                        function_init_internal(child,
+                                        t->cb, t->minargs, t->maxargs);
                         break;
                 case QSTRING_MAGIC:
                         qop_assign_cstring(child, t->s);

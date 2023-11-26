@@ -49,23 +49,13 @@ init_lib(void)
 
         init_modules();
 
-        /* Initialize PC (its initial location will be set later) */
-        var_init(&q_.pc);
-        q_.pc.magic = QPTRXU_MAGIC;
-
         /* Initialize stack regs */
         q_.sp = q_.stack;
         q_.fp = q_.stack;
 
         /* Initialize program counter */
-        var_init(&q_.pc);
-        q_.pc.magic = QPTRXU_MAGIC;
         cur_ns = NULL;
         cur_oc = NULL;
-
-        /* Initialize link register */
-        var_init(&q_.lr);
-        qop_mov(&q_.lr, &q_.pc);
 
         /* point initial fp to "__gbl__" */
         stack_push(q_.gbl);

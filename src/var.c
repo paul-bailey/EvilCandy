@@ -116,10 +116,8 @@ config_builtin_methods(const struct type_inittbl_t *tbl,
                 struct var_wrapper_t *w = emalloc(sizeof(*w));
                 struct var_t *v = var_new();
 
-                bug_on(!strcmp(t->name, "SANITY"));
-                v->magic = QPTRXI_MAGIC;
+                function_init_internal(v, t->fn, t->minargs, t->maxargs);
                 v->name = literal_put(t->name);
-                v->fni = &t->h;
                 w->v = v;
                 list_init(&w->siblings);
                 list_add_tail(&w->siblings, parent_list);

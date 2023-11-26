@@ -235,16 +235,20 @@ string_replace(struct var_t *ret)
         /* XXX bug, or syntax error? */
         bug_on(ret->magic != QSTRING_MAGIC);
 
+        buffer_reset(string_buf__(ret));
+
         /* end not technically needed, but in case of match() bugs */
         haystack = string_get_cstring(self);
         end = haystack + string_length(self);
         needle = string_get_cstring(vneedle);
         needle_len = string_length(vneedle);
 
-        if (!haystack || haystack[0] == '\0')
+        if (!haystack || end == haystack) {
                 buffer_putc(string_buf__(ret), '\0');
                 return;
-        if (!needle || needle[0] == '\0') {
+        }
+
+        if (!needle || !needle_len) {
                 buffer_puts(string_buf__(ret), string_get_cstring(self));
                 return;
         }

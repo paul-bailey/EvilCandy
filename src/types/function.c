@@ -168,11 +168,18 @@ resolve_uarg_names(void)
                 }
         }
 
+        /*
+         * TODO:
+         * 1.   If not all args filled by caller, add some syntax where
+         *      function may set defaults for optional args.
+         * 2.   If *more* args are filled in than are asked for, say it's
+         *      a vararg function like dear old C's printf, need some way
+         *      of naming them too, perhaps a built-in 'environment'
+         *      variable that we set here on every function call.
+         */
+
         if (nargs)
                 syntax("Argument number mismatch");
-        /*
-         * XXX: if varargs, cur_oc->t is for ',' and next tok is "..."
-         */
         qlex();
         expect(OC_RPAR);
 }

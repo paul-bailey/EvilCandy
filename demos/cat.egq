@@ -5,8 +5,10 @@ let cat = function(name) {
                 exit();
         }
         while (!f.eof()) {
-                print(f.readstr() + "\n");
+                print(f.readstr());
         }
 };
 
-cat("demos/demo.egq");
+cat("demos/cat.egq");
+
+// : vim: set syntax=javascript :

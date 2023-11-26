@@ -4,3 +4,5 @@ print("1 + 2 is {}".format(a));
 
 // Expect output "args are alice and bob"
 (function(a, b) { print("args are {} and {}".format(a, b)); })("alice", "bob");
+
+// : vim: set syntax=javascript :

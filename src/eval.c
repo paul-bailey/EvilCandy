@@ -34,122 +34,6 @@ istokflag(int t, enum tok_class_t flg)
 
 static void eval0(struct var_t *v);
 
-/*
- * Helper to eval_atomic
- * got something like "v = function (a, b, c) { ..."
- */
-static void
-eval_atomic_function(struct var_t *v)
-{
-        int brace;
-
-        bug_on(v->magic != QEMPTY_MAGIC);
-        v->magic = QFUNCTION_MAGIC;
-        qlex();
-        expect(OC_LPAR);
-
-        /*
-         * PC is now at start of function call.
-         * scan to end of function, first checking that
-         * argument header is sane.
-         */
-        qop_mov(v, &q_.pc);
-        /*
-         * Set owner to "this", since we're declaring it.
-         * Even if we're parsing an element of an object,
-         * which could be a return value from a function,
-         * we want our namespace to be in the current function
-         * when returning to this.
-         */
-        v->fn.owner = get_this();
-        do {
-                qlex();
-                if (cur_oc->t == OC_RPAR)
-                        break; /* no args */
-                expect('u');
-                qlex();
-        } while (cur_oc->t == OC_COMMA);
-        expect(OC_RPAR);
-        qlex();
-        expect(OC_LBRACE);
-
-        brace = 1;
-        while (brace && cur_oc->t != EOF) {
-                qlex();
-                if (cur_oc->t == OC_LBRACE)
-                        brace++;
-                else if (cur_oc->t == OC_RBRACE)
-                        brace--;
-        }
-        if (cur_oc->t == EOF)
-                syntax("Unbalanced brace");
-}
-
-/*
- * Parse something like...
- * {
- *      a1: b1,
- *      a2: const b2,
- *      a3: private b3,
- *      a4: private const b4    [<- no comma on last elem]
- * }
- * We're starting just after the left brace.
- */
-static void
-eval_atomic_object(struct var_t *v)
-{
-        if (v->magic != QEMPTY_MAGIC)
-                syntax("Cannot assign object to existing variable");
-        object_init(v);
-        do {
-                unsigned flags = 0;
-                struct var_t *child;
-                char *name;
-                qlex();
-                expect('u');
-                name = cur_oc->s;
-                qlex();
-                expect(OC_COLON);
-                qlex();
-                if (cur_oc->t == OC_PRIV) {
-                        flags |= VF_PRIV;
-                        qlex();
-                }
-                if (cur_oc->t == OC_CONST) {
-                        flags |= VF_CONST;
-                        qlex();
-                }
-                q_unlex();
-                child = var_new();
-                child->name = name;
-                eval(child);
-                child->flags = flags;
-                object_add_child(v, child);
-                qlex();
-        } while (cur_oc->t == OC_COMMA);
-        expect(OC_RBRACE);
-}
-
-/* parse something like "[elem1, elem2, ... ]" */
-static void
-eval_atomic_array(struct var_t *v)
-{
-        bug_on(v->magic != QEMPTY_MAGIC);
-        array_from_empty(v);
-        qlex();
-        if (cur_oc->t == OC_RBRACK) /* empty array */
-                return;
-        q_unlex();
-        do {
-                struct var_t *child = var_new();
-                qlex();
-                eval(child);
-                qlex();
-                array_add_child(v, child);
-        } while(cur_oc->t == OC_COMMA);
-        expect(OC_RBRACK);
-}
-
 /* find value of number, string, function, or object */
 static void
 eval_atomic(struct var_t *v)
@@ -168,13 +52,13 @@ eval_atomic(struct var_t *v)
                 qop_assign_cstring(v, cur_oc->s);
                 break;
         case OC_FUNC:
-                eval_atomic_function(v);
+                compile_function(v);
                 break;
         case OC_LBRACK:
-                eval_atomic_array(v);
+                compile_array(v);
                 break;
         case OC_LBRACE:
-                eval_atomic_object(v);
+                compile_object(v);
                 break;
         case OC_THIS:
                 qop_mov(v, get_this());
@@ -253,25 +137,24 @@ eval8(struct var_t *v)
                                 else
                                         w = eobject_nth_child(v, ii.i);
                                 clobbershift(parent, v, w);
-                                have_parent = true;
                                 break;
                         case QSTRING_MAGIC:
                                 if (ii.magic != QINT_MAGIC)
                                         syntax("Invalid type for array index");
+                                qop_clobber(parent, v);
                                 qop_assign_char(v, string_substr(v, ii.i));
-                                have_parent = false;
                                 break;
                         case QARRAY_MAGIC:
                                 if (ii.magic != QINT_MAGIC)
                                         syntax("Invalid type for array index");
                                 w = earray_child(v, ii.i);
-                                qop_clobber(v, w);
-                                have_parent = false;
+                                clobbershift(parent, v, w);
                                 break;
                         default:
                                 syntax("Associative array syntax invalid for type %s",
                                        typestr(v->magic));
                         }
+                        have_parent = true;
                         break;
                     }
                 case OC_LPAR:

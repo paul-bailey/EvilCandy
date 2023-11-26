@@ -347,6 +347,11 @@ extern void err_expected__(int opcode);
                 err_expected__(oc_);    \
 } while (0)
 
+/* compile.c */
+extern void compile_function(struct var_t *v);
+extern void compile_object(struct var_t *v);
+extern void compile_array(struct var_t *v);
+
 /* eval.c */
 extern void eval(struct var_t *v);
 extern void moduleinit_eval(void);

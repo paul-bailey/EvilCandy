@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/stat.h>
 
 enum {
         QDELIM = 0x01,
@@ -434,8 +435,21 @@ prescan(const char *filename)
         struct opcode_t oc;
         struct ns_t *ns;
         int t;
+        struct stat st;
 
         bug_on(!filename);
+
+        /*
+         * For some reason, on macOS fopen is succeeding for
+         * directories, something I didn't know you can do,
+         * so I'm manually checking first.
+         */
+        t = stat(filename, &st);
+        if (t < 0)
+                fail("Cannot access %s", filename);
+        if (!S_ISREG(st.st_mode))
+                fail("%s is not a regular file", filename);
+
         lexer.fp = fopen(filename, "r");
         if (!lexer.fp)
                 fail("Cannot open %s", filename);

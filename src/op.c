@@ -266,14 +266,15 @@ qop_mov(struct var_t *to, struct var_t *from)
                 return;
 
         bug_on(!from || !to);
-        bug_on(from->magic == QEMPTY_MAGIC);
         if (to->magic == QEMPTY_MAGIC) {
+                if (from->magic == QEMPTY_MAGIC)
+                        return;
                 bug_on(isconst(to));
                 p = primitives_of(from);
                 bug_on(!p->mov);
                 p->mov(to, from);
                 to->magic = from->magic;
-        } else {
+        } else if (from->magic != QEMPTY_MAGIC) {
                 p = primitives_of(to);
                 bug_on(!p->mov);
                 p->mov(to, from);

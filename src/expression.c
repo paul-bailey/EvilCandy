@@ -7,8 +7,6 @@
 #include <stdio.h>
 #include <limits.h>
 
-
-
 /* some return values for do_childof_r, better than a bunch of goto's */
 enum {
         ER_INDEX_TYPE = 1,
@@ -35,7 +33,6 @@ add_new_child(struct var_t *parent, char *name_lit)
         child->flags = flags;
         object_add_child(parent, child);
 }
-
 
 /*
  * helper to handle_lbrack --> do_childof_r
@@ -650,6 +647,13 @@ expression(struct var_t *retval, unsigned int flags)
                                         goto bad_tok;
                                 q_unlex();
                                 brace = 0;
+                                break;
+                        case OC_LPAR:
+                                /* Maybe it's an iffe */
+                                q_unlex();
+                                eval(NULL);
+                                qlex();
+                                expect(OC_SEMI);
                                 break;
                         default:
                                 goto bad_tok;

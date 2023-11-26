@@ -5,15 +5,22 @@
 #include <string.h>
 #include <stdio.h>
 
+#define NLMAX 8
+
+/* Private data for the global object */
+static struct gbl_private_t {
+        char nl[NLMAX];
+} gbl;
+
 static void
-qb_typeof(struct var_t *ret)
+do_typeof(struct var_t *ret)
 {
         struct var_t *p = getarg(0);
         qop_assign_cstring(ret, typestr(p->magic));
 }
 
 static bool
-qb_print_helper(struct var_t *v)
+do_print_helper(struct var_t *v)
 {
         switch (v->magic) {
         case QINT_MAGIC:
@@ -35,7 +42,15 @@ qb_print_helper(struct var_t *v)
 }
 
 static void
-qb_print(struct var_t *ret)
+print_nl(void)
+{
+        char *s;
+        for (s = gbl.nl; *s; s++)
+                putchar((int)*s);
+}
+
+static void
+do_print(struct var_t *ret)
 {
         struct var_t *p = getarg(0);
         if (p->magic == QSTRING_MAGIC) {
@@ -43,13 +58,14 @@ qb_print(struct var_t *ret)
                 while (*s)
                         putchar((int)*s++);
         } else {
-                qb_print_helper(p);
+                do_print_helper(p);
         }
+        print_nl();
         /* return empty */
 }
 
 static void
-qb_exit(struct var_t *ret)
+do_exit(struct var_t *ret)
 {
         struct var_t *p = getarg(0);
         if (p && p->magic == QSTRING_MAGIC)
@@ -57,10 +73,23 @@ qb_exit(struct var_t *ret)
         exit(0);
 }
 
+static void
+do_setnl(struct var_t *ret)
+{
+        struct var_t *nl = getarg(0);
+        char *s;
+        if (nl->magic != QSTRING_MAGIC)
+                syntax("Expected argument: string");
+        s = string_get_cstring(nl);
+        memset(gbl.nl, 0, NLMAX);
+        strncpy(gbl.nl, s, NLMAX-1);
+}
+
 static const struct inittbl_t gblinit[] = {
-        TOFTBL("print",  qb_print,  1, -1),
-        TOFTBL("typeof", qb_typeof, 1, 1),
-        TOFTBL("exit",   qb_exit,   0, -1),
+        TOFTBL("print",  do_print,  1, -1),
+        TOFTBL("setnl",  do_setnl,  1, 1),
+        TOFTBL("typeof", do_typeof, 1, 1),
+        TOFTBL("exit",   do_exit,   0, -1),
         TOOTBL("Math",  bi_math_inittbl__),
         TOOTBL("Io",    bi_io_inittbl__),
         { .name = NULL },
@@ -82,7 +111,7 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                 return;
         for (t = tbl; t->name != NULL; t++) {
                 struct var_t *child = var_new();
-                child->name = literal(t->name);
+                child->name = literal_put(t->name);
                 switch (t->magic) {
                 case QOBJECT_MAGIC:
                         object_init(child);
@@ -118,8 +147,12 @@ moduleinit_builtin(void)
 {
         /* Do this first.  bi_build_internal_object__ de-references it. */
         q_.gbl = var_new();
-        q_.gbl->name = literal("__gbl__");
+        q_.gbl->name = literal_put("__gbl__");
         object_init(q_.gbl);
+        object_set_priv(q_.gbl, &gbl, NULL);
         bi_build_internal_object__(q_.gbl, gblinit);
+
+        /* Set up gbl private data */
+        strcpy(gbl.nl, "\n");
 }
 

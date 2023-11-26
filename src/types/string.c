@@ -347,7 +347,7 @@ string_init(struct var_t *var)
 }
 
 /**
- * string_clobber_with - Assign a new C string to a string type
+ * string_assign_cstring - Assign a new C string to a string type
  * @str:  String var_t type
  * @s:    C string to set it to
  *

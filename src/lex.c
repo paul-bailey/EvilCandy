@@ -3,6 +3,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+enum {
+        QDELIM = 0x01,
+        QIDENT = 0x02,
+        QIDENT1 = 0x04,
+        QDDELIM = 0x08,
+};
+
 /* we do not recurse here, so just let it be a static struct */
 static struct {
         int lineno;
@@ -440,13 +447,13 @@ prescan(const char *filename)
         }
 
         ns = ecalloc(sizeof(*ns));
-        ns->fname = literal(filename);
+        ns->fname = literal_put(filename);
         buffer_init(&ns->pgm);
         while ((t = qlex_helper()) != EOF) {
                 struct opcode_t oc;
                 oc.t    = t;
                 oc.line = lexer.lineno;
-                oc.s    = literal(lexer.tok.s);
+                oc.s    = literal_put(lexer.tok.s);
                 bug_on(lexer.tok.s == NULL);
                 if (oc.t == 'f') {
                         double f = strtod(lexer.tok.s, NULL);

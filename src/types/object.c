@@ -62,6 +62,22 @@ object_child_l(struct var_t *o, const char *s)
         n = oh_nchildren(o->o.h);
         ppvar = oh_children(o->o.h);
 
+        /*
+         * ppvar[i]->name and s are both return values of literal(),
+         * so their pointers are their own hash, making this a fast
+         * strcmp()-less search where we just match pointers.
+         *
+         * OTHO, this assumes objects will never have a ton of children,
+         * otherwise a per-object hash table would be handy.  If a
+         * typical user-defined class has, say, sixteen children, this is
+         * definitely faster than a hash table, especially since the most
+         * common use-case is this function is called directly rather
+         * than via object_child() (ie. user typed the name in code
+         * rather than built up a string variable to create the key,
+         * which is very rare and probably shouldn't be allowed),
+         * therefore the hash algo in literal() didn't even need to be
+         * called.
+         */
         for (i = 0; i < n; i++) {
                 if (ppvar[i] && ppvar[i]->name == s)
                         return ppvar[i];

@@ -130,45 +130,7 @@ eval_atomic_object(struct var_t *v)
         expect(OC_RBRACE);
 }
 
-static void
-eval_atomic_assign(struct var_t *v, struct opcode_t *oc)
-{
-        switch (oc->t) {
-        case 'i':
-                qop_assign_int(v, oc->i);
-                break;
-        case 'f':
-                qop_assign_float(v, oc->f);
-                break;
-        case 'q':
-                qop_assign_cstring(v, oc->s);
-                break;
-        default:
-                bug();
-        }
-}
-
-/* magic is one of "ifq" */
-static void
-eval_atomic_literal(struct var_t *v)
-{
-        struct opcode_t *oc = cur_oc;
-        qlex();
-        if (cur_oc->t == OC_PER) {
-                struct var_t *method;
-                struct var_t *w = tstack_getpush();
-                eval_atomic_assign(w, oc);
-                qlex();
-                expect('u');
-                method = ebuiltin_method(w, cur_oc->s);
-                call_function(method, v, w);
-                tstack_pop(NULL);
-        } else {
-                q_unlex();
-                eval_atomic_assign(v, oc);
-        }
-}
-
+/* parse something like "[elem1, elem2, ... ]" */
 static void
 eval_atomic_array(struct var_t *v)
 {
@@ -197,9 +159,13 @@ eval_atomic(struct var_t *v)
                 qop_mov(v, esymbol_seek(cur_oc->s));
                 break;
         case 'i':
+                qop_assign_int(v, cur_oc->i);
+                break;
         case 'f':
+                qop_assign_float(v, cur_oc->f);
+                break;
         case 'q':
-                eval_atomic_literal(v);
+                qop_assign_cstring(v, cur_oc->s);
                 break;
         case OC_FUNC:
                 eval_atomic_function(v);
@@ -214,7 +180,6 @@ eval_atomic(struct var_t *v)
                 qop_mov(v, get_this());
                 break;
         default:
-                /* TODO: OC_THIS */
                 syntax("Cannot evaluate atomic expression '%s'", cur_oc->s);
         }
 
@@ -256,7 +221,7 @@ eval8(struct var_t *v)
 {
         /*
          * FIXME: This would be so much cleaner were it not that
-         * onwer needs to be faked when calling built-in methods,
+         * owner needs to be faked when calling built-in methods,
          * since they do not have copies each with different
          * ownership pointers.
          */
@@ -524,7 +489,6 @@ eval0(struct var_t *v)
 void
 eval(struct var_t *v)
 {
-        /* We probably have a 64kB stack irl, but let's be paranoid */
         struct var_t *w;
 
         RECURSION_INCR();
@@ -558,7 +522,8 @@ eval_index(struct index_info_t *ii)
         expect(OC_RBRACK);
         switch (ii->magic = idx->magic) {
         case QSTRING_MAGIC:
-                ii->s = literal(string_get_cstring(idx));
+                /* eliteral because this should already be known */
+                ii->s = eliteral(string_get_cstring(idx));
                 ii->i = 0;
                 break;
         case QINT_MAGIC:

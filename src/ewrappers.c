@@ -65,7 +65,7 @@ ebuffer_substr(struct buffer_t *tok, int i)
 struct var_t *
 eobject_child(struct var_t *o, const char *s)
 {
-        return eobject_child_l(o, literal(s));
+        return eobject_child_l(o, eliteral(s));
 }
 
 struct var_t *
@@ -114,4 +114,32 @@ esymbol_seek(const char *name)
                 syntax("Symbol %s not found", name);
         return ret;
 }
+
+char *
+eliteral(const char *key)
+{
+        char *ret = literal(key);
+        if (!ret)
+                syntax("Key '%s' not found", key);
+        return ret;
+}
+
+/*
+ * fnv_hash - The FNV-1a hash algorithm, our default if user
+ *              does not select their own.
+ * See Wikipedia article on this.
+ * It could be made into 64-bit version with different consts.
+ * Users may want to make a case-less version of this, for
+ * things like case-insensitive databases.
+ */
+unsigned long
+fnv_hash(const char *s)
+{
+        unsigned int c;
+        unsigned long hash = 0x811c9dc5;
+        while ((c = (unsigned char)(*s++)) != '\0')
+                hash = (hash * 0x01000193) ^ c;
+        return hash;
+}
+
 

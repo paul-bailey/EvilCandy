@@ -55,13 +55,6 @@ enum type_magic_t {
         Q_NMAGIC,
 };
 
-enum {
-        QDELIM = 0x01,
-        QIDENT = 0x02,
-        QIDENT1 = 0x04,
-        QDDELIM = 0x08,
-};
-
 struct var_t;
 struct object_handle_t;
 struct array_handle_t;
@@ -197,8 +190,26 @@ enum {
 };
 
 
-/*
- * symbol types - object, function, float, integer, string
+/**
+ * struct var_t - User variable type
+ * @magic: Magic number to determine which builtin type
+ * @flags: a VF_* enum
+ * @name: Name of the variable.  Set if it was declared by user, usually
+ *        NULL if an intermediate variable.  (We don't use a symbol
+ *        table.)  _ALWAYS_ use a return value of literal() when setting
+ *        this.
+ *
+ * The remaining fields are specific to the type, determined by @magic,
+ * and are handled privately by the type-specific sources in types/xxx.c
+ *
+ * Get this in one of four ways:
+ * 1. Declare statically or on the stack, then initialize with var_init.
+ *    Do not call var_delete for this, use var_reset instead.
+ * 2. Push "from" stack, ie. stack_getpush() instead of stack_push.
+ *    _ALWAYS_ balance this with stack_pop() when you're done with it
+ * 3. Push "from" temporary-variable stack with tstack_getpush()
+ *    _ALWAYS_ balance this with tstack_pop() when you're done with it.
+ * 4. Allocate with var_new().  Free it with var_delete().
  */
 struct var_t {
         unsigned int magic;
@@ -289,39 +300,22 @@ extern struct global_t q_;
 extern const char *typestr(int magic);
 extern const char *nameof(struct var_t *v);
 static inline struct var_t *get_this(void) { return q_.fp; }
-static inline bool
-isfunction(struct var_t *v)
-{
-        return v->magic == QFUNCTION_MAGIC || v->magic == QPTRXI_MAGIC;
-}
-static inline bool
-isconst(struct var_t *v)
-{
-        return !!(v->flags & VF_CONST);
-}
-static inline bool
-isprivate(struct var_t *v)
-{
-        return !!(v->flags & VF_PRIV);
-}
+
+/* helpers to classify a variable */
+static inline bool isfunction(struct var_t *v)
+        { return v->magic == QFUNCTION_MAGIC || v->magic == QPTRXI_MAGIC; }
+static inline bool isconst(struct var_t *v)
+        { return !!(v->flags & VF_CONST); }
+static inline bool isprivate(struct var_t *v)
+        { return !!(v->flags & VF_PRIV); }
 /* true if v is float or int */
-static inline bool
-isnumvar(struct var_t *v)
-{
-        return v->magic == QINT_MAGIC || v->magic == QFLOAT_MAGIC;
-}
+static inline bool isnumvar(struct var_t *v)
+        { return v->magic == QINT_MAGIC || v->magic == QFLOAT_MAGIC; }
+
 /* helpers for return value of qlex */
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
-
-/* types/array.c */
-extern int array_child(struct var_t *array, int idx, struct var_t *child);
-extern struct var_t *array_vchild(struct var_t *array, int idx);
-extern void array_add_child(struct var_t *array, struct var_t *child);
-extern int array_set_child(struct var_t *array,
-                            int idx, struct var_t *child);
-extern struct var_t *array_from_empty(struct var_t *array);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);
@@ -377,6 +371,8 @@ extern int earray_child(struct var_t *array, int n, struct var_t *child);
 extern int earray_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *esymbol_seek(const char *name);
+extern char *eliteral(const char *key);
+extern unsigned long fnv_hash(const char *s);
 
 /* expression.c */
 enum {
@@ -384,13 +380,6 @@ enum {
         FE_TOP = 0x02,
 };
 extern int expression(struct var_t *retval, unsigned int flags);
-
-/* types/function.c */
-extern void call_function(struct var_t *fn,
-                        struct var_t *retval, struct var_t *owner);
-extern void call_function_from_intl(struct var_t *fn,
-                        struct var_t *retval, struct var_t *owner,
-                        int argc, struct var_t *argv[]);
 
 
 /* keyword.c */
@@ -405,7 +394,7 @@ extern void moduleinit_lex(void);
 
 /* literal.c */
 extern char *literal(const char *s);
-extern void literal_diag(void);
+extern char *literal_put(const char *s);
 extern void moduleinit_literal(void);
 
 /* load_file.c */
@@ -416,27 +405,6 @@ struct mempool_t; /* opaque data type to user */
 extern struct mempool_t *mempool_new(size_t datalen);
 extern void *mempool_alloc(struct mempool_t *pool);
 extern void mempool_free(struct mempool_t *pool, void *data);
-
-/* types/object.c */
-extern struct var_t *object_init(struct var_t *v);
-extern struct var_t *object_child_l(struct var_t *o, const char *s);
-extern struct var_t *object_nth_child(struct var_t *o, int n);
-extern void object_add_child(struct var_t *o, struct var_t *v);
-extern void object_set_priv(struct var_t *o, void *priv,
-                      void (*cleanup)(struct object_handle_t *, void *));
-static inline void *object_get_priv(struct var_t *o)
-        { return o->o.h->priv; }
-
-/*
- * Return:    - the child if found
- *            - the built-in method matching @s if the child is not found
- *            - NULL if neither are found.
- */
-static inline struct var_t *
-object_child(struct var_t *o, const char *s)
-{
-        return object_child_l(o, literal(s));
-}
 
 /* op.c */
 extern void qop_mul(struct var_t *a, struct var_t *b);
@@ -464,6 +432,11 @@ extern void qop_assign_int(struct var_t *v, long long i);
 extern void qop_assign_float(struct var_t *v, double f);
 extern void qop_assign_char(struct var_t *v, int c);
 
+/*
+ * Do not mix/match these.
+ * Always pair tstack_pop with tstack_push,
+ * and stack_pop with stack_push
+ */
 /* stack.c */
 extern void stack_pop(struct var_t *to);
 extern struct var_t *stack_getpush(void);
@@ -473,6 +446,56 @@ extern void tstack_pop(struct var_t *to);
 extern struct var_t *tstack_getpush(void);
 extern void tstack_push(struct var_t *v);
 extern void moduleinit_stack(void);
+
+/* symbol.c */
+extern struct var_t *symbol_seek(const char *s);
+extern struct var_t *symbol_seek_stack(const char *s);
+extern struct var_t *symbol_seek_stack_l(const char *s);
+
+/* var.c */
+extern struct var_t *var_init(struct var_t *v);
+extern struct var_t *var_new(void);
+extern void var_delete(struct var_t *v);
+extern void var_reset(struct var_t *v);
+extern void moduleinit_var(void);
+extern struct var_t *builtin_method(struct var_t *v,
+                                    const char *method_name);
+
+/* Indexed by Q*_MAGIC */
+extern struct type_t TYPEDEFS[];
+
+/* types/array.c */
+extern int array_child(struct var_t *array, int idx, struct var_t *child);
+extern struct var_t *array_vchild(struct var_t *array, int idx);
+extern void array_add_child(struct var_t *array, struct var_t *child);
+extern int array_set_child(struct var_t *array,
+                            int idx, struct var_t *child);
+extern struct var_t *array_from_empty(struct var_t *array);
+
+/* types/function.c */
+extern void call_function(struct var_t *fn,
+                        struct var_t *retval, struct var_t *owner);
+extern void call_function_from_intl(struct var_t *fn,
+                        struct var_t *retval, struct var_t *owner,
+                        int argc, struct var_t *argv[]);
+
+/* types/object.c */
+extern struct var_t *object_init(struct var_t *v);
+extern struct var_t *object_child_l(struct var_t *o, const char *s);
+extern struct var_t *object_nth_child(struct var_t *o, int n);
+extern void object_add_child(struct var_t *o, struct var_t *v);
+extern void object_set_priv(struct var_t *o, void *priv,
+                      void (*cleanup)(struct object_handle_t *, void *));
+static inline void *object_get_priv(struct var_t *o)
+        { return o->o.h->priv; }
+/*
+ * Return:    - the child if found
+ *            - the built-in method matching @s if the child is not found
+ *            - NULL if neither are found.
+ */
+static inline struct var_t *
+object_child(struct var_t *o, const char *s)
+        { return ((s = literal(s))) ? object_child_l(o, s) : NULL; }
 
 /* types/string.c */
 static inline struct buffer_t *string_buf__(struct var_t *str)
@@ -514,21 +537,5 @@ string_puts(struct var_t *str, const char *s)
         buffer_puts(string_buf__(str), s);
 }
 
-/* symbol.c */
-extern struct var_t *symbol_seek(const char *s);
-extern struct var_t *symbol_seek_stack(const char *s);
-extern struct var_t *symbol_seek_stack_l(const char *s);
-
-/* var.c */
-extern struct var_t *var_init(struct var_t *v);
-extern struct var_t *var_new(void);
-extern void var_delete(struct var_t *v);
-extern void var_reset(struct var_t *v);
-extern void moduleinit_var(void);
-extern struct var_t *builtin_method(struct var_t *v,
-                                    const char *method_name);
-
-/* Indexed by Q*_MAGIC */
-extern struct type_t TYPEDEFS[];
 
 #endif /* EGQ_H */

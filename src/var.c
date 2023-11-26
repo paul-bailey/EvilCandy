@@ -118,7 +118,7 @@ config_builtin_methods(const struct type_inittbl_t *tbl,
 
                 bug_on(!strcmp(t->name, "SANITY"));
                 v->magic = QPTRXI_MAGIC;
-                v->name = literal(t->name);
+                v->name = literal_put(t->name);
                 v->fni = &t->h;
                 w->v = v;
                 list_init(&w->siblings);

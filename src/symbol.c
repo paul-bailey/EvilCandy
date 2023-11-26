@@ -50,7 +50,8 @@ trythis(const char *s)
 struct var_t *
 symbol_seek_stack(const char *s)
 {
-        return trystack(literal(s));
+        s = literal(s);
+        return s ? trystack(s) : NULL;
 }
 
 /**
@@ -92,6 +93,9 @@ symbol_seek(const char *s)
                 return q_.gbl;
 
         s = literal(s);
+        if (!s)
+                return NULL;
+
         if ((v = trystack(s)) != NULL)
                 return v;
         if ((v = trythis(s)) != NULL)

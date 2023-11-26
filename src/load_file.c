@@ -156,7 +156,7 @@ convert_path(const char *name)
                 name += 2;
 
         convert_path_helper(name, name + strlen(name));
-        return literal(path.s);
+        return literal_put(path.s);
 }
 
 static void
@@ -190,7 +190,7 @@ load_file(const char *filename)
          * interactive mode.
          */
         path = filename[0] == '/'
-                ? literal(filename) : convert_path(filename);
+                ? literal_put(filename) : convert_path(filename);
         ns = prescan(path);
         if (!ns)
                 return;

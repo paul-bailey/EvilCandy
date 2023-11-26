@@ -31,100 +31,164 @@
  *    check builtin_method() with it.
  * 3. This is not for the cryptographically squeamish.  Don't use this
  *    for your private diary.
+ * 4. Corrollary to notes 1 & 2:
+ *    Don't call literal for
+ *            this.that...
+ *    DO call literal for
+ *            this['that']...
+ *    even though "'that'" is hard-coded, since the way we evaluate
+ *    it involves putting it in a temporary struct var_t.  At the end
+ *    of evaluation we won't know if it was written as above or as
+ *    something like
+ *            this[x+y+z.something()]...
+ *    where "x+y+z.something()" evaluate to "'that'"
+ *
+ * FIXME: Note 4 implies we should forgo this altogether in favor of
+ *
  */
 #include "egq.h"
 #include <string.h>
 #include <stdio.h>
 
+
+/* For literal(), key is its own value */
+struct bucket_t {
+        char *key;
+        unsigned long hash;
+};
+
 /**
- * literal - Get the "official" copy of a string
- * @s: String to get a copy of
- *
- * Return:      Copy of @s (which might be @s exactly if @s is a previous
- *              return value from this function).
- *
- * Warning!     DO NOT FREE THE RETURN VALUE!
- *              DO NOT EDIT THE RETURN VALUE!
+ * struct oai_hashtable_t -     "oai" stands for "open addressing,
+ *                              insertion-only"
+ * @size:       Array length of @bucket.  Always a power of 2
+ * @count:      Current number of entries in the table
+ * @bucket:     Array of entries
+ * @grow_size:  Value of @count at which the table should grow
  */
+struct oai_hashtable_t {
+        size_t size;
+        size_t count;
+        struct bucket_t **bucket;
+        size_t grow_size;
+};
+
+static struct  oai_hashtable_t *htab;
+
+static inline unsigned int
+bucketi(unsigned long hash)
+{
+        return hash & (htab->size - 1);
+}
+
+static void
+oai_grow(void)
+{
+        struct bucket_t **b_old, **b_new;
+        size_t old_size = htab->size;
+        int i, j;
+
+        htab->count++;
+        while (htab->count > htab->grow_size) {
+                /*
+                 * XXX REVISIT: Arbitrary division done here.
+                 * (x*3)>>2 is quicker, but alpha=75% is getting close
+                 * to the poor performance for open-address tables,
+                 * and alpha=50% is a lot of wasted real-estate,
+                 * probably resulting in lots of cache misses, killing
+                 * the advantage that open-address has over chaining.
+                 * I'm assuming that amortization is reason enough not
+                 * to care about this.
+                 */
+                htab->size *= 2;
+                htab->grow_size = (htab->size << 1) / 3;
+        }
+
+        if (htab->size == old_size)
+                return;
+
+        /* resized, need new bucket array */
+        b_old = htab->bucket;
+        htab->bucket = b_new = ecalloc(sizeof(void *) * htab->size);
+        for (i = 0; i < old_size; i++) {
+                unsigned long perturb;
+                struct bucket_t *b = b_old[i];
+                if (!b)
+                        continue;
+                perturb = b->hash;
+                j = bucketi(b->hash);
+                while (b_new[j]) {
+                        perturb >>= 5;
+                        j = bucketi(j * 5 + perturb + 1);
+                }
+                b_new[j] = b;
+        }
+
+}
 
 /*
- * TODO: When enough testing has been done for this, pick one and remove
- * the macro.
- *
- * Reson why HASHTABLE:
- *      This is larger than any other collection of strings, and
- *      hashtables are more memory-efficient, even with bitwise tries.
- *
- * Reason why TRIE:
- *      This is used more often than the other hashtables, and tries
- *      are probably faster, even bitwise ones, since there are no
- *      collisions.
+ * Note, we do open addressing, because everyone seems to think that's
+ * faster than chaining.
  */
-#define TRIE_IT 1
-
-#if TRIE_IT
-
-static struct trie_t *lit_trie;
-
-char *
-literal(const char *s)
+static struct bucket_t *
+seek_helper(const char *key, unsigned long hash, unsigned int *idx)
 {
-        char *ret = trie_get(lit_trie, s);
-        if (!ret) {
-                int sts;
-                ret = estrdup(s);
-                sts = trie_insert(lit_trie, ret, (void *)ret, false);
-                bug_on(sts < 0);
-                (void)sts; /* in case NDEBUG, else compiler gripes */
+        unsigned int i = bucketi(hash);
+        struct bucket_t *b;
+        unsigned long perturb = hash;
+        while ((b = htab->bucket[i]) != NULL) {
+                if (b->hash == hash && !strcmp(b->key, key)) {
+                        *idx = i;
+                        return b;
+                }
+
+                perturb >>= 5;
+                i = bucketi(i * 5 + perturb + 1);
         }
-        return ret;
+        *idx = i;
+        return NULL;
 }
 
-/* for debugging */
-void
-literal_diag(void)
+/**
+ * literal_put - Store key if it isn't stored already
+ * @key: Text to store
+ *
+ * Return: copied version of key
+ */
+char *
+literal_put(const char *key)
 {
-        size_t size = trie_size(lit_trie);
-        printf("Size of lit_trie is %lu\n", (unsigned long)size);
+        unsigned int i;
+        unsigned long hash = fnv_hash(key);
+        struct bucket_t *b = seek_helper(key, hash, &i);
+        /* if match, don't insert, return that */
+        if (!b) {
+                /* no match, insert */
+                b = emalloc(sizeof(*b));
+                b->hash = hash;
+                b->key = strdup(key);
+                htab->bucket[i] = b;
+                oai_grow();
+        }
+
+        return b->key;
+}
+
+char *
+literal(const char *key)
+{
+        unsigned int dummy;
+        unsigned long hash = fnv_hash(key);
+        struct bucket_t *b = seek_helper(key, hash, &dummy);
+        return b ? b->key : NULL;
 }
 
 void
 moduleinit_literal(void)
 {
-        lit_trie = trie_new();
+        htab = emalloc(sizeof(*htab));
+        htab->grow_size = 0;
+        htab->count = 0;
+        htab->size = 2;
+        htab->bucket = ecalloc(sizeof(void *) * htab->size);
 }
 
-#else /* !TRIE_IT */
-#include "hashtable.h"
-
-static struct hashtable_t *literal_htbl = NULL;
-
-char *
-literal(const char *s)
-{
-        char *ret = hashtable_get(literal_htbl, s, NULL);
-        if (!ret) {
-                ret = estrdup(s);
-                if (hashtable_put(literal_htbl, ret, ret, 0, 0) < 0)
-                        fail("OOM");
-        }
-        return ret;
-}
-
-/* for debugging */
-void
-literal_diag(void)
-{
-        printf("Literal Hash Table Diagnostics:\n");
-        hashtable_diag(literal_htbl);
-}
-
-void
-moduleinit_literal(void)
-{
-        literal_htbl = hashtable_create(0, NULL);
-        if (!literal_htbl)
-                fail("hashtable_create failed");
-}
-
-#endif /* !TRIE_IT */

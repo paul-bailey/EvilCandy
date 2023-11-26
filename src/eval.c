@@ -264,11 +264,9 @@ eval8(struct var_t *v)
                         case QARRAY_MAGIC:
                                 if (ii.magic != QINT_MAGIC)
                                         syntax("Invalid type for array index");
-                                w = tstack_getpush();
-                                earray_child(v, ii.i, w);
+                                w = earray_child(v, ii.i);
                                 qop_clobber(v, w);
                                 have_parent = false;
-                                tstack_pop(NULL);
                                 break;
                         default:
                                 syntax("Associative array syntax invalid for type %s",
@@ -522,7 +520,9 @@ eval_index(struct index_info_t *ii)
         expect(OC_RBRACK);
         switch (ii->magic = idx->magic) {
         case QSTRING_MAGIC:
-                /* eliteral because this should already be known */
+                /* eliteral because this should evaluate to something
+                 * already be known
+                 */
                 ii->s = eliteral(string_get_cstring(idx));
                 ii->i = 0;
                 break;

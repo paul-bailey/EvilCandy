@@ -88,10 +88,10 @@ eobject_nth_child(struct var_t *o, int n)
         return v;
 }
 
-int
-earray_child(struct var_t *array, int idx, struct var_t *child)
+struct var_t *
+earray_child(struct var_t *array, int idx)
 {
-        int ret = array_child(array, idx, child);
+        struct var_t *ret = array_child(array, idx);
         if (ret < 0)
                 syntax("Array %s has no %llith element", nameof(array), idx);
         return ret;

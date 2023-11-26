@@ -1,7 +1,7 @@
 let cat = function(name) {
         let f = Io.open(name, "r");
         if (typeof(f) == "string") {
-                print("Cannot open '{}', reason='{}'\n".format(name, f));
+                print("Cannot open '{}', reason='{}'".format(name, f));
                 exit();
         }
         while (!f.eof()) {

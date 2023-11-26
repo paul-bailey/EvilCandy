@@ -39,27 +39,6 @@ add_new_child(struct var_t *parent, char *name_lit)
 
 /*
  * helper to handle_lbrack --> do_childof_r
- *      we got [nnn]
- */
-static int
-handle_num_arr(struct var_t *parent, int i)
-{
-        struct var_t *child = array_vchild(parent, i);
-        if (child)
-                return do_childof_r(child, parent);
-
-        qlex();
-        expect(OC_EQ);
-
-        child = tstack_getpush();
-        eval(child);
-        earray_set_child(parent, i, child);
-        tstack_pop(NULL);
-        return 0;
-}
-
-/*
- * helper to handle_lbrack --> do_childof_r
  *      we got ["abc"]
  */
 static int
@@ -87,7 +66,7 @@ handle_lbrack(struct var_t *parent)
         case QARRAY_MAGIC:
                 if (ii.magic != QINT_MAGIC)
                         return ER_INDEX_TYPE;
-                return handle_num_arr(parent, ii.i);
+                return do_childof_r(earray_child(parent, ii.i), parent);
 
         case QOBJECT_MAGIC:
                 if (ii.magic == QINT_MAGIC) {

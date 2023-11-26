@@ -17,50 +17,8 @@ struct array_handle_t {
         int nref;
         int type;
         unsigned int nmemb;
-        size_t allocsize;
-        size_t datasize;
-        void *data;
+        struct buffer_t children;
 };
-
-static void
-array_set_type(struct array_handle_t *h, int magic)
-{
-        h->type = magic;
-        switch (magic) {
-        case QFLOAT_MAGIC:
-                h->datasize = sizeof(double);
-                break;
-        case QINT_MAGIC:
-                h->datasize = sizeof(long long);
-                break;
-        case QSTRING_MAGIC:
-                h->datasize = sizeof(struct buffer_t);
-                break;
-        case QOBJECT_MAGIC:
-        case QFUNCTION_MAGIC:
-        case QPTRXU_MAGIC:
-        case QPTRXI_MAGIC:
-        case QARRAY_MAGIC:
-                h->datasize = sizeof(struct var_t);
-                break;
-        default:
-                bug();
-        }
-}
-
-static void
-array_grow(struct array_handle_t *h, unsigned int nmemb)
-{
-        enum { ARRAY_BLKSIZE = 1024 };
-        while ((h->nmemb + nmemb) * h->datasize > h->allocsize) {
-                void *new_data;
-                new_data = realloc(h->data, h->allocsize + ARRAY_BLKSIZE);
-                if (!new_data)
-                        fail("realloc failed");
-                h->data = new_data;
-                h->allocsize += ARRAY_BLKSIZE;
-        }
-}
 
 static void
 check_type_match(struct array_handle_t *h, struct var_t *child)
@@ -71,68 +29,13 @@ check_type_match(struct array_handle_t *h, struct var_t *child)
         }
 }
 
-static void *
-array_ptr(struct array_handle_t *h, unsigned int idx)
-{
-        return h->data + idx * h->datasize;
-}
-
-static void
-array_incr_nmemb(struct array_handle_t *h)
-{
-        void *p;
-
-        array_grow(h, 1);
-
-        p = array_ptr(h, h->nmemb);
-        switch (h->type) {
-        case QFLOAT_MAGIC:
-                *(double *)p = 0.;
-                break;
-        case QINT_MAGIC:
-                *(long long *)p = 0LL;
-                break;
-        case QSTRING_MAGIC:
-                buffer_init((struct buffer_t *)p);
-                break;
-        default:
-                var_init((struct var_t *)p);
-                break;
-        }
-
-        h->nmemb++;
-}
-
-/* after safety checks are done */
-static void
-array_set_child_safe(struct array_handle_t *h,
-                     unsigned int idx, struct var_t *child)
-{
-        void *p = array_ptr(h, idx);
-        switch (h->type) {
-        case QFLOAT_MAGIC:
-                *(double *)p = child->f;
-                break;
-        case QINT_MAGIC:
-                *(long long *)p = child->i;
-                break;
-        case QSTRING_MAGIC:
-            {
-                struct buffer_t *buf = (struct buffer_t *)p;
-                buffer_reset(buf);
-                buffer_puts(buf, string_get_cstring(child));
-                break;
-            }
-        default:
-                qop_mov((struct var_t *)p, child);
-        }
-}
-
 static struct array_handle_t *
 array_handle_new(void)
 {
         struct array_handle_t *ret = ecalloc(sizeof(*ret));
         ret->type = QEMPTY_MAGIC;
+        buffer_init(&ret->children);
+        ret->nref = 1;
         return ret;
 }
 
@@ -146,61 +49,17 @@ array_handle_new(void)
  * Return 0 for success, -1 for failure
  *
  */
-int
-array_child(struct var_t *array, int idx, struct var_t *child)
-{
-        /*
-         * Even though having @child be an argument rather than a return
-         * value makes things ugly (see where it's used in eval.c), the
-         * alternative is to store **all** data as struct qvar_t, but
-         * that's hard on the RAM if user's going to use, say, an array
-         * of a million floats.
-         */
-        struct array_handle_t *h = array->a;
-        void *p;
-        idx = index_translate(idx, h->nmemb);
-        if (idx < 0)
-                return -1;
-
-        p = array_ptr(h, idx);
-        switch (h->type) {
-        case QFLOAT_MAGIC:
-                qop_assign_float(child, *(double *)p);
-                break;
-        case QINT_MAGIC:
-                qop_assign_int(child, *(long long *)p);
-                break;
-        case QSTRING_MAGIC:
-                qop_assign_cstring(child, ((struct buffer_t *)p)->s);
-                break;
-        default:
-                qop_mov(child, (struct var_t *)p);
-        }
-        return 0;
-}
-
-/**
- * If array type is such that it holds a struct var, return that.
- * Otherwise return NULL
- */
 struct var_t *
-array_vchild(struct var_t *array, int idx)
+array_child(struct var_t *array, int idx)
 {
         struct array_handle_t *h = array->a;
+        struct var_t **ppvar = (struct var_t **)h->children.s;
 
         idx = index_translate(idx, h->nmemb);
         if (idx < 0)
                 return NULL;
 
-        switch (h->type) {
-        case QFLOAT_MAGIC:
-        case QINT_MAGIC:
-        case QSTRING_MAGIC:
-                return NULL;
-        default:
-                break;
-        }
-        return (struct var_t *)array_ptr(h, idx);
+        return ppvar[idx];
 }
 
 /**
@@ -209,18 +68,16 @@ array_vchild(struct var_t *array, int idx)
  * @idx:        Index into the array
  * @child:      Variable storing the data to set in array
  *
- * This is for an existing member.
+ * Data is moved from @child to the array member, @child must still be
+ * dealt with w/r/t garbage collection by calling code.
  */
 int
 array_set_child(struct var_t *array, int idx, struct var_t *child)
 {
-        struct array_handle_t *h = array->a;
-
-        idx = index_translate(idx, h->nmemb);
-        if (idx < 0)
+        struct var_t *memb = array_child(array, idx);
+        if (!memb)
                 return -1;
-        check_type_match(h, child);
-        array_set_child_safe(h, idx, child);
+        qop_mov(memb, child);
         return 0;
 }
 
@@ -243,13 +100,13 @@ array_add_child(struct var_t *array, struct var_t *child)
         if (h->type == QEMPTY_MAGIC) {
                 /* first time, set type and assign datasize */
                 bug_on(h->nmemb != 0);
-                array_set_type(h, child->magic);
+                h->type = child->magic;
         }
 
         check_type_match(h, child);
 
-        array_incr_nmemb(h);
-        array_set_child_safe(h, h->nmemb - 1, child);
+        h->nmemb++;
+        buffer_putd(&h->children, &child, sizeof(void *));
 }
 
 /**
@@ -267,7 +124,6 @@ array_from_empty(struct var_t *array)
         array->magic = QARRAY_MAGIC;
 
         array->a = array_handle_new();
-        array->a->nref = 1;
         return array;
 }
 
@@ -277,7 +133,7 @@ array_reset(struct var_t *a)
         a->a->nref--;
         if (a->a->nref <= 0) {
                 bug_on(a->a->nref < 0);
-                free(a->a->data);
+                buffer_free(&a->a->children);
                 free(a->a);
         }
         a->a = NULL;

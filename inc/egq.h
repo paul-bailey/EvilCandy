@@ -367,7 +367,7 @@ extern int ebuffer_substr(struct buffer_t *buf, int i);
 extern struct var_t *eobject_child(struct var_t *o, const char *s);
 extern struct var_t *eobject_child_l(struct var_t *o, const char *s);
 extern struct var_t *eobject_nth_child(struct var_t *o, int n);
-extern int earray_child(struct var_t *array, int n, struct var_t *child);
+extern struct var_t *earray_child(struct var_t *array, int n);
 extern int earray_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *esymbol_seek(const char *name);
@@ -465,8 +465,7 @@ extern struct var_t *builtin_method(struct var_t *v,
 extern struct type_t TYPEDEFS[];
 
 /* types/array.c */
-extern int array_child(struct var_t *array, int idx, struct var_t *child);
-extern struct var_t *array_vchild(struct var_t *array, int idx);
+extern struct var_t *array_child(struct var_t *array, int idx);
 extern void array_add_child(struct var_t *array, struct var_t *child);
 extern int array_set_child(struct var_t *array,
                             int idx, struct var_t *child);

@@ -89,11 +89,6 @@ assert_settable(struct var_t *v)
 static int
 do_childof_r(struct var_t *v, struct var_t *parent)
 {
-        if (isfunction(v)) {
-                call_function(v, NULL, parent);
-                return 0;
-        }
-
         qlex();
         switch (cur_oc->t) {
         case OC_PER:
@@ -112,6 +107,16 @@ do_childof_r(struct var_t *v, struct var_t *parent)
                 }
                 break;
             }
+        case OC_LPAR:
+                q_unlex();
+                if (isfunction(v)) {
+                        call_function(v, NULL, parent);
+                } else if (v->magic == QOBJECT_MAGIC) {
+                        object_call(v, NULL);
+                } else {
+                        syntax("%s is not callable", nameof(v));
+                }
+                return 0;
         case OC_LBRACK:
                  return handle_lbrack(v);
 

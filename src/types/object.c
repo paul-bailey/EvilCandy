@@ -2,6 +2,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* literal("__callable__"), set at init time */
+static char *callable;
+
 static inline size_t oh_nchildren(struct object_handle_t *oh)
         { return oh->children.p / sizeof(void *); }
 static inline struct var_t **oh_children(struct object_handle_t *oh)
@@ -121,6 +124,24 @@ object_add_child(struct var_t *parent, struct var_t *child)
                 child->o.owner = parent;
         buffer_putd(&parent->o.h->children, &child, sizeof(void *));
 }
+
+/**
+ * object_call - Call object as function, or throw an error if object
+ *               is not callable
+ * @obj:  Object variable
+ * @ret:  Return value variable
+ */
+void
+object_call(struct var_t *obj, struct var_t *ret)
+{
+        struct var_t *func;
+        bug_on(obj->magic != QOBJECT_MAGIC);
+        func = object_child_l(obj, callable);
+        if (!func || func->magic != QFUNCTION_MAGIC)
+                syntax("Object is not callable");
+        call_function(func, ret, obj);
+}
+
 
 /* **********************************************************************
  *              Built-in Operator Callbacks
@@ -256,6 +277,7 @@ static const struct operator_methods_t object_primitives = {
 void
 typedefinit_object(void)
 {
+        callable = literal_put("__callable__");
         var_config_type(QOBJECT_MAGIC, "object",
                         &object_primitives, object_methods);
 }

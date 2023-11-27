@@ -496,6 +496,7 @@ extern struct var_t *object_nth_child(struct var_t *o, int n);
 extern void object_add_child(struct var_t *o, struct var_t *v);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
+extern void object_call(struct var_t *obj, struct var_t *ret);
 static inline void *object_get_priv(struct var_t *o)
         { return o->o.h->priv; }
 /*

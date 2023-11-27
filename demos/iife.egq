@@ -6,14 +6,34 @@ print("1 + 2 is {}".format(a));
 (function(a, b) { print("args are {} and {}".format(a, b)); })("alice", "bob");
 
 // Test closure
-let multer = function(n) {
-    return function(x, n=n) { return x * n; };
-};
+(function() {
+    let multer = function(n) {
+        return function(x, n=n) { return x * n; };
+    };
 
-let doubler = multer(2);
-let tripler = multer(3);
+    let doubler = multer(2);
+    let tripler = multer(3);
 
-print("11 times 2 is {}".format(doubler(11)));
-print("11 times 3 is {}".format(tripler(11)));
+    print("testing simple closure");
+    print("\t11 times 2 is {}".format(doubler(11)));
+    print("\t11 times 3 is {}".format(tripler(11)));
+})();
+
+// Test ugly closure
+(function() {
+    let multer2 = function(n) {
+        return {
+            n: n,
+            __callable__: function(x) { return x * this.n; }
+        };
+    };
+
+    let quadler = multer2(4);
+    let quintler = multer2(5);
+
+    print("testing ugly-but-more-correct closure");
+    print("\t11 times 4 is {}".format(quadler(11)));
+    print("\t11 times 5 is {}".format(quintler(11)));
+})();
 
 // : vim: set syntax=javascript :

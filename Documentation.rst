@@ -778,3 +778,4 @@ use the ``typeof`` builtin function to check it.
 
 :TODO: The rest of this documentation
 
+.. : vim: set syntax=rst :

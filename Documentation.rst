@@ -92,24 +92,24 @@ Operators
 These are syntactic sugar for what would be function calls.  ``egq``
 uses the following:
 
-======== ===================
+======== =======================
 Binary Operators
-----------------------------
+--------------------------------
 Operator Operation
-======== ===================
-``+``    add, concatenation*
+======== =======================
+``+``    add, concatenation [#]_
 ``-``    subtract
 ``*``    multiply
 ``/``    divide
 ``%``    modulo (remainder)
 ``&&``   logical AND
 ``||``   logical OR
-``&``    bitwise AND**
+``&``    bitwise AND [#]_
 ``|``    bitwose OR
 ``<<``   bitwise left shift
 ``>>``   bitwise right shift
 ``^``    bitwise XOR
-======== ===================
+======== =======================
 
 ======== =======================
 Unary Operators before var
@@ -121,22 +121,20 @@ Operator Operation
 ``-``    negate (multiply by -1)
 ======== =======================
 
-======== ===================
+======== =====================
 Unary Operators after var
-----------------------------
+------------------------------
 Operator Operation
-======== ===================
-``++``   Increment by one***
+======== =====================
+``++``   Increment by one [#]_
 ``--``   Decrement by one
-======== ===================
+======== =====================
 
-(*) For string data types, the plus operator concatenates the two
-strings.
+.. [#] For string data types, the plus operator concatenates the two strings.
 
-(**) Bitwise operators are only valid when operating on integers.
+.. [#] Bitwise operators are only valid when operating on integers.
 
-(***) The "pre-" and "post-" of preincrement and postincrement are
-undefined for ``egq``.
+.. [#] The "pre-" and "post-" of preincrement and postincrement are undefined for ``egq``.
 
 Variables
 =========
@@ -506,7 +504,7 @@ In this section, *condition* refers to a boolean truth statement.
 Since program flow requires this, let's start there...
 
 Condionals
-~~~~~~~~~~
+----------
 
 There are no native Boolean types for ``egq``.  Instead *condition*
 is evaluated in one of two ways:
@@ -570,7 +568,7 @@ be skipped.
 
 
 ``if`` ... ``else if`` ... ``else`` block
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------------------------
 
 The ``if`` statement may continue likewise::
 
@@ -586,7 +584,7 @@ This is analogous to the ``switch`` statement in C and JS (but which is
 not supported here).
 
 ``do`` loop
-~~~~~~~~~~~
+-----------
 
 The ``do`` loop is similar to C::
 
@@ -600,7 +598,7 @@ depend on *condition*,
 ``while``
 
 ``for`` loop
-~~~~~~~~~~~~
+------------
 
 The ``for`` loop is similar to C.  Borrowing from [CITKNR]_ page 60:
 
@@ -652,7 +650,7 @@ of ``that``, or ``__gbl__.thing`` instead of ``thing``, and you will
 always get the right one.
 
 More on Automatic Variable Scope
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------
 
 Automatic variables are part of a quasi-stack machine.  A virtual
 frame pointer prevents a function from accessing variables in

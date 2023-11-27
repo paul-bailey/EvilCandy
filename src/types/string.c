@@ -266,6 +266,24 @@ string_replace(struct var_t *ret)
                 buffer_puts(string_buf__(ret), haystack);
 }
 
+static void
+string_copy(struct var_t *ret)
+{
+        char *s;
+        struct var_t *self = get_this();
+        bug_on(self->magic != QSTRING_MAGIC);
+
+        if (ret->magic == QEMPTY_MAGIC)
+                string_init(ret);
+        bug_on(ret->magic != QSTRING_MAGIC);
+
+        buffer_reset(string_buf__(ret));
+        s = string_get_cstring(self);
+        if (!s)
+                return;
+        qop_assign_cstring(ret, s);
+}
+
 static struct type_inittbl_t string_methods[] = {
         V_INITTBL("len",     string_length_method, 0, 0),
         V_INITTBL("format",  string_format, 0, -1),
@@ -275,6 +293,7 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("rstrip",  string_rstrip, 0, 1),
         V_INITTBL("replace", string_replace, 2, 2),
         V_INITTBL("strip",   string_strip, 0, 1),
+        V_INITTBL("copy",    string_copy, 0, 0),
         TBLEND,
 };
 

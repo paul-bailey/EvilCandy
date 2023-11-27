@@ -100,22 +100,24 @@ int
 clz32(uint32_t x)
 {
         int i = 0;
-        while (!(x & 0xffffu)) {
+        if (!(x & 0xffffu)) {
                 x >>= 16;
                 i += 16;
         }
-        while (!(x & 0xffu)) {
+        if (!(x & 0xffu)) {
                 x >>= 8;
                 i += 8;
         }
-        while (!(x & 0xfu)) {
+        if (!(x & 0xfu)) {
                 x >>= 4;
                 i += 4;
         }
-        while (!(x & 1)) {
-                x >>= 1;
-                i++;
+        if (!(x & 0x3u)) {
+                x >>= 2;
+                i += 2;
         }
+        if (!(x & 1))
+                i++;
         return i;
 }
 
@@ -123,26 +125,28 @@ int
 clz64(uint64_t x)
 {
         int i = 0;
-        while (!(x & 0xffffffffu)) {
+        if (!(x & 0xffffffffu)) {
                 x >>= 32;
                 i += 32;
         }
-        while (!(x & 0xffffu)) {
+        if (!(x & 0xffffu)) {
                 x >>= 16;
                 i += 16;
         }
-        while (!(x & 0xffu)) {
+        if (!(x & 0xffu)) {
                 x >>= 8;
                 i += 8;
         }
-        while (!(x & 0xfu)) {
+        if (!(x & 0xfu)) {
                 x >>= 4;
                 i += 4;
         }
-        while (!(x & 1)) {
-                x >>= 1;
+        if (!(x & 0x3u)) {
+                x >>= 2;
                 i++;
         }
+        if (!(x & 1))
+                i++;
         return i;
 }
 

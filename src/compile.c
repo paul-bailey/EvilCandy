@@ -16,13 +16,7 @@ compile_function(struct var_t *v)
         qlex();
         expect(OC_LPAR);
 
-        /*
-         * PC is now at start of function call.
-         * scan to end of function, first checking that
-         * argument header is sane.
-         */
-        PC_SAVE(&mk);
-        function_init_user(v, &mk);
+        function_init(v);
         /*
          * Set owner to "this", since we're declaring it.
          * Even if we're parsing an element of an object,
@@ -31,13 +25,32 @@ compile_function(struct var_t *v)
          * when returning to this.
          */
         do {
+                char *name;
+                struct var_t *deflt = NULL;
                 qlex();
                 if (cur_oc->t == OC_RPAR)
                         break; /* no args */
                 expect('u');
+                name = cur_oc->s;
                 qlex();
+                if (cur_oc->t == OC_EQ) {
+                        deflt = var_new();
+                        eval(deflt);
+                        qlex();
+                }
+                function_add_arg(v, name, deflt);
         } while (cur_oc->t == OC_COMMA);
         expect(OC_RPAR);
+
+        /*
+         * PC is now at start of function call.
+         * scan to end of function, first checking that
+         * argument header is sane.
+         */
+        PC_SAVE(&mk);
+        function_set_user(v, &mk);
+
+        /* XXX: Require this? What about lambdas? */
         qlex();
         expect(OC_LBRACE);
 

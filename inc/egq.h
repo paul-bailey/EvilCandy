@@ -472,7 +472,18 @@ extern void call_function(struct var_t *fn,
 extern void call_function_from_intl(struct var_t *fn,
                         struct var_t *retval, struct var_t *owner,
                         int argc, struct var_t *argv[]);
-extern void function_init_user(struct var_t *func,
+/*
+ * Creating functions API
+ * Built-in:    function_init_internal
+ * User-defined:
+ *              function_init
+ *              function_add_arg ...repeat for ea. arg
+ *              function_set_user
+ */
+extern void function_add_arg(struct var_t *func,
+                             char *name, struct var_t *deflt);
+extern void function_init(struct var_t *func);
+extern void function_set_user(struct var_t *func,
                         const struct marker_t *pc);
 extern void function_init_internal(struct var_t *func,
                         void (*cb)(struct var_t *),

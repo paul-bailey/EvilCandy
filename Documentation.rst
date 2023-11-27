@@ -11,9 +11,9 @@ syntax of the language may change rapidly.
 Reference
 =========
 
-.. [CITKNR]:: Kernighan, Brian W., and Ritchie, Dennis M.,
-              *The C Programming Language: Second Edition*
-              (Upper Saddle River: Prentice Hall, 1988).
+.. [CITKNR] Kernighan, Brian W., and Ritchie, Dennis M.,
+            *The C Programming Language: Second Edition*
+            (Upper Saddle River: Prentice Hall, 1988).
 
         My arrangement of the sections below was modelled after
         Appendix 2 in this book.

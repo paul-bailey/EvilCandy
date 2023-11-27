@@ -60,7 +60,7 @@ eval_atomic(struct var_t *v)
         case OC_LBRACE:
                 compile_object(v);
                 break;
-        case OC_LT:
+        case OC_LAMBDA:
                 compile_lambda(v);
                 break;
         case OC_THIS:

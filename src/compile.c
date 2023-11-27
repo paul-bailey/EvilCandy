@@ -37,11 +37,6 @@ compile_function_helper(struct var_t *v, bool lambda)
         } while (cur_oc->t == OC_COMMA);
         expect(OC_RPAR);
 
-        if (lambda) {
-                qlex();
-                expect(OC_GT);
-        }
-
         /*
          * PC is now at start of function call.
          * scan to end of function, first checking that
@@ -50,17 +45,13 @@ compile_function_helper(struct var_t *v, bool lambda)
         PC_SAVE(&mk);
         function_set_user(v, &mk, lambda);
 
-        /*
-         * FIXME: This breaks in some cases, like when lambda is in an
-         * object declaration:
-         *
-         *      { n: 1, __callable__: <(v)> v + 1, ... }
-         *
-         * because seek_eob cannot filter through commas.
-         */
-        seek_eob(0);
-        if (lambda && cur_oc->t == OC_SEMI)
-                q_unlex();
+        if (!lambda) {
+                seek_eob(0);
+        } else while (cur_oc->t != OC_LAMBDA && cur_oc->t != EOF) {
+                if (cur_oc->t == EOF)
+                        syntax("Missing: lamda close ``");
+                qlex();
+        }
 }
 
 /*

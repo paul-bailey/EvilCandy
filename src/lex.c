@@ -351,14 +351,27 @@ qlex_delim(int *res)
 {
         char *s = lexer.s;
         int d = *s++;
+
+        /*
+         * special case: `` is a delim but ` is not,
+         * so the other code below will break.
+         */
         if (!q_isdelim(d))
                 return false;
+
         if (!qlex_delim2(&s, &d)) {
                 buffer_putc(&lexer.tok, d);
                 d = lexer.char_xtbl[d];
         }
+        if (!d) {
+                /*
+                 * could happen, if a double-letter delimiter
+                 * does not have a single-letter delim, e.g.
+                 * "``" maps to QD_LAMBDA, but "`" maps to zero
+                 */
+                return false;
+        }
 
-        bug_on(!d);
         *res = TO_DTOK(d);
         lexer.s = s;
         return true;
@@ -530,6 +543,10 @@ moduleinit_lex(void)
         /* double-delimeters */
         for (s = DELIMDBL; *s != '\0'; s++)
                 lexer.charmap[(int)*s] |= QDDELIM;
+
+        /* special case */
+        lexer.charmap[(int)'`'] |= (QDELIM | QDDELIM);
+
         /* permitted identifier chars */
         for (i = 'a'; i < 'z'; i++)
                 lexer.charmap[i] |= QIDENT | QIDENT1;
@@ -544,5 +561,8 @@ moduleinit_lex(void)
                 lexer.char_xtbl[(int)*s] = i;
         for (s = DELIMDBL, i = QD_PLUSPLUS; *s != '\0'; s++, i++)
                 lexer.char_x2tbl[(int)*s] = i;
+
+        /* special case, put this in x2tbl but not xtbl */
+        lexer.char_x2tbl[(int)'`'] = QD_LAMBDA;
 }
 

@@ -42,6 +42,8 @@ enum {
         QD_LEQ,
         QD_GEQ,
         QD_NEQ,
+
+        QD_LAMBDA,
         /* technically this is one more, but whatever... */
         QD_NCODES,
 };
@@ -102,6 +104,7 @@ enum {
         OC_LEQ          = TO_DTOK(QD_LEQ),
         OC_GEQ          = TO_DTOK(QD_GEQ),
         OC_NEQ          = TO_DTOK(QD_NEQ),
+        OC_LAMBDA       = TO_DTOK(QD_LAMBDA),
 
         OC_FUNC         = TO_KTOK(KW_FUNC),
         OC_LET          = TO_KTOK(KW_LET),

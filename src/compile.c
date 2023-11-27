@@ -1,22 +1,17 @@
 #include "egq.h"
 #include <string.h>
 
-/*
- * Build a QFUNCTION_MAGIC struct var_t from code
- *
- * got something like "v = function (a, b, c) { ..."
- * PC is before first '(' of args.
- */
-void
-compile_function(struct var_t *v)
+/* common to user-defined functions and lambdas */
+static void
+compile_function_helper(struct var_t *v, bool lambda)
 {
-        int brace;
         struct marker_t mk;
 
         qlex();
         expect(OC_LPAR);
 
         function_init(v);
+
         /*
          * Set owner to "this", since we're declaring it.
          * Even if we're parsing an element of an object,
@@ -42,28 +37,55 @@ compile_function(struct var_t *v)
         } while (cur_oc->t == OC_COMMA);
         expect(OC_RPAR);
 
+        if (lambda) {
+                qlex();
+                expect(OC_GT);
+        }
+
         /*
          * PC is now at start of function call.
          * scan to end of function, first checking that
          * argument header is sane.
          */
         PC_SAVE(&mk);
-        function_set_user(v, &mk);
+        function_set_user(v, &mk, lambda);
 
-        /* XXX: Require this? What about lambdas? */
-        qlex();
-        expect(OC_LBRACE);
+        /*
+         * FIXME: This breaks in some cases, like when lambda is in an
+         * object declaration:
+         *
+         *      { n: 1, __callable__: <(v)> v + 1, ... }
+         *
+         * because seek_eob cannot filter through commas.
+         */
+        seek_eob(0);
+        if (lambda && cur_oc->t == OC_SEMI)
+                q_unlex();
+}
 
-        brace = 1;
-        while (brace && cur_oc->t != EOF) {
-                qlex();
-                if (cur_oc->t == OC_LBRACE)
-                        brace++;
-                else if (cur_oc->t == OC_RBRACE)
-                        brace--;
-        }
-        if (cur_oc->t == EOF)
-                syntax("Unbalanced brace");
+/*
+ * Build a QFUNCTION_MAGIC struct var_t from code,
+ *      specifically for lambda function notation.
+ *
+ * got something like "v = <arglist> expr;"
+ * PC is _aftetr_ first '<' of arglist.
+ */
+void
+compile_lambda(struct var_t *v)
+{
+        compile_function_helper(v, true);
+}
+
+/*
+ * Build a QFUNCTION_MAGIC struct var_t from code
+ *
+ * got something like "v = function (arglist) { ..."
+ * PC is before first '(' of arglist.
+ */
+void
+compile_function(struct var_t *v)
+{
+        compile_function_helper(v, false);
 }
 
 /*

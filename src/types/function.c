@@ -27,6 +27,7 @@ struct function_handle_t {
         enum {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
+                FUNC_LAMBDA,
         } f_magic;
         int f_minargs;
         int f_maxargs;
@@ -238,26 +239,34 @@ ifunction_helper(struct var_t *fn, struct var_t *retval)
 static void
 ufunction_helper(struct var_t *fn, struct var_t *retval)
 {
-        int exres;
         struct function_handle_t *fh = fn->fn;
         struct marker_t lr; /* virtual link register */
+        int t, exres;
 
         bug_on(!fh);
 
         /* Return address is just after ')' of function call */
         PC_BL(&fh->f_mk, &lr);
 
-        /* need to peek */
-        qlex();
-        expect(OC_LBRACE);
-        q_unlex();
+        if (fh->f_magic == FUNC_LAMBDA) {
+                /* lambda */
+                qlex();
+                t = cur_oc->t;
+                q_unlex();
+                if (t != OC_LBRACE) {
+                        eval(retval);
+                        goto done;
+                }
+                /* fall through */
+        }
 
-        /* execute it */
+        /* FUNC_USER or lambda with braces */
         exres = expression(retval, 0);
         if (exres != 1 && exres != 0) {
                 syntax("Unexpected %s", exres == 2 ? "break" : "EOF");
         }
 
+done:
         /* restore PC */
         PC_GOTO(&lr);
 }
@@ -278,7 +287,8 @@ call_function_common(struct var_t *fn, struct var_t *retval,
         if (fn->fn->f_magic == FUNC_INTERNAL) {
                 ifunction_helper(fn, retval);
         } else {
-                bug_on(fn->fn->f_magic != FUNC_USER);
+                bug_on(fn->fn->f_magic != FUNC_USER
+                        && fn->fn->f_magic != FUNC_LAMBDA);
                 ufunction_helper(fn, retval);
         }
 
@@ -337,16 +347,17 @@ call_function_from_intl(struct var_t *fn, struct var_t *retval,
  * function_set_user - Set empty function to be user-defined
  * @func: Function initialized with function_init
  * @pc: Location in script of first '(' of argument list.
+ * @lambda: If true, this used lambda notation.
  */
 void
-function_set_user(struct var_t *func, const struct marker_t *pc)
+function_set_user(struct var_t *func, const struct marker_t *pc, bool lambda)
 {
         struct function_handle_t *fh = func->fn;
         bug_on(func->magic != QFUNCTION_MAGIC);
         bug_on(!fh);
         bug_on(fh->f_magic != 0);
 
-        fh->f_magic = FUNC_USER;
+        fh->f_magic = lambda ? FUNC_LAMBDA : FUNC_USER;
         memcpy(&fh->f_mk, pc, sizeof(fh->f_mk));
 }
 

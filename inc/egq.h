@@ -341,6 +341,7 @@ extern void err_expected__(int opcode);
 extern void compile_function(struct var_t *v);
 extern void compile_object(struct var_t *v);
 extern void compile_array(struct var_t *v);
+extern void compile_lambda(struct var_t *v);
 
 /* eval.c */
 extern void eval(struct var_t *v);
@@ -375,6 +376,7 @@ enum {
         FE_TOP = 0x02,
 };
 extern int expression(struct var_t *retval, unsigned int flags);
+extern void seek_eob(int depth);
 
 
 /* keyword.c */
@@ -484,7 +486,7 @@ extern void function_add_arg(struct var_t *func,
                              char *name, struct var_t *deflt);
 extern void function_init(struct var_t *func);
 extern void function_set_user(struct var_t *func,
-                        const struct marker_t *pc);
+                        const struct marker_t *pc, bool lambda);
 extern void function_init_internal(struct var_t *func,
                         void (*cb)(struct var_t *),
                         int minargs, int maxargs);

@@ -156,6 +156,18 @@ err_expected__(int opcode)
         case OC_RBRACE:
                 what = "}";
                 break;
+        case OC_GT:
+                what = ">";
+                break;
+        case OC_LT:
+                what = "<";
+                break;
+        case OC_COLON:
+                what = ":";
+                break;
+        case OC_TILDE:
+                what = "~";
+                break;
         default:
                 bug(); /* not true yet */
         }

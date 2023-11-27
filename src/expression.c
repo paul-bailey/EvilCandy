@@ -211,7 +211,12 @@ must_skip_par(void)
         skip_par(1);
 }
 
-static void
+/**
+ * seek_eob - Seek the end of the block
+ * @depth: brace depth, should be zero if you're calling it from
+ *         outside of expression.c
+ */
+void
 seek_eob(int depth)
 {
         if (!depth) {

@@ -8,7 +8,7 @@ print("1 + 2 is {}".format(a));
 // Test closure
 (function() {
     let multer = function(n) {
-        return function(x, n=n) { return x * n; };
+        return <(x, n=n)> x * n;
     };
 
     let doubler = multer(2);
@@ -24,6 +24,8 @@ print("1 + 2 is {}".format(a));
     let multer2 = function(n) {
         return {
             n: n,
+            // lambda notation doesn't work except as a
+            // 'return' or 'let' statement
             __callable__: function(x) { return x * this.n; }
         };
     };

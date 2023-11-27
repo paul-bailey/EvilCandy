@@ -298,14 +298,52 @@ call_function_common(struct var_t *fn, struct var_t *retval,
         pop_args(fpsav);
 }
 
+/*
+ * Helper to call_function and call_function_from_intl
+ * If @fn is a function, return that.
+ * If @fn is a callable object, return the callable function, and
+ *      update @owner accordingly.
+ * If @fn is anything else, throw a syntax error.
+ */
+static struct var_t *
+function_of(struct var_t *fn, struct var_t **owner)
+{
+        static char *callable = NULL;
+        struct var_t *new_owner = *owner;
+
+        /*
+         * If @fn is a callable object, don't just get the first child.
+         * __callable__ may be a function or another callable object.
+         * Descend until we get to the function.
+         */
+        while (fn) {
+                if (fn->magic == QFUNCTION_MAGIC) {
+                        goto done;
+                } else if (fn->magic == QOBJECT_MAGIC) {
+                        if (!callable)
+                                callable = literal_put("__callable__");
+
+                        new_owner = fn;
+                        fn = object_child_l(fn, callable);
+                } else {
+                        fn = NULL;
+                }
+        }
+        syntax("Value is not callable", nameof(fn));
+done:
+        *owner = new_owner;
+        return fn;
+}
+
 /**
  * call_function - Call a function from user code and execute it
- * @fn:         Function handle, which must be type QPTRXI_MAGIC or
- *              QFUNCTION_MAGIC.
+ * @fn:         Function handle, which must be callalbe or a syntax error
+ *              will be thrown.
  * @retval:     Return value of the function being called, or NULL to
  *              ignore
  * @owner:      Owner of the function, or NULL to have call_function
- *              figure it out
+ *              figure it out.  If @fn is a callable object, @owner will
+ *              be ignored.
  *
  * PC must be at the opening parenthesis of the code calling the function
  * (immediately after the invocation of the function name).
@@ -313,8 +351,10 @@ call_function_common(struct var_t *fn, struct var_t *retval,
 void
 call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
 {
-        bug_on(fn->magic != QFUNCTION_MAGIC);
-        struct var_t *fpsav = push_uargs(fn, owner);
+        struct var_t *fpsav;
+
+        fn = function_of(fn, &owner);
+        fpsav = push_uargs(fn, owner);
         call_function_common(fn, retval, owner, fpsav);
 }
 
@@ -338,8 +378,10 @@ void
 call_function_from_intl(struct var_t *fn, struct var_t *retval,
                         struct var_t *owner, int argc, struct var_t *argv[])
 {
-        bug_on(fn->magic != QFUNCTION_MAGIC);
-        struct var_t *fpsav = push_iargs(fn, owner, argc, argv);
+        struct var_t *fpsav;
+
+        fn = function_of(fn, &owner);
+        fpsav = push_iargs(fn, owner, argc, argv);
         call_function_common(fn, retval, owner, fpsav);
 }
 

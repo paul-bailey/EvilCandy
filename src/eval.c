@@ -164,13 +164,7 @@ eval8(struct var_t *v)
                 case OC_LPAR:
                         w = tstack_getpush();
                         q_unlex();
-                        if (isfunction(v)) {
-                                call_function(v, w, have_parent ? parent : NULL);
-                        } else if (v->magic == QOBJECT_MAGIC) {
-                                object_call(v, w);
-                        } else {
-                                syntax("%s is not a function", nameof(v));
-                        }
+                        call_function(v, w, have_parent ? parent : NULL);
                         qop_clobber(v, w);
                         tstack_pop(NULL);
                         have_parent = false;

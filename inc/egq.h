@@ -292,8 +292,6 @@ extern const char *nameof(struct var_t *v);
 static inline struct var_t *get_this(void) { return q_.fp; }
 
 /* helpers to classify a variable */
-static inline bool isfunction(struct var_t *v)
-        { return v->magic == QFUNCTION_MAGIC; }
 static inline bool isconst(struct var_t *v)
         { return !!(v->flags & VF_CONST); }
 static inline bool isprivate(struct var_t *v)
@@ -498,7 +496,6 @@ extern struct var_t *object_nth_child(struct var_t *o, int n);
 extern void object_add_child(struct var_t *o, struct var_t *v);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
-extern void object_call(struct var_t *obj, struct var_t *ret);
 static inline void *object_get_priv(struct var_t *o)
         { return o->o.h->priv; }
 /*

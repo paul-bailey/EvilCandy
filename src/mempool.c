@@ -14,11 +14,15 @@
 
 #define NDATA_PER_BLK  64
 
-#define mempool_clz(v) \
+#if 0
+#define mempool_ctz(v) \
         (sizeof(v) == 4 \
-         ? clz32(v) \
+         ? ctz32(v) \
          : (sizeof(v) == 8 \
-            ? clz64(v) : ({ bug(); 0; })))
+            ? ctz64(v) : ({ bug(); 0; })))
+#else
+# define mempool_ctz(v) __builtin_ctz(v)
+#endif
 
 struct mempool_blk_t {
         uint64_t used;
@@ -101,7 +105,7 @@ mempool_alloc(struct mempool_t *pool)
                 return blk->data;
         } else {
                 unsigned int bit, shift;
-                shift = mempool_clz(~blk->used);
+                shift = mempool_ctz(~blk->used);
                 bug_on(shift >= 64);
                 bit = 1u << shift;
                 blk->used |= bit;

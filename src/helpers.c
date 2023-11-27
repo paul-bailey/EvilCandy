@@ -90,14 +90,11 @@ bit_count32(uint32_t v)
 }
 
 /*
- * __builtin_clz is crashing on my x86 machine, and I don't want to have
- * a bunch of architecture-specific assembly wrappers for this, so just
- * do the fastest standard-C-only version.
- *
- * These are undefined if x is zero.
+ * Count trailing bits.
+ * These return a meaningless 31 and 63, respectively, if x is zero.
  */
 int
-clz32(uint32_t x)
+ctz32(uint32_t x)
 {
         int i = 0;
         if (!(x & 0xffffu)) {
@@ -122,7 +119,7 @@ clz32(uint32_t x)
 }
 
 int
-clz64(uint64_t x)
+ctz64(uint64_t x)
 {
         int i = 0;
         if (!(x & 0xffffffffu)) {

@@ -15,8 +15,8 @@ extern size_t my_strrspn(const char *s,
                          const char *charset, const char *end);
 extern int bit_count32(uint32_t v);
 extern int bit_count16(uint16_t v);
-extern int clz32(uint32_t x);
-extern int clz64(uint64_t x);
+extern int ctz32(uint32_t x);
+extern int ctz64(uint64_t x);
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)(((void *)(x)) - offsetof(type, member)))

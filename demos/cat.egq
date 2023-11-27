@@ -1,14 +1,12 @@
-let cat = function(name) {
+// Print myself
+(function(name) {
         let f = Io.open(name, "r");
         if (typeof(f) == "string") {
                 print("Cannot open '{}', reason='{}'".format(name, f));
                 exit();
         }
-        while (!f.eof()) {
-                print(f.readstr());
-        }
-};
-
-cat("demos/cat.egq");
+        while (!f.eof())
+                print(f.readline());
+})("demos/cat.egq");
 
 // : vim: set syntax=javascript :

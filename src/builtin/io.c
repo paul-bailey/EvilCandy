@@ -1,8 +1,26 @@
 /*
  * builtin/io.c - Implementation of the __gbl__.Io built-in object
  *
- * f = Io.open(name, mode) returns a file handle, an object with
- * methods documented in the file below.  This is sort of like a fil
+ * f = Io.open(name, mode)
+ * If fail,
+ *      return a string describing the failure
+ *
+ * If success,
+ *      return a file handle, an object with the following
+ *      methods:
+ *
+ * f.readline()    Read a line from f to the next '\n' and return
+ *                 it as a string, or as "" if f is at EOF.
+ * f.writeline(txt)
+ *                 Write txt to f.  Do not interpolate characters
+ *                 or add a newline at the end.
+ * f.eof()         Return 1 if f is at EOF, 0 if not
+ * f.clearerr()    Clear error flags in f
+ * f.errno()       Get the last error number pertaining to f
+ * f.tell()        Return the current offset into f
+ * f.rewind()      Return to the start of the file
+ *
+ *
  */
 #include "builtin.h"
 #include <errno.h>
@@ -74,7 +92,7 @@ do_errno(struct var_t *ret)
 }
 
 /*
- * readstr()    (no args)
+ * readline()    (no args)
  *
  * Return string to next newline.  The newline itself will not be
  * placed.  We never heard of '\r', it must be from Canada.
@@ -83,7 +101,7 @@ do_errno(struct var_t *ret)
  * EOF with the eof() built-in method.
  */
 static void
-do_readstr(struct var_t *ret)
+do_readline(struct var_t *ret)
 {
         int c, errno_save = errno;
         struct file_handle_t *fh = getfh();
@@ -104,14 +122,15 @@ do_readstr(struct var_t *ret)
 }
 
 /*
- * writestr(str)        str is a string type
+ * writeline(str)        str is a string type
  *
  * Return integer, 0 if success, -1 if failure
  *
  * This will write all of str, including any newline found.
+ * It will not add an additional newline.
  */
 static void
-do_writestr(struct var_t *ret)
+do_writeline(struct var_t *ret)
 {
         FILE *fp;
         char *s;
@@ -135,6 +154,7 @@ do_writestr(struct var_t *ret)
                         break;
                 }
         }
+        fflush(fp);
 done:
         if (errno)
                 fh->err = errno;
@@ -184,8 +204,8 @@ static const struct inittbl_t file_methods[] = {
         TOFTBL("eof",      do_eof, 0, 0),
         TOFTBL("clearerr", do_clearerr, 0, 0),
         TOFTBL("errno",    do_errno, 0, 0),
-        TOFTBL("readstr",  do_readstr, 0, 0),
-        TOFTBL("writestr", do_writestr, 1, 1),
+        TOFTBL("readline",  do_readline, 0, 0),
+        TOFTBL("writeline", do_writeline, 1, 1),
         TOFTBL("tell",     do_tell, 0, 0),
         TOFTBL("rewind",   do_rewind, 0, 0),
         TBLEND,

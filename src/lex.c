@@ -409,7 +409,7 @@ qlex(void)
         bug_on(!cur_oc);
 
         /* safety net */
-        if (cur_oc->t == EOF)
+        if ((char *)cur_oc >= cur_ns->pgm.s && cur_oc->t == EOF)
                 return EOF;
 
         cur_oc++;
@@ -419,7 +419,12 @@ qlex(void)
 void
 q_unlex(void)
 {
-        bug_on((char *)cur_oc <= cur_ns->pgm.s);
+        /*
+         * minus one is ok, because next qlex() will put us back where we
+         * belong.  This assumes, however, that calling code will know to
+         * qlex again before de-referencing cur_oc.
+         */
+        bug_on((char *)cur_oc < cur_ns->pgm.s);
         cur_oc--;
 }
 

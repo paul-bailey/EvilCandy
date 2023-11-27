@@ -79,6 +79,8 @@ Keyword Tokens
 The following keywords are reserved for ``egq``:
 
 ============ ========= ==========
+Reserved Keywords
+=================================
 ``function`` ``let``   ``return``
 ``this``     ``break`` ``if``
 ``while``    ``else``  ``do``
@@ -170,7 +172,7 @@ to a new type is an *empty* variable.  The other types are:
 
 ========== ========================== =========
 Type       Declaration Example        Pass-by
----------- -------------------------- ---------
+========== ========================== =========
 integer    ``let x = 0;``             value
 float      ``let x = 0.;``            value
 list       ``lex x = [];``            reference
@@ -189,7 +191,7 @@ handle assignment::
 
 then the following will result in errors::
 
-        foo++
+        foo++;
 
 ::
 
@@ -433,7 +435,7 @@ string.  Depending on the type, it will be one of the following:
 
 ========== =======================
 Type       ``typeof`` Return value
----------- -----------------------
+========== =======================
 empty      "empty"
 integer    "integer"
 float      "float"
@@ -447,7 +449,7 @@ Expressions
 -----------
 
 For the purposes of this documentation, an *expression* is a complete
-line* of code e.g.::
+line [#]_ of code e.g.::
 
         let x = y;
 
@@ -459,8 +461,9 @@ braces, e.g.::
                 foo(bar);
         }
 
-[(*) Note, I'm being casual with the word "line."  I assume you know
-what I mean.]
+.. [#]
+       I'm being casual with the word "line."
+       I assume you know what I mean.
 
 Braces also define a new `Scope`_, see below.
 
@@ -484,7 +487,7 @@ All single-line expressions must be of the following kind:
         ;
 
 * An evaluation statement that does not assign a variable, but it
-  **must** be surrounded by braces.
+  **must** be surrounded by parentheses.
 
   valid::
 
@@ -509,7 +512,7 @@ Condionals
 There are no native Boolean types for ``egq``.  Instead *condition*
 is evaluated in one of two ways:
 
-1. Comparison between two objects::
+1. Comparison between two objects:
 
         *l-value* *relational-operator* *r-value*
 
@@ -520,7 +523,7 @@ The following relational operators are:
 ======== ========================
 Operator Meaning
 ======== ========================
-==       Equals*
+==       Equals [#]_
 <=       Less than or equal to
 >=       Greater than or equal to
 !=       Not equal to
@@ -529,10 +532,12 @@ Operator Meaning
 ======== ========================
 
 Do not compare values of different types.  Do not compare
-functions at all.  In the case of strings, the test is
-whether or not their contents match, ie. the ``==`` operator
-between two strings is the opposite result of C's ``strcmp``
-function.
+functions at all.
+
+.. [#]
+    In the case of strings, the test is whether or not their contents
+    match, ie. the ``==`` operator between two strings is the opposite
+    result of C's ``strcmp`` function.
 
 :TODO:
         comparison of objects are not supported yet, need
@@ -546,12 +551,15 @@ Type       Condition
 ========== ===============================
 empty      false always
 integer    != 0
-float      != 0.0*
+float      != 0.0 [#]_
 list       true always
 dictionary true always
 string     true if not the empty "" string
 function   true always
 ========== ===============================
+
+.. [#]
+    Or to be precise, if ``fpclassify`` returns ``FP_ZERO``
 
 ``if`` Statement
 ~~~~~~~~~~~~~~~~
@@ -570,15 +578,15 @@ be skipped.
 ``if`` ... ``else if`` ... ``else`` block
 -----------------------------------------
 
-The ``if`` statement may continue likewise::
+The ``if`` statement may continue likewise:
 
-        if (*condition1*)
-                *expression1*;
-        else if (condition2*)
-                *expression2*;
-        ...
-        else
-                *expressionN*;
+        | ``if (`` *condition1* ``)``
+        |         *expression1*
+        | ``else if (`` *condition2* ``)``
+        |         *expression2*
+        | ``...``
+        | ``else``
+                *expressionN*
 
 This is analogous to the ``switch`` statement in C and JS (but which is
 not supported here).
@@ -586,34 +594,35 @@ not supported here).
 ``do`` loop
 -----------
 
-The ``do`` loop is similar to C::
+The ``do`` loop is similar to C:
 
-        do
-                *statement*
-        while (*condition*);
+        | ``do``
+        |         *statement*
+        | ``while (`` *condition* ``);``
 
 *expression* is executed the first time always, but successive executions
-depend on *condition*,
+depend on *condition*.
 
-``while``
+``while`` loop
+--------------
 
 ``for`` loop
 ------------
 
 The ``for`` loop is similar to C.  Borrowing from [CITKNR]_ page 60:
 
-        The ``for`` statement::
+        The ``for`` statement:
 
-                for (*expr1*; *expr2*; *expr3*)
-                        *statement*
+                | ``for (`` *expr1*; *expr2*; *expr3* ``)``
+                |         *statement*
 
-        is equivalent to::
+        is equivalent to:
 
-                *expr1*;
-                while (*expr2*) {
-                        *statement*
-                        *expr3*
-                }
+                | *expr1*
+                | ``while (`` *expr2* ``) {``
+                |         *statement*
+                |         *expr3*
+                | ``}``
 
 If you declare an iterator in *expr1*, e.g.::
 

@@ -26,7 +26,7 @@ print("1 + 2 is {}".format(a));
             n: n,
             // lambda notation doesn't work except as a
             // 'return' or 'let' statement
-            __callable__: function(x) { return x * this.n; }
+            __callable__: function(x) { return x * n; }
         };
     };
 

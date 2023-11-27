@@ -159,5 +159,5 @@ static const struct operator_methods_t array_primitives = {
 void
 typedefinit_array(void)
 {
-        var_config_type(QARRAY_MAGIC, "array", &array_primitives, NULL);
+        var_config_type(QARRAY_MAGIC, "list", &array_primitives, NULL);
 }

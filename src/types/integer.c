@@ -177,5 +177,5 @@ static const struct operator_methods_t int_primitives = {
 void
 typedefinit_integer(void)
 {
-        var_config_type(QINT_MAGIC, "int", &int_primitives, int_methods);
+        var_config_type(QINT_MAGIC, "integer", &int_primitives, int_methods);
 }

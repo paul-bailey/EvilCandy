@@ -278,7 +278,7 @@ void
 typedefinit_object(void)
 {
         callable = literal_put("__callable__");
-        var_config_type(QOBJECT_MAGIC, "object",
+        var_config_type(QOBJECT_MAGIC, "dictionary",
                         &object_primitives, object_methods);
 }
 

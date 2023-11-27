@@ -37,7 +37,7 @@ Comments
 There are three kinds of comments, and you've definitely seen all of
 them before:
 
-1. Multi-line comments, beginning with ``/*`` and ending with ``*/``::
+1. Multi-line comments, beginning with ``/*`` and ending with ``*/``
 2. Single-line comments, beginning with ``//`` and ending with the
    end of the line.
 3. Single-line comments, beginning with ``#`` and ending with the
@@ -78,13 +78,13 @@ Keyword Tokens
 
 The following keywords are reserved for ``egq``:
 
-============    =========       ==========
-``function``    ``let``         ``return``
-``this``        ``break``       ``if``
-``while``       ``else``        ``do``
-``for``         ``load``        ``const``
+============ ========= ==========
+``function`` ``let``   ``return``
+``this``     ``break`` ``if``
+``while``    ``else``  ``do``
+``for``      ``load``  ``const``
 ``private``
-============    =========       ==========
+============ ========= ==========
 
 Operators
 ---------
@@ -92,43 +92,43 @@ Operators
 These are syntactic sugar for what would be function calls.  ``egq``
 uses the following:
 
-========        ===================
+======== ===================
 Binary Operators
------------------------------------
-Operator        Operation
-========        ===================
-``+``           add, concatenation*
-``-``           subtract
-``*``           multiply
-``/``           divide
-``%``           modulo (remainder)
-``&&``          logical AND
-``||``          logical OR
-``&``           bitwise AND**
-``|``           bitwose OR
-``<<``          bitwise left shift
-``>>``          bitwise right shift
-``^``           bitwise XOR
-========        ===================
+----------------------------
+Operator Operation
+======== ===================
+``+``    add, concatenation*
+``-``    subtract
+``*``    multiply
+``/``    divide
+``%``    modulo (remainder)
+``&&``   logical AND
+``||``   logical OR
+``&``    bitwise AND**
+``|``    bitwose OR
+``<<``   bitwise left shift
+``>>``   bitwise right shift
+``^``    bitwise XOR
+======== ===================
 
-========        ===================
+======== ===================
 Unary Operators before var
------------------------------------
-Operator        Operation
-========        ===================
-``!``           logical NOT
-``~``           bitwise NOT
-``-``           negate (multiply by -1)
-========        ===================
+----------------------------
+Operator Operation
+======== ===================
+``!``    logical NOT
+``~``    bitwise NOT
+``-``    negate (multiply by -1)
+======== ===================
 
-========        ===================
+======== ===================
 Unary Operators after var
------------------------------------
-Operator        Operation
-========        ===================
-``++``          Increment by one***
-``--``          Decrement by one
-========        ===================
+----------------------------
+Operator Operation
+======== ===================
+``++``   Increment by one***
+``--``   Decrement by one
+======== ===================
 
 (*) For string data types, the plus operator concatenates the two
 strings.
@@ -170,16 +170,16 @@ The above example declared ``x`` and set it to be an *empty* variable.
 ``egq`` is not dynamically typed; the only variable that may be changed
 to a new type is an *empty* variable.  The other types are:
 
-==========      ==========================      =========
-Type            Declaration Example             Pass-by
-----------      --------------------------      ---------
-integer         ``let x = 0;``                  value
-float           ``let x = 0.;``                 value
-list            ``lex x = [];``                 reference
-dictionary      ``let x = {};``                 reference
-string          ``let x = "";``                 reference
-function        ``let x = function() {;}``      reference
-==========      ==========================      =========
+========== ========================== =========
+Type       Declaration Example        Pass-by
+---------- -------------------------- ---------
+integer    ``let x = 0;``             value
+float      ``let x = 0.;``            value
+list       ``lex x = [];``            reference
+dictionary ``let x = {};``            reference
+string     ``let x = "";``            reference
+function   ``let x = function() {;}`` reference
+========== ========================== =========
 
 There are no "pointers" in ``egq``.  Instead we use the abstract
 concept of a "handle" when discussing pass-by-reference variables.
@@ -433,17 +433,17 @@ to panic and exit() -PB 11/22), a variable can have its type checked
 using the builtin ``typeof`` function.  This returns a value type
 string.  Depending on the type, it will be one of the following:
 
-==========      =======================
-Type            ``typeof`` Return value
-----------      -----------------------
-empty           "empty"
-integer         "integer"
-float           "float"
-list            "list"
-dictionary      "dictionary"
-string          "string"
-function        "function"
-==========      =======================
+========== =======================
+Type       ``typeof`` Return value
+---------- -----------------------
+empty      "empty"
+integer    "integer"
+float      "float"
+list       "list"
+dictionary "dictionary"
+string     "string"
+function   "function"
+========== =======================
 
 Expressions
 -----------
@@ -464,7 +464,7 @@ braces, e.g.::
 [(*) Note, I'm being casual with the word "line."  I assume you know
 what I mean.]
 
-Braces also define a new *scope*, see below.
+Braces also define a new `Scope`_, see below.
 
 All single-line expressions must be of the following kind:
 
@@ -519,16 +519,16 @@ is evaluated in one of two ways:
 
 The following relational operators are:
 
-========        ========================
-Operator        Meaning
-========        ========================
-==              Equals*
-<=              Less than or equal to
->=              Greater than or equal to
-!=              Not equal to
-<               Less than
->               Greater than
-========        ========================
+======== ========================
+Operator Meaning
+======== ========================
+==       Equals*
+<=       Less than or equal to
+>=       Greater than or equal to
+!=       Not equal to
+<        Less than
+>        Greater than
+======== ========================
 
 Do not compare values of different types.  Do not compare
 functions at all.  In the case of strings, the test is
@@ -543,17 +543,17 @@ function.
 The following conditions result in a variable by itself
 evaluating to *true*:
 
-==========      ===============================
-Type            Condition
-==========      ===============================
-empty           false always
-integer         != 0
-float           != 0.0*
-list            true always
-dictionary      true always
-string          true if not the empty "" string
-function        true always
-==========      ===============================
+========== ===============================
+Type       Condition
+========== ===============================
+empty      false always
+integer    != 0
+float      != 0.0*
+list       true always
+dictionary true always
+string     true if not the empty "" string
+function   true always
+========== ===============================
 
 ``if`` Statement
 ~~~~~~~~~~~~~~~~
@@ -694,7 +694,7 @@ One work-around is to use argument defaults::
                 };
         };
 
-The reason this works has to do with the function-call syntax, and will
+The reason this works has to do with the `Function Call Syntax`_, and will
 be discussed below.  But the gist is, the first ``n`` of ``n=n`` names
 the argument, and the second ``n`` declares a default value in case
 ``n`` is not provided by the caller.  This default is evaluated at the

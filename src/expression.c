@@ -450,11 +450,7 @@ do_for(struct var_t *retval, unsigned int unused)
                 syntax("Unexpected break from 'for' loop header");
 
         PC_SAVE(&pc_cond);
-
-        for (;;) {
-                if (!get_condition(false))
-                        break;
-
+        while (get_condition(false)) {
                 if (!have_op) {
                         PC_SAVE(&pc_op);
                         skip_par(1);

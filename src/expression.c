@@ -429,16 +429,25 @@ static int
 do_for(struct var_t *retval, unsigned int unused)
 {
         struct marker_t start, pc_cond, pc_op, pc_blk;
-        struct var_t *sp = q_.sp;
+        struct var_t *sp;
         int r = 0;
         bool have_op = false;
 
         PC_SAVE(&start);
 
+        /*
+         * Where to unwind stack from, *before* the initializer
+         * expression of the `for' loop, so user can write
+         *      for (let i = 0;...
+         * without adding `i' to the containing function's
+         * namespace
+         */
+        sp = q_.sp;
+
         qlex();
         expect(OC_LPAR);
         if (expression(NULL, 0) != 0)
-                syntax("Unexpected break from for loop header");
+                syntax("Unexpected break from 'for' loop header");
 
         PC_SAVE(&pc_cond);
 

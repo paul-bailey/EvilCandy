@@ -101,6 +101,27 @@ arg_next_entry(struct function_handle_t *fh, struct function_arg_t *arg)
         return list == &fh->f_args ? NULL : list2arg(list);
 }
 
+static struct var_t *frame_stack[CALL_DEPTH_MAX];
+static int call_depth_fp = 0;
+
+static void
+frame_push(struct var_t *new_fp)
+{
+        if (call_depth_fp >= CALL_DEPTH_MAX)
+                syntax("Function calls nested too deep");
+        frame_stack[call_depth_fp] = q_.fp;
+        q_.fp = new_fp;
+        call_depth_fp++;
+}
+
+static void
+frame_pop(void)
+{
+        call_depth_fp--;
+        bug_on(call_depth_fp < 0);
+        q_.fp = frame_stack[call_depth_fp];
+}
+
 /*
  * Stack order after call is:
  *
@@ -114,10 +135,10 @@ arg_next_entry(struct function_handle_t *fh, struct function_arg_t *arg)
  *
  * Return: old FP
  */
-static struct var_t *
+static void
 push_uargs(struct var_t *fn, struct var_t *owner)
 {
-        struct var_t *fpsav, *new_fp;
+        struct var_t *new_fp;
         struct function_arg_t *arg = NULL;
         struct function_handle_t *fh = fn->fn;
 
@@ -165,10 +186,7 @@ push_uargs(struct var_t *fn, struct var_t *owner)
                         arg = arg_next_entry(fh, arg);
                 }
         }
-
-        fpsav = q_.fp;
-        q_.fp = new_fp;
-        return fpsav;
+        frame_push(new_fp);
 }
 
 /*
@@ -176,11 +194,11 @@ push_uargs(struct var_t *fn, struct var_t *owner)
  * Set the stack up with these rather than parsing PC,
  * otherwise same stack order as with push_uargs.
  */
-static struct var_t *
+static void
 push_iargs(struct var_t *fn, struct var_t *owner,
            int argc, struct var_t *argv[])
 {
-        struct var_t *fpsav, *new_fp;
+        struct var_t *new_fp;
         struct function_arg_t *arg = NULL;
         struct function_handle_t *fh = fn->fn;
         int i;
@@ -208,21 +226,7 @@ push_iargs(struct var_t *fn, struct var_t *owner,
                 arg = arg_next_entry(fh, arg);
         }
 
-        fpsav = q_.fp;
-        q_.fp = new_fp;
-        return fpsav;
-}
-
-/* Unwind the stack, restore old link register, and restore old fp */
-static void
-pop_args(struct var_t *fpsav)
-{
-        /* Unwind stack to beginning of args */
-        while (q_.sp != q_.fp)
-                stack_pop(NULL);
-
-        /* restore FP */
-        q_.fp = fpsav;
+        frame_push(new_fp);
 }
 
 /* Call an internal built-in function */
@@ -245,21 +249,44 @@ ifunction_helper(struct var_t *fn, struct var_t *retval)
         fh->f_cb(retval);
 }
 
+static struct marker_t lrstack[CALL_DEPTH_MAX];
+/*
+ * this can't be same as call_depth_fp because we do not
+ * always call user functions.
+ */
+static int call_depth_lr = 0;
+
+static void
+lrpush(struct function_handle_t *fh)
+{
+        if (call_depth_lr >= CALL_DEPTH_MAX)
+                syntax("Function calls nested too deeply");
+        PC_BL(&fh->f_mk, &lrstack[call_depth_lr]);
+        call_depth_lr++;
+}
+
+static void
+lrpop(void)
+{
+        call_depth_lr--;
+        bug_on(call_depth_lr < 0);
+        PC_GOTO(&lrstack[call_depth_lr]);
+}
+
 /* Call a user-defined function */
 static void
 ufunction_helper(struct var_t *fn, struct var_t *retval)
 {
-        struct function_handle_t *fh = fn->fn;
-        struct marker_t lr; /* virtual link register */
-        int t, exres;
+        int exres;
 
-        bug_on(!fh);
+        bug_on(!fn->fn);
 
         /* Return address is just after ')' of function call */
-        PC_BL(&fh->f_mk, &lr);
+        lrpush(fn->fn);
 
-        if (fh->f_magic == FUNC_LAMBDA) {
+        if (fn->fn->f_magic == FUNC_LAMBDA) {
                 /* lambda */
+                int t;
                 qlex();
                 t = cur_oc->t;
                 q_unlex();
@@ -278,12 +305,12 @@ ufunction_helper(struct var_t *fn, struct var_t *retval)
 
 done:
         /* restore PC */
-        PC_GOTO(&lr);
+        lrpop();
 }
 
 static void
 call_function_common(struct var_t *fn, struct var_t *retval,
-                     struct var_t *owner, struct var_t *fpsav)
+                     struct var_t *owner)
 {
         struct var_t *retval_save = retval;
 
@@ -305,7 +332,11 @@ call_function_common(struct var_t *fn, struct var_t *retval,
         if (!retval_save)
                 tstack_pop(NULL);
 
-        pop_args(fpsav);
+        /* Unwind stack to beginning of args */
+        while (q_.sp != q_.fp)
+                stack_pop(NULL);
+
+        frame_pop();
 }
 
 /*
@@ -361,11 +392,9 @@ done:
 void
 call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
 {
-        struct var_t *fpsav;
-
         fn = function_of(fn, &owner);
-        fpsav = push_uargs(fn, owner);
-        call_function_common(fn, retval, owner, fpsav);
+        push_uargs(fn, owner);
+        call_function_common(fn, retval, owner);
 }
 
 /**
@@ -388,11 +417,9 @@ void
 call_function_from_intl(struct var_t *fn, struct var_t *retval,
                         struct var_t *owner, int argc, struct var_t *argv[])
 {
-        struct var_t *fpsav;
-
         fn = function_of(fn, &owner);
-        fpsav = push_iargs(fn, owner, argc, argv);
-        call_function_common(fn, retval, owner, fpsav);
+        push_iargs(fn, owner, argc, argv);
+        call_function_common(fn, retval, owner);
 }
 
 /**

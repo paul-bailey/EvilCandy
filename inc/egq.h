@@ -24,6 +24,7 @@ enum {
         STACK_MAX       = 8192,
         LOAD_MAX        = 128,
         RECURSION_MAX   = 256,
+        CALL_DEPTH_MAX  = 256,
 };
 
 /**

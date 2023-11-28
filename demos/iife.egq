@@ -15,7 +15,7 @@ print("1 + 2 is {}".format(a));
     let tripler = multer(3);
 
     print("testing simple closure");
-    print("\t11 times 2 is {}".format(doubler(11, 6)));
+    print("\t11 times 2 is {}".format(doubler(11)));
     print("\t11 times 3 is {}".format(tripler(11)));
 })();
 

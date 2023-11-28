@@ -1,0 +1,47 @@
+// Iterate a square root function over a range of 0 to a million.
+// Change the IIFE arg between sqrt (the function below) and
+// Math.sqrt, and time the execution of this program.
+//
+//  11/2023 results:
+// For Math.sqrt, this takes about 0.88s (not bad).
+// For the scripted algo below, this about 55s.
+// It's a dumb algo, but that's not the problem...
+// the same algo with Python3 still takes <4s.
+// (Something's working right tho... the typeof() check at the
+// start of each call only adds about 4% extra time.)
+
+let sqrt = function(x) {
+    let y = 10.;
+    let min = 0.;
+    let max = 1000000.0;
+    if (typeof(x) != "float") {
+        print("wrong typeof(x) = {}".format(typeof(x)));
+        exit();
+    }
+    if (x <= 0.0)
+        return 0.0;
+
+    for (let i = 0; i < 20; i++) {
+        let result = y * y;
+        if (result > x) {
+            max = y;
+        } else if (result < x) {
+            min = y;
+            if (max < y)
+                max = max * 2.0;
+        } else if (result == x) {
+            return y;
+        }
+        y = min + ((max - min) / 2.0);
+    }
+    return y;
+};
+
+(function(sqrt) {
+    let x = 0.;
+    for (let i = 0.; i < 1000000.0; i++)
+        x = sqrt(i);
+})(Math.sqrt);
+
+
+// : vim: set syntax=javascript :

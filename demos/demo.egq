@@ -67,4 +67,15 @@ __gbl__.foreach(function (e) {
     print("\t" + typeof(e));
 });
 
+print("Does gbl have child '{}'?".format(s));
+if (__gbl__.haschild(s))
+    print("\t...yes!");
+else
+    print("\t...no :(");
+print("Does gbl have child 'Io'?");
+if (haschild('Io'))
+    print("\t...yes!");
+else
+    print("\t...nope");
+
 // : vim: set syntax=javascript :

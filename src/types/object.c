@@ -238,9 +238,29 @@ object_len(struct var_t *ret)
         qop_assign_int(ret, i);
 }
 
+static void
+object_haschild(struct var_t *ret)
+{
+        struct var_t *self = get_this();
+        struct var_t *name = getarg(0);
+        struct var_t *child = NULL;
+        char *s;
+
+        bug_on(self->magic != QOBJECT_MAGIC);
+
+        if (!name || name->magic != QSTRING_MAGIC)
+                syntax("Expected arg: 'name'");
+
+        if ((s = string_get_cstring(name)) != NULL)
+                child = object_child(self, s);
+
+        qop_assign_int(ret, (int)(child != NULL));
+}
+
 static const struct type_inittbl_t object_methods[] = {
-        V_INITTBL("len",    object_len,    0, 0),
-        V_INITTBL("foreach", object_foreach, 1, 1),
+        V_INITTBL("len",       object_len,       0, 0),
+        V_INITTBL("foreach",   object_foreach,   1, 1),
+        V_INITTBL("haschild",  object_haschild,  1, 1),
         TBLEND,
 };
 

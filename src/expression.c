@@ -670,10 +670,8 @@ expression(struct var_t *retval, unsigned int flags)
                         }
                 } else if (tok_type(cur_oc->t) == 'k') {
                         ret = do_keyword(retval, flags);
-                        if (ret) {
-                                if (ret < 0)
-                                        goto bad_tok;
-                        }
+                        if (ret < 0)
+                                goto bad_tok;
                 } else if (cur_oc->t == EOF) {
                         if (!(flags & FE_TOP))
                                 syntax("Unexpected EOF");

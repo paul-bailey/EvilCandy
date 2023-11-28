@@ -1,6 +1,7 @@
 #ifndef EGQ_H
 #define EGQ_H
 
+#include "hashtable.h"
 #include "helpers.h"
 #include "buffer.h"
 #include "opcodes.h"
@@ -156,7 +157,8 @@ struct object_handle_t {
         void *priv;
         void (*priv_cleanup)(struct object_handle_t *, void *);
         int nref;
-        struct buffer_t children;
+        int nchildren;
+        struct hashtable_t dict;
 };
 
 /**

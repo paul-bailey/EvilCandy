@@ -3,13 +3,33 @@
 #include <stdlib.h>
 
 static inline size_t oh_nchildren(struct object_handle_t *oh)
-        { return oh->children.p / sizeof(void *); }
-static inline struct var_t **oh_children(struct object_handle_t *oh)
-        { return (struct var_t **)oh->children.s; }
+        { return oh->nchildren; }
 
 /* **********************************************************************
  *                              API functions
  ***********************************************************************/
+
+static hash_t
+obj_calc_hash(const void *key)
+{
+        /*
+         * it's a pointer to a known string in memory, it probably
+         * has a few trailing zeros.  Shift those out, so we don't
+         * keep colliding in the hash table.
+         */
+        enum { HASH_RSHIFT = (8 * sizeof(hash_t)) - 4 };
+        return ((hash_t)key >> 4) | ((hash_t)key << HASH_RSHIFT);
+}
+
+static bool
+obj_key_match(const void *key1, const void *key2)
+{
+        /*
+         * this is why obj_child_l should get a return value
+         * of literal()
+         */
+        return key1 == key2;
+}
 
 /**
  * object_init - Convert an empty variable into an initialized
@@ -25,7 +45,7 @@ object_init(struct var_t *o)
         o->magic = QOBJECT_MAGIC;
 
         o->o.h = ecalloc(sizeof(*o->o.h));
-        buffer_init(&o->o.h->children);
+        hashtable_init(&o->o.h->dict, obj_calc_hash, obj_key_match);
         o->o.h->nref = 1;
         return o;
 }
@@ -53,37 +73,13 @@ object_set_priv(struct var_t *o, void *priv,
 struct var_t *
 object_child_l(struct var_t *o, const char *s)
 {
-        int i, n;
-        struct var_t **ppvar;
+        struct var_t *ret;
 
         bug_on(o->magic != QOBJECT_MAGIC);
         bug_on(!o->o.h);
 
-        n = oh_nchildren(o->o.h);
-        ppvar = oh_children(o->o.h);
-
-        /*
-         * ppvar[i]->name and s are both return values of literal(),
-         * so their pointers are their own hash, making this a fast
-         * strcmp()-less search where we just match pointers.
-         *
-         * OTHO, this assumes objects will never have a ton of children,
-         * otherwise a per-object hash table would be handy.  If a
-         * typical user-defined class has, say, sixteen children, this is
-         * definitely faster than a hash table.  The most common use-case
-         * is that @s was taken from cur_oc->s (rather than filtered
-         * through the wrapper object_child), therefore during execution
-         * time we're almost never even having to hash.  (The exception
-         * is when @s was derived from a user variable instead of a
-         * hard-coded symbol name.  This is rare and probably should not
-         * even be allowed.)
-         */
-        for (i = 0; i < n; i++) {
-                if (ppvar[i] && ppvar[i]->name == s)
-                        return ppvar[i];
-        }
-
-        return builtin_method(o, s);
+        ret = (struct var_t *)hashtable_get(&o->o.h->dict, s);
+        return ret ? ret : builtin_method(o, s);
 }
 
 /**
@@ -97,6 +93,10 @@ object_child_l(struct var_t *o, const char *s)
 struct var_t *
 object_nth_child(struct var_t *o, int n)
 {
+        /* FIXME: This needs a hashtable nth child or something */
+#if 1
+        return NULL;
+#else
         struct var_t **ppvar;
         struct buffer_t *buf = &o->o.h->children;
         ssize_t byteoffs = n * sizeof(void *);
@@ -107,6 +107,7 @@ object_nth_child(struct var_t *o, int n)
 
         ppvar = (struct var_t **)buf->s + byteoffs;
         return *ppvar;
+#endif
 }
 
 /**
@@ -119,7 +120,9 @@ object_add_child(struct var_t *parent, struct var_t *child)
 {
         if (child->magic == QOBJECT_MAGIC)
                 child->o.owner = parent;
-        buffer_putd(&parent->o.h->children, &child, sizeof(void *));
+        if (hashtable_put(&parent->o.h->dict, child->name, child) < 0)
+                syntax("Object already has element named %s", child->name);
+        parent->o.h->nchildren++;
 }
 
 
@@ -149,9 +152,6 @@ object_cmpz(struct var_t *obj)
 static void
 object_handle_reset(struct object_handle_t *oh)
 {
-        struct buffer_t *buf = &oh->children;
-        int i, n = oh_nchildren(oh);
-        struct var_t **ppvar = oh_children(oh);
         bug_on(oh->nref < 0);
         if (oh->priv) {
                 if (oh->priv_cleanup)
@@ -159,9 +159,7 @@ object_handle_reset(struct object_handle_t *oh)
                 else
                         free(oh->priv);
         }
-        for (i = 0; i < n; i++)
-                var_delete(ppvar[i]);
-        buffer_free(buf);
+        hashtable_destroy(&oh->dict);
         free(oh);
 }
 
@@ -191,6 +189,8 @@ object_reset(struct var_t *o)
 void
 object_foreach(struct var_t *ret)
 {
+/* FIXME: Need a hashtable iterator */
+#if 0
         struct var_t *self = get_this();
         struct var_t *func = getarg(0);
         struct var_t **ppvar;
@@ -207,6 +207,7 @@ object_foreach(struct var_t *ret)
                         continue;
                 call_function_from_intl(func, NULL, NULL, 1, &ppvar[i]);
         }
+#endif
 }
 
 

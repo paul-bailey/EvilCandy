@@ -66,7 +66,7 @@
 #include <stdlib.h>
 
 /* For literal(), key is its own value */
-struct bucket_t {
+struct lbucket_t {
         char *key;
         unsigned long hash;
 };
@@ -82,7 +82,7 @@ struct bucket_t {
 struct oai_hashtable_t {
         size_t size;
         size_t count;
-        struct bucket_t **bucket;
+        struct lbucket_t **bucket;
         size_t grow_size;
 };
 
@@ -97,7 +97,7 @@ bucketi(unsigned long hash)
 static void
 oai_grow(void)
 {
-        struct bucket_t **b_old, **b_new;
+        struct lbucket_t **b_old, **b_new;
         size_t old_size = htab->size;
         int i, j;
 
@@ -125,7 +125,7 @@ oai_grow(void)
         htab->bucket = b_new = ecalloc(sizeof(void *) * htab->size);
         for (i = 0; i < old_size; i++) {
                 unsigned long perturb;
-                struct bucket_t *b = b_old[i];
+                struct lbucket_t *b = b_old[i];
                 if (!b)
                         continue;
                 perturb = b->hash;
@@ -143,11 +143,11 @@ oai_grow(void)
  * Note, we do open addressing, because everyone seems to think that's
  * faster than chaining.
  */
-static struct bucket_t *
+static struct lbucket_t *
 seek_helper(const char *key, unsigned long hash, unsigned int *idx)
 {
         unsigned int i = bucketi(hash);
-        struct bucket_t *b;
+        struct lbucket_t *b;
         unsigned long perturb = hash;
         while ((b = htab->bucket[i]) != NULL) {
                 if (b->hash == hash && !strcmp(b->key, key)) {
@@ -197,7 +197,7 @@ literal_put(const char *key)
 {
         unsigned int i;
         unsigned long hash = fnv_hash(key);
-        struct bucket_t *b = seek_helper(key, hash, &i);
+        struct lbucket_t *b = seek_helper(key, hash, &i);
         /* if match, don't insert, return that */
         if (!b) {
                 /* no match, insert */
@@ -216,7 +216,7 @@ literal(const char *key)
 {
         unsigned int dummy;
         unsigned long hash = fnv_hash(key);
-        struct bucket_t *b = seek_helper(key, hash, &dummy);
+        struct lbucket_t *b = seek_helper(key, hash, &dummy);
         return b ? b->key : NULL;
 }
 

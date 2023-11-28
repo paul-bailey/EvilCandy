@@ -100,17 +100,21 @@ symbol_seek_stack_l(const char *s)
 struct var_t *
 symbol_seek(const char *s)
 {
+        static char *gbl = NULL;
         struct var_t *v;
 
         if (!s)
                 return NULL;
-        if (!strcmp(s, "__gbl__"))
-                return q_.gbl;
 
         s = literal(s);
         if (!s)
                 return NULL;
 
+        if (!gbl)
+                gbl = literal("__gbl__");
+
+        if (s == gbl)
+                return q_.gbl;
         if ((v = trystack(s)) != NULL)
                 return v;
         if ((v = tryfunction(s)) != NULL)

@@ -9,28 +9,6 @@ static inline size_t oh_nchildren(struct object_handle_t *oh)
  *                              API functions
  ***********************************************************************/
 
-static hash_t
-obj_calc_hash(const void *key)
-{
-        /*
-         * it's a pointer to a known string in memory, it probably
-         * has a few trailing zeros.  Shift those out, so we don't
-         * keep colliding in the hash table.
-         */
-        enum { HASH_RSHIFT = (8 * sizeof(hash_t)) - 4 };
-        return ((hash_t)key >> 4) | ((hash_t)key << HASH_RSHIFT);
-}
-
-static bool
-obj_key_match(const void *key1, const void *key2)
-{
-        /*
-         * this is why obj_child_l should get a return value
-         * of literal()
-         */
-        return key1 == key2;
-}
-
 /**
  * object_init - Convert an empty variable into an initialized
  *                      object type.
@@ -45,7 +23,8 @@ object_init(struct var_t *o)
         o->magic = QOBJECT_MAGIC;
 
         o->o.h = ecalloc(sizeof(*o->o.h));
-        hashtable_init(&o->o.h->dict, obj_calc_hash, obj_key_match);
+        hashtable_init(&o->o.h->dict, ptr_hash,
+                       ptr_key_match, var_bucket_delete);
         o->o.h->nref = 1;
         return o;
 }
@@ -114,14 +93,15 @@ object_nth_child(struct var_t *o, int n)
  * object_add_child - Append a child to an object
  * @parent: object to append a child to
  * @child: child to append to @parent
+ * @name: Name of the child.
  */
 void
-object_add_child(struct var_t *parent, struct var_t *child)
+object_add_child(struct var_t *parent, struct var_t *child, char *name)
 {
         if (child->magic == QOBJECT_MAGIC)
                 child->o.owner = parent;
-        if (hashtable_put(&parent->o.h->dict, child->name, child) < 0)
-                syntax("Object already has element named %s", child->name);
+        if (hashtable_put(&parent->o.h->dict, name, child) < 0)
+                syntax("Object already has element named %s", name);
         parent->o.h->nchildren++;
 }
 

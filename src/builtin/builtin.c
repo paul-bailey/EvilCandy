@@ -111,7 +111,6 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                 return;
         for (t = tbl; t->name != NULL; t++) {
                 struct var_t *child = var_new();
-                child->name = literal_put(t->name);
                 switch (t->magic) {
                 case QOBJECT_MAGIC:
                         object_init(child);
@@ -137,7 +136,7 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                         bug();
                 }
                 bug_on(child->magic == QEMPTY_MAGIC);
-                object_add_child(parent, child);
+                object_add_child(parent, child, literal_put(t->name));
         }
 }
 

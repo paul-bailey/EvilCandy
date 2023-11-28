@@ -26,6 +26,7 @@ enum {
         LOAD_MAX        = 128,
         RECURSION_MAX   = 256,
         CALL_DEPTH_MAX  = 256,
+        FRAME_DEPTH_MAX = CALL_DEPTH_MAX * 2,
 };
 
 /**
@@ -179,22 +180,13 @@ enum {
  * struct var_t - User variable type
  * @magic: Magic number to determine which builtin type
  * @flags: a VF_* enum
- * @name: Name of the variable.  Set if it was declared by user, usually
- *        NULL if an intermediate variable.  (We don't use a symbol
- *        table.)  _ALWAYS_ use a return value of literal() when setting
- *        this.
  *
  * The remaining fields are specific to the type, determined by @magic,
  * and are handled privately by the type-specific sources in types/xxx.c
  *
- * Get this in one of four ways:
- * 1. Declare statically or on the stack, then initialize with var_init.
- *    Do not call var_delete for this, use var_reset instead.
- * 2. Push "from" stack, ie. stack_getpush() instead of stack_push.
- *    _ALWAYS_ balance this with stack_pop() when you're done with it
- * 3. Push "from" temporary-variable stack with tstack_getpush()
- *    _ALWAYS_ balance this with tstack_pop() when you're done with it.
- * 4. Allocate with var_new().  Free it with var_delete().
+ * floats and integers are pass-by-value, so their values are stored in
+ * this struct directly.  The remainder are pass-by-reference; this
+ * struct only stores the pointers to their more meaningful data.
  */
 struct var_t {
         unsigned int magic;
@@ -461,6 +453,7 @@ extern void var_reset(struct var_t *v);
 extern void moduleinit_var(void);
 extern struct var_t *builtin_method(struct var_t *v,
                                     const char *method_name);
+extern void var_bucket_delete(void *data);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];
@@ -504,7 +497,7 @@ extern void function_add_closure(struct var_t *func, char *name,
 extern struct var_t *object_init(struct var_t *v);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
 extern struct var_t *object_nth_child(struct var_t *o, int n);
-extern void object_add_child(struct var_t *o, struct var_t *v);
+extern void object_add_child(struct var_t *o, struct var_t *v, char *name);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
 static inline void *object_get_priv(struct var_t *o)

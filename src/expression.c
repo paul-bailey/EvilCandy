@@ -28,10 +28,9 @@ add_new_child(struct var_t *parent, char *name_lit)
         }
         expect(OC_EQ);
         child = var_new();
-        child->name = name_lit;
         eval(child);
         child->flags = flags;
-        object_add_child(parent, child);
+        object_add_child(parent, child, name_lit);
 }
 
 /*

@@ -129,10 +129,9 @@ compile_object(struct var_t *v)
                 }
                 q_unlex();
                 child = var_new();
-                child->name = name;
                 eval(child);
                 child->flags = flags;
-                object_add_child(v, child);
+                object_add_child(v, child, name);
                 qlex();
         } while (cur_oc->t == OC_COMMA);
         expect(OC_RBRACE);

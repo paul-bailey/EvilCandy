@@ -175,7 +175,8 @@ hashtable_remove(struct hashtable_t *htbl, const void *key)
 void
 hashtable_init(struct hashtable_t *htbl,
                 hash_t (*calc_hash)(const void *),
-                bool (*key_match)(const void *, const void *))
+                bool (*key_match)(const void *, const void *),
+                void (*delete_data)(void *))
 {
 
         htbl->size = INIT_SIZE;
@@ -185,6 +186,7 @@ hashtable_init(struct hashtable_t *htbl,
         htbl->bucket = ecalloc(sizeof(void *) * INIT_SIZE);
         htbl->calc_hash = calc_hash;
         htbl->key_match = key_match;
+        htbl->delete_data = delete_data;
 }
 
 static void
@@ -196,6 +198,7 @@ hashtable_clear_entries_(struct hashtable_t *htbl)
                 if (htbl->bucket[i] == BUCKET_DEAD) {
                         htbl->bucket[i] = NULL;
                 } else if (htbl->bucket[i] != NULL) {
+                        htbl->delete_data(htbl->bucket[i]->data);
                         bucket_free(htbl->bucket[i]);
                         htbl->bucket[i] = NULL;
                 }
@@ -216,5 +219,30 @@ hashtable_destroy(struct hashtable_t *htbl)
 {
         hashtable_clear_entries_(htbl);
         free(htbl->bucket);
+}
+
+hash_t
+idx_hash(const void *key)
+{
+        /* For array indexes, if we use this, I guess */
+        return (hash_t)(*(unsigned int *)key);
+}
+
+hash_t
+ptr_hash(const void *key)
+{
+        /*
+         * A pointer to a known string in memory probably has a few
+         * trailing zeros.  Shift those out, so we don't keep colliding
+         * on our first modulo in the hash table.
+         */
+        enum { HASH_RSHIFT = (8 * sizeof(hash_t)) - 4 };
+        return ((hash_t)key >> 4) | ((hash_t)key << HASH_RSHIFT);
+}
+
+bool
+ptr_key_match(const void *key1, const void *key2)
+{
+        return key1 == key2;
 }
 

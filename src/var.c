@@ -220,3 +220,13 @@ moduleinit_var(void)
         }
 }
 
+/**
+ * var_bucket_delete - Hash table callback for several modules.
+ * @data: Expected to be a struct var_t that was created with var_new()
+ */
+void
+var_bucket_delete(void *data)
+{
+        var_delete((struct var_t *)data);
+}
+

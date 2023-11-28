@@ -22,6 +22,7 @@ struct hashtable_t {
         struct bucket_t **bucket;
         hash_t (*calc_hash)(const void *);
         bool (*key_match)(const void *, const void *);
+        void (*delete_data)(void *);
 };
 
 extern int hashtable_put(struct hashtable_t *htbl,
@@ -29,10 +30,16 @@ extern int hashtable_put(struct hashtable_t *htbl,
 extern void *hashtable_get(struct hashtable_t *htbl, const void *key);
 extern void *hashtable_remove(struct hashtable_t *htbl, const void *key);
 extern void hashtable_init(struct hashtable_t *htbl,
-                                hash_t (*calc_hash)(const void *),
-                                bool (*key_match)(const void *, const void *));
+                           hash_t (*calc_hash)(const void *),
+                           bool (*key_match)(const void *, const void *),
+                           void (*delete_data)(void *));
 extern void hashtable_clear_entries(struct hashtable_t *htbl);
 extern void hashtable_destroy(struct hashtable_t *htbl);
 
+/* EGQ's hash algos */
+extern hash_t ptr_hash(const void *key);
+extern hash_t idx_hash(const void *key);
+extern bool ptr_key_match(const void *k1, const void *k2);
 
 #endif /* EGQ_HASHTABLE_H */
+

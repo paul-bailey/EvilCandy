@@ -1,4 +1,5 @@
 /* symbol.c - Code that looks for symbol from input */
+#include "uarg.h"
 #include "egq.h"
 #include <string.h>
 
@@ -8,11 +9,26 @@ trystack(const char *s)
 {
         /* Args actually begin 1st after FP */
         struct var_t *p;
-        for (p = q_.fp + 1; p < q_.sp; p++) {
+        for (p = ARG_FRAME_START(); p < q_.sp; p++) {
                 if (p->name == s)
                         return p;
         }
         return NULL;
+}
+
+static struct var_t *
+tryfunction(const char *s)
+{
+        struct var_t *func = get_this_func();
+        /*
+         * If we're at the top level instead of a function,
+         * get_this_func() returns an empty variable, not a function.
+         */
+        if (func->magic != QFUNCTION_MAGIC) {
+                bug_on(func->magic != QEMPTY_MAGIC);
+                return NULL;
+        }
+        return function_seek_closure(func, s);
 }
 
 /* Helper to symbol_seek - walk up namespace */
@@ -97,6 +113,8 @@ symbol_seek(const char *s)
                 return NULL;
 
         if ((v = trystack(s)) != NULL)
+                return v;
+        if ((v = tryfunction(s)) != NULL)
                 return v;
         if ((v = trythis(s)) != NULL)
                 return v;

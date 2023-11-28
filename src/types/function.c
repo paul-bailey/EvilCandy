@@ -34,11 +34,12 @@ struct function_handle_t {
         void (*f_cb)(struct var_t *ret);
         struct marker_t f_mk;
         struct list_t f_args;
+        struct list_t f_closures;
 };
 
 struct function_arg_t {
-        struct list_t a_list;
         char *a_name;
+        struct list_t a_list;
         struct var_t *a_default;
 };
 
@@ -49,21 +50,29 @@ function_handle_new(void)
 {
         struct function_handle_t *ret = ecalloc(sizeof(*ret));
         list_init(&ret->f_args);
+        list_init(&ret->f_closures);
         ret->nref = 1;
         return ret;
 }
 
 static void
-function_handle_reset(struct function_handle_t *fh)
+remove_args(struct list_t *which)
 {
         struct list_t *li, *tmp;
-        list_foreach_safe(li, tmp, &fh->f_args) {
+        list_foreach_safe(li, tmp, which) {
                 struct function_arg_t *a = list2arg(li);
                 if (a->a_default)
                         var_delete(a->a_default);
                 list_remove(&a->a_list);
                 free(a);
         }
+}
+
+static void
+function_handle_reset(struct function_handle_t *fh)
+{
+        remove_args(&fh->f_args);
+        remove_args(&fh->f_closures);
         free(fh);
 }
 
@@ -96,6 +105,7 @@ arg_next_entry(struct function_handle_t *fh, struct function_arg_t *arg)
  * Stack order after call is:
  *
  *      owner object handle     <-- FP
+ *      current function
  *      arg1
  *      ...
  *      argN
@@ -117,6 +127,8 @@ push_uargs(struct var_t *fn, struct var_t *owner)
          */
         new_fp = q_.sp;
         push_owner(fn, owner);
+
+        stack_push(fn);
 
         qlex();
         expect(OC_LPAR);
@@ -144,7 +156,7 @@ push_uargs(struct var_t *fn, struct var_t *owner)
                 while (arg) {
                         struct var_t *v;
                         if (!arg->a_default) {
-                                syntax("Mandatory argument %s missing",
+                                syntax("Mandatory argument missing",
                                         arg->a_name);
                         }
                         v = stack_getpush();
@@ -175,6 +187,7 @@ push_iargs(struct var_t *fn, struct var_t *owner,
 
         new_fp = q_.sp;
         push_owner(fn, owner);
+        stack_push(fn);
 
         arg = arg_first_entry(fh);
         for (i = 0; i < argc; i++) {
@@ -212,9 +225,6 @@ pop_args(struct var_t *fpsav)
         q_.fp = fpsav;
 }
 
-/* Assumes stack is already set up. */
-static inline int n_args(void) { return q_.sp - 1 - q_.fp; }
-
 /* Call an internal built-in function */
 static void
 ifunction_helper(struct var_t *fn, struct var_t *retval)
@@ -224,7 +234,7 @@ ifunction_helper(struct var_t *fn, struct var_t *retval)
         struct function_handle_t *fh = fn->fn;
         bug_on(!fh);
         bug_on(!fh->f_cb);
-        if ((nargs = n_args()) != fh->f_minargs) {
+        if ((nargs = arg_count()) != fh->f_minargs) {
                 if (nargs < fh->f_minargs ||
                     (fh->f_maxargs > 0 &&
                      nargs > fh->f_maxargs)) {
@@ -423,6 +433,20 @@ function_init(struct var_t *func)
         func->magic = QFUNCTION_MAGIC;
 }
 
+/*
+ * helper to function_add_arg|closure().
+ * @parent is either f_args or f_closures
+ */
+static void
+new_arg_or_closure(struct list_t *parent, char *name, struct var_t *deflt)
+{
+        struct function_arg_t *arg = emalloc(sizeof(*arg));
+        arg->a_default = deflt;
+        arg->a_name = name;
+        list_init(&arg->a_list);
+        list_add_tail(&arg->a_list, parent);
+}
+
 /**
  * function_add_arg - Add user arg to a user-defined function
  * @func:  A user-defined function
@@ -430,7 +454,9 @@ function_init(struct var_t *func)
  *         must be from an opcode or a return value of literal()
  * @deflt: Default value to set the argument to if caller does not
  *         provide it.  If this is NULL, the argument will be treated
- *         as mandatory.
+ *         as mandatory.  Otherwise, @deflt should have been allocated
+ *         with var_new; function_add_arg() takes this directly, it
+ *         does not copy it.
  *
  * The order of arguments will be the same as the order of calls to this
  * function while compiling @func
@@ -445,10 +471,62 @@ function_add_arg(struct var_t *func, char *name, struct var_t *deflt)
         bug_on(!fh);
         bug_on(fh->f_magic == FUNC_INTERNAL);
 
-        arg->a_name = name;
-        arg->a_default = deflt;
-        list_init(&arg->a_list);
-        list_add_tail(&arg->a_list, &fh->f_args);
+        if (deflt)
+                deflt->name = name;
+
+        new_arg_or_closure(&fh->f_args, name, deflt);
+}
+
+/**
+ * function_add_closure - Add closure to a user-defined function
+ * @func:       A user-defined function
+ * @name:       Name that will be userd by the function for the closure,
+ *              must be from an opcode or a return value of literal()
+ * @init:       Initialization value. This may not be NULL.
+ *              It must have been allocated with var_new();
+ *              function_add_closure takes it directly, it does not
+ *              copy it.
+ */
+void
+function_add_closure(struct var_t *func, char *name, struct var_t *init)
+{
+        struct function_handle_t *fh = func->fn;
+        struct function_arg_t *clo = emalloc(sizeof(*clo));
+
+        bug_on(func->magic != QFUNCTION_MAGIC);
+        bug_on(!fh);
+        bug_on(fh->f_magic == FUNC_INTERNAL);
+
+        init->name = name;
+        new_arg_or_closure(&fh->f_closures, name, init);
+}
+
+/**
+ * function_seek_closure - Get closure from function
+ * @func: Function to seek, usu. get_this_function()
+ * @name: Name of the closure
+ *
+ * Return: Closure matching @name, or NULL if not found.
+ */
+struct var_t *
+function_seek_closure(struct var_t *func, const char *name)
+{
+        struct list_t *li;
+
+        bug_on(func->magic != QFUNCTION_MAGIC);
+        bug_on(!func->fn);
+        /*
+         * XXX: I'm assuming this will never be more
+         * than a half-dozen or so, so I'm using the
+         * same linked-list version as the arguments.
+         */
+        list_foreach(li, &func->fn->f_closures) {
+                struct function_arg_t *clo = list2arg(li);
+                bug_on(!clo->a_default);
+                if (clo->a_default->name == (char *)name)
+                        return clo->a_default;
+        }
+        return NULL;
 }
 
 /**

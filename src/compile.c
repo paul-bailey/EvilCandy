@@ -21,10 +21,15 @@ compile_function_helper(struct var_t *v, bool lambda)
          */
         do {
                 char *name;
+                bool closure = false;
                 struct var_t *deflt = NULL;
                 qlex();
                 if (cur_oc->t == OC_RPAR)
                         break; /* no args */
+                if (cur_oc->t == OC_COLON) {
+                        closure = true;
+                        qlex();
+                }
                 expect('u');
                 name = cur_oc->s;
                 qlex();
@@ -33,7 +38,14 @@ compile_function_helper(struct var_t *v, bool lambda)
                         eval(deflt);
                         qlex();
                 }
-                function_add_arg(v, name, deflt);
+
+                if (closure) {
+                        if (!deflt)
+                                syntax("Closure missing initializer");
+                        function_add_closure(v, name, deflt);
+                } else {
+                        function_add_arg(v, name, deflt);
+                }
         } while (cur_oc->t == OC_COMMA);
         expect(OC_RPAR);
 

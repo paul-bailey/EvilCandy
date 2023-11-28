@@ -42,9 +42,11 @@ init_modules(void)
                 t->initfn();
 }
 
+
 static void
 init_lib(void)
 {
+        static struct var_t notafunc;
         list_init(&q_.ns);
 
         init_modules();
@@ -57,8 +59,15 @@ init_lib(void)
         cur_ns = NULL;
         cur_oc = NULL;
 
+        var_init(&notafunc);
+
         /* point initial fp to "__gbl__" */
         stack_push(q_.gbl);
+        /*
+         * At top level, push empty not-a-function
+         * variable onto the "this-function" part of the stack
+         */
+        stack_push(&notafunc);
 }
 
 /**

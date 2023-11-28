@@ -207,7 +207,6 @@ struct var_t {
                 double f;
                 long long i;
                 struct string_handle_t *s;
-                struct marker_t px;
                 struct var_t *ps;
         };
 };
@@ -290,6 +289,7 @@ extern struct global_t q_;
 extern const char *typestr(int magic);
 extern const char *nameof(struct var_t *v);
 static inline struct var_t *get_this(void) { return q_.fp; }
+static inline struct var_t *get_this_func(void) { return q_.fp + 1; }
 
 /* helpers to classify a variable */
 static inline bool isconst(struct var_t *v)
@@ -478,6 +478,7 @@ extern void call_function_from_intl(struct var_t *fn,
  * User-defined:
  *              function_init
  *              function_add_arg ...repeat for ea. arg
+ *              function_add_closure ...ditto
  *              function_set_user
  */
 extern void function_add_arg(struct var_t *func,
@@ -488,6 +489,10 @@ extern void function_set_user(struct var_t *func,
 extern void function_init_internal(struct var_t *func,
                         void (*cb)(struct var_t *),
                         int minargs, int maxargs);
+extern struct var_t *function_seek_closure(struct var_t *func,
+                        const char *name);
+extern void function_add_closure(struct var_t *func, char *name,
+                        struct var_t *init);
 
 /* types/object.c */
 extern struct var_t *object_init(struct var_t *v);

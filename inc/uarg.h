@@ -5,13 +5,33 @@
 #ifndef EGQ_UARG_H
 #define EGQ_UARG_H
 
-static inline struct var_t *
-getarg(int n)
+#include "egq.h"
+
+/*
+ * see function.c, push_uargs().  FP points at "this", FP+1 is
+ * currently-executed function, FP+2 is first arg.
+ */
+#define ARG_FP_OFFSET           2
+
+/* make function-like, so users don't assume it's constant */
+#define ARG_FRAME_START()       (q_.fp + ARG_FP_OFFSET)
+
+/* assumes stack is set up, but automatic variables not yet declared */
+static inline int
+arg_count(void)
 {
-        if (n < 0 || n >= (q_.sp - 1 - q_.fp))
-                return NULL;
-        return q_.fp + 1 + n;
+        return (int)(q_.sp - ARG_FRAME_START());
 }
+
+static inline struct var_t *
+getarg(unsigned int n)
+{
+        struct var_t *ret = ARG_FRAME_START() + n;
+        if (ret < ARG_FRAME_START() || ret >= q_.sp)
+                return NULL;
+        return ret;
+}
+
 #define arg_type_err(v, want) do { \
         syntax("Argument is type '%s' but '%s' is expected", \
                 typestr((v)->magic), typestr(want)); \

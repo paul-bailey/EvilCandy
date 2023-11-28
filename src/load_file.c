@@ -7,8 +7,8 @@ enum {
 };
 
 struct file_state_t {
-        struct var_t *sp;
-        struct var_t *fp; /* "frame pointer", not "file pointer" */
+        int sp;
+        int fp; /* "frame pointer", not "file pointer" */
         struct marker_t pc;
 };
 
@@ -46,8 +46,7 @@ nspop(void)
          * already-visible object, usu. "__gbl__"
          */
         bug_on(q_.sp < ns_sp->sp);
-        while (q_.sp != ns_sp->sp)
-                stack_pop(NULL);
+        stack_unwind_to(ns_sp->sp);
 }
 
 
@@ -162,7 +161,7 @@ static void
 exec_block(void)
 {
         /* Note: keep this re-entrant */
-        struct var_t *sp = q_.sp;
+        int sp = q_.sp;
         for (;;) {
                 int ret = expression(NULL, FE_TOP);
                 if (ret) {
@@ -172,8 +171,7 @@ exec_block(void)
                                 ret == 1 ? "return" : "break");
                 }
         }
-        while (q_.sp != sp)
-                stack_pop(NULL);
+        stack_unwind_to(sp);
 }
 
 void

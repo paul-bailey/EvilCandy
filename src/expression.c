@@ -283,7 +283,7 @@ static bool
 get_condition(bool par)
 {
         bool ret;
-        struct var_t *cond = tstack_getpush();
+        struct var_t *cond = var_new();
         if (par) {
                 qlex();
                 expect(OC_LPAR);
@@ -309,7 +309,7 @@ get_condition(bool par)
         }
         ret = !qop_cmpz(cond);
 done:
-        tstack_pop(NULL);
+        var_delete(cond);
         return ret;
 }
 
@@ -352,7 +352,7 @@ do_let(struct var_t *unused, unsigned int flags)
         if (symbol_seek_stack_l(cur_oc->s))
                 syntax("Variable `%s' is already declared", cur_oc->s);
 
-        v = stack_getpush();
+        v = var_new();
         v->name = cur_oc->s;
 
         qlex();
@@ -377,6 +377,7 @@ do_let(struct var_t *unused, unsigned int flags)
         default:
                 syntax("Invalid token");
         }
+        stack_push(v);
         return 0;
 }
 
@@ -429,7 +430,7 @@ static int
 do_for(struct var_t *retval, unsigned int unused)
 {
         struct marker_t start, pc_cond, pc_op, pc_blk;
-        struct var_t *sp;
+        int sp;
         int r = 0;
         bool have_op = false;
 
@@ -479,8 +480,7 @@ do_for(struct var_t *retval, unsigned int unused)
          *      "for (let i = 0; ..."
          * It keeps i out of the upper-level scope
          */
-        while (q_.sp != sp)
-                stack_pop(NULL);
+        stack_unwind_to(sp);
 
         /* don't double break */
         if (r == 2)
@@ -611,7 +611,7 @@ do_keyword(struct var_t *retval, unsigned int flags)
 int
 expression(struct var_t *retval, unsigned int flags)
 {
-        struct var_t *sp = NULL;
+        int sp = -1;
         int ret = 0;
         int brace = 0;
 
@@ -681,7 +681,7 @@ expression(struct var_t *retval, unsigned int flags)
                 }
         } while (brace && !ret);
 
-        if (sp) {
+        if (sp >= 0) {
                 /*
                  * This was not a single-line expression,
                  * so unwind the stack pointer to where it was
@@ -690,8 +690,7 @@ expression(struct var_t *retval, unsigned int flags)
                  *              let x = ....
                  * will delete x after escaping the block
                  */
-                while (q_.sp != sp)
-                        stack_pop(NULL);
+                stack_unwind_to(sp);
         }
 
         RECURSION_DECR();

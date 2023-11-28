@@ -52,8 +52,8 @@ init_lib(void)
         init_modules();
 
         /* Initialize stack regs */
-        q_.sp = q_.stack;
-        q_.fp = q_.stack;
+        q_.sp = 0;
+        q_.fp = 0;
 
         /* Initialize program counter */
         cur_ns = NULL;

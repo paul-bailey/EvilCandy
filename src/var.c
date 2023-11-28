@@ -4,8 +4,26 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct mempool_t *var_mempool = NULL;
+/*
+ * Note: using mempool.c for allocation of vars does seem
+ * to be about 25% faster.
+ */
+#define SIMPLE_ALLOC 0
+#if SIMPLE_ALLOC
+static struct var_t *
+var_alloc(void)
+{
+        struct var_t *ret = emalloc(sizeof(struct var_t));
+        return ret;
+}
 
+static void
+var_free(struct var_t *v)
+{
+        free(v);
+}
+#else
+static struct mempool_t *var_mempool = NULL;
 static struct var_t *
 var_alloc(void)
 {
@@ -25,6 +43,7 @@ var_free(struct var_t *v)
 {
         mempool_free(var_mempool, v);
 }
+#endif
 
 /**
  * var_init - Initialize a variable

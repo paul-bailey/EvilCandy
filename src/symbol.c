@@ -7,11 +7,10 @@
 static struct var_t *
 trystack(const char *s)
 {
-        /* Args actually begin 1st after FP */
-        struct var_t *p;
-        for (p = ARG_FRAME_START(); p < q_.sp; p++) {
-                if (p->name == s)
-                        return p;
+        int i;
+        for (i = ARG_FRAME_START(); i < q_.sp; i++) {
+                if (q_.stack[i]->name == s)
+                        return q_.stack[i];
         }
         return NULL;
 }

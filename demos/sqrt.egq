@@ -4,7 +4,8 @@
 //
 //  11/2023 results:
 // For Math.sqrt, this takes about 0.88s (not bad).
-// For the scripted algo below, this about 55s.
+// For the scripted algo below, this is ~55s, or ~20s
+// when compiled with -O3 -DNDEBUG.
 // It's a dumb algo, but that's not the problem...
 // the same algo with Python3 still takes <4s.
 // (Something's working right tho... the typeof() check at the
@@ -41,7 +42,7 @@ let sqrt = function(x) {
     let x = 0.;
     for (let i = 0.; i < 1000000.0; i++)
         x = sqrt(i);
-})(Math.sqrt);
+})(sqrt);
 
 
 // : vim: set syntax=javascript :

@@ -80,9 +80,9 @@ buffer_from_graveyard(void)
         }
         if (!blk)
                 return NULL;
-        for (i = 0, x = 1; !(blk->b & x) && i < 64; x <<= 1, i++)
-                ;
-        bug_on(i == 64);
+        i = __builtin_ctz(blk->b);
+        bug_on(i >= 64);
+        x = 1ull << i;
         blk->b &= ~x;
         return &blk->bufs[i];
 }
@@ -108,9 +108,9 @@ buffer_to_graveyard(struct buffer_t *b)
                 blk->b = 0LL;
                 list_add_tail(&blk->list, &bufblk_list);
         }
-        for (i = 0, x = 1; !!(blk->b & x) && i < 64; x <<= 1, i++)
-                ;
-        bug_on(i == 64);
+        i = __builtin_ctz(~blk->b);
+        bug_on(i >= 64);
+        x = 1ull << i;
         blk->b |= x;
 
         blk->bufs[i].s    = b->s;

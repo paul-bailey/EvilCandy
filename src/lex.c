@@ -1,6 +1,7 @@
 #include "egq.h"
 #include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <sys/stat.h>
 
@@ -388,7 +389,7 @@ qlex_delim(int *res)
  * EOF if end of file
  */
 static int
-qlex_helper(void)
+tokenize_helper(void)
 {
         struct buffer_t *tok = &lexer.tok;
         int ret;
@@ -414,6 +415,36 @@ qlex_helper(void)
 
         syntax("Unrecognized token");
         return 0;
+}
+
+int
+tokenize(struct opcode_t *oc)
+{
+        int ret = tokenize_helper();
+        if (ret == EOF) {
+                static const struct opcode_t eofoc = {
+                        .t = EOF,
+                        .line = 0,
+                        .s = NULL,
+                        .i = 0LL,
+                };
+                memcpy(oc, &eofoc, sizeof(*oc));
+        } else {
+                oc->t = ret;
+                oc->line = lexer.lineno;
+                oc->s = literal_put(lexer.tok.s);
+                bug_on(oc->s == NULL);
+                if (oc->t == 'f') {
+                        double f = strtod(oc->s, NULL);
+                        oc->f = f;
+                } else if (oc->t == 'i') {
+                        long long i = strtoul(oc->s, NULL, 0);
+                        oc->i = i;
+                } else {
+                        oc->i = 0LL;
+                }
+        }
+        return ret;
 }
 
 int
@@ -481,36 +512,13 @@ prescan(const char *filename)
         ns = ecalloc(sizeof(*ns));
         ns->fname = literal_put(filename);
         buffer_init(&ns->pgm);
-        while ((t = qlex_helper()) != EOF) {
-                struct opcode_t oc;
-                oc.t    = t;
-                oc.line = lexer.lineno;
-                oc.s    = literal_put(lexer.tok.s);
-                bug_on(lexer.tok.s == NULL);
-                if (oc.t == 'f') {
-                        double f = strtod(lexer.tok.s, NULL);
-                        oc.f = f;
-                } else if (oc.t == 'i') {
-                        long long i = strtoul(lexer.tok.s, NULL, 0);
-                        oc.i = i;
-                } else {
-                        oc.i = 0LL;
-                }
+        do {
+                t = tokenize(&oc);
+                /* yes, also stuff the EOF version */
                 buffer_putcode(&ns->pgm, &oc);
-        }
-
-        if (!ns->pgm.s) {
-                free(ns);
-                return NULL;
-        }
+        } while (t != EOF);
 
         list_add_tail(&ns->list, &q_.ns);
-
-        oc.t    = EOF;
-        oc.line = 0;
-        oc.s    = NULL;
-        oc.i    = 0LL;
-        buffer_putcode(&ns->pgm, &oc);
 
 done:
         fclose(lexer.fp);

@@ -250,9 +250,9 @@ struct global_t {
         struct var_t *gbl; /* "__gbl__" as user sees it */
         struct list_t ns;
         struct marker_t pc; /* "program counter" */
-        struct var_t *fp; /* "frame pointer" */
-        struct var_t *sp; /* "stack pointer" */
-        struct var_t *stack;
+        int fp; /* "frame pointer" */
+        int sp; /* "stack pointer" */
+        struct var_t **stack;
         int recursion;
 };
 
@@ -289,8 +289,10 @@ struct global_t {
 extern struct global_t q_;
 extern const char *typestr(int magic);
 extern const char *nameof(struct var_t *v);
-static inline struct var_t *get_this(void) { return q_.fp; }
-static inline struct var_t *get_this_func(void) { return q_.fp + 1; }
+static inline struct var_t *get_this(void)
+        { return q_.stack[q_.fp]; }
+static inline struct var_t *get_this_func(void)
+        { return q_.stack[q_.fp + 1]; }
 
 /* helpers to classify a variable */
 static inline bool isconst(struct var_t *v)
@@ -434,9 +436,10 @@ extern void qop_assign_char(struct var_t *v, int c);
  * and stack_pop with stack_push
  */
 /* stack.c */
-extern void stack_pop(struct var_t *to);
-extern struct var_t *stack_getpush(void);
+extern struct var_t *stack_pop(void);
 extern void stack_push(struct var_t *v);
+extern void stack_unwind_to(int idx);
+extern void stack_unwind_to_frame(void);
 /* for temporary vars */
 extern void tstack_pop(struct var_t *to);
 extern struct var_t *tstack_getpush(void);

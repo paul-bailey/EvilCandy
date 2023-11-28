@@ -17,19 +17,15 @@
 #define ARG_FRAME_START()       (q_.fp + ARG_FP_OFFSET)
 
 /* assumes stack is set up, but automatic variables not yet declared */
-static inline int
-arg_count(void)
-{
-        return (int)(q_.sp - ARG_FRAME_START());
-}
+static inline int arg_count(void) { return q_.sp - ARG_FRAME_START(); }
 
 static inline struct var_t *
 getarg(unsigned int n)
 {
-        struct var_t *ret = ARG_FRAME_START() + n;
-        if (ret < ARG_FRAME_START() || ret >= q_.sp)
+        int retp = ARG_FRAME_START() + n;
+        if (retp < ARG_FRAME_START() || retp >= q_.sp)
                 return NULL;
-        return ret;
+        return q_.stack[retp];
 }
 
 #define arg_type_err(v, want) do { \

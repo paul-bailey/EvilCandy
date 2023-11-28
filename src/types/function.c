@@ -76,6 +76,14 @@ function_handle_reset(struct function_handle_t *fh)
         free(fh);
 }
 
+static void
+push_copy_of(struct var_t *v)
+{
+        struct var_t *cp = var_new();
+        qop_mov(cp, v);
+        stack_push(cp);
+}
+
 /* push @owner...or something...onto the stack */
 static void
 push_owner(struct var_t *fn, struct var_t *owner)
@@ -83,7 +91,7 @@ push_owner(struct var_t *fn, struct var_t *owner)
         if (!owner)
                 owner = get_this();
         bug_on(!owner);
-        stack_push(owner);
+        push_copy_of(owner);
 }
 
 /* always returns NULL for FUNC_INTERNAL */
@@ -101,11 +109,11 @@ arg_next_entry(struct function_handle_t *fh, struct function_arg_t *arg)
         return list == &fh->f_args ? NULL : list2arg(list);
 }
 
-static struct var_t *frame_stack[CALL_DEPTH_MAX];
+static int frame_stack[CALL_DEPTH_MAX];
 static int call_depth_fp = 0;
 
 static void
-frame_push(struct var_t *new_fp)
+frame_push(int new_fp)
 {
         if (call_depth_fp >= CALL_DEPTH_MAX)
                 syntax("Function calls nested too deep");
@@ -138,7 +146,7 @@ frame_pop(void)
 static void
 push_uargs(struct var_t *fn, struct var_t *owner)
 {
-        struct var_t *new_fp;
+        int new_fp;
         struct function_arg_t *arg = NULL;
         struct function_handle_t *fh = fn->fn;
 
@@ -149,7 +157,7 @@ push_uargs(struct var_t *fn, struct var_t *owner)
         new_fp = q_.sp;
         push_owner(fn, owner);
 
-        stack_push(fn);
+        push_copy_of(fn);
 
         qlex();
         expect(OC_LPAR);
@@ -159,13 +167,14 @@ push_uargs(struct var_t *fn, struct var_t *owner)
                 q_unlex();
                 arg = arg_first_entry(fh);
                 do {
-                        struct var_t *v = stack_getpush();
+                        struct var_t *v = var_new();
                         eval(v);
                         qlex();
                         if (arg) {
                                 v->name = arg->a_name;
                                 arg = arg_next_entry(fh, arg);
                         }
+                        stack_push(v);
                 } while (cur_oc->t == OC_COMMA);
                 expect(OC_RPAR);
 
@@ -180,9 +189,10 @@ push_uargs(struct var_t *fn, struct var_t *owner)
                                 syntax("Mandatory argument missing",
                                         arg->a_name);
                         }
-                        v = stack_getpush();
+                        v = var_new();
                         v->name = arg->a_name;
                         qop_mov(v, arg->a_default);
+                        stack_push(v);
                         arg = arg_next_entry(fh, arg);
                 }
         }
@@ -198,31 +208,33 @@ static void
 push_iargs(struct var_t *fn, struct var_t *owner,
            int argc, struct var_t *argv[])
 {
-        struct var_t *new_fp;
+        int new_fp;
         struct function_arg_t *arg = NULL;
         struct function_handle_t *fh = fn->fn;
         int i;
 
         new_fp = q_.sp;
         push_owner(fn, owner);
-        stack_push(fn);
+        push_copy_of(fn);
 
         arg = arg_first_entry(fh);
         for (i = 0; i < argc; i++) {
-                struct var_t *v = stack_getpush();
+                struct var_t *v = var_new();
                 qop_mov(v, argv[i]);
                 if (arg) {
                         v->name = arg->a_name;
                         arg = arg_next_entry(fh, arg);
                 }
+                stack_push(v);
         }
         while (arg) {
                 struct var_t *v;
                 if (!arg->a_default)
                         syntax("User requiring more arguments than builtin method promises");
-                v = stack_getpush();
+                v = var_new();
                 v->name = arg->a_name;
                 qop_mov(v, arg->a_default);
+                stack_push(v);
                 arg = arg_next_entry(fh, arg);
         }
 
@@ -319,7 +331,7 @@ call_function_common(struct var_t *fn, struct var_t *retval,
          * de-referenced
          */
         if (!retval_save)
-                retval = tstack_getpush();
+                retval = var_new();
 
         if (fn->fn->f_magic == FUNC_INTERNAL) {
                 ifunction_helper(fn, retval);
@@ -330,12 +342,10 @@ call_function_common(struct var_t *fn, struct var_t *retval,
         }
 
         if (!retval_save)
-                tstack_pop(NULL);
+                var_delete(retval);
 
         /* Unwind stack to beginning of args */
-        while (q_.sp != q_.fp)
-                stack_pop(NULL);
-
+        stack_unwind_to_frame();
         frame_pop();
 }
 

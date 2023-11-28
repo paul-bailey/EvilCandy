@@ -34,23 +34,12 @@ stack_getpush_(struct var_t *stack, struct var_t **spp)
  * stack_pop - Pop a variable out of the stack
  * @to: Variable to qop_mov the popped variable's data into
  */
-void
-stack_pop(struct var_t *to)
-{
-        stack_pop_(to, q_.stack, &q_.sp);
-}
-
-/**
- * stack_getpush - Get next unused stack variable and advance
- *                  SP accordingly
- *
- * Use this instead of stack_push if you need a variable to be in a
- * certain location on the stack but you cannot fill it yet.
- */
 struct var_t *
-stack_getpush(void)
+stack_pop(void)
 {
-        return stack_getpush_(q_.stack, &q_.sp);
+        bug_on(q_.sp <= 0);
+        q_.sp--;
+        return q_.stack[q_.sp];
 }
 
 /**
@@ -60,8 +49,24 @@ stack_getpush(void)
 void
 stack_push(struct var_t *v)
 {
-        struct var_t *to = stack_getpush();
-        qop_mov(to, v);
+        if (q_.sp >= STACK_MAX)
+                syntax("Stack overflow");
+        q_.stack[q_.sp++] = v;
+}
+
+void
+stack_unwind_to(int idx)
+{
+        bug_on(q_.sp < idx);
+        bug_on(idx < 0);
+        while (q_.sp > idx)
+                var_delete(stack_pop());
+}
+
+void
+stack_unwind_to_frame(void)
+{
+        stack_unwind_to(q_.fp);
 }
 
 /**
@@ -95,8 +100,9 @@ tstack_push(struct var_t *v)
 void
 moduleinit_stack(void)
 {
-        q_.stack = emalloc(STACK_MAX);
-        tstack = emalloc(STACK_MAX);
-        q_.sp = q_.stack;
+        /* q_.stack is pointer array, tstack is regular array */
+        q_.stack = emalloc(STACK_MAX * sizeof(struct var_t *));
+        tstack = emalloc(STACK_MAX * sizeof(struct var_t));
+        q_.sp = 0;
         tsp = tstack;
 }

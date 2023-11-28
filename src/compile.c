@@ -155,10 +155,9 @@ compile_array(struct var_t *v)
         q_unlex();
         do {
                 struct var_t *child = var_new();
-                qlex();
                 eval(child);
-                qlex();
                 array_add_child(v, child);
+                qlex();
         } while(cur_oc->t == OC_COMMA);
         expect(OC_RBRACK);
 }

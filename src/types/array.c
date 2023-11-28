@@ -156,8 +156,22 @@ static const struct operator_methods_t array_primitives = {
         .reset = array_reset,
 };
 
+static void
+array_len(struct var_t *ret)
+{
+        struct var_t *self = get_this();
+        bug_on(self->magic != QARRAY_MAGIC);
+        qop_assign_int(ret, self->a->nmemb);
+}
+
+static const struct type_inittbl_t array_methods[] = {
+        V_INITTBL("len",        array_len,      0, 0),
+        TBLEND,
+};
+
 void
 typedefinit_array(void)
 {
-        var_config_type(QARRAY_MAGIC, "list", &array_primitives, NULL);
+        var_config_type(QARRAY_MAGIC, "list",
+                        &array_primitives, array_methods);
 }

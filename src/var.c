@@ -5,10 +5,27 @@
 #include <string.h>
 
 /*
- * Note: using mempool.c for allocation of vars does seem
- * to be about 25% faster.
+ * Variable allocation:
+ *      SIMPLE_ALLOC = 1        Use stdlib's malloc() and free().
+ *                              LIST_ALLOC = don't-care.
+ *
+ *      SIMPLE_ALLOC = 0
+ *              LIST_ALLOC = 1  Use a linked list, and whenever I run out
+ *                              allocate a block of them (don't keep track
+ *                              of the base pointers, I'll just keep them
+ *                              forever), and put them in a linked list of
+ *                              available variable structs.
+ *
+ *              LIST_ALLOC = 0  Use the memblk.c API
+ *
+ * Neither the list version nor the memblk version below seem to have
+ * an avantage over each other, but they are both about 25% faster than
+ * the library malloc() and free(), I assume because they are customized
+ * for many small alloc/frees, as well as for locality.
  */
 #define SIMPLE_ALLOC 0
+#define LIST_ALLOC 0
+
 #if SIMPLE_ALLOC
 static struct var_t *
 var_alloc(void)
@@ -23,6 +40,47 @@ var_free(struct var_t *v)
         free(v);
 }
 #else
+# if LIST_ALLOC
+static struct list_t var_freelist = LIST_INIT(&var_freelist);
+struct var_mem_t {
+        struct list_t list;
+        struct var_t var;
+};
+
+#define list2memvar(li) container_of(li, struct var_mem_t, list)
+#define var2memvar(v) container_of(v, struct var_mem_t, var)
+
+static void
+var_more_(void)
+{
+        enum { NPERBLK = 64 };
+        int i;
+        struct var_mem_t *blk = emalloc(sizeof(*blk) * NPERBLK);
+        for (i = 0; i < NPERBLK; i++) {
+                list_init(&blk[i].list);
+                list_add_tail(&blk[i].list, &var_freelist);
+        }
+}
+
+static struct var_t *
+var_alloc(void)
+{
+        struct var_mem_t *vm;
+        if (list_is_empty(&var_freelist)) {
+                var_more_();
+        }
+        vm = list2memvar(var_freelist.next);
+        list_remove(&vm->list);
+        return &vm->var;
+}
+
+static void
+var_free(struct var_t *v)
+{
+        list_add_tail(&(var2memvar(v)->list), &var_freelist);
+}
+
+# else
 static struct mempool_t *var_mempool = NULL;
 static struct var_t *
 var_alloc(void)
@@ -35,7 +93,8 @@ var_alloc(void)
         if (!var_mempool)
                 var_mempool = mempool_new(sizeof(struct var_t));
 
-        return mempool_alloc(var_mempool);
+        struct var_t *ret = mempool_alloc(var_mempool);
+        return ret;
 }
 
 static void
@@ -43,6 +102,7 @@ var_free(struct var_t *v)
 {
         mempool_free(var_mempool, v);
 }
+# endif
 #endif
 
 /**
@@ -59,7 +119,6 @@ struct var_t *
 var_init(struct var_t *v)
 {
         v->magic = QEMPTY_MAGIC;
-        v->name = NULL;
         v->flags = 0;
         return v;
 }
@@ -77,9 +136,6 @@ var_new(void)
  * var_delete - Delete a variable.
  * @v: variable to delete.  If @v was just a temporary struct declared
  *      on the stack, call var_reset() only, not this.
- *
- * Note: Calling code should deal with v->name before calling this.
- * var_new didn't set the name, so it won't free it either.
  */
 void
 var_delete(struct var_t *v)
@@ -136,7 +192,7 @@ config_builtin_methods(const struct type_inittbl_t *tbl,
                 struct var_t *v = var_new();
 
                 function_init_internal(v, t->fn, t->minargs, t->maxargs);
-                v->name = literal_put(t->name);
+                w->name = literal_put(t->name);
                 w->v = v;
                 list_init(&w->siblings);
                 list_add_tail(&w->siblings, parent_list);
@@ -156,8 +212,7 @@ var_config_type(int magic, const char *name,
                 config_builtin_methods(tbl, &TYPEDEFS[magic].methods);
 }
 
-#define list2wvar(li) \
-        (container_of(li, struct var_wrapper_t, siblings)->v)
+#define list2wrapper(li) container_of(li, struct var_wrapper_t, siblings)
 
 /**
  * builtin_method - Return a built-in method for a variable's type
@@ -173,15 +228,14 @@ builtin_method(struct var_t *v, const char *method_name)
 {
         int magic = v->magic;
         struct list_t *methods, *m;
-        struct var_t *w;
 
         bug_on(magic < 0 || magic > Q_NMAGIC);
 
         methods = &TYPEDEFS[magic].methods;
         list_foreach(m, methods) {
-                w = list2wvar(m);
+                struct var_wrapper_t *w = list2wrapper(m);
                 if (w->name == method_name)
-                        return w;
+                        return w->v;
         }
         return NULL;
 }
@@ -218,6 +272,16 @@ moduleinit_var(void)
                 if (TYPEDEFS[i].name == NULL)
                         bug();
         }
+}
+
+/* copy of the handle, not the whole shebang */
+struct var_t *
+var_copy_of(struct var_t *v)
+{
+        struct var_t *cp = var_new();
+        if (v)
+                qop_mov(cp, v);
+        return cp;
 }
 
 /**

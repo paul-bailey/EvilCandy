@@ -15,7 +15,7 @@
 /**
  * DOC: Tunable parameters
  *
- * @STACK_MAX:          Size of stack
+ * @STACK_MAX:          Size of evaluation stack
  * @LOAD_MAX:           Max number of external modules that may be loaded
  * @RECURSION_MAX:      Max permissible recursion permitted by eval() and
  *                      expression()
@@ -27,6 +27,7 @@ enum {
         RECURSION_MAX   = 256,
         CALL_DEPTH_MAX  = 256,
         FRAME_DEPTH_MAX = CALL_DEPTH_MAX * 2,
+        ARG_MAX         = 24,
 };
 
 /**
@@ -57,6 +58,7 @@ struct object_handle_t;
 struct array_handle_t;
 struct string_handle_t;
 struct function_handle_t;
+struct frame_t;
 
 /*
  * Per-type callbacks for mathematical operators, like + or -
@@ -191,12 +193,8 @@ enum {
 struct var_t {
         unsigned int magic;
         unsigned int flags;
-        char *name;
         union {
-                struct {
-                        struct var_t *owner;
-                        struct object_handle_t *h;
-                } o;
+                struct object_handle_t *o;
                 struct function_handle_t *fn;
                 struct array_handle_t *a;
                 double f;
@@ -244,10 +242,8 @@ struct global_t {
         struct var_t *gbl; /* "__gbl__" as user sees it */
         struct list_t ns;
         struct marker_t pc; /* "program counter" */
-        int fp; /* "frame pointer" */
-        int sp; /* "stack pointer" */
-        struct var_t **stack;
         int recursion;
+        struct frame_t *frame;
 };
 
 /* These PC macros require #include <string.h> */
@@ -283,10 +279,6 @@ struct global_t {
 extern struct global_t q_;
 extern const char *typestr(int magic);
 extern const char *nameof(struct var_t *v);
-static inline struct var_t *get_this(void)
-        { return q_.stack[q_.fp]; }
-static inline struct var_t *get_this_func(void)
-        { return q_.stack[q_.fp + 1]; }
 
 /* helpers to classify a variable */
 static inline bool isconst(struct var_t *v)
@@ -373,6 +365,28 @@ enum {
 extern int expression(struct var_t *retval, unsigned int flags);
 extern void seek_eob(int depth);
 
+/* frame.c */
+extern struct frame_t *frame_alloc(void);
+extern void frame_push(struct frame_t *fr);
+extern void frame_push_weak(void);
+extern void frame_pop(void);
+extern void frame_pop_weak(void);
+extern void frame_add_var(struct var_t *var, char *name);
+extern void frame_add_arg(struct frame_t *fr,
+                        struct var_t *var, char *name);
+extern void frame_add_closure(struct frame_t *fr,
+                        struct var_t *clo, char *name);
+extern void frame_add_owners(struct frame_t *fr,
+                        struct var_t *obj, struct var_t *func);
+extern struct var_t *frame_get_arg(unsigned int idx);
+extern struct var_t *frame_get_var(const char *name, bool gbl);
+extern int frame_nargs(void);
+extern void moduleinit_frame(void);
+struct var_t *frame_get_this(void);
+struct var_t *frame_get_this_func(void);
+/* because I wrote it this way first... */
+#define get_this()  frame_get_this()
+#define get_this_func() frame_get_this_func()
 
 /* keyword.c */
 extern int keyword_seek(const char *s);
@@ -424,22 +438,6 @@ extern void qop_assign_int(struct var_t *v, long long i);
 extern void qop_assign_float(struct var_t *v, double f);
 extern void qop_assign_char(struct var_t *v, int c);
 
-/*
- * Do not mix/match these.
- * Always pair tstack_pop with tstack_push,
- * and stack_pop with stack_push
- */
-/* stack.c */
-extern struct var_t *stack_pop(void);
-extern void stack_push(struct var_t *v);
-extern void stack_unwind_to(int idx);
-extern void stack_unwind_to_frame(void);
-/* for temporary vars */
-extern void tstack_pop(struct var_t *to);
-extern struct var_t *tstack_getpush(void);
-extern void tstack_push(struct var_t *v);
-extern void moduleinit_stack(void);
-
 /* symbol.c */
 extern struct var_t *symbol_seek(const char *s);
 extern struct var_t *symbol_seek_stack(const char *s);
@@ -454,6 +452,7 @@ extern void moduleinit_var(void);
 extern struct var_t *builtin_method(struct var_t *v,
                                     const char *method_name);
 extern void var_bucket_delete(void *data);
+extern struct var_t *var_copy_of(struct var_t *v);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];
@@ -488,8 +487,6 @@ extern void function_set_user(struct var_t *func,
 extern void function_init_internal(struct var_t *func,
                         void (*cb)(struct var_t *),
                         int minargs, int maxargs);
-extern struct var_t *function_seek_closure(struct var_t *func,
-                        const char *name);
 extern void function_add_closure(struct var_t *func, char *name,
                         struct var_t *init);
 
@@ -501,7 +498,7 @@ extern void object_add_child(struct var_t *o, struct var_t *v, char *name);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
 static inline void *object_get_priv(struct var_t *o)
-        { return o->o.h->priv; }
+        { return o->o->priv; }
 /*
  * Return:    - the child if found
  *            - the built-in method matching @s if the child is not found

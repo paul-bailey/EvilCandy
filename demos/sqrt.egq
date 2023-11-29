@@ -10,6 +10,12 @@
 // the same algo with Python3 still takes <4s.
 // (Something's working right tho... the typeof() check at the
 // start of each call only adds about 4% extra time.)
+//
+// I'm guessing the overhead of scope-frame handling is not
+// the problem, because there doesn't seem to be a noticeable
+// difference between for loops and while loops (the former
+// having more gotos and an extra frame push).  So clearly
+// what's mssing is more optimized byte code.
 
 let sqrt = function(x) {
     let y = 10.;
@@ -41,7 +47,7 @@ let sqrt = function(x) {
 (function(sqrt) {
     let x = 0.;
     for (let i = 0.; i < 1000000.0; i++)
-        x = sqrt(i);
+            x = sqrt(i);
 })(sqrt);
 
 

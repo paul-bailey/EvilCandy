@@ -2,13 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum {
-        PATHLEN = 4096,
-};
-
 struct file_state_t {
-        int sp;
-        int fp; /* "frame pointer", not "file pointer" */
         struct marker_t pc;
 };
 
@@ -21,8 +15,6 @@ nspush(struct ns_t *new)
         if (ns_sp >= &ns_stack[LOAD_MAX])
                 syntax("Too many imports; stack overflow");
 
-        ns_sp->sp = q_.sp;
-        ns_sp->fp = q_.fp;
         PC_SAVE(&ns_sp->pc);
 
         cur_ns = new;
@@ -36,7 +28,6 @@ nspop(void)
         bug_on(ns_sp <= ns_stack);
         --ns_sp;
 
-        q_.fp = ns_sp->fp;
         PC_GOTO(&ns_sp->pc);
 
         /*
@@ -45,8 +36,6 @@ nspop(void)
          * calling file, it should have been appended to an
          * already-visible object, usu. "__gbl__"
          */
-        bug_on(q_.sp < ns_sp->sp);
-        stack_unwind_to(ns_sp->sp);
 }
 
 
@@ -161,7 +150,6 @@ static void
 exec_block(void)
 {
         /* Note: keep this re-entrant */
-        int sp = q_.sp;
         for (;;) {
                 int ret = expression(NULL, FE_TOP);
                 if (ret) {
@@ -171,7 +159,6 @@ exec_block(void)
                                 ret == 1 ? "return" : "break");
                 }
         }
-        stack_unwind_to(sp);
 }
 
 void

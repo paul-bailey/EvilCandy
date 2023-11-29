@@ -135,7 +135,7 @@ do_writeline(struct var_t *ret)
         FILE *fp;
         char *s;
         struct file_handle_t *fh = getfh();
-        struct var_t *vs = getarg(0);
+        struct var_t *vs = frame_get_arg(0);
         int res = 0;
         int errno_save = errno;
 
@@ -260,8 +260,8 @@ file_new(const char *path, const char *mode)
 static void
 do_open(struct var_t *ret)
 {
-        struct var_t *vname = getarg(0);
-        struct var_t *vmode = getarg(1);
+        struct var_t *vname = frame_get_arg(0);
+        struct var_t *vmode = frame_get_arg(1);
         char *name, *mode;
         struct file_handle_t *fh;
         int errno_save = errno;

@@ -43,6 +43,8 @@ struct function_arg_t {
         struct var_t *a_default;
 };
 
+static char *iarg_name[ARG_MAX];
+
 #define list2arg(li) container_of(li, struct function_arg_t, a_list)
 
 static struct function_handle_t *
@@ -76,24 +78,6 @@ function_handle_reset(struct function_handle_t *fh)
         free(fh);
 }
 
-static void
-push_copy_of(struct var_t *v)
-{
-        struct var_t *cp = var_new();
-        qop_mov(cp, v);
-        stack_push(cp);
-}
-
-/* push @owner...or something...onto the stack */
-static void
-push_owner(struct var_t *fn, struct var_t *owner)
-{
-        if (!owner)
-                owner = get_this();
-        bug_on(!owner);
-        push_copy_of(owner);
-}
-
 /* always returns NULL for FUNC_INTERNAL */
 static struct function_arg_t *
 arg_first_entry(struct function_handle_t *fh)
@@ -109,25 +93,14 @@ arg_next_entry(struct function_handle_t *fh, struct function_arg_t *arg)
         return list == &fh->f_args ? NULL : list2arg(list);
 }
 
-static int frame_stack[CALL_DEPTH_MAX];
-static int call_depth_fp = 0;
-
 static void
-frame_push(int new_fp)
+push_closures(struct function_handle_t *fh, struct frame_t *fr)
 {
-        if (call_depth_fp >= CALL_DEPTH_MAX)
-                syntax("Function calls nested too deep");
-        frame_stack[call_depth_fp] = q_.fp;
-        q_.fp = new_fp;
-        call_depth_fp++;
-}
-
-static void
-frame_pop(void)
-{
-        call_depth_fp--;
-        bug_on(call_depth_fp < 0);
-        q_.fp = frame_stack[call_depth_fp];
+        struct list_t *clolist;
+        list_foreach(clolist, &fh->f_closures) {
+                struct function_arg_t *arg = list2arg(clolist);
+                frame_add_closure(fr, arg->a_default, arg->a_name);
+        }
 }
 
 /*
@@ -146,35 +119,43 @@ frame_pop(void)
 static void
 push_uargs(struct var_t *fn, struct var_t *owner)
 {
-        int new_fp;
         struct function_arg_t *arg = NULL;
         struct function_handle_t *fh = fn->fn;
+        struct frame_t *fr = frame_alloc();
+        int i;
 
         /*
          * can't change this yet because we need old frame pointer
          * while evaluating args.
          */
-        new_fp = q_.sp;
-        push_owner(fn, owner);
-
-        push_copy_of(fn);
+        if (!owner)
+                owner = get_this();
+        frame_add_owners(fr, owner, fn);
 
         qlex();
         expect(OC_LPAR);
 
         qlex();
+        i = 0;
         if (cur_oc->t != OC_RPAR) {
                 q_unlex();
                 arg = arg_first_entry(fh);
                 do {
                         struct var_t *v = var_new();
+                        char *name;
                         eval(v);
-                        qlex();
                         if (arg) {
-                                v->name = arg->a_name;
+                                name = arg->a_name;
                                 arg = arg_next_entry(fh, arg);
+                        } else {
+                                if (i >= ARG_MAX)
+                                        syntax("Argument limit reached");
+                                name = iarg_name[i++];
                         }
-                        stack_push(v);
+                        bug_on(!name);
+                        frame_add_arg(fr, v, name);
+
+                        qlex();
                 } while (cur_oc->t == OC_COMMA);
                 expect(OC_RPAR);
 
@@ -190,13 +171,13 @@ push_uargs(struct var_t *fn, struct var_t *owner)
                                         arg->a_name);
                         }
                         v = var_new();
-                        v->name = arg->a_name;
                         qop_mov(v, arg->a_default);
-                        stack_push(v);
+                        frame_add_arg(fr, v, arg->a_name);
                         arg = arg_next_entry(fh, arg);
                 }
         }
-        frame_push(new_fp);
+        push_closures(fh, fr);
+        frame_push(fr);
 }
 
 /*
@@ -208,37 +189,37 @@ static void
 push_iargs(struct var_t *fn, struct var_t *owner,
            int argc, struct var_t *argv[])
 {
-        int new_fp;
+        struct frame_t *fr = frame_alloc();
         struct function_arg_t *arg = NULL;
         struct function_handle_t *fh = fn->fn;
         int i;
 
-        new_fp = q_.sp;
-        push_owner(fn, owner);
-        push_copy_of(fn);
+        if (!owner)
+                owner = get_this();
+        frame_add_owners(fr, owner, fn);
 
         arg = arg_first_entry(fh);
-        for (i = 0; i < argc; i++) {
+        for (i = 0; arg && i < argc; i++) {
                 struct var_t *v = var_new();
                 qop_mov(v, argv[i]);
-                if (arg) {
-                        v->name = arg->a_name;
-                        arg = arg_next_entry(fh, arg);
-                }
-                stack_push(v);
+                frame_add_arg(fr, v, arg->a_name);
+
+                arg = arg_next_entry(fh, arg);
         }
+
         while (arg) {
                 struct var_t *v;
                 if (!arg->a_default)
                         syntax("User requiring more arguments than builtin method promises");
                 v = var_new();
-                v->name = arg->a_name;
                 qop_mov(v, arg->a_default);
-                stack_push(v);
+                frame_add_arg(fr, v, arg->a_name);
+
                 arg = arg_next_entry(fh, arg);
         }
 
-        frame_push(new_fp);
+        push_closures(fh, fr);
+        frame_push(fr);
 }
 
 /* Call an internal built-in function */
@@ -250,7 +231,7 @@ ifunction_helper(struct var_t *fn, struct var_t *retval)
         struct function_handle_t *fh = fn->fn;
         bug_on(!fh);
         bug_on(!fh->f_cb);
-        if ((nargs = arg_count()) != fh->f_minargs) {
+        if ((nargs = frame_nargs()) != fh->f_minargs) {
                 if (nargs < fh->f_minargs ||
                     (fh->f_maxargs > 0 &&
                      nargs > fh->f_maxargs)) {
@@ -344,8 +325,6 @@ call_function_common(struct var_t *fn, struct var_t *retval,
         if (!retval_save)
                 var_delete(retval);
 
-        /* Unwind stack to beginning of args */
-        stack_unwind_to_frame();
         frame_pop();
 }
 
@@ -507,10 +486,6 @@ function_add_arg(struct var_t *func, char *name, struct var_t *deflt)
         bug_on(func->magic != QFUNCTION_MAGIC);
         bug_on(!fh);
         bug_on(fh->f_magic == FUNC_INTERNAL);
-
-        if (deflt)
-                deflt->name = name;
-
         new_arg_or_closure(&fh->f_args, name, deflt);
 }
 
@@ -534,36 +509,7 @@ function_add_closure(struct var_t *func, char *name, struct var_t *init)
         bug_on(!fh);
         bug_on(fh->f_magic == FUNC_INTERNAL);
 
-        init->name = name;
         new_arg_or_closure(&fh->f_closures, name, init);
-}
-
-/**
- * function_seek_closure - Get closure from function
- * @func: Function to seek, usu. get_this_function()
- * @name: Name of the closure
- *
- * Return: Closure matching @name, or NULL if not found.
- */
-struct var_t *
-function_seek_closure(struct var_t *func, const char *name)
-{
-        struct list_t *li;
-
-        bug_on(func->magic != QFUNCTION_MAGIC);
-        bug_on(!func->fn);
-        /*
-         * XXX: I'm assuming this will never be more
-         * than a half-dozen or so, so I'm using the
-         * same linked-list version as the arguments.
-         */
-        list_foreach(li, &func->fn->f_closures) {
-                struct function_arg_t *clo = list2arg(li);
-                bug_on(!clo->a_default);
-                if (clo->a_default->name == (char *)name)
-                        return clo->a_default;
-        }
-        return NULL;
 }
 
 /**
@@ -628,9 +574,15 @@ static const struct operator_methods_t function_primitives = {
 void
 typedefinit_function(void)
 {
+        int i;
         var_config_type(QFUNCTION_MAGIC,
                         "function",
                         &function_primitives,
                         NULL);
+        for (i = 0; i < ARG_MAX; i++) {
+                char iarg_buf[64];
+                sprintf(iarg_buf, "[internal_arg_%08d]", i);
+                iarg_name[i] = literal_put(iarg_buf);
+        }
 }
 

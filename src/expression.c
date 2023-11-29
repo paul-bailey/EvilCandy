@@ -323,9 +323,11 @@ expression_and_back(struct var_t *retval)
 {
         int ret;
         struct marker_t lr;
+        frame_push_weak();
         PC_SAVE(&lr);
         ret = expression(retval, 0);
         PC_GOTO(&lr);
+        frame_pop_weak();
         return ret;
 }
 
@@ -335,6 +337,7 @@ do_let(struct var_t *unused, unsigned int flags)
 {
         unsigned vf = 0;
         struct var_t *v;
+        char *name;
 
         if (!!(flags & FE_FOR))
                 syntax("'let' not allowed at this part of 'for' header");
@@ -352,7 +355,7 @@ do_let(struct var_t *unused, unsigned int flags)
                 syntax("Variable `%s' is already declared", cur_oc->s);
 
         v = var_new();
-        v->name = cur_oc->s;
+        name = cur_oc->s;
 
         qlex();
         if (cur_oc->t == OC_CONST) {
@@ -376,7 +379,7 @@ do_let(struct var_t *unused, unsigned int flags)
         default:
                 syntax("Invalid token");
         }
-        stack_push(v);
+        frame_add_var(v, name);
         return 0;
 }
 
@@ -385,8 +388,9 @@ do_if(struct var_t *retval, unsigned int unused)
 {
         int ret = 0;
         bool cond = get_condition(true);
-        if (cond)
+        if (cond) {
                 ret = expression_and_back(retval);
+        }
         seek_eob(0);
         qlex();
         if (cur_oc->t == OC_ELSE) {
@@ -406,6 +410,8 @@ do_while(struct var_t *retval, unsigned int unused)
         bool have_seekstart = false;
         struct marker_t seekstart;
         struct marker_t pc;
+
+        frame_push_weak();
         PC_SAVE(&pc);
         while (get_condition(true)) {
                 if (!have_seekstart)
@@ -419,6 +425,8 @@ do_while(struct var_t *retval, unsigned int unused)
                 PC_GOTO(&seekstart);
         seek_eob(0);
 
+        frame_pop_weak();
+
         /* don't double break */
         if (r == 2)
                 r = 0;
@@ -429,7 +437,6 @@ static int
 do_for(struct var_t *retval, unsigned int unused)
 {
         struct marker_t start, pc_cond, pc_op, pc_blk;
-        int sp;
         int r = 0;
         bool have_op = false;
 
@@ -442,12 +449,13 @@ do_for(struct var_t *retval, unsigned int unused)
          * without adding `i' to the containing function's
          * namespace
          */
-        sp = q_.sp;
+        frame_push_weak();
 
         qlex();
         expect(OC_LPAR);
         if (expression(NULL, 0) != 0)
                 syntax("Unexpected break from 'for' loop header");
+
 
         PC_SAVE(&pc_cond);
         while (get_condition(false)) {
@@ -460,7 +468,10 @@ do_for(struct var_t *retval, unsigned int unused)
                         PC_GOTO(&pc_blk);
                 }
 
-                if ((r = expression(retval, 0)) != 0)
+                frame_push_weak();
+                r = expression(retval, 0);
+                frame_pop_weak();
+                if (r != 0)
                         break;
 
                 PC_GOTO(&pc_op);
@@ -474,12 +485,7 @@ do_for(struct var_t *retval, unsigned int unused)
         PC_GOTO(&start);
         seek_eob(0);
 
-        /*
-         * This looks superfluous, but in the case of something like:
-         *      "for (let i = 0; ..."
-         * It keeps i out of the upper-level scope
-         */
-        stack_unwind_to(sp);
+        frame_pop_weak();
 
         /* don't double break */
         if (r == 2)
@@ -494,6 +500,7 @@ do_do(struct var_t *retval, unsigned int unused)
         int r = 0;
         struct marker_t saved_pc;
         PC_SAVE(&saved_pc);
+        frame_push_weak();
         for (;;) {
                 if ((r = expression(retval, 0)) != 0)
                         break;
@@ -513,6 +520,7 @@ do_do(struct var_t *retval, unsigned int unused)
          * PC and find the end of block, etc.
          */
 
+        frame_pop_weak();
         /* if we break'd out of loop, don't double-break */
         if (r == 2)
                 r = 0;
@@ -610,7 +618,6 @@ do_keyword(struct var_t *retval, unsigned int flags)
 int
 expression(struct var_t *retval, unsigned int flags)
 {
-        int sp = -1;
         int ret = 0;
         int brace = 0;
 
@@ -619,7 +626,6 @@ expression(struct var_t *retval, unsigned int flags)
         if (!(flags & FE_TOP)) {
                 qlex();
                 if (cur_oc->t == OC_LBRACE) {
-                        sp = q_.sp;
                         brace++;
                 } else {
                         /* single line statement */
@@ -679,18 +685,6 @@ expression(struct var_t *retval, unsigned int flags)
                         goto bad_tok;
                 }
         } while (brace && !ret);
-
-        if (sp >= 0) {
-                /*
-                 * This was not a single-line expression,
-                 * so unwind the stack pointer to where it was
-                 * before the brace.  This means things like
-                 *      if (cond) {
-                 *              let x = ....
-                 * will delete x after escaping the block
-                 */
-                stack_unwind_to(sp);
-        }
 
         RECURSION_DECR();
 

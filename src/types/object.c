@@ -22,10 +22,10 @@ object_init(struct var_t *o)
         bug_on(o->magic != QEMPTY_MAGIC);
         o->magic = QOBJECT_MAGIC;
 
-        o->o.h = ecalloc(sizeof(*o->o.h));
-        hashtable_init(&o->o.h->dict, ptr_hash,
+        o->o = ecalloc(sizeof(*o->o));
+        hashtable_init(&o->o->dict, ptr_hash,
                        ptr_key_match, var_bucket_delete);
-        o->o.h->nref = 1;
+        o->o->nref = 1;
         return o;
 }
 
@@ -41,8 +41,8 @@ object_set_priv(struct var_t *o, void *priv,
                 void (*cleanup)(struct object_handle_t *, void *))
 {
         bug_on(o->magic != QOBJECT_MAGIC);
-        o->o.h->priv = priv;
-        o->o.h->priv_cleanup = cleanup;
+        o->o->priv = priv;
+        o->o->priv_cleanup = cleanup;
 }
 
 /**
@@ -55,9 +55,9 @@ object_child_l(struct var_t *o, const char *s)
         struct var_t *ret;
 
         bug_on(o->magic != QOBJECT_MAGIC);
-        bug_on(!o->o.h);
+        bug_on(!o->o);
 
-        ret = (struct var_t *)hashtable_get(&o->o.h->dict, s);
+        ret = (struct var_t *)hashtable_get(&o->o->dict, s);
         return ret ? ret : builtin_method(o, s);
 }
 
@@ -77,7 +77,7 @@ object_nth_child(struct var_t *o, int n)
         return NULL;
 #else
         struct var_t **ppvar;
-        struct buffer_t *buf = &o->o.h->children;
+        struct buffer_t *buf = &o->o->children;
         ssize_t byteoffs = n * sizeof(void *);
 
         byteoffs = index_translate(byteoffs, buffer_size(buf));
@@ -98,11 +98,9 @@ object_nth_child(struct var_t *o, int n)
 void
 object_add_child(struct var_t *parent, struct var_t *child, char *name)
 {
-        if (child->magic == QOBJECT_MAGIC)
-                child->o.owner = parent;
-        if (hashtable_put(&parent->o.h->dict, name, child) < 0)
+        if (hashtable_put(&parent->o->dict, name, child) < 0)
                 syntax("Object already has element named %s", name);
-        parent->o.h->nchildren++;
+        parent->o->nchildren++;
 }
 
 
@@ -114,13 +112,11 @@ object_add_child(struct var_t *parent, struct var_t *child, char *name)
 static void
 object_mov(struct var_t *to, struct var_t *from)
 {
-        to->o.owner = NULL;
-
         /* XXX is the bug this, or the fact that I'm not handling it? */
-        bug_on(!!to->o.h && to->magic == QOBJECT_MAGIC);
+        bug_on(!!to->o && to->magic == QOBJECT_MAGIC);
 
-        to->o.h = from->o.h;
-        to->o.h->nref++;
+        to->o = from->o;
+        to->o->nref++;
 }
 
 static bool
@@ -148,11 +144,11 @@ object_reset(struct var_t *o)
 {
         struct object_handle_t *oh;
         bug_on(o->magic != QOBJECT_MAGIC);
-        oh = o->o.h;
+        oh = o->o;
         oh->nref--;
         if (oh->nref <= 0)
                 object_handle_reset(oh);
-        o->o.h = NULL;
+        o->o = NULL;
 }
 
 /* **********************************************************************
@@ -172,7 +168,7 @@ object_foreach(struct var_t *ret)
 /* FIXME: Need a hashtable iterator */
 #if 0
         struct var_t *self = get_this();
-        struct var_t *func = getarg(0);
+        struct var_t *func = frame_get_arg(0);
         struct var_t **ppvar;
         int i, n;
 
@@ -180,8 +176,8 @@ object_foreach(struct var_t *ret)
                 syntax("Expected: function");
         bug_on(self->magic != QOBJECT_MAGIC);
 
-        n = oh_nchildren(self->o.h);
-        ppvar = oh_children(self->o.h);
+        n = oh_nchildren(self->o);
+        ppvar = oh_children(self->o);
         for (i = 0; i < n; i++) {
                 if (!ppvar[i])
                         continue;
@@ -201,14 +197,14 @@ object_len(struct var_t *ret)
         struct var_t *v;
         int i = 0;
 
-        v = getarg(0);
+        v = frame_get_arg(0);
         if (!v) {
                 v = get_this();
                 bug_on(v->magic != QOBJECT_MAGIC);
         }
         switch (v->magic) {
         case QOBJECT_MAGIC:
-                i = oh_nchildren(v->o.h);
+                i = oh_nchildren(v->o);
                 break;
         case QSTRING_MAGIC:
                 i = string_length(v);
@@ -223,7 +219,7 @@ static void
 object_haschild(struct var_t *ret)
 {
         struct var_t *self = get_this();
-        struct var_t *name = getarg(0);
+        struct var_t *name = frame_get_arg(0);
         struct var_t *child = NULL;
         char *s;
 

@@ -5,6 +5,31 @@
 #include <stdio.h>
 #include <limits.h>
 
+static struct var_t *tstack, *tsp;
+
+static void
+tstack_pop(struct var_t *to)
+{
+        struct var_t *sp = tsp;
+        bug_on(sp <= tstack);
+        tsp--;
+        if (to)
+                qop_mov(to, tsp);
+
+        var_reset(tsp);
+}
+
+static struct var_t *
+tstack_getpush(void)
+{
+        struct var_t *res = tsp;
+        if (res >= &tstack[STACK_MAX])
+                syntax("Stack overflow");
+        tsp++;
+        var_init(res);
+        return res;
+}
+
 enum tok_class_t {
         /*
          * Note, some of these tokens have multiple uses
@@ -450,5 +475,7 @@ moduleinit_eval(void)
                 if (t == QD_LPAR || t == QD_LBRACK || t == QD_PER)
                         tokflag_tbl[t] |= T_INDIRECT;
         }
+        tstack = emalloc(STACK_MAX * sizeof(struct var_t));
+        tsp = tstack;
 }
 

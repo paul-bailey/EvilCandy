@@ -50,12 +50,12 @@ string_format_helper(char **src, struct buffer_t *t, int *lastarg)
         struct var_t *q = NULL;
         ++s;
         if (*s == '}') {
-                q = getarg(la++);
+                q = frame_get_arg(la++);
         } else if (isdigit(*s)) {
                 char *endptr;
                 int i = strtoul(s, &endptr, 10);
                 if (*endptr == '}') {
-                        q = getarg(i);
+                        q = frame_get_arg(i);
                         la = i + 1;
                         s = endptr;
                 }
@@ -168,7 +168,7 @@ string_tofloat(struct var_t *ret)
 static const char *
 strip_common(struct var_t *ret)
 {
-        struct var_t *arg = getarg(0);
+        struct var_t *arg = frame_get_arg(0);
         struct var_t *self = get_this();
         bug_on(self->magic != QSTRING_MAGIC);
 
@@ -218,8 +218,8 @@ static void
 string_replace(struct var_t *ret)
 {
         struct var_t *self    = get_this();
-        struct var_t *vneedle = getarg(0);
-        struct var_t *vrepl   = getarg(1);
+        struct var_t *vneedle = frame_get_arg(0);
+        struct var_t *vrepl   = frame_get_arg(1);
         char *haystack, *needle, *end;
         size_t needle_len;
 

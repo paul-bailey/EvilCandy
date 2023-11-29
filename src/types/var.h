@@ -26,6 +26,7 @@ struct type_inittbl_t {
 struct var_wrapper_t {
         struct list_t siblings;
         struct var_t *v;
+        char *name;
 };
 
 /* array.c */

@@ -17,7 +17,7 @@ typestr(int magic)
 const char *
 nameof(struct var_t *v)
 {
-        return v->name ? v->name : "[unnamed]";
+        return "[unnamed]";
 }
 
 static void
@@ -32,7 +32,7 @@ init_modules(void)
                 { .initfn = moduleinit_eval },
                 { .initfn = moduleinit_var },
                 { .initfn = moduleinit_builtin },
-                { .initfn = moduleinit_stack },
+                { .initfn = moduleinit_frame },
                 { .initfn = moduleinit_lex },
                 { .initfn = NULL },
         };
@@ -42,32 +42,23 @@ init_modules(void)
                 t->initfn();
 }
 
-
 static void
 init_lib(void)
 {
-        static struct var_t notafunc;
+        struct frame_t *fr;
+
         list_init(&q_.ns);
 
         init_modules();
-
-        /* Initialize stack regs */
-        q_.sp = 0;
-        q_.fp = 0;
 
         /* Initialize program counter */
         cur_ns = NULL;
         cur_oc = NULL;
 
-        var_init(&notafunc);
-
-        /* point initial fp to "__gbl__" */
-        stack_push(q_.gbl);
-        /*
-         * At top level, push empty not-a-function
-         * variable onto the "this-function" part of the stack
-         */
-        stack_push(&notafunc);
+        /* Initialize frame */
+        fr = frame_alloc();
+        frame_add_owners(fr, q_.gbl, var_new());
+        frame_push(fr);
 }
 
 /**
@@ -84,6 +75,7 @@ main(int argc, char **argv)
         }
 
         load_file(argv[1]);
+        frame_pop();
         return 0;
 }
 

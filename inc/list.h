@@ -28,4 +28,6 @@ list_add_front(struct list_t *list, struct list_t *owner)
         for (iter_ = (top_)->next, tmp_ = (iter_)->next; \
              iter_ != (top_); iter_ = tmp_, tmp_ = (iter_)->next)
 
+#define LIST_INIT(li) { .next = (li), .prev = (li) }
+
 #endif /* LIST_H */

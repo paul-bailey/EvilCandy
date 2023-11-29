@@ -7,7 +7,7 @@
 static double
 get_floatarg(int argno)
 {
-        struct var_t *x = getarg(argno);
+        struct var_t *x = frame_get_arg(argno);
         bug_on(!x);
         if (x->magic == QINT_MAGIC)
                 return (double)x->i;

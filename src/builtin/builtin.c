@@ -15,7 +15,7 @@ static struct gbl_private_t {
 static void
 do_typeof(struct var_t *ret)
 {
-        struct var_t *p = getarg(0);
+        struct var_t *p = frame_get_arg(0);
         qop_assign_cstring(ret, typestr(p->magic));
 }
 
@@ -52,7 +52,7 @@ print_nl(void)
 static void
 do_print(struct var_t *ret)
 {
-        struct var_t *p = getarg(0);
+        struct var_t *p = frame_get_arg(0);
         if (p->magic == QSTRING_MAGIC) {
                 char *s = string_get_cstring(p);
                 while (*s)
@@ -67,7 +67,7 @@ do_print(struct var_t *ret)
 static void
 do_exit(struct var_t *ret)
 {
-        struct var_t *p = getarg(0);
+        struct var_t *p = frame_get_arg(0);
         if (p && p->magic == QSTRING_MAGIC)
                 printf("%s\n", string_get_cstring(p));
         exit(0);
@@ -76,7 +76,7 @@ do_exit(struct var_t *ret)
 static void
 do_setnl(struct var_t *ret)
 {
-        struct var_t *nl = getarg(0);
+        struct var_t *nl = frame_get_arg(0);
         char *s;
         if (nl->magic != QSTRING_MAGIC)
                 syntax("Expected argument: string");
@@ -146,7 +146,6 @@ moduleinit_builtin(void)
 {
         /* Do this first.  bi_build_internal_object__ de-references it. */
         q_.gbl = var_new();
-        q_.gbl->name = literal_put("__gbl__");
         object_init(q_.gbl);
         object_set_priv(q_.gbl, &gbl, NULL);
         bi_build_internal_object__(q_.gbl, gblinit);

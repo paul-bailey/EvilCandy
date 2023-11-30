@@ -4,6 +4,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <unistd.h>
+#include <errno.h>
 
 enum {
         AE_GEN = 1,
@@ -38,6 +40,8 @@ enum {
 };
 
 struct miniframe_t {
+        FILE *filp;
+        char template[32];
         char *symtab[NSYM];
         char *argv[NARG];
         char *clo[NCLO];
@@ -48,6 +52,7 @@ struct miniframe_t {
         int argc;
         int sp;
         int isc[NSYM / 32 + 1];
+        struct list_t list;
 };
 
 struct assemble_t {
@@ -57,14 +62,17 @@ struct assemble_t {
         int jmp;                /* next branch label number */
         int func;               /* next function label number */
         jmp_buf env;
+        struct list_t active_frames;
+        struct list_t finished_frames;
         struct miniframe_t *fr;
-        struct miniframe_t *frame_stack[NFRAME];
-        int n_frame;
 };
 
 static void assemble_eval(struct assemble_t *a);
 static void assemble_expression(struct assemble_t *a,
                                 unsigned int flags, int skip);
+
+#define list2frame(li) \
+        container_of(li, struct miniframe_t, list)
 
 static void
 assemble_err_if(struct assemble_t *a, bool cond, int err)
@@ -86,29 +94,95 @@ static void
 assemble_push_miniframe(struct assemble_t *a)
 {
         struct miniframe_t *fr;
-
-        if (a->n_frame >= NFRAME)
-                assemble_err(a, AE_OVERFLOW);
+        int fd;
 
         fr = emalloc(sizeof(*fr));
         memset(fr, 0, sizeof(*fr));
 
-        a->frame_stack[a->n_frame] = a->fr;
-        a->n_frame++;
+        sprintf(fr->template, "egq%d.XXXXXXX", a->func);
+        fd = mkstemp(fr->template);
+        if (fd < 0)
+                fail("mkstemp");
+        fr->filp = fdopen(fd, "w+");
+
+        list_init(&fr->list);
+        list_add_tail(&fr->list, &a->active_frames);
 
         a->fr = fr;
+        a->filp = a->fr->filp;
 }
 
+/*
+ * This is so dirty, but we have to because we need to stuff
+ * future frame with arg defs while adding instructions to old
+ * frame.
+ */
+static void
+assemble_swap_miniframe(struct assemble_t *a)
+{
+        struct miniframe_t *fr = a->fr;
+
+        bug_on(list_is_empty(&a->active_frames));
+        bug_on(a->active_frames.prev != &fr->list);
+        bug_on(a->fr->list.next != &a->active_frames);
+        bug_on(a->fr->list.prev == &a->active_frames);
+
+        fr = list2frame(a->fr->list.prev);
+        list_remove(&fr->list);
+
+        bug_on(list_is_empty(&a->active_frames));
+        list_add_tail(&fr->list, &a->active_frames);
+        a->fr = fr;
+        a->filp = a->fr->filp;
+}
+
+/*
+ * Doesn't destroy it, it just removes it from active list.
+ * We'll iterate through these when we're done.
+ */
 static void
 assemble_pop_miniframe(struct assemble_t *a)
 {
-        bug_on(a->n_frame <= 0);
+        struct list_t *prev;
+        struct miniframe_t *fr = a->fr;
+        bug_on(list_is_empty(&a->active_frames));
 
-        free(a->fr);
+        list_remove(&fr->list);
+        bug_on(list_is_empty(&a->active_frames));
 
-        a->n_frame--;
-        a->fr = a->frame_stack[a->n_frame];
-        a->frame_stack[a->n_frame] = NULL;
+        prev = a->active_frames.prev;
+
+        /*
+         * first to start will be last to finish, so prepending these
+         * instead of appending them will make it easier to put the entry
+         * point first.
+         */
+        list_add_front(&fr->list, &a->finished_frames);
+
+        a->fr = list2frame(prev);
+        a->filp = a->fr->filp;
+}
+
+static void
+assemble_delete_miniframes_list(struct list_t *parent_list)
+{
+        struct list_t *li, *tmp;
+        list_foreach_safe(li, tmp, parent_list) {
+                struct miniframe_t *fr = list2frame(li);
+                list_remove(&fr->list);
+                fclose(fr->filp);
+                if (unlink(fr->template) < 0) {
+                        warning("unlink %s failed (%s)",
+                                fr->template, strerror(errno));
+                }
+                free(fr);
+        }
+}
+static void
+assemble_delete_miniframes(struct assemble_t *a)
+{
+        assemble_delete_miniframes_list(&a->active_frames);
+        assemble_delete_miniframes_list(&a->finished_frames);
 }
 
 static void
@@ -290,6 +364,7 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                         assemble_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                 } else {
                         assemble_eval(a);
+                        alex(a);
                         assemble_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                         ainstr(a, "LOAD", "REG_LLVAL");
                         ainstr(a, "RETURN_VALUE", NULL);
@@ -314,12 +389,12 @@ skip:
 static void
 assemble_funcdef(struct assemble_t *a, bool lambda)
 {
-        int skip = a->jmp++;
         int funcno = a->func++;
 
-        assemble_push_miniframe(a);
         ainstr(a, "DEFFUNC", "@func%06d", funcno);
         aelex(a, OC_LPAR);
+
+        assemble_push_miniframe(a);
 
         do {
                 bool closure = false;
@@ -337,20 +412,28 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                 alex(a);
                 if (a->oc->t == OC_EQ) {
                         deflt = true;
+
+                        assemble_swap_miniframe(a);
                         assemble_eval(a);
+                        assemble_swap_miniframe(a);
+
+                        alex(a);
                 }
                 if (closure) {
                         assemble_err_if(a, !deflt, AE_ARGNAME);
 
                         /* pop-pop-push, need to balance here */
+                        assemble_swap_miniframe(a);
                         ainstr(a, "ADD_CLOSURE", NULL);
+                        assemble_swap_miniframe(a);
 
                         assemble_err_if(a, a->fr->cp >= NCLO, AE_OVERFLOW);
                         a->fr->clo[a->fr->cp++] = name;
                 } else {
                         if (deflt) {
-                                ainstr(a, "ADD_DEFAULT",
-                                       "REG_LVAL, REG_RVAL, %d", a->fr->argc);
+                                assemble_swap_miniframe(a);
+                                ainstr(a, "ADD_DEFAULT", "%d", a->fr->argc);
+                                assemble_swap_miniframe(a);
                         }
 
                         assemble_err_if(a, a->fr->argc >= NARG, AE_OVERFLOW);
@@ -358,10 +441,8 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                 }
         } while (a->oc->t == OC_COMMA);
         assemble_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
-        ainstr(a, "B", "%d", skip);
 
         assemble_function(a, lambda, funcno);
-        alabel(a, skip);
         assemble_pop_miniframe(a);
 }
 
@@ -783,8 +864,8 @@ assemble_assign(struct assemble_t *a)
          * we know right now is if it's here.
          */
         assemble_eval(a);
-        ainstr(a, "POP", "REG_LVAL");
-        ainstr(a, "ASSIGN", "@REG_CHILD, REG_LVAL");
+        ainstr(a, "POP", NULL);
+        ainstr(a, "ASSIGN", NULL);
 }
 
 /* FIXME: huge DRY violation w/ eval8 */
@@ -970,11 +1051,9 @@ assemble_if(struct assemble_t *a, int skip)
         assemble_expression(a, 0, skip);
         alex(a);
         if (a->oc->t == OC_ELSE) {
-                int jmpfinal = a->jmp++;
                 acomment(a, "else");
                 alabel(a, jmpelse);
                 assemble_expression(a, 0, skip);
-                ainstr(a, "B", "%d", jmpfinal);
                 acomment(a, "end else");
         } else {
                 alabel(a, jmpelse);
@@ -997,8 +1076,9 @@ assemble_while(struct assemble_t *a)
         ainstr(a, "POP", NULL);
         ainstr(a, "B_IF_FALSE", "%d", skip);
         assemble_expression(a, 0, skip);
-        ainstr(a, "B", "%d", start);
+        ainstr(a, "B", "%d      // loop back to while", start);
         alabel(a, skip);
+        acomment(a, "end while");
         fprintf(a->filp, "\n");
 }
 
@@ -1030,28 +1110,34 @@ assemble_for(struct assemble_t *a)
 
         acomment(a, "for");
         /* initializer */
+        acomment(a, "'for' initializer");
         assemble_expression(a, 0, skip);
 
+        acomment(a, "'for' evaluation");
         alabel(a, start);
         alex(a);
         if (a->oc->t == OC_SEMI) {
                 /* empty condition, always true */
+                acomment(a, "'for' always true");
                 fprintf(a->filp, "B %d\n", then);
         } else {
                 aunlex(a);
                 assemble_eval(a);
                 aelex(a, OC_SEMI);
+                acomment(a, "'for' end evaluation");
                 ainstr(a, "POP", NULL);
                 ainstr(a, "B_IF_FALSE", "%d", skip);
                 ainstr(a, "B", "%d", then);
         }
-        acomment(a, "iteration step");
+        acomment(a, "'for' iteration step");
         alabel(a, iter);
         assemble_expression(a, FE_FOR, -1);
         ainstr(a, "B", "%d", start);
+        acomment(a, "'for' block");
         alabel(a, then);
         assemble_expression(a, 0, skip);
         alabel(a, skip);
+        acomment(a, "end 'for'");
         fprintf(a->filp, "\n");
 }
 
@@ -1157,23 +1243,68 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                 apop_scope(a);
 }
 
+static void
+assemble_first_pass(struct assemble_t *a)
+{
+        assemble_directive(a, ".define REG_LVAL   r0");
+        assemble_directive(a, ".define REG_RVAL   r1");
+        assemble_directive(a, ".define REG_PARENT r2");
+        assemble_directive(a, ".define REG_CHILD  r3");
+        assemble_directive(a, ".define REG_CONST  r4");
+        fprintf(a->filp, "\n");
+        assemble_directive(a, ".file '%s'", cur_ns->fname);
+        fprintf(a->filp, "\n\n");
+        assemble_directive(a, ".start");
+        while (a->oc->t != EOF)
+                assemble_expression(a, FE_TOP, -1);
+        ainstr(a, "END", NULL);
+        fprintf(a->filp, "// end near line %d\n", a->oc->line);
+
+        list_remove(&a->fr->list);
+        list_add_front(&a->fr->list, &a->finished_frames);
+}
+
+/*
+ * consolidate frames into the single output file, done in a way that
+ * function definitions don't fall in the middle of other functions,
+ * thereby making the code easier to make sense of, and also improving
+ * locality.
+ */
+static void
+assemble_second_pass(struct assemble_t *a)
+{
+        struct list_t *li;
+        FILE *fp = fopen(q_.opt.assemble_outfile, "w");
+        if (!fp)
+                fail("fopen");
+
+        list_foreach(li, &a->finished_frames) {
+                int c;
+                struct miniframe_t *fr = list2frame(li);
+
+                if (fseek(fr->filp, 0L, SEEK_SET) < 0)
+                        fail("fseek");
+
+                while ((c = getc(fr->filp)) != EOF)
+                        putc(c, fp);
+        }
+        fclose(fp);
+}
+
 void
 assemble(void)
 {
         struct assemble_t *a;
         int res;
 
-        FILE *fp = fopen(q_.opt.assemble_outfile, "w");
-        if (!fp)
-                fail("fopen");
-
         a = ecalloc(sizeof(*a));
         a->prog = (struct opcode_t *)cur_ns->pgm.s;
         a->oc = a->prog - 1;
-        a->filp = fp;
         /* don't let the first ones be zero, that looks bad */
         a->func = FUNC_INIT;
         a->jmp = JMP_INIT;
+        list_init(&a->active_frames);
+        list_init(&a->finished_frames);
         assemble_push_miniframe(a);
         if ((res = setjmp(a->env)) != 0) {
                 const char *msg;
@@ -1225,26 +1356,11 @@ assemble(void)
                 warning("Assembler returned error code %d (%s)", res, msg);
                 warning("near line=%d tok=%s", a->oc->line, a->oc->s);
         } else {
-                assemble_directive(a, ".define REG_LVAL   r0");
-                assemble_directive(a, ".define REG_RVAL   r1");
-                assemble_directive(a, ".define REG_PARENT r2");
-                assemble_directive(a, ".define REG_CHILD  r3");
-                assemble_directive(a, ".define REG_CONST  r4");
-                fprintf(a->filp, "\n");
-                assemble_directive(a, ".file '%s'", cur_ns->fname);
-                fprintf(a->filp, "\n\n");
-                assemble_directive(a, ".start");
-                while (a->oc->t != EOF)
-                        assemble_expression(a, FE_TOP, -1);
-                ainstr(a, "END", NULL);
-                fprintf(a->filp, "// end near line %d\n", a->oc->line);
+                assemble_first_pass(a);
+                assemble_second_pass(a);
         }
 
-        fclose(fp);
-
-        while (a->n_frame)
-                assemble_pop_miniframe(a);
-
+        assemble_delete_miniframes(a);
         free(a);
 }
 

@@ -228,15 +228,11 @@ struct opcode_t {
  * @gbl:        __gbl__, as the user sees it
  * @ns:         Linked list of all loaded files' opcodes in RAM.
  * @pc:         "program counter", often called PC in comments
- * @fp:         "frame pointer", often called FP in comments
- * @sp:         "stack pointer", often called SP in comments
- * @lr:         "link register", often called LR in comments
- * @stack:      Our variable stack, accessed with stack_* functions
- *              (Another temporary-var stack is locally declared in
- *              stack.c and accessed with the tstack_* functions)
  * @recursion:  For the RECURSION_INCR and RECURSION_DECR macros,
  *              to keep check on excess recursion with our eval()
  *              and expression() functions.
+ * @frame:      Current stack, FP, SP, LR, etc.
+ * @opt:        Command-line options
  */
 struct global_t {
         struct var_t *gbl; /* "__gbl__" as user sees it */
@@ -244,6 +240,11 @@ struct global_t {
         struct marker_t pc; /* "program counter" */
         int recursion;
         struct frame_t *frame;
+        struct {
+                bool assemble_only;
+                char *assemble_outfile;
+                char *infile;
+        } opt;
 };
 
 /* These PC macros require #include <string.h> */

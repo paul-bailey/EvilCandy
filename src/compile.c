@@ -61,7 +61,7 @@ compile_function_helper(struct var_t *v, bool lambda)
                 seek_eob(0);
         } else while (cur_oc->t != OC_LAMBDA && cur_oc->t != EOF) {
                 if (cur_oc->t == EOF)
-                        syntax("Missing: lamda close ``");
+                        syntax("Missing: lambda close ``");
                 qlex();
         }
 }

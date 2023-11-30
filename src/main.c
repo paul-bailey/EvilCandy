@@ -61,6 +61,40 @@ init_lib(void)
         frame_push(fr);
 }
 
+static int
+parse_args(int argc, char **argv)
+{
+        int argi;
+
+        memset(&q_.opt, 0, sizeof(q_.opt));
+        for (argi = 1; argi < argc; argi++) {
+                char *s = argv[argi];
+                if (s[0] == '-') {
+                        switch (s[1]) {
+                        case 'a':
+                                argi++;
+                                if (argi >= argc)
+                                        goto er;
+                                q_.opt.assemble_only = true;
+                                q_.opt.assemble_outfile = argv[argi];
+                                break;
+                        default:
+                                goto er;
+                        }
+                } else {
+                        if (q_.opt.infile)
+                                goto er;
+                        q_.opt.infile = argv[argi];
+                }
+        }
+        return 0;
+
+er:
+        fprintf(stderr, "Expected: '%s INFILE' or '%s -a OUTFILE INFILE\n",
+                argv[0], argv[0]);
+        return -1;
+}
+
 /**
  * script_read - Read and execute a script
  */
@@ -69,13 +103,12 @@ main(int argc, char **argv)
 {
         init_lib();
 
-        if (argc < 2) {
-                fprintf(stderr, "Expected: file name\n");
-                return 1;
-        }
+        if (parse_args(argc, argv) < 0)
+                return -1;
 
-        load_file(argv[1]);
+        load_file(q_.opt.infile);
         frame_pop();
+
         return 0;
 }
 

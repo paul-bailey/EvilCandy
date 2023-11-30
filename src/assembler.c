@@ -1136,6 +1136,7 @@ assemble_for(struct assemble_t *a)
         acomment(a, "'for' block");
         alabel(a, then);
         assemble_expression(a, 0, skip);
+        ainstr(a, "B", "%d", iter);
         alabel(a, skip);
         acomment(a, "end 'for'");
         fprintf(a->filp, "\n");

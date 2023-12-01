@@ -181,7 +181,7 @@ load_file(const char *filename)
 
         nspush(ns);
 
-        if (assemble() == NULL)
+        if (assemble(ns) == NULL)
                 warning("Failed to assemble");
 
         /*

@@ -9,6 +9,7 @@ enum {
         INSTR_PUSH,
         INSTR_PUSH_CONST,
         INSTR_PUSH_PTR,
+        INSTR_PUSH_COPY,
         INSTR_POP,
         INSTR_UNWIND,
         INSTR_ASSIGN,
@@ -45,7 +46,9 @@ enum {
         INSTR_LOGICAL_AND,
         INSTR_INCR,
         INSTR_DECR,
-        INSTR_END = 0xffu,
+        INSTR_END,
+        N_INSTR,
+
 };
 
 /* GETATTR, SETATTR, arg1 enumerations */
@@ -54,7 +57,7 @@ enum {
         IARG_ATTR_STACK = 1,
 };
 
-/* PUSH_PTR arg1 enumerations */
+/* PUSH_PTR/PUSH_COPY arg1 enumerations */
 enum {
         IARG_PTR_AP = 0,
         IARG_PTR_FP,
@@ -65,7 +68,22 @@ enum {
         IARG_PTR_THIS   /* ""   "" */
 };
 
-/* CALL_FUNC arg1 enumerations */
+/*
+ * CALL_FUNC arg1 enumerations
+ *
+ * Stack at function call time is:
+ *      SP
+ *      argN
+ *      ...
+ *      arg1
+ *      arg0
+ *      function
+ *      parent (if IARG_WITH_PARENT)
+ *
+ * XXX REVISIT: If we default parent with a swap before evaluating args,
+ * then we could use the same great big stack for every frame, just each
+ * function has its own FP & AP.
+ */
 enum {
         IARG_NO_PARENT       = 0,
         IARG_WITH_PARENT     = 1,
@@ -84,7 +102,7 @@ enum {
 typedef struct {
         uint8_t code;
         uint8_t arg1;  /* usually an IARG... enum */
-        uint16_t arg2; /* usually a data offset */
+        int16_t arg2;  /* usually a data offset, signed */
 } instruction_t;
 
 /**

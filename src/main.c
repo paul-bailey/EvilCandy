@@ -71,7 +71,7 @@ parse_args(int argc, char **argv)
                 char *s = argv[argi];
                 if (s[0] == '-') {
                         switch (s[1]) {
-                        case 'a':
+                        case 'd':
                                 argi++;
                                 if (argi >= argc)
                                         goto er;
@@ -87,6 +87,8 @@ parse_args(int argc, char **argv)
                         q_.opt.infile = argv[argi];
                 }
         }
+        if (!q_.opt.infile)
+                goto er;
         return 0;
 
 er:

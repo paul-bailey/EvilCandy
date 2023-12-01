@@ -313,7 +313,7 @@ static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
 /* assemble.c */
-extern struct executable_t *assemble(void);
+extern struct executable_t *assemble(struct ns_t *ns);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);
@@ -350,6 +350,10 @@ extern void compile_function(struct var_t *v);
 extern void compile_object(struct var_t *v);
 extern void compile_array(struct var_t *v);
 extern void compile_lambda(struct var_t *v);
+
+/* disassemble.c */
+extern void disassemble_start(FILE *fp, const char *sourcefile_name);
+extern void disassemble(FILE *fp, struct executable_t *ex);
 
 /* eval.c */
 extern void eval(struct var_t *v);

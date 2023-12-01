@@ -55,7 +55,7 @@ enum {
 
 enum {
         FUNC_INIT = 1,
-        JMP_INIT = 1,
+        JMP_INIT = 0,
 };
 
 /**
@@ -118,6 +118,7 @@ struct as_frame_t {
  *              @active frames
  */
 struct assemble_t {
+        char *file_name;
         struct opcode_t *prog;
         struct opcode_t *oc;
         int func;
@@ -145,7 +146,7 @@ as_frame_push(struct assemble_t *a, int funcno)
         fr->funcno = funcno;
         fr->x = ecalloc(sizeof(*(fr->x)));
         list_init(&fr->x->list);
-        fr->x->file_name = cur_ns->fname;
+        fr->x->file_name = a->file_name;
         fr->x->file_line = a->oc->line;
         fr->x->n_label = JMP_INIT;
 
@@ -392,7 +393,7 @@ seek_or_add_const_xptr(struct assemble_t *a, void *p)
                 v = var_new();
                 v->magic = Q_XPTR_MAGIC;
                 v->xptr = p;
-                x->rodata[i] = v;
+                x->rodata[x->n_rodata++] = v;
         }
         return i;
 }
@@ -624,8 +625,12 @@ assemble_objdef(struct assemble_t *a)
 
 static void assemble_eval1(struct assemble_t *a);
 
+/*
+ * @instr is INSTR_PUSH_PTR (for expression mode) and INSTR_PUSH_COPY
+ * (for eval mode, where vars could be carelessly clobbered).
+ */
 static void
-ainstr_push_symbol(struct assemble_t *a, struct opcode_t *name)
+ainstr_push_symbol(struct assemble_t *a, int instr, struct opcode_t *name)
 {
         int idx;
 
@@ -637,16 +642,16 @@ ainstr_push_symbol(struct assemble_t *a, struct opcode_t *name)
          * de-reference, and FP for our argument de-reference.
          */
         if ((idx = symtab_seek(a, name->s)) >= 0) {
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_AP, idx);
+                add_instr(a, instr, IARG_PTR_AP, idx);
         } else if ((idx = arg_seek(a, name->s)) >= 0) {
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_FP, idx);
+                add_instr(a, instr, IARG_PTR_FP, idx);
         } else if ((idx = clo_seek(a, name->s)) >= 0) {
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_CP, idx);
+                add_instr(a, instr, IARG_PTR_CP, idx);
         } else if (!strcmp(name->s, "__gbl__")) {
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_GBL, 0);
+                add_instr(a, instr, IARG_PTR_GBL, 0);
         } else {
                 int namei = seek_or_add_const(a, name);
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_SEEK, namei);
+                add_instr(a, instr, IARG_PTR_SEEK, namei);
         }
 }
 
@@ -684,7 +689,7 @@ assemble_eval_atomic(struct assemble_t *a)
 {
         switch (a->oc->t) {
         case 'u':
-                ainstr_push_symbol(a, a->oc);
+                ainstr_push_symbol(a, INSTR_PUSH_COPY, a->oc);
                 break;
 
         case 'i':
@@ -1134,7 +1139,7 @@ assemble_this(struct assemble_t *a, unsigned int flags)
 static void
 assemble_identifier(struct assemble_t *a, unsigned int flags)
 {
-        ainstr_push_symbol(a, a->oc);
+        ainstr_push_symbol(a, INSTR_PUSH_PTR, a->oc);
         assemble_ident_helper(a, flags);
 }
 
@@ -1480,11 +1485,41 @@ assemble_third_pass(struct assemble_t *a)
         }
 }
 
-static void
+#ifdef NDEBUG
+
+static int
 assemble_fourth_pass(struct assemble_t *a)
 {
-        /* If disassembly requested, run it */
+        if (q_.opt.disassemble)
+                warning("Disassembly unavailable in release mode");
 }
+
+#else
+
+static int
+assemble_fourth_pass(struct assemble_t *a)
+{
+        FILE *fp;
+
+        if (!q_.opt.disassemble)
+                return 0;
+
+        fp = fopen(q_.opt.disassemble_outfile, "w");
+        if (!fp)
+                return -1;
+        /* If disassembly requested, run it */
+        disassemble_start(fp, a->file_name);
+        struct list_t *li;
+        list_foreach(li, &a->finished_frames) {
+                struct as_frame_t *fr = list2frame(li);
+                struct executable_t *x = fr->x;
+                disassemble(fp, x);
+        }
+        fclose(fp);
+        return 0;
+}
+
+#endif
 
 static struct executable_t *
 assemble_fifth_pass(struct assemble_t *a)
@@ -1496,21 +1531,40 @@ assemble_fifth_pass(struct assemble_t *a)
         return fr->x;
 }
 
-struct executable_t *
-assemble(void)
+static struct assemble_t *
+new_assembler(struct ns_t *ns)
 {
-        struct assemble_t *a;
-        struct executable_t *ex;
-        int res;
-
-        a = ecalloc(sizeof(*a));
-        a->prog = (struct opcode_t *)cur_ns->pgm.s;
-        a->oc = a->prog - 1;
+        struct assemble_t *a = ecalloc(sizeof(*a));
+        a->file_name = ns->fname;
+        a->prog = (struct opcode_t *)ns->pgm.s;
+        a->oc = a->prog;
         /* don't let the first ones be zero, that looks bad */
         a->func = FUNC_INIT;
         list_init(&a->active_frames);
         list_init(&a->finished_frames);
         as_frame_push(a, 0);
+
+        /* first alex() is @0 */
+        a->oc--;
+        return a;
+}
+
+static void
+free_assembler(struct assemble_t *a, int err)
+{
+        as_delete_frames(a, err);
+        free(a);
+}
+
+struct executable_t *
+assemble(struct ns_t *ns)
+{
+        struct assemble_t *a;
+        struct executable_t *ex;
+        int res;
+
+        a = new_assembler(ns);
+
         if ((res = setjmp(a->env)) != 0) {
                 const char *msg;
                 switch (res) {
@@ -1565,13 +1619,12 @@ assemble(void)
                 assemble_first_pass(a);
                 assemble_second_pass(a);
                 assemble_third_pass(a);
-                assemble_fourth_pass(a);
+                if (assemble_fourth_pass(a) < 0)
+                        warning("Could not disassemble %s", a->file_name);
                 ex = assemble_fifth_pass(a);
         }
 
-        as_delete_frames(a, res);
-        free(a);
-
+        free_assembler(a, res);
         return ex;
 }
 

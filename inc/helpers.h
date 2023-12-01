@@ -2,6 +2,7 @@
 #define EGQ_HELPERS_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <stdbool.h>
 
@@ -17,9 +18,10 @@ extern int bit_count32(uint32_t v);
 extern int bit_count16(uint16_t v);
 extern int ctz32(uint32_t x);
 extern int ctz64(uint64_t x);
+extern ssize_t index_translate(ssize_t i, size_t size);
+extern void print_escapestr(FILE *fp, const char *s, int quote);
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)(((void *)(x)) - offsetof(type, member)))
-extern ssize_t index_translate(ssize_t i, size_t size);
 
 #endif /* EGQ_HELPERS_H */

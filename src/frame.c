@@ -1,12 +1,6 @@
 #include "egq.h"
 #include <string.h>
 
-enum {
-        FRAME_STACK_MAX = 128,
-        FRAME_NEST_MAX  = 32,
-        FRAME_CLOSURE_MAX = 24,
-};
-
 struct frame_t {
         unsigned short fp, sp, ap;
         unsigned char cp, nest;

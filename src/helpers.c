@@ -203,3 +203,58 @@ index_translate(ssize_t i, size_t size)
         return (size_t)i >= size ? -1 : i;
 }
 
+/**
+ * print_escapestr - Print a string escaping newlines and control
+ *                      characters.
+ * @fp: File to print to
+ * @s:  Input string
+ * @quote: Char to wrap as a quote, usu. ' or ", or '\0' to not wrap
+ *      with a quote.  If nonzero, any of character in @s matching
+ *      quote will be escaped with a backslash.
+ */
+void
+print_escapestr(FILE *fp, const char *s, int quote)
+{
+        int c;
+        if (quote)
+                putc(quote, fp);
+        while ((c = *s++) != '\0') {
+                if (c == quote) {
+                        putc('\\', fp);
+                        putc(c, fp);
+                } else if (isspace(c)) {
+                        switch (c) {
+                        case ' ': /* can print this one */
+                                putc(c, fp);
+                                continue;
+                        case '\n':
+                                c = 'n';
+                                break;
+                        case '\t':
+                                c = 't';
+                                break;
+                        case '\v':
+                                c = 'v';
+                                break;
+                        case '\f':
+                                c = 'f';
+                                break;
+                        case '\r':
+                                c = 'r';
+                                break;
+                        }
+                        putc('\\', fp);
+                        putc(c, fp);
+                } else if (!isgraph(c)) {
+                        putc('\\', fp);
+                        putc(((c >> 6) & 0x07) + '0', fp);
+                        putc(((c >> 3) & 0x07) + '0', fp);
+                        putc((c & 0x07) + '0', fp);
+                } else {
+                        putc(c, fp);
+                }
+        }
+        if (quote)
+                putc(quote, fp);
+}
+

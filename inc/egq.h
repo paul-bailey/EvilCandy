@@ -56,6 +56,11 @@ enum type_magic_t {
         QSTRING_MAGIC,
         QARRAY_MAGIC,
         Q_NMAGIC,
+
+        /* internal use, user should never be able to access these */
+        Q_STRPTR_MAGIC = Q_NMAGIC,
+        Q_VARPTR_MAGIC,
+        Q_XPTR_MAGIC,
 };
 
 struct var_t;
@@ -64,6 +69,7 @@ struct array_handle_t;
 struct string_handle_t;
 struct function_handle_t;
 struct frame_t;
+struct executable_t;
 
 /*
  * Per-type callbacks for mathematical operators, like + or -
@@ -205,7 +211,11 @@ struct var_t {
                 double f;
                 long long i;
                 struct string_handle_t *s;
-                struct var_t *ps;
+
+                /* non-user types, only visible in the C code */
+                char *strptr;
+                struct executable_t *xptr;
+                struct var_t *vptr;
         };
 };
 
@@ -238,6 +248,7 @@ struct opcode_t {
  *              and expression() functions.
  * @frame:      Current stack, FP, SP, LR, etc.
  * @opt:        Command-line options
+ * @executables: Active executable functions
  */
 struct global_t {
         struct var_t *gbl; /* "__gbl__" as user sees it */
@@ -246,10 +257,11 @@ struct global_t {
         int recursion;
         struct frame_t *frame;
         struct {
-                bool assemble_only;
-                char *assemble_outfile;
+                bool disassemble;
+                char *disassemble_outfile;
                 char *infile;
         } opt;
+        struct list_t executables;
 };
 
 /* These PC macros require #include <string.h> */
@@ -299,6 +311,9 @@ static inline bool isnumvar(struct var_t *v)
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
+
+/* assemble.c */
+extern struct executable_t *assemble(void);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);

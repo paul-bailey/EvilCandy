@@ -161,8 +161,6 @@ exec_block(void)
         }
 }
 
-extern void assemble(void);
-
 void
 load_file(const char *filename)
 {
@@ -183,10 +181,8 @@ load_file(const char *filename)
 
         nspush(ns);
 
-        if (q_.opt.assemble_only) {
-                assemble();
-                return;
-        }
+        if (assemble() == NULL)
+                warning("Failed to assemble");
 
         /*
          * dirty, but we only do it here: we want the first

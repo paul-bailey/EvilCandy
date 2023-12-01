@@ -258,3 +258,51 @@ print_escapestr(FILE *fp, const char *s, int quote)
                 putc(quote, fp);
 }
 
+/*
+ * None of these pointers may be NULL
+ *
+ * Return:
+ * 0 if success, -1 if failure
+ */
+int
+assert_array_pos(int idx, void **arr,
+                 size_t *alloc_bytes, size_t type_size)
+{
+        /* let's try to be reasonable */
+        enum { MAX_ALLOC = 1u << 20 };
+
+        size_t need_size = (idx + 1) * type_size;
+        size_t new_alloc;
+        void *a = *arr;
+
+        if (!a) {
+                new_alloc = need_size;
+                if (new_alloc < 8)
+                        new_alloc = 8;
+                a = malloc(new_alloc);
+                if (!a)
+                        return -1;
+                goto done;
+        }
+
+        new_alloc = *alloc_bytes;
+        while (new_alloc < need_size) {
+                new_alloc <<= 2;
+                if (new_alloc > MAX_ALLOC)
+                        return -1;
+        }
+        if (new_alloc == *alloc_bytes)
+                return 0; /* didn't need to do anything */
+
+        a = realloc(*arr, new_alloc);
+        if (!a)
+                return -1;
+
+done:
+        *arr = a;
+        *alloc_bytes = new_alloc;
+        return 0;
+}
+
+
+

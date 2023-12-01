@@ -75,8 +75,8 @@ parse_args(int argc, char **argv)
                                 argi++;
                                 if (argi >= argc)
                                         goto er;
-                                q_.opt.assemble_only = true;
-                                q_.opt.assemble_outfile = argv[argi];
+                                q_.opt.disassemble = true;
+                                q_.opt.disassemble_outfile = argv[argi];
                                 break;
                         default:
                                 goto er;

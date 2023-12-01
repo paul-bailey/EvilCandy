@@ -1,3 +1,7 @@
+/*
+ * Terrible name, these are NOT the opcodes of the virtual machine.
+ * Rather, they are enumerations of types of tokens in the input script.
+ */
 #ifndef EGQ_OPCODES_H
 #define EGQ_OPCODES_H
 

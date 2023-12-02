@@ -2,6 +2,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <getopt.h>
 
 struct global_t q_;
 
@@ -65,34 +66,25 @@ init_lib(void)
 static int
 parse_args(int argc, char **argv)
 {
-        int argi;
-
-        memset(&q_.opt, 0, sizeof(q_.opt));
-        for (argi = 1; argi < argc; argi++) {
-                char *s = argv[argi];
-                if (s[0] == '-') {
-                        switch (s[1]) {
-                        case 'd':
-                                argi++;
-                                if (argi >= argc)
-                                        goto er;
-                                q_.opt.disassemble = true;
-                                q_.opt.disassemble_outfile = argv[argi];
-                                break;
-                        case 'x':
-                                q_.opt.use_vm = true;
-                                break;
-                        default:
-                                goto er;
-                        }
-                } else {
-                        if (q_.opt.infile)
-                                goto er;
-                        q_.opt.infile = argv[argi];
+        int c;
+        while ((c = getopt(argc, argv, "xd:")) != -1) {
+                switch (c) {
+                case 'x':
+                        q_.opt.use_vm = true;
+                        break;
+                case 'd':
+                        q_.opt.disassemble = true;
+                        q_.opt.disassemble_outfile = optarg;
+                        break;
+                default:
+                        goto er;
                 }
         }
-        if (!q_.opt.infile)
+
+        if (optind != argc - 1)
                 goto er;
+
+        q_.opt.infile = argv[optind];
         return 0;
 
 er:

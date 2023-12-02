@@ -134,6 +134,9 @@ frame_add_closures(struct frame_t *fr, struct function_arg_t *arr, int count)
 struct var_t *
 frame_get_arg(unsigned int idx)
 {
+        if (q_.opt.use_vm)
+                return vm_get_arg(idx);
+
         struct frame_t *fr = q_.frame;
         bug_on(!fr);
         if (idx >= fr->ap)
@@ -194,8 +197,4 @@ frame_get_this(void)
         return q_.frame ? q_.frame->owner : q_.gbl;
 }
 
-struct var_t *
-frame_get_this_func(void)
-{
-        return q_.frame ? q_.frame->func : NULL;
-}
+

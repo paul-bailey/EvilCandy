@@ -13,6 +13,7 @@
  * @nref:       Number of vars with access to this handle
  * @f_magic:    If FUNC_INTERNAL, function is an internal function
  *              If FUNC_USER, function is in the user's script
+ *              If FUNC_VM, then God help us all.
  * @f_minargs:  Minimum number of args that may be passed to the
  *              function
  * @f_maxargs:  Maximum number of args that may be passed to the
@@ -28,6 +29,7 @@ struct function_handle_t {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
                 FUNC_LAMBDA,
+                FUNC_VM,
         } f_magic;
         int f_minargs;
         int f_maxargs;
@@ -36,8 +38,14 @@ struct function_handle_t {
                 struct executable_t *f_ex;
                 struct marker_t f_mk;
         };
-        struct function_arg_t *f_argv;
-        struct function_arg_t *f_clov;
+        union {
+                struct function_arg_t *f_argv;
+                struct var_t **f_vmargv;
+        };
+        union {
+                struct function_arg_t *f_clov;
+                struct var_t **f_vmclov;
+        };
         int f_argc;
         int f_cloc;
         size_t f_arg_alloc;
@@ -50,6 +58,12 @@ struct function_handle_t {
                          (void **)&(fh)->f_##arr##v, \
                          &(fh)->f_##arr##_alloc, \
                          sizeof(struct function_arg_t))
+
+#define GROW_VMARG_ARRAY(fh, arr) \
+        assert_array_pos((fh)->f_##arr##c + 1, \
+                         (void **)&(fh)->f_vm##arr##v, \
+                         &(fh)->f_##arr##_alloc, \
+                         sizeof(struct var_t *))
 
 static char *iarg_name[FRAME_ARG_MAX];
 
@@ -379,6 +393,65 @@ call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
         call_function_common(fn, retval, owner);
 }
 
+/*
+ * return: either @fn or the callable descendant of @fn to pass
+ *         to call_vmfunction
+ */
+void
+call_vmfunction_prep_frame(struct var_t *fn,
+                           struct vmframe_t *fr, struct var_t *owner)
+{
+        struct function_handle_t *fh;
+        int i, argc;
+
+        fn = function_of(fn, &owner);
+        fh = fn->fn;
+        bug_on(!fh);
+
+        argc = (fh->f_magic == FUNC_INTERNAL)
+               ? fh->f_minargs : fh->f_argc;
+        for (i = fr->ap; i < argc; i++) {
+                struct var_t *v = fh->f_vmargv[i];
+                if (!v)
+                        syntax("Missing non-optional arg #%d", i);
+                fr->stack[fr->ap++] = qop_mov(var_new(), v);
+        }
+        if (!owner)
+                owner = get_this();
+        fr->owner = owner;
+        fr->func = fn;
+        fr->clo = fh->f_vmclov;
+
+        if (fh->f_magic == FUNC_VM)
+                fr->ex = fh->f_ex;
+}
+
+/*
+ * return function result if INTERNAL, NULL if VM (let vm.c code
+ * execute it)
+ */
+struct var_t *
+call_vmfunction(struct var_t *fn)
+{
+        struct var_t *ret = NULL;
+        struct function_handle_t *fh = fn->fn;
+        bug_on(fn->magic != QFUNCTION_MAGIC);
+        bug_on(!fh);
+        switch (fh->f_magic) {
+        case FUNC_INTERNAL:
+                ret = var_new();
+                bug_on(!fh->f_cb);
+                fh->f_cb(ret);
+                break;
+        case FUNC_VM:
+                break;
+        default:
+                bug();
+                break;
+        }
+        return ret;
+}
+
 /**
  * call_function_from_intl - Call a function (user or internal) from
  *                           within an internal built-in function.
@@ -399,6 +472,8 @@ void
 call_function_from_intl(struct var_t *fn, struct var_t *retval,
                         struct var_t *owner, int argc, struct var_t *argv[])
 {
+        if (q_.opt.use_vm)
+                syntax("Cannot currently support callbacks in VM mode");
         fn = function_of(fn, &owner);
         push_iargs(fn, owner, argc, argv);
         call_function_common(fn, retval, owner);
@@ -500,6 +575,58 @@ function_add_closure(struct var_t *func, char *name, struct var_t *init)
         cl->a_default = init;
 }
 
+void
+function_vmadd_closure(struct var_t *func, struct var_t *clo)
+{
+        struct function_handle_t *fh = func->fn;
+        bug_on(func->magic != QFUNCTION_MAGIC);
+        bug_on(!fh);
+        bug_on(fh->f_magic != FUNC_VM);
+
+        if (GROW_VMARG_ARRAY(fh, clo) < 0)
+                fail("OOM");
+        fh->f_vmclov[fh->f_cloc] = clo;
+        fh->f_cloc++;
+}
+
+void
+function_vmadd_default(struct var_t *func,
+                        struct var_t *deflt, int argno)
+{
+        struct function_handle_t *fh = func->fn;
+        size_t needsize;
+        bug_on(func->magic != QFUNCTION_MAGIC);
+        bug_on(!fh);
+        bug_on(fh->f_magic != FUNC_VM);
+        bug_on(argno < 0);
+
+        /*
+         * Do this manually, since not every impl. of realloc
+         * zeros the array, and NULL is meaningful here.
+         *
+         * FIXME: non-sparse array for usu. sparse fields,
+         * not very mem. efficient.
+         */
+        needsize = (argno + 1) * sizeof(void *);
+        if (!fh->f_vmargv) {
+                fh->f_vmargv = ecalloc(needsize);
+                fh->f_arg_alloc = needsize;
+        } else if (fh->f_arg_alloc < needsize) {
+                struct var_t **new_arr;
+                size_t new_alloc = fh->f_arg_alloc;
+                while (new_alloc < needsize)
+                        new_alloc *= 2;
+                new_arr = ecalloc(new_alloc);
+                memcpy(new_arr, fh->f_vmargv,
+                       fh->f_argc * sizeof(void *));
+                free(fh->f_vmargv);
+                fh->f_vmargv = new_arr;
+                fh->f_arg_alloc = new_alloc;
+        }
+        fh->f_vmargv[argno] = deflt;
+        fh->f_argc = argno + 1;
+}
+
 /**
  * function_init_internal - Initialize @func to be a callable
  *                          builtin function
@@ -524,6 +651,21 @@ function_init_internal(struct var_t *func, void (*cb)(struct var_t *),
         func->magic = QFUNCTION_MAGIC;
 }
 
+void
+function_init_vm(struct var_t *func, struct executable_t *ex)
+{
+        struct function_handle_t *fh;
+        bug_on(func->magic != QEMPTY_MAGIC);
+
+        fh = function_handle_new();
+        fh->f_magic = FUNC_VM;
+        fh->f_ex = ex;
+
+        func->magic = QFUNCTION_MAGIC;
+        func->fn = fh;
+}
+
+
 static bool
 func_cmpz(struct var_t *func)
 {
@@ -538,6 +680,7 @@ func_mov(struct var_t *to, struct var_t *from)
              to->magic != QFUNCTION_MAGIC)) {
                 syntax("Mov operation not permitted for this type");
         }
+        bug_on(!from->fn);
         to->fn = from->fn;
         to->fn->nref++;
 }
@@ -573,4 +716,5 @@ typedefinit_function(void)
                 iarg_name[i] = literal_put(iarg_buf);
         }
 }
+
 

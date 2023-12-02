@@ -7,6 +7,7 @@
 #include "opcodes.h"
 #include "trie.h"
 #include "list.h"
+#include "instructions.h" /* TODO: remove */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -227,6 +228,19 @@ struct function_arg_t {
         struct var_t *a_default;
 };
 
+/* FIXME: Needs to be more private than this */
+struct vmframe_t {
+        struct var_t *owner, *func;
+        struct var_t **stackptr;
+        struct var_t *stack[FRAME_STACK_MAX];
+        struct executable_t *ex;
+        /* TODO: not so sure I need SP after all */
+        int fp, ap, sp;
+        instruction_t *ppii;
+        struct var_t **clo;
+        struct vmframe_t *prev;
+};
+
 
 /**
  * struct opcode_t - The byte-code version of a token
@@ -420,8 +434,7 @@ extern void moduleinit_frame(void);
 struct var_t *frame_get_this(void);
 struct var_t *frame_get_this_func(void);
 /* because I wrote it this way first... */
-#define get_this()  frame_get_this()
-#define get_this_func() frame_get_this_func()
+#define get_this()  (q_.opt.use_vm ? vm_get_this() : frame_get_this())
 
 /* keyword.c */
 extern int keyword_seek(const char *s);
@@ -525,6 +538,16 @@ extern void function_init_internal(struct var_t *func,
 extern void function_add_closure(struct var_t *func, char *name,
                         struct var_t *init);
 
+/* For the virtual machine in all of us */
+extern void call_vmfunction_prep_frame(struct var_t *fn,
+                        struct vmframe_t *fr, struct var_t *owner);
+extern struct var_t *call_vmfunction(struct var_t *fn);
+extern void function_vmadd_closure(struct var_t *func, struct var_t *clo);
+extern void function_vmadd_default(struct var_t *func,
+                        struct var_t *deflt, int argno);
+extern void function_init_vm(struct var_t *func,
+                        struct executable_t *ex);
+
 /* types/object.c */
 extern struct var_t *object_init(struct var_t *v);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
@@ -586,5 +609,7 @@ string_puts(struct var_t *str, const char *s)
 /* vm.c */
 extern void vm_execute(struct executable_t *top_level);
 extern void moduleinit_vm(void);
+extern struct var_t *vm_get_this(void);
+extern struct var_t *vm_get_arg(unsigned int idx);
 
 #endif /* EGQ_H */

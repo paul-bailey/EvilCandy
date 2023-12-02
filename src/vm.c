@@ -8,18 +8,11 @@
 #include <egq.h>
 #include <stdlib.h>
 
-struct vmframe_t {
-        struct var_t **stackptr;
-        struct var_t *stack[FRAME_STACK_MAX];
-        struct executable_t *ex;
-        int fp, ap, sp, cp;
-        instruction_t *ppii;
-        struct list_t list;
-};
+struct vmframe_t *current_frame;
 
-struct list_t active_frames = LIST_INIT(&active_frames);
+static struct hashtable_t *symbol_table;
 
-static struct hashtable_t *symbol_table = NULL;
+#define list2vmf(li) container_of(li, struct vmframe_t, list)
 
 #define PUSH_(fr, v) \
         do { *((fr)->stackptr)++ = (v); } while (0)
@@ -71,6 +64,22 @@ RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 
 #endif /* DEBUG */
 
+static struct vmframe_t *
+vmframe_alloc(void)
+{
+        return ecalloc(sizeof(struct vmframe_t));
+}
+
+static void
+vmframe_free(struct vmframe_t *fr)
+{
+        if (fr == current_frame)
+                current_frame = fr->prev;
+        bug_on(fr->stackptr != fr->stack + fr->ap);
+        while (fr->stackptr > fr->stack)
+                pop(fr);
+        free(fr);
+}
 
 static inline __attribute__((always_inline)) struct var_t *
 VARPTR(struct vmframe_t *fr, instruction_t ii)
@@ -81,7 +90,7 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
         case IARG_PTR_FP:
                 return fr->stack[fr->fp + ii.arg2];
         case IARG_PTR_CP:
-                return fr->stack[fr->cp + ii.arg2];
+                return fr->clo[ii.arg2];
         case IARG_PTR_SP:
                 return fr->stack[fr->sp + ii.arg2];
         case IARG_PTR_SEEK: {
@@ -94,7 +103,8 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
         case IARG_PTR_GBL:
                 return q_.gbl;
         case IARG_PTR_THIS:
-                return frame_get_this();
+                bug_on(!current_frame || !current_frame->owner);
+                return current_frame->owner;
         }
         bug();
         return NULL;
@@ -159,6 +169,7 @@ attr_ptr__(struct var_t *obj, struct var_t *deref)
         if (deref->magic == Q_STRPTR_MAGIC) {
                 if (obj->magic == QOBJECT_MAGIC)
                         return eobject_child(obj, deref->strptr);
+                return builtin_method(obj, deref->strptr);
         } else if (deref->magic == QINT_MAGIC) {
                 /* because idx stores long long, but ii.i is int */
                 if (deref->i < INT_MIN || deref->i > INT_MAX)
@@ -170,6 +181,7 @@ attr_ptr__(struct var_t *obj, struct var_t *deref)
         } else if (deref->magic == QSTRING_MAGIC) {
                 if (obj->magic == QOBJECT_MAGIC)
                         return eobject_child(obj, string_get_cstring(obj));
+                return builtin_method(obj, string_get_cstring(obj));
         }
 
         syntax("Cannot get attribute");
@@ -193,6 +205,7 @@ do_push_const(struct vmframe_t *fr, instruction_t ii)
         struct var_t *v = RODATA_COPY(fr, ii);
         push(fr, v);
 }
+
 static void
 do_push_ptr(struct vmframe_t *fr, instruction_t ii)
 {
@@ -242,11 +255,11 @@ do_assign(struct vmframe_t *fr, instruction_t ii)
         }
         if (to->magic == Q_VARPTR_MAGIC) {
                 struct var_t *tmp = to->vptr;
-                var_delete(to);
-                to = qop_mov(tmp, from);
+                qop_mov(tmp, from);
+                push(fr, to);
         } else {
-                /* not sure yet if this should be reachable */
-                push(fr, qop_mov(to, from));
+                struct var_t *tmp = qop_mov(to, from);
+                push(fr, tmp);
         }
         var_delete(from);
 }
@@ -269,35 +282,66 @@ do_push_zero(struct vmframe_t *fr, instruction_t ii)
 static void
 do_return_value(struct vmframe_t *fr, instruction_t ii)
 {
-        bug_on(fr->stackptr - fr->stack - 1 != fr->sp);
-        /*
-         * TODO:
-         *   1. Pop result. bug if sp != ap now.
-         *   2. Clear and free fr
-         *   3. Restore old fr. bug if old fr is NULL
-         *   4. push result onto old fr stack.
-         *   5. Carry on
-         */
+        struct var_t *result = pop(fr);
+
+        current_frame = fr->prev;
+        vmframe_free(fr);
+        fr = current_frame;
+        bug_on(current_frame == NULL);
+        push(fr, result);
 }
 
 static void
 do_call_func(struct vmframe_t *fr, instruction_t ii)
 {
+        struct var_t *func, *owner, *res;
+        struct vmframe_t *fr_new;
         int narg = ii.arg2;
         bool parent = !!ii.arg1;
 
         /*
-         * TODO: Get new fr, pop ii.arg2 #args off our stack
-         * and put them in new fr's stack (careful, 1st arg
-         * is in (n-1)th place in new fr), pop function itself,
-         * if "parent" pop that too, or try to use "gbl".  (If func
-         * is a callable object, "parent" will be itself and "child"
-         * will be the __callable__ attribute.)
-         *
-         * Then shift frames over so now we're using current fr.
+         * XXX REVISIT: This is why a (per-thread) global stack is
+         * useful: we already pushed the args in order, but now we're
+         * popping them and pushing them again into the new frame's
+         * stack, an unnecesssary triple-operation.
          */
-        (void)narg;
-        (void)parent;
+
+        fr_new = vmframe_alloc();
+        fr_new->ap = narg;
+        while (narg > 0) {
+                struct var_t *v = pop(fr);
+                /*
+                 * we pushed these in order, so we're popping
+                 * them out of order.
+                 */
+                fr_new->stack[narg - 1] = v;
+                narg--;
+        }
+        fr_new->fp = 0;
+
+        func = pop(fr);
+        owner = parent ? pop(fr) : NULL;
+        call_vmfunction_prep_frame(func, fr_new, owner);
+
+        /* ap may have been updated with optional-arg defaults */
+        fr_new->sp = fr_new->ap;
+        fr_new->stackptr = fr_new->stack + fr_new->ap;
+
+        /* push new frame */
+        fr_new->prev = current_frame;
+
+        current_frame = fr_new;
+        res = call_vmfunction(func);
+        if (res) {
+                /* internal: pop new frame, push result in old frame */
+                current_frame = fr_new->prev;
+                vmframe_free(fr_new);
+                push(fr, res);
+        } else {
+                /* carry on in new frame */
+                bug_on(!fr_new->ex);
+                fr_new->ppii = fr_new->ex->instr;
+        }
 }
 
 static void
@@ -306,14 +350,7 @@ do_deffunc(struct vmframe_t *fr, instruction_t ii)
         struct var_t *func = var_new();
         struct var_t *loc = RODATA(fr, ii);
         bug_on(loc->magic != Q_XPTR_MAGIC);
-        function_init(func);
-
-        (void)loc;
-        (void)func;
-#if 0
-        /* TODO: add when VM ready */
-        function_set_user(func, loc->xptr, false);
-#endif
+        function_init_vm(func, loc->xptr);
         push(fr, func);
 }
 
@@ -323,12 +360,7 @@ do_add_closure(struct vmframe_t *fr, instruction_t ii)
         struct var_t *clo = pop(fr);
         struct var_t *func = pop(fr);
 
-        (void)clo;
-        (void)func;
-
-#if 0
-        function_add_closure(func, clo);
-#endif
+        function_vmadd_closure(func, clo);
         push(fr, func);
 }
 
@@ -338,15 +370,12 @@ do_add_default(struct vmframe_t *fr, instruction_t ii)
         struct var_t *deflt = pop(fr);
         struct var_t *func = pop(fr);
         /*
-         * TODO: Make sure we either add deflt (not a copy),
-         * or we var_delete(deflt), when function.c code
-         * is updated.
+         * XXX what's a check for the reasonable size of ii.arg2 here?
+         * 99% of the time, this is single-digit, but some weirdos out
+         * there love breaking weak programs.  It's signed 16-bits, so
+         * the largest number of args can be 32767.
          */
-        (void)deflt;
-        (void)func;
-#if 0
-        function_add_arg(func, deflt);
-#endif
+        function_vmadd_default(func, deflt, ii.arg2);
         push(fr, func);
 }
 
@@ -444,8 +473,15 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 static void
 do_b_if(struct vmframe_t *fr, instruction_t ii)
 {
-        if (ii.arg1)
-                fr->ppii += ii.arg2;
+        struct var_t *v = pop(fr);
+        bool cond = !qop_cmpz(v);
+        if (ii.arg1) {
+                if (cond)
+                        fr->ppii += ii.arg2;
+        } else {
+                if (!cond)
+                        fr->ppii += ii.arg2;
+        }
 }
 
 static void
@@ -642,19 +678,28 @@ void
 vm_execute(struct executable_t *top_level)
 {
         instruction_t ii;
-        struct vmframe_t *fr = ecalloc(sizeof(*fr));
 
-        fr->stackptr = &fr->stack[fr->sp];
-        fr->ex = top_level;
-        fr->ppii = fr->ex->instr;
-        list_init(&fr->list);
+        bug_on(!(top_level->flags & FE_TOP));
+        /*
+         * FIXME: not true when 'load' command is implemented.
+         * This whole thing is not reentrant-safe.
+         */
+        bug_on(current_frame != NULL);
 
-        bug_on(!list_is_empty(&active_frames));
-        list_add_tail(&fr->list, &active_frames);
+        current_frame = vmframe_alloc();
+        current_frame->ex = top_level;
+        current_frame->prev = NULL;
+        current_frame->ppii = top_level->instr;
+        current_frame->stackptr = current_frame->stack;
+        current_frame->owner = q_.gbl;
 
-        while ((ii = *fr->ppii++).code != INSTR_END) {
+        /*
+         * FIXME: lots of indrection and non-register hot access.
+         * Maybe this is why Python uses a ginormous switch statement.
+         */
+        while ((ii = *(current_frame->ppii)++).code != INSTR_END) {
                 bug_on((unsigned int)ii.code >= N_INSTR);
-                JUMP_TABLE[ii.code](fr, ii);
+                JUMP_TABLE[ii.code](current_frame, ii);
         }
 }
 
@@ -664,6 +709,20 @@ moduleinit_vm(void)
         symbol_table = malloc(sizeof(*symbol_table));
         hashtable_init(symbol_table, ptr_hash, ptr_key_match,
                        var_bucket_delete);
+}
+
+struct var_t *
+vm_get_this(void)
+{
+        return current_frame->owner;
+}
+
+struct var_t *
+vm_get_arg(unsigned int idx)
+{
+        if (idx >= current_frame->ap)
+                return NULL;
+        return current_frame->stack[idx];
 }
 
 #else /* !VM_READY */
@@ -677,6 +736,20 @@ vm_execute(struct executable_t *top_level)
 void
 moduleinit_vm(void)
 {
+}
+
+struct var_t *
+vm_get_this(void)
+{
+        /*  \_ (!) _/ */
+        return q_.gbl;
+}
+
+struct var_t *
+vm_get_arg(unsigned int idx)
+{
+        warning("vm_get_arg unsupported in this build mode");
+        return NULL;
 }
 
 #endif /* !VM_READY */

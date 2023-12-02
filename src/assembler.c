@@ -675,9 +675,9 @@ assemble_call_func(struct assemble_t *a, bool have_parent)
          * CALL_FUNC knows how much to pop based on parent arg
          */
         if (have_parent) {
-                add_instr(a, INSTR_CALL_FUNC, IARG_NO_PARENT, argc);
-        } else {
                 add_instr(a, INSTR_CALL_FUNC, IARG_WITH_PARENT, argc);
+        } else {
+                add_instr(a, INSTR_CALL_FUNC, IARG_NO_PARENT, argc);
         }
 }
 

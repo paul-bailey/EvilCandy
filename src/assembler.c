@@ -497,7 +497,6 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                         assemble_eval(a);
                         as_lex(a);
                         as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
-                        add_instr(a, INSTR_POP, 0, 0);
                         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
                         /* we know we have return so we can skip */
                         return;
@@ -510,7 +509,7 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
          * but in case expression reached end
          * without hitting "return", we need a BL.
          */
-        add_instr(a, INSTR_LOAD_CONST, 0, 0);
+        add_instr(a, INSTR_PUSH_ZERO, 0, 0);
         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
 }
 
@@ -887,6 +886,7 @@ assemble_eval4(struct assemble_t *a)
                 else
                         op = INSTR_RSHIFT;
 
+                /* TODO: peek if we can do fast eval */
                 as_lex(a);
                 assemble_eval5(a);
                 add_instr(a, op, 0, 0);
@@ -1208,12 +1208,11 @@ assemble_return(struct assemble_t *a)
 {
         as_lex(a);
         if (a->oc->t == OC_SEMI) {
-                add_instr(a, INSTR_LOAD_CONST, 0, 0);
+                add_instr(a, INSTR_PUSH_ZERO, 0, 0);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
         } else {
                 as_unlex(a);
                 assemble_eval(a);
-                add_instr(a, INSTR_POP, 0, 0);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
                 as_errlex(a, OC_SEMI);
         }

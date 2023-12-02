@@ -258,17 +258,17 @@ qop_lnot(struct var_t *v)
  * If @to and @from are objects or arrays, they will end up both
  * containing the handle to the same object.
  */
-void
+struct var_t *
 qop_mov(struct var_t *to, struct var_t *from)
 {
         const struct operator_methods_t *p;
         if (from == to)
-                return;
+                return to;
 
         bug_on(!from || !to);
         if (to->magic == QEMPTY_MAGIC) {
                 if (from->magic == QEMPTY_MAGIC)
-                        return;
+                        return to;
                 bug_on(isconst(to));
                 p = primitives_of(from);
                 bug_on(!p->mov);
@@ -279,6 +279,7 @@ qop_mov(struct var_t *to, struct var_t *from)
                 bug_on(!p->mov);
                 p->mov(to, from);
         }
+        return to;
 }
 
 /**

@@ -47,6 +47,7 @@ DEPDIR := .deps
 OBJDIR := .objs
 SRCDIR := src
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
+cleanfiles :=
 
 quiet_cmd_cc = CC $@
       cmd_cc = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
@@ -92,7 +93,48 @@ $(prog): $(objs)
 test_scripter: $(prog) demo.tpl
 	$(prog) demo.tpl
 
-cleanfiles := $(OBJDIR) $(prog) $(DEPDIR)
+##
+# generated files
+
+# FIXME: This is a brute-force way to force regeneration of
+# inc/instruction_defs.h.  Any changes to tools/instructions will force
+# recompilation of all objects, even though only a few of them require
+# inc/instruction_defs.h.  But it's the only way I know how to force
+# genaration of the header at all.
+$(objs): inc/instruction_defs.h
+
+$(OBJDIR)/disassemble.o: $(SRCDIR)/disassemble_gen.c.h
+$(OBJDIR)/vm.o: $(SRCDIR)/vm_gen.c.h
+
+gen := tools/gen
+list := tools/instructions
+gentool = cat $(list) | $(gen) $1 > $@
+
+quiet_cmd_gentool = GENTOOL $2 $@
+      cmd_gentool = $(call gentool,$2)
+
+inc/instruction_defs.h: $(list) $(gen)
+	$(call cmd,gentool,def)
+
+$(SRCDIR)/vm_gen.c.h: $(list) $(gen)
+	$(call cmd,gentool,jump)
+
+$(SRCDIR)/disassemble_gen.c.h: $(list) $(gen)
+	$(call cmd,gentool,dis)
+
+quiet_cmd_gen_gen = CC $@
+      cmd_gen_gen = cc -Wall $< -o $@
+$(gen): $(gen).c
+	$(call cmd,gen_gen)
+
+cleanfiles += $(wildcard $(SRCDIR)/*_gen.c.h)
+cleanfiles += inc/instruction_defs.h
+cleanfiles += $(gen)
+
+##
+# cleanup
+
+cleanfiles += $(OBJDIR) $(prog) $(DEPDIR)
 clean:
 	$(if $(wildcard $(cleanfiles)),$(RM) -rf $(wildcard $(cleanfiles)),\
 	  @echo "Nothing to clean")

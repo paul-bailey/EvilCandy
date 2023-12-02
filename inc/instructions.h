@@ -3,53 +3,7 @@
 
 #include <stdint.h>
 #include "list.h"
-
-enum {
-        INSTR_NOP = 0,
-        INSTR_PUSH,
-        INSTR_PUSH_CONST,
-        INSTR_PUSH_PTR,
-        INSTR_PUSH_COPY,
-        INSTR_POP,
-        INSTR_UNWIND,
-        INSTR_ASSIGN,
-        INSTR_SYMTAB,
-        INSTR_LOAD_CONST,
-        INSTR_RETURN_VALUE,
-        INSTR_CALL_FUNC,
-        INSTR_DEFFUNC,
-        INSTR_ADD_CLOSURE,
-        INSTR_ADD_DEFAULT,
-        INSTR_DEFLIST,
-        INSTR_LIST_APPEND,
-        INSTR_DEFDICT,
-        INSTR_ADDATTR,
-        INSTR_GETATTR,
-        INSTR_SETATTR,
-        INSTR_B_IF,
-        INSTR_B,
-        INSTR_BITWISE_NOT,
-        INSTR_NEGATE,
-        INSTR_LOGICAL_NOT,
-        INSTR_MUL,
-        INSTR_DIV,
-        INSTR_MOD,
-        INSTR_ADD,
-        INSTR_SUB,
-        INSTR_LSHIFT,
-        INSTR_RSHIFT,
-        INSTR_CMP,
-        INSTR_BINARY_AND,
-        INSTR_BINARY_OR,
-        INSTR_BINARY_XOR,
-        INSTR_LOGICAL_OR,
-        INSTR_LOGICAL_AND,
-        INSTR_INCR,
-        INSTR_DECR,
-        INSTR_END,
-        N_INSTR,
-
-};
+#include "instruction_defs.h"
 
 /* GETATTR, SETATTR, arg1 enumerations */
 enum {

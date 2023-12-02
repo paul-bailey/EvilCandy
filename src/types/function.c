@@ -32,7 +32,10 @@ struct function_handle_t {
         int f_minargs;
         int f_maxargs;
         void (*f_cb)(struct var_t *ret);
-        struct marker_t f_mk;
+        union {
+                struct executable_t *f_ex;
+                struct marker_t f_mk;
+        };
         struct list_t f_args;
         struct list_t f_closures;
 };

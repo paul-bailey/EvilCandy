@@ -2,7 +2,6 @@
 #include "egq.h"
 #include <stdio.h>
 
-#define INSTR(x)  [INSTR_##x] = #x
 #define IARG(x)   [IARG_##x]  = #x
 #define IARGP(x)  [IARG_PTR_##x]  = #x
 
@@ -11,48 +10,7 @@
 #endif
 
 static const char *INSTR_NAMES[N_INSTR] = {
-        INSTR(NOP),
-        INSTR(PUSH),
-        INSTR(PUSH_CONST),
-        INSTR(PUSH_PTR),
-        INSTR(PUSH_COPY),
-        INSTR(POP),
-        INSTR(UNWIND),
-        INSTR(ASSIGN),
-        INSTR(SYMTAB),
-        INSTR(LOAD_CONST),
-        INSTR(RETURN_VALUE),
-        INSTR(CALL_FUNC),
-        INSTR(DEFFUNC),
-        INSTR(ADD_CLOSURE),
-        INSTR(ADD_DEFAULT),
-        INSTR(DEFLIST),
-        INSTR(LIST_APPEND),
-        INSTR(DEFDICT),
-        INSTR(ADDATTR),
-        INSTR(GETATTR),
-        INSTR(SETATTR),
-        INSTR(B_IF),
-        INSTR(B),
-        INSTR(BITWISE_NOT),
-        INSTR(NEGATE),
-        INSTR(LOGICAL_NOT),
-        INSTR(MUL),
-        INSTR(DIV),
-        INSTR(MOD),
-        INSTR(ADD),
-        INSTR(SUB),
-        INSTR(LSHIFT),
-        INSTR(RSHIFT),
-        INSTR(CMP),
-        INSTR(BINARY_AND),
-        INSTR(BINARY_OR),
-        INSTR(BINARY_XOR),
-        INSTR(LOGICAL_OR),
-        INSTR(LOGICAL_AND),
-        INSTR(INCR),
-        INSTR(DECR),
-        INSTR(END),
+#include "disassemble_gen.c.h"
 };
 
 static const char *ATTR_NAMES[] = {

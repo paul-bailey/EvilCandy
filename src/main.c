@@ -34,6 +34,7 @@ init_modules(void)
                 { .initfn = moduleinit_builtin },
                 { .initfn = moduleinit_frame },
                 { .initfn = moduleinit_lex },
+                { .initfn = moduleinit_vm },
                 { .initfn = NULL },
         };
         const struct initfn_tbl_t *t;
@@ -77,6 +78,9 @@ parse_args(int argc, char **argv)
                                         goto er;
                                 q_.opt.disassemble = true;
                                 q_.opt.disassemble_outfile = argv[argi];
+                                break;
+                        case 'x':
+                                q_.opt.use_vm = true;
                                 break;
                         default:
                                 goto er;

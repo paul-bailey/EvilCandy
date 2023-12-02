@@ -48,8 +48,6 @@ enum {
 };
 
 enum {
-        /* technically not the same thing, but... */
-        AS_ARG_MAX = FRAME_CLOSURE_MAX,
         NFRAME     = 32,
 };
 
@@ -87,7 +85,7 @@ struct as_frame_t {
         char *symtab[FRAME_STACK_MAX];
         int sp;
         int fp;
-        char *argv[AS_ARG_MAX];
+        char *argv[FRAME_ARG_MAX];
         int argc;
         char *clo[FRAME_CLOSURE_MAX];
         int cp;
@@ -564,7 +562,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                                 as_frame_swap(a);
                         }
 
-                        as_err_if(a, a->fr->argc >= AS_ARG_MAX, AE_OVERFLOW);
+                        as_err_if(a, a->fr->argc >= FRAME_ARG_MAX, AE_OVERFLOW);
                         a->fr->argv[a->fr->argc++] = name;
                 }
         } while (a->oc->t == OC_COMMA);

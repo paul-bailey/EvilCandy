@@ -27,9 +27,9 @@ enum {
         RECURSION_MAX   = 256,
         CALL_DEPTH_MAX  = 256,
         FRAME_DEPTH_MAX = CALL_DEPTH_MAX * 2,
-        ARG_MAX         = 24,
 
         /* for frame.c and assemble.c */
+        FRAME_ARG_MAX   = 24,
         FRAME_STACK_MAX = 128,
         FRAME_NEST_MAX  = 32,
         FRAME_CLOSURE_MAX = 24,
@@ -267,6 +267,7 @@ struct global_t {
         struct frame_t *frame;
         struct {
                 bool disassemble;
+                bool use_vm;
                 char *disassemble_outfile;
                 char *infile;
         } opt;
@@ -582,5 +583,8 @@ string_puts(struct var_t *str, const char *s)
         buffer_puts(string_buf__(str), s);
 }
 
+/* vm.c */
+extern void vm_execute(struct executable_t *top_level);
+extern void moduleinit_vm(void);
 
 #endif /* EGQ_H */

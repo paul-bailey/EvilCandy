@@ -25,5 +25,9 @@ extern int assert_array_pos(int idx, void **arr,
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)(((void *)(x)) - offsetof(type, member)))
+#ifndef ARRAY_SIZE
+# define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
+
 
 #endif /* EGQ_HELPERS_H */

@@ -51,7 +51,7 @@ struct function_handle_t {
                          &(fh)->f_##arr##_alloc, \
                          sizeof(struct function_arg_t))
 
-static char *iarg_name[ARG_MAX];
+static char *iarg_name[FRAME_ARG_MAX];
 
 #define list2arg(li) container_of(li, struct function_arg_t, a_list)
 
@@ -141,7 +141,7 @@ push_uargs(struct var_t *fn, struct var_t *owner)
                                 name = arg->a_name;
                                 arg = arg_next_entry(fh, arg);
                         } else {
-                                if (i >= ARG_MAX)
+                                if (i >= FRAME_ARG_MAX)
                                         syntax("Argument limit reached");
                                 name = iarg_name[i++];
                         }
@@ -567,7 +567,7 @@ typedefinit_function(void)
                         "function",
                         &function_primitives,
                         NULL);
-        for (i = 0; i < ARG_MAX; i++) {
+        for (i = 0; i < FRAME_ARG_MAX; i++) {
                 char iarg_buf[64];
                 sprintf(iarg_buf, "[internal_arg_%08d]", i);
                 iarg_name[i] = literal_put(iarg_buf);

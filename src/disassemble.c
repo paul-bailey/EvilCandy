@@ -5,10 +5,6 @@
 #define IARG(x)   [IARG_##x]  = #x
 #define IARGP(x)  [IARG_PTR_##x]  = #x
 
-#ifndef ARRAY_SIZE
-# define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
-#endif
-
 static const char *INSTR_NAMES[N_INSTR] = {
 #include "disassemble_gen.c.h"
 };

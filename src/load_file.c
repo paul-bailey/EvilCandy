@@ -166,6 +166,7 @@ load_file(const char *filename)
 {
         struct ns_t *ns;
         char *path;
+        struct executable_t *ex;
 
         bug_on(!filename);
 
@@ -181,8 +182,13 @@ load_file(const char *filename)
 
         nspush(ns);
 
-        if (assemble(ns) == NULL)
+        if ((ex = assemble(ns)) == NULL)
                 warning("Failed to assemble");
+
+        if (ex && q_.opt.use_vm) {
+                vm_execute(ex);
+                return;
+        }
 
         /*
          * dirty, but we only do it here: we want the first

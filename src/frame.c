@@ -11,8 +11,7 @@ struct frame_t {
         char *symtab[FRAME_STACK_MAX];
         struct var_t *stack[FRAME_STACK_MAX];
         int fps[FRAME_NEST_MAX];
-        char *clotab[FRAME_CLOSURE_MAX];
-        struct var_t *closures[FRAME_CLOSURE_MAX];
+        struct function_arg_t *cloarr;
 };
 #define FRAME_ZSIZE (offsetof(struct frame_t, others))
 
@@ -124,13 +123,12 @@ frame_add_arg(struct frame_t *fr, struct var_t *var, char *name)
 }
 
 void
-frame_add_closure(struct frame_t *fr, struct var_t *clo, char *name)
+frame_add_closures(struct frame_t *fr, struct function_arg_t *arr, int count)
 {
         if (fr->cp >= FRAME_CLOSURE_MAX)
                 syntax("Closure-variable stack overflow");
-        fr->clotab[fr->cp] = name;
-        fr->closures[fr->cp] = clo;
-        fr->cp++;
+        fr->cloarr = arr;
+        fr->cp = count;
 }
 
 struct var_t *
@@ -154,8 +152,8 @@ frame_get_var(const char *name, bool gbl)
                         return fr->stack[i];
         }
         for (i = 0; i < fr->cp; i++) {
-                if (fr->clotab[i] == name)
-                        return fr->closures[i];
+                if (fr->cloarr[i].a_name == name)
+                        return fr->cloarr[i].a_default;
         }
         return NULL;
 }

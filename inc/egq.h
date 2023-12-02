@@ -219,6 +219,15 @@ struct var_t {
         };
 };
 
+/* XXX only used by function.c and frame.c, will be deleted
+ * when we can remove names from local variables, ie when vm is ready
+ */
+struct function_arg_t {
+        char *a_name;
+        struct var_t *a_default;
+};
+
+
 /**
  * struct opcode_t - The byte-code version of a token
  * @t:          Type of opcode, an OC_* enum, or one of "fiuq"
@@ -399,8 +408,8 @@ extern void frame_pop_weak(void);
 extern void frame_add_var(struct var_t *var, char *name);
 extern void frame_add_arg(struct frame_t *fr,
                         struct var_t *var, char *name);
-extern void frame_add_closure(struct frame_t *fr,
-                        struct var_t *clo, char *name);
+extern void frame_add_closures(struct frame_t *fr,
+                        struct function_arg_t *clo, int count);
 extern void frame_add_owners(struct frame_t *fr,
                         struct var_t *obj, struct var_t *func);
 extern struct var_t *frame_get_arg(unsigned int idx);

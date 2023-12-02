@@ -10,8 +10,7 @@ static struct var_t *tstack, *tsp;
 static void
 tstack_pop(struct var_t *to)
 {
-        struct var_t *sp = tsp;
-        bug_on(sp <= tstack);
+        bug_on(tsp <= tstack);
         tsp--;
         if (to)
                 qop_mov(to, tsp);

@@ -36,15 +36,20 @@ struct function_handle_t {
                 struct executable_t *f_ex;
                 struct marker_t f_mk;
         };
-        struct list_t f_args;
-        struct list_t f_closures;
+        struct function_arg_t *f_argv;
+        struct function_arg_t *f_clov;
+        int f_argc;
+        int f_cloc;
+        size_t f_arg_alloc;
+        size_t f_clo_alloc;
 };
 
-struct function_arg_t {
-        char *a_name;
-        struct list_t a_list;
-        struct var_t *a_default;
-};
+/* @arr is either 'arg' or 'clo' */
+#define GROW_ARG_ARRAY(fh, arr) \
+        assert_array_pos((fh)->f_##arr##c + 1, \
+                         (void **)&(fh)->f_##arr##v, \
+                         &(fh)->f_##arr##_alloc, \
+                         sizeof(struct function_arg_t))
 
 static char *iarg_name[ARG_MAX];
 
@@ -54,30 +59,26 @@ static struct function_handle_t *
 function_handle_new(void)
 {
         struct function_handle_t *ret = ecalloc(sizeof(*ret));
-        list_init(&ret->f_args);
-        list_init(&ret->f_closures);
         ret->nref = 1;
         return ret;
 }
 
 static void
-remove_args(struct list_t *which)
+remove_args(struct function_arg_t *arr, int count)
 {
-        struct list_t *li, *tmp;
-        list_foreach_safe(li, tmp, which) {
-                struct function_arg_t *a = list2arg(li);
-                if (a->a_default)
-                        var_delete(a->a_default);
-                list_remove(&a->a_list);
-                free(a);
+        int i;
+        for (i = 0; i < count; i++) {
+                if (arr[i].a_default)
+                        var_delete(arr[i].a_default);
         }
+        free(arr);
 }
 
 static void
 function_handle_reset(struct function_handle_t *fh)
 {
-        remove_args(&fh->f_args);
-        remove_args(&fh->f_closures);
+        remove_args(fh->f_argv, fh->f_argc);
+        remove_args(fh->f_clov, fh->f_cloc);
         free(fh);
 }
 
@@ -85,25 +86,14 @@ function_handle_reset(struct function_handle_t *fh)
 static struct function_arg_t *
 arg_first_entry(struct function_handle_t *fh)
 {
-        struct list_t *list = fh->f_args.next;
-        return list == &fh->f_args ? NULL : list2arg(list);
+        return fh->f_argv ? &fh->f_argv[0] : NULL;
 }
 
 static struct function_arg_t *
 arg_next_entry(struct function_handle_t *fh, struct function_arg_t *arg)
 {
-        struct list_t *list = arg->a_list.next;
-        return list == &fh->f_args ? NULL : list2arg(list);
-}
-
-static void
-push_closures(struct function_handle_t *fh, struct frame_t *fr)
-{
-        struct list_t *clolist;
-        list_foreach(clolist, &fh->f_closures) {
-                struct function_arg_t *arg = list2arg(clolist);
-                frame_add_closure(fr, arg->a_default, arg->a_name);
-        }
+        ++arg;
+        return arg < &fh->f_argv[fh->f_argc] ? arg : NULL;
 }
 
 /*
@@ -179,7 +169,7 @@ push_uargs(struct var_t *fn, struct var_t *owner)
                         arg = arg_next_entry(fh, arg);
                 }
         }
-        push_closures(fh, fr);
+        frame_add_closures(fr, fh->f_clov, fh->f_cloc);
         frame_push(fr);
 }
 
@@ -221,7 +211,7 @@ push_iargs(struct var_t *fn, struct var_t *owner,
                 arg = arg_next_entry(fh, arg);
         }
 
-        push_closures(fh, fr);
+        frame_add_closures(fr, fh->f_clov, fh->f_cloc);
         frame_push(fr);
 }
 
@@ -452,20 +442,6 @@ function_init(struct var_t *func)
         func->magic = QFUNCTION_MAGIC;
 }
 
-/*
- * helper to function_add_arg|closure().
- * @parent is either f_args or f_closures
- */
-static void
-new_arg_or_closure(struct list_t *parent, char *name, struct var_t *deflt)
-{
-        struct function_arg_t *arg = emalloc(sizeof(*arg));
-        arg->a_default = deflt;
-        arg->a_name = name;
-        list_init(&arg->a_list);
-        list_add_tail(&arg->a_list, parent);
-}
-
 /**
  * function_add_arg - Add user arg to a user-defined function
  * @func:  A user-defined function
@@ -484,12 +460,17 @@ void
 function_add_arg(struct var_t *func, char *name, struct var_t *deflt)
 {
         struct function_handle_t *fh = func->fn;
-        struct function_arg_t *arg = emalloc(sizeof(*arg));
+        struct function_arg_t *ar;
 
         bug_on(func->magic != QFUNCTION_MAGIC);
         bug_on(!fh);
         bug_on(fh->f_magic == FUNC_INTERNAL);
-        new_arg_or_closure(&fh->f_args, name, deflt);
+
+        if (GROW_ARG_ARRAY(fh, arg) < 0)
+                fail("OOM");
+        ar = fh->f_argv + fh->f_argc++;
+        ar->a_name = name;
+        ar->a_default = deflt;
 }
 
 /**
@@ -506,13 +487,17 @@ void
 function_add_closure(struct var_t *func, char *name, struct var_t *init)
 {
         struct function_handle_t *fh = func->fn;
-        struct function_arg_t *clo = emalloc(sizeof(*clo));
+        struct function_arg_t *cl;
 
         bug_on(func->magic != QFUNCTION_MAGIC);
         bug_on(!fh);
         bug_on(fh->f_magic == FUNC_INTERNAL);
 
-        new_arg_or_closure(&fh->f_closures, name, init);
+        if (GROW_ARG_ARRAY(fh, clo) < 0)
+                fail("OOM");
+        cl = &fh->f_clov[fh->f_cloc++];
+        cl->a_name = name;
+        cl->a_default = init;
 }
 
 /**

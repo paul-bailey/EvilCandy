@@ -1188,12 +1188,13 @@ assemble_let(struct assemble_t *a)
                 /* emtpy declaration */
                 return;
         case OC_EQ:
-                assemble_eval(a);
                 if (top) {
                         add_instr(a, INSTR_PUSH_PTR, IARG_PTR_SEEK, namei);
+                        assemble_eval(a);
                         add_instr(a, INSTR_ASSIGN, 0, 0);
                         add_instr(a, INSTR_POP, 0, 0);
                 } else {
+                        assemble_eval(a);
                         add_instr(a, INSTR_ASSIGN, 0, 0);
                 }
                 as_errlex(a, OC_SEMI);
@@ -1222,6 +1223,10 @@ assemble_return(struct assemble_t *a)
 static void
 assemble_if(struct assemble_t *a, int skip)
 {
+        /*
+         * TODO: some way to peek for ||, for an early branch
+         * if true.
+         */
         int jmpelse = as_next_label(a);
         assemble_eval(a);
         add_instr(a, INSTR_B_IF, 0, jmpelse);
@@ -1491,6 +1496,7 @@ assemble_fourth_pass(struct assemble_t *a)
 {
         if (q_.opt.disassemble)
                 warning("Disassembly unavailable in release mode");
+        return 0;
 }
 
 #else

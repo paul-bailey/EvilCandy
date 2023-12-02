@@ -267,8 +267,12 @@ qop_mov(struct var_t *to, struct var_t *from)
 
         bug_on(!from || !to);
         if (to->magic == QEMPTY_MAGIC) {
-                if (from->magic == QEMPTY_MAGIC)
+                if (from->magic == QEMPTY_MAGIC) {
                         return to;
+                } else if (from->magic == Q_STRPTR_MAGIC) {
+                        qop_assign_cstring(to, from->strptr);
+                        return to;
+                }
                 bug_on(isconst(to));
                 p = primitives_of(from);
                 bug_on(!p->mov);

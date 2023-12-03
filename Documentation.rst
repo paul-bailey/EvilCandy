@@ -1,20 +1,20 @@
-============
-egq tutorial
-============
+==================
+EvilCandy tutorial
+==================
 
 :Author: Paul Bailey
 :Date: November 2023
 
-**Note** As of November 2023 this program is under development and the
-syntax of the language may change rapidly.
+**Update** December 2023.  For now, probably until end of year, this
+document is wildly out of date, since the program is changing rapidly.
 
 Reference
 =========
 
-.. [CITKNR] Kernighan, Brian W., and Ritchie, Dennis M.,
-            *The C Programming Language: Second Edition*
-            (Upper Saddle River: Prentice Hall, 1988).
-
+.. [CITKNR]
+        Kernighan, Brian W., and Ritchie, Dennis M.,
+        *The C Programming Language: Second Edition*
+        (Upper Saddle River: Prentice Hall, 1988).
         My arrangement of the sections below was modelled after
         Appendix 2 in this book.
 
@@ -47,10 +47,10 @@ Be a good citizen.  Don't mix/match type 3. with 1. and 2.  I only
 included it because I want to make the hashbang syntax permissible,
 ie. having the first line be::
 
-        #!/usr/bin/egq
+        #!/usr/bin/evilcandy
 
-so that the file will execute as standard input to ``egq``.
-:Note: (Using standard input for ``egq`` is not supported yet.)
+so that the file will execute as standard input to ``evilcandy``.
+:Note: (Using standard input for ``evilcandy`` is not supported yet.)
 Don't be shy about using comments, they won't slow down execution
 time, because the file will have already been pre-scanned and
 converted into byte code by the time execution begins.
@@ -58,7 +58,7 @@ converted into byte code by the time execution begins.
 Tokens
 ------
 
-``egq`` classifies its tokens largely the same way as anyone else does:
+``evilcandy`` classifies its tokens largely the same way as anyone else does:
 whitespace, identifiers, keywords, constants like quoted strings or
 numerical expressions, operators, and other separators and delimiters.
 Whitespace is ignored, except whereever at least one whitespace
@@ -76,7 +76,7 @@ and underscores.
 Keyword Tokens
 --------------
 
-The following keywords are reserved for ``egq``:
+The following keywords are reserved for ``evilcandy``:
 
 ============ ========= ==========
 Reserved Keywords
@@ -91,7 +91,7 @@ Reserved Keywords
 Operators
 ---------
 
-These are syntactic sugar for what would be function calls.  ``egq``
+These are syntactic sugar for what would be function calls.  ``evilcandy``
 uses the following:
 
 ======== =======================
@@ -136,7 +136,7 @@ Operator Operation
 
 .. [#] Bitwise operators are only valid when operating on integers.
 
-.. [#] The "pre-" and "post-" of preincrement and postincrement are undefined for ``egq``.
+.. [#] The "pre-" and "post-" of preincrement and postincrement are undefined for ``evilcandy``.
 
 Variables
 =========
@@ -154,7 +154,7 @@ There are three storage classes for variables
    of the global object __gbl__ (more on __gbl__ and friends later).
 3. *internal-access* variables, which have some quasi-visibility to
    users.  This includes default values to optional function arguments,
-   the closest thing ``egq`` has to what are known as closures.
+   the closest thing ``evilcandy`` has to what are known as closures.
 
 Declaring automatic variables
 -----------------------------
@@ -167,7 +167,7 @@ Types of Variables
 ------------------
 
 The above example declared ``x`` and set it to be an *empty* variable.
-``egq`` is not dynamically typed; the only variable that may be changed
+``evilcandy`` is not dynamically typed; the only variable that may be changed
 to a new type is an *empty* variable.  The other types are:
 
 ========== ========================== =========
@@ -181,7 +181,7 @@ string     ``let x = "";``            reference
 function   ``let x = function() {;}`` reference
 ========== ========================== =========
 
-There are no "pointers" in ``egq``.  Instead we use the abstract
+There are no "pointers" in ``evilcandy``.  Instead we use the abstract
 concept of a "handle" when discussing pass-by-reference variables.
 Handles' *contents* may be modified, but the handles themselves
 may not; they may be only assigned.  For example, given a function
@@ -215,9 +215,9 @@ Integers
 
 These may be expressed as digital, octal, or hexadecimal using the
 C convention, eg. 12 can be expressed as ``12``, ``014``, or ``0xC``.
-Currently ``egq`` does **not** support numerical suffixes like ``12ul``.
+Currently ``evilcandy`` does **not** support numerical suffixes like ``12ul``.
 
-All integers are stored as 64-bit signed values.  In ``egq`` these
+All integers are stored as 64-bit signed values.  In ``evilcandy`` these
 are pass-by-value always.
 
 Floats
@@ -285,7 +285,7 @@ The last line will change the contents of ``x`` as well as ``y``.
         the functions.  This is unfortunate, because I intend "array" to
         mean a certain type of built-in library object that deals better
         with large quantities of data.  But "list" has a different
-        meaning in C, and ``egq`` contains some functionality dedicated
+        meaning in C, and ``evilcandy`` contains some functionality dedicated
         to linked-list management, and I didn't want to confuse the two
         groups of functions.
 
@@ -350,7 +350,7 @@ All dictionaries are pass-by reference.
 String
 ~~~~~~
 
-In ``egq`` a string is an object-like variable, whose literal expression
+In ``evilcandy`` a string is an object-like variable, whose literal expression
 is surrounded by either single or double quotes.  The usual backslash
 escapes are recognized (**although** I do not yet support Unicode),
 so you can escape an internal quote with ``\"``.  Or if your string
@@ -411,7 +411,7 @@ Function
 
 A function executes code and returns either a value or an empty variable.
 
-In ``egq``, **all functions are anonymous**.
+In ``evilcandy``, **all functions are anonymous**.
 The familiar JavaScript notation::
 
         function foo() {...
@@ -509,7 +509,7 @@ Since program flow requires this, let's start there...
 Condionals
 ----------
 
-There are no native Boolean types for ``egq``.  Instead *condition*
+There are no native Boolean types for ``evilcandy``.  Instead *condition*
 is evaluated in one of two ways:
 
 1. Comparison between two objects:
@@ -708,7 +708,7 @@ the argument, and the second ``n`` declares a default value in case
 time the function is created--while execution is still in the outer
 function's scope--and will not be destroyed until ``foo`` (and any other
 variables that got assigned the same handle as ``foo``) is also
-destroyed.  This is the closest thing there is to a *closure* in ``egq``.
+destroyed.  This is the closest thing there is to a *closure* in ``evilcandy``.
 
 Variables may also be declared inside loop statements, for even further
 namespace reduction::

@@ -227,8 +227,8 @@ struct vmframe_t {
 
 /**
  * struct token_t - Token metadata
- * @t:          Type of opcode, an OC_* enum, or one of "fiuq"
- * @line:       Line number in file where this opcode was parsed,
+ * @t:          Type of token, an OC_* enum, or one of "fiuq"
+ * @line:       Line number in file where this token was parsed,
  *              used for tracing for error messages.
  * @s:          Content of the token parsed
  * @f:          Value of the token, if @t is 'f'

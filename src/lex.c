@@ -445,6 +445,12 @@ buffer_putcode(struct buffer_t *buf, struct token_t *oc)
         buffer_putd(buf, oc, sizeof(*oc));
 }
 
+/*
+ * XXX REVISIT: cf. assembler.c, ``as_lex'' and ``as_unlex''.  Instead of
+ * prescanning the whole file, this could be done a token at a time.  It
+ * saves some steps and makes it easier to transition the project into a
+ * VM that can run in interactive mode.
+ */
 struct token_t *
 prescan(const char *filename)
 {

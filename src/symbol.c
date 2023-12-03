@@ -75,7 +75,7 @@ symbol_seek(const char *s)
 
         if (s == gbl)
                 return q_.gbl;
-        if ((v = trystack(s, true)) != NULL)
+        if (!q_.opt.use_vm && (v = trystack(s, true)) != NULL)
                 return v;
         if ((v = trythis(s)) != NULL)
                 return v;

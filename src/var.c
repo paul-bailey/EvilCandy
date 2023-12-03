@@ -23,8 +23,8 @@
  * the library malloc() and free(), I assume because they are customized
  * for many small alloc/frees, as well as for locality.
  */
-#define SIMPLE_ALLOC 1
-#define LIST_ALLOC 0
+#define SIMPLE_ALLOC 0
+#define LIST_ALLOC 1
 
 #if SIMPLE_ALLOC
 

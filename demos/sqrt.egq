@@ -46,10 +46,11 @@ let sqrt = function(x) {
 
 (function(sqrt) {
     let x = 0.;
-    for (let i = 0.; i < 1000000.0; i = i+10000.0) {
-            print("i={}".format(i));
-            for (let j = 0.; j < 10000.0; j++)
-                x = sqrt(i + j);
+    for (let i = 0.; i < 1000000.0; i++) {
+            // print("i={}".format(i));
+            // for (let j = 0.; j < 10000.0; j++)
+            //     x = sqrt(i + j);
+        x = sqrt(i);
     }
 })(sqrt);
 // for (let i = 0.0; i < 50.0; i++)

@@ -332,26 +332,21 @@ static void
 apop_scope_instruction_only(struct assemble_t *a)
 {
         bug_on(a->fr->nest <= 0);
-        int cur_fp = a->fr->fp;
+        int cur_fp = a->fr->sp;
         int prev_fp = a->fr->scope[a->fr->nest - 1];
         bug_on(cur_fp < prev_fp);
-#warning "resolve this"
-#if 0
-        /*
-         * FIXME: this should work, and indeed it's necessary,
-         * to prevent zombifying variables, but somehow it's
-         * breaking.
-         */
         while (cur_fp-- > prev_fp)
                 add_instr(a, INSTR_POP_LOCAL, 0, 0);
-#endif
 }
 
 static void
 apop_scope(struct assemble_t *a)
 {
         bug_on(a->fr->nest <= 0);
-        apop_scope_instruction_only(a);
+        while (a->fr->sp > a->fr->fp) {
+                a->fr->sp--;
+                add_instr(a, INSTR_POP_LOCAL, 0, 0);
+        }
         a->fr->nest--;
         a->fr->fp = a->fr->scope[a->fr->nest];
 }

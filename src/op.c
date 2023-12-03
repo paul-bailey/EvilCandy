@@ -6,8 +6,8 @@
 static void
 type_err(struct var_t *v, int magic)
 {
-        syntax("You may not change variable %s from type %s to type %s",
-                nameof(v), typestr(v->magic), typestr(magic));
+        syntax("You may not change variable from type %s to type %s",
+                typestr(v->magic), typestr(magic));
 }
 
 static void

@@ -283,7 +283,6 @@ struct global_t {
 /* main.c */
 extern struct global_t q_;
 extern const char *typestr(int magic);
-extern const char *nameof(struct var_t *v);
 
 /* helpers to classify a variable */
 static inline bool isconst(struct var_t *v)

@@ -74,7 +74,7 @@ eobject_child_l(struct var_t *o, const char *s)
         struct var_t *v;
         v = object_child_l(o, s);
         if (!v)
-                syntax("object %s has no child %s", nameof(o), s);
+                syntax("object has no attribute %s", s);
         return v;
 }
 
@@ -84,7 +84,7 @@ eobject_nth_child(struct var_t *o, int n)
         struct var_t *v;
         v = object_nth_child(o, n);
         if (!v)
-                syntax("object %s has no %dth child", nameof(o), n);
+                syntax("object has no %dth child", n);
         return v;
 }
 
@@ -93,7 +93,7 @@ earray_child(struct var_t *array, int idx)
 {
         struct var_t *ret = array_child(array, idx);
         if (ret < 0)
-                syntax("Array %s has no %llith element", nameof(array), idx);
+                syntax("Array has no %llith element", idx);
         return ret;
 }
 

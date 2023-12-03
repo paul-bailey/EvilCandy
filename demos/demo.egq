@@ -1,4 +1,4 @@
-
+#!./egq
 
 let pow = function(x, y) {
     if (typeof(x) != "int" || typeof(y) != "int") {
@@ -25,21 +25,6 @@ let iterator = {
     },
 
     toten: function(x) {
-        /* this works, but below do not. Why?:
-         *  let n = 11;
-         *  do {
-         *      while (x < n) {
-         *          print("\titerator.toten: x is {}".format(x));
-         *          x++;
-         *      }
-         *  } while (0);
-         */
-        // let n = n;
-        // while (x < 11) {
-        //     print("\titerator.toten: x is {}".format(x));
-        //     x++;
-        // }
-
         let n = 11;
         do {
             print("\titerator.toten: x is {}".format(x));

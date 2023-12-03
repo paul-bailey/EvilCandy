@@ -22,14 +22,8 @@ typestr(int magic)
         return TYPEDEFS[magic].name;
 }
 
-const char *
-nameof(struct var_t *v)
-{
-        return "[unnamed]";
-}
-
 static void
-init_modules(void)
+init_lib(void)
 {
         static const struct initfn_tbl_t {
                 void (*initfn)(void);
@@ -49,41 +43,56 @@ init_modules(void)
                 t->initfn();
 }
 
-static void
-init_lib(void)
-{
-        init_modules();
-}
-
 static int
 parse_args(int argc, char **argv)
 {
-        int c;
-        while ((c = getopt(argc, argv, "D:d:")) != -1) {
-                switch (c) {
-                case 'd':
-                        q_.opt.disassemble = true;
-                        q_.opt.disassemble_outfile = optarg;
-                        break;
-                case 'D':
-                        q_.opt.disassemble = true;
-                        q_.opt.disassemble_outfile = optarg;
-                        q_.opt.disassemble_only = true;
-                        break;
-                default:
-                        goto er;
+        int argi;
+        bool expect_disfile = false;
+
+        for (argi = 1; argi < argc; argi++) {
+                char *s = argv[argi];
+                if (*s == '-') {
+                        s++;
+                        switch (*s++) {
+                        case 'd':
+                                q_.opt.disassemble = true;
+                                expect_disfile = true;
+                                if (*s != '\0')
+                                        goto er;
+                                continue;
+                        case 'D':
+                                q_.opt.disassemble = true;
+                                q_.opt.disassemble_only = true;
+                                expect_disfile = true;
+                                if (*s != '\0')
+                                        goto er;
+                                continue;
+                        default:
+                                goto er;
+                        }
+                } else if (expect_disfile) {
+                        expect_disfile = false;
+                        if (q_.opt.disassemble_outfile != NULL) {
+                                fprintf(stderr, "-D and -d options must be exclusive\n");
+                                goto er;
+                        }
+                        q_.opt.disassemble_outfile = s;
+                } else {
+                        if (q_.opt.infile != NULL) {
+                                fprintf(stderr, "You may only specify one input file\n");
+                                goto er;
+                        }
+                        q_.opt.infile = s;
                 }
         }
-
-        if (optind != argc - 1)
+        if (!q_.opt.infile) {
+                fprintf(stderr, "Input file not specified");
                 goto er;
-
-        q_.opt.infile = argv[optind];
+        }
         return 0;
 
 er:
-        fprintf(stderr, "Expected: '%s INFILE' or '%s -a OUTFILE INFILE\n",
-                argv[0], argv[0]);
+        fprintf(stderr, "Expected: '%s [OPTIONS] INFILE'\n", argv[0]);
         return -1;
 }
 

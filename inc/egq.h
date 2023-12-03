@@ -25,13 +25,9 @@
  */
 enum {
         /* Tunable parameters */
-        STACK_MAX       = 8192,
-        LOAD_MAX        = 128,
         RECURSION_MAX   = 256,
-        CALL_DEPTH_MAX  = 256,
-        FRAME_DEPTH_MAX = CALL_DEPTH_MAX * 2,
 
-        /* for vm.c and assemble.c */
+        /* for vm.c and assembler.c */
         FRAME_ARG_MAX   = 24,
         FRAME_STACK_MAX = 128,
         FRAME_NEST_MAX  = 32,
@@ -298,7 +294,7 @@ static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
-/* assemble.c */
+/* assembler.c */
 extern struct executable_t *assemble(const char *source_file_name,
                                      struct token_t *token_arr);
 
@@ -515,6 +511,8 @@ string_puts(struct var_t *str, const char *s)
 
 /* vm.c */
 extern void vm_execute(struct executable_t *top_level);
+extern struct var_t *vm_reenter(struct var_t *func, struct var_t *owner,
+                                int argc, struct var_t **argv);
 extern void moduleinit_vm(void);
 extern struct var_t *vm_get_this(void);
 extern struct var_t *vm_get_arg(unsigned int idx);

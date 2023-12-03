@@ -1,36 +1,20 @@
+/*
+ * vm.c - Virtual Machine for EvilCandy.
+ *
+ * This executes the byte code assembled in assembler.c
+ *
+ * When loading a file, vm_execute is called.  When calling a function
+ * from internal code (eg. in a foreach loop), vm_reenter is called.
+ */
 #include <instructions.h>
 #include <limits.h>
 #include <egq.h>
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * FIXME: This is not safe for reentrance.  Consider the scenario:
- *
- *      "myobj.foreach(elem, function (e) {..."
- *
- * ie. we'd be calling perhaps vm_execute again, and never see INSTR_END.
- * We'd see INSTR_RETURN at some point and pop the frame, but the parent
- * frame would not be NULL, therefore we'd still be running the previous
- * call's execution from the current (reentrant) call's execution.  The
- * only two solutions I can think of are both terrible:
- *
- *      1.      Make the 'fr' argument be '&fr'--ie a pass-by-reference
- *              argument--to all of the instruction callbacks, even though
- *              only 1 or 2 will ever change it, and the rest just have
- *              that much more indirection to deal with.
- *
- *      2.      Have all the callbacks instead be jump labels in a
- *              mile-long switch statement, so the whole thing will be a
- *              single function; multiple top-level variables can be
- *              modified by specific ``callbacks'' without needing to
- *              add a bunch of by-reference arguments.
- *
- * #2 is what Python does, but part of the motivation for this problem
- * was making something that's a lot simpler, implementation-wise.
- */
 static struct vmframe_t *current_frame;
 
+/* XXX arbitrary */
 static struct hashtable_t *symbol_table;
 
 #define list2vmf(li) container_of(li, struct vmframe_t, list)
@@ -192,8 +176,10 @@ vmframe_free(struct vmframe_t *fr)
          */
         for (vpp = fr->stack; vpp < fr->stackptr; vpp++)
                 var_delete(*vpp);
-        var_delete(fr->owner);
-        var_delete(fr->func);
+        if (fr->owner)
+                var_delete(fr->owner);
+        if (fr->func)
+                var_delete(fr->func);
         list_add_tail(&fr->alloc_list, &vframe_free_list);
 }
 
@@ -457,7 +443,6 @@ do_return_value(struct vmframe_t *fr, instruction_t ii)
         current_frame = fr->prev;
         vmframe_free(fr);
         fr = current_frame;
-        bug_on(current_frame == NULL);
         push(fr, result);
 }
 
@@ -852,17 +837,65 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
 };
 
+#define EXECUTE_LOOP(CHECK_NULL) do {                                   \
+        instruction_t ii;                                               \
+        while ((ii = *(current_frame->ppii)++).code != INSTR_END) {     \
+                bug_on((unsigned int)ii.code >= N_INSTR);               \
+                JUMP_TABLE[ii.code](current_frame, ii);                 \
+                /*                                                      \
+                 * In reentrance mode, INSTR_RETURN may set             \
+                 * current_frame to NULL.  This, rather than            \
+                 * INSTR_END, is our trigger to leave.                  \
+                 */                                                     \
+                if (CHECK_NULL && !current_frame)                       \
+                        break;                                          \
+        }                                                               \
+} while (0)
+
+/*
+ * reentrance means recursion, means stack stress (the irl stack, not the
+ * user-data stack).  Users shouldn't abuse an object's foreach method
+ * with lots of nested calls back into another foreach method.
+ *
+ * XXX: Arbitrary choice for value, do some research and find out if
+ * there's a known reason for a specific pick/method for stack overrun
+ * protection.
+ */
+#define VM_REENT_MAX 128
+
+#define REENTRANT_PUSH_(arr, idx) do { \
+        if (idx >= VM_REENT_MAX) \
+                syntax("Recursion max reahced"); \
+        arr[idx] = current_frame; \
+        current_frame = NULL; \
+        idx++; \
+} while (0)
+#define REENTRANT_POP_(arr, idx) do { \
+        bug_on(idx <= 0); \
+        --idx; \
+        current_frame = arr[idx]; \
+} while (0)
+
+#define REENTRANT_PUSH()                         \
+        REENTRANT_PUSH_(vmframe_recursion_stack, \
+                        vmframe_recursion_stack_idx)
+
+#define REENTRANT_POP()                         \
+        REENTRANT_POP_(vmframe_recursion_stack, \
+                        vmframe_recursion_stack_idx)
+
+static struct vmframe_t *vmframe_recursion_stack[VM_REENT_MAX];
+static int vmframe_recursion_stack_idx = 0;
+
+/**
+ * vm_execute - Execute from the top level of a script.
+ * @top_level: Result of assemble()
+ */
 void
 vm_execute(struct executable_t *top_level)
 {
-        instruction_t ii;
-
         bug_on(!(top_level->flags & FE_TOP));
-        /*
-         * FIXME: not true when 'load' command is implemented.
-         * This whole thing is not reentrant-safe.
-         */
-        bug_on(current_frame != NULL);
+        REENTRANT_PUSH();
 
         current_frame = vmframe_alloc();
         current_frame->ex = top_level;
@@ -871,14 +904,72 @@ vm_execute(struct executable_t *top_level)
         current_frame->stackptr = current_frame->stack;
         current_frame->owner = q_.gbl;
 
+        EXECUTE_LOOP(0);
+
+        current_frame->func = NULL;
+        current_frame->owner = NULL;
+        vmframe_free(current_frame);
+        bug_on(current_frame != NULL);
+
+        REENTRANT_POP();
+}
+
+/**
+ * vm_reenter - Call a function--user-defined or internal--from a builtin
+ *              callback
+ * @func:       Function to call
+ * @owner:      ``this'' to set
+ * @arc:        Number of arguments being passed to the function
+ * @argv:       Array of arguments
+ *
+ * Return: The result of the function called.  Calling code must do something
+ * with this return value, either store it or throw it away, otherwise memory
+ * leaks will occur.
+ */
+struct var_t *
+vm_reenter(struct var_t *func, struct var_t *owner,
+           int argc, struct var_t **argv)
+{
         /*
-         * FIXME: lots of indrection and non-register hot access.
-         * Maybe this is why Python uses a ginormous switch statement.
+         * FIXME: This is still not **fully** reentrance-proof, it still
+         * doesn't allow for the ``load'' command.
          */
-        while ((ii = *(current_frame->ppii)++).code != INSTR_END) {
-                bug_on((unsigned int)ii.code >= N_INSTR);
-                JUMP_TABLE[ii.code](current_frame, ii);
+        struct vmframe_t *fr;
+        struct var_t *res;
+
+        /*
+         * XXX REVISIT: lots of subtle differences between this and
+         * do_call_func/do_return_value, but they're DRY violations just
+         * the same.
+         */
+        bug_on(current_frame == NULL);
+
+        REENTRANT_PUSH();
+
+        fr= vmframe_alloc();
+        fr->ap = argc;
+        while (argc-- > 0)
+                fr->stack[argc] = argv[argc];
+
+        call_vmfunction_prep_frame(func, fr, owner);
+        fr->stackptr = fr->stack + fr->ap;
+
+        fr->prev = current_frame; /* should be NULL */
+        current_frame = fr;
+
+        res = call_vmfunction(fr->func);
+        if (res) {
+                current_frame = fr->prev;
+        } else {
+                fr->ppii = fr->ex->instr;
+                EXECUTE_LOOP(1);
+                res = pop(fr);
         }
+        vmframe_free(fr);
+
+        REENTRANT_POP();
+
+        return res;
 }
 
 void

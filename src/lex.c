@@ -190,16 +190,14 @@ static bool
 qlex_comment(void)
 {
         char *pc = lexer.s;
+        if (*pc == '#')
+                goto oneline;
+
         if (*pc++ != '/')
                 return false;
 
-        if (*pc == '/') {
-                /* single-line comment */
-                while (*pc != '\n' && *pc != '\0')
-                        ++pc;
-                lexer.s = pc;
-                return true;
-        }
+        if (*pc == '/')
+                goto oneline;
 
         if (*pc == '*') {
                 /* block comment */
@@ -215,6 +213,13 @@ qlex_comment(void)
                 return true;
         }
         return false;
+
+oneline:
+        /* single-line comment */
+        while (*pc != '\n' && *pc != '\0')
+                ++pc;
+        lexer.s = pc;
+        return true;
 }
 
 static bool

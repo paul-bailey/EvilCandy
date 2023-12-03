@@ -410,11 +410,11 @@ tokenize_helper(void)
 }
 
 int
-tokenize(struct opcode_t *oc)
+tokenize(struct token_t *oc)
 {
         int ret = tokenize_helper();
         if (ret == EOF) {
-                static const struct opcode_t eofoc = {
+                static const struct token_t eofoc = {
                         .t = EOF,
                         .line = 0,
                         .s = NULL,
@@ -440,15 +440,15 @@ tokenize(struct opcode_t *oc)
 }
 
 static void
-buffer_putcode(struct buffer_t *buf, struct opcode_t *oc)
+buffer_putcode(struct buffer_t *buf, struct token_t *oc)
 {
         buffer_putd(buf, oc, sizeof(*oc));
 }
 
-struct opcode_t *
+struct token_t *
 prescan(const char *filename)
 {
-        struct opcode_t oc;
+        struct token_t oc;
         int t;
         struct stat st;
         struct buffer_t pgm;
@@ -487,7 +487,7 @@ prescan(const char *filename)
 done:
         fclose(lexer.fp);
         lexer.fp = 0;
-        return (struct opcode_t *)pgm.s;
+        return (struct token_t *)pgm.s;
 }
 
 void

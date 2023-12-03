@@ -139,29 +139,6 @@ struct type_t {
         const struct operator_methods_t *opm;
 };
 
-/**
- * struct ns_t - metadata for a loaded script
- * @pgm:        Byte code of the loaded file
- * @fname:      File name of this script
- *
- * FIXME: Badly named, this isn't a namespace.
- */
-struct ns_t {
-        struct buffer_t pgm;
-        char *fname;
-};
-
-/**
- * struct marker_t - Used for saving a place, either for
- *      declaring a symbol or for recalling an earlier token.
- * @ns: Which file we're executing
- * @oc: A pointer into @ns.pgm.oc
- */
-struct marker_t {
-        struct ns_t *ns;
-        struct opcode_t *oc;
-};
-
 /*
  * PRIVATE STRUCT, placed here so I can inline some things
  */
@@ -249,7 +226,7 @@ struct vmframe_t {
 
 
 /**
- * struct opcode_t - Token metadata
+ * struct token_t - Token metadata
  * @t:          Type of opcode, an OC_* enum, or one of "fiuq"
  * @line:       Line number in file where this opcode was parsed,
  *              used for tracing for error messages.
@@ -257,7 +234,7 @@ struct vmframe_t {
  * @f:          Value of the token, if @t is 'f'
  * @i:          Value of the token, if @t is 'i'
  */
-struct opcode_t {
+struct token_t {
         unsigned int t;
         unsigned int line;
         char *s;
@@ -325,7 +302,7 @@ static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
 /* assemble.c */
 extern struct executable_t *assemble(const char *source_file_name,
-                                     struct opcode_t *token_arr);
+                                     struct token_t *token_arr);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);
@@ -387,7 +364,7 @@ extern int keyword_seek(const char *s);
 extern void moduleinit_keyword(void);
 
 /* lex.c */
-extern struct opcode_t *prescan(const char *filename);
+extern struct token_t *prescan(const char *filename);
 extern void moduleinit_lex(void);
 
 /* literal.c */
@@ -466,16 +443,9 @@ extern void call_function_from_intl(struct var_t *fn,
  *              function_add_closure ...ditto
  *              function_set_user
  */
-extern void function_add_arg(struct var_t *func,
-                             char *name, struct var_t *deflt);
-extern void function_init(struct var_t *func);
-extern void function_set_user(struct var_t *func,
-                        const struct marker_t *pc, bool lambda);
 extern void function_init_internal(struct var_t *func,
                         void (*cb)(struct var_t *),
                         int minargs, int maxargs);
-extern void function_add_closure(struct var_t *func, char *name,
-                        struct var_t *init);
 
 /* For the virtual machine in all of us */
 extern struct var_t *call_vmfunction_prep_frame(struct var_t *fn,

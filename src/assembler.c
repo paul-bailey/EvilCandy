@@ -117,8 +117,8 @@ struct as_frame_t {
  */
 struct assemble_t {
         char *file_name;
-        struct opcode_t *prog;
-        struct opcode_t *oc;
+        struct token_t *prog;
+        struct token_t *oc;
         int func;
         jmp_buf env;
         struct list_t active_frames;
@@ -414,7 +414,7 @@ seek_or_add_const_xptr(struct assemble_t *a, void *p)
 
 /* const from a token literal in the script */
 static int
-seek_or_add_const(struct assemble_t *a, struct opcode_t *oc)
+seek_or_add_const(struct assemble_t *a, struct token_t *oc)
 {
         int i;
         struct as_frame_t *fr = a->fr;
@@ -476,7 +476,7 @@ seek_or_add_const(struct assemble_t *a, struct opcode_t *oc)
 }
 
 static void
-ainstr_push_const(struct assemble_t *a, struct opcode_t *oc)
+ainstr_push_const(struct assemble_t *a, struct token_t *oc)
 {
         add_instr(a, INSTR_PUSH_CONST, 0, seek_or_add_const(a, oc));
 }
@@ -613,7 +613,7 @@ assemble_objdef(struct assemble_t *a)
 {
         add_instr(a, INSTR_DEFDICT, 0, 0);
         do {
-                struct opcode_t *name;
+                struct token_t *name;
                 int namei;
                 as_errlex(a, 'u');
                 name = a->oc;
@@ -646,7 +646,7 @@ static void assemble_eval1(struct assemble_t *a);
  * (for eval mode, where vars could be carelessly clobbered).
  */
 static void
-ainstr_push_symbol(struct assemble_t *a, int instr, struct opcode_t *name)
+ainstr_push_symbol(struct assemble_t *a, int instr, struct token_t *name)
 {
         int idx;
 
@@ -762,7 +762,7 @@ assemble_eval8(struct assemble_t *a)
                a->oc->t == OC_LPAR) {
 
                 int namei;
-                struct opcode_t *name;
+                struct token_t *name;
 
                 /*
                  * GETATTR 0 ... pop parent, get attribute from const,
@@ -1026,7 +1026,7 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
 
         for (;;) {
                 int namei;
-                struct opcode_t *name;
+                struct token_t *name;
                 switch (a->oc->t) {
                 case OC_PER:
                         have_parent = true;
@@ -1164,7 +1164,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
 static void
 assemble_let(struct assemble_t *a)
 {
-        struct opcode_t *name;
+        struct token_t *name;
         bool top;
         int namei;
         as_errlex(a, 'u');
@@ -1563,7 +1563,7 @@ assemble_fifth_pass(struct assemble_t *a)
 }
 
 static struct assemble_t *
-new_assembler(const char *source_file_name, struct opcode_t *token_arr)
+new_assembler(const char *source_file_name, struct token_t *token_arr)
 {
         struct assemble_t *a = ecalloc(sizeof(*a));
         a->file_name = (char *)source_file_name;
@@ -1589,7 +1589,7 @@ free_assembler(struct assemble_t *a, int err)
 
 /* token_arr MUST be EOF-terminated */
 struct executable_t *
-assemble(const char *source_file_name, struct opcode_t *token_arr)
+assemble(const char *source_file_name, struct token_t *token_arr)
 {
         struct assemble_t *a;
         struct executable_t *ex;

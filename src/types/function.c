@@ -197,26 +197,6 @@ call_function_from_intl(struct var_t *fn, struct var_t *retval,
         syntax("Cannot currently support callbacks in VM mode");
 }
 
-/**
- * function_init - precursor to function_set_user
- * @func: Empty variable to configure as a function
- *
- * This and function_set_user would just be a single function call
- * named function_init_user to parallel function_init_internal,
- * but the pc is not yet determined at function_add_arg time.
- */
-void
-function_init(struct var_t *func)
-{
-        struct function_handle_t *fh;
-        bug_on(func->magic != QEMPTY_MAGIC);
-
-        fh = function_handle_new();
-        fh->f_magic = 0;
-        func->fn = fh;
-        func->magic = QFUNCTION_MAGIC;
-}
-
 void
 function_vmadd_closure(struct var_t *func, struct var_t *clo)
 {

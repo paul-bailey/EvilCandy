@@ -112,7 +112,7 @@ convert_path(const char *name)
 void
 load_file(const char *filename)
 {
-        struct opcode_t *oc;
+        struct token_t *oc;
         char *path;
         struct executable_t *ex;
 

@@ -106,6 +106,8 @@ vmframe_free(struct vmframe_t *fr)
                 var_delete(pop(fr));
         while (fr->lp > 0)
                 var_delete(pop_local(fr));
+        var_delete(fr->owner);
+        var_delete(fr->func);
         free(fr);
 }
 
@@ -379,7 +381,7 @@ do_return_value(struct vmframe_t *fr, instruction_t ii)
 static void
 do_call_func(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *func, *owner, *res, *truefunc;
+        struct var_t *func, *owner, *res;
         struct vmframe_t *fr_new;
         int narg = ii.arg2;
         bool parent = ii.arg1 == IARG_WITH_PARENT;
@@ -407,7 +409,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
 
         fr_new->fp = 0;
 
-        truefunc = call_vmfunction_prep_frame(func, fr_new, owner);
+        call_vmfunction_prep_frame(func, fr_new, owner);
 
         if (owner == fr_new->owner)
                 odel = false;
@@ -423,7 +425,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         fr_new->prev = current_frame;
 
         current_frame = fr_new;
-        res = call_vmfunction(truefunc);
+        res = call_vmfunction(fr_new->func);
         if (res) {
                 /* Internal, already called and executed
                  * pop new frame, push result in old frame
@@ -431,10 +433,6 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 current_frame = fr_new->prev;
                 vmframe_free(fr_new);
                 push(fr, res);
-                if (fdel)
-                        var_delete(func);
-                if (odel)
-                        var_delete(owner);
         } else {
                 /*
                  * User function, not yet executed,
@@ -442,15 +440,11 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                  */
                 bug_on(!fr_new->ex);
                 fr_new->ppii = fr_new->ex->instr;
-#warning resolve
-#if 0
-                /* FIXME this should work but it doesn't */
-                if (fdel && func != fr->func)
-                        var_delete(func);
-#endif
-                if (odel && owner != fr->owner)
-                        var_delete(owner);
         }
+        if (fdel)
+                var_delete(func);
+        if (odel)
+                var_delete(owner);
 }
 
 static void

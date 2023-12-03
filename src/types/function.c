@@ -418,13 +418,13 @@ call_vmfunction_prep_frame(struct var_t *fn,
         }
         if (!owner)
                 owner = get_this();
-        fr->owner = owner;
-        fr->func = fn;
-        fr->clo = fh->f_vmclov;
+        fr->owner = qop_mov(var_new(), owner);
+        fr->func  = qop_mov(var_new(), fn);
+        fr->clo   = fh->f_vmclov;
 
         if (fh->f_magic == FUNC_VM)
                 fr->ex = fh->f_ex;
-        return fn;
+        return fr->func;
 }
 
 /*

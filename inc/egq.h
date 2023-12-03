@@ -388,7 +388,6 @@ extern struct var_t *eobject_nth_child(struct var_t *o, int n);
 extern struct var_t *earray_child(struct var_t *array, int n);
 extern int earray_set_child(struct var_t *array,
                             int idx, struct var_t *child);
-extern struct var_t *esymbol_seek(const char *name);
 extern char *eliteral(const char *key);
 
 /* keyword.c */
@@ -438,11 +437,6 @@ extern void qop_assign_cstring(struct var_t *v, const char *s);
 extern void qop_assign_int(struct var_t *v, long long i);
 extern void qop_assign_float(struct var_t *v, double f);
 extern void qop_assign_char(struct var_t *v, int c);
-
-/* symbol.c */
-extern struct var_t *symbol_seek(const char *s);
-extern struct var_t *symbol_seek_stack(const char *s);
-extern struct var_t *symbol_seek_stack_l(const char *s);
 
 /* var.c */
 extern struct var_t *var_init(struct var_t *v);

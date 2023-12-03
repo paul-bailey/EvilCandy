@@ -86,6 +86,43 @@ pop_local(struct vmframe_t *fr)
 
 #endif /* DEBUG */
 
+static struct var_t *
+symbol_seek_this_(const char *s)
+{
+        struct var_t *o = get_this();
+        if (o && o->magic == QOBJECT_MAGIC)
+                return object_child_l(o, s);
+        return NULL;
+}
+
+static struct var_t *
+symbol_seek_(const char *s)
+{
+        static char *gbl = NULL;
+        struct var_t *v;
+
+        if (!s)
+                return NULL;
+
+        if (!gbl)
+                gbl = literal("__gbl__");
+
+        if (s == gbl)
+                return q_.gbl;
+        if ((v = symbol_seek_this_(s)) != NULL)
+                return v;
+        return object_child_l(q_.gbl, s);
+}
+
+static struct var_t *
+symbol_seek(const char *s)
+{
+        struct var_t *ret = symbol_seek_(s);
+        if (!ret)
+                syntax("Symbol %s not found", s);
+        return ret;
+}
+
 static struct list_t vframe_free_list = LIST_INIT(&vframe_free_list);
 
 static struct vmframe_t *
@@ -146,7 +183,7 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
                 struct var_t *vp = hashtable_get(symbol_table, name);
                 if (vp)
                         return vp;
-                return esymbol_seek(name);
+                return symbol_seek(name);
         }
         case IARG_PTR_GBL:
                 return q_.gbl;

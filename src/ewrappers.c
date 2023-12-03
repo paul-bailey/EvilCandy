@@ -106,15 +106,6 @@ earray_set_child(struct var_t *array, int idx, struct var_t *child)
         return ret;
 }
 
-struct var_t *
-esymbol_seek(const char *name)
-{
-        struct var_t *ret = symbol_seek(name);
-        if (!ret)
-                syntax("Symbol %s not found", name);
-        return ret;
-}
-
 char *
 eliteral(const char *key)
 {

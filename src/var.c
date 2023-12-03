@@ -63,8 +63,19 @@ var_free(struct var_t *v)
 static struct var_mem_t *var_freelist = NULL;
 struct var_mem_t {
         struct var_mem_t *list;
+#  ifndef NDEBUG
+        bool freed;
+#  endif
         struct var_t var;
 };
+
+#ifndef NDEBUG
+# define MARK_FREE(vm) do { bug_on((vm)->freed); (vm)->freed = true; } while (0)
+# define MARK_USED(vm) do { bug_on(!(vm)->freed); (vm)->freed = false; } while (0)
+#else
+# define MARK_FREE(vm) do { (void)0; } while (0)
+# define MARK_USED(vm) do { (void)0; } while (0)
+#endif
 
 #define list2memvar(li) container_of(li, struct var_mem_t, list)
 #define var2memvar(v) container_of(v, struct var_mem_t, var)
@@ -78,6 +89,9 @@ var_more_(void)
         for (i = 0; i < NPERBLK; i++) {
                 blk[i].list = var_freelist;
                 var_freelist = &blk[i];
+#ifndef NDEBUG
+                blk[i].freed = true;
+#endif
         }
 }
 
@@ -91,6 +105,7 @@ var_alloc(void)
 
         vm = list2memvar(var_freelist);
         var_freelist = vm->list;
+        MARK_USED(vm);
         return &vm->var;
 }
 
@@ -100,6 +115,7 @@ var_free(struct var_t *v)
         REGISTER_FREE();
         struct var_mem_t *vm = var2memvar(v);
         vm->list = var_freelist;
+        MARK_FREE(vm);
         var_freelist = vm;
 }
 

@@ -60,6 +60,14 @@ enum type_magic_t {
 
         /* internal use, user should never be able to access these */
         Q_STRPTR_MAGIC = Q_NMAGIC,
+        /*
+         * FIXME: This causes lots of inefficient de-referencing.
+         * The problem is, floats and ints are pass-by-value.  If a
+         * dictionary's attribute is pushed onto the stack and then
+         * modified, and that attribute is float or int, the dictionary's
+         * attribute will not be truly changed.  So we have this VARPTR
+         * type, which is just a pointer to another struct var_t.
+         */
         Q_VARPTR_MAGIC,
         Q_XPTR_MAGIC,
 };
@@ -233,9 +241,10 @@ struct vmframe_t {
         struct var_t *owner, *func;
         struct var_t **stackptr;
         struct var_t *stack[FRAME_STACK_MAX];
+        struct var_t *locals[FRAME_STACK_MAX];
         struct executable_t *ex;
         /* TODO: not so sure I need SP after all */
-        int fp, ap, sp;
+        int fp, ap, sp, lp;
         instruction_t *ppii;
         struct var_t **clo;
         struct vmframe_t *prev;
@@ -539,7 +548,7 @@ extern void function_add_closure(struct var_t *func, char *name,
                         struct var_t *init);
 
 /* For the virtual machine in all of us */
-extern void call_vmfunction_prep_frame(struct var_t *fn,
+extern struct var_t *call_vmfunction_prep_frame(struct var_t *fn,
                         struct vmframe_t *fr, struct var_t *owner);
 extern struct var_t *call_vmfunction(struct var_t *fn);
 extern void function_vmadd_closure(struct var_t *func, struct var_t *clo);

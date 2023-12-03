@@ -166,6 +166,7 @@ void
 object_foreach(struct var_t *ret)
 {
 /* FIXME: Need a hashtable iterator */
+        warning("foreach currently unsupported");
 #if 0
         struct var_t *self = get_this();
         struct var_t *func = frame_get_arg(0);

@@ -4,7 +4,7 @@ static inline long long
 var2int(struct var_t *v, const char *op)
 {
         if (!isnumvar(v))
-                syntax("Invalid or mismatched types for operator");
+                syntax("Invalid or mismatched types for '%s' operator", op);
         return v->magic == QINT_MAGIC ? v->i : (long long)v->f;
 }
 

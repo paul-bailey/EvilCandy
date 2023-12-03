@@ -25,17 +25,34 @@ let iterator = {
     },
 
     toten: function(x) {
+        /* this works, but below do not. Why?:
+         *  let n = 11;
+         *  do {
+         *      while (x < n) {
+         *          print("\titerator.toten: x is {}".format(x));
+         *          x++;
+         *      }
+         *  } while (0);
+         */
+        // let n = n;
+        // while (x < 11) {
+        //     print("\titerator.toten: x is {}".format(x));
+        //     x++;
+        // }
+
         let n = 11;
         do {
             print("\titerator.toten: x is {}".format(x));
             x++;
         } while (x < n);
+
+    },
+    whoami: function() {
+        print("me, of course!");
     }
 };
 
-iterator.whoami = function() {
-    print("me, of course!");
-};
+//     iterator.toten(4);
 
 print("pi is: {}".format(Math.pi));
 iterator.tonine(4);
@@ -54,8 +71,9 @@ print("Length of __gbl__ is {}".format(len()));
 print("");
 print("~0xfffffffffffffffa is {}".format(~0xfffffffffffffffa));
 
-print("");
-print("The 3rd character in '{}' is '{}'".format(s, s[2]));
+// broken with -x for now...
+// print("");
+// print("The 3rd character in '{}' is '{}'".format(s, s[2]));
 
 print("");
 print("Old text is '{}'\nNew text is '{}'".format(s, s.replace("is", "at")));

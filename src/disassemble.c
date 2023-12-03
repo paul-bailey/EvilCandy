@@ -18,7 +18,6 @@ static const char *PTR_NAMES[] = {
         IARGP(AP),
         IARGP(FP),
         IARGP(CP),
-        IARGP(SP),
         IARGP(SEEK),
         IARGP(GBL),
         IARGP(THIS)

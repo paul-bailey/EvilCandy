@@ -17,6 +17,9 @@ static struct hashtable_t *symbol_table;
 #define PUSH_(fr, v) \
         do { *((fr)->stackptr)++ = (v); } while (0)
 #define POP_(fr) (*--((fr)->stackptr))
+#define PUSH_LOCAL_(fr, v) \
+        do { (fr)->locals[(fr)->lp++] = (v); } while (0)
+#define POP_LOCAL_(fr) ((fr)->locals[--(fr)->lp])
 
 #ifdef NDEBUG
 
@@ -30,6 +33,12 @@ static inline struct var_t *RODATA(struct vmframe_t *fr, instruction_t ii)
         { return fr->ex->rodata[ii.arg2]; }
 static inline char *RODATA_STR(struct vmframe_t *fr, instruction_t ii)
         { return RODATA(fr, ii)->strptr; }
+
+static inline void push_local(struct vmframe_t *fr, struct var_t *v)
+        { PUSH_LOCAL_(fr, v); }
+
+static inline struct var_t *pop_local(struct vmframe_t *fr)
+        { return POP_LOCAL_(fr); }
 
 #else /* DEBUG */
 
@@ -62,6 +71,20 @@ RODATA_STR(struct vmframe_t *fr, instruction_t ii)
         return vs->strptr;
 }
 
+static inline void
+push_local(struct vmframe_t *fr, struct var_t *v)
+{
+        bug_on(fr->lp >= FRAME_STACK_MAX);
+        PUSH_LOCAL_(fr, v);
+}
+
+static inline struct var_t *
+pop_local(struct vmframe_t *fr)
+{
+        bug_on(fr->lp <= 0);
+        return POP_LOCAL_(fr);
+}
+
 #endif /* DEBUG */
 
 static struct vmframe_t *
@@ -75,9 +98,14 @@ vmframe_free(struct vmframe_t *fr)
 {
         if (fr == current_frame)
                 current_frame = fr->prev;
-        bug_on(fr->stackptr != fr->stack + fr->ap);
+        if (fr->stackptr != fr->stack) {
+                warning("Imbalance in evaluation stack amt=%d",
+                        fr->stackptr - fr->stack);
+        }
         while (fr->stackptr > fr->stack)
-                pop(fr);
+                var_delete(pop(fr));
+        while (fr->lp > 0)
+                var_delete(pop_local(fr));
         free(fr);
 }
 
@@ -86,13 +114,11 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
 {
         switch (ii.arg1) {
         case IARG_PTR_AP:
-                return fr->stack[fr->ap + ii.arg2];
+                return fr->locals[fr->ap + ii.arg2];
         case IARG_PTR_FP:
-                return fr->stack[fr->fp + ii.arg2];
+                return fr->locals[fr->fp + ii.arg2];
         case IARG_PTR_CP:
                 return fr->clo[ii.arg2];
-        case IARG_PTR_SP:
-                return fr->stack[fr->sp + ii.arg2];
         case IARG_PTR_SEEK: {
                 char *name = RODATA_STR(fr, ii);
                 struct var_t *vp = hashtable_get(symbol_table, name);
@@ -164,8 +190,10 @@ binary_op_common(struct vmframe_t *fr, binary_opfunc_t op)
 }
 
 static struct var_t *
-attr_ptr__(struct var_t *obj, struct var_t *deref)
+attr_ptr_(struct var_t *obj, struct var_t *deref)
 {
+        if (obj->magic == Q_VARPTR_MAGIC)
+                obj = obj->vptr;
         if (deref->magic == Q_STRPTR_MAGIC) {
                 if (obj->magic == QOBJECT_MAGIC)
                         return eobject_child(obj, deref->strptr);
@@ -184,8 +212,37 @@ attr_ptr__(struct var_t *obj, struct var_t *deref)
                 return builtin_method(obj, string_get_cstring(obj));
         }
 
-        syntax("Cannot get attribute");
         return NULL;
+}
+
+static struct var_t *
+attr_ptr(struct var_t *obj, struct var_t *deref)
+{
+        struct var_t *v = attr_ptr_(obj, deref);
+        if (!v) {
+                /* XXX: this ought to be a helper in err.c */
+                /* error, try to report clearly what's wrong */
+                const char *attrstr;
+                char numbuf[64];
+                switch (deref->magic) {
+                case Q_STRPTR_MAGIC:
+                        attrstr = (const char *)deref->strptr;
+                        break;
+                case QSTRING_MAGIC:
+                        attrstr = (const char *)string_get_cstring(deref);
+                        break;
+                case QINT_MAGIC:
+                        sprintf(numbuf, "%llu", deref->i);
+                        attrstr = numbuf;
+                        break;
+                default:
+                        attrstr = "[egq: likely bug]";
+                        break;
+                }
+                syntax("Cannot get attribute '%s' of type %s",
+                       attrstr, typestr(obj->magic));
+        }
+        return v;
 }
 
 static void
@@ -194,9 +251,9 @@ do_nop(struct vmframe_t *fr, instruction_t ii)
 }
 
 static void
-do_push(struct vmframe_t *fr, instruction_t ii)
+do_push_local(struct vmframe_t *fr, instruction_t ii)
 {
-        push(fr, var_new());
+        push_local(fr, var_new());
 }
 
 static void
@@ -209,7 +266,10 @@ do_push_const(struct vmframe_t *fr, instruction_t ii)
 static void
 do_push_ptr(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *v = VARPTR(fr, ii);
+        struct var_t *v, *p = VARPTR(fr, ii);
+        v = var_new();
+        v->magic = Q_VARPTR_MAGIC;
+        v->vptr = p;
         push(fr, v);
 }
 
@@ -224,6 +284,12 @@ static void
 do_pop(struct vmframe_t *fr, instruction_t ii)
 {
         var_delete(pop(fr));
+}
+
+static void
+do_pop_local(struct vmframe_t *fr, instruction_t ii)
+{
+        var_delete(pop_local(fr));
 }
 
 static void
@@ -253,14 +319,12 @@ do_assign(struct vmframe_t *fr, instruction_t ii)
                 var_delete(from);
                 from = tmp;
         }
-        if (to->magic == Q_VARPTR_MAGIC) {
-                struct var_t *tmp = to->vptr;
-                qop_mov(tmp, from);
-                push(fr, to);
-        } else {
-                struct var_t *tmp = qop_mov(to, from);
-                push(fr, tmp);
-        }
+
+        bug_on(to->magic != Q_VARPTR_MAGIC);
+
+        qop_mov(to->vptr, from);
+
+        var_delete(to);
         var_delete(from);
 }
 
@@ -308,24 +372,22 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
 
         fr_new = vmframe_alloc();
         fr_new->ap = narg;
-        while (narg > 0) {
-                struct var_t *v = pop(fr);
-                /*
-                 * we pushed these in order, so we're popping
-                 * them out of order.
-                 */
-                fr_new->stack[narg - 1] = v;
-                narg--;
-        }
+        while (narg-- > 0)
+                fr_new->locals[narg] = pop(fr);
         fr_new->fp = 0;
 
         func = pop(fr);
+        if (func->magic == Q_VARPTR_MAGIC)
+                func = func->vptr;
         owner = parent ? pop(fr) : NULL;
-        call_vmfunction_prep_frame(func, fr_new, owner);
+        if (owner && owner->magic == Q_VARPTR_MAGIC)
+                owner = owner->vptr;
+        func = call_vmfunction_prep_frame(func, fr_new, owner);
 
         /* ap may have been updated with optional-arg defaults */
-        fr_new->sp = fr_new->ap;
-        fr_new->stackptr = fr_new->stack + fr_new->ap;
+        fr_new->lp = fr_new->ap;
+        fr_new->sp = 0;
+        fr_new->stackptr = fr_new->stack;
 
         /* push new frame */
         fr_new->prev = current_frame;
@@ -428,7 +490,7 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
 
         obj = pop(fr);
 
-        attr = attr_ptr__(obj, deref);
+        attr = attr_ptr(obj, deref);
         if (del)
                 var_delete(deref);
 
@@ -457,7 +519,7 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 
         obj = pop(fr);
 
-        attr = attr_ptr__(obj, deref);
+        attr = attr_ptr(obj, deref);
         if (del)
                 var_delete(deref);
 
@@ -475,13 +537,8 @@ do_b_if(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
         bool cond = !qop_cmpz(v);
-        if (ii.arg1) {
-                if (cond)
-                        fr->ppii += ii.arg2;
-        } else {
-                if (!cond)
-                        fr->ppii += ii.arg2;
-        }
+        if ((bool)ii.arg1 == cond)
+                fr->ppii += ii.arg2;
 }
 
 static void
@@ -577,16 +634,18 @@ do_cmp(struct vmframe_t *fr, instruction_t ii)
         bug_on(ii.arg1 >= ARRAY_SIZE(OCMAP));
         struct var_t *rval = pop(fr);
         struct var_t *lval = pop(fr);
-        bool rdel = false;
+        bool rdel;
         if (rval->magic == Q_VARPTR_MAGIC) {
                 struct var_t *tmp = rval->vptr;
                 var_delete(rval);
                 rval = tmp;
+                rdel = false;
         } else {
                 rdel = true;
         }
 
         if (lval->magic == Q_VARPTR_MAGIC) {
+                /* copy, since we will clobber */
                 struct var_t *tmp = var_copy(lval->vptr);
                 var_delete(lval);
                 lval = tmp;
@@ -649,16 +708,26 @@ static void
 do_incr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
-        qop_incr(v);
-        push(fr, v);
+        if (v->magic == Q_VARPTR_MAGIC) {
+                qop_incr(v->vptr);
+        } else {
+                /* shouldn't be reachable, right? */
+                breakpoint();
+                qop_incr(v);
+        }
 }
 
 static void
 do_decr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
-        qop_decr(v);
-        push(fr, v);
+        if (v->magic == Q_VARPTR_MAGIC) {
+                qop_decr(v->vptr);
+        } else {
+                /* shouldn't be reachable, right? */
+                breakpoint();
+                qop_decr(v);
+        }
 }
 
 static void
@@ -722,7 +791,7 @@ vm_get_arg(unsigned int idx)
 {
         if (idx >= current_frame->ap)
                 return NULL;
-        return current_frame->stack[idx];
+        return current_frame->locals[idx];
 }
 
 #else /* !VM_READY */

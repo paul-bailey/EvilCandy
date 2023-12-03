@@ -10,8 +10,15 @@ struct global_t q_;
 const char *
 typestr(int magic)
 {
-        if (magic < 0 || magic >= Q_NMAGIC)
+        if (magic < 0 || magic >= Q_NMAGIC) {
+                if (magic == Q_STRPTR_MAGIC)
+                        return "[internal-use string]";
+                if (magic == Q_VARPTR_MAGIC)
+                        return "[internal-use stack]";
+                if (magic == Q_XPTR_MAGIC)
+                        return "[internal-use executable]";
                 return "[bug]";
+        }
         return TYPEDEFS[magic].name;
 }
 

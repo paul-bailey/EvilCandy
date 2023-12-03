@@ -23,20 +23,41 @@
  * the library malloc() and free(), I assume because they are customized
  * for many small alloc/frees, as well as for locality.
  */
-#define SIMPLE_ALLOC 0
+#define SIMPLE_ALLOC 1
 #define LIST_ALLOC 0
 
 #if SIMPLE_ALLOC
+
+# ifndef NDEBUG
+static size_t var_nalloc = 0;
+#  define REGISTER_ALLOC() do { \
+        var_nalloc += sizeof(struct var_t); \
+} while (0)
+#  define REGISTER_FREE() do { \
+        var_nalloc -= sizeof(struct var_t); \
+} while (0)
+static void
+var_alloc_tell(void)
+{
+        fprintf(stderr, "var_alloc_size = %lu\n", (long)var_nalloc);
+}
+# else /* NDEBUG */
+#  define REGISTER_ALLOC() do { (void)0; } while (0)
+#  define REGISTER_FREE() do { (void)0; } while (0)
+# endif /* NDEBUG */
+
 static struct var_t *
 var_alloc(void)
 {
         struct var_t *ret = emalloc(sizeof(struct var_t));
+        REGISTER_ALLOC();
         return ret;
 }
 
 static void
 var_free(struct var_t *v)
 {
+        REGISTER_FREE();
         free(v);
 }
 #else
@@ -166,11 +187,11 @@ var_copy(struct var_t *to, struct var_t *from)
 void
 var_reset(struct var_t *v)
 {
-        bug_on(v->magic >= Q_NMAGIC);
-
-        void (*rst)(struct var_t *) = TYPEDEFS[v->magic].opm->reset;
-        if (rst)
-                rst(v);
+        if ((unsigned)v->magic < Q_NMAGIC) {
+                void (*rst)(struct var_t *) = TYPEDEFS[v->magic].opm->reset;
+                if (rst)
+                        rst(v);
+        }
 
         v->magic = QEMPTY_MAGIC;
         v->flags = 0;
@@ -229,7 +250,8 @@ builtin_method(struct var_t *v, const char *method_name)
         int magic = v->magic;
         struct list_t *methods, *m;
 
-        bug_on(magic < 0 || magic > Q_NMAGIC);
+        if ((unsigned)magic >= Q_NMAGIC)
+                return NULL;
 
         methods = &TYPEDEFS[magic].methods;
         list_foreach(m, methods) {
@@ -272,6 +294,11 @@ moduleinit_var(void)
                 if (TYPEDEFS[i].name == NULL)
                         bug();
         }
+#ifndef NDEBUG
+# if SIMPLE_ALLOC
+        atexit(var_alloc_tell);
+# endif
+#endif
 }
 
 /* copy of the handle, not the whole shebang */

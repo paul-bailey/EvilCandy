@@ -366,7 +366,7 @@ function_of(struct var_t *fn, struct var_t **owner)
                         fn = NULL;
                 }
         }
-        syntax("Value is not callable", nameof(fn));
+        syntax("Value is not callable");
 done:
         *owner = new_owner;
         return fn;
@@ -397,7 +397,7 @@ call_function(struct var_t *fn, struct var_t *retval, struct var_t *owner)
  * return: either @fn or the callable descendant of @fn to pass
  *         to call_vmfunction
  */
-void
+struct var_t *
 call_vmfunction_prep_frame(struct var_t *fn,
                            struct vmframe_t *fr, struct var_t *owner)
 {
@@ -414,7 +414,7 @@ call_vmfunction_prep_frame(struct var_t *fn,
                 struct var_t *v = fh->f_vmargv[i];
                 if (!v)
                         syntax("Missing non-optional arg #%d", i);
-                fr->stack[fr->ap++] = qop_mov(var_new(), v);
+                fr->locals[fr->ap++] = qop_mov(var_new(), v);
         }
         if (!owner)
                 owner = get_this();
@@ -424,6 +424,7 @@ call_vmfunction_prep_frame(struct var_t *fn,
 
         if (fh->f_magic == FUNC_VM)
                 fr->ex = fh->f_ex;
+        return fn;
 }
 
 /*

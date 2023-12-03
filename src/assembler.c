@@ -297,6 +297,27 @@ clo_seek(struct assemble_t *a, char *s)
 }
 
 static void
+add_instr(struct assemble_t *a, int code, int arg1, int arg2)
+{
+        int idx;
+        struct as_frame_t *fr = a->fr;
+        struct executable_t *x = fr->x;
+
+        as_assert_array_pos(a, x->n_instr, &x->instr, &fr->instr_alloc);
+
+        idx = x->n_instr++;
+        instruction_t *ii = &x->instr[idx];
+
+        bug_on((unsigned)code > 255);
+        bug_on((unsigned)arg1 > 255);
+        bug_on(arg2 >= 32768 || arg2 < -32768);
+
+        ii->code = code;
+        ii->arg1 = arg1;
+        ii->arg2 = arg2;
+}
+
+static void
 apush_scope(struct assemble_t *a)
 {
         struct as_frame_t *fr = a->fr;
@@ -306,10 +327,31 @@ apush_scope(struct assemble_t *a)
         fr->fp = fr->sp;
 }
 
+/* writes instructions, doesn't update @a, use apop_scope for that */
+static void
+apop_scope_instruction_only(struct assemble_t *a)
+{
+        bug_on(a->fr->nest <= 0);
+        int cur_fp = a->fr->fp;
+        int prev_fp = a->fr->scope[a->fr->nest - 1];
+        bug_on(cur_fp < prev_fp);
+#warning "resolve this"
+#if 0
+        /*
+         * FIXME: this should work, and indeed it's necessary,
+         * to prevent zombifying variables, but somehow it's
+         * breaking.
+         */
+        while (cur_fp-- > prev_fp)
+                add_instr(a, INSTR_POP_LOCAL, 0, 0);
+#endif
+}
+
 static void
 apop_scope(struct assemble_t *a)
 {
         bug_on(a->fr->nest <= 0);
+        apop_scope_instruction_only(a);
         a->fr->nest--;
         a->fr->fp = a->fr->scope[a->fr->nest];
 }
@@ -342,27 +384,6 @@ as_next_label(struct assemble_t *a)
         as_assert_array_pos(a, x->n_label - JMP_INIT,
                             &fr->x->label, &fr->label_alloc);
         return x->n_label++;
-}
-
-static void
-add_instr(struct assemble_t *a, int code, int arg1, int arg2)
-{
-        int idx;
-        struct as_frame_t *fr = a->fr;
-        struct executable_t *x = fr->x;
-
-        as_assert_array_pos(a, x->n_instr, &x->instr, &fr->instr_alloc);
-
-        idx = x->n_instr++;
-        instruction_t *ii = &x->instr[idx];
-
-        bug_on((unsigned)code > 255);
-        bug_on((unsigned)arg1 > 255);
-        bug_on(arg2 >= 32768 || arg2 < -32768);
-
-        ii->code = code;
-        ii->arg1 = arg1;
-        ii->arg2 = arg2;
 }
 
 /*
@@ -465,7 +486,7 @@ ainstr_push_const(struct assemble_t *a, struct opcode_t *oc)
         add_instr(a, INSTR_PUSH_CONST, 0, seek_or_add_const(a, oc));
 }
 
-static void
+static int
 assemble_push_noinstr(struct assemble_t *a, char *name)
 {
         if (a->fr->sp >= FRAME_STACK_MAX)
@@ -476,9 +497,12 @@ assemble_push_noinstr(struct assemble_t *a, char *name)
                         as_err(a, AE_REDEF);
                 if (arg_seek(a, name) >= 0)
                         as_err(a, AE_REDEF);
+                if (clo_seek(a, name) >= 0)
+                        as_err(a, AE_REDEF);
         }
 
         a->fr->symtab[a->fr->sp++] = name;
+        return a->fr->sp - 1;
 }
 
 static void
@@ -708,7 +732,7 @@ assemble_eval_atomic(struct assemble_t *a)
                 assemble_funcdef(a, true);
                 break;
         case OC_THIS:
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_THIS, 0);
+                add_instr(a, INSTR_PUSH_COPY, IARG_PTR_THIS, 0);
                 break;
         default:
                 as_err(a, AE_BADTOK);
@@ -979,7 +1003,6 @@ static void
 assemble_assign(struct assemble_t *a)
 {
         assemble_eval(a);
-        add_instr(a, INSTR_POP, 0, 0);
         add_instr(a, INSTR_ASSIGN, 0, 0);
 }
 
@@ -1003,7 +1026,7 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                 return; /* empty statement? are we ok with this? */
         if (a->oc->t == OC_EQ) {
                 assemble_assign(a);
-                return;
+                goto done;
         }
 
         for (;;) {
@@ -1080,6 +1103,8 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                                 --inbal;
                         as_unlex(a);
                         assemble_call_func(a, have_parent);
+                        /* we're not assigning anything */
+                        add_instr(a, INSTR_POP, 0, 0);
                         have_parent = false;
                         break;
 
@@ -1176,9 +1201,8 @@ assemble_let(struct assemble_t *a)
                  * (no it doesn't, interactive mode 'interacts' from the
                  * top level, see above)
                  */
-                assemble_push_noinstr(a, name->s);
-                add_instr(a, INSTR_PUSH, 0, 0);
-                namei = -1; /* compiler complains otherwise */
+                namei = assemble_push_noinstr(a, name->s);
+                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
         }
 
         switch (a->oc->t) {
@@ -1190,8 +1214,8 @@ assemble_let(struct assemble_t *a)
                         add_instr(a, INSTR_PUSH_PTR, IARG_PTR_SEEK, namei);
                         assemble_eval(a);
                         add_instr(a, INSTR_ASSIGN, 0, 0);
-                        add_instr(a, INSTR_POP, 0, 0);
                 } else {
+                        add_instr(a, INSTR_PUSH_PTR, IARG_PTR_AP, namei);
                         assemble_eval(a);
                         add_instr(a, INSTR_ASSIGN, 0, 0);
                 }
@@ -1246,12 +1270,15 @@ assemble_while(struct assemble_t *a)
         int skip  = as_next_label(a);
 
         as_set_label(a, start);
+
         as_errlex(a, OC_LPAR);
         assemble_eval(a);
         as_errlex(a, OC_RPAR);
+
         add_instr(a, INSTR_B_IF, 0, skip);
         assemble_expression(a, 0, skip);
         add_instr(a, INSTR_B, 0, start);
+
         as_set_label(a, skip);
 }
 
@@ -1368,6 +1395,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         break;
                 case OC_BREAK:
                         as_err_if(a, skip < 0, AE_BREAK);
+                        apop_scope_instruction_only(a);
                         add_instr(a, INSTR_B, 0, skip);
                         break;
                 case OC_IF:
@@ -1427,6 +1455,8 @@ static void
 resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
 {
         int i, n = fr->x->n_instr;
+        struct as_frame_t *frsav = a->fr;
+        a->fr = fr;
         for (i = 0; i < n; i++) {
                 instruction_t *ii = &fr->x->instr[i];
                 if (ii->code == INSTR_B || ii->code == INSTR_B_IF) {
@@ -1444,6 +1474,7 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
                 if (ii->code == INSTR_DEFFUNC)
                         resolve_func_label(a, fr, ii);
         }
+        a->fr = frsav;
 }
 
 /*

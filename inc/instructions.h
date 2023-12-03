@@ -16,7 +16,6 @@ enum {
         IARG_PTR_AP = 0,
         IARG_PTR_FP,
         IARG_PTR_CP,
-        IARG_PTR_SP,
         IARG_PTR_SEEK,
         IARG_PTR_GBL,   /* arg2 ignored */
         IARG_PTR_THIS   /* ""   "" */

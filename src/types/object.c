@@ -165,26 +165,36 @@ object_reset(struct var_t *o)
 void
 object_foreach(struct var_t *ret)
 {
-/* FIXME: Need a hashtable iterator */
-        warning("foreach currently unsupported");
-#if 0
         struct var_t *self = get_this();
         struct var_t *func = frame_get_arg(0);
-        struct var_t **ppvar;
-        int i, n;
+        unsigned int idx;
+        struct hashtable_t *htbl;
+        void *key, *val;
+        int res;
+
+        struct var_t *argv[2];
+        argv[0] = var_new(); /* attribute */
+        argv[1] = var_new(); /* name of attribute */
 
         if (!func)
                 syntax("Expected: function");
         bug_on(self->magic != QOBJECT_MAGIC);
+        htbl = &self->o->dict;
 
-        n = oh_nchildren(self->o);
-        ppvar = oh_children(self->o);
-        for (i = 0; i < n; i++) {
-                if (!ppvar[i])
-                        continue;
-                call_function_from_intl(func, NULL, NULL, 1, &ppvar[i]);
+        for (idx = 0, res = hashtable_iterate(htbl, &key, &val, &idx);
+             res == 0; res = hashtable_iterate(htbl, &key, &val, &idx)) {
+                qop_clobber(argv[0], (struct var_t *)val);
+                qop_assign_cstring(argv[1], (char *)key);
+                /*
+                 * XXX REVISIT: should ``this'' in a foreach callback
+                 * be the owner of the foreach method (us)?  Or should it
+                 * be the object owning the calling function?  This is a
+                 * philosophical conundrum, not a bug.
+                 */
+                vm_reenter(func, NULL, 2, argv);
         }
-#endif
+        var_delete(argv[0]);
+        var_delete(argv[1]);
 }
 
 

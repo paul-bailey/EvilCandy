@@ -221,6 +221,47 @@ hashtable_destroy(struct hashtable_t *htbl)
         free(htbl->bucket);
 }
 
+/**
+ * hashtable_iterate - iterate through a hash table.
+ * @htbl: Hash table to iterate through
+ * @key:  Pointer to variable to get the key for the item
+ * @val:  Pointer to get the value of the item
+ * @context: Pointer to store the next item.  Must be set to
+ *        zero on first call, treated as opaque thereafter.
+ *
+ * Return:
+ * zero if @key and @val were updated, -1 if there are no more entries
+ * in the hash table.
+ *
+ * This is not safe for calls to hashtable_put/hashtable_remove during
+ * the iteration steps.  Calling code should use some kind of
+ * reentrance lock to prevent that.
+ *
+ * None of the pointer arguments may be NULL
+ */
+int
+hashtable_iterate(struct hashtable_t *htbl, void **key,
+                  void **val, unsigned int *idx)
+{
+        unsigned int i = *idx;
+        if (!htbl->bucket)
+                return -1;
+        while (i < htbl->size) {
+                if (htbl->bucket[i] != NULL &&
+                    htbl->bucket[i] != BUCKET_DEAD) {
+                        break;
+                }
+                i++;
+        }
+        if (i >= htbl->size)
+                return -1;
+
+        *idx = i+1;
+        *key = htbl->bucket[i]->key;
+        *val = htbl->bucket[i]->data;
+        return 0;
+}
+
 hash_t
 idx_hash(const void *key)
 {

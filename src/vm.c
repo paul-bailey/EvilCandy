@@ -149,9 +149,15 @@ vmframe_alloc(void)
         } else {
                 ret = container_of(li, struct vmframe_t, alloc_list);
                 list_remove(li);
+#ifndef NDEBUG
+                bug_on(!ret->freed);
+#endif
                 memset(ret, 0, sizeof(*ret));
                 list_init(&ret->alloc_list);
         }
+#ifndef NDEBUG
+        ret->freed = false;
+#endif
         return ret;
 }
 
@@ -159,8 +165,15 @@ static void
 vmframe_free(struct vmframe_t *fr)
 {
         struct var_t **vpp;
+
+        bug_on(!fr);
         if (fr == current_frame)
                 current_frame = fr->prev;
+
+#ifndef NDEBUG
+        bug_on(fr->freed);
+        fr->freed = true;
+#endif
 
         /*
          * XXX REVISIT: if (fr->stackptr != &fr->stack[fr->ap]),
@@ -443,7 +456,14 @@ do_return_value(struct vmframe_t *fr, instruction_t ii)
         current_frame = fr->prev;
         vmframe_free(fr);
         fr = current_frame;
-        push(fr, result);
+        /*
+         * FIXME: This means results cannot be returned
+         * from reentrant calls, such as in a foreach loop.
+         */
+        if (fr)
+                push(fr, result);
+        else
+                var_delete(result);
 }
 
 static void
@@ -906,8 +926,10 @@ vm_execute(struct executable_t *top_level)
 
         EXECUTE_LOOP(0);
 
+        /* Don't let vmframe_free try to var_delete these */
         current_frame->func = NULL;
         current_frame->owner = NULL;
+
         vmframe_free(current_frame);
         bug_on(current_frame != NULL);
 
@@ -922,11 +944,9 @@ vm_execute(struct executable_t *top_level)
  * @arc:        Number of arguments being passed to the function
  * @argv:       Array of arguments
  *
- * Return: The result of the function called.  Calling code must do something
- * with this return value, either store it or throw it away, otherwise memory
- * leaks will occur.
+ * The return value of the user function will be thrown away
  */
-struct var_t *
+void
 vm_reenter(struct var_t *func, struct var_t *owner,
            int argc, struct var_t **argv)
 {
@@ -944,32 +964,36 @@ vm_reenter(struct var_t *func, struct var_t *owner,
          */
         bug_on(current_frame == NULL);
 
-        REENTRANT_PUSH();
-
-        fr= vmframe_alloc();
+        fr = vmframe_alloc();
         fr->ap = argc;
         while (argc-- > 0)
-                fr->stack[argc] = argv[argc];
+                fr->stack[argc] = qop_mov(var_new(), argv[argc]);
 
         call_vmfunction_prep_frame(func, fr, owner);
-        fr->stackptr = fr->stack + fr->ap;
 
-        fr->prev = current_frame; /* should be NULL */
+        /*
+         * can't push sooner, because call_vmfunction_prep_frame will
+         * call get_this() if @owner is NULL
+         */
+        REENTRANT_PUSH();
         current_frame = fr;
+        fr->prev = NULL;
+
+        fr->stackptr = fr->stack + fr->ap;
 
         res = call_vmfunction(fr->func);
         if (res) {
                 current_frame = fr->prev;
+                vmframe_free(fr);
         } else {
                 fr->ppii = fr->ex->instr;
                 EXECUTE_LOOP(1);
-                res = pop(fr);
+                bug_on(current_frame);
+                /* fr was already done by do_return_value */
         }
-        vmframe_free(fr);
 
         REENTRANT_POP();
-
-        return res;
+        bug_on(!current_frame);
 }
 
 void
@@ -983,6 +1007,7 @@ moduleinit_vm(void)
 struct var_t *
 vm_get_this(void)
 {
+        bug_on(!current_frame);
         return current_frame->owner;
 }
 

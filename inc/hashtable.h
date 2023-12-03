@@ -35,6 +35,8 @@ extern void hashtable_init(struct hashtable_t *htbl,
                            void (*delete_data)(void *));
 extern void hashtable_clear_entries(struct hashtable_t *htbl);
 extern void hashtable_destroy(struct hashtable_t *htbl);
+extern int hashtable_iterate(struct hashtable_t *htbl, void **key,
+                             void **val, unsigned int *idx);
 
 /* EGQ's hash algos */
 extern hash_t ptr_hash(const void *key);

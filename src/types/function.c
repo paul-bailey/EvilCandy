@@ -174,29 +174,6 @@ call_vmfunction(struct var_t *fn)
         return ret;
 }
 
-/**
- * call_function_from_intl - Call a function (user or internal) from
- *                           within an internal built-in function.
- * @fn:         Function handle, which must be type QPTRXI_MAGIC or
- *              QFUNCTION_MAGIC.
- * @retval:     Return value of the function being called, or NULL to
- *              ignore
- * @owner:      Owner of the function, or NULL to have
- *              call_function_from_intl figure it out
- * @argc:       Number of args
- * @argv:       Arg array
- *
- * This is for things like an object or array's .foreach method, where
- * "foreach" is a built-in function in C code, but it will call a function
- * from the "foreach" argument.
- */
-void
-call_function_from_intl(struct var_t *fn, struct var_t *retval,
-                        struct var_t *owner, int argc, struct var_t *argv[])
-{
-        syntax("Cannot currently support callbacks in VM mode");
-}
-
 void
 function_vmadd_closure(struct var_t *func, struct var_t *clo)
 {

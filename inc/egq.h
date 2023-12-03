@@ -218,6 +218,9 @@ struct vmframe_t {
         struct var_t **clo;
         struct vmframe_t *prev;
         struct list_t alloc_list;
+#ifndef NDEBUG
+        bool freed;
+#endif
 };
 
 
@@ -423,25 +426,9 @@ extern int array_set_child(struct var_t *array,
 extern struct var_t *array_from_empty(struct var_t *array);
 
 /* types/function.c */
-extern void call_function(struct var_t *fn,
-                        struct var_t *retval, struct var_t *owner);
-extern void call_function_from_intl(struct var_t *fn,
-                        struct var_t *retval, struct var_t *owner,
-                        int argc, struct var_t *argv[]);
-/*
- * Creating functions API
- * Built-in:    function_init_internal
- * User-defined:
- *              function_init
- *              function_add_arg ...repeat for ea. arg
- *              function_add_closure ...ditto
- *              function_set_user
- */
 extern void function_init_internal(struct var_t *func,
                         void (*cb)(struct var_t *),
                         int minargs, int maxargs);
-
-/* For the virtual machine in all of us */
 extern struct var_t *call_vmfunction_prep_frame(struct var_t *fn,
                         struct vmframe_t *fr, struct var_t *owner);
 extern struct var_t *call_vmfunction(struct var_t *fn);
@@ -511,8 +498,8 @@ string_puts(struct var_t *str, const char *s)
 
 /* vm.c */
 extern void vm_execute(struct executable_t *top_level);
-extern struct var_t *vm_reenter(struct var_t *func, struct var_t *owner,
-                                int argc, struct var_t **argv);
+extern void vm_reenter(struct var_t *func, struct var_t *owner,
+                       int argc, struct var_t **argv);
 extern void moduleinit_vm(void);
 extern struct var_t *vm_get_this(void);
 extern struct var_t *vm_get_arg(unsigned int idx);

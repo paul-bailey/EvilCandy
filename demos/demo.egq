@@ -66,8 +66,8 @@ print("Old text is '{}'\nNew text is '{}'".format(s, s.replace("is", "at")));
 print("");
 print("Now here's a test of foreach:");
 print("I'm gonna print the typeof(e) for each e in __gbl__");
-__gbl__.foreach(function (e) {
-    print("\t" + typeof(e));
+__gbl__.foreach(function (e, name) {
+    print("\tType={}, name={}".format(typeof(e), name));
 });
 
 print("Does gbl have child '{}'?".format(s));

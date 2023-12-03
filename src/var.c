@@ -60,9 +60,9 @@ var_free(struct var_t *v)
 }
 #else
 # if LIST_ALLOC
-static struct list_t var_freelist = LIST_INIT(&var_freelist);
+static struct var_mem_t *var_freelist = NULL;
 struct var_mem_t {
-        struct list_t list;
+        struct var_mem_t *list;
         struct var_t var;
 };
 
@@ -76,8 +76,8 @@ var_more_(void)
         int i;
         struct var_mem_t *blk = emalloc(sizeof(*blk) * NPERBLK);
         for (i = 0; i < NPERBLK; i++) {
-                list_init(&blk[i].list);
-                list_add_tail(&blk[i].list, &var_freelist);
+                blk[i].list = var_freelist;
+                var_freelist = &blk[i];
         }
 }
 
@@ -86,11 +86,11 @@ var_alloc(void)
 {
         struct var_mem_t *vm;
         REGISTER_ALLOC();
-        if (list_is_empty(&var_freelist)) {
+        if (!var_freelist)
                 var_more_();
-        }
-        vm = list2memvar(var_freelist.next);
-        list_remove(&vm->list);
+
+        vm = list2memvar(var_freelist);
+        var_freelist = vm->list;
         return &vm->var;
 }
 
@@ -98,7 +98,9 @@ static void
 var_free(struct var_t *v)
 {
         REGISTER_FREE();
-        list_add_tail(&(var2memvar(v)->list), &var_freelist);
+        struct var_mem_t *vm = var2memvar(v);
+        vm->list = var_freelist;
+        var_freelist = vm;
 }
 
 # else

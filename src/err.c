@@ -20,13 +20,7 @@
 static int
 qlineno(void)
 {
-        return cur_oc ? cur_oc->line : 0;
-}
-
-static char *
-qfileno(void)
-{
-        return cur_ns ? cur_ns->fname : "[no input yet]";
+        return 0;
 }
 
 /* helper to bug__ and breakpoint__ */
@@ -53,12 +47,7 @@ breakpoint__(const char *file, int line)
 static void
 syntax_msg__(const char *msg, const char *what, va_list ap)
 {
-        if (cur_oc) {
-                fprintf(stderr, "[egq] %s in file %s line %d: ",
-                        what, qfileno(), qlineno());
-        } else {
-                fprintf(stderr, "[egq] %s: ", what);
-        }
+        fprintf(stderr, "[egq] %s: ", what);
         vfprintf(stderr, msg, ap);
         fputc('\n', stderr);
 }
@@ -171,7 +160,7 @@ err_expected__(int opcode)
         default:
                 bug(); /* not true yet */
         }
-        syntax("Expected '%s' but got '%s'", what, cur_oc->s);
+        syntax("Expected '%s'", what);
 }
 
 

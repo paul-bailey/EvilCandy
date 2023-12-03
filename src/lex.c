@@ -54,10 +54,7 @@ lexer_next_line(void)
         return res;
 }
 
-/*
- * because this is @#$%!-ing tedious to type,
- * and we don't go to next ns in this module
- */
+/* because this is @#$%!-ing tedious to type */
 #define cur_pc lexer.s
 
 /* if at '\0' after this, then end of namespace */
@@ -71,11 +68,6 @@ qslide(void)
                         ++s;
         } while (*s == '\0' && lexer_next_line() != -1);
         lexer.s = s;
-
-        /*
-         * If '\0', do not advance to next ns.
-         * Exectution code in one ns may not run on into another
-         */
 }
 
 /* parse the usual backslash suspects */
@@ -453,15 +445,16 @@ buffer_putcode(struct buffer_t *buf, struct opcode_t *oc)
         buffer_putd(buf, oc, sizeof(*oc));
 }
 
-struct ns_t *
+struct opcode_t *
 prescan(const char *filename)
 {
         struct opcode_t oc;
-        struct ns_t *ns;
         int t;
         struct stat st;
+        struct buffer_t pgm;
 
         bug_on(!filename);
+        literal_put(filename);
 
         /*
          * For some reason, on macOS fopen is succeeding for
@@ -480,25 +473,21 @@ prescan(const char *filename)
 
         lexer.lineno = 0;
         if (lexer_next_line() == -1) {
-                ns = NULL;
+                pgm.s = NULL;
                 goto done;
         }
 
-        ns = ecalloc(sizeof(*ns));
-        ns->fname = literal_put(filename);
-        buffer_init(&ns->pgm);
+        buffer_init(&pgm);
         do {
                 t = tokenize(&oc);
                 /* yes, also stuff the EOF version */
-                buffer_putcode(&ns->pgm, &oc);
+                buffer_putcode(&pgm, &oc);
         } while (t != EOF);
-
-        list_add_tail(&ns->list, &q_.ns);
 
 done:
         fclose(lexer.fp);
         lexer.fp = 0;
-        return ns;
+        return (struct opcode_t *)pgm.s;
 }
 
 void

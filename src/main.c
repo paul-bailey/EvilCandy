@@ -52,14 +52,7 @@ init_modules(void)
 static void
 init_lib(void)
 {
-        list_init(&q_.ns);
-
         init_modules();
-
-        /* Initialize program counter */
-        cur_ns = NULL;
-        cur_oc = NULL;
-
 }
 
 static int

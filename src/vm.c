@@ -1,15 +1,35 @@
-
-#define VM_READY 1
-
-#if VM_READY
-
 #include <instructions.h>
 #include <limits.h>
 #include <egq.h>
 #include <stdlib.h>
 #include <string.h>
 
-struct vmframe_t *current_frame;
+/*
+ * FIXME: This is not safe for reentrance.  Consider the scenario:
+ *
+ *      "myobj.foreach(elem, function (e) {..."
+ *
+ * ie. we'd be calling perhaps vm_execute again, and never see INSTR_END.
+ * We'd see INSTR_RETURN at some point and pop the frame, but the parent
+ * frame would not be NULL, therefore we'd still be running the previous
+ * call's execution from the current (reentrant) call's execution.  The
+ * only two solutions I can think of are both terrible:
+ *
+ *      1.      Make the 'fr' argument be '&fr'--ie a pass-by-reference
+ *              argument--to all of the instruction callbacks, even though
+ *              only 1 or 2 will ever change it, and the rest just have
+ *              that much more indirection to deal with.
+ *
+ *      2.      Have all the callbacks instead be jump labels in a
+ *              mile-long switch statement, so the whole thing will be a
+ *              single function; multiple top-level variables can be
+ *              modified by specific ``callbacks'' without needing to
+ *              add a bunch of by-reference arguments.
+ *
+ * #2 is what Python does, but part of the motivation for this problem
+ * was making something that's a lot simpler, implementation-wise.
+ */
+static struct vmframe_t *current_frame;
 
 static struct hashtable_t *symbol_table;
 
@@ -95,20 +115,29 @@ symbol_seek_this_(const char *s)
         return NULL;
 }
 
+/*
+ * Search in the following order of precedence:
+ *   1. __gbl__ (overrides any symbol-table variables also named __gbl__)
+ *   2. symbol table, ie. variables declared with ``let'' outside of a
+ *      function.
+ *   3. attribute of owning object (``this'') with matching name
+ *   4. attribute of __gbl__ with matching name
+ */
 static struct var_t *
 symbol_seek_(const char *s)
 {
         static char *gbl = NULL;
         struct var_t *v;
 
-        if (!s)
-                return NULL;
+        bug_on(!s);
 
         if (!gbl)
                 gbl = literal("__gbl__");
 
         if (s == gbl)
                 return q_.gbl;
+        if ((v = hashtable_get(symbol_table, s)) != NULL)
+                return v;
         if ((v = symbol_seek_this_(s)) != NULL)
                 return v;
         return object_child_l(q_.gbl, s);
@@ -180,9 +209,6 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
                 return fr->clo[ii.arg2];
         case IARG_PTR_SEEK: {
                 char *name = RODATA_STR(fr, ii);
-                struct var_t *vp = hashtable_get(symbol_table, name);
-                if (vp)
-                        return vp;
                 return symbol_seek(name);
         }
         case IARG_PTR_GBL:
@@ -876,33 +902,4 @@ vm_get_arg(unsigned int idx)
                 return NULL;
         return current_frame->stack[idx];
 }
-
-#else /* !VM_READY */
-
-void
-vm_execute(struct executable_t *top_level)
-{
-        warning("VM not ready yet");
-}
-
-void
-moduleinit_vm(void)
-{
-}
-
-struct var_t *
-vm_get_this(void)
-{
-        /*  \_ (!) _/ */
-        return q_.gbl;
-}
-
-struct var_t *
-vm_get_arg(unsigned int idx)
-{
-        warning("vm_get_arg unsupported in this build mode");
-        return NULL;
-}
-
-#endif /* !VM_READY */
 

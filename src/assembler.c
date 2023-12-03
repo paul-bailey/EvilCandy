@@ -1563,11 +1563,11 @@ assemble_fifth_pass(struct assemble_t *a)
 }
 
 static struct assemble_t *
-new_assembler(struct ns_t *ns)
+new_assembler(const char *source_file_name, struct opcode_t *token_arr)
 {
         struct assemble_t *a = ecalloc(sizeof(*a));
-        a->file_name = ns->fname;
-        a->prog = (struct opcode_t *)ns->pgm.s;
+        a->file_name = (char *)source_file_name;
+        a->prog = token_arr;
         a->oc = a->prog;
         /* don't let the first ones be zero, that looks bad */
         a->func = FUNC_INIT;
@@ -1587,14 +1587,15 @@ free_assembler(struct assemble_t *a, int err)
         free(a);
 }
 
+/* token_arr MUST be EOF-terminated */
 struct executable_t *
-assemble(struct ns_t *ns)
+assemble(const char *source_file_name, struct opcode_t *token_arr)
 {
         struct assemble_t *a;
         struct executable_t *ex;
         int res;
 
-        a = new_assembler(ns);
+        a = new_assembler(source_file_name, token_arr);
 
         if ((res = setjmp(a->env)) != 0) {
                 const char *msg;

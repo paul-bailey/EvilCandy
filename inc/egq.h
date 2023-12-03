@@ -141,14 +141,12 @@ struct type_t {
 
 /**
  * struct ns_t - metadata for a loaded script
- * @list:       list of fellow loaded files
  * @pgm:        Byte code of the loaded file
  * @fname:      File name of this script
  *
  * FIXME: Badly named, this isn't a namespace.
  */
 struct ns_t {
-        struct list_t list;
         struct buffer_t pgm;
         char *fname;
 };
@@ -251,7 +249,7 @@ struct vmframe_t {
 
 
 /**
- * struct opcode_t - The byte-code version of a token
+ * struct opcode_t - Token metadata
  * @t:          Type of opcode, an OC_* enum, or one of "fiuq"
  * @line:       Line number in file where this opcode was parsed,
  *              used for tracing for error messages.
@@ -283,8 +281,6 @@ struct opcode_t {
  */
 struct global_t {
         struct var_t *gbl; /* "__gbl__" as user sees it */
-        struct list_t ns;
-        struct marker_t pc; /* "program counter" */
         int recursion;
         struct frame_t *frame;
         struct {
@@ -296,11 +292,6 @@ struct global_t {
         } opt;
         struct list_t executables;
 };
-
-/* I really hate typing this everywhere */
-#define cur_mk  (&q_.pc)
-#define cur_oc  (cur_mk->oc)
-#define cur_ns  (cur_mk->ns)
 
 #define RECURSION_INCR() do { \
         if (q_.recursion >= RECURSION_MAX) \
@@ -333,7 +324,8 @@ static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
 /* assemble.c */
-extern struct executable_t *assemble(struct ns_t *ns);
+extern struct executable_t *assemble(const char *source_file_name,
+                                     struct opcode_t *token_arr);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);
@@ -395,7 +387,7 @@ extern int keyword_seek(const char *s);
 extern void moduleinit_keyword(void);
 
 /* lex.c */
-extern struct ns_t *prescan(const char *filename);
+extern struct opcode_t *prescan(const char *filename);
 extern void moduleinit_lex(void);
 
 /* literal.c */

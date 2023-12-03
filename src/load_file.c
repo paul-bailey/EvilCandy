@@ -2,24 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct file_state_t {
-        struct marker_t pc;
-};
-
-static struct file_state_t ns_stack[LOAD_MAX];
-static struct file_state_t *ns_sp = ns_stack;
-
-static void
-nspush(struct ns_t *new)
-{
-        if (ns_sp >= &ns_stack[LOAD_MAX])
-                syntax("Too many imports; stack overflow");
-
-        cur_ns = new;
-        cur_oc = (struct opcode_t *)new->pgm.s;
-        ns_sp++;
-}
-
 static inline bool
 isupdir(const char *s)
 {
@@ -111,8 +93,8 @@ convert_path(const char *name)
                 buffer_putc(&path, 'a');
         buffer_reset(&path);
 
-        /* The old path was relative to CWD, so use that */
-        old_path = cur_ns ? cur_ns->fname : "";
+        /* TODO: This will be different when we implement ``load'' keyword */
+        old_path = "";
         if (!old_path)  /* <- in case of stdin */
                 old_path = "";
         convert_path_helper(old_path, my_strrchrnul(old_path, '/'));
@@ -130,7 +112,7 @@ convert_path(const char *name)
 void
 load_file(const char *filename)
 {
-        struct ns_t *ns;
+        struct opcode_t *oc;
         char *path;
         struct executable_t *ex;
 
@@ -142,13 +124,11 @@ load_file(const char *filename)
          */
         path = filename[0] == '/'
                 ? literal_put(filename) : convert_path(filename);
-        ns = prescan(path);
-        if (!ns)
+        oc = prescan(path);
+        if (!oc)
                 return;
 
-        nspush(ns);
-
-        if ((ex = assemble(ns)) == NULL)
+        if ((ex = assemble(filename, oc)) == NULL)
                 warning("Failed to assemble");
 
         if (q_.opt.disassemble_only)

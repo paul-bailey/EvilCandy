@@ -1327,6 +1327,7 @@ assemble_for(struct assemble_t *a)
 static void
 assemble_load(struct assemble_t *a)
 {
+        /* 12/2023: VM is not reentrant yet. */
         as_err(a, AE_NOTIMPL);
 }
 
@@ -1380,6 +1381,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         as_unlex(a);
                         assemble_eval(a);
                         as_errlex(a, OC_SEMI);
+                        add_instr(a, INSTR_POP, 0, 0);
                         break;
                 case OC_LET:
                         as_err_if(a, !!(flags & FE_FOR), AE_BADTOK);

@@ -7,6 +7,7 @@
 #include <limits.h>
 #include <egq.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct vmframe_t *current_frame;
 
@@ -18,8 +19,8 @@ static struct hashtable_t *symbol_table;
         do { *((fr)->stackptr)++ = (v); } while (0)
 #define POP_(fr) (*--((fr)->stackptr))
 #define PUSH_LOCAL_(fr, v) \
-        do { (fr)->locals[(fr)->lp++] = (v); } while (0)
-#define POP_LOCAL_(fr) ((fr)->locals[--(fr)->lp])
+        PUSH_(fr, v)
+#define POP_LOCAL_(fr) POP_(fr)
 
 #ifdef NDEBUG
 
@@ -74,41 +75,60 @@ RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 static inline void
 push_local(struct vmframe_t *fr, struct var_t *v)
 {
-        bug_on(fr->lp >= FRAME_STACK_MAX);
-        PUSH_LOCAL_(fr, v);
+        push(fr, v);
 }
 
 static inline struct var_t *
 pop_local(struct vmframe_t *fr)
 {
-        bug_on(fr->lp <= 0);
-        return POP_LOCAL_(fr);
+        return pop(fr);
 }
 
 #endif /* DEBUG */
 
+static struct list_t vframe_free_list = LIST_INIT(&vframe_free_list);
+
 static struct vmframe_t *
 vmframe_alloc(void)
 {
-        return ecalloc(sizeof(struct vmframe_t));
+        struct vmframe_t *ret;
+        struct list_t *li = vframe_free_list.next;
+        if (li == &vframe_free_list) {
+                ret = ecalloc(sizeof(*ret));
+                list_init(&ret->alloc_list);
+        } else {
+                ret = container_of(li, struct vmframe_t, alloc_list);
+                list_remove(li);
+                memset(ret, 0, sizeof(*ret));
+                list_init(&ret->alloc_list);
+        }
+        return ret;
 }
 
 static void
 vmframe_free(struct vmframe_t *fr)
 {
+        struct var_t **vpp;
         if (fr == current_frame)
                 current_frame = fr->prev;
-        if (fr->stackptr != fr->stack) {
-                warning("Imbalance in evaluation stack amt=%d",
-                        fr->stackptr - fr->stack);
-        }
-        while (fr->stackptr > fr->stack)
-                var_delete(pop(fr));
-        while (fr->lp > 0)
-                var_delete(pop_local(fr));
+
+        /*
+         * XXX REVISIT: if (fr->stackptr != &fr->stack[fr->ap]),
+         * there is a stack inbalance.  But how to tell if this
+         * is due to an abrubt 'return' (which would cause this),
+         * or a bug (which also cause this)?
+         */
+
+        /*
+         * Note: fr->clo are the actual closures, not copied.
+         * They're managed by their owning function object,
+         * so we don't delete them here.
+         */
+        for (vpp = fr->stack; vpp < fr->stackptr; vpp++)
+                var_delete(*vpp);
         var_delete(fr->owner);
         var_delete(fr->func);
-        free(fr);
+        list_add_tail(&fr->alloc_list, &vframe_free_list);
 }
 
 static inline __attribute__((always_inline)) struct var_t *
@@ -116,9 +136,9 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
 {
         switch (ii.arg1) {
         case IARG_PTR_AP:
-                return fr->locals[fr->ap + ii.arg2];
+                return fr->stack[fr->ap + ii.arg2];
         case IARG_PTR_FP:
-                return fr->locals[fr->fp + ii.arg2];
+                return fr->stack[ii.arg2];
         case IARG_PTR_CP:
                 return fr->clo[ii.arg2];
         case IARG_PTR_SEEK: {
@@ -397,7 +417,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         fr_new = vmframe_alloc();
         fr_new->ap = narg;
         while (narg-- > 0)
-                fr_new->locals[narg] = pop(fr);
+                fr_new->stack[narg] = pop(fr);
 
         func = pop_or_deref(fr, &fdel);
         if (parent) {
@@ -407,8 +427,6 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 owner = NULL;
         }
 
-        fr_new->fp = 0;
-
         call_vmfunction_prep_frame(func, fr_new, owner);
 
         if (owner == fr_new->owner)
@@ -417,9 +435,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 fdel = false;
 
         /* ap may have been updated with optional-arg defaults */
-        fr_new->lp = fr_new->ap;
-        fr_new->sp = 0;
-        fr_new->stackptr = fr_new->stack;
+        fr_new->stackptr = fr_new->stack + fr_new->ap;
 
         /* push new frame */
         fr_new->prev = current_frame;
@@ -821,7 +837,7 @@ vm_get_arg(unsigned int idx)
 {
         if (idx >= current_frame->ap)
                 return NULL;
-        return current_frame->locals[idx];
+        return current_frame->stack[idx];
 }
 
 #else /* !VM_READY */

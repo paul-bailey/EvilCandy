@@ -414,7 +414,7 @@ call_vmfunction_prep_frame(struct var_t *fn,
                 struct var_t *v = fh->f_vmargv[i];
                 if (!v)
                         syntax("Missing non-optional arg #%d", i);
-                fr->locals[fr->ap++] = qop_mov(var_new(), v);
+                fr->stack[fr->ap++] = qop_mov(var_new(), v);
         }
         if (!owner)
                 owner = get_this();

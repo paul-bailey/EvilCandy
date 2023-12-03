@@ -241,13 +241,12 @@ struct vmframe_t {
         struct var_t *owner, *func;
         struct var_t **stackptr;
         struct var_t *stack[FRAME_STACK_MAX];
-        struct var_t *locals[FRAME_STACK_MAX];
         struct executable_t *ex;
-        /* TODO: not so sure I need SP after all */
-        int fp, ap, sp, lp;
+        int ap;
         instruction_t *ppii;
         struct var_t **clo;
         struct vmframe_t *prev;
+        struct list_t alloc_list;
 };
 
 

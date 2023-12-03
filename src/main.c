@@ -74,7 +74,7 @@ static int
 parse_args(int argc, char **argv)
 {
         int c;
-        while ((c = getopt(argc, argv, "xd:")) != -1) {
+        while ((c = getopt(argc, argv, "xD:d:")) != -1) {
                 switch (c) {
                 case 'x':
                         q_.opt.use_vm = true;
@@ -82,6 +82,11 @@ parse_args(int argc, char **argv)
                 case 'd':
                         q_.opt.disassemble = true;
                         q_.opt.disassemble_outfile = optarg;
+                        break;
+                case 'D':
+                        q_.opt.disassemble = true;
+                        q_.opt.disassemble_outfile = optarg;
+                        q_.opt.disassemble_only = true;
                         break;
                 default:
                         goto er;

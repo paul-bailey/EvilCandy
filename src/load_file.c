@@ -185,6 +185,9 @@ load_file(const char *filename)
         if ((ex = assemble(ns)) == NULL)
                 warning("Failed to assemble");
 
+        if (q_.opt.disassemble_only)
+                return;
+
         if (ex && q_.opt.use_vm) {
                 vm_execute(ex);
                 return;

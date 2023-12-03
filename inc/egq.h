@@ -289,6 +289,7 @@ struct global_t {
         struct frame_t *frame;
         struct {
                 bool disassemble;
+                bool disassemble_only;
                 bool use_vm;
                 char *disassemble_outfile;
                 char *infile;

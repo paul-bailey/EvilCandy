@@ -18,22 +18,19 @@
  *
  *              LIST_ALLOC = 0  Use the memblk.c API
  *
- * Neither the list version nor the memblk version below seem to have
- * an avantage over each other, but they are both about 25% faster than
- * the library malloc() and free(), I assume because they are customized
- * for many small alloc/frees, as well as for locality.
+ * 12/2023 update: With -x option set, the list method clearly is the
+ * winner.  The memblk code, which seemed to do great when total vars
+ * was less than 64, does NOT perform well under pressure.
  */
 #define SIMPLE_ALLOC 0
 #define LIST_ALLOC 1
 
-#if SIMPLE_ALLOC
-
-# ifndef NDEBUG
+#ifndef NDEBUG
 static size_t var_nalloc = 0;
-#  define REGISTER_ALLOC() do { \
+# define REGISTER_ALLOC() do { \
         var_nalloc += sizeof(struct var_t); \
 } while (0)
-#  define REGISTER_FREE() do { \
+# define REGISTER_FREE() do { \
         var_nalloc -= sizeof(struct var_t); \
 } while (0)
 static void
@@ -41,11 +38,12 @@ var_alloc_tell(void)
 {
         fprintf(stderr, "var_alloc_size = %lu\n", (long)var_nalloc);
 }
-# else /* NDEBUG */
-#  define REGISTER_ALLOC() do { (void)0; } while (0)
-#  define REGISTER_FREE() do { (void)0; } while (0)
-# endif /* NDEBUG */
+#else /* NDEBUG */
+# define REGISTER_ALLOC() do { (void)0; } while (0)
+# define REGISTER_FREE() do { (void)0; } while (0)
+#endif /* NDEBUG */
 
+#if SIMPLE_ALLOC
 static struct var_t *
 var_alloc(void)
 {
@@ -87,6 +85,7 @@ static struct var_t *
 var_alloc(void)
 {
         struct var_mem_t *vm;
+        REGISTER_ALLOC();
         if (list_is_empty(&var_freelist)) {
                 var_more_();
         }
@@ -98,6 +97,7 @@ var_alloc(void)
 static void
 var_free(struct var_t *v)
 {
+        REGISTER_FREE();
         list_add_tail(&(var2memvar(v)->list), &var_freelist);
 }
 
@@ -115,12 +115,14 @@ var_alloc(void)
                 var_mempool = mempool_new(sizeof(struct var_t));
 
         struct var_t *ret = mempool_alloc(var_mempool);
+        REGISTER_ALLOC();
         return ret;
 }
 
 static void
 var_free(struct var_t *v)
 {
+        REGISTER_FREE();
         mempool_free(var_mempool, v);
 }
 # endif
@@ -295,9 +297,7 @@ moduleinit_var(void)
                         bug();
         }
 #ifndef NDEBUG
-# if SIMPLE_ALLOC
         atexit(var_alloc_tell);
-# endif
 #endif
 }
 

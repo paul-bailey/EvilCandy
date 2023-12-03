@@ -268,32 +268,40 @@ pop_or_deref_copy(struct vmframe_t *fr)
         return v;
 }
 
-typedef void (*binary_opfunc_t)(struct var_t *, struct var_t *);
+#define binary_op_common(fr, op) do {   \
+        struct var_t *lval, *rval;      \
+        bool rdel;                      \
+        rval = pop_or_deref(fr, &rdel); \
+        lval = pop_or_deref_copy(fr);   \
+        op(lval, rval);                 \
+        push(fr, lval);                 \
+        if (rdel)                       \
+                var_delete(rval);       \
+} while (0)
 
-static inline __attribute__((always_inline)) void
-binary_op_common(struct vmframe_t *fr, binary_opfunc_t op)
+#define unary_op_common(fr, cb) do {    \
+        struct var_t *v = pop(fr);      \
+        struct var_t *truev = v;        \
+        if (truev->magic == Q_VARPTR_MAGIC) \
+                truev = v->vptr;        \
+        cb(truev);                      \
+        push(fr, v);                    \
+} while (0)
+
+static inline void
+logical_or(struct var_t *a, struct var_t *b)
 {
-        struct var_t *lval, *rval;
-        bool rdel;
-
-        rval = pop_or_deref(fr, &rdel);
-        lval = pop_or_deref_copy(fr);
-
-        (*op)(lval, rval);
-        push(fr, lval);
-        if (rdel)
-                var_delete(rval);
+        bool res = !qop_cmpz(a) || !qop_cmpz(b);
+        var_reset(a);
+        qop_assign_int(a, (int)res);
 }
 
-static inline __attribute__((always_inline)) void
-unary_op_common(struct vmframe_t *fr, void (*cb)(struct var_t *))
+static inline void
+logical_and(struct var_t *a, struct var_t *b)
 {
-        struct var_t *v = pop(fr);
-        struct var_t *truev = v;
-        if (truev->magic == Q_VARPTR_MAGIC)
-                truev = v->vptr;
-        cb(truev);
-        push(fr, v);
+        bool res = !qop_cmpz(a) && !qop_cmpz(b);
+        var_reset(a);
+        qop_assign_int(a, (int)res);
 }
 
 static struct var_t *
@@ -789,25 +797,9 @@ do_binary_xor(struct vmframe_t *fr, instruction_t ii)
 }
 
 static void
-logical_or(struct var_t *a, struct var_t *b)
-{
-        bool res = !qop_cmpz(a) || !qop_cmpz(b);
-        var_reset(a);
-        qop_assign_int(a, (int)res);
-}
-
-static void
 do_logical_or(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, logical_or);
-}
-
-static void
-logical_and(struct var_t *a, struct var_t *b)
-{
-        bool res = !qop_cmpz(a) && !qop_cmpz(b);
-        var_reset(a);
-        qop_assign_int(a, (int)res);
 }
 
 static void

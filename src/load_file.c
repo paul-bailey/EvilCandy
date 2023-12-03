@@ -15,29 +15,10 @@ nspush(struct ns_t *new)
         if (ns_sp >= &ns_stack[LOAD_MAX])
                 syntax("Too many imports; stack overflow");
 
-        PC_SAVE(&ns_sp->pc);
-
         cur_ns = new;
         cur_oc = (struct opcode_t *)new->pgm.s;
         ns_sp++;
 }
-
-static void
-nspop(void)
-{
-        bug_on(ns_sp <= ns_stack);
-        --ns_sp;
-
-        PC_GOTO(&ns_sp->pc);
-
-        /*
-         * We may have "break"-en early, so some stuff is on stack
-         * If an imported file wants something to be "seen" by the
-         * calling file, it should have been appended to an
-         * already-visible object, usu. "__gbl__"
-         */
-}
-
 
 static inline bool
 isupdir(const char *s)
@@ -146,21 +127,6 @@ convert_path(const char *name)
         return literal_put(path.s);
 }
 
-static void
-exec_block(void)
-{
-        /* Note: keep this re-entrant */
-        for (;;) {
-                int ret = expression(NULL, FE_TOP);
-                if (ret) {
-                        if (ret == 3)
-                                break;
-                        syntax("Cannot '%s' from top level",
-                                ret == 1 ? "return" : "break");
-                }
-        }
-}
-
 void
 load_file(const char *filename)
 {
@@ -188,29 +154,6 @@ load_file(const char *filename)
         if (q_.opt.disassemble_only)
                 return;
 
-        if (ex && q_.opt.use_vm) {
+        if (ex)
                 vm_execute(ex);
-                return;
-        }
-
-        /*
-         * dirty, but we only do it here: we want the first
-         * call to qlex() to get the FIRST opcode, not the SECOND.
-         * We don't call q_unlex, because that will trap an
-         * out-of-bounds bug.  Like I said, it's dirty.
-         */
-        cur_oc--;
-
-
-        exec_block();
-        nspop();
-
-        /*
-         * We "popped" out of our starting file, so we're done.
-         * FIXME: way to properly unwind
-         */
-        if (!cur_ns) {
-                bug_on(ns_sp != ns_stack);
-                exit(0);
-        }
 }

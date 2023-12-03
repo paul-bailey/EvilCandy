@@ -66,25 +66,6 @@ keyword_insert(const char *key, int value)
         trie->value = value;
 }
 
-#if 0
-/*
- * TODO: Restore this, as a diagnostic function
- */
-size_t
-memused(struct kwtrie_t *trie)
-{
-        int i;
-        size_t size;
-        if (!trie)
-                return 0;
-
-        size = sizeof(*trie);
-        for (i = 0; i < 26; i++)
-                size += memused(trie->ptrs[i]);
-        return size;
-}
-#endif
-
 void
 moduleinit_keyword(void)
 {

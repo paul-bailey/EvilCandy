@@ -447,31 +447,6 @@ tokenize(struct opcode_t *oc)
         return ret;
 }
 
-int
-qlex(void)
-{
-        bug_on(!cur_oc);
-
-        /* safety net */
-        if ((char *)cur_oc >= cur_ns->pgm.s && cur_oc->t == EOF)
-                return EOF;
-
-        cur_oc++;
-        return cur_oc->t;
-}
-
-void
-q_unlex(void)
-{
-        /*
-         * minus one is ok, because next qlex() will put us back where we
-         * belong.  This assumes, however, that calling code will know to
-         * qlex again before de-referencing cur_oc.
-         */
-        bug_on((char *)cur_oc < cur_ns->pgm.s);
-        cur_oc--;
-}
-
 static void
 buffer_putcode(struct buffer_t *buf, struct opcode_t *oc)
 {

@@ -1,6 +1,8 @@
 #ifndef EGQ_H
 #define EGQ_H
 
+#define ONLY_VM 1
+
 #include "hashtable.h"
 #include "helpers.h"
 #include "buffer.h"
@@ -29,7 +31,7 @@ enum {
         CALL_DEPTH_MAX  = 256,
         FRAME_DEPTH_MAX = CALL_DEPTH_MAX * 2,
 
-        /* for frame.c and assemble.c */
+        /* for vm.c and assemble.c */
         FRAME_ARG_MAX   = 24,
         FRAME_STACK_MAX = 128,
         FRAME_NEST_MAX  = 32,
@@ -70,6 +72,12 @@ enum type_magic_t {
          */
         Q_VARPTR_MAGIC,
         Q_XPTR_MAGIC,
+};
+
+/* XXX: needed outside of assembly.c? */
+enum {
+        FE_FOR = 0x01,
+        FE_TOP = 0x02,
 };
 
 struct var_t;
@@ -228,14 +236,6 @@ struct var_t {
         };
 };
 
-/* XXX only used by function.c and frame.c, will be deleted
- * when we can remove names from local variables, ie when vm is ready
- */
-struct function_arg_t {
-        char *a_name;
-        struct var_t *a_default;
-};
-
 /* FIXME: Needs to be more private than this */
 struct vmframe_t {
         struct var_t *owner, *func;
@@ -296,19 +296,6 @@ struct global_t {
         } opt;
         struct list_t executables;
 };
-
-/* These PC macros require #include <string.h> */
-#define PC_SAVE(link) memcpy(link, cur_mk, sizeof(*cur_mk))
-
-/* simulation of the BL instruction */
-#define PC_BL(to, link) do { \
-        if ((link) != NULL) \
-                PC_SAVE(link); \
-        memcpy(cur_mk, to, sizeof(*cur_mk)); \
-} while (0)
-
-/* simulation of the B instruction */
-#define PC_GOTO(to) PC_BL(to, NULL)
 
 /* I really hate typing this everywhere */
 #define cur_mk  (&q_.pc)
@@ -388,16 +375,6 @@ extern void compile_lambda(struct var_t *v);
 extern void disassemble_start(FILE *fp, const char *sourcefile_name);
 extern void disassemble(FILE *fp, struct executable_t *ex);
 
-/* eval.c */
-extern void eval(struct var_t *v);
-extern void moduleinit_eval(void);
-struct index_info_t {
-        int magic;
-        char *s;
-        int i;
-};
-extern void eval_index(struct index_info_t *ii);
-
 /* ewrappers.c */
 extern struct var_t *ebuiltin_method(struct var_t *v,
                                 const char *method_name);
@@ -413,45 +390,12 @@ extern int earray_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *esymbol_seek(const char *name);
 extern char *eliteral(const char *key);
-extern unsigned long fnv_hash(const char *s);
-
-/* expression.c */
-enum {
-        FE_FOR = 0x01,
-        FE_TOP = 0x02,
-};
-extern int expression(struct var_t *retval, unsigned int flags);
-extern void seek_eob(int depth);
-
-/* frame.c */
-extern struct frame_t *frame_alloc(void);
-extern void frame_push(struct frame_t *fr);
-extern void frame_push_weak(void);
-extern void frame_pop(void);
-extern void frame_pop_weak(void);
-extern void frame_add_var(struct var_t *var, char *name);
-extern void frame_add_arg(struct frame_t *fr,
-                        struct var_t *var, char *name);
-extern void frame_add_closures(struct frame_t *fr,
-                        struct function_arg_t *clo, int count);
-extern void frame_add_owners(struct frame_t *fr,
-                        struct var_t *obj, struct var_t *func);
-extern struct var_t *frame_get_arg(unsigned int idx);
-extern struct var_t *frame_get_var(const char *name, bool gbl);
-extern int frame_nargs(void);
-extern void moduleinit_frame(void);
-struct var_t *frame_get_this(void);
-struct var_t *frame_get_this_func(void);
-/* because I wrote it this way first... */
-#define get_this()  (q_.opt.use_vm ? vm_get_this() : frame_get_this())
 
 /* keyword.c */
 extern int keyword_seek(const char *s);
 extern void moduleinit_keyword(void);
 
 /* lex.c */
-extern int qlex(void);
-extern void q_unlex(void);
 extern struct ns_t *prescan(const char *filename);
 extern void moduleinit_lex(void);
 
@@ -620,5 +564,9 @@ extern void vm_execute(struct executable_t *top_level);
 extern void moduleinit_vm(void);
 extern struct var_t *vm_get_this(void);
 extern struct var_t *vm_get_arg(unsigned int idx);
+/* TODO: Get rid of references ot frame_get_arg */
+# define frame_get_arg(i)       vm_get_arg(i)
+# define get_this()             vm_get_this()
+
 
 #endif /* EGQ_H */

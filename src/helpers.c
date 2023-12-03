@@ -304,5 +304,23 @@ done:
         return 0;
 }
 
+/*
+ * fnv_hash - The FNV-1a hash algorithm, our default if user
+ *              does not select their own.
+ * See Wikipedia article on this.
+ * It could be made into 64-bit version with different consts.
+ * Users may want to make a case-less version of this, for
+ * things like case-insensitive databases.
+ */
+unsigned long
+fnv_hash(const char *s)
+{
+        unsigned int c;
+        unsigned long hash = 0x811c9dc5;
+        while ((c = (unsigned char)(*s++)) != '\0')
+                hash = (hash * 0x01000193) ^ c;
+        return hash;
+}
+
 
 

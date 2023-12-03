@@ -1,3 +1,7 @@
+/*
+ * Note: this is for linked lists.  It is not for the
+ * 'list' data type, which is in types/array.c.
+ */
 #include "list.h"
 
 /* insert new @a before @b */

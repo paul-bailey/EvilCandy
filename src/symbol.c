@@ -3,13 +3,6 @@
 #include "egq.h"
 #include <string.h>
 
-/* Helper to symbol_seek - look in stack */
-static struct var_t *
-trystack(const char *s, bool gbl)
-{
-        return frame_get_var(s, gbl);
-}
-
 /* Helper to symbol_seek - walk up namespace */
 static struct var_t *
 trythis(const char *s)
@@ -21,34 +14,12 @@ trythis(const char *s)
 }
 
 /**
- * symbol_seek_stack - Look up a symbol on the stack only
- * @s: first token of "something.something.something..."
- */
-struct var_t *
-symbol_seek_stack(const char *s)
-{
-        s = literal(s);
-        return s ? trystack(s, false) : NULL;
-}
-
-/**
- * symbol_seek_stack_l - Like symbol_seek_stack, but @s is known to be a
- *                       return value of literal()
- */
-struct var_t *
-symbol_seek_stack_l(const char *s)
-{
-        return trystack(s, false);
-}
-
-/**
  * symbol_seek - Look up a symbol
  * @s: first token of "something.something.something..."
  *
  * The process is...
  * 1. Look for first "something":
  *      a. if s==__gbl__, assume q_.gbl
- *      b. look in stack frame
  *      c. look in `this'
  *      e. look __gbl__ (since in step d. we might not
  *         ascend all the way up to global)
@@ -75,8 +46,6 @@ symbol_seek(const char *s)
 
         if (s == gbl)
                 return q_.gbl;
-        if (!q_.opt.use_vm && (v = trystack(s, true)) != NULL)
-                return v;
         if ((v = trythis(s)) != NULL)
                 return v;
         return object_child_l(q_.gbl, s);

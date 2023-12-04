@@ -85,57 +85,6 @@ struct frame_t;
 struct executable_t;
 
 /*
- * Per-type callbacks for mathematical operators, like + or -
- */
-struct operator_methods_t {
-        void (*mul)(struct var_t *, struct var_t *);    /* a = a * b */
-        void (*div)(struct var_t *, struct var_t *);    /* a = a / b */
-        void (*mod)(struct var_t *, struct var_t *);    /* a = a % b */
-        void (*add)(struct var_t *, struct var_t *);    /* a = a + b */
-        void (*sub)(struct var_t *, struct var_t *);    /* a = a - b */
-
-        /* <0 if a<b, 0 if a==b, >0 if a>b, doesn't set a or b */
-        int (*cmp)(struct var_t *, struct var_t *);
-
-        void (*lshift)(struct var_t *, struct var_t *); /* a = a << b */
-        void (*rshift)(struct var_t *, struct var_t *); /* a = a >> b */
-        void (*bit_and)(struct var_t *, struct var_t *); /* a = a & b */
-        void (*bit_or)(struct var_t *, struct var_t *); /* a = a | b */
-        void (*xor)(struct var_t *, struct var_t *);    /* a = a ^ b */
-        bool (*cmpz)(struct var_t *);                   /* a == 0 ? */
-        void (*incr)(struct var_t *);                   /* a++ */
-        void (*decr)(struct var_t *);                   /* a-- */
-        void (*bit_not)(struct var_t *);                /* ~a */
-        void (*negate)(struct var_t *);                 /* -a */
-        void (*mov)(struct var_t *, struct var_t *);    /* a = b */
-
-        /*
-         * hard reset, clobber var's type as well.
-         * Used for removing temporary vars from stack or freeing heap
-         * vars; if any type-specific garbage collection needs to be
-         * done, declare it here, or leave NULL for the generic cleanup.
-         */
-        void (*reset)(struct var_t *);
-};
-
-/**
- * struct type_t - Used to get info about a typedef
- * @name:       Name of the type
- * @methods:    Linked list of built-in methods for the type; these are
- *              things scripts call as functions.
- * @reset:      Callback to reset the variable, or NULL if no special
- *              action is needed.
- * @opm:        Callbacks for performing primitive operations like
- *              + or - on type
- */
-struct type_t {
-        const char *name;
-        struct hashtable_t methods;
-        void (*reset)(struct var_t *);
-        const struct operator_methods_t *opm;
-};
-
-/*
  * PRIVATE STRUCT, placed here so I can inline some things
  */
 struct string_handle_t {
@@ -290,7 +239,6 @@ struct global_t {
 
 /* main.c */
 extern struct global_t q_;
-extern const char *typestr(int magic);
 
 /* helpers to classify a variable */
 static inline bool isconst(struct var_t *v)
@@ -421,12 +369,10 @@ extern struct var_t *var_get_attr_by_string_l(struct var_t *v,
                                 const char *s);
 extern int var_set_attr(struct var_t *v,
                         struct var_t *deref, struct var_t *attr);
+extern const char *typestr(int magic);
 
 /* common hashtable callback for var-storing hashtables */
 extern void var_bucket_delete(void *data);
-
-/* Indexed by Q*_MAGIC */
-extern struct type_t TYPEDEFS[];
 
 /* types/array.c */
 extern struct var_t *array_child(struct var_t *array, int idx);

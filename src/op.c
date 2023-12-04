@@ -4,7 +4,8 @@
  * FIXME: Most of these should be in var.c and be called
  * "var_"-something.
  */
-#include "egq.h"
+#include <egq.h>
+#include <typedefs.h>
 #include <math.h>
 #include <string.h>
 

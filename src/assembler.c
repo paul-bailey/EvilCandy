@@ -778,30 +778,42 @@ assemble_eval9(struct assemble_t *a)
         }
 }
 
+/*
+ * Check for indirection: things like a.b, a['b'], a[b], a(b)...
+ *
+ * This part is tricky, for a number of reasons.  One, as we walk down
+ * the element path of a.b.c.d..., we need to keep track of the immediate
+ * parent of our current element, and for that matter keep track of
+ * whether we have a parent or not.  (ie. "a(b)" instead of "a.a(b)").
+ * All this is because primitive types' builtin methods do not know who
+ * the parent is unless it was passed as an argument to call_func.
+ *
+ * Second, by function-call time, the stack will be different beneath us
+ * depending on whether we have a parent or not.  So we need to include
+ * this as a truth statement into the instruction for calling functions
+ * (IARG_WITH_PARENT/IARG_NO_PARENT).
+ *
+ * Third, to keep track of the most current parent (ie. "b", not "a" when
+ * we are at the "c" of "a.b.c..."), INSTR_GETATTR pushes the parent back
+ * on the stack under the new attribute, therefore the stack grows by one
+ * for every generation we descend.  The solution I came up with is
+ * INSTR_UNWIND, which pops the last result from the top of the stack,
+ * pops and deletes some number of additional values off the stack (the
+ * "c", "b", "a"... of a.b.c...), and pushes the last result back on the
+ * stack.  This way it looks like the whole thing was a normal lval-rval
+ * operation, and the stack remains balanced.
+ */
 static void
 assemble_eval8(struct assemble_t *a)
 {
         bool have_parent = false;
-        int inbal = 0;
+        int inbal = 0; /* 'inbal' indeed. I can spel */
 
         assemble_eval9(a);
 
         while (!!(a->oc->t & TF_INDIRECT)) {
                 int namei;
                 struct token_t *name;
-
-                /*
-                 * GETATTR 0 ... pop parent, get attribute from const,
-                 *               push parent, push attribute
-                 * GETATTR 1 ... pop parent, pop key, get attribute from key,
-                 *               push parent, push attribute
-                 *
-                 *      Ether way we'll have pushed one more than are popped
-                 *      For each OC_PER or OC_LBRACK iteration.
-                 *      We can't just have the pops and pushes balance
-                 *      like in a binary-add case, because we still need
-                 *      the parent in case a function is called.
-                 */
 
                 switch (a->oc->t) {
                 case OC_PER:
@@ -1022,11 +1034,6 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
 
         as_lex(a);
 
-        /*
-         * check some fast-path easy cases:
-         *      thing = that
-         * instead of thing.child.granchild... = that
-         */
         if (a->oc->t == OC_SEMI)
                 return; /* empty statement? are we ok with this? */
 

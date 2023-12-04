@@ -1,4 +1,5 @@
-#include "egq.h"
+#include <egq.h>
+#include <typedefs.h>
 #include "types/var.h"
 #include <stdint.h>
 #include <stdlib.h>
@@ -376,4 +377,21 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
         qop_mov(child, attr);
         return 0;
 }
+
+/* for debugging and builtin functions */
+const char *
+typestr(int magic)
+{
+        if (magic < 0 || magic >= Q_NMAGIC) {
+                if (magic == Q_STRPTR_MAGIC)
+                        return "[internal-use string]";
+                if (magic == Q_VARPTR_MAGIC)
+                        return "[internal-use stack]";
+                if (magic == Q_XPTR_MAGIC)
+                        return "[internal-use executable]";
+                return "[bug]";
+        }
+        return TYPEDEFS[magic].name;
+}
+
 

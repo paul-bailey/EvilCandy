@@ -2,6 +2,7 @@
 #define EGQ_VAR_H
 
 #include <egq.h>
+#include <typedefs.h>
 #include <uarg.h>
 
 /*

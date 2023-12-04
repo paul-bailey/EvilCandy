@@ -145,7 +145,7 @@ int_tostr(struct var_t *ret)
         bug_on(len >= sizeof(buf));
         (void)len; /* in case NDEBUG */
 
-        qop_assign_cstring(ret, buf);
+        string_init(ret, buf);
 }
 
 static const struct type_inittbl_t int_methods[] = {
@@ -173,6 +173,15 @@ static const struct operator_methods_t int_primitives = {
         .mov            = int_mov,
 };
 
+
+struct var_t *
+integer_init(struct var_t *v, long long value)
+{
+        bug_on(v->magic != QEMPTY_MAGIC);
+        v->i = value;
+        v->magic = QINT_MAGIC;
+        return v;
+}
 
 void
 typedefinit_integer(void)

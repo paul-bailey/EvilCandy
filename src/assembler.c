@@ -471,16 +471,16 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
                 v = var_new();
                 switch (oc->t) {
                 case OC_TRUE:
-                        qop_assign_int(v, 1);
+                        integer_init(v, 1);
                         break;
                 case OC_FALSE:
-                        qop_assign_int(v, 0);
+                        integer_init(v, 0);
                         break;
                 case 'i':
-                        qop_assign_int(v, oc->i);
+                        integer_init(v, oc->i);
                         break;
                 case 'f':
-                        qop_assign_float(v, oc->f);
+                        float_init(v, oc->f);
                         break;
                 case 'u':
                 case 'q':

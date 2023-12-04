@@ -360,6 +360,11 @@ extern struct var_t *evar_get_attr(struct var_t *v,
 extern int evar_set_attr(struct var_t *v,
                         struct var_t *deref, struct var_t *attr);
 
+/* types/float.c */
+extern struct var_t *float_init(struct var_t *v, double value);
+/* types/integer.c */
+extern struct var_t *integer_init(struct var_t *v, long long value);
+
 /* keyword.c */
 extern int keyword_seek(const char *s);
 extern void moduleinit_keyword(void);
@@ -402,11 +407,6 @@ extern void qop_lnot(struct var_t *v);
 extern struct var_t *qop_mov(struct var_t *to, struct var_t *from);
 extern void qop_clobber(struct var_t *to, struct var_t *from);
 extern bool qop_cmpz(struct var_t *v);
-/* for assigning literals */
-extern void qop_assign_cstring(struct var_t *v, const char *s);
-extern void qop_assign_int(struct var_t *v, long long i);
-extern void qop_assign_float(struct var_t *v, double f);
-extern void qop_assign_char(struct var_t *v, int c);
 
 /* var.c */
 extern struct var_t *var_new(void);
@@ -470,7 +470,7 @@ object_child(struct var_t *o, const char *s)
 static inline struct buffer_t *string_buf__(struct var_t *str)
         { return &str->s->b; }
 extern void string_assign_cstring(struct var_t *str, const char *s);
-extern struct var_t *string_init(struct var_t *var);
+extern struct var_t *string_init(struct var_t *var, const char *cstr);
 static inline void string_clear(struct var_t *str)
         { string_assign_cstring(str, ""); }
 extern int string_substr(struct var_t *str, int i);

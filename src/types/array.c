@@ -161,7 +161,7 @@ array_len(struct var_t *ret)
 {
         struct var_t *self = get_this();
         bug_on(self->magic != QARRAY_MAGIC);
-        qop_assign_int(ret, self->a->nmemb);
+        integer_init(ret, self->a->nmemb);
 }
 
 static const struct type_inittbl_t array_methods[] = {

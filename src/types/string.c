@@ -38,7 +38,7 @@ string_length_method(struct var_t *ret)
 {
         struct var_t *self = get_this();
         bug_on(self->magic != QSTRING_MAGIC);
-        qop_assign_int(ret, string_length(self));
+        integer_init(ret, string_length(self));
 }
 
 static bool
@@ -117,7 +117,7 @@ string_format(struct var_t *ret)
         }
 
 done:
-        qop_assign_cstring(ret, t.s);
+        string_init(ret, t.s);
 }
 
 /* toint() (no args)
@@ -139,7 +139,7 @@ string_toint(struct var_t *ret)
                         i = 0;
                 errno = errno_save;
         }
-        qop_assign_int(ret, i);
+        integer_init(ret, i);
 }
 
 /*
@@ -162,7 +162,7 @@ string_tofloat(struct var_t *ret)
                         f = 0.;
                 errno = errno_save;
         }
-        qop_assign_float(ret, f);
+        float_init(ret, f);
 }
 
 static const char *
@@ -231,7 +231,7 @@ string_replace(struct var_t *ret)
 
         /* guarantee ret is string */
         if (ret->magic == QEMPTY_MAGIC)
-                string_init(ret);
+                string_init(ret, NULL);
         /* XXX bug, or syntax error? */
         bug_on(ret->magic != QSTRING_MAGIC);
 
@@ -274,14 +274,14 @@ string_copy(struct var_t *ret)
         bug_on(self->magic != QSTRING_MAGIC);
 
         if (ret->magic == QEMPTY_MAGIC)
-                string_init(ret);
+                string_init(ret, NULL);
         bug_on(ret->magic != QSTRING_MAGIC);
 
         buffer_reset(string_buf__(ret));
         s = string_get_cstring(self);
         if (!s)
                 return;
-        qop_assign_cstring(ret, s);
+        string_init(ret, s);
 }
 
 static struct type_inittbl_t string_methods[] = {
@@ -356,16 +356,19 @@ static const struct operator_methods_t string_primitives = {
 /**
  * string_init - Convert an empty variable into a string type
  * @var: An empty variable to turn into a string
+ * @cstr: Initial C-string to set @v to, or NULL to do that later
  *
  * Return: @var
  */
 struct var_t *
-string_init(struct var_t *var)
+string_init(struct var_t *var, const char *cstr)
 {
         bug_on(var->magic != QEMPTY_MAGIC);
         var->magic = QSTRING_MAGIC;
         var->s = new_string_handle();
         var->s->nref = 1;
+        if (cstr)
+                string_assign_cstring(var, cstr);
         return var;
 }
 

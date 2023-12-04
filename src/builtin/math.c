@@ -24,14 +24,14 @@ do_pow(struct var_t *ret)
         double x, y;
         x = get_floatarg(0);
         y = get_floatarg(1);
-        qop_assign_float(ret, pow(x, y));
+        float_init(ret, pow(x, y));
 }
 
 static void
 do_sqrt(struct var_t *ret)
 {
         double x = get_floatarg(0);
-        qop_assign_float(ret, sqrt(x));
+        float_init(ret, sqrt(x));
 }
 
 /*

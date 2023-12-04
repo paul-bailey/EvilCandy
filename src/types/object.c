@@ -172,6 +172,7 @@ object_foreach(struct var_t *ret)
         struct var_t *argv[2];
         argv[0] = var_new(); /* attribute */
         argv[1] = var_new(); /* name of attribute */
+        string_init(argv[1], NULL);
 
         if (!func)
                 syntax("Expected: function");
@@ -181,7 +182,7 @@ object_foreach(struct var_t *ret)
         for (idx = 0, res = hashtable_iterate(htbl, &key, &val, &idx);
              res == 0; res = hashtable_iterate(htbl, &key, &val, &idx)) {
                 qop_clobber(argv[0], (struct var_t *)val);
-                qop_assign_cstring(argv[1], (char *)key);
+                string_assign_cstring(argv[1], (char *)key);
                 /*
                  * XXX REVISIT: should ``this'' in a foreach callback
                  * be the owner of the foreach method (us)?  Or should it
@@ -220,7 +221,7 @@ object_len(struct var_t *ret)
         default:
                 i = 1;
         }
-        qop_assign_int(ret, i);
+        integer_init(ret, i);
 }
 
 static void
@@ -239,7 +240,7 @@ object_haschild(struct var_t *ret)
         if ((s = string_get_cstring(name)) != NULL)
                 child = object_child(self, s);
 
-        qop_assign_int(ret, (int)(child != NULL));
+        integer_init(ret, (int)(child != NULL));
 }
 
 static const struct type_inittbl_t object_methods[] = {

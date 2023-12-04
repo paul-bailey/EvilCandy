@@ -88,7 +88,7 @@ float_tostr(struct var_t *ret)
         bug_on(len >= sizeof(buf));
         (void)len; /* in case NDEBUG */
 
-        qop_assign_cstring(ret, buf);
+        string_init(ret, buf);
 }
 
 static const struct type_inittbl_t float_methods[] = {
@@ -108,6 +108,15 @@ static const struct operator_methods_t float_primitives = {
         .negate         = float_negate,
         .mov            = float_mov,
 };
+
+struct var_t *
+float_init(struct var_t *v, double f)
+{
+        bug_on(v->magic != QEMPTY_MAGIC);
+        v->f = f;
+        v->magic = QFLOAT_MAGIC;
+        return v;
+}
 
 void
 typedefinit_float(void)

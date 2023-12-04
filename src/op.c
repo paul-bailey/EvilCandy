@@ -2,20 +2,11 @@
  * op.c - built-in methods for operators like + and -
  *
  * FIXME: Most of these should be in var.c and be called
- * "var_"-something.  qop_assign_int|float should be int_init
- * and float_init in types/...c, qop_assign_cstring should be
- * an alternative to string_init in types/string.c
+ * "var_"-something.
  */
 #include "egq.h"
 #include <math.h>
 #include <string.h>
-
-static void
-type_err(struct var_t *v, int magic)
-{
-        syntax("You may not change variable from type %s to type %s",
-                typestr(v->magic), typestr(magic));
-}
 
 static void
 epermit(const char *op)
@@ -130,8 +121,7 @@ qop_cmp(struct var_t *a, struct var_t *b, int op)
 
         /* clobber @a and store ret in it */
         var_reset(a);
-        a->magic = QINT_MAGIC;
-        a->i = ret;
+        integer_init(a, ret);
 }
 
 /**
@@ -251,7 +241,7 @@ qop_lnot(struct var_t *v)
 {
         bool cond = qop_cmpz(v);
         var_reset(v);
-        qop_assign_int(v, (int)cond);
+        integer_init(v, (int)cond);
 }
 
 /**
@@ -277,7 +267,7 @@ qop_mov(struct var_t *to, struct var_t *from)
                 if (from->magic == QEMPTY_MAGIC) {
                         return to;
                 } else if (from->magic == Q_STRPTR_MAGIC) {
-                        qop_assign_cstring(to, from->strptr);
+                        string_init(to, from->strptr);
                         return to;
                 }
                 bug_on(isconst(to));
@@ -302,76 +292,6 @@ qop_clobber(struct var_t *to, struct var_t *from)
 {
         var_reset(to);
         qop_mov(to, from);
-}
-
-/* helper to qop_assign_cstring and qop_assign_char */
-static void
-qop_string_maybeinit(struct var_t *v)
-{
-        if (v->magic == QEMPTY_MAGIC) {
-                string_init(v);
-        } else if (v->magic != QSTRING_MAGIC) {
-                type_err(v, QSTRING_MAGIC);
-        }
-}
-
-/**
- * Convert @v to string if it's empty type, and assign the C string @s to
- * it
- */
-void
-qop_assign_cstring(struct var_t *v, const char *s)
-{
-        qop_string_maybeinit(v);
-        string_assign_cstring(v, s);
-}
-
-/**
- * Convert @v to string if it's empty type, and assign the C string to be
- * a single character length, character @c
- */
-void
-qop_assign_char(struct var_t *v, int c)
-{
-        qop_string_maybeinit(v);
-        string_clear(v);
-        string_putc(v, c);
-}
-
-/**
- * Convert @v to int if it's empty type, and assign @i to it (cast to a
- * double in the case that @v is float type)
- */
-void
-qop_assign_int(struct var_t *v, long long i)
-{
-        if (v->magic == QEMPTY_MAGIC)
-                v->magic = QINT_MAGIC;
-
-        if (v->magic == QINT_MAGIC)
-                v->i = i;
-        else if (v->magic == QFLOAT_MAGIC)
-                v->f = (long long)i;
-        else
-                type_err(v, QINT_MAGIC);
-}
-
-/**
- * Convert @v to float if it's empty type, and assign @f to it (cast to
- * a long long in the case that @v is an integer
- */
-void
-qop_assign_float(struct var_t *v, double f)
-{
-        if (v->magic == QEMPTY_MAGIC)
-                v->magic = QFLOAT_MAGIC;
-
-        if (v->magic == QINT_MAGIC)
-                v->i = (long long)f;
-        else if (v->magic == QFLOAT_MAGIC)
-                v->f = f;
-        else
-                type_err(v, QFLOAT_MAGIC);
 }
 
 

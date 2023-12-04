@@ -9,7 +9,7 @@ empty_cmpz(struct var_t *v)
 static void
 empty_bit_not(struct var_t *v)
 {
-        qop_assign_int(v, -1LL);
+        integer_init(v, -1LL);
 }
 
 static const struct operator_methods_t empty_primitives = {

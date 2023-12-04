@@ -16,7 +16,7 @@ static void
 do_typeof(struct var_t *ret)
 {
         struct var_t *p = frame_get_arg(0);
-        qop_assign_cstring(ret, typestr(p->magic));
+        string_init(ret, typestr(p->magic));
 }
 
 static bool
@@ -121,15 +121,15 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                                         t->cb, t->minargs, t->maxargs);
                         break;
                 case QSTRING_MAGIC:
-                        qop_assign_cstring(child, t->s);
+                        string_init(child, t->s);
                         child->flags = VF_CONST;
                         break;
                 case QINT_MAGIC:
-                        qop_assign_int(child, t->i);
+                        integer_init(child, t->i);
                         child->flags = VF_CONST;
                         break;
                 case QFLOAT_MAGIC:
-                        qop_assign_float(child, t->f);
+                        float_init(child, t->f);
                         child->flags = VF_CONST;
                         break;
                 default:

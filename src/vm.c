@@ -305,7 +305,7 @@ logical_or(struct var_t *a, struct var_t *b)
 {
         bool res = !qop_cmpz(a) || !qop_cmpz(b);
         var_reset(a);
-        qop_assign_int(a, (int)res);
+        integer_init(a, (int)res);
 }
 
 static inline void
@@ -313,7 +313,7 @@ logical_and(struct var_t *a, struct var_t *b)
 {
         bool res = !qop_cmpz(a) && !qop_cmpz(b);
         var_reset(a);
-        qop_assign_int(a, (int)res);
+        integer_init(a, (int)res);
 }
 
 static inline void
@@ -469,7 +469,7 @@ static void
 do_push_zero(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = var_new();
-        qop_assign_int(v, 0LL);
+        integer_init(v, 0LL);
         push(fr, v);
 }
 

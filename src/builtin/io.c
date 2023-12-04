@@ -63,7 +63,7 @@ static void
 do_eof(struct var_t *ret)
 {
         struct file_handle_t *fh = getfh();
-        qop_assign_int(ret, !!feof(fh->fp));
+        integer_init(ret, !!feof(fh->fp));
 }
 
 /*
@@ -88,7 +88,7 @@ static void
 do_errno(struct var_t *ret)
 {
         struct file_handle_t *fh = getfh();
-        qop_assign_int(ret, (long long)fh->err);
+        integer_init(ret, (long long)fh->err);
 }
 
 /*
@@ -109,7 +109,7 @@ do_readline(struct var_t *ret)
 
         errno = 0;
         if (ret->magic == QEMPTY_MAGIC)
-                string_init(ret);
+                string_init(ret, NULL);
         /* XXX bug, or syntax error? */
         bug_on(ret->magic != QSTRING_MAGIC);
 
@@ -159,7 +159,7 @@ done:
         if (errno)
                 fh->err = errno;
         errno = errno_save;
-        qop_assign_int(ret, res);
+        integer_init(ret, res);
 }
 
 /*
@@ -180,7 +180,7 @@ do_tell(struct var_t *ret)
         if (errno)
                 fh->err = errno;
         errno = errno_save;
-        qop_assign_int(ret, off);
+        integer_init(ret, off);
 }
 
 /*
@@ -284,7 +284,7 @@ do_open(struct var_t *ret)
         return;
 
 bad:
-        qop_assign_cstring(ret, strerror(errno));
+        string_init(ret, strerror(errno));
         errno = errno_save;
 }
 

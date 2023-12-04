@@ -274,8 +274,14 @@ qop_mov(struct var_t *to, struct var_t *from)
                 p = primitives_of(from);
                 bug_on(!p->mov);
                 p->mov(to, from);
+                /*
+                 * XXX: don't set this here, the callbacks should call
+                 * their own (type)_init function.  The idea is, we may
+                 * wish to add more fields than a single magic number.
+                 */
                 to->magic = from->magic;
-        } else if (from->magic != QEMPTY_MAGIC) {
+        } else {
+                bug_on(from->magic == QEMPTY_MAGIC);
                 p = primitives_of(to);
                 bug_on(!p->mov);
                 p->mov(to, from);

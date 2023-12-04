@@ -1,4 +1,4 @@
-#!./egq
+#!./evilcandy
 
 let pow = function(x, y) {
     if (typeof(x) != "int" || typeof(y) != "int") {

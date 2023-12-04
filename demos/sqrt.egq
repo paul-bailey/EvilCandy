@@ -1,3 +1,4 @@
+#!./evilcandy
 // Iterate a square root function over a range of 0 to a million.
 // Change the IIFE arg between sqrt (the function below) and
 // Math.sqrt, and time the execution of this program.
@@ -44,13 +45,14 @@ let sqrt = function(x) {
     return y;
 };
 
-(function(sqrt) {
-    let x = 0.;
-    for (let i = 0.; i < 1000000.0; i++)
-        x = sqrt(i);
-})(sqrt);
-// for (let i = 0.0; i < 50.0; i++)
-//     print("{} vs {}".format(sqrt(i), Math.sqrt(i)));
+if (true) {
+    (function(sqrt) {
+        let x = 0.;
+        for (let i = 0.; i < 1000000.0; i++)
+            x = sqrt(i);
+    })(sqrt);
+} else for (let i = 0.0; i < 50.0; i++)
+    print("{} vs {}".format(sqrt(i), Math.sqrt(i)));
 
 
 // : vim: set syntax=javascript :

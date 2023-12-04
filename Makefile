@@ -54,7 +54,7 @@ quiet_cmd_cc = CC $@
 quiet_cmd_ld = LD $@
       cmd_ld = $(LD) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-prog := ./egq
+prog := evilcandy
 
 srcs := \
  $(wildcard $(SRCDIR)/types/*.c) \
@@ -90,7 +90,7 @@ $(DEPFILES):
 $(prog): $(objs)
 	$(call cmd,ld)
 
-test_scripter: $(prog) demo.tpl
+test_scripter: ./$(prog) demo.tpl
 	$(prog) demo.tpl
 
 ##

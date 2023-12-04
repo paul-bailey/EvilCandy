@@ -1,3 +1,6 @@
+/*
+ * evilcandy.h - Main API header for EvilCandy
+ */
 #ifndef EGQ_H
 #define EGQ_H
 
@@ -7,7 +10,6 @@
 #include <lib/helpers.h>
 #include <lib/buffer.h>
 #include <lib/list.h>
-#include "token.h"
 #include "instructions.h" /* TODO: remove */
 #include <stdbool.h>
 #include <stdint.h>
@@ -55,7 +57,10 @@ enum type_magic_t {
         QARRAY_MAGIC,
         Q_NMAGIC,
 
-        /* internal use, user should never be able to access these */
+        /*
+         * internal use, user should never be able to access these below
+         */
+
         Q_STRPTR_MAGIC = Q_NMAGIC,
         /*
          * FIXME: This causes lots of inefficient de-referencing.
@@ -69,7 +74,6 @@ enum type_magic_t {
         Q_XPTR_MAGIC,
 };
 
-/* XXX: needed outside of assembly.c? */
 enum {
         FE_FOR = 0x01,
         FE_TOP = 0x02,
@@ -82,6 +86,7 @@ struct string_handle_t;
 struct function_handle_t;
 struct frame_t;
 struct executable_t;
+struct token_t;
 
 /*
  * PRIVATE STRUCT, placed here so I can inline some things
@@ -180,26 +185,6 @@ struct vmframe_t {
 #endif
 };
 
-
-/**
- * struct token_t - Token metadata
- * @t:          Type of token, an OC_* enum, or one of "fiuq"
- * @line:       Line number in file where this token was parsed,
- *              used for tracing for error messages.
- * @s:          Content of the token parsed
- * @f:          Value of the token, if @t is 'f'
- * @i:          Value of the token, if @t is 'i'
- */
-struct token_t {
-        unsigned int t;
-        unsigned int line;
-        char *s;
-        union {
-                double f;
-                long long i;
-        };
-};
-
 /**
  * struct global_t - This program's global data, declared as q_
  * @gbl:        __gbl__, as the user sees it
@@ -247,11 +232,6 @@ static inline bool isprivate(struct var_t *v)
 /* true if v is float or int */
 static inline bool isnumvar(struct var_t *v)
         { return v->magic == QINT_MAGIC || v->magic == QFLOAT_MAGIC; }
-
-/* helpers for return value of qlex */
-static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
-static inline int tok_type(int t) { return t & 0x7fu; }
-static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
 
 /* assembler.c */
 extern struct executable_t *assemble(const char *source_file_name,

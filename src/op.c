@@ -8,6 +8,12 @@
 #include <typedefs.h>
 #include <math.h>
 #include <string.h>
+/*
+ * TODO: this for OC_* in qop_cmp, but should use IARG instead
+ * (likely a faster switch statement because they're
+ * sequential).
+ */
+#include "token.h"
 
 static void
 epermit(const char *op)

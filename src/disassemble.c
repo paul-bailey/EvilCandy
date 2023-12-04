@@ -1,4 +1,5 @@
 #include "instructions.h"
+#include "token.h"
 #include <evilcandy.h>
 #include <stdio.h>
 

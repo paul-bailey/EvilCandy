@@ -163,5 +163,28 @@ enum {
         OC_NULL         = TO_KTOK(KW_NULL),
 };
 
+/**
+ * struct token_t - Token metadata
+ * @t:          Type of token, an OC_* enum, or one of "fiuq"
+ * @line:       Line number in file where this token was parsed,
+ *              used for tracing for error messages.
+ * @s:          Content of the token parsed
+ * @f:          Value of the token, if @t is 'f'
+ * @i:          Value of the token, if @t is 'i'
+ */
+struct token_t {
+        unsigned int t;
+        unsigned int line;
+        char *s;
+        union {
+                double f;
+                long long i;
+        };
+};
+
+static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
+static inline int tok_type(int t) { return t & 0x7fu; }
+static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
+
 #endif /* EGQ_OPCODES_H */
 

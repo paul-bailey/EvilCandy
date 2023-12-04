@@ -7,8 +7,9 @@
  * from internal code (eg. in a foreach loop), vm_reenter is called.
  */
 #include <instructions.h>
-#include <limits.h>
 #include <evilcandy.h>
+#include "token.h"
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 

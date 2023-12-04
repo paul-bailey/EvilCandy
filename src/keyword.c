@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include "token.h"
 
 /*
  * Brute-force, dumbest-but-fastest version of a trie.  The only RAM

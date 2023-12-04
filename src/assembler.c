@@ -1,4 +1,9 @@
+/*
+ * FIXME: This whole file is a hacky duct-tape way to do things, because
+ * I couldn't be bothered to research the topic of abstract syntax trees.
+ */
 #include "instructions.h"
+#include "token.h"
 #include <evilcandy.h>
 #include <setjmp.h>
 #include <stdio.h>

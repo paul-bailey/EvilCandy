@@ -156,7 +156,7 @@ var_free(struct var_t *v)
  *
  * return: @v
  */
-struct var_t *
+static struct var_t *
 var_init(struct var_t *v)
 {
         v->magic = QEMPTY_MAGIC;
@@ -175,34 +175,20 @@ var_new(void)
 
 /**
  * var_delete - Delete a variable.
- * @v: variable to delete.  If @v was just a temporary struct declared
- *      on the stack, call var_reset() only, not this.
+ * @v: variable to delete.
  */
 void
 var_delete(struct var_t *v)
 {
         var_reset(v);
-        /* XXX REVISIT: we didn't set v->name, so we're not freeing it */
         var_free(v);
-}
-
-/**
- * var_copy - like qop_mov, but in the case of an object,
- *              all of @from's elements will be re-instantiated
- *              into @to
- */
-void
-var_copy(struct var_t *to, struct var_t *from)
-{
-        warning("%s not supported yet", __FUNCTION__);
-        bug();
 }
 
 /**
  * var_reset - Empty a variable
  * @v: variable to empty.
  *
- * This does not change @v's name
+ * This does not delete the variable.
  */
 void
 var_reset(struct var_t *v)
@@ -317,16 +303,6 @@ moduleinit_var(void)
 #ifndef NDEBUG
         atexit(var_alloc_tell);
 #endif
-}
-
-/* copy of the handle, not the whole shebang */
-struct var_t *
-var_copy_of(struct var_t *v)
-{
-        struct var_t *cp = var_new();
-        if (v)
-                qop_mov(cp, v);
-        return cp;
 }
 
 /**

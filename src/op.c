@@ -1,4 +1,11 @@
-/* op.c - built-in methods for operators like + and - */
+/*
+ * op.c - built-in methods for operators like + and -
+ *
+ * FIXME: Most of these should be in var.c and be called
+ * "var_"-something.  qop_assign_int|float should be int_init
+ * and float_init in types/...c, qop_assign_cstring should be
+ * an alternative to string_init in types/string.c
+ */
 #include "egq.h"
 #include <math.h>
 #include <string.h>

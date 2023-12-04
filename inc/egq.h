@@ -188,6 +188,15 @@ enum {
  * floats and integers are pass-by-value, so their values are stored in
  * this struct directly.  The remainder are pass-by-reference; this
  * struct only stores the pointers to their more meaningful data.
+ *
+ * Even though these are small, their object structs might be large,
+ * so they can't be carelessly declared on the stack and then discarded.
+ * Nor may they be allocated with a simple malloc() or freed with a simple
+ * free() call.  Instead, call var_new() to allocate one, and then
+ * var_delete() to destroy it (which handles the garbage collection,
+ * destructor callbacks, etc.).  Do not memset() it to zero or manually
+ * change it, either.  Use things like var_reset(), qop_assign...(), etc.
+ * access functions.
  */
 struct var_t {
         unsigned int magic;
@@ -405,15 +414,15 @@ extern void qop_assign_float(struct var_t *v, double f);
 extern void qop_assign_char(struct var_t *v, int c);
 
 /* var.c */
-extern struct var_t *var_init(struct var_t *v);
 extern struct var_t *var_new(void);
 extern void var_delete(struct var_t *v);
 extern void var_reset(struct var_t *v);
-extern void moduleinit_var(void);
 extern struct var_t *builtin_method(struct var_t *v,
                                     const char *method_name);
 extern void var_bucket_delete(void *data);
-extern struct var_t *var_copy_of(struct var_t *v);
+static inline struct var_t *var_copy_of(struct var_t *v)
+        { return qop_mov(var_new(), v); }
+extern void moduleinit_var(void);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];

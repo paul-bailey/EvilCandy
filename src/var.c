@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 /*
  * Variable allocation:
@@ -313,5 +314,38 @@ void
 var_bucket_delete(void *data)
 {
         var_delete((struct var_t *)data);
+}
+
+static struct var_t *
+var_get_attr_by_string(struct var_t *v, const char *s)
+{
+        if (v->magic == QOBJECT_MAGIC)
+                return object_child(v, s);
+        return builtin_method(v, s);
+}
+
+struct var_t *
+var_get_attr(struct var_t *v, struct var_t *deref)
+{
+        if (v->magic == Q_VARPTR_MAGIC)
+                v = v->vptr;
+        switch (deref->magic) {
+        case Q_STRPTR_MAGIC:
+                return var_get_attr_by_string(v, deref->strptr);
+        case QINT_MAGIC:
+                /* because idx stores long long, but ii.i is int */
+                /* XXX should I set errno? */
+                if (deref->i < INT_MIN || deref->i > INT_MAX)
+                        return NULL;
+                if (v->magic == QARRAY_MAGIC)
+                        return array_child(v, deref->i);
+                else if (v->magic == QOBJECT_MAGIC)
+                        return object_nth_child(v, deref->i);
+        case QSTRING_MAGIC:
+                return var_get_attr_by_string(v,
+                                        string_get_cstring(deref));
+        }
+
+        return NULL;
 }
 

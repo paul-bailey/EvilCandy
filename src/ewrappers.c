@@ -42,17 +42,6 @@ ecalloc(size_t size)
         return res;
 }
 
-struct var_t *
-ebuiltin_method(struct var_t *v, const char *method_name)
-{
-        struct var_t *ret = builtin_method(v, method_name);
-        if (!ret) {
-                syntax("type %s has no method %s",
-                        typestr(v->magic), method_name);
-        }
-        return ret;
-}
-
 int
 ebuffer_substr(struct buffer_t *tok, int i)
 {
@@ -63,56 +52,33 @@ ebuffer_substr(struct buffer_t *tok, int i)
 }
 
 struct var_t *
-eobject_child(struct var_t *o, const char *s)
+evar_get_attr(struct var_t *obj, struct var_t *deref)
 {
-        return eobject_child_l(o, eliteral(s));
-}
-
-struct var_t *
-eobject_child_l(struct var_t *o, const char *s)
-{
-        struct var_t *v;
-        v = object_child_l(o, s);
-        if (!v)
-                syntax("object has no attribute %s", s);
+        struct var_t *v = var_get_attr(obj, deref);
+        if (!v) {
+                /* XXX: this ought to be a helper in err.c */
+                /* error, try to report clearly what's wrong */
+                const char *attrstr;
+                char numbuf[64];
+                switch (deref->magic) {
+                case Q_STRPTR_MAGIC:
+                        attrstr = (const char *)deref->strptr;
+                        break;
+                case QSTRING_MAGIC:
+                        attrstr = (const char *)string_get_cstring(deref);
+                        break;
+                case QINT_MAGIC:
+                        sprintf(numbuf, "%llu", deref->i);
+                        attrstr = numbuf;
+                        break;
+                default:
+                        attrstr = "[egq: likely bug]";
+                        break;
+                }
+                syntax("Cannot get attribute '%s' of type %s",
+                       attrstr, typestr(obj->magic));
+        }
         return v;
-}
-
-struct var_t *
-eobject_nth_child(struct var_t *o, int n)
-{
-        struct var_t *v;
-        v = object_nth_child(o, n);
-        if (!v)
-                syntax("object has no %dth child", n);
-        return v;
-}
-
-struct var_t *
-earray_child(struct var_t *array, int idx)
-{
-        struct var_t *ret = array_child(array, idx);
-        if (ret < 0)
-                syntax("Array has no %llith element", idx);
-        return ret;
-}
-
-int
-earray_set_child(struct var_t *array, int idx, struct var_t *child)
-{
-        int ret = array_set_child(array, idx, child);
-        if (ret < 0)
-                syntax("Array index %d out of bounds", idx);
-        return ret;
-}
-
-char *
-eliteral(const char *key)
-{
-        char *ret = literal(key);
-        if (!ret)
-                syntax("Key '%s' not found", key);
-        return ret;
 }
 
 

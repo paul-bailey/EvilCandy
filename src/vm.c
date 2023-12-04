@@ -279,13 +279,25 @@ pop_or_deref_copy(struct vmframe_t *fr)
                 var_delete(rval);       \
 } while (0)
 
-#define unary_op_common(fr, cb) do {    \
+#define unary_op_common(fr, op) do {    \
         struct var_t *v = pop(fr);      \
         struct var_t *truev = v;        \
         if (truev->magic == Q_VARPTR_MAGIC) \
                 truev = v->vptr;        \
-        cb(truev);                      \
+        op(truev);                      \
         push(fr, v);                    \
+} while (0)
+
+#define assign_common(fr, op) do {              \
+        struct var_t *from, *to;                \
+        bool fdel;                              \
+        from = pop_or_deref(fr, &fdel);         \
+        to = pop(fr);                           \
+        bug_on(to->magic != Q_VARPTR_MAGIC);    \
+        op(to->vptr, from);                     \
+        var_delete(to);                         \
+        if (fdel)                               \
+                var_delete(from);               \
 } while (0)
 
 static inline void
@@ -314,62 +326,6 @@ static inline void
 lshift(struct var_t *a, struct var_t *b)
 {
         qop_shift(a, b, OC_LSHIFT);
-}
-
-static struct var_t *
-attr_ptr_(struct var_t *obj, struct var_t *deref)
-{
-        if (obj->magic == Q_VARPTR_MAGIC)
-                obj = obj->vptr;
-        if (deref->magic == Q_STRPTR_MAGIC) {
-                if (obj->magic == QOBJECT_MAGIC)
-                        return eobject_child(obj, deref->strptr);
-                return builtin_method(obj, deref->strptr);
-        } else if (deref->magic == QINT_MAGIC) {
-                /* because idx stores long long, but ii.i is int */
-                if (deref->i < INT_MIN || deref->i > INT_MAX)
-                        syntax("Array index out of range");
-                if (obj->magic == QARRAY_MAGIC)
-                        return earray_child(obj, deref->i);
-                else if (obj->magic == QOBJECT_MAGIC)
-                        return eobject_nth_child(obj, deref->i);
-        } else if (deref->magic == QSTRING_MAGIC) {
-                if (obj->magic == QOBJECT_MAGIC)
-                        return eobject_child(obj, string_get_cstring(obj));
-                return builtin_method(obj, string_get_cstring(obj));
-        }
-
-        return NULL;
-}
-
-static struct var_t *
-attr_ptr(struct var_t *obj, struct var_t *deref)
-{
-        struct var_t *v = attr_ptr_(obj, deref);
-        if (!v) {
-                /* XXX: this ought to be a helper in err.c */
-                /* error, try to report clearly what's wrong */
-                const char *attrstr;
-                char numbuf[64];
-                switch (deref->magic) {
-                case Q_STRPTR_MAGIC:
-                        attrstr = (const char *)deref->strptr;
-                        break;
-                case QSTRING_MAGIC:
-                        attrstr = (const char *)string_get_cstring(deref);
-                        break;
-                case QINT_MAGIC:
-                        sprintf(numbuf, "%llu", deref->i);
-                        attrstr = numbuf;
-                        break;
-                default:
-                        attrstr = "[egq: likely bug]";
-                        break;
-                }
-                syntax("Cannot get attribute '%s' of type %s",
-                       attrstr, typestr(obj->magic));
-        }
-        return v;
 }
 
 static void
@@ -436,82 +392,70 @@ do_unwind(struct vmframe_t *fr, instruction_t ii)
         push(fr, sav);
 }
 
-#define assign_common(fr, ii, oper) do {        \
-        struct var_t *from, *to;                \
-        bool fdel;                              \
-        from = pop_or_deref(fr, &fdel);         \
-        to = pop(fr);                           \
-        bug_on(to->magic != Q_VARPTR_MAGIC);    \
-        oper(to->vptr, from);                   \
-        var_delete(to);                         \
-        if (fdel)                               \
-                var_delete(from);               \
-} while (0)
-
 static void
 do_assign(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, qop_mov);
+        assign_common(fr, qop_mov);
 }
 
 static void
 do_assign_add(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, qop_add);
+        assign_common(fr, qop_add);
 }
 
 static void
 do_assign_sub(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, qop_sub);
+        assign_common(fr, qop_sub);
 }
 
 static void
 do_assign_mul(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, qop_mul);
+        assign_common(fr, qop_mul);
 }
 
 static void
 do_assign_div(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, qop_div);
+        assign_common(fr, qop_div);
 }
 
 static void
 do_assign_mod(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, qop_mod);
+        assign_common(fr, qop_mod);
 }
 
 static void
 do_assign_xor(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, qop_xor);
+        assign_common(fr, qop_xor);
 }
 
 static void
 do_assign_ls(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, lshift);
+        assign_common(fr, lshift);
 }
 
 static void
 do_assign_rs(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, rshift);
+        assign_common(fr, rshift);
 }
 
 static void
 do_assign_or(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, qop_bit_or);
+        assign_common(fr, qop_bit_or);
 }
 
 static void
 do_assign_and(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, ii, qop_bit_and);
+        assign_common(fr, qop_bit_and);
 }
 
 static void
@@ -696,7 +640,7 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
 
         obj = pop(fr);
 
-        attr = attr_ptr(obj, deref);
+        attr = evar_get_attr(obj, deref);
         if (del)
                 var_delete(deref);
 
@@ -727,7 +671,7 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 
         obj = pop(fr);
 
-        attr = attr_ptr(obj, deref);
+        attr = evar_get_attr(obj, deref);
         if (del)
                 var_delete(deref);
 

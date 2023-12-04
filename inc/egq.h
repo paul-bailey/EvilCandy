@@ -357,13 +357,8 @@ extern char *estrdup(const char *s);
 extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
 extern int ebuffer_substr(struct buffer_t *buf, int i);
-extern struct var_t *eobject_child(struct var_t *o, const char *s);
-extern struct var_t *eobject_child_l(struct var_t *o, const char *s);
-extern struct var_t *eobject_nth_child(struct var_t *o, int n);
-extern struct var_t *earray_child(struct var_t *array, int n);
-extern int earray_set_child(struct var_t *array,
-                            int idx, struct var_t *child);
-extern char *eliteral(const char *key);
+extern struct var_t *evar_get_attr(struct var_t *v,
+                                   struct var_t *deref);
 
 /* keyword.c */
 extern int keyword_seek(const char *s);
@@ -419,10 +414,13 @@ extern void var_delete(struct var_t *v);
 extern void var_reset(struct var_t *v);
 extern struct var_t *builtin_method(struct var_t *v,
                                     const char *method_name);
-extern void var_bucket_delete(void *data);
 static inline struct var_t *var_copy_of(struct var_t *v)
         { return qop_mov(var_new(), v); }
 extern void moduleinit_var(void);
+extern struct var_t *var_get_attr(struct var_t *v,
+                                  struct var_t *deref);
+/* common hashtable callback for var-storing hashtables */
+extern void var_bucket_delete(void *data);
 
 /* Indexed by Q*_MAGIC */
 extern struct type_t TYPEDEFS[];

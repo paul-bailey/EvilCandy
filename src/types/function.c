@@ -64,8 +64,11 @@ static void
 remove_args(struct var_t **arr, int count)
 {
         int i;
-        for (i = 0; i < count; i++)
-                var_delete(arr[i]);
+        for (i = 0; i < count; i++) {
+                /* these arrays could be sparse */
+                if (arr[i])
+                        var_delete(arr[i]);
+        }
         free(arr);
 }
 

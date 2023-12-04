@@ -88,6 +88,9 @@ enum {
         KW_LOAD,
         KW_CONST,
         KW_PRIV,
+        KW_TRUE,
+        KW_FALSE,
+        KW_NULL,
         N_KW,
 };
 
@@ -159,6 +162,9 @@ enum {
         OC_LOAD         = TO_KTOK(KW_LOAD),
         OC_CONST        = TO_KTOK(KW_CONST),
         OC_PRIV         = TO_KTOK(KW_PRIV),
+        OC_TRUE         = TO_KTOK(KW_TRUE),
+        OC_FALSE        = TO_KTOK(KW_FALSE),
+        OC_NULL         = TO_KTOK(KW_NULL),
 };
 
 #endif /* EGQ_OPCODES_H */

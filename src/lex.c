@@ -652,6 +652,7 @@ moduleinit_lex(void)
 
         /* special case */
         lexer.charmap[(int)'`'] |= (QDELIM | QDDELIM);
+        lexer.charmap[0] |= QDELIM;
 
         /* permitted identifier chars */
         for (i = 'a'; i < 'z'; i++)

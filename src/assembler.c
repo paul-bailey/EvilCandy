@@ -412,6 +412,18 @@ seek_or_add_const_xptr(struct assemble_t *a, void *p)
         return i;
 }
 
+static int
+seek_const_int(struct assemble_t *a, struct executable_t *x, long long vi)
+{
+        int i;
+        for (i = 0; i < x->n_rodata; i++) {
+                struct var_t *v = x->rodata[i];
+                if (v->magic == QINT_MAGIC && v->i == vi)
+                        break;
+        }
+        return i;
+}
+
 /* const from a token literal in the script */
 static int
 seek_or_add_const(struct assemble_t *a, struct token_t *oc)
@@ -422,13 +434,8 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
         struct var_t *v;
         switch (oc->t) {
         case 'i':
-                for (i = 0; i < x->n_rodata; i++) {
-                        v = x->rodata[i];
-                        if (v->magic == QINT_MAGIC && v->i == oc->i)
-                                break;
-                }
+                i = seek_const_int(a, x, oc->i);
                 break;
-
         case 'f':
                 for (i = 0; i < x->n_rodata; i++) {
                         v = x->rodata[i];
@@ -446,6 +453,12 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
                         }
                 }
                 break;
+        case OC_TRUE:
+                i = seek_const_int(a, x, 1LL);
+                break;
+        case OC_FALSE:
+                i = seek_const_int(a, x, 0LL);
+                break;
         default:
                 i = 0; /* satisfied, compiler? */
                 bug();
@@ -457,6 +470,12 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
 
                 v = var_new();
                 switch (oc->t) {
+                case OC_TRUE:
+                        qop_assign_int(v, 1);
+                        break;
+                case OC_FALSE:
+                        qop_assign_int(v, 0);
+                        break;
                 case 'i':
                         qop_assign_int(v, oc->i);
                         break;
@@ -711,7 +730,17 @@ assemble_eval_atomic(struct assemble_t *a)
         case 'i':
         case 'f':
         case 'q':
+        case OC_TRUE:
+        case OC_FALSE:
                 ainstr_push_const(a, a->oc);
+                break;
+
+        case OC_NULL:
+                /*
+                 * we don't need to save empty var in rodata,
+                 * regular push operation pushes empty by default.
+                 */
+                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
                 break;
 
         case OC_FUNC:

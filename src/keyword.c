@@ -86,6 +86,9 @@ moduleinit_keyword(void)
                 { "load",       OC_LOAD },
                 { "const",      OC_CONST },
                 { "private",    OC_PRIV },
+                { "true",       OC_TRUE },
+                { "false",      OC_FALSE },
+                { "null",       OC_NULL },
                 { NULL, 0 }
         };
         const struct kw_tbl_t *tkw;

@@ -20,6 +20,6 @@ static const struct operator_methods_t empty_primitives = {
 void
 typedefinit_empty(void)
 {
-        var_config_type(QEMPTY_MAGIC, "empty", &empty_primitives, NULL);
+        var_config_type(TYPE_EMPTY, "empty", &empty_primitives, NULL);
 }
 

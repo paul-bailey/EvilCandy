@@ -161,7 +161,7 @@ var_free(struct var_t *v)
 static struct var_t *
 var_init(struct var_t *v)
 {
-        v->magic = QEMPTY_MAGIC;
+        v->magic = TYPE_EMPTY;
         v->flags = 0;
         return v;
 }
@@ -195,17 +195,17 @@ var_delete(struct var_t *v)
 void
 var_reset(struct var_t *v)
 {
-        if ((unsigned)v->magic < Q_NMAGIC) {
+        if ((unsigned)v->magic < NTYPES_USER) {
                 void (*rst)(struct var_t *) = TYPEDEFS[v->magic].opm->reset;
                 if (rst)
                         rst(v);
         }
 
-        v->magic = QEMPTY_MAGIC;
+        v->magic = TYPE_EMPTY;
         v->flags = 0;
 }
 
-struct type_t TYPEDEFS[Q_NMAGIC];
+struct type_t TYPEDEFS[NTYPES_USER];
 
 static void
 config_builtin_methods(const struct type_inittbl_t *tbl,
@@ -240,7 +240,7 @@ static struct var_t *
 builtin_method_l(struct var_t *v, const char *method_name)
 {
         int magic = v->magic;
-        if ((unsigned)magic >= Q_NMAGIC || !method_name)
+        if ((unsigned)magic >= NTYPES_USER || !method_name)
                 return NULL;
 
         return hashtable_get(&TYPEDEFS[magic].methods, method_name);
@@ -268,14 +268,14 @@ moduleinit_var(void)
         const struct initfn_tbl_t *t;
         int i;
 
-        for (i = QEMPTY_MAGIC; i < Q_NMAGIC; i++) {
+        for (i = TYPE_EMPTY; i < NTYPES_USER; i++) {
                 hashtable_init(&TYPEDEFS[i].methods, ptr_hash,
                                 ptr_key_match, var_bucket_delete);
         }
         for (t = INIT_TBL; t->cb != NULL; t++)
                 t->cb();
 
-        for (i = 0; i < Q_NMAGIC; i++) {
+        for (i = 0; i < NTYPES_USER; i++) {
                 if (TYPEDEFS[i].name == NULL)
                         bug();
         }
@@ -299,7 +299,7 @@ attr_by_string_l(struct var_t *v, const char *s)
 {
         if (!s)
                 return NULL;
-        if (v->magic == QOBJECT_MAGIC) {
+        if (v->magic == TYPE_DICT) {
                 struct var_t *res;
                 if ((res = object_child_l(v, s)) != NULL)
                         return res;
@@ -334,24 +334,24 @@ var_get_attr_by_string_l(struct var_t *v, const char *s)
 struct var_t *
 var_get_attr(struct var_t *v, struct var_t *deref)
 {
-        if (v->magic == Q_VARPTR_MAGIC)
+        if (v->magic == TYPE_VARPTR)
                 v = v->vptr;
 
         /* we should not have double pointers */
-        bug_on(v->magic == Q_VARPTR_MAGIC);
+        bug_on(v->magic == TYPE_VARPTR);
 
         switch (deref->magic) {
-        case Q_STRPTR_MAGIC:
+        case TYPE_STRPTR:
                 return attr_by_string_l(v, deref->strptr);
-        case QINT_MAGIC:
+        case TYPE_INT:
                 /* because idx stores long long, but ii.i is int */
                 if (deref->i < INT_MIN || deref->i > INT_MAX)
                         return NULL;
-                if (v->magic == QARRAY_MAGIC)
+                if (v->magic == TYPE_LIST)
                         return array_child(v, deref->i);
-                else if (v->magic == QOBJECT_MAGIC)
+                else if (v->magic == TYPE_DICT)
                         return object_nth_child(v, deref->i);
-        case QSTRING_MAGIC:
+        case TYPE_STRING:
                 return attr_by_string(v, string_get_cstring(deref));
         }
 
@@ -382,12 +382,12 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
 const char *
 typestr(int magic)
 {
-        if (magic < 0 || magic >= Q_NMAGIC) {
-                if (magic == Q_STRPTR_MAGIC)
+        if (magic < 0 || magic >= NTYPES_USER) {
+                if (magic == TYPE_STRPTR)
                         return "[internal-use string]";
-                if (magic == Q_VARPTR_MAGIC)
+                if (magic == TYPE_VARPTR)
                         return "[internal-use stack]";
-                if (magic == Q_XPTR_MAGIC)
+                if (magic == TYPE_XPTR)
                         return "[internal-use executable]";
                 return "[bug]";
         }

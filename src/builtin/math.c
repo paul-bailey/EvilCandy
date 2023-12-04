@@ -9,9 +9,9 @@ get_floatarg(int argno)
 {
         struct var_t *x = frame_get_arg(argno);
         bug_on(!x);
-        if (x->magic == QINT_MAGIC)
+        if (x->magic == TYPE_INT)
                 return (double)x->i;
-        else if (x->magic == QFLOAT_MAGIC)
+        else if (x->magic == TYPE_FLOAT)
                 return x->f;
         else
                 syntax("Expected: float or int");

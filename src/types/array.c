@@ -6,7 +6,7 @@
  * struct array_handle_t - Handle to a numerical array
  * @nref:       Number of variables with access to this array
  *              Used for garbage collection
- * @type:       type of data stored in the array, a Q*_MAGIC enum
+ * @type:       type of data stored in the array, a TYPE_* enum
  * @nmemb:      Size of the array, in number of elements
  * @allocsize:  Size of the array, in number of bytes currently allocated
  *              for it
@@ -33,7 +33,7 @@ static struct array_handle_t *
 array_handle_new(void)
 {
         struct array_handle_t *ret = ecalloc(sizeof(*ret));
-        ret->type = QEMPTY_MAGIC;
+        ret->type = TYPE_EMPTY;
         buffer_init(&ret->children);
         ret->nref = 1;
         return ret;
@@ -44,7 +44,7 @@ array_handle_new(void)
  * @array: Array to seek
  * @idx:   Index into the array
  * @child: Variable to store the result, which must be permitted
- *         to receive it (ie. it ought to be QEMPTY_MAGIC)
+ *         to receive it (ie. it ought to be TYPE_EMPTY)
  *
  * Return 0 for success, -1 for failure
  *
@@ -95,9 +95,9 @@ void
 array_add_child(struct var_t *array, struct var_t *child)
 {
         struct array_handle_t *h = array->a;
-        if (child->magic == QEMPTY_MAGIC)
+        if (child->magic == TYPE_EMPTY)
                 syntax("You may not add an empty var to array");
-        if (h->type == QEMPTY_MAGIC) {
+        if (h->type == TYPE_EMPTY) {
                 /* first time, set type and assign datasize */
                 bug_on(h->nmemb != 0);
                 h->type = child->magic;
@@ -120,8 +120,8 @@ array_add_child(struct var_t *array, struct var_t *child)
 struct var_t *
 array_from_empty(struct var_t *array)
 {
-        bug_on(array->magic != QEMPTY_MAGIC);
-        array->magic = QARRAY_MAGIC;
+        bug_on(array->magic != TYPE_EMPTY);
+        array->magic = TYPE_LIST;
 
         array->a = array_handle_new();
         return array;
@@ -142,7 +142,7 @@ array_reset(struct var_t *a)
 static void
 array_mov(struct var_t *to, struct var_t *from)
 {
-        if (from->magic != QARRAY_MAGIC) {
+        if (from->magic != TYPE_LIST) {
                 syntax("Cannot change type from array to %s",
                        typestr(from->magic));
         }
@@ -160,7 +160,7 @@ static void
 array_len(struct var_t *ret)
 {
         struct var_t *self = get_this();
-        bug_on(self->magic != QARRAY_MAGIC);
+        bug_on(self->magic != TYPE_LIST);
         integer_init(ret, self->a->nmemb);
 }
 
@@ -172,6 +172,6 @@ static const struct type_inittbl_t array_methods[] = {
 void
 typedefinit_array(void)
 {
-        var_config_type(QARRAY_MAGIC, "list",
+        var_config_type(TYPE_LIST, "list",
                         &array_primitives, array_methods);
 }

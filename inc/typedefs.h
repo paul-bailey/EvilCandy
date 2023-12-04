@@ -55,7 +55,7 @@ struct type_t {
         const struct operator_methods_t *opm;
 };
 
-/* Indexed by Q*_MAGIC, located in var.c */
+/* Indexed by TYPE_* (max NTYPES_USER-1), located in var.c */
 extern struct type_t TYPEDEFS[];
 
 #endif /* EVILCANDY_TYPEDEFS_H */

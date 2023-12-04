@@ -48,7 +48,7 @@ getfh(void)
 {
         struct var_t *self = get_this();
         struct file_handle_t *fh;
-        bug_on(self->magic != QOBJECT_MAGIC);
+        bug_on(self->magic != TYPE_DICT);
         fh = object_get_priv(self);
         bug_on(fh->magic != FILE_HANDLE_MAGIC);
         return fh;
@@ -108,10 +108,10 @@ do_readline(struct var_t *ret)
         FILE *fp = fh->fp;
 
         errno = 0;
-        if (ret->magic == QEMPTY_MAGIC)
+        if (ret->magic == TYPE_EMPTY)
                 string_init(ret, NULL);
         /* XXX bug, or syntax error? */
-        bug_on(ret->magic != QSTRING_MAGIC);
+        bug_on(ret->magic != TYPE_STRING);
 
         string_clear(ret);
         while ((c = getc(fp)) != '\n' && c != EOF)
@@ -141,7 +141,7 @@ do_writeline(struct var_t *ret)
 
         bug_on(vs == NULL);
 
-        arg_type_check(vs, QSTRING_MAGIC);
+        arg_type_check(vs, TYPE_STRING);
         s = string_get_cstring(vs);
         if (!s)
                 goto done;
@@ -222,7 +222,7 @@ file_reset(struct object_handle_t *oh, void *data)
 }
 
 /**
- * file_new - Open a file and create a QOBJECT_MAGIC-type handle
+ * file_new - Open a file and create a TYPE_DICT-type handle
  * @v:          empty struct var_t to store the result
  * @path:       Path of the file to open, relative to the current working
  *              directory--the irl one, *not* the one relative to the
@@ -266,8 +266,8 @@ do_open(struct var_t *ret)
         struct file_handle_t *fh;
         int errno_save = errno;
 
-        arg_type_check(vname, QSTRING_MAGIC);
-        arg_type_check(vmode, QSTRING_MAGIC);
+        arg_type_check(vname, TYPE_STRING);
+        arg_type_check(vmode, TYPE_STRING);
         name = string_get_cstring(vname);
         mode = string_get_cstring(vmode);
         if (name == NULL || mode == NULL) {

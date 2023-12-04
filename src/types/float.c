@@ -6,7 +6,7 @@ var2float(struct var_t *v, const char *op)
 {
         if (!isnumvar(v))
                 syntax("Invalid/mismatched type for operation");
-        return v->magic == QINT_MAGIC ? (double)v->i : v->f;
+        return v->magic == TYPE_INT ? (double)v->i : v->f;
 }
 
 static void
@@ -81,7 +81,7 @@ float_tostr(struct var_t *ret)
         char buf[64];
         ssize_t len;
         struct var_t *self = get_this();
-        bug_on(self->magic != QFLOAT_MAGIC);
+        bug_on(self->magic != TYPE_FLOAT);
 
         len = snprintf(buf, sizeof(buf), "%.8g", self->f);
         /* this should be impossible */
@@ -112,15 +112,15 @@ static const struct operator_methods_t float_primitives = {
 struct var_t *
 float_init(struct var_t *v, double f)
 {
-        bug_on(v->magic != QEMPTY_MAGIC);
+        bug_on(v->magic != TYPE_EMPTY);
         v->f = f;
-        v->magic = QFLOAT_MAGIC;
+        v->magic = TYPE_FLOAT;
         return v;
 }
 
 void
 typedefinit_float(void)
 {
-        var_config_type(QFLOAT_MAGIC, "float",
+        var_config_type(TYPE_FLOAT, "float",
                         &float_primitives, float_methods);
 }

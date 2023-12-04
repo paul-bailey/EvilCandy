@@ -99,9 +99,9 @@ function_of(struct var_t *fn, struct var_t **owner)
          * Descend until we get to the function.
          */
         while (fn) {
-                if (fn->magic == QFUNCTION_MAGIC) {
+                if (fn->magic == TYPE_FUNCTION) {
                         goto done;
-                } else if (fn->magic == QOBJECT_MAGIC) {
+                } else if (fn->magic == TYPE_DICT) {
                         if (!callable)
                                 callable = literal_put("__callable__");
 
@@ -160,7 +160,7 @@ call_vmfunction(struct var_t *fn)
 {
         struct var_t *ret = NULL;
         struct function_handle_t *fh = fn->fn;
-        bug_on(fn->magic != QFUNCTION_MAGIC);
+        bug_on(fn->magic != TYPE_FUNCTION);
         bug_on(!fh);
         switch (fh->f_magic) {
         case FUNC_INTERNAL:
@@ -181,7 +181,7 @@ void
 function_vmadd_closure(struct var_t *func, struct var_t *clo)
 {
         struct function_handle_t *fh = func->fn;
-        bug_on(func->magic != QFUNCTION_MAGIC);
+        bug_on(func->magic != TYPE_FUNCTION);
         bug_on(!fh);
         bug_on(fh->f_magic != FUNC_USER);
 
@@ -197,7 +197,7 @@ function_vmadd_default(struct var_t *func,
 {
         struct function_handle_t *fh = func->fn;
         size_t needsize;
-        bug_on(func->magic != QFUNCTION_MAGIC);
+        bug_on(func->magic != TYPE_FUNCTION);
         bug_on(!fh);
         bug_on(fh->f_magic != FUNC_USER);
         bug_on(argno < 0);
@@ -242,7 +242,7 @@ function_init_internal(struct var_t *func, void (*cb)(struct var_t *),
                        int minargs, int maxargs)
 {
         struct function_handle_t *fh;
-        bug_on(func->magic != QEMPTY_MAGIC);
+        bug_on(func->magic != TYPE_EMPTY);
 
         fh = function_handle_new();
         fh->f_magic = FUNC_INTERNAL;
@@ -250,20 +250,20 @@ function_init_internal(struct var_t *func, void (*cb)(struct var_t *),
         fh->f_minargs = minargs;
         fh->f_maxargs = maxargs;
         func->fn = fh;
-        func->magic = QFUNCTION_MAGIC;
+        func->magic = TYPE_FUNCTION;
 }
 
 void
 function_init_vm(struct var_t *func, struct executable_t *ex)
 {
         struct function_handle_t *fh;
-        bug_on(func->magic != QEMPTY_MAGIC);
+        bug_on(func->magic != TYPE_EMPTY);
 
         fh = function_handle_new();
         fh->f_magic = FUNC_USER;
         fh->f_ex = ex;
 
-        func->magic = QFUNCTION_MAGIC;
+        func->magic = TYPE_FUNCTION;
         func->fn = fh;
 }
 
@@ -277,9 +277,9 @@ func_cmpz(struct var_t *func)
 static void
 func_mov(struct var_t *to, struct var_t *from)
 {
-        if (from->magic != QFUNCTION_MAGIC ||
-            (to->magic != QEMPTY_MAGIC &&
-             to->magic != QFUNCTION_MAGIC)) {
+        if (from->magic != TYPE_FUNCTION ||
+            (to->magic != TYPE_EMPTY &&
+             to->magic != TYPE_FUNCTION)) {
                 syntax("Mov operation not permitted for this type");
         }
         bug_on(!from->fn);
@@ -307,7 +307,7 @@ static const struct operator_methods_t function_primitives = {
 void
 typedefinit_function(void)
 {
-        var_config_type(QFUNCTION_MAGIC,
+        var_config_type(TYPE_FUNCTION,
                         "function",
                         &function_primitives,
                         NULL);

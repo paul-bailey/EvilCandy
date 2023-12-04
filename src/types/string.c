@@ -37,7 +37,7 @@ static void
 string_length_method(struct var_t *ret)
 {
         struct var_t *self = get_this();
-        bug_on(self->magic != QSTRING_MAGIC);
+        bug_on(self->magic != TYPE_STRING);
         integer_init(ret, string_length(self));
 }
 
@@ -64,18 +64,18 @@ string_format_helper(char **src, struct buffer_t *t, int *lastarg)
                 return false;
 
         switch (q->magic) {
-        case QINT_MAGIC:
+        case TYPE_INT:
                 sprintf(vbuf, "%lld", q->i);
                 buffer_puts(t, vbuf);
                 break;
-        case QFLOAT_MAGIC:
+        case TYPE_FLOAT:
                 sprintf(vbuf, "%g", q->f);
                 buffer_puts(t, vbuf);
                 break;
-        case QEMPTY_MAGIC:
+        case TYPE_EMPTY:
                 buffer_puts(t, "(null)");
                 break;
-        case QSTRING_MAGIC:
+        case TYPE_STRING:
                 buffer_puts(t, string_get_cstring(q));
                 break;
         default:
@@ -97,7 +97,7 @@ string_format(struct var_t *ret)
         struct var_t *self = get_this();
         int lastarg = 0;
         char *s, *self_s;
-        bug_on(self->magic != QSTRING_MAGIC);
+        bug_on(self->magic != TYPE_STRING);
 
         buffer_reset(&t);
         self_s = string_get_cstring(self);
@@ -129,7 +129,7 @@ string_toint(struct var_t *ret)
         struct var_t *self = get_this();
         long long i = 0LL;
         char *s;
-        bug_on(self->magic != QSTRING_MAGIC);
+        bug_on(self->magic != TYPE_STRING);
         s = string_get_cstring(self);
         if (s) {
                 int errno_save = errno;
@@ -152,7 +152,7 @@ string_tofloat(struct var_t *ret)
         struct var_t *self = get_this();
         double f = 0.;
         char *s;
-        bug_on(self->magic != QSTRING_MAGIC);
+        bug_on(self->magic != TYPE_STRING);
         s = string_get_cstring(self);
         if (s) {
                 int errno_save = errno;
@@ -170,11 +170,11 @@ strip_common(struct var_t *ret)
 {
         struct var_t *arg = frame_get_arg(0);
         struct var_t *self = get_this();
-        bug_on(self->magic != QSTRING_MAGIC);
+        bug_on(self->magic != TYPE_STRING);
 
         /* arg may be NULL, else it must be string */
         if (arg)
-                arg_type_check(arg, QSTRING_MAGIC);
+                arg_type_check(arg, TYPE_STRING);
 
         qop_mov(ret, self);
         return arg ? string_get_cstring(arg) : NULL;
@@ -223,17 +223,17 @@ string_replace(struct var_t *ret)
         char *haystack, *needle, *end;
         size_t needle_len;
 
-        bug_on(self->magic != QSTRING_MAGIC);
+        bug_on(self->magic != TYPE_STRING);
         bug_on(!vneedle || !vrepl);
 
-        arg_type_check(vneedle, QSTRING_MAGIC);
-        arg_type_check(vrepl, QSTRING_MAGIC);
+        arg_type_check(vneedle, TYPE_STRING);
+        arg_type_check(vrepl, TYPE_STRING);
 
         /* guarantee ret is string */
-        if (ret->magic == QEMPTY_MAGIC)
+        if (ret->magic == TYPE_EMPTY)
                 string_init(ret, NULL);
         /* XXX bug, or syntax error? */
-        bug_on(ret->magic != QSTRING_MAGIC);
+        bug_on(ret->magic != TYPE_STRING);
 
         buffer_reset(string_buf__(ret));
 
@@ -271,11 +271,11 @@ string_copy(struct var_t *ret)
 {
         char *s;
         struct var_t *self = get_this();
-        bug_on(self->magic != QSTRING_MAGIC);
+        bug_on(self->magic != TYPE_STRING);
 
-        if (ret->magic == QEMPTY_MAGIC)
+        if (ret->magic == TYPE_EMPTY)
                 string_init(ret, NULL);
-        bug_on(ret->magic != QSTRING_MAGIC);
+        bug_on(ret->magic != TYPE_STRING);
 
         buffer_reset(string_buf__(ret));
         s = string_get_cstring(self);
@@ -310,7 +310,7 @@ string_reset(struct var_t *str)
 static void
 string_add(struct var_t *a, struct var_t *b)
 {
-        if (b->magic != QSTRING_MAGIC)
+        if (b->magic != TYPE_STRING)
                 emismatch("+");
         buffer_puts(string_buf__(a), string_get_cstring(b));
 }
@@ -338,9 +338,9 @@ string_cmpz(struct var_t *a)
 static void
 string_mov(struct var_t *to, struct var_t *from)
 {
-        if (from->magic != QSTRING_MAGIC)
+        if (from->magic != TYPE_STRING)
                 emismatch("mov");
-        bug_on(!!to->s && to->magic == QSTRING_MAGIC);
+        bug_on(!!to->s && to->magic == TYPE_STRING);
         to->s = from->s;
         to->s->nref++;
 }
@@ -363,8 +363,8 @@ static const struct operator_methods_t string_primitives = {
 struct var_t *
 string_init(struct var_t *var, const char *cstr)
 {
-        bug_on(var->magic != QEMPTY_MAGIC);
-        var->magic = QSTRING_MAGIC;
+        bug_on(var->magic != TYPE_EMPTY);
+        var->magic = TYPE_STRING;
         var->s = new_string_handle();
         var->s->nref = 1;
         if (cstr)
@@ -382,7 +382,7 @@ string_init(struct var_t *var, const char *cstr)
 void
 string_assign_cstring(struct var_t *str, const char *s)
 {
-        bug_on(str->magic != QSTRING_MAGIC);
+        bug_on(str->magic != TYPE_STRING);
 
         struct buffer_t *buf = string_buf__(str);
         buffer_reset(buf);
@@ -407,7 +407,7 @@ string_substr(struct var_t *str, int i)
 {
         char *s;
 
-        bug_on(str->magic != QSTRING_MAGIC);
+        bug_on(str->magic != TYPE_STRING);
         i = index_translate(i, string_length(str));
         if (i < 0)
                 return '\0';
@@ -418,7 +418,7 @@ string_substr(struct var_t *str, int i)
 void
 typedefinit_string(void)
 {
-        var_config_type(QSTRING_MAGIC, "string",
+        var_config_type(TYPE_STRING, "string",
                         &string_primitives, string_methods);
 }
 

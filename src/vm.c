@@ -73,7 +73,7 @@ static inline char *
 RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *vs = RODATA(fr, ii);
-        bug_on(vs->magic != Q_STRPTR_MAGIC);
+        bug_on(vs->magic != TYPE_STRPTR);
         return vs->strptr;
 }
 
@@ -241,7 +241,7 @@ static struct var_t *
 pop_or_deref(struct vmframe_t *fr, bool *del)
 {
         struct var_t *v = pop(fr);
-        if (v->magic == Q_VARPTR_MAGIC) {
+        if (v->magic == TYPE_VARPTR) {
                 struct var_t *tmp = v->vptr;
                 var_delete(v);
                 v = tmp;
@@ -261,7 +261,7 @@ static struct var_t *
 pop_or_deref_copy(struct vmframe_t *fr)
 {
         struct var_t *v = pop(fr);
-        if (v->magic == Q_VARPTR_MAGIC) {
+        if (v->magic == TYPE_VARPTR) {
                 struct var_t *tmp = var_copy(v->vptr);
                 var_delete(v);
                 v = tmp;
@@ -283,7 +283,7 @@ pop_or_deref_copy(struct vmframe_t *fr)
 #define unary_op_common(fr, op) do {    \
         struct var_t *v = pop(fr);      \
         struct var_t *truev = v;        \
-        if (truev->magic == Q_VARPTR_MAGIC) \
+        if (truev->magic == TYPE_VARPTR) \
                 truev = v->vptr;        \
         op(truev);                      \
         push(fr, v);                    \
@@ -294,7 +294,7 @@ pop_or_deref_copy(struct vmframe_t *fr)
         bool fdel;                              \
         from = pop_or_deref(fr, &fdel);         \
         to = pop(fr);                           \
-        bug_on(to->magic != Q_VARPTR_MAGIC);    \
+        bug_on(to->magic != TYPE_VARPTR);    \
         op(to->vptr, from);                     \
         var_delete(to);                         \
         if (fdel)                               \
@@ -352,7 +352,7 @@ do_push_ptr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v, *p = VARPTR(fr, ii);
         v = var_new();
-        v->magic = Q_VARPTR_MAGIC;
+        v->magic = TYPE_VARPTR;
         v->vptr = p;
         push(fr, v);
 }
@@ -562,7 +562,7 @@ do_deffunc(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *func = var_new();
         struct var_t *loc = RODATA(fr, ii);
-        bug_on(loc->magic != Q_XPTR_MAGIC);
+        bug_on(loc->magic != TYPE_XPTR);
         function_init_vm(func, loc->xptr);
         push(fr, func);
 }
@@ -821,7 +821,7 @@ static void
 do_incr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
-        if (v->magic == Q_VARPTR_MAGIC) {
+        if (v->magic == TYPE_VARPTR) {
                 qop_incr(v->vptr);
                 var_delete(v);
         } else {
@@ -835,7 +835,7 @@ static void
 do_decr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
-        if (v->magic == Q_VARPTR_MAGIC) {
+        if (v->magic == TYPE_VARPTR) {
                 qop_decr(v->vptr);
                 var_delete(v);
         } else {

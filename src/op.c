@@ -24,7 +24,7 @@ epermit(const char *op)
 static inline const struct operator_methods_t *
 primitives_of(struct var_t *v)
 {
-        bug_on(v->magic >= Q_NMAGIC);
+        bug_on(v->magic >= NTYPES_USER);
         return TYPEDEFS[v->magic].opm;
 }
 
@@ -270,10 +270,10 @@ qop_mov(struct var_t *to, struct var_t *from)
                 return to;
 
         bug_on(!from || !to);
-        if (to->magic == QEMPTY_MAGIC) {
-                if (from->magic == QEMPTY_MAGIC) {
+        if (to->magic == TYPE_EMPTY) {
+                if (from->magic == TYPE_EMPTY) {
                         return to;
-                } else if (from->magic == Q_STRPTR_MAGIC) {
+                } else if (from->magic == TYPE_STRPTR) {
                         string_init(to, from->strptr);
                         return to;
                 }
@@ -288,7 +288,7 @@ qop_mov(struct var_t *to, struct var_t *from)
                  */
                 to->magic = from->magic;
         } else {
-                bug_on(from->magic == QEMPTY_MAGIC);
+                bug_on(from->magic == TYPE_EMPTY);
                 p = primitives_of(to);
                 bug_on(!p->mov);
                 p->mov(to, from);

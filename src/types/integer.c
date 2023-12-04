@@ -5,7 +5,7 @@ var2int(struct var_t *v, const char *op)
 {
         if (!isnumvar(v))
                 syntax("Invalid or mismatched types for '%s' operator", op);
-        return v->magic == QINT_MAGIC ? v->i : (long long)v->f;
+        return v->magic == TYPE_INT ? v->i : (long long)v->f;
 }
 
 static void
@@ -139,7 +139,7 @@ int_tostr(struct var_t *ret)
         char buf[64];
         ssize_t len;
         struct var_t *self = get_this();
-        bug_on(self->magic != QINT_MAGIC);
+        bug_on(self->magic != TYPE_INT);
 
         len = snprintf(buf, sizeof(buf), "%lld", self->i);
         bug_on(len >= sizeof(buf));
@@ -177,14 +177,14 @@ static const struct operator_methods_t int_primitives = {
 struct var_t *
 integer_init(struct var_t *v, long long value)
 {
-        bug_on(v->magic != QEMPTY_MAGIC);
+        bug_on(v->magic != TYPE_EMPTY);
         v->i = value;
-        v->magic = QINT_MAGIC;
+        v->magic = TYPE_INT;
         return v;
 }
 
 void
 typedefinit_integer(void)
 {
-        var_config_type(QINT_MAGIC, "integer", &int_primitives, int_methods);
+        var_config_type(TYPE_INT, "integer", &int_primitives, int_methods);
 }

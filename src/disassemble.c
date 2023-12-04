@@ -77,19 +77,19 @@ print_rodata_str(FILE *fp, struct executable_t *ex, unsigned int i)
         v = ex->rodata[i];
 
         switch (v->magic) {
-        case QINT_MAGIC:
+        case TYPE_INT:
                 fprintf(fp, "0x%016llx", v->i);
                 break;
-        case QFLOAT_MAGIC:
+        case TYPE_FLOAT:
                 fprintf(fp, "%.8le", v->f);
                 break;
-        case Q_STRPTR_MAGIC:
+        case TYPE_STRPTR:
                 print_escapestr(fp, v->strptr, '"');
                 break;
-        case Q_VARPTR_MAGIC:
+        case TYPE_VARPTR:
                 fprintf(fp, "<data-pointer>");
                 break;
-        case Q_XPTR_MAGIC:
+        case TYPE_XPTR:
                 fprintf(fp, "<function-pointer>");
                 break;
         default:

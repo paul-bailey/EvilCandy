@@ -402,7 +402,7 @@ seek_or_add_const_xptr(struct assemble_t *a, void *p)
         struct executable_t *x = fr->x;
         for (i = 0; i < x->n_rodata; i++) {
                 v = x->rodata[i];
-                if (v->magic == Q_XPTR_MAGIC && v->xptr == p)
+                if (v->magic == TYPE_XPTR && v->xptr == p)
                         break;
         }
 
@@ -410,7 +410,7 @@ seek_or_add_const_xptr(struct assemble_t *a, void *p)
                 as_assert_array_pos(a, x->n_rodata + 1,
                                     &x->rodata, &fr->const_alloc);
                 v = var_new();
-                v->magic = Q_XPTR_MAGIC;
+                v->magic = TYPE_XPTR;
                 v->xptr = p;
                 x->rodata[x->n_rodata++] = v;
         }
@@ -423,7 +423,7 @@ seek_const_int(struct assemble_t *a, struct executable_t *x, long long vi)
         int i;
         for (i = 0; i < x->n_rodata; i++) {
                 struct var_t *v = x->rodata[i];
-                if (v->magic == QINT_MAGIC && v->i == vi)
+                if (v->magic == TYPE_INT && v->i == vi)
                         break;
         }
         return i;
@@ -444,7 +444,7 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
         case 'f':
                 for (i = 0; i < x->n_rodata; i++) {
                         v = x->rodata[i];
-                        if (v->magic == QFLOAT_MAGIC && v->f == oc->f)
+                        if (v->magic == TYPE_FLOAT && v->f == oc->f)
                                 break;
                 }
                 break;
@@ -452,7 +452,7 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
         case 'q':
                 for (i = 0; i < x->n_rodata; i++) {
                         v = x->rodata[i];
-                        if (v->magic == Q_STRPTR_MAGIC
+                        if (v->magic == TYPE_STRPTR
                             && v->strptr == oc->s) {
                                 break;
                         }
@@ -489,7 +489,7 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
                         break;
                 case 'u':
                 case 'q':
-                        v->magic = Q_STRPTR_MAGIC;
+                        v->magic = TYPE_STRPTR;
                         v->strptr = oc->s;
                         break;
                 }

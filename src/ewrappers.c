@@ -57,13 +57,13 @@ atrerr(struct var_t *obj, struct var_t *deref, const char *what)
         const char *attrstr;
         char numbuf[64];
         switch (deref->magic) {
-        case Q_STRPTR_MAGIC:
+        case TYPE_STRPTR:
                 attrstr = (const char *)deref->strptr;
                 break;
-        case QSTRING_MAGIC:
+        case TYPE_STRING:
                 attrstr = (const char *)string_get_cstring(deref);
                 break;
-        case QINT_MAGIC:
+        case TYPE_INT:
                 sprintf(numbuf, "%llu", deref->i);
                 attrstr = numbuf;
                 break;

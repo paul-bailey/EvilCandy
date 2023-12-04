@@ -37,31 +37,31 @@ enum {
 
 /**
  * DOC: Magic numbers for built-in typedefs
- * @QEMPTY_MAGIC:       Uninitialized variable
- * @QOBJECT_MAGIC:      Object, or to be egg-headed and more precise, an
+ * @TYPE_EMPTY:         Uninitialized variable
+ * @TYPE_DICT:          Object, or to be egg-headed and more precise, an
  *                      associative array
- * @QFUNCTION_MAGIC:    Function callable by script.
- * @QFLOAT_MAGIC:       Floating point number
- * @QINT_MAGIC:         Integer number
- * @QSTRING_MAGIC:      C-string and some useful metadata
- * @QARRAY_MAGIC:       Numerical array, ie. [ a, b, c...]-type array
- * @Q_NMAGIC:           Boundary to check a magic number against
+ * @TYPE_FUNCTION:    Function callable by script.
+ * @TYPE_FLOAT:         Floating point number
+ * @TYPE_INT:           Integer number
+ * @TYPE_STRING:      C-string and some useful metadata
+ * @TYPE_LIST:       Numerical array, ie. [ a, b, c...]-type array
+ * @NTYPES_USER:           Boundary to check a magic number against
  */
 enum type_magic_t {
-        QEMPTY_MAGIC = 0,
-        QOBJECT_MAGIC,
-        QFUNCTION_MAGIC,
-        QFLOAT_MAGIC,
-        QINT_MAGIC,
-        QSTRING_MAGIC,
-        QARRAY_MAGIC,
-        Q_NMAGIC,
+        TYPE_EMPTY = 0,
+        TYPE_DICT,
+        TYPE_FUNCTION,
+        TYPE_FLOAT,
+        TYPE_INT,
+        TYPE_STRING,
+        TYPE_LIST,
+        NTYPES_USER,
 
         /*
          * internal use, user should never be able to access these below
          */
 
-        Q_STRPTR_MAGIC = Q_NMAGIC,
+        TYPE_STRPTR = NTYPES_USER,
         /*
          * FIXME: This causes lots of inefficient de-referencing.
          * The problem is, floats and ints are pass-by-value.  If a
@@ -70,8 +70,8 @@ enum type_magic_t {
          * attribute will not be truly changed.  So we have this VARPTR
          * type, which is just a pointer to another struct var_t.
          */
-        Q_VARPTR_MAGIC,
-        Q_XPTR_MAGIC,
+        TYPE_VARPTR,
+        TYPE_XPTR,
 };
 
 enum {
@@ -231,7 +231,7 @@ static inline bool isprivate(struct var_t *v)
         { return !!(v->flags & VF_PRIV); }
 /* true if v is float or int */
 static inline bool isnumvar(struct var_t *v)
-        { return v->magic == QINT_MAGIC || v->magic == QFLOAT_MAGIC; }
+        { return v->magic == TYPE_INT || v->magic == TYPE_FLOAT; }
 
 /* assembler.c */
 extern struct executable_t *assemble(const char *source_file_name,
@@ -402,7 +402,7 @@ extern int string_substr(struct var_t *str, int i);
 static inline size_t
 string_length(struct var_t *str)
 {
-        bug_on(str->magic != QSTRING_MAGIC);
+        bug_on(str->magic != TYPE_STRING);
         return buffer_size(string_buf__(str));
 }
 /*
@@ -415,19 +415,19 @@ string_length(struct var_t *str)
 static inline char *
 string_get_cstring(struct var_t *str)
 {
-        bug_on(str->magic != QSTRING_MAGIC);
+        bug_on(str->magic != TYPE_STRING);
         return str->s->b.s;
 }
 static inline void
 string_putc(struct var_t *str, int c)
 {
-        bug_on(str->magic != QSTRING_MAGIC);
+        bug_on(str->magic != TYPE_STRING);
         buffer_putc(string_buf__(str), c);
 }
 static inline void
 string_puts(struct var_t *str, const char *s)
 {
-        bug_on(str->magic != QSTRING_MAGIC);
+        bug_on(str->magic != TYPE_STRING);
         buffer_puts(string_buf__(str), s);
 }
 

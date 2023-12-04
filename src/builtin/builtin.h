@@ -5,19 +5,19 @@
 #include <uarg.h>
 
 #define TOFTBL(n, func, m, M) \
-        { .magic = QFUNCTION_MAGIC, .name = n, \
+        { .magic = TYPE_FUNCTION, .name = n, \
                 .cb = func, .minargs = m, .maxargs = M }
 
 #define TOOTBL(n, p) \
-        { .magic = QOBJECT_MAGIC, .name = n, .tbl = p }
+        { .magic = TYPE_DICT, .name = n, .tbl = p }
 
 /* the following are for consts, always */
 #define TOITBL(n, iv) \
-        { .magic = QINT_MAGIC, .name = n, .i = iv }
+        { .magic = TYPE_INT, .name = n, .i = iv }
 #define TOFLTB(n, fv) \
-        { .magic = QFLOAT_MAGIC, .name = n, .f = fv }
+        { .magic = TYPE_FLOAT, .name = n, .f = fv }
 #define TOSTBL(n, str) \
-        { .magic = QSTRING_MAGIC, .name = n, .s = str }
+        { .magic = TYPE_STRING, .name = n, .s = str }
 
 #define TBLEND { .name = NULL }
 

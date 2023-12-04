@@ -19,8 +19,8 @@ static inline size_t oh_nchildren(struct object_handle_t *oh)
 struct var_t *
 object_init(struct var_t *o)
 {
-        bug_on(o->magic != QEMPTY_MAGIC);
-        o->magic = QOBJECT_MAGIC;
+        bug_on(o->magic != TYPE_EMPTY);
+        o->magic = TYPE_DICT;
 
         o->o = ecalloc(sizeof(*o->o));
         hashtable_init(&o->o->dict, ptr_hash,
@@ -40,7 +40,7 @@ void
 object_set_priv(struct var_t *o, void *priv,
                 void (*cleanup)(struct object_handle_t *, void *))
 {
-        bug_on(o->magic != QOBJECT_MAGIC);
+        bug_on(o->magic != TYPE_DICT);
         o->o->priv = priv;
         o->o->priv_cleanup = cleanup;
 }
@@ -52,7 +52,7 @@ object_set_priv(struct var_t *o, void *priv,
 struct var_t *
 object_child_l(struct var_t *o, const char *s)
 {
-        bug_on(o->magic != QOBJECT_MAGIC);
+        bug_on(o->magic != TYPE_DICT);
         bug_on(!o->o);
 
         return hashtable_get(&o->o->dict, s);
@@ -110,7 +110,7 @@ static void
 object_mov(struct var_t *to, struct var_t *from)
 {
         /* XXX is the bug this, or the fact that I'm not handling it? */
-        bug_on(!!to->o && to->magic == QOBJECT_MAGIC);
+        bug_on(!!to->o && to->magic == TYPE_DICT);
 
         to->o = from->o;
         to->o->nref++;
@@ -140,7 +140,7 @@ static void
 object_reset(struct var_t *o)
 {
         struct object_handle_t *oh;
-        bug_on(o->magic != QOBJECT_MAGIC);
+        bug_on(o->magic != TYPE_DICT);
         oh = o->o;
         oh->nref--;
         if (oh->nref <= 0)
@@ -176,7 +176,7 @@ object_foreach(struct var_t *ret)
 
         if (!func)
                 syntax("Expected: function");
-        bug_on(self->magic != QOBJECT_MAGIC);
+        bug_on(self->magic != TYPE_DICT);
         htbl = &self->o->dict;
 
         for (idx = 0, res = hashtable_iterate(htbl, &key, &val, &idx);
@@ -209,13 +209,13 @@ object_len(struct var_t *ret)
         v = frame_get_arg(0);
         if (!v) {
                 v = get_this();
-                bug_on(v->magic != QOBJECT_MAGIC);
+                bug_on(v->magic != TYPE_DICT);
         }
         switch (v->magic) {
-        case QOBJECT_MAGIC:
+        case TYPE_DICT:
                 i = oh_nchildren(v->o);
                 break;
-        case QSTRING_MAGIC:
+        case TYPE_STRING:
                 i = string_length(v);
                 break;
         default:
@@ -232,9 +232,9 @@ object_haschild(struct var_t *ret)
         struct var_t *child = NULL;
         char *s;
 
-        bug_on(self->magic != QOBJECT_MAGIC);
+        bug_on(self->magic != TYPE_DICT);
 
-        if (!name || name->magic != QSTRING_MAGIC)
+        if (!name || name->magic != TYPE_STRING)
                 syntax("Expected arg: 'name'");
 
         if ((s = string_get_cstring(name)) != NULL)
@@ -263,7 +263,7 @@ static const struct operator_methods_t object_primitives = {
 void
 typedefinit_object(void)
 {
-        var_config_type(QOBJECT_MAGIC, "dictionary",
+        var_config_type(TYPE_DICT, "dictionary",
                         &object_primitives, object_methods);
 }
 

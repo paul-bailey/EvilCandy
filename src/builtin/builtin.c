@@ -23,16 +23,16 @@ static bool
 do_print_helper(struct var_t *v)
 {
         switch (v->magic) {
-        case QINT_MAGIC:
+        case TYPE_INT:
                 printf("%lld", v->i);
                 break;
-        case QFLOAT_MAGIC:
+        case TYPE_FLOAT:
                 printf("%.8g", v->f);
                 break;
-        case QEMPTY_MAGIC:
+        case TYPE_EMPTY:
                 printf("(null)");
                 break;
-        case QSTRING_MAGIC:
+        case TYPE_STRING:
                 printf("%s", string_get_cstring(v));
                 break;
         default:
@@ -53,7 +53,7 @@ static void
 do_print(struct var_t *ret)
 {
         struct var_t *p = frame_get_arg(0);
-        if (p->magic == QSTRING_MAGIC) {
+        if (p->magic == TYPE_STRING) {
                 char *s = string_get_cstring(p);
                 while (*s)
                         putchar((int)*s++);
@@ -68,7 +68,7 @@ static void
 do_exit(struct var_t *ret)
 {
         struct var_t *p = frame_get_arg(0);
-        if (p && p->magic == QSTRING_MAGIC)
+        if (p && p->magic == TYPE_STRING)
                 printf("%s\n", string_get_cstring(p));
         exit(0);
 }
@@ -78,7 +78,7 @@ do_setnl(struct var_t *ret)
 {
         struct var_t *nl = frame_get_arg(0);
         char *s;
-        if (nl->magic != QSTRING_MAGIC)
+        if (nl->magic != TYPE_STRING)
                 syntax("Expected argument: string");
         s = string_get_cstring(nl);
         memset(gbl.nl, 0, NLMAX);
@@ -112,30 +112,30 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
         for (t = tbl; t->name != NULL; t++) {
                 struct var_t *child = var_new();
                 switch (t->magic) {
-                case QOBJECT_MAGIC:
+                case TYPE_DICT:
                         object_init(child);
                         bi_build_internal_object__(child, t->tbl);
                         break;
-                case QFUNCTION_MAGIC:
+                case TYPE_FUNCTION:
                         function_init_internal(child,
                                         t->cb, t->minargs, t->maxargs);
                         break;
-                case QSTRING_MAGIC:
+                case TYPE_STRING:
                         string_init(child, t->s);
                         child->flags = VF_CONST;
                         break;
-                case QINT_MAGIC:
+                case TYPE_INT:
                         integer_init(child, t->i);
                         child->flags = VF_CONST;
                         break;
-                case QFLOAT_MAGIC:
+                case TYPE_FLOAT:
                         float_init(child, t->f);
                         child->flags = VF_CONST;
                         break;
                 default:
                         bug();
                 }
-                bug_on(child->magic == QEMPTY_MAGIC);
+                bug_on(child->magic == TYPE_EMPTY);
                 object_add_child(parent, child, literal_put(t->name));
         }
 }

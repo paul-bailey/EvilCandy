@@ -3,12 +3,11 @@
 
 #define ONLY_VM 1
 
-#include "hashtable.h"
-#include "helpers.h"
-#include "buffer.h"
-#include "opcodes.h"
-#include "trie.h"
-#include "list.h"
+#include <lib/hashtable.h>
+#include <lib/helpers.h>
+#include <lib/buffer.h>
+#include <lib/list.h>
+#include "token.h"
 #include "instructions.h" /* TODO: remove */
 #include <stdbool.h>
 #include <stdint.h>

@@ -1,9 +1,9 @@
 #ifndef EGQ_INSTRUCTIONS_H
 #define EGQ_INSTRUCTIONS_H
 
-#include <stdint.h>
-#include "list.h"
 #include "instruction_defs.h"
+#include <lib/list.h>
+#include <stdint.h>
 
 /* GETATTR, SETATTR, arg1 enumerations */
 enum {

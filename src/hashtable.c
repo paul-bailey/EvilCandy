@@ -1,6 +1,6 @@
 /* Implementation of an egq-specific hash table. */
-#include "hashtable.h"
-#include "egq.h"
+#include <lib/hashtable.h>
+#include <egq.h>
 #include <stdlib.h>
 #include <string.h>
 

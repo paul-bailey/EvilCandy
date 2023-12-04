@@ -36,8 +36,8 @@
  * DO NOT mix/match the binary API and the C-string API on the
  * same buffer unless you call buffer_reset between them.
  */
-#include "buffer.h"
-#include "egq.h"
+#include <lib/buffer.h>
+#include <egq.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>

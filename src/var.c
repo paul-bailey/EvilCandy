@@ -1,4 +1,4 @@
-#include <egq.h>
+#include <evilcandy.h>
 #include <typedefs.h>
 #include "types/var.h"
 #include <stdint.h>

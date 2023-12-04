@@ -1,5 +1,5 @@
 /* helpers.c - Wrappers to standard library functions that I find useful */
-#include "egq.h"
+#include <evilcandy.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>

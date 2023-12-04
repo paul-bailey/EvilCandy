@@ -3,7 +3,7 @@
  *
  * This should make the error reporting cleaner and more uniform.
  */
-#include "egq.h"
+#include <evilcandy.h>
 #include <stdlib.h>
 #include <string.h>
 

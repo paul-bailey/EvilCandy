@@ -1,4 +1,4 @@
-#include "egq.h"
+#include <evilcandy.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <errno.h>

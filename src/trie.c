@@ -41,7 +41,7 @@
  * it also means that long lines of text will explode the number of nodes
  * (very bad).  So it's best used to store dictionaries of one-word keys.
  */
-#include "egq.h" /* for prog wrappers like emalloc */
+#include <evilcandy.h> /* for prog wrappers like emalloc */
 #include "trie.h"
 #include <stdlib.h>
 

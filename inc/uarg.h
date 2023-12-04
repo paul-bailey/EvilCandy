@@ -5,7 +5,7 @@
 #ifndef EGQ_UARG_H
 #define EGQ_UARG_H
 
-#include "egq.h"
+#include <evilcandy.h>
 
 #define arg_type_err(v, want) do { \
         syntax("Argument is type '%s' but '%s' is expected", \

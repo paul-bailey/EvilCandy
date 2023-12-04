@@ -1,4 +1,4 @@
-#include "egq.h"
+#include <evilcandy.h>
 
 /*
  * Brute-force, dumbest-but-fastest version of a trie.  The only RAM

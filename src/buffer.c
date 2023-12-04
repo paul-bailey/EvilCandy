@@ -37,7 +37,7 @@
  * same buffer unless you call buffer_reset between them.
  */
 #include <lib/buffer.h>
-#include <egq.h>
+#include <evilcandy.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>

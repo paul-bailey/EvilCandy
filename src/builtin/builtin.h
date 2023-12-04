@@ -1,7 +1,7 @@
 #ifndef EGQ_BUILTIN_H
 #define EGQ_BUILTIN_H
 
-#include <egq.h>
+#include <evilcandy.h>
 #include <uarg.h>
 
 #define TOFTBL(n, func, m, M) \

@@ -1,5 +1,5 @@
 #include "instructions.h"
-#include "egq.h"
+#include <evilcandy.h>
 #include <stdio.h>
 
 #define IARG(x)   [IARG_##x]  = #x

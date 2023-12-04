@@ -2,7 +2,7 @@
 #ifndef EVILCANDY_TYPEDEFS_H
 #define EVILCANDY_TYPEDEFS_H
 
-#include "egq.h"
+#include <evilcandy.h>
 
 /*
  * Per-type callbacks for mathematical operators, like + or -

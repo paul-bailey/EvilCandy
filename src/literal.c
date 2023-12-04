@@ -60,7 +60,7 @@
  *    where "x+y+z.something()" evaluates to 'that'.  (I probably should
  *    not even allow such a thing, but I do.)
  */
-#include "egq.h"
+#include <evilcandy.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

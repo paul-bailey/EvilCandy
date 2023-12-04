@@ -1,7 +1,7 @@
 #ifndef EGQ_VAR_H
 #define EGQ_VAR_H
 
-#include <egq.h>
+#include <evilcandy.h>
 #include <typedefs.h>
 #include <uarg.h>
 

@@ -1,5 +1,5 @@
 #include "instructions.h"
-#include "egq.h"
+#include <evilcandy.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <string.h>

@@ -52,13 +52,10 @@ object_set_priv(struct var_t *o, void *priv,
 struct var_t *
 object_child_l(struct var_t *o, const char *s)
 {
-        struct var_t *ret;
-
         bug_on(o->magic != QOBJECT_MAGIC);
         bug_on(!o->o);
 
-        ret = (struct var_t *)hashtable_get(&o->o->dict, s);
-        return ret ? ret : builtin_method(o, s);
+        return hashtable_get(&o->o->dict, s);
 }
 
 /**

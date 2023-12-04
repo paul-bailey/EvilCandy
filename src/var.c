@@ -208,22 +208,14 @@ struct type_t TYPEDEFS[Q_NMAGIC];
 
 static void
 config_builtin_methods(const struct type_inittbl_t *tbl,
-                       struct list_t *parent_list)
+                       struct hashtable_t *htbl)
 {
         const struct type_inittbl_t *t = tbl;
         while (t->name != NULL) {
-                /*
-                 * raw malloc, sure, we only need a few of these,
-                 * once at startup
-                 */
-                struct var_wrapper_t *w = emalloc(sizeof(*w));
                 struct var_t *v = var_new();
 
                 function_init_internal(v, t->fn, t->minargs, t->maxargs);
-                w->name = literal_put(t->name);
-                w->v = v;
-                list_init(&w->siblings);
-                list_add_tail(&w->siblings, parent_list);
+                hashtable_put(htbl, literal_put(t->name), v);
                 t++;
         }
 }
@@ -234,6 +226,7 @@ var_config_type(int magic, const char *name,
                 const struct operator_methods_t *opm,
                 const struct type_inittbl_t *tbl)
 {
+        bug_on(TYPEDEFS[magic].opm || TYPEDEFS[magic].name);
         TYPEDEFS[magic].opm = opm;
         TYPEDEFS[magic].name = name;
         if (tbl)
@@ -242,33 +235,15 @@ var_config_type(int magic, const char *name,
 
 #define list2wrapper(li) container_of(li, struct var_wrapper_t, siblings)
 
-/**
- * builtin_method - Return a built-in method for a variable's type
- * @v: Variable to check
- * @method_name: Name of method, which MUST have been a return value
- *              of literal().
- *
- * Return: Built-in method matching @name for @v, or NULL otherwise.
- *      This is the actual reference, not a copy. DO NOT CLOBBER IT.
- */
-struct var_t *
-builtin_method(struct var_t *v, const char *method_name)
+static struct var_t *
+builtin_method_l(struct var_t *v, const char *method_name)
 {
         int magic = v->magic;
-        struct list_t *methods, *m;
-
-        if ((unsigned)magic >= Q_NMAGIC)
+        if ((unsigned)magic >= Q_NMAGIC || !method_name)
                 return NULL;
 
-        methods = &TYPEDEFS[magic].methods;
-        list_foreach(m, methods) {
-                struct var_wrapper_t *w = list2wrapper(m);
-                if (w->name == method_name)
-                        return w->v;
-        }
-        return NULL;
+        return hashtable_get(&TYPEDEFS[magic].methods, method_name);
 }
-
 
 /*
  * see main.c - this must be after all the typedef code
@@ -292,8 +267,10 @@ moduleinit_var(void)
         const struct initfn_tbl_t *t;
         int i;
 
-        for (i = QEMPTY_MAGIC; i < Q_NMAGIC; i++)
-                list_init(&TYPEDEFS[i].methods);
+        for (i = QEMPTY_MAGIC; i < Q_NMAGIC; i++) {
+                hashtable_init(&TYPEDEFS[i].methods, ptr_hash,
+                                ptr_key_match, var_bucket_delete);
+        }
         for (t = INIT_TBL; t->cb != NULL; t++)
                 t->cb();
 
@@ -317,24 +294,56 @@ var_bucket_delete(void *data)
 }
 
 static struct var_t *
-var_get_attr_by_string(struct var_t *v, const char *s)
+attr_by_string_l(struct var_t *v, const char *s)
 {
-        if (v->magic == QOBJECT_MAGIC)
-                return object_child(v, s);
-        return builtin_method(v, s);
+        if (!s)
+                return NULL;
+        if (v->magic == QOBJECT_MAGIC) {
+                struct var_t *res;
+                if ((res = object_child_l(v, s)) != NULL)
+                        return res;
+        }
+        return builtin_method_l(v, s);
 }
 
+static struct var_t *
+attr_by_string(struct var_t *v, const char *s)
+{
+        return attr_by_string_l(v, literal(s));
+}
+
+/**
+ * var_get_attr_by_string_l - Get attribte by string literal
+ * @v: Variable whose attribute we're seeking
+ * @s: Name of attribute, which must have been a return value of literal
+ *
+ * Return: Attribute @s of @v or NULL if not found.
+ */
+struct var_t *
+var_get_attr_by_string_l(struct var_t *v, const char *s)
+{
+        return attr_by_string_l(v, s);
+}
+
+/**
+ * var_get_attr - Generalized get-attribute
+ * @v:  Variable whose attribute we're seeking
+ * @deref: Variable storing the key, either the name or an index number
+ */
 struct var_t *
 var_get_attr(struct var_t *v, struct var_t *deref)
 {
         if (v->magic == Q_VARPTR_MAGIC)
                 v = v->vptr;
+
+        /* we should not have double pointers */
+        bug_on(v->magic == Q_VARPTR_MAGIC);
+
         switch (deref->magic) {
         case Q_STRPTR_MAGIC:
-                return var_get_attr_by_string(v, deref->strptr);
+                return attr_by_string_l(v, deref->strptr);
         case QINT_MAGIC:
                 /* because idx stores long long, but ii.i is int */
-                /* XXX should I set errno? */
                 if (deref->i < INT_MIN || deref->i > INT_MAX)
                         return NULL;
                 if (v->magic == QARRAY_MAGIC)
@@ -342,10 +351,29 @@ var_get_attr(struct var_t *v, struct var_t *deref)
                 else if (v->magic == QOBJECT_MAGIC)
                         return object_nth_child(v, deref->i);
         case QSTRING_MAGIC:
-                return var_get_attr_by_string(v,
-                                        string_get_cstring(deref));
+                return attr_by_string(v, string_get_cstring(deref));
         }
 
         return NULL;
+}
+
+/**
+ * var_set_attr - Generalized set-attribute
+ * @v:          Variable whose attribute we're setting
+ * @deref:      Variable storing the index number or name
+ * @attr:       Variable storing the attribute to set.  This will be
+ *              copied, so calling function still must handle GC for this
+ * Return:
+ * 0 if success, -1 if failure.  A syntax error may be thrown if the
+ * MOV operation is not permitted due to string typing.
+ */
+int
+var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
+{
+        struct var_t *child = var_get_attr(v, deref);
+        if (!child)
+                return -1;
+        qop_mov(child, attr);
+        return 0;
 }
 

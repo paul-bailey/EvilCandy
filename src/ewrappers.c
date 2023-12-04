@@ -51,34 +51,45 @@ ebuffer_substr(struct buffer_t *tok, int i)
         return c;
 }
 
+static void
+atrerr(struct var_t *obj, struct var_t *deref, const char *what)
+{
+        const char *attrstr;
+        char numbuf[64];
+        switch (deref->magic) {
+        case Q_STRPTR_MAGIC:
+                attrstr = (const char *)deref->strptr;
+                break;
+        case QSTRING_MAGIC:
+                attrstr = (const char *)string_get_cstring(deref);
+                break;
+        case QINT_MAGIC:
+                sprintf(numbuf, "%llu", deref->i);
+                attrstr = numbuf;
+                break;
+        default:
+                attrstr = "[egq: likely bug]";
+                break;
+        }
+        syntax("Cannot %s attribute '%s' of type %s",
+               what, attrstr, typestr(obj->magic));
+}
+
 struct var_t *
 evar_get_attr(struct var_t *obj, struct var_t *deref)
 {
         struct var_t *v = var_get_attr(obj, deref);
-        if (!v) {
-                /* XXX: this ought to be a helper in err.c */
-                /* error, try to report clearly what's wrong */
-                const char *attrstr;
-                char numbuf[64];
-                switch (deref->magic) {
-                case Q_STRPTR_MAGIC:
-                        attrstr = (const char *)deref->strptr;
-                        break;
-                case QSTRING_MAGIC:
-                        attrstr = (const char *)string_get_cstring(deref);
-                        break;
-                case QINT_MAGIC:
-                        sprintf(numbuf, "%llu", deref->i);
-                        attrstr = numbuf;
-                        break;
-                default:
-                        attrstr = "[egq: likely bug]";
-                        break;
-                }
-                syntax("Cannot get attribute '%s' of type %s",
-                       attrstr, typestr(obj->magic));
-        }
+        if (!v)
+                atrerr(obj, deref, "get");
         return v;
 }
 
+int
+evar_set_attr(struct var_t *obj, struct var_t *deref, struct var_t *attr)
+{
+        int res = var_set_attr(obj, deref, attr);
+        if (res != 0)
+                atrerr(obj, deref, "set");
+        return res;
+}
 

@@ -130,7 +130,7 @@ struct operator_methods_t {
  */
 struct type_t {
         const char *name;
-        struct list_t methods;
+        struct hashtable_t methods;
         void (*reset)(struct var_t *);
         const struct operator_methods_t *opm;
 };
@@ -351,14 +351,14 @@ extern void disassemble_start(FILE *fp, const char *sourcefile_name);
 extern void disassemble(FILE *fp, struct executable_t *ex);
 
 /* ewrappers.c */
-extern struct var_t *ebuiltin_method(struct var_t *v,
-                                const char *method_name);
 extern char *estrdup(const char *s);
 extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
 extern int ebuffer_substr(struct buffer_t *buf, int i);
 extern struct var_t *evar_get_attr(struct var_t *v,
                                    struct var_t *deref);
+extern int evar_set_attr(struct var_t *v,
+                        struct var_t *deref, struct var_t *attr);
 
 /* keyword.c */
 extern int keyword_seek(const char *s);
@@ -412,13 +412,16 @@ extern void qop_assign_char(struct var_t *v, int c);
 extern struct var_t *var_new(void);
 extern void var_delete(struct var_t *v);
 extern void var_reset(struct var_t *v);
-extern struct var_t *builtin_method(struct var_t *v,
-                                    const char *method_name);
 static inline struct var_t *var_copy_of(struct var_t *v)
         { return qop_mov(var_new(), v); }
 extern void moduleinit_var(void);
 extern struct var_t *var_get_attr(struct var_t *v,
-                                  struct var_t *deref);
+                                struct var_t *deref);
+extern struct var_t *var_get_attr_by_string_l(struct var_t *v,
+                                const char *s);
+extern int var_set_attr(struct var_t *v,
+                        struct var_t *deref, struct var_t *attr);
+
 /* common hashtable callback for var-storing hashtables */
 extern void var_bucket_delete(void *data);
 

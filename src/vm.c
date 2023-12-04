@@ -94,8 +94,8 @@ static struct var_t *
 symbol_seek_this_(const char *s)
 {
         struct var_t *o = get_this();
-        if (o && o->magic == QOBJECT_MAGIC)
-                return object_child_l(o, s);
+        if (o)
+                return var_get_attr_by_string_l(o, s);
         return NULL;
 }
 
@@ -124,7 +124,7 @@ symbol_seek_(const char *s)
                 return v;
         if ((v = symbol_seek_this_(s)) != NULL)
                 return v;
-        return object_child_l(q_.gbl, s);
+        return var_get_attr_by_string_l(q_.gbl, s);
 }
 
 static struct var_t *
@@ -622,6 +622,11 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
         struct var_t *attr = pop(fr);
         struct var_t *obj = pop(fr);
         char *name = RODATA_STR(fr, ii);
+        /*
+         * There is no var_*_attr for add, since only dictionaries
+         * support it.  (Lists have a separate opcode, see
+         * do_list_append below.)
+         */
         object_add_child(obj, attr, name);
         push(fr, obj);
 }
@@ -658,7 +663,7 @@ static void
 do_setattr(struct vmframe_t *fr, instruction_t ii)
 {
         bool del = false;
-        struct var_t *attr, *val, *deref, *obj;
+        struct var_t *val, *deref, *obj;
 
         val = pop(fr);
 
@@ -671,11 +676,9 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 
         obj = pop(fr);
 
-        attr = evar_get_attr(obj, deref);
+        evar_set_attr(obj, deref, val);
         if (del)
                 var_delete(deref);
-
-        qop_mov(attr, val);
 
         /* attr is the actual thing, not a copy, so don't delete it. */
         var_delete(val);

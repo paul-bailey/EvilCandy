@@ -77,6 +77,8 @@ function_handle_reset(struct function_handle_t *fh)
 {
         remove_args(fh->f_argv, fh->f_argc);
         remove_args(fh->f_clov, fh->f_cloc);
+        if (fh->f_magic == FUNC_USER && fh->f_ex)
+                EXECUTABLE_RELEASE(fh->f_ex);
         free(fh);
 }
 
@@ -119,11 +121,11 @@ done:
 
 /*
  * return: either @fn or the callable descendant of @fn to pass
- *         to call_vmfunction
+ *         to call_function
  */
 struct var_t *
-call_vmfunction_prep_frame(struct var_t *fn,
-                           struct vmframe_t *fr, struct var_t *owner)
+function_prep_frame(struct var_t *fn,
+                    struct vmframe_t *fr, struct var_t *owner)
 {
         struct function_handle_t *fh;
         int i, argc;
@@ -156,7 +158,7 @@ call_vmfunction_prep_frame(struct var_t *fn,
  * execute it)
  */
 struct var_t *
-call_vmfunction(struct var_t *fn)
+call_function(struct var_t *fn)
 {
         struct var_t *ret = NULL;
         struct function_handle_t *fh = fn->fn;
@@ -178,7 +180,7 @@ call_vmfunction(struct var_t *fn)
 }
 
 void
-function_vmadd_closure(struct var_t *func, struct var_t *clo)
+function_add_closure(struct var_t *func, struct var_t *clo)
 {
         struct function_handle_t *fh = func->fn;
         bug_on(func->magic != TYPE_FUNCTION);
@@ -192,7 +194,7 @@ function_vmadd_closure(struct var_t *func, struct var_t *clo)
 }
 
 void
-function_vmadd_default(struct var_t *func,
+function_add_default(struct var_t *func,
                         struct var_t *deflt, int argno)
 {
         struct function_handle_t *fh = func->fn;
@@ -253,8 +255,15 @@ function_init_internal(struct var_t *func, void (*cb)(struct var_t *),
         func->magic = TYPE_FUNCTION;
 }
 
+/**
+ * function_init - Turn an empty variable into a user function
+ * @func:       Variable to turn into a function
+ * @ex:         Executable code to assign to function
+ *
+ * This is the user parallel of function_init_internal
+ */
 void
-function_init_vm(struct var_t *func, struct executable_t *ex)
+function_init(struct var_t *func, struct executable_t *ex)
 {
         struct function_handle_t *fh;
         bug_on(func->magic != TYPE_EMPTY);
@@ -262,6 +271,7 @@ function_init_vm(struct var_t *func, struct executable_t *ex)
         fh = function_handle_new();
         fh->f_magic = FUNC_USER;
         fh->f_ex = ex;
+        EXECUTABLE_CLAIM(ex);
 
         func->magic = TYPE_FUNCTION;
         func->fn = fh;

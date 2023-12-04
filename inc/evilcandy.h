@@ -364,13 +364,13 @@ extern struct var_t *array_from_empty(struct var_t *array);
 extern void function_init_internal(struct var_t *func,
                         void (*cb)(struct var_t *),
                         int minargs, int maxargs);
-extern struct var_t *call_vmfunction_prep_frame(struct var_t *fn,
+extern struct var_t *function_prep_frame(struct var_t *fn,
                         struct vmframe_t *fr, struct var_t *owner);
-extern struct var_t *call_vmfunction(struct var_t *fn);
-extern void function_vmadd_closure(struct var_t *func, struct var_t *clo);
-extern void function_vmadd_default(struct var_t *func,
+extern struct var_t *call_function(struct var_t *fn);
+extern void function_add_closure(struct var_t *func, struct var_t *clo);
+extern void function_add_default(struct var_t *func,
                         struct var_t *deflt, int argno);
-extern void function_init_vm(struct var_t *func,
+extern void function_init(struct var_t *func,
                         struct executable_t *ex);
 
 /* types/object.c */

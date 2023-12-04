@@ -60,12 +60,12 @@ typedef struct {
 
 /**
  * struct executable_t - Handle to the actual execution code of a
- *                       function or a script
+ *                       function or a script body
  * @instr:      Opcode array
  * @rodata:     Constants used by the function
  * @n_instr:    Number of opcodes
  * @n_rodata:   Number of constants
- * @label:      Labels.  Unused at this stage, except to make the
+ * @label:      Labels.  Unused at execution stage, except to make the
  *              disassembly more readable.
  * @n_label:    Number of labels
  * @file_name:  Name of source file where this was defined
@@ -93,5 +93,16 @@ struct executable_t {
         int nref;
         unsigned flags;
 };
+
+#define EXECUTABLE_CLAIM(ex) do { (ex)->nref++; } while (0)
+#define EXECUTABLE_RELEASE(ex) do { \
+        struct executable_t *ex_ = (ex); \
+        ex_->nref--; \
+        if (ex_->nref <= 0) \
+                executable_free__(ex_); \
+} while (0)
+
+/* in assembler.c */
+extern void executable_free__(struct executable_t *ex);
 
 #endif /* EGQ_INSTRUCTIONS_H */

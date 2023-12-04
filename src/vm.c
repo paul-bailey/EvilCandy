@@ -521,7 +521,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 owner = NULL;
         }
 
-        call_vmfunction_prep_frame(func, fr_new, owner);
+        function_prep_frame(func, fr_new, owner);
 
         if (owner == fr_new->owner)
                 odel = false;
@@ -535,7 +535,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         fr_new->prev = current_frame;
 
         current_frame = fr_new;
-        res = call_vmfunction(fr_new->func);
+        res = call_function(fr_new->func);
         if (res) {
                 /* Internal, already called and executed
                  * pop new frame, push result in old frame
@@ -563,7 +563,7 @@ do_deffunc(struct vmframe_t *fr, instruction_t ii)
         struct var_t *func = var_new();
         struct var_t *loc = RODATA(fr, ii);
         bug_on(loc->magic != TYPE_XPTR);
-        function_init_vm(func, loc->xptr);
+        function_init(func, loc->xptr);
         push(fr, func);
 }
 
@@ -573,7 +573,7 @@ do_add_closure(struct vmframe_t *fr, instruction_t ii)
         struct var_t *clo = pop(fr);
         struct var_t *func = pop(fr);
 
-        function_vmadd_closure(func, clo);
+        function_add_closure(func, clo);
         push(fr, func);
 }
 
@@ -588,7 +588,7 @@ do_add_default(struct vmframe_t *fr, instruction_t ii)
          * there love breaking weak programs.  It's signed 16-bits, so
          * the largest number of args can be 32767.
          */
-        function_vmadd_default(func, deflt, ii.arg2);
+        function_add_default(func, deflt, ii.arg2);
         push(fr, func);
 }
 
@@ -935,6 +935,12 @@ vm_execute(struct executable_t *top_level)
         bug_on(current_frame != NULL);
 
         REENTRANT_POP();
+
+        /*
+         * We're a script, not a function, so we'll never see this
+         * particular code again.
+         */
+        EXECUTABLE_RELEASE(top_level);
 }
 
 /**
@@ -970,10 +976,10 @@ vm_reenter(struct var_t *func, struct var_t *owner,
         while (argc-- > 0)
                 fr->stack[argc] = qop_mov(var_new(), argv[argc]);
 
-        call_vmfunction_prep_frame(func, fr, owner);
+        function_prep_frame(func, fr, owner);
 
         /*
-         * can't push sooner, because call_vmfunction_prep_frame will
+         * can't push sooner, because function_prep_frame will
          * call get_this() if @owner is NULL
          */
         REENTRANT_PUSH();
@@ -982,7 +988,7 @@ vm_reenter(struct var_t *func, struct var_t *owner,
 
         fr->stackptr = fr->stack + fr->ap;
 
-        res = call_vmfunction(fr->func);
+        res = call_function(fr->func);
         if (res) {
                 current_frame = fr->prev;
                 vmframe_free(fr);

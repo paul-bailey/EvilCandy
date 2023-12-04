@@ -84,6 +84,10 @@ enum {
  *
  * This wraps @x (the true intended result of this assembly, and will
  * be thrown away when we're done, leaving only @x remaining.
+ *
+ * One of these frames is allocated for each function, and one for the
+ * top-levle script.  Internal scope (if, while, anything in a {...}
+ * block) is managed by scope[].
  */
 struct as_frame_t {
         int funcno;
@@ -137,6 +141,32 @@ static void assemble_expression(struct assemble_t *a,
 
 static inline bool frame_is_top(struct assemble_t *a)
         { return a->active_frames.next == &a->fr->list; }
+
+/*
+ * This function wrapped by public macros
+ * EXECUTABLE_CLAIM and EXECUTABLE_RELEASE
+ *
+ * XXX REVISIT: here only because assembler.c is the only
+ * file that does much with this struct's internals,
+ * but it doesn't otherwise belong here.
+ * It's different from the freeing going on below in
+ * delete_frames.
+ */
+void
+executable_free__(struct executable_t *ex)
+{
+        if (ex->instr)
+                free(ex->instr);
+        if (ex->rodata) {
+                int i;
+                for (i = 0; i < ex->n_rodata; i++)
+                        var_delete(ex->rodata[i]);
+        }
+        if (ex->label)
+                free(ex->label);
+        list_remove(&ex->list);
+        free(ex);
+}
 
 static void
 as_frame_push(struct assemble_t *a, int funcno)
@@ -219,17 +249,8 @@ as_delete_frame_list(struct list_t *parent_list, int err)
         list_foreach_safe(li, tmp, parent_list) {
                 struct as_frame_t *fr = list2frame(li);
                 list_remove(&fr->list);
-                if (err && fr->x) {
-                        struct executable_t *x = fr->x;
-                        list_remove(&x->list);
-                        if (x->instr)
-                                free(x->instr);
-                        if (x->rodata)
-                                free(x->rodata);
-                        if (x->label)
-                                free(x->label);
-                        free(fr->x);
-                }
+                if (err && fr->x)
+                        executable_free__(fr->x);
                 free(fr);
         }
 }

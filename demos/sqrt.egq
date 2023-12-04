@@ -35,7 +35,7 @@ let sqrt = function(x) {
         } else if (result < x) {
             min = y;
             if (max < y)
-                max = max * 2.0;
+                max *= 2.0;
         } else if (result == x) {
             return y;
         }

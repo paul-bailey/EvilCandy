@@ -304,6 +304,18 @@ logical_and(struct var_t *a, struct var_t *b)
         qop_assign_int(a, (int)res);
 }
 
+static inline void
+rshift(struct var_t *a, struct var_t *b)
+{
+        qop_shift(a, b, OC_RSHIFT);
+}
+
+static inline void
+lshift(struct var_t *a, struct var_t *b)
+{
+        qop_shift(a, b, OC_LSHIFT);
+}
+
 static struct var_t *
 attr_ptr_(struct var_t *obj, struct var_t *deref)
 {
@@ -424,21 +436,82 @@ do_unwind(struct vmframe_t *fr, instruction_t ii)
         push(fr, sav);
 }
 
+#define assign_common(fr, ii, oper) do {        \
+        struct var_t *from, *to;                \
+        bool fdel;                              \
+        from = pop_or_deref(fr, &fdel);         \
+        to = pop(fr);                           \
+        bug_on(to->magic != Q_VARPTR_MAGIC);    \
+        oper(to->vptr, from);                   \
+        var_delete(to);                         \
+        if (fdel)                               \
+                var_delete(from);               \
+} while (0)
+
 static void
 do_assign(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *from, *to;
-        bool fdel;
+        assign_common(fr, ii, qop_mov);
+}
 
-        from = pop_or_deref(fr, &fdel);
-        to = pop(fr);
-        bug_on(to->magic != Q_VARPTR_MAGIC);
+static void
+do_assign_add(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, qop_add);
+}
 
-        qop_mov(to->vptr, from);
+static void
+do_assign_sub(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, qop_sub);
+}
 
-        var_delete(to);
-        if (fdel)
-                var_delete(from);
+static void
+do_assign_mul(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, qop_mul);
+}
+
+static void
+do_assign_div(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, qop_div);
+}
+
+static void
+do_assign_mod(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, qop_mod);
+}
+
+static void
+do_assign_xor(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, qop_xor);
+}
+
+static void
+do_assign_ls(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, lshift);
+}
+
+static void
+do_assign_rs(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, rshift);
+}
+
+static void
+do_assign_or(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, qop_bit_or);
+}
+
+static void
+do_assign_and(struct vmframe_t *fr, instruction_t ii)
+{
+        assign_common(fr, ii, qop_bit_and);
 }
 
 static void
@@ -731,18 +804,6 @@ static void
 do_sub(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, qop_sub);
-}
-
-static void
-rshift(struct var_t *a, struct var_t *b)
-{
-        qop_shift(a, b, OC_RSHIFT);
-}
-
-static void
-lshift(struct var_t *a, struct var_t *b)
-{
-        qop_shift(a, b, OC_LSHIFT);
 }
 
 static void

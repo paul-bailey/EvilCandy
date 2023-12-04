@@ -757,10 +757,7 @@ assemble_eval8(struct assemble_t *a)
 
         assemble_eval9(a);
 
-        while (a->oc->t == OC_PER ||
-               a->oc->t == OC_LBRACK ||
-               a->oc->t == OC_LPAR) {
-
+        while (!!(a->oc->t & TF_INDIRECT)) {
                 int namei;
                 struct token_t *name;
 
@@ -834,10 +831,8 @@ assemble_eval8(struct assemble_t *a)
 static void
 assemble_eval7(struct assemble_t *a)
 {
-        int t = a->oc->t;
-        if (t == OC_TILDE || t == OC_MINUS
-            || t == OC_EXCLAIM || t == OC_PLUS) {
-                int op;
+        if (!!(a->oc->t & TF_UNARY)) {
+                int op, t = a->oc->t;
                 if (t == OC_TILDE)
                         op = INSTR_BITWISE_NOT;
                 else if (t == OC_MINUS)
@@ -846,6 +841,7 @@ assemble_eval7(struct assemble_t *a)
                         op = INSTR_LOGICAL_NOT;
                 else /* +, do nothing*/
                         op = -1;
+
                 as_lex(a);
                 assemble_eval8(a);
 
@@ -860,9 +856,7 @@ static void
 assemble_eval6(struct assemble_t *a)
 {
         assemble_eval7(a);
-        while (a->oc->t == OC_MUL
-               || a->oc->t == OC_DIV
-               || a->oc->t == OC_MOD) {
+        while (!!(a->oc->t & TF_MULDIVMOD)) {
                 int op;
                 if (a->oc->t == OC_MUL)
                         op = INSTR_MUL;
@@ -913,16 +907,10 @@ assemble_eval4(struct assemble_t *a)
 static void
 assemble_eval3(struct assemble_t *a)
 {
-        int t;
         assemble_eval4(a);
-        while ((t = a->oc->t) == OC_EQEQ
-               || t == OC_LEQ
-               || t == OC_GEQ
-               || t == OC_NEQ
-               || t == OC_LT
-               || t == OC_GT) {
+        while (!!(a->oc->t & TF_RELATIONAL)) {
                 int cmp;
-                switch (t) {
+                switch (a->oc->t) {
                 case OC_EQEQ:
                         cmp = IARG_EQ;
                         break;
@@ -941,6 +929,9 @@ assemble_eval3(struct assemble_t *a)
                 case OC_GT:
                         cmp = IARG_GT;
                         break;
+                default:
+                        bug();
+                        cmp = 0;
                 }
                 as_lex(a);
                 assemble_eval4(a);
@@ -953,9 +944,7 @@ static void
 assemble_eval2(struct assemble_t *a)
 {
         assemble_eval3(a);
-        while (a->oc->t == OC_AND
-               || a->oc->t == OC_OR
-               || a->oc->t == OC_XOR) {
+        while (!!(a->oc->t & TF_BITWISE)) {
                 int op;
                 if (a->oc->t == OC_AND) {
                         op = INSTR_BINARY_AND;
@@ -975,14 +964,13 @@ assemble_eval1(struct assemble_t *a)
 {
         assemble_eval2(a);
 
-        if (a->oc->t == OC_OROR) {
+        while (!!(a->oc->t & TF_LOGICAL)) {
+                int code = a->oc->t == OC_OROR
+                        ? INSTR_LOGICAL_OR : INSTR_LOGICAL_AND;
+
                 as_lex(a);
                 assemble_eval2(a);
-                add_instr(a, INSTR_LOGICAL_OR, 0, 0);
-        } else if (a->oc->t == OC_ANDAND) {
-                as_lex(a);
-                assemble_eval2(a);
-                add_instr(a, INSTR_LOGICAL_AND, 0, 0);
+                add_instr(a, code, 0, 0);
         }
 }
 
@@ -992,13 +980,6 @@ assemble_eval(struct assemble_t *a)
         as_lex(a);
         assemble_eval1(a);
         as_unlex(a);
-}
-
-static void
-assemble_assign(struct assemble_t *a)
-{
-        assemble_eval(a);
-        add_instr(a, INSTR_ASSIGN, 0, 0);
 }
 
 /* FIXME: huge DRY violation w/ eval8 */
@@ -1019,14 +1000,14 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
          */
         if (a->oc->t == OC_SEMI)
                 return; /* empty statement? are we ok with this? */
-        if (a->oc->t == OC_EQ) {
-                assemble_assign(a);
-                goto done;
-        }
 
         for (;;) {
                 int namei;
                 struct token_t *name;
+
+                if (!!(a->oc->t & TF_ASSIGN))
+                        goto assign;
+
                 switch (a->oc->t) {
                 case OC_PER:
                         have_parent = true;
@@ -1103,29 +1084,11 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                         have_parent = false;
                         break;
 
-                case OC_EQ:
-                        /*
-                         * Academically, "some_func_call() = x" should be
-                         * valid, but it looks wrong and I won't allow it.
-                         */
-                        as_err_if(a, last_t == OC_RPAR, AE_BADINSTR);
-
-                        assemble_assign(a);
-                        goto done;
-
                 case OC_SEMI:
                         /* should end in a function or an assignment */
                         if (last_t != OC_RPAR)
                                 as_err(a, AE_BADTOK);
                         as_unlex(a);
-                        goto done;
-
-                case OC_PLUSPLUS:
-                        add_instr(a, INSTR_INCR, 0, 0);
-                        goto done;
-
-                case OC_MINUSMINUS:
-                        add_instr(a, INSTR_DECR, 0, 0);
                         goto done;
 
                 default:
@@ -1134,6 +1097,61 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
 
                 last_t = a->oc->t;
                 as_lex(a);
+        }
+
+assign:
+        {
+                int t = a->oc->t;
+
+                /* first check the ones that don't call assemble_eval */
+                switch (t) {
+                case OC_PLUSPLUS:
+                        add_instr(a, INSTR_INCR, 0, 0);
+                        goto done;
+                case OC_MINUSMINUS:
+                        add_instr(a, INSTR_DECR, 0, 0);
+                        goto done;
+                }
+
+                assemble_eval(a);
+
+                switch (t) {
+                case OC_EQ:
+                        add_instr(a, INSTR_ASSIGN, 0, 0);
+                        break;
+                case OC_PLUSEQ:
+                        add_instr(a, INSTR_ASSIGN_ADD, 0, 0);
+                        break;
+                case OC_MINUSEQ:
+                        add_instr(a, INSTR_ASSIGN_SUB, 0, 0);
+                        break;
+                case OC_MULEQ:
+                        add_instr(a, INSTR_ASSIGN_MUL, 0, 0);
+                        break;
+                case OC_DIVEQ:
+                        add_instr(a, INSTR_ASSIGN_DIV, 0, 0);
+                        break;
+                case OC_MODEQ:
+                        add_instr(a, INSTR_ASSIGN_MOD, 0, 0);
+                        break;
+                case OC_XOREQ:
+                        add_instr(a, INSTR_ASSIGN_XOR, 0, 0);
+                        break;
+                case OC_LSEQ:
+                        add_instr(a, INSTR_ASSIGN_LS, 0, 0);
+                        break;
+                case OC_RSEQ:
+                        add_instr(a, INSTR_ASSIGN_RS, 0, 0);
+                        break;
+                case OC_OREQ:
+                        add_instr(a, INSTR_ASSIGN_OR, 0, 0);
+                        break;
+                case OC_ANDEQ:
+                        add_instr(a, INSTR_ASSIGN_AND, 0, 0);
+                        break;
+                default:
+                        bug();
+                }
         }
 
 done:

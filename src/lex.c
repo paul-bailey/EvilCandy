@@ -22,8 +22,6 @@ static struct {
         FILE *fp;
         /* look up tables */
         unsigned char charmap[128];
-        unsigned char char_xtbl[128];
-        unsigned char char_x2tbl[128];
 } lexer = {
         .lineno = 0,
         .s = NULL,
@@ -37,9 +35,10 @@ q_isflags(int c, unsigned char flags)
 }
 
 static inline bool q_isdelim(int c) { return q_isflags(c, QDELIM); }
+/* may be in identifier */
 static inline bool q_isident(int c) { return q_isflags(c, QIDENT); }
+/* may be 1st char of identifier */
 static inline bool q_isident1(int c) { return q_isflags(c, QIDENT1); }
-static inline bool q_isdelim2(int c) { return q_isflags(c, QDDELIM); }
 
 static int
 lexer_next_line(void)
@@ -316,64 +315,188 @@ malformed:
 }
 
 static int
-qlex_delim2(char **src, int *d)
+qlex_delim_helper(int *ret)
 {
-        char *s = *src;
-        if (!q_isdelim2(*d) && *d != '!')
-                return false;
-        if (*s == *d && *d != '!') {
-                *d = lexer.char_x2tbl[*d];
-        } else if (*s != '=') {
-                return false;
-        } else switch (*d) {
+        char *s = lexer.s;
+
+        switch (*s++) {
+        case '+':
+                switch (*s) {
+                case '+':
+                        *ret = OC_PLUSPLUS;
+                        return 2;
+                case '=':
+                        *ret = OC_PLUSEQ;
+                        return 2;
+                }
+                *ret = OC_PLUS;
+                return 1;
+        case '-':
+                switch (*s) {
+                case '-':
+                        *ret = OC_MINUSMINUS;
+                        return 2;
+                case '=':
+                        *ret = OC_MINUSEQ;
+                        return 2;
+                }
+                *ret = OC_MINUS;
+                return 1;
         case '<':
-                *d = QD_LEQ;
-                break;
+                switch (*s) {
+                case '<': {
+                        if (s[1] == '=') {
+                                *ret = OC_LSEQ;
+                                return 3;
+                        }
+                        *ret = OC_LSHIFT;
+                        return 2;
+                }
+                case '=':
+                        *ret = OC_LEQ;
+                        return 2;
+                }
+                *ret = OC_LT;
+                return 1;
         case '>':
-                *d = QD_GEQ;
+                switch (*s) {
+                case '>':
+                        if (s[1] == '=') {
+                                *ret = OC_RSEQ;
+                                return 3;
+                        }
+                        *ret = OC_RSHIFT;
+                        return 2;
+                case '=':
+                        *ret = OC_GEQ;
+                        return 2;
+                }
+                *ret = OC_GT;
+                return 1;
+        case '=':
+                switch (*s) {
+                case '=':
+                        *ret=  OC_EQEQ;
+                        return 2;
+                }
+                *ret = OC_EQ;
+                return 1;
+        case '&':
+                switch (*s) {
+                case '&':
+                        *ret = OC_ANDAND;
+                        return 2;
+                case '=':
+                        *ret = OC_ANDEQ;
+                        return 2;
+                }
+                *ret = OC_AND;
+                return 1;
+        case '|':
+                switch (*s) {
+                case '|':
+                        *ret = OC_OROR;
+                        return 2;
+                case '=':
+                        *ret = OC_OREQ;
+                        return 2;
+                }
+                *ret = OC_OR;
+                return 1;
+        case '.':
+                if (!isdigit((int)*s)) {
+                        *ret = OC_PER;
+                        return 1;
+                }
                 break;
         case '!':
-                *d = QD_NEQ;
-                break;
-        default:
-                return false;
+                if (*s == '=') {
+                        *ret = OC_NEQ;
+                        return 2;
+                }
+                *ret = OC_EXCLAIM;
+                return 1;
+        case ';':
+                *ret = OC_SEMI;
+                return 1;
+        case ',':
+                *ret = OC_COMMA;
+                return 1;
+        case '/':
+                *ret = OC_DIV;
+                return 1;
+        case '*':
+                switch (*s) {
+                case '=':
+                        *ret = OC_MULEQ;
+                        return 2;
+                /* TODO: support **, pow() */
+                }
+                *ret = OC_MUL;
+                return 1;
+        case '%':
+                if (*s == '=') {
+                        *ret = OC_MODEQ;
+                        return 2;
+                }
+                *ret = OC_MOD;
+                return 1;
+        case '^':
+                if (*s == '=') {
+                        *ret = OC_XOREQ;
+                        return 2;
+                }
+                *ret = OC_XOR;
+                return 1;
+        case '(':
+                *ret = OC_LPAR;
+                return 1;
+        case ')':
+                *ret = OC_RPAR;
+                return 1;
+        case '[':
+                *ret = OC_LBRACK;
+                return 1;
+        case ']':
+                *ret = OC_RBRACK;
+                return 1;
+        case '{':
+                *ret = OC_LBRACE;
+                return 1;
+        case '}':
+                *ret = OC_RBRACE;
+                return 1;
+        case ':':
+                *ret = OC_COLON;
+                return 1;
+        case '~':
+                *ret = OC_TILDE;
+                return 1;
+        case '`':
+                if (*s != '`')
+                        syntax("Unrecognized token '`'");
+                *ret = OC_LAMBDA;
+                return 2;
         }
-        *src = s + 1;
-        buffer_putc(&lexer.tok, *(s-1));
-        buffer_putc(&lexer.tok, *s);
-        return true;
+        return 0;
 }
 
 static bool
-qlex_delim(int *res)
+qlex_delim(int *ret)
 {
-        char *s = lexer.s;
-        int d = *s++;
-
-        /*
-         * special case: `` is a delim but ` is not,
-         * so the other code below will break.
-         */
-        if (!q_isdelim(d))
-                return false;
-
-        if (!qlex_delim2(&s, &d)) {
-                buffer_putc(&lexer.tok, d);
-                d = lexer.char_xtbl[d];
+        int count = qlex_delim_helper(ret);
+        if (count) {
+                char *s = lexer.s;
+                lexer.s += count;
+                while (s < lexer.s) {
+                        buffer_putc(&lexer.tok, *s);
+                        s++;
+                }
+                return true;
         }
-        if (!d) {
-                /*
-                 * could happen, if a double-letter delimiter
-                 * does not have a single-letter delim, e.g.
-                 * "``" maps to QD_LAMBDA, but "`" maps to zero
-                 */
-                return false;
-        }
-
-        *res = TO_DTOK(d);
-        lexer.s = s;
-        return true;
+        return false;
 }
+
 
 /*
  * returns:
@@ -538,14 +661,5 @@ moduleinit_lex(void)
         for (i = '0'; i < '9'; i++)
                 lexer.charmap[i] |= QIDENT;
         lexer.charmap['_'] |= QIDENT | QIDENT1;
-
-        /* Set up lexer.char_x*tbl */
-        for (s = DELIMS, i = QD_PLUS; !isspace((int)*s); s++, i++)
-                lexer.char_xtbl[(int)*s] = i;
-        for (s = DELIMDBL, i = QD_PLUSPLUS; *s != '\0'; s++, i++)
-                lexer.char_x2tbl[(int)*s] = i;
-
-        /* special case, put this in x2tbl but not xtbl */
-        lexer.char_x2tbl[(int)'`'] = QD_LAMBDA;
 }
 

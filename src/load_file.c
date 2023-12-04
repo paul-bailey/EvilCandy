@@ -129,7 +129,7 @@ load_file(const char *filename)
                 return;
 
         if ((ex = assemble(filename, oc)) == NULL)
-                warning("Failed to assemble");
+                syntax("Failed to assemble");
 
         if (q_.opt.disassemble_only)
                 return;

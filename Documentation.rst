@@ -707,67 +707,42 @@ they are referenced, the parser searches for them in this order:
    are analogous to variables declared on a function's stack after
    the frame pointer.
 
-2. All top-level elements of the currently running object ``this``.
-   While not in a function, ``this`` is set to the global object
-   ``__gbl__``.
+#. All automatic variables in a parent function, _if_ the function
+   is nested.  (This causes the creation of Closures_ in the child
+   function, which have some peculiarities with the by-reference
+   variables.
 
-3. All global-scope "automatic" variables.  (They're not really
-   "automatic" since they exist for the remainder of the program.
-   They're really more like 4. below, except they're faster to
-   retrieve.)
+#. All automatic variables stored at the global scope. [#]_
 
-4. All top-level children of the global object ``__gbl__``.
+#. All top-level elements of the currently running object ``this``.
+   While not in a function (and sometimes while *in* a function,
+   ``this`` is set to the global object ``__gbl__``.
 
-5. The global object ``__gbl__`` itself.
+#. All top-level children of the global object ``__gbl__``.
+
+#. The global object ``__gbl__`` itself.
 
 To avoid namespace confusion, you could type ``this.that`` instead
 of ``that``, or ``__gbl__.thing`` instead of ``thing``, and you will
 always get the right one.
 
-More on Automatic Variable Scope
---------------------------------
 
-Automatic variables are part of a quasi-stack machine.  A virtual
-frame pointer prevents a function from accessing variables in
-the calling function's scope (since the caller is currently not
-known).
+.. [#]
 
-This means that while inside a function, it cannot access variables
-in a parent function (if it's nested).
+    Both in implementation and philosophy, there's little difference
+    between global-scope 'automatic' variables and child attributes of
+    the global object.  Unlike function variables which are at known
+    offsets from the frame pointer, global variables are stored in a
+    runtime symbol table.  This is because the stack gets erased when
+    leaving scope, but we want global-scope variables to remain for
+    the duration of the program, assuming the script was a library
+    import, not the main script.
 
-In the following example, an error will be thrown if foo() is called::
+    Theoretically, that makes global variables slower to get than
+    function variables, but in testing I've been unable to see a very
+    noticeable difference.
 
-        let thing = function() {
-                let n = 1;
-                let foo = function() {
-                        // THIS WON'T WORK!!
-                        bar(n);
-                };
-        };
-
-because the variable ``n`` is no longer in scope.
-
-One work-around is to use argument defaults::
-
-        let thing = function() {
-                let n = 1;
-                let foo = function(n=n) {
-                        // finally, this works...
-                        // ...assuming bar is visible :)
-                        bar(n);
-                };
-        };
-
-The reason this works has to do with the `Function Call Syntax`_, and will
-be discussed below.  But the gist is, the first ``n`` of ``n=n`` names
-the argument, and the second ``n`` declares a default value in case
-``n`` is not provided by the caller.  This default is evaluated at the
-time the function is created--while execution is still in the outer
-function's scope--and will not be destroyed until ``foo`` (and any other
-variables that got assigned the same handle as ``foo``) is also
-destroyed.  This is the closest thing there is to a *closure* in ``evilcandy``.
-
-Variables may also be declared inside loop statements, for even further
+Variables may also be declared inside block statements, for even further
 namespace reduction::
 
         let thing = function(a, b) {
@@ -800,27 +775,30 @@ Function Definition Syntax
 
 Function definitions take the form::
 
-        function(*args*)
-                *expression*
+        function(ARGS)
+                EXPRESSION
+
+*expression* should have braces even if it's a single-line expression
+(it's just good practice), but EvilCandy does not enforce that.
 
 *args* is a group of identifiers, delimited by commas, which will be
 used to identify the caller's parameters, e.g.::
 
         function(x, y, z)
 
-An *optional argument* must be designated as::
+An *optional argument* may be designated as::
 
-        *arg* = *default*
+        ARG = DEFAULT
 
 where *default* is an expression that evaluates to a default value for
 the argument should one not be provided by the caller, e.g.::
 
-        function(a, b, c = "Hello", d = 12.5)
+        function(a, b, c="Hello", d=12.5)
 
-Do not be misled by the "a=b" syntax of parameter definitions.  The
-arguments passed to the function will be the same exact order as they
-were provided by the caller.  So it makes no sense to place the
-optional arguments at the front of the argument list.
+Do not be misled by the "a=b" syntax of parameter definitions.  **The
+order in which arguments are passed always matters.**  For that matter,
+it makes no sense to place the optional arguments at the front of the
+argument list.
 
 Function Call Syntax
 --------------------
@@ -842,4 +820,9 @@ use the ``typeof`` builtin function to check it.
 
 :TODO: The rest of this documentation
 
+
+Closures
+--------
+
 .. : vim: set syntax=rst :
+

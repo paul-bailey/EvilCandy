@@ -148,16 +148,7 @@ var_free(struct var_t *v)
 # endif
 #endif
 
-/**
- * var_init - Initialize a variable
- * @v: Variable to initialize.
- *
- * DO NOT call this on a struct you got from var_new(),
- * or you might clobber and zombify data.  Instead, call
- * it for a newly-declared struct on the stack.
- *
- * return: @v
- */
+/* Helper to var_new - initialize an empty variable */
 static struct var_t *
 var_init(struct var_t *v)
 {
@@ -221,7 +212,21 @@ config_builtin_methods(const struct type_inittbl_t *tbl,
         }
 }
 
-/* tbl may be NULL, the others may not */
+/**
+ * var_config_type - Initialization-time function to set up a
+ *                   built-in type's metadata
+ * @magic:      A TYPE_* enum
+ * @name:       Name of the type, useful for things like error reporting
+ * @opm:        Operator methods, ie. what to do when encountering things
+ *              like '+', '-', '%'...
+ * @tbl:        Table of additional built-in methods that can be called
+ *              by name from a user script.
+ *
+ * This ic called once for each built-in type, see the typedefinit_*()
+ * functions in types/...c
+ *
+ * tbl may be NULL, the other arguments may not
+ */
 void
 var_config_type(int magic, const char *name,
                 const struct operator_methods_t *opm,
@@ -275,6 +280,10 @@ moduleinit_var(void)
         for (t = INIT_TBL; t->cb != NULL; t++)
                 t->cb();
 
+        /*
+         * Make sure we didn't miss anything, we don't want
+         * blanks in TYPEDEFS[]
+         */
         for (i = 0; i < NTYPES; i++) {
                 if (TYPEDEFS[i].name == NULL)
                         bug();
@@ -330,6 +339,8 @@ var_get_attr_by_string_l(struct var_t *v, const char *s)
  * var_get_attr - Generalized get-attribute
  * @v:  Variable whose attribute we're seeking
  * @deref: Variable storing the key, either the name or an index number
+ *
+ * Return: Attribute of @v, or NULL if not found
  */
 struct var_t *
 var_get_attr(struct var_t *v, struct var_t *deref)
@@ -392,7 +403,6 @@ attr_str(struct var_t *deref)
         return numbuf;
 }
 
-
 /**
  * var_set_attr - Generalized set-attribute
  * @v:          Variable whose attribute we're setting
@@ -407,13 +417,58 @@ attr_str(struct var_t *deref)
 int
 var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
 {
-        struct var_t *child = var_get_attr(v, deref);
-        if (!child)
-                return -1;
-        if (!!(child->flags & VF_CONST))
-                syntax("Attribute '%s' is constant", attr_str(deref));
-        qop_mov(child, attr);
-        return 0;
+        char *attrstr = NULL;
+        int idx = 0;
+        if (v->magic == TYPE_VARPTR)
+                v = v->vptr;
+
+        bug_on(v->magic == TYPE_VARPTR);
+
+        switch (deref->magic) {
+        case TYPE_STRPTR:
+                attrstr = deref->strptr;
+                goto set_by_str;
+        case TYPE_INT:
+                if (deref->i < INT_MIN || deref->i > INT_MAX)
+                        return -1;
+                idx = deref->i;
+                goto set_by_idx;
+        case TYPE_STRING:
+                attrstr = string_get_cstring(deref);
+                if (attrstr)
+                        attrstr = literal(attrstr);
+                if (!attrstr)
+                        return -1;
+                goto set_by_str;
+        }
+        return -1;
+
+set_by_str:
+        if (v->magic == TYPE_DICT) {
+                struct var_t *child = object_child_l(v, attrstr);
+                if (child)
+                        qop_mov(child, attr);
+                else
+                        object_add_child(v, var_copy(attr), attrstr);
+                return 0;
+        }
+        /*
+         * currently no other native types have attributes that are
+         * settable by name.
+         */
+        return -1;
+
+
+set_by_idx:
+        if (v->magic == TYPE_LIST) {
+                array_set_child(v, idx, attr);
+                return 0;
+        }
+        /*
+         * currently no other native types have attributes that are
+         * settable by subscript.  (TODO: allow this for strings)
+         */
+        return -1;
 }
 
 /* for debugging and builtin functions */

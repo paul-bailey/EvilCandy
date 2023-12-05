@@ -917,11 +917,12 @@ assemble_eval9(struct assemble_t *a)
  * we are at the "c" of "a.b.c..."), INSTR_GETATTR pushes the parent back
  * on the stack under the new attribute, therefore the stack grows by one
  * for every generation we descend.  The solution I came up with is
- * INSTR_UNWIND, which pops the last result from the top of the stack,
- * pops and deletes some number of additional values off the stack (the
- * "c", "b", "a"... of a.b.c...), and pushes the last result back on the
- * stack.  This way it looks like the whole thing was a normal lval-rval
- * operation, and the stack remains balanced.
+ * INSTR_UNWIND, which pops and temporarily saves the last result from
+ * the top of the stack, pops and deletes some number of additional
+ * values off the stack (the "c", "b", "a"... of a.b.c...), and then
+ * pushes the saved value back onto the stack.  This way it looks like
+ * the whole process was a normal lval-rval operation, and the stack
+ * remains balanced.
  */
 static void
 assemble_eval8(struct assemble_t *a)
@@ -1135,6 +1136,12 @@ assemble_eval1(struct assemble_t *a)
         }
 }
 
+/*
+ * Sister function to assemble_expression.  This and its
+ * assemble_evalN descendants form a recursive-descent parser that
+ * builds up the instructions for evaluating the VALUE part of an
+ * expression (see big comment in assemble_expression).
+ */
 static void
 assemble_eval(struct assemble_t *a)
 {
@@ -1524,10 +1531,6 @@ assemble_load(struct assemble_t *a)
  *      single-line expr:       EXPR ';'
  *      block:                  '{' EXPR EXPR ... '}'
  *
- * In the block case, EXPR must be single-line.  Nested blocks are only
- * permitted if they're parts of program-flow statements like 'if' or
- * 'while'.  TODO: I can't recall, was there ever a good reason for this?
- *
  * Valid single-line expressions are
  *
  * #1   empty declaration:      let IDENTIFIER
@@ -1804,7 +1807,24 @@ free_assembler(struct assemble_t *a, int err)
         free(a);
 }
 
-/* token_arr MUST be EOF-terminated */
+/**
+ * assemble - Convert an array of tokens into an array of pseudo-
+ *            assembly instructions
+ * @source_file_name:   Name of the input source file, for record
+ *      keeping and reporting in case a syntax error was found
+ * @token_arr: Array of tokens from a file.  These MUST be EOF-
+ *      terminated.
+ *
+ * Return:
+ * Array of executable instructions for the top-level scope, which
+ * happens to be all you need.  The instructions for any functions
+ * defined in the script exist out there in RAM somewhere, but they
+ * will be reached eventually, since they are referenced by top-level
+ * instructions.  GC will happen when the last variable referencing them
+ * is destroyed.  Note to users: Don't assign an insignificant function
+ * to a global-, therefore immortal-, scope variable, or it will remain
+ * in memory until the program terminates.
+ */
 struct executable_t *
 assemble(const char *source_file_name, struct token_t *token_arr)
 {

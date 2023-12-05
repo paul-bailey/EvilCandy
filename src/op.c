@@ -102,6 +102,11 @@ qop_cmp(struct var_t *a, struct var_t *b, int op)
         if (!p->cmp)
                 epermit("cmp");
         cmp = p->cmp(a, b);
+
+        /* TODO: Move this part below into a call wrapper in
+         * vm.c, so the instruction-to-token translation doesn't
+         * have to take place.
+         */
         switch (op) {
         case OC_EQEQ:
                 ret = cmp == 0;

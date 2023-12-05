@@ -200,9 +200,6 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
         return NULL;
 }
 
-static inline struct var_t *var_copy(struct var_t *v)
-        { return qop_mov(var_new(), v); }
-
 static inline __attribute__((always_inline)) struct var_t *
 VARCOPY(struct vmframe_t *fr, instruction_t ii)
 {
@@ -984,6 +981,10 @@ moduleinit_vm(void)
                        var_bucket_delete);
 }
 
+/**
+ * vm_get_this - Get the object currently corresponding to the ``this''
+ *               keyword.
+ */
 struct var_t *
 vm_get_this(void)
 {
@@ -991,6 +992,12 @@ vm_get_this(void)
         return current_frame->owner;
 }
 
+/**
+ * vm_get_arg - Get an argument provided by user to internal function
+ * @idx: Argument, indexed from zero.
+ *
+ * Return: Argument, or NULL if @idx is out of the argument frame.
+ */
 struct var_t *
 vm_get_arg(unsigned int idx)
 {

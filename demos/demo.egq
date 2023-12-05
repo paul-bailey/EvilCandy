@@ -31,13 +31,12 @@ let iterator = {
             x++;
         } while (x < n);
 
-    },
-    whoami: function() {
-        print("me, of course!");
     }
 };
 
-//     iterator.toten(4);
+iterator.whoami = function() {
+    print("me, of course!");
+};
 
 print("pi is: {}".format(Math.pi));
 iterator.tonine(4);

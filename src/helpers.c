@@ -22,7 +22,7 @@ x2bin(int c)
 }
 
 
-/* Amazinglly, this is not C libraries */
+/* Amazinglly, this is not in every C library */
 char *
 my_strrchrnul(const char *s, int c)
 {

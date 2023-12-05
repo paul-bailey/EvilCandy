@@ -501,7 +501,7 @@ qlex_delim(int *ret)
 
 /*
  * returns:
- * 'd' OR'd with delim<<8 if token was a delimiter
+ * 'd' OR'd with ((delim<<8)|flags) if token was a delimiter
  * 'k' OR'd with code<<8 for keyword if token was a keyword
  * 'q' if quoted string.
  * 'i' if integer
@@ -538,6 +538,13 @@ tokenize_helper(void)
         return 0;
 }
 
+/**
+ * tokenize - Get the next token from the current
+ *            input file.
+ * @oc: where to store the result
+ *
+ * Return: Same value as oc->t
+ */
 int
 tokenize(struct token_t *oc)
 {

@@ -1,5 +1,5 @@
 /*
- * trie.c - Code for managing a bitwise trie
+ * trie.c - Code for managing a bitwise (ie array-mapped) trie
  *
  * This is an insert-only trie, there are no deletions.
  *
@@ -27,7 +27,7 @@
  * index.
  *
  * For insertions, the index array has to be re-allocated.  In fact, a
- * separte one is allocated altogether, and the old one is freed when
+ * separate one is allocated altogether, and the old one is freed when
  * done.  The old ones are copied into the new array, taking into account
  * that their own indexes may have changed if the new insertion falls
  * before then.

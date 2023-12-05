@@ -37,7 +37,7 @@ int_mod(struct var_t *a, struct var_t *b)
         if (i == 0LL)
                 a->i = 0;
         else
-                a->i /= i;
+                a->i %= i;
 }
 
 static void

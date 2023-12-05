@@ -215,6 +215,44 @@ as_frame_swap(struct assemble_t *a)
         a->fr = fr;
 }
 
+/* conclude what you started with as_frame_take() */
+static void
+as_frame_restore(struct assemble_t *a, struct as_frame_t *fr)
+{
+        list_add_tail(&fr->list, &a->active_frames);
+        a->fr = fr;
+}
+
+/* Where swap can't be used due to recursion
+ * going back to child instead of grandparent
+ */
+static struct as_frame_t *
+as_frame_take(struct assemble_t *a)
+{
+        struct as_frame_t *parent, *child;
+
+        child = a->fr;
+        bug_on(!child);
+        parent = list2frame(child->list.prev);
+
+        /*
+         * If we're the immediate child of top-level, there's no good
+         * reason to be doing this, so tell caller "no"
+         */
+        if (&parent->list == &a->active_frames)
+                return NULL;
+
+        list_remove(&child->list);
+        a->fr = parent;
+
+        if (frame_is_top(a)) {
+                as_frame_restore(a, child);
+                return NULL;
+        }
+
+        return child;
+}
+
 /*
  * Doesn't destroy it, it just removes it from active list.
  * We'll iterate through these when we're done.
@@ -686,6 +724,60 @@ assemble_objdef(struct assemble_t *a)
 
 static void assemble_eval1(struct assemble_t *a);
 
+static void assemble_eval_atomic(struct assemble_t *a);
+
+/*
+ * helper to ainstr_push_symbol, @name is not in local namespace,
+ * check enclosing function before resorting to IARG_PTR_SEEK
+ */
+static int
+maybe_closure(struct assemble_t *a, struct token_t *name)
+{
+        /*
+         * Check for closure.  When we started parsing this (child)
+         * function, the parent-function parsing was at the build-a-
+         * function-variable stage.  So we're able to switch back to
+         * the parent to check if variable is in *its* scope...
+         * evaluate it and add the command to add a closure.
+         *
+         * FIXME: Note the recursive nature of this.  If the variable
+         * is not in the parent scope either, the call to
+         * assemble_eval_atomic will call us again for the grandparent,
+         * and so on until the highest-level scope that is still inside
+         * a function.  That means if the closure is in, say, a great-
+         * grandparent, and the parent/grandparent scopes don't use it,
+         * we'd wastefully add closures to those functions as well.
+         */
+        struct as_frame_t *this_frame;
+        bool success = false;
+
+        this_frame = as_frame_take(a);
+        if (!this_frame)
+                return -1;
+
+        if (!frame_is_top(a)) {
+                if (symtab_seek(a, name->s) >= 0 ||
+                    arg_seek(a, name->s) >= 0 ||
+                    clo_seek(a, name->s) >= 0)  {
+                        assemble_eval_atomic(a);
+                        /* back to identifier */
+                        as_unlex(a);
+                        add_instr(a, INSTR_ADD_CLOSURE, 0, 0);
+                        success = true;
+                }
+        }
+
+        as_frame_restore(a, this_frame);
+
+        if (success) {
+                as_err_if(a, a->fr->cp >= FRAME_CLOSURE_MAX, AE_OVERFLOW);
+                a->fr->clo[a->fr->cp++] = name->s;
+        }
+
+        /* try this again */
+        return clo_seek(a, name->s);
+}
+
 /*
  * @instr is INSTR_PUSH_PTR (for expression mode) and INSTR_PUSH_COPY
  * (for eval mode, where vars could be carelessly clobbered).
@@ -710,6 +802,8 @@ ainstr_push_symbol(struct assemble_t *a, int instr, struct token_t *name)
                 add_instr(a, instr, IARG_PTR_CP, idx);
         } else if (!strcmp(name->s, "__gbl__")) {
                 add_instr(a, instr, IARG_PTR_GBL, 0);
+        } else if ((idx = maybe_closure(a, name)) >= 0) {
+                add_instr(a, instr, IARG_PTR_CP, idx);
         } else {
                 int namei = seek_or_add_const(a, name);
                 add_instr(a, instr, IARG_PTR_SEEK, namei);

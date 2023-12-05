@@ -37,4 +37,39 @@ print("1 + 2 is {}".format(a));
     print("\t11 times 5 is {}".format(quintler(11)));
 })();
 
+
+// Test traditional closure
+(function() {
+    let multer3 = function(n) {
+        return ``(x) x * n``;
+    };
+
+    let sextler = multer3(6);
+    let septler = multer3(7);
+
+    print("testing traditional closure");
+    print("\t11 times 6 is {}".format(sextler(11)));
+    print("\t11 times 7 is {}".format(septler(11)));
+})();
+
+// Test byval-ness of closure
+
+if (false) {
+    (function() {
+        // egad, this is fine for integers, but since strings are
+        // byref, say if n is "hello" and catworld adds " world",
+        // then variable n, two, and three will all be the same
+        // ("hello world world") at print time below.
+        let n = 1;
+        let catworld = function() {
+            n++;
+            return n;
+        };
+        let two = catworld();
+        let three = catworld();
+        print("{} {} {}".format(n, two, three));
+    })();
+}
+
+
 // : vim: set syntax=javascript :

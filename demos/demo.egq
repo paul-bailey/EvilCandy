@@ -71,12 +71,12 @@ __gbl__.foreach(function (e, name) {
 });
 
 print("Does gbl have child '{}'?".format(s));
-if (__gbl__.haschild(s))
+if (__gbl__.hasattr(s))
     print("\t...yes!");
 else
     print("\t...no :(");
 print("Does gbl have child 'Io'?");
-if (haschild('Io'))
+if (hasattr('Io'))
     print("\t...yes!");
 else
     print("\t...nope");

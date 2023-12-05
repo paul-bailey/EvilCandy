@@ -10,7 +10,7 @@
 #define arg_type_err(v) \
         syntax("Argument wrong type: '%s'", typestr(v))
 #define arg_type_check(v, want) do { \
-        if ((v)->magic != (want)) \
+        if (!(v) || (v)->magic != (want)) \
                 arg_type_err(v); \
 } while (0)
 

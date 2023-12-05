@@ -82,20 +82,7 @@ struct var_t *
 object_nth_child(struct var_t *o, int n)
 {
         /* FIXME: This needs a hashtable nth child or something */
-#if 1
         return NULL;
-#else
-        struct var_t **ppvar;
-        struct buffer_t *buf = &o->o->children;
-        ssize_t byteoffs = n * sizeof(void *);
-
-        byteoffs = index_translate(byteoffs, buffer_size(buf));
-        if (byteoffs < 0)
-                return NULL;
-
-        ppvar = (struct var_t **)buf->s + byteoffs;
-        return *ppvar;
-#endif
 }
 
 /**
@@ -217,7 +204,7 @@ object_len(struct var_t *ret)
 }
 
 static void
-object_haschild(struct var_t *ret)
+object_hasattr(struct var_t *ret)
 {
         struct var_t *self = get_this();
         struct var_t *name = frame_get_arg(0);
@@ -227,7 +214,7 @@ object_haschild(struct var_t *ret)
         bug_on(self->magic != TYPE_DICT);
 
         if (!name || name->magic != TYPE_STRING)
-                syntax("Expected arg: 'name'");
+                syntax("hasattr expected arg: string");
 
         if ((s = string_get_cstring(name)) != NULL)
                 child = object_child(self, s);
@@ -235,10 +222,73 @@ object_haschild(struct var_t *ret)
         integer_init(ret, (int)(child != NULL));
 }
 
+/*
+ * "obj.setattr('name', val)" differs from "obj.name = val" in that in
+ * the former case a new attribute named 'name' will be created if it
+ * does not yet exist; in the latter case an error would be thrown
+ * instead.  In both cases, an error will be thrown if 'name' exists
+ * and the new 'val' violates the strict typing.
+ */
+static void
+object_setattr(struct var_t *ret)
+{
+        struct var_t *self = get_this();
+        struct var_t *name = frame_get_arg(0);
+        struct var_t *value = frame_get_arg(1);
+        struct var_t *attr;
+        char *s;
+
+        bug_on(self->magic != TYPE_DICT);
+        arg_type_check(name, TYPE_STRING);
+
+        if (!value)
+                syntax("setattr expected: value");
+
+        s = string_get_cstring(name);
+        if (!s)
+                syntax("setattr: name may not be empty");
+
+        attr = object_child(self, s);
+        if (attr) {
+                /* could throw a type-mismatch error */
+                qop_mov(attr, value);
+        } else {
+                object_add_child(self, value, literal_put(s));
+        }
+}
+
+/*
+ * "x = obj.getattr('name')" differs from "x = obj.name" in that in the
+ * former case 'x' will be set to TYPE_EMPTY if 'name' does not exist
+ * in 'obj'; in the latter case, an attribute-not-found error will be
+ * thrown.
+ */
+static void
+object_getattr(struct var_t *ret)
+{
+        struct var_t *self = get_this();
+        struct var_t *name = frame_get_arg(0);
+        struct var_t *attr;
+        char *s;
+
+        bug_on(self->magic != TYPE_DICT);
+        arg_type_check(name, TYPE_STRING);
+
+        s = string_get_cstring(name);
+        if (!s)
+                syntax("setattr: name may not be empty");
+
+        attr = object_child(self, s);
+        if (attr)
+                qop_mov(ret, attr);
+}
+
 static const struct type_inittbl_t object_methods[] = {
         V_INITTBL("len",       object_len,       0, 0),
         V_INITTBL("foreach",   object_foreach,   1, 1),
-        V_INITTBL("haschild",  object_haschild,  1, 1),
+        V_INITTBL("hasattr",   object_hasattr,   1, 1),
+        V_INITTBL("setattr",   object_setattr,   2, 2),
+        V_INITTBL("getattr",   object_getattr,   1, 1),
         TBLEND,
 };
 

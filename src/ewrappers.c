@@ -54,25 +54,8 @@ ebuffer_substr(struct buffer_t *tok, int i)
 static void
 atrerr(struct var_t *obj, struct var_t *deref, const char *what)
 {
-        const char *attrstr;
-        char numbuf[64];
-        switch (deref->magic) {
-        case TYPE_STRPTR:
-                attrstr = (const char *)deref->strptr;
-                break;
-        case TYPE_STRING:
-                attrstr = (const char *)string_get_cstring(deref);
-                break;
-        case TYPE_INT:
-                sprintf(numbuf, "%llu", deref->i);
-                attrstr = numbuf;
-                break;
-        default:
-                attrstr = "[egq: likely bug]";
-                break;
-        }
         syntax("Cannot %s attribute '%s' of type %s",
-               what, attrstr, typestr(obj));
+               what, attr_str(deref), typestr(obj));
 }
 
 struct var_t *

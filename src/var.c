@@ -359,14 +359,50 @@ var_get_attr(struct var_t *v, struct var_t *deref)
 }
 
 /**
+ * Get the name or subscript (as text) of an attribute.
+ * @deref: Variable storing the name or subscript
+ *
+ * Return:
+ * C string naming the attribute.  This may point to a buffer whose
+ * contents could change later.  This function is just for error
+ * reporting.
+ */
+const char *
+attr_str(struct var_t *deref)
+{
+        static char numbuf[64];
+
+        memset(numbuf, 0, sizeof(numbuf));
+
+        switch (deref->magic) {
+        case TYPE_STRPTR:
+                strncpy(numbuf, deref->strptr, sizeof(numbuf)-1);
+                break;
+        case TYPE_STRING:
+                strncpy(numbuf, string_get_cstring(deref),
+                        sizeof(numbuf)-1);
+                break;
+        case TYPE_INT:
+                sprintf(numbuf, "%lld", deref->i);
+                break;
+        default:
+                strcpy(numbuf, "<!bug>");
+                break;
+        }
+        return numbuf;
+}
+
+
+/**
  * var_set_attr - Generalized set-attribute
  * @v:          Variable whose attribute we're setting
  * @deref:      Variable storing the index number or name
  * @attr:       Variable storing the attribute to set.  This will be
  *              copied, so calling function still must handle GC for this
  * Return:
- * 0 if success, -1 if failure.  A syntax error may be thrown if the
- * MOV operation is not permitted due to string typing.
+ * 0 if success, -1 if failure does not exist.  A syntax error will be
+ * thrown if the attribute exists but the MOV operation is not permitted
+ * for the type.
  */
 int
 var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
@@ -374,6 +410,8 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
         struct var_t *child = var_get_attr(v, deref);
         if (!child)
                 return -1;
+        if (!!(child->flags & VF_CONST))
+                syntax("Attribute '%s' is constant", attr_str(deref));
         qop_mov(child, attr);
         return 0;
 }

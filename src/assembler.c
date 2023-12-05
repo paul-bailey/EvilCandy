@@ -362,7 +362,7 @@ apop_scope_instruction_only(struct assemble_t *a)
         int prev_fp = a->fr->scope[a->fr->nest - 1];
         bug_on(cur_fp < prev_fp);
         while (cur_fp-- > prev_fp)
-                add_instr(a, INSTR_POP_LOCAL, 0, 0);
+                add_instr(a, INSTR_POP, 0, 0);
 }
 
 static void
@@ -371,7 +371,7 @@ apop_scope(struct assemble_t *a)
         bug_on(a->fr->nest <= 0);
         while (a->fr->sp > a->fr->fp) {
                 a->fr->sp--;
-                add_instr(a, INSTR_POP_LOCAL, 0, 0);
+                add_instr(a, INSTR_POP, 0, 0);
         }
         a->fr->nest--;
         a->fr->fp = a->fr->scope[a->fr->nest];

@@ -23,9 +23,6 @@ static struct hashtable_t *symbol_table;
 #define PUSH_(fr, v) \
         do { *((fr)->stackptr)++ = (v); } while (0)
 #define POP_(fr) (*--((fr)->stackptr))
-#define PUSH_LOCAL_(fr, v) \
-        PUSH_(fr, v)
-#define POP_LOCAL_(fr) POP_(fr)
 
 #ifdef NDEBUG
 
@@ -39,12 +36,6 @@ static inline struct var_t *RODATA(struct vmframe_t *fr, instruction_t ii)
         { return fr->ex->rodata[ii.arg2]; }
 static inline char *RODATA_STR(struct vmframe_t *fr, instruction_t ii)
         { return RODATA(fr, ii)->strptr; }
-
-static inline void push_local(struct vmframe_t *fr, struct var_t *v)
-        { PUSH_LOCAL_(fr, v); }
-
-static inline struct var_t *pop_local(struct vmframe_t *fr)
-        { return POP_LOCAL_(fr); }
 
 #else /* DEBUG */
 
@@ -75,18 +66,6 @@ RODATA_STR(struct vmframe_t *fr, instruction_t ii)
         struct var_t *vs = RODATA(fr, ii);
         bug_on(vs->magic != TYPE_STRPTR);
         return vs->strptr;
-}
-
-static inline void
-push_local(struct vmframe_t *fr, struct var_t *v)
-{
-        push(fr, v);
-}
-
-static inline struct var_t *
-pop_local(struct vmframe_t *fr)
-{
-        return pop(fr);
 }
 
 #endif /* DEBUG */
@@ -337,7 +316,7 @@ do_nop(struct vmframe_t *fr, instruction_t ii)
 static void
 do_push_local(struct vmframe_t *fr, instruction_t ii)
 {
-        push_local(fr, var_new());
+        push(fr, var_new());
 }
 
 static void
@@ -368,12 +347,6 @@ static void
 do_pop(struct vmframe_t *fr, instruction_t ii)
 {
         var_delete(pop(fr));
-}
-
-static void
-do_pop_local(struct vmframe_t *fr, instruction_t ii)
-{
-        var_delete(pop_local(fr));
 }
 
 static void

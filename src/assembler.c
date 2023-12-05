@@ -1419,7 +1419,42 @@ assemble_load(struct assemble_t *a)
         as_err(a, AE_NOTIMPL);
 }
 
-/* flags are same here as in expression */
+/*
+ * assemble_expression - Parser for the top-level expresison
+ * @flags: If FE_FOR, we're in the iterator part of a for loop header.
+ *         If FE_TOP (we're at the top level, not in a function).
+ * @skip: Jump label to add B instruction for in case of 'break'
+ *
+ * This covers block expressions and single-line expressions
+ *
+ *      single-line expr:       EXPR ';'
+ *      block:                  '{' EXPR EXPR ... '}'
+ *
+ * In the block case, EXPR must be single-line.  Nested blocks are only
+ * permitted if they're parts of program-flow statements like 'if' or
+ * 'while'.  TODO: I can't recall, was there ever a good reason for this?
+ *
+ * Valid single-line expressions are
+ *
+ * #1   empty declaration:      let IDENTIFIER
+ * #2   assignmment:            IDENTIFIER '=' VALUE
+ * #3   decl. + assign:         let IDENTIFER '=' VALUE
+ * #4   limited eval:           IDENTIFIER '(' ARGS... ')'
+ * #5     ""     "" :           '(' VALUE ')'
+ * #6   emtpy expr:             IDENTIFER
+ * #7   program flow:           if '(' VALUE ')' EXPR
+ * #8     ""     "" :           if '(' VALUE ')' EXPR else EXPR
+ * #9     ""     "" :           while '(' VALUE ')' EXPR
+ * #10    ""     "" :           do EXPR while '(' VALUE ')'
+ * #11    ""     "":            for '(' EXPR... ')' EXPR
+ * #12  return nothing:         return
+ * #13  return something:       return VALUE
+ * #10  break:                  break
+ * #11  load:                   load
+ * #12  nothing:
+ *
+ * See Documentation.rst for the details.
+ */
 static void
 assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
 {

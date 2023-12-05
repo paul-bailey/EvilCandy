@@ -448,57 +448,118 @@ function   "function"
 Expressions
 -----------
 
-For the purposes of this documentation, an *expression* is a complete
-line [#]_ of code e.g.::
+An expression may be:
 
-        let x = y;
+:single-line:   *expr* ``;``
+:block:         ``{`` *expr* *expr* ... ``}``
 
-A *multiline expression* is a group of expressions bounded by curly
-braces, e.g.::
-
-        {
-                let x = y;
-                foo(bar);
-        }
-
-.. [#]
-       I'm being casual with the word "line."
-       I assume you know what I mean.
+In the block case, the nested instances of *expr* must be single-line.
+Nested blocks are only pwermitted if they're part of program-flow
+statements like ``if`` or ``while``. (**TODO** I can't recall why this
+is, maybe I should support it.)
 
 Braces also define a new `Scope`_, see below.
 
-All single-line expressions must be of the following kind:
+Valid single-line expressions are:
 
-* assignment of a variable::
+=== ======================= =============================================
+1.  Empty declaration       ``let`` *identifier*
+2.  Assignment              *identifier* ``=`` *value*
+3.  Declaration + assgnment ``let`` *identifier* ``=`` *value*
+4.  Eval [#]_               *identifier* ``(`` *args* ... ``)``
+5.  Eval                    ``(`` *value* ``)``
+6.  Empty expression        *identifier*
+7.  Program flow            ``if (`` *value* ``)`` *expr*
+8.  Program flow            ``if (`` *value* ``)`` *expr* ``else`` *expr*
+9.  Program flow            ``while (`` *value* ``)`` *expr*
+10. Program flow            ``do`` *expr* ``while (`` *value* ``)``
+11. Program flow [#]_       ``for (`` *expr* ... ``)`` *expr*
+12. Return nothing          ``return``
+13. Return something        ``return`` *value*
+14. Break                   ``break``
+15. Load [#]_               ``load``
+16. Nothing [#]_
+=== ======================= =============================================
 
-        x = y
+.. [#] *Eval* has limitations here, see below.
 
-* declaration of a variable::
+.. [#]
+        ``for`` loop header have the same format as C ``for`` loops:
+        expression-eval-expression, delimited by semicolons between
+        them, surrounded by parentheses.  The iteration step (part
+        3 of the header) is one of only two cases where a single-line
+        expression does not end in a semicolon; the other is with
+        EvilCandy's notation for tiny lambdas.
 
-        let x;
+.. [#]
+        ...if I ever get around to implementing it. And when I do,
+        ``load`` is only valid at the top level.  It may not be nested
+        within a function or a loop statement.  It *may* be within an
+        if statement, which is useful in the case of something like::
 
-* calling a function.  (A variable need not be assigned its
-  return value.)::
+                if (!__gbl__.hasattr("myclass"))
+                        load "myclass.evc";
 
-        foo();
+.. [#] ie. a line that's just a semicolon ``;``
 
-* The empty statement::
+Value limitations
+~~~~~~~~~~~~~~~~~
 
-        ;
+*value* here means "thing that can be evaluated and stored in a single
+variable", examples:
 
-* An evaluation statement that does not assign a variable, but it
-  **must** be surrounded by parentheses.
+* Combination of literals and identifiers::
 
-  valid::
+        (1 + 2) / x
 
-        (1 + 2);  // does nothing but waste cycles
+* Function defnition::
 
-  invalid::
+        function() { do_something(); }
 
-        1 + 2;
+* List definition::
 
-  This has implications for IIFEs, but if you use good programming
-  style you won't notice.
+        [ "this", "is", "a", "list" ]
+
+* dict defnition::
+
+        { this: "is", a: "dictionary" }
+
+Only limited versions of these may *begin* an expression, namely cases
+4-6 in the table above: function calls with ignored return values (#4),
+expressions wrapped in parentheses (#5), and ignored empty identifiers
+(#6).  For a full range of *value* to be permitted, it has to be on the
+right-hand side of an assignment operator, as in cases 2 and 3, or
+within the parentheses of a program-flow statement, as in cases 7-11.
+
+The parentheses exception makes IIFE's possible. Some Javascript
+implementations might allow something like::
+
+        function(arg) { thing(); }(my_arg);     // :(
+
+but I do not, because no good programmer writes that way unless they're
+trying to hide something.  Instead they write::
+
+        (function(arg) { thing(); })(my_arg);   // :)
+
+Conventions make the latter case clearer that you're calling the
+anonymous function rather than just declaring it.  I merely enforce
+the better choice, at the cost of some complexity in my parser.
+
+Identifier Limitations
+~~~~~~~~~~~~~~~~~~~~~~
+
+In the declaration cases (#1 and #3 above), *identifier* must be simple;
+that is, you can type::
+
+        let x = a;      // permissible
+
+but not::
+
+        let x.y = a;    // not permissible
+
+In all other cases of *identifier* "primary elements" notation (things
+like ``this.that``, ``this['that']``, ``this(that).method[i]`` and so
+on...) is allowed.
 
 Program Flow
 ============
@@ -509,8 +570,10 @@ Since program flow requires this, let's start there...
 Condionals
 ----------
 
-There are no native Boolean types for ``evilcandy``.  Instead *condition*
-is evaluated in one of two ways:
+There are no native Boolean types for ``evilcandy``.  (Keywords
+``true`` and ``false`` are aliases for integers with values of
+1 and 0, respectively; ``null`` evaluates to an empty variable.)
+*condition* is evaluated in one of two ways:
 
 1. Comparison between two objects:
 
@@ -578,15 +641,15 @@ be skipped.
 ``if`` ... ``else if`` ... ``else`` block
 -----------------------------------------
 
-The ``if`` statement may continue likewise:
+The ``if`` statement may continue likewise::
 
-        | ``if (`` *condition1* ``)``
-        |         *expression1*
-        | ``else if (`` *condition2* ``)``
-        |         *expression2*
-        | ``...``
-        | ``else``
-                *expressionN*
+        if ( CONDITION_1 )
+                EXPRESSION_1
+        else if ( CONDITION_2 )
+                EXPRESSION_2
+        ...
+        else
+                EXPRESSION_N
 
 This is analogous to the ``switch`` statement in C and JS (but which is
 not supported here).
@@ -594,11 +657,11 @@ not supported here).
 ``do`` loop
 -----------
 
-The ``do`` loop is similar to C:
+The ``do`` loop is similar to C::
 
-        | ``do``
-        |         *statement*
-        | ``while (`` *condition* ``);``
+        do
+              STATEMENT
+        while ( CONDITION );
 
 *expression* is executed the first time always, but successive executions
 depend on *condition*.
@@ -609,22 +672,20 @@ depend on *condition*.
 ``for`` loop
 ------------
 
-The ``for`` loop is similar to C.  Borrowing from [CITKNR]_ page 60:
+The ``for`` loop is similar to C.  The statement::
 
-        The ``for`` statement:
+        for ( EXPR_1; EXPR_2; EXPR_3 )
+                STATEMENT
 
-                | ``for (`` *expr1*; *expr2*; *expr3* ``)``
-                |         *statement*
+is equivalent to::
 
-        is equivalent to:
+        EXPR_1
+        while ( EXPR_2 ) {
+                STATEMENT
+                EXPR_3
+        }
 
-                | *expr1*
-                | ``while (`` *expr2* ``) {``
-                |         *statement*
-                |         *expr3*
-                | ``}``
-
-If you declare an iterator in *expr1*, e.g.::
+If you declare an iterator in *expr_1*, e.g.::
 
         for (let i=0; i < n; i++) {...
 
@@ -650,9 +711,14 @@ they are referenced, the parser searches for them in this order:
    While not in a function, ``this`` is set to the global object
    ``__gbl__``.
 
-3. All top-level children of the global object ``__gbl__``.
+3. All global-scope "automatic" variables.  (They're not really
+   "automatic" since they exist for the remainder of the program.
+   They're really more like 4. below, except they're faster to
+   retrieve.)
 
-4. The global object ``__gbl__`` itself.
+4. All top-level children of the global object ``__gbl__``.
+
+5. The global object ``__gbl__`` itself.
 
 To avoid namespace confusion, you could type ``this.that`` instead
 of ``that``, or ``__gbl__.thing`` instead of ``thing``, and you will
@@ -667,28 +733,19 @@ the calling function's scope (since the caller is currently not
 known).
 
 This means that while inside a function, it cannot access variables
-in a parent function (if it's nested) or even the automatic variables
-at the global scope (although it can always access ``__gbl__`` and
-``this``).
+in a parent function (if it's nested).
 
 In the following example, an error will be thrown if foo() is called::
-
-        let n = 1;
-        let foo = function() {
-                // THIS WON'T WORK!!!
-                bar(n);
-        };
-
-because the variable ``n`` is no longer in scope.  The same is true for
-nested functions::
 
         let thing = function() {
                 let n = 1;
                 let foo = function() {
-                        // THIS STILL WON'T WORK!!
+                        // THIS WON'T WORK!!
                         bar(n);
                 };
         };
+
+because the variable ``n`` is no longer in scope.
 
 One work-around is to use argument defaults::
 

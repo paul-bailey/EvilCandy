@@ -1325,14 +1325,22 @@ assemble_if(struct assemble_t *a, int skip)
          * if true.
          */
         int jmpelse = as_next_label(a);
+
         assemble_eval(a);
+
         add_instr(a, INSTR_B_IF, 0, jmpelse);
+
         assemble_expression(a, 0, skip);
+
         as_lex(a);
         if (a->oc->t == OC_ELSE) {
+                int endif = as_next_label(a);
+                add_instr(a, INSTR_B, 0, endif);
                 as_set_label(a, jmpelse);
                 assemble_expression(a, 0, skip);
+                as_set_label(a, endif);
         } else {
+                /* no else, jmpelse *is* our endif */
                 as_set_label(a, jmpelse);
                 as_unlex(a);
         }

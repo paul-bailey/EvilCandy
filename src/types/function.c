@@ -287,14 +287,9 @@ func_cmpz(struct var_t *func)
 static void
 func_mov(struct var_t *to, struct var_t *from)
 {
-        if (from->magic != TYPE_FUNCTION ||
-            (to->magic != TYPE_EMPTY &&
-             to->magic != TYPE_FUNCTION)) {
-                syntax("Mov operation not permitted for this type");
-        }
-        bug_on(!from->fn);
         to->fn = from->fn;
         to->fn->nref++;
+        to->magic = TYPE_FUNCTION;
 }
 
 static void

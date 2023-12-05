@@ -338,11 +338,9 @@ string_cmpz(struct var_t *a)
 static void
 string_mov(struct var_t *to, struct var_t *from)
 {
-        if (from->magic != TYPE_STRING)
-                emismatch("mov");
-        bug_on(!!to->s && to->magic == TYPE_STRING);
         to->s = from->s;
         to->s->nref++;
+        to->magic = TYPE_STRING;
 }
 
 static const struct operator_methods_t string_primitives = {

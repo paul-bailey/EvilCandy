@@ -24,7 +24,7 @@ epermit(const char *op)
 static inline const struct operator_methods_t *
 primitives_of(struct var_t *v)
 {
-        bug_on(v->magic >= NTYPES_USER);
+        bug_on(v->magic >= NTYPES);
         return TYPEDEFS[v->magic].opm;
 }
 
@@ -265,33 +265,40 @@ qop_lnot(struct var_t *v)
 struct var_t *
 qop_mov(struct var_t *to, struct var_t *from)
 {
+        /*
+         * TODO: Need to get rid of MOV altogether.  It's a relic
+         * of when the stack was an array of struct var_t's rather
+         * than an array of pointers, and I didn't have a good GC
+         * implementation.  That got confusing with
+         *      "a <= a OPERATOR b"
+         * when, with our new way of struct var_t allocation, it
+         * should have been
+         *      "new <= a OPERATOR b"
+         * all along.
+         */
         const struct operator_methods_t *p;
         if (from == to)
                 return to;
 
         bug_on(!from || !to);
+        bug_on((unsigned)from->magic >= NTYPES);
+        bug_on((unsigned)to->magic >= NTYPES);
+
         if (to->magic == TYPE_EMPTY) {
-                if (from->magic == TYPE_EMPTY) {
+                if (from->magic == TYPE_EMPTY)
                         return to;
-                } else if (from->magic == TYPE_STRPTR) {
-                        string_init(to, from->strptr);
-                        return to;
-                }
-                bug_on(isconst(to));
                 p = primitives_of(from);
                 bug_on(!p->mov);
                 p->mov(to, from);
-                /*
-                 * XXX: don't set this here, the callbacks should call
-                 * their own (type)_init function.  The idea is, we may
-                 * wish to add more fields than a single magic number.
-                 */
-                to->magic = from->magic;
         } else {
                 bug_on(from->magic == TYPE_EMPTY);
                 p = primitives_of(to);
-                bug_on(!p->mov);
-                p->mov(to, from);
+                if (p->mov_strict) {
+                        p->mov_strict(to, from);
+                } else {
+                        syntax("MOV not permited from %s => %s",
+                               typestr(from->magic), typestr(to->magic));
+                }
         }
         return to;
 }

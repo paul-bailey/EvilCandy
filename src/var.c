@@ -205,7 +205,7 @@ var_reset(struct var_t *v)
         v->flags = 0;
 }
 
-struct type_t TYPEDEFS[NTYPES_USER];
+struct type_t TYPEDEFS[NTYPES];
 
 static void
 config_builtin_methods(const struct type_inittbl_t *tbl,
@@ -227,6 +227,7 @@ var_config_type(int magic, const char *name,
                 const struct operator_methods_t *opm,
                 const struct type_inittbl_t *tbl)
 {
+        bug_on(magic >= NTYPES);
         bug_on(TYPEDEFS[magic].opm || TYPEDEFS[magic].name);
         TYPEDEFS[magic].opm = opm;
         TYPEDEFS[magic].name = name;
@@ -263,19 +264,20 @@ moduleinit_var(void)
                 { typedefinit_integer },
                 { typedefinit_object },
                 { typedefinit_string },
+                { typedefinit_intl },
                 { NULL },
         };
         const struct initfn_tbl_t *t;
         int i;
 
-        for (i = TYPE_EMPTY; i < NTYPES_USER; i++) {
+        for (i = TYPE_EMPTY; i < NTYPES; i++) {
                 hashtable_init(&TYPEDEFS[i].methods, ptr_hash,
                                 ptr_key_match, var_bucket_delete);
         }
         for (t = INIT_TBL; t->cb != NULL; t++)
                 t->cb();
 
-        for (i = 0; i < NTYPES_USER; i++) {
+        for (i = 0; i < NTYPES; i++) {
                 if (TYPEDEFS[i].name == NULL)
                         bug();
         }
@@ -382,15 +384,8 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
 const char *
 typestr(int magic)
 {
-        if (magic < 0 || magic >= NTYPES_USER) {
-                if (magic == TYPE_STRPTR)
-                        return "[internal-use string]";
-                if (magic == TYPE_VARPTR)
-                        return "[internal-use stack]";
-                if (magic == TYPE_XPTR)
-                        return "[internal-use executable]";
+        if (magic < 0 || magic >= NTYPES)
                 return "[bug]";
-        }
         return TYPEDEFS[magic].name;
 }
 

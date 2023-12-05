@@ -45,6 +45,9 @@ extern void typedefinit_function(void);
 /* integer.c */
 extern void typedefinit_integer(void);
 
+/* intl.c */
+extern void typedefinit_intl(void);
+
 /* object.c */
 extern void typedefinit_object(void);
 

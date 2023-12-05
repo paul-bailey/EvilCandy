@@ -130,6 +130,12 @@ int_negate(struct var_t *a)
 static void
 int_mov(struct var_t *a, struct var_t *b)
 {
+        integer_init(a, b->i);
+}
+
+static void
+int_mov_strict(struct var_t *a, struct var_t *b)
+{
         a->i = var2int(b, "mov");
 }
 
@@ -171,6 +177,7 @@ static const struct operator_methods_t int_primitives = {
         .bit_not        = int_bit_not,
         .negate         = int_negate,
         .mov            = int_mov,
+        .mov_strict     = int_mov_strict,
 };
 
 

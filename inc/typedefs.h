@@ -27,7 +27,11 @@ struct operator_methods_t {
         void (*decr)(struct var_t *);                   /* a-- */
         void (*bit_not)(struct var_t *);                /* ~a */
         void (*negate)(struct var_t *);                 /* -a */
+
+        /* lval is TYPE_EMPTY, rval is this type */
         void (*mov)(struct var_t *, struct var_t *);    /* a = b */
+        /* lval is this type, rval could be anything */
+        void (*mov_strict)(struct var_t *, struct var_t *);
 
         /*
          * hard reset, clobber var's type as well.

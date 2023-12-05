@@ -72,6 +72,7 @@ enum type_magic_t {
          */
         TYPE_VARPTR,
         TYPE_XPTR,
+        NTYPES,
 };
 
 enum {

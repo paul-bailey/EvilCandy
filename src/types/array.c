@@ -142,12 +142,9 @@ array_reset(struct var_t *a)
 static void
 array_mov(struct var_t *to, struct var_t *from)
 {
-        if (from->magic != TYPE_LIST) {
-                syntax("Cannot change type from array to %s",
-                       typestr(from->magic));
-        }
         to->a = from->a;
         to->a->nref++;
+        to->magic = TYPE_LIST;
 }
 
 static const struct operator_methods_t array_primitives = {

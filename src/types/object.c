@@ -109,11 +109,9 @@ object_add_child(struct var_t *parent, struct var_t *child, char *name)
 static void
 object_mov(struct var_t *to, struct var_t *from)
 {
-        /* XXX is the bug this, or the fact that I'm not handling it? */
-        bug_on(!!to->o && to->magic == TYPE_DICT);
-
         to->o = from->o;
         to->o->nref++;
+        to->magic = TYPE_DICT;
 }
 
 static bool

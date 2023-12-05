@@ -72,6 +72,12 @@ float_negate(struct var_t *a)
 static void
 float_mov(struct var_t *to, struct var_t *from)
 {
+        float_init(to, from->f);
+}
+
+static void
+float_mov_strict(struct var_t *to, struct var_t *from)
+{
         to->f = var2float(from, "mov");
 }
 
@@ -107,6 +113,7 @@ static const struct operator_methods_t float_primitives = {
         .decr           = float_decr,
         .negate         = float_negate,
         .mov            = float_mov,
+        .mov_strict     = float_mov_strict,
 };
 
 struct var_t *

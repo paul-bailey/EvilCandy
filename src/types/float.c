@@ -2,11 +2,17 @@
 #include <math.h>
 
 static inline double
+var2float_(struct var_t *v)
+{
+        return v->magic == TYPE_INT ? (double)v->i : v->f;
+}
+
+static inline double
 var2float(struct var_t *v, const char *op)
 {
         if (!isnumvar(v))
-                syntax("Invalid/mismatched type for operation");
-        return v->magic == TYPE_INT ? (double)v->i : v->f;
+                syntax("Invalid/mismatched type for '%s' operator", op);
+        return var2float_(v);
 }
 
 static void
@@ -75,10 +81,13 @@ float_mov(struct var_t *to, struct var_t *from)
         float_init(to, from->f);
 }
 
-static void
+static int
 float_mov_strict(struct var_t *to, struct var_t *from)
 {
-        to->f = var2float(from, "mov");
+        if (!isnumvar(from))
+                return -1;
+        to->f = var2float_(from);
+        return 0;
 }
 
 static void

@@ -30,8 +30,11 @@ struct operator_methods_t {
 
         /* lval is TYPE_EMPTY, rval is this type */
         void (*mov)(struct var_t *, struct var_t *);    /* a = b */
-        /* lval is this type, rval could be anything */
-        void (*mov_strict)(struct var_t *, struct var_t *);
+        /*
+         * lval is this type, rval could be anything
+         * return 0 if success, -1 if not allowed or err
+         */
+        int (*mov_strict)(struct var_t *, struct var_t *);
 
         /*
          * hard reset, clobber var's type as well.

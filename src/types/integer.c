@@ -1,11 +1,17 @@
 #include "var.h"
 
 static inline long long
+var2int_(struct var_t *v)
+{
+        return v->magic == TYPE_INT ? v->i : (long long)v->f;
+}
+
+static inline long long
 var2int(struct var_t *v, const char *op)
 {
         if (!isnumvar(v))
                 syntax("Invalid or mismatched types for '%s' operator", op);
-        return v->magic == TYPE_INT ? v->i : (long long)v->f;
+        return var2int_(v);
 }
 
 static void
@@ -133,10 +139,13 @@ int_mov(struct var_t *a, struct var_t *b)
         integer_init(a, b->i);
 }
 
-static void
+static int
 int_mov_strict(struct var_t *a, struct var_t *b)
 {
-        a->i = var2int(b, "mov");
+        if (!isnumvar(b))
+                return -1;
+        a->i = var2int_(b);
+        return 0;
 }
 
 static void

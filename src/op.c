@@ -299,11 +299,11 @@ qop_mov(struct var_t *to, struct var_t *from)
                 bug_on(from->magic == TYPE_EMPTY);
                 p = primitives_of(to);
                 if (p->mov_strict) {
-                        p->mov_strict(to, from);
-                } else {
-                        syntax("MOV not permited from %s => %s",
-                               typestr(from), typestr(to));
+                        if (p->mov_strict(to, from) == 0)
+                                return to;
                 }
+                syntax("MOV not permited from %s => %s",
+                       typestr(from), typestr(to));
         }
         return to;
 }

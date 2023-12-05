@@ -10,7 +10,6 @@
 
 /**
  * struct function_handle_t - Handle to a callable function
- * @nref:       Number of vars with access to this handle
  * @f_magic:    If FUNC_INTERNAL, function is an internal function
  *              If FUNC_USER, function is in the user's script
  * @f_minargs:  Minimum number of args that may be passed to the
@@ -28,7 +27,6 @@
  * @f_argc:     Highest argument number that has a default
  */
 struct function_handle_t {
-        int nref;
         enum {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
@@ -52,14 +50,6 @@ struct function_handle_t {
                          &(fh)->f_##arr##_alloc, \
                          sizeof(struct var_t *))
 
-static struct function_handle_t *
-function_handle_new(void)
-{
-        struct function_handle_t *ret = ecalloc(sizeof(*ret));
-        ret->nref = 1;
-        return ret;
-}
-
 static void
 remove_args(struct var_t **arr, int count)
 {
@@ -73,13 +63,20 @@ remove_args(struct var_t **arr, int count)
 }
 
 static void
-function_handle_reset(struct function_handle_t *fh)
+function_handle_reset(void *h)
 {
+        struct function_handle_t *fh = h;
         remove_args(fh->f_argv, fh->f_argc);
         remove_args(fh->f_clov, fh->f_cloc);
         if (fh->f_magic == FUNC_USER && fh->f_ex)
                 EXECUTABLE_RELEASE(fh->f_ex);
-        free(fh);
+}
+
+static struct function_handle_t *
+function_handle_new(void)
+{
+        return type_handle_new(sizeof(struct function_handle_t),
+                               function_handle_reset);
 }
 
 /*
@@ -288,19 +285,15 @@ static void
 func_mov(struct var_t *to, struct var_t *from)
 {
         to->fn = from->fn;
-        to->fn->nref++;
+        TYPE_HANDLE_INCR_REF(to->fn);
         to->magic = TYPE_FUNCTION;
 }
 
 static void
 func_reset(struct var_t *func)
 {
-        --func->fn->nref;
-        if (func->fn->nref <= 0) {
-                bug_on(func->fn->nref < 0);
-                function_handle_reset(func->fn);
-                func->fn = NULL;
-        }
+        TYPE_HANDLE_DECR_REF(func->fn);
+        func->fn = NULL;
 }
 
 static const struct operator_methods_t function_primitives = {

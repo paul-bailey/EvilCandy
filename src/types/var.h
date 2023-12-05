@@ -24,10 +24,15 @@ struct type_inittbl_t {
         int maxargs;
 };
 
-struct var_wrapper_t {
-        struct list_t siblings;
-        struct var_t *v;
-        char *name;
+/*
+ * PRIVATE STRUCT
+ *
+ * preheader to return values of
+ * type_handle_new, TYPE_HANDLE_INCR_REF, TYPE_HANDLE_DECR_REF
+ */
+struct type_handle_preheader_t_ {
+        void (*destructor)(void *);
+        int nref;
 };
 
 /* array.c */
@@ -58,5 +63,31 @@ extern void typedefinit_string(void);
 extern void var_config_type(int magic, const char *name,
                             const struct operator_methods_t *opm,
                             const struct type_inittbl_t *tbl);
+
+/* typehandle.c */
+extern void *type_handle_new(size_t size, void (*destructor)(void *));
+
+/*
+ * Call this for MOV operations, but not after type_handle_new,
+ * because it was already incremented to one there.
+ */
+#define TYPE_HANDLE_INCR_REF(h) \
+        do { TYPE_HANDLE_PREHEADER(h)->nref++; } while (0)
+
+/*
+ * To be called from a struct var_t's destructor method
+ */
+#define TYPE_HANDLE_DECR_REF(h) do { \
+        struct type_handle_preheader_t_ *ph = TYPE_HANDLE_PREHEADER(h); \
+        ph->nref--; \
+        if (ph->nref <= 0) \
+                type_handle_destroy__(ph); \
+} while (0)
+
+/* private */
+#define TYPE_HANDLE_PREHEADER(h) \
+        (&((struct type_handle_preheader_t_ *)(h))[-1])
+extern void type_handle_destroy__(struct type_handle_preheader_t_ *h);
+
 
 #endif /* EGQ_VAR_H */

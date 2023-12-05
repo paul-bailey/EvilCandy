@@ -93,7 +93,6 @@ struct token_t;
  * PRIVATE STRUCT, placed here so I can inline some things
  */
 struct string_handle_t {
-        int nref;
         struct buffer_t b;
 };
 
@@ -104,15 +103,12 @@ struct string_handle_t {
  * @priv_cleanup: Way to clean up @priv if destroying this object handle.
  *              If this is NULL and @priv is not NULL, @priv will be
  *              simply freed.
- * @nref:       Number of variables that have a handle to this object.
- *              Used for garbage collection
  *
  * PRIVATE STRUCT, placed here so I can inline some things
  */
 struct object_handle_t {
         void *priv;
         void (*priv_cleanup)(struct object_handle_t *, void *);
-        int nref;
         int nchildren;
         struct hashtable_t dict;
 };

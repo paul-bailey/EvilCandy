@@ -4,8 +4,6 @@
 
 /**
  * struct array_handle_t - Handle to a numerical array
- * @nref:       Number of variables with access to this array
- *              Used for garbage collection
  * @type:       type of data stored in the array, a TYPE_* enum
  * @nmemb:      Size of the array, in number of elements
  * @allocsize:  Size of the array, in number of bytes currently allocated
@@ -14,7 +12,6 @@
  *              keep figuring it out from @type all the time)
  */
 struct array_handle_t {
-        int nref;
         int type;
         unsigned int nmemb;
         struct buffer_t children;
@@ -29,13 +26,20 @@ check_type_match(struct array_handle_t *h, struct var_t *child)
         }
 }
 
+static void
+array_handle_reset(void *arr)
+{
+        struct array_handle_t *ah = (struct array_handle_t *)arr;
+        buffer_free(&ah->children);
+}
+
 static struct array_handle_t *
 array_handle_new(void)
 {
-        struct array_handle_t *ret = ecalloc(sizeof(*ret));
+        struct array_handle_t *ret = type_handle_new(sizeof(*ret),
+                                                     array_handle_reset);
         ret->type = TYPE_EMPTY;
         buffer_init(&ret->children);
-        ret->nref = 1;
         return ret;
 }
 
@@ -130,12 +134,7 @@ array_from_empty(struct var_t *array)
 static void
 array_reset(struct var_t *a)
 {
-        a->a->nref--;
-        if (a->a->nref <= 0) {
-                bug_on(a->a->nref < 0);
-                buffer_free(&a->a->children);
-                free(a->a);
-        }
+        TYPE_HANDLE_DECR_REF(a->a);
         a->a = NULL;
 }
 
@@ -143,7 +142,7 @@ static void
 array_mov(struct var_t *to, struct var_t *from)
 {
         to->a = from->a;
-        to->a->nref++;
+        TYPE_HANDLE_INCR_REF(to->a);
         to->magic = TYPE_LIST;
 }
 

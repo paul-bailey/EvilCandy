@@ -12,20 +12,20 @@ emismatch(const char *op)
         syntax("Mismatched types for %s operation", op);
 }
 
+static void
+string_handle_reset(void *h)
+{
+        struct string_handle_t *sh = h;
+        buffer_free(&sh->b);
+}
+
 static struct string_handle_t *
 new_string_handle(void)
 {
-        struct string_handle_t *ret = emalloc(sizeof(*ret));
-        ret->nref = 0;
+        struct string_handle_t *ret = type_handle_new(sizeof(*ret),
+                                                string_handle_reset);
         buffer_init(&ret->b);
         return ret;
-}
-
-static void
-string_handle_reset(struct string_handle_t *sh)
-{
-        buffer_free(&sh->b);
-        free(sh);
 }
 
 /* len() (no args)
@@ -300,11 +300,7 @@ static struct type_inittbl_t string_methods[] = {
 static void
 string_reset(struct var_t *str)
 {
-        str->s->nref--;
-        if (str->s->nref <= 0) {
-                bug_on(str->s->nref < 0);
-                string_handle_reset(str->s);
-        }
+        TYPE_HANDLE_DECR_REF(str->s);
 }
 
 static void
@@ -339,7 +335,7 @@ static void
 string_mov(struct var_t *to, struct var_t *from)
 {
         to->s = from->s;
-        to->s->nref++;
+        TYPE_HANDLE_INCR_REF(to->s);
         to->magic = TYPE_STRING;
 }
 
@@ -364,7 +360,6 @@ string_init(struct var_t *var, const char *cstr)
         bug_on(var->magic != TYPE_EMPTY);
         var->magic = TYPE_STRING;
         var->s = new_string_handle();
-        var->s->nref = 1;
         if (cstr)
                 string_assign_cstring(var, cstr);
         return var;

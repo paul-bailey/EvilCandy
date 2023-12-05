@@ -9,6 +9,19 @@ static inline size_t oh_nchildren(struct object_handle_t *oh)
  *                              API functions
  ***********************************************************************/
 
+static void
+object_handle_reset(void *h)
+{
+        struct object_handle_t *oh = h;
+        if (oh->priv) {
+                if (oh->priv_cleanup)
+                        oh->priv_cleanup(oh, oh->priv);
+                else
+                        free(oh->priv);
+        }
+        hashtable_destroy(&oh->dict);
+}
+
 /**
  * object_init - Convert an empty variable into an initialized
  *                      object type.
@@ -22,10 +35,9 @@ object_init(struct var_t *o)
         bug_on(o->magic != TYPE_EMPTY);
         o->magic = TYPE_DICT;
 
-        o->o = ecalloc(sizeof(*o->o));
+        o->o = type_handle_new(sizeof(*o->o), object_handle_reset);
         hashtable_init(&o->o->dict, ptr_hash,
                        ptr_key_match, var_bucket_delete);
-        o->o->nref = 1;
         return o;
 }
 
@@ -110,7 +122,7 @@ static void
 object_mov(struct var_t *to, struct var_t *from)
 {
         to->o = from->o;
-        to->o->nref++;
+        TYPE_HANDLE_INCR_REF(to->o);
         to->magic = TYPE_DICT;
 }
 
@@ -121,28 +133,10 @@ object_cmpz(struct var_t *obj)
 }
 
 static void
-object_handle_reset(struct object_handle_t *oh)
-{
-        bug_on(oh->nref < 0);
-        if (oh->priv) {
-                if (oh->priv_cleanup)
-                        oh->priv_cleanup(oh, oh->priv);
-                else
-                        free(oh->priv);
-        }
-        hashtable_destroy(&oh->dict);
-        free(oh);
-}
-
-static void
 object_reset(struct var_t *o)
 {
-        struct object_handle_t *oh;
         bug_on(o->magic != TYPE_DICT);
-        oh = o->o;
-        oh->nref--;
-        if (oh->nref <= 0)
-                object_handle_reset(oh);
+        TYPE_HANDLE_DECR_REF(o->o);
         o->o = NULL;
 }
 

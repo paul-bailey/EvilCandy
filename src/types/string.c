@@ -339,11 +339,25 @@ string_mov(struct var_t *to, struct var_t *from)
         to->magic = TYPE_STRING;
 }
 
+static void
+string_mov_strict(struct var_t *to, struct var_t *from)
+{
+        if (from->magic == TYPE_STRPTR) {
+                string_assign_cstring(to, from->strptr);
+        } else if (from->magic == TYPE_STRING) {
+                string_assign_cstring(to, string_get_cstring(from));
+        } else {
+                syntax("MOV not permited from %s => %s",
+                       typestr(from), typestr(to));
+        }
+}
+
 static const struct operator_methods_t string_primitives = {
         .add            = string_add,
         .cmp            = string_cmp,
         .cmpz           = string_cmpz,
         .mov            = string_mov,
+        .mov_strict     = string_mov_strict,
         .reset          = string_reset,
 };
 

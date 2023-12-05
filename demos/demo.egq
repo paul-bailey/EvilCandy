@@ -34,7 +34,7 @@ let iterator = {
     }
 };
 
-iterator.whoami = function() {
+iterator['whoami'] = function() {
     print("me, of course!");
 };
 

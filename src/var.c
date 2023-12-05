@@ -340,7 +340,8 @@ var_get_attr_by_string_l(struct var_t *v, const char *s)
  * @v:  Variable whose attribute we're seeking
  * @deref: Variable storing the key, either the name or an index number
  *
- * Return: Attribute of @v, or NULL if not found
+ * Return: Attribute of @v, or NULL if not found.  This is the actual
+ * attribute, not a copy, so be careful what you do with it.
  */
 struct var_t *
 var_get_attr(struct var_t *v, struct var_t *deref)

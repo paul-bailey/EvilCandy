@@ -222,13 +222,7 @@ object_hasattr(struct var_t *ret)
         integer_init(ret, (int)(child != NULL));
 }
 
-/*
- * "obj.setattr('name', val)" differs from "obj.name = val" in that in
- * the former case a new attribute named 'name' will be created if it
- * does not yet exist; in the latter case an error would be thrown
- * instead.  In both cases, an error will be thrown if 'name' exists
- * and the new 'val' violates the strict typing.
- */
+/* "obj.setattr('name', val)" is an alternative to "obj.name = val" */
 static void
 object_setattr(struct var_t *ret)
 {
@@ -258,10 +252,18 @@ object_setattr(struct var_t *ret)
 }
 
 /*
- * "x = obj.getattr('name')" differs from "x = obj.name" in that in the
- * former case 'x' will be set to TYPE_EMPTY if 'name' does not exist
- * in 'obj'; in the latter case, an attribute-not-found error will be
- * thrown.
+ *      let x = obj.getattr('name')"
+ *
+ * is a faster alternative to:
+ *
+ *      let x;
+ *      if (obj.hasattr('name'))
+ *              x = obj.name;
+ *
+ * The difference is that in the case of "x = obj.name", an error
+ * will be thrown if 'name' does not exist, but in the case of
+ * "x = obj.getattr('name')", x will be set to the empty variable
+ * if 'name' does not exist.
  */
 static void
 object_getattr(struct var_t *ret)

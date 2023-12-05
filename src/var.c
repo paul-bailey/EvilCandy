@@ -235,8 +235,6 @@ var_config_type(int magic, const char *name,
                 config_builtin_methods(tbl, &TYPEDEFS[magic].methods);
 }
 
-#define list2wrapper(li) container_of(li, struct var_wrapper_t, siblings)
-
 static struct var_t *
 builtin_method_l(struct var_t *v, const char *method_name)
 {
@@ -382,8 +380,9 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
 
 /* for debugging and builtin functions */
 const char *
-typestr(int magic)
+typestr(struct var_t *v)
 {
+        int magic = v->magic;
         if (magic < 0 || magic >= NTYPES)
                 return "[bug]";
         return TYPEDEFS[magic].name;

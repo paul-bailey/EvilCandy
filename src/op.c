@@ -297,7 +297,7 @@ qop_mov(struct var_t *to, struct var_t *from)
                         p->mov_strict(to, from);
                 } else {
                         syntax("MOV not permited from %s => %s",
-                               typestr(from->magic), typestr(to->magic));
+                               typestr(from), typestr(to));
                 }
         }
         return to;

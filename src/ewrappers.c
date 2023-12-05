@@ -72,7 +72,7 @@ atrerr(struct var_t *obj, struct var_t *deref, const char *what)
                 break;
         }
         syntax("Cannot %s attribute '%s' of type %s",
-               what, attrstr, typestr(obj->magic));
+               what, attrstr, typestr(obj));
 }
 
 struct var_t *

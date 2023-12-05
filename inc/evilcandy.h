@@ -345,7 +345,7 @@ extern struct var_t *var_get_attr_by_string_l(struct var_t *v,
                                 const char *s);
 extern int var_set_attr(struct var_t *v,
                         struct var_t *deref, struct var_t *attr);
-extern const char *typestr(int magic);
+extern const char *typestr(struct var_t *v);
 
 /* common hashtable callback for var-storing hashtables */
 extern void var_bucket_delete(void *data);

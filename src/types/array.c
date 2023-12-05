@@ -22,7 +22,7 @@ check_type_match(struct array_handle_t *h, struct var_t *child)
 {
         if (h->type != child->magic) {
                 syntax("Trying to add type '%s' to '%s' array",
-                        typestr(child->magic), h->type);
+                        typestr(child), h->type);
         }
 }
 

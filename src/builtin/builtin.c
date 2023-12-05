@@ -16,7 +16,7 @@ static void
 do_typeof(struct var_t *ret)
 {
         struct var_t *p = frame_get_arg(0);
-        string_init(ret, typestr(p->magic));
+        string_init(ret, typestr(p));
 }
 
 static bool

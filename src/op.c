@@ -31,61 +31,61 @@ primitives_of(struct var_t *v)
 /**
  * assign a = a * b
  */
-void
+struct var_t *
 qop_mul(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->mul)
                 epermit("*");
-        p->mul(a, b);
+        return p->mul(a, b);
 }
 
 /**
  * assign a = a / b
  */
-void
+struct var_t *
 qop_div(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->div)
                 epermit("/");
-        p->div(a, b);
+        return p->div(a, b);
 }
 
 /**
  * assign a = a % b
  */
-void
+struct var_t *
 qop_mod(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->mod)
                 epermit("%");
-        p->mod(a, b);
+        return p->mod(a, b);
 }
 
 /**
  * assign a = a + b
  */
-void
+struct var_t *
 qop_add(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->add)
                 epermit("+");
-        p->add(a, b);
+        return p->add(a, b);
 }
 
 /**
  * assign a = a - b
  */
-void
+struct var_t *
 qop_sub(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->sub)
                 epermit("-");
-        p->sub(a, b);
+        return p->sub(a, b);
 }
 
 /**
@@ -94,10 +94,11 @@ qop_sub(struct var_t *a, struct var_t *b)
  *
  * WARNING!! this re-casts @a, deleting what it had before.
  */
-void
+struct var_t *
 qop_cmp(struct var_t *a, struct var_t *b, int op)
 {
         int ret, cmp;
+        struct var_t *v;
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->cmp)
                 epermit("cmp");
@@ -132,8 +133,9 @@ qop_cmp(struct var_t *a, struct var_t *b, int op)
         }
 
         /* clobber @a and store ret in it */
-        var_reset(a);
-        integer_init(a, ret);
+        v = var_new();
+        integer_init(v, ret);
+        return v;
 }
 
 /**
@@ -141,50 +143,50 @@ qop_cmp(struct var_t *a, struct var_t *b, int op)
  *              and store result in @a
  * @op: Must be either OC_LSFHIT or OC_RSHIFT
  */
-void
+struct var_t *
 qop_shift(struct var_t *a, struct var_t *b, int op)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (op == OC_LSHIFT) {
                 if (!p->lshift)
                         epermit("<<");
-                p->lshift(a, b);
+                return p->lshift(a, b);
         } else {
                 bug_on(op != OC_RSHIFT);
                 if (!p->rshift)
                         epermit(">>");
-                p->rshift(a, b);
+                return p->rshift(a, b);
         }
 }
 
 /* set a = a & b */
-void
+struct var_t *
 qop_bit_and(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->bit_and)
                 epermit("&");
-        p->bit_and(a, b);
+        return p->bit_and(a, b);
 }
 
 /* set a = a | b */
-void
+struct var_t *
 qop_bit_or(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->bit_or)
                 epermit("|");
-        p->bit_or(a, b);
+        return p->bit_or(a, b);
 }
 
 /* set a = a ^ b */
-void
+struct var_t *
 qop_xor(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->xor)
                 epermit("^");
-        p->xor(a, b);
+        return p->xor(a, b);
 }
 
 /**
@@ -228,32 +230,33 @@ qop_decr(struct var_t *v)
 }
 
 /* ~v */
-void
+struct var_t *
 qop_bit_not(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->bit_not)
                 epermit("~");
-        p->bit_not(v);
+        return p->bit_not(v);
 }
 
 /* -v */
-void
+struct var_t *
 qop_negate(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->negate)
                 epermit("-");
-        p->negate(v);
+        return p->negate(v);
 }
 
 /* !v WARNING! this clobbers v's type */
-void
+struct var_t *
 qop_lnot(struct var_t *v)
 {
+        struct var_t *ret = var_new();
         bool cond = qop_cmpz(v);
-        var_reset(v);
-        integer_init(v, (int)cond);
+        integer_init(ret, (int)cond);
+        return ret;
 }
 
 /**
@@ -308,6 +311,7 @@ qop_mov(struct var_t *to, struct var_t *from)
         return to;
 }
 
+#if 0
 /**
  * like qop_mov, but if @to is an incompatible type,
  * it will be reset and clobbered.
@@ -318,5 +322,5 @@ qop_clobber(struct var_t *to, struct var_t *from)
         var_reset(to);
         qop_mov(to, from);
 }
-
+#endif
 

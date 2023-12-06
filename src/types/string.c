@@ -303,12 +303,23 @@ string_reset(struct var_t *str)
         TYPE_HANDLE_DECR_REF(str->s);
 }
 
-static void
+static struct var_t *
 string_add(struct var_t *a, struct var_t *b)
 {
-        if (b->magic != TYPE_STRING)
-                emismatch("+");
-        buffer_puts(string_buf__(a), string_get_cstring(b));
+        struct var_t *ret;
+        char *rval;
+        char *lval = string_get_cstring(a);
+        if (b->magic == TYPE_STRPTR)
+                rval = b->strptr;
+        else {
+                if (b->magic != TYPE_STRING)
+                        emismatch("+");
+                rval = string_get_cstring(b);
+        }
+        ret = var_new();
+        string_init(ret, lval);
+        buffer_puts(string_buf__(ret), rval);
+        return ret;
 }
 
 static int

@@ -14,42 +14,50 @@ var2int(struct var_t *v, const char *op)
         return var2int_(v);
 }
 
-static void
-int_mul(struct var_t *a, struct var_t *b)
+static inline struct var_t *
+int_new(long long initval)
 {
-        a->i *= var2int(b, "*");
+        struct var_t *ret = var_new();
+        integer_init(ret, initval);
+        return ret;
 }
 
-static void
+static struct var_t *
+int_mul(struct var_t *a, struct var_t *b)
+{
+        return int_new(a->i * var2int(b, "*"));
+}
+
+static struct var_t *
 int_div(struct var_t *a, struct var_t *b)
 {
         long long i = var2int(b, "/");
         if (i == 0LL)
-                a->i = 0;
+                return int_new(0LL);
         else
-                a->i /= i;
+                return int_new(a->i / i);
 }
 
-static void
+static struct var_t *
 int_mod(struct var_t *a, struct var_t *b)
 {
         long long i = var2int(b, "%");
         if (i == 0LL)
-                a->i = 0;
+                return int_new(0LL);
         else
-                a->i %= i;
+                return int_new(a->i % i);
 }
 
-static void
+static struct var_t *
 int_add(struct var_t *a, struct var_t *b)
 {
-        a->i += var2int(b, "+");
+        return int_new(a->i + var2int(b, "+"));
 }
 
-static void
+static struct var_t *
 int_sub(struct var_t *a, struct var_t *b)
 {
-        a->i -= var2int(b, "-");
+        return int_new(a->i - var2int(b, "-"));
 }
 
 static int
@@ -59,17 +67,17 @@ int_cmp(struct var_t *a, struct var_t *b)
         return OP_CMP(a->i, i);
 }
 
-static void
+static struct var_t *
 int_lshift(struct var_t *a, struct var_t *b)
 {
         long long shift = var2int(b, "<<");
-        if (shift >= 64)
-                a->i = 0LL;
-        else if (shift > 0)
-                a->i <<= shift;
+        if (shift >= 64 || shift <= 0)
+                return int_new(0LL);
+        else
+                return int_new(a->i << shift);
 }
 
-static void
+static struct var_t *
 int_rshift(struct var_t *a, struct var_t *b)
 {
         /*
@@ -78,29 +86,28 @@ int_rshift(struct var_t *a, struct var_t *b)
          */
         long long shift = var2int(b, ">>");
         unsigned long long i = a->i;
-        if (shift >= 64)
-                i = 0LL;
-        else if (shift > 0)
-                i >>= shift;
-        a->i = i;
+        if (shift >= 64 || shift <= 0)
+                return int_new(0LL);
+        else
+                return int_new(i >> shift);
 }
 
-static void
+static struct var_t *
 int_bit_and(struct var_t *a, struct var_t *b)
 {
-        a->i &= var2int(b, "&");
+        return int_new(a->i & var2int(b, "&"));
 }
 
-static void
+static struct var_t *
 int_bit_or(struct var_t *a, struct var_t *b)
 {
-        a->i |= var2int(b, "|");
+        return int_new(a->i | var2int(b, "|"));
 }
 
-static void
+static struct var_t *
 int_xor(struct var_t *a, struct var_t *b)
 {
-        a->i ^= var2int(b, "^");
+        return int_new(a->i ^ var2int(b, "^"));
 }
 
 static bool
@@ -121,16 +128,16 @@ int_decr(struct var_t *a)
         a->i--;
 }
 
-static void
+static struct var_t *
 int_bit_not(struct var_t *a)
 {
-        a->i = ~(a->i);
+        return int_new(~(a->i));
 }
 
-static void
+static struct var_t *
 int_negate(struct var_t *a)
 {
-        a->i = -a->i;
+        return int_new(-a->i);
 }
 
 static void

@@ -160,7 +160,8 @@ object_foreach(struct var_t *ret)
 
         for (idx = 0, res = hashtable_iterate(htbl, &key, &val, &idx);
              res == 0; res = hashtable_iterate(htbl, &key, &val, &idx)) {
-                qop_clobber(argv[0], (struct var_t *)val);
+                var_reset(argv[0]);
+                qop_mov(argv[0], (struct var_t *)val);
                 string_assign_cstring(argv[1], (char *)key);
                 /*
                  * XXX REVISIT: should ``this'' in a foreach callback

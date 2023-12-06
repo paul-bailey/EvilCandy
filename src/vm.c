@@ -233,6 +233,7 @@ pop_or_deref(struct vmframe_t *fr, bool *del)
  * if ptr, copy rather than de-reference, since lval will get
  * clobbered by the operation.
  */
+#if 0
 static struct var_t *
 pop_or_deref_copy(struct vmframe_t *fr)
 {
@@ -244,65 +245,74 @@ pop_or_deref_copy(struct vmframe_t *fr)
         }
         return v;
 }
+#endif
 
 #define binary_op_common(fr, op) do {   \
-        struct var_t *lval, *rval;      \
-        bool rdel;                      \
+        struct var_t *lval, *rval, *res;\
+        bool rdel, ldel;                \
         rval = pop_or_deref(fr, &rdel); \
-        lval = pop_or_deref_copy(fr);   \
-        op(lval, rval);                 \
-        push(fr, lval);                 \
+        lval = pop_or_deref(fr, &ldel); \
+        res = op(lval, rval);           \
+        push(fr, res);                  \
         if (rdel)                       \
                 var_delete(rval);       \
+        if (ldel)                       \
+                var_delete(lval);       \
 } while (0)
 
-#define unary_op_common(fr, op) do {    \
-        struct var_t *v = pop(fr);      \
-        struct var_t *truev = v;        \
-        if (truev->magic == TYPE_VARPTR) \
-                truev = v->vptr;        \
-        op(truev);                      \
-        push(fr, v);                    \
+#define unary_op_common(fr, op) do {            \
+        struct var_t *v = pop(fr);              \
+        struct var_t *truev = v;                \
+        if (truev->magic == TYPE_VARPTR)        \
+                truev = v->vptr;                \
+        struct var_t *ret = op(truev);          \
+        push(fr, ret);                          \
+        if (truev != v)                         \
+                var_delete(v);                  \
 } while (0)
 
 #define assign_common(fr, op) do {              \
-        struct var_t *from, *to;                \
+        struct var_t *from, *to, *res;          \
         bool fdel;                              \
         from = pop_or_deref(fr, &fdel);         \
         to = pop(fr);                           \
-        bug_on(to->magic != TYPE_VARPTR);    \
-        op(to->vptr, from);                     \
+        bug_on(to->magic != TYPE_VARPTR);       \
+        res = op(to->vptr, from);               \
+        qop_mov(to->vptr, res);                 \
         var_delete(to);                         \
+        var_delete(res);                        \
         if (fdel)                               \
                 var_delete(from);               \
 } while (0)
 
-static inline void
+static inline struct var_t *
 logical_or(struct var_t *a, struct var_t *b)
 {
         bool res = !qop_cmpz(a) || !qop_cmpz(b);
-        var_reset(a);
-        integer_init(a, (int)res);
+        struct var_t *ret = var_new();
+        integer_init(ret, (int)res);
+        return ret;
 }
 
-static inline void
+static inline struct var_t *
 logical_and(struct var_t *a, struct var_t *b)
 {
         bool res = !qop_cmpz(a) && !qop_cmpz(b);
-        var_reset(a);
-        integer_init(a, (int)res);
+        struct var_t *ret = var_new();
+        integer_init(ret, (int)res);
+        return ret;
 }
 
-static inline void
+static inline struct var_t *
 rshift(struct var_t *a, struct var_t *b)
 {
-        qop_shift(a, b, OC_RSHIFT);
+        return qop_shift(a, b, OC_RSHIFT);
 }
 
-static inline void
+static inline struct var_t *
 lshift(struct var_t *a, struct var_t *b)
 {
-        qop_shift(a, b, OC_LSHIFT);
+        return qop_shift(a, b, OC_LSHIFT);
 }
 
 static void
@@ -366,7 +376,15 @@ do_unwind(struct vmframe_t *fr, instruction_t ii)
 static void
 do_assign(struct vmframe_t *fr, instruction_t ii)
 {
-        assign_common(fr, qop_mov);
+        struct var_t *from, *to;
+        bool fdel;
+        from = pop_or_deref(fr, &fdel);
+        to = pop(fr);
+        bug_on(to->magic != TYPE_VARPTR);
+        qop_mov(to->vptr, from);
+        var_delete(to);
+        if (fdel)
+                var_delete(from);
 }
 
 static void
@@ -742,19 +760,20 @@ do_cmp(struct vmframe_t *fr, instruction_t ii)
         static const int OCMAP[] = {
                 OC_EQEQ, OC_LEQ, OC_GEQ, OC_NEQ, OC_LT, OC_GT
         };
-        struct var_t *rval, *lval;
-        bool rdel;
+        struct var_t *rval, *lval, *res;
+        bool rdel, ldel;
 
         bug_on(ii.arg1 >= ARRAY_SIZE(OCMAP));
 
         rval = pop_or_deref(fr, &rdel);
-        lval = pop_or_deref_copy(fr);
+        lval = pop_or_deref(fr, &ldel);
 
-        /* qop_cmp clobbers lval and stores result there */
-        qop_cmp(lval, rval, OCMAP[ii.arg1]);
-        push(fr, lval);
+        res = qop_cmp(lval, rval, OCMAP[ii.arg1]);
+        push(fr, res);
         if (rdel)
                 var_delete(rval);
+        if (ldel)
+                var_delete(lval);
 }
 
 static void

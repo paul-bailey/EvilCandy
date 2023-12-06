@@ -4,29 +4,32 @@
 
 #include <evilcandy.h>
 
+typedef struct var_t *(*binary_operator_t)(struct var_t *,
+                                           struct var_t *);
+
 /*
  * Per-type callbacks for mathematical operators, like + or -
  */
 struct operator_methods_t {
-        void (*mul)(struct var_t *, struct var_t *);    /* a = a * b */
-        void (*div)(struct var_t *, struct var_t *);    /* a = a / b */
-        void (*mod)(struct var_t *, struct var_t *);    /* a = a % b */
-        void (*add)(struct var_t *, struct var_t *);    /* a = a + b */
-        void (*sub)(struct var_t *, struct var_t *);    /* a = a - b */
+        binary_operator_t mul;    /* new = a * b */
+        binary_operator_t div;    /* new = a / b */
+        binary_operator_t mod;    /* new = a % b */
+        binary_operator_t add;    /* new = a + b */
+        binary_operator_t sub;    /* new = a - b */
 
         /* <0 if a<b, 0 if a==b, >0 if a>b, doesn't set a or b */
         int (*cmp)(struct var_t *, struct var_t *);
 
-        void (*lshift)(struct var_t *, struct var_t *); /* a = a << b */
-        void (*rshift)(struct var_t *, struct var_t *); /* a = a >> b */
-        void (*bit_and)(struct var_t *, struct var_t *); /* a = a & b */
-        void (*bit_or)(struct var_t *, struct var_t *); /* a = a | b */
-        void (*xor)(struct var_t *, struct var_t *);    /* a = a ^ b */
-        bool (*cmpz)(struct var_t *);                   /* a == 0 ? */
-        void (*incr)(struct var_t *);                   /* a++ */
-        void (*decr)(struct var_t *);                   /* a-- */
-        void (*bit_not)(struct var_t *);                /* ~a */
-        void (*negate)(struct var_t *);                 /* -a */
+        binary_operator_t lshift;  /* new = a << b */
+        binary_operator_t rshift;  /* new = a >> b */
+        binary_operator_t bit_and; /* new = a & b */
+        binary_operator_t bit_or;  /* new = a | b */
+        binary_operator_t xor;     /* new = a ^ b */
+        bool (*cmpz)(struct var_t *);    /* a == 0 ? */
+        void (*incr)(struct var_t *);    /* a++ (in place) */
+        void (*decr)(struct var_t *);    /* a-- (in place) */
+        struct var_t *(*bit_not)(struct var_t *); /* new = ~a */
+        struct var_t *(*negate)(struct var_t *);  /* new = -a */
 
         /* lval is TYPE_EMPTY, rval is this type */
         void (*mov)(struct var_t *, struct var_t *);    /* a = b */

@@ -15,33 +15,41 @@ var2float(struct var_t *v, const char *op)
         return var2float_(v);
 }
 
-static void
-float_mul(struct var_t *a, struct var_t *b)
+static struct var_t *
+float_new(double v)
 {
-        a->f *= var2float(b, "*");
+        struct var_t *ret = var_new();
+        float_init(ret, v);
+        return ret;
 }
 
-static void
+static struct var_t *
+float_mul(struct var_t *a, struct var_t *b)
+{
+        return float_new(a->f * var2float(b, "*"));
+}
+
+static struct var_t *
 float_div(struct var_t *a, struct var_t *b)
 {
         double f = var2float(b, "/");
         /* XXX: Should have some way of logging error to user */
         if (fpclassify(f) != FP_NORMAL)
-                a->f = 0.;
+                return float_new(0.);
         else
-                a->f /= f;
+                return float_new(a->f /= f);
 }
 
-static void
+static struct var_t *
 float_add(struct var_t *a, struct var_t *b)
 {
-        a->f += var2float(b, "+");
+        return float_new(a->f + var2float(b, "+"));
 }
 
-static void
+static struct var_t *
 float_sub(struct var_t *a, struct var_t *b)
 {
-        a->f -= var2float(b, "-");
+        return float_new(a->f - var2float(b, "-"));
 }
 
 static int
@@ -69,10 +77,10 @@ float_decr(struct var_t *a)
         a->f -= 1.0;
 }
 
-static void
+static struct var_t *
 float_negate(struct var_t *a)
 {
-        a->f = -(a->f);
+        return float_new(-(a->f));
 }
 
 static void

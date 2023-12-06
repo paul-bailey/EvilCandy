@@ -318,24 +318,26 @@ extern void *mempool_alloc(struct mempool_t *pool);
 extern void mempool_free(struct mempool_t *pool, void *data);
 
 /* op.c */
-extern void qop_mul(struct var_t *a, struct var_t *b);
-extern void qop_div(struct var_t *a, struct var_t *b);
-extern void qop_mod(struct var_t *a, struct var_t *b);
-extern void qop_add(struct var_t *a, struct var_t *b);
-extern void qop_sub(struct var_t *a, struct var_t *b);
-extern void qop_cmp(struct var_t *a, struct var_t *b, int op);
-extern void qop_shift(struct var_t *a, struct var_t *b, int op);
-extern void qop_bit_and(struct var_t *a, struct var_t *b);
-extern void qop_bit_or(struct var_t *a, struct var_t *b);
-extern void qop_xor(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_mul(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_div(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_mod(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_add(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_sub(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_cmp(struct var_t *a, struct var_t *b, int op);
+extern struct var_t *qop_shift(struct var_t *a, struct var_t *b, int op);
+extern struct var_t *qop_bit_and(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_bit_or(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_xor(struct var_t *a, struct var_t *b);
 extern bool qop_cmpz(struct var_t *v);
 extern void qop_incr(struct var_t *v);
 extern void qop_decr(struct var_t *v);
-extern void qop_bit_not(struct var_t *v);
-extern void qop_negate(struct var_t *v);
-extern void qop_lnot(struct var_t *v);
+extern struct var_t *qop_bit_not(struct var_t *v);
+extern struct var_t *qop_negate(struct var_t *v);
+extern struct var_t *qop_lnot(struct var_t *v);
 extern struct var_t *qop_mov(struct var_t *to, struct var_t *from);
+#if 0
 extern void qop_clobber(struct var_t *to, struct var_t *from);
+#endif
 extern bool qop_cmpz(struct var_t *v);
 
 /* var.c */

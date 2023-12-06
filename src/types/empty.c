@@ -6,10 +6,12 @@ empty_cmpz(struct var_t *v)
         return true;
 }
 
-static void
+static struct var_t *
 empty_bit_not(struct var_t *v)
 {
-        integer_init(v, -1LL);
+        struct var_t *new = var_new();
+        integer_init(new, -1LL);
+        return new;
 }
 
 static const struct operator_methods_t empty_primitives = {

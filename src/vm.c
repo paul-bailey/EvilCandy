@@ -200,12 +200,6 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
         return NULL;
 }
 
-static inline __attribute__((always_inline)) struct var_t *
-RODATA_COPY(struct vmframe_t *fr, instruction_t ii)
-{
-        return var_copy(RODATA(fr, ii));
-}
-
 #define binary_op_common(fr, op) do {   \
         struct var_t *lval, *rval, *res;\
         rval = pop(fr);                 \
@@ -276,7 +270,17 @@ do_push_local(struct vmframe_t *fr, instruction_t ii)
 static void
 do_push_const(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *v = RODATA_COPY(fr, ii);
+        struct var_t *v = RODATA(fr, ii);
+        if (v->magic == TYPE_STRPTR) {
+                /*
+                 * Don't do a naive v=RODATA...VAR_INCR_REF(v),
+                 * because v might be TYPE_STRPTR, in which
+                 * case v needs to be converted into TYPE_STRING
+                 */
+                v = qop_mov(var_new(), v);
+        } else {
+                VAR_INCR_REF(v);
+        }
         push(fr, v);
 }
 
@@ -422,7 +426,6 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         struct vmframe_t *fr_new;
         int narg = ii.arg2;
         bool parent = ii.arg1 == IARG_WITH_PARENT;
-        bool odel = true, fdel = true;
 
         /*
          * XXX REVISIT: This is why a (per-thread) global stack is
@@ -437,20 +440,12 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 fr_new->stack[narg] = pop(fr);
 
         func = pop(fr);
-        if (parent) {
+        if (parent)
                 owner = pop(fr);
-        } else {
-                odel = false;
+        else
                 owner = NULL;
-        }
 
         function_prep_frame(func, fr_new, owner);
-
-        /* XXX: Replace this with VAR_INCR_REF where appropriate */
-        if (owner == fr_new->owner)
-                odel = false;
-        if (fr_new->func == func)
-                fdel = false;
 
         /* ap may have been updated with optional-arg defaults */
         fr_new->stackptr = fr_new->stack + fr_new->ap;
@@ -460,6 +455,11 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
 
         current_frame = fr_new;
         res = call_function(fr_new->func);
+
+        VAR_DECR_REF(func);
+        if (owner)
+                VAR_DECR_REF(owner);
+
         if (res) {
                 /* Internal, already called and executed
                  * pop new frame, push result in old frame
@@ -475,10 +475,6 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 bug_on(!fr_new->ex);
                 fr_new->ppii = fr_new->ex->instr;
         }
-        if (fdel)
-                VAR_DECR_REF(func);
-        if (odel)
-                VAR_DECR_REF(owner);
 }
 
 static void
@@ -530,6 +526,7 @@ do_list_append(struct vmframe_t *fr, instruction_t ii)
         struct var_t *child = pop(fr);
         struct var_t *parent = pop(fr);
         array_add_child(parent, child);
+        VAR_DECR_REF(child);
         push(fr, parent);
 }
 
@@ -553,6 +550,7 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
          * do_list_append below.)
          */
         object_add_child(obj, attr, name);
+        VAR_DECR_REF(attr);
         push(fr, obj);
 }
 static void
@@ -571,6 +569,7 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
         obj = pop(fr);
 
         attr = evar_get_attr(obj, deref);
+        VAR_INCR_REF(attr);
         if (del)
                 VAR_DECR_REF(deref);
 
@@ -581,7 +580,7 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
          * stack discrepancy with INSTR_UNWIND
          */
         push(fr, obj);
-        push(fr, var_copy(attr));
+        push(fr, attr);
 }
 
 static void
@@ -605,11 +604,8 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
         if (del)
                 VAR_DECR_REF(deref);
 
-        /* attr is the actual thing, not a copy, so don't delete it. */
         VAR_DECR_REF(val);
         VAR_DECR_REF(obj);
-
-        /* XXX: push attr back on stack, or not? */
 }
 
 static void
@@ -912,8 +908,10 @@ vm_reenter(struct var_t *func, struct var_t *owner,
 
         fr = vmframe_alloc();
         fr->ap = argc;
-        while (argc-- > 0)
-                fr->stack[argc] = qop_mov(var_new(), argv[argc]);
+        while (argc-- > 0) {
+                fr->stack[argc] = argv[argc];
+                VAR_INCR_REF(argv[argc]);
+        }
 
         function_prep_frame(func, fr, owner);
 

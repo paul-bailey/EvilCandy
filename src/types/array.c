@@ -110,6 +110,7 @@ array_add_child(struct var_t *array, struct var_t *child)
         check_type_match(h, child);
 
         h->nmemb++;
+        VAR_INCR_REF(child);
         buffer_putd(&h->children, &child, sizeof(void *));
 }
 

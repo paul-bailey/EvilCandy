@@ -137,13 +137,17 @@ function_prep_frame(struct var_t *fn,
                 struct var_t *v = fh->f_argv[i];
                 if (!v)
                         syntax("Missing non-optional arg #%d", i);
-                fr->stack[fr->ap++] = qop_mov(var_new(), v);
+                fr->stack[fr->ap++] = v;
+                VAR_INCR_REF(v);
         }
         if (!owner)
                 owner = get_this();
-        fr->owner = qop_mov(var_new(), owner);
-        fr->func  = qop_mov(var_new(), fn);
+        fr->owner = owner;
+        fr->func  = fn;
         fr->clo   = fh->f_clov;
+
+        VAR_INCR_REF(owner);
+        VAR_INCR_REF(fn);
 
         if (fh->f_magic == FUNC_USER)
                 fr->ex = fh->f_ex;

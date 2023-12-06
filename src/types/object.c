@@ -96,6 +96,7 @@ object_add_child(struct var_t *parent, struct var_t *child, char *name)
 {
         if (hashtable_put(&parent->o->dict, name, child) < 0)
                 syntax("Object already has element named %s", name);
+        VAR_INCR_REF(child);
         parent->o->nchildren++;
 }
 

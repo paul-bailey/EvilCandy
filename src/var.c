@@ -396,7 +396,7 @@ set_by_str:
                 if (child)
                         qop_mov(child, attr);
                 else
-                        object_add_child(v, var_copy(attr), attrstr);
+                        object_add_child(v, attr, attrstr);
                 return 0;
         }
         /*

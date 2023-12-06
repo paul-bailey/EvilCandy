@@ -342,8 +342,6 @@ extern struct var_t *var_new(void);
 } while (0)
 extern void var_delete__(struct var_t *v);
 extern void var_reset(struct var_t *v);
-static inline struct var_t *var_copy_of(struct var_t *v)
-        { return qop_mov(var_new(), v); }
 extern void moduleinit_var(void);
 extern struct var_t *var_get_attr(struct var_t *v,
                                 struct var_t *deref);

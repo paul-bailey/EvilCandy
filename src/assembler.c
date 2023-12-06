@@ -162,7 +162,7 @@ executable_free__(struct executable_t *ex)
         if (ex->rodata) {
                 int i;
                 for (i = 0; i < ex->n_rodata; i++)
-                        var_delete(ex->rodata[i]);
+                        VAR_DECR_REF(ex->rodata[i]);
         }
         if (ex->label)
                 free(ex->label);

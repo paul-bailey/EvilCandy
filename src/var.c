@@ -61,23 +61,11 @@ var_free(struct var_t *v)
         free(v);
 }
 #else
-# if LIST_ALLOC
 static struct var_mem_t *var_freelist = NULL;
 struct var_mem_t {
         struct var_mem_t *list;
-#  ifndef NDEBUG
-        bool freed;
-#  endif
         struct var_t var;
 };
-
-#ifndef NDEBUG
-# define MARK_FREE(vm) do { bug_on((vm)->freed); (vm)->freed = true; } while (0)
-# define MARK_USED(vm) do { bug_on(!(vm)->freed); (vm)->freed = false; } while (0)
-#else
-# define MARK_FREE(vm) do { (void)0; } while (0)
-# define MARK_USED(vm) do { (void)0; } while (0)
-#endif
 
 #define list2memvar(li) container_of(li, struct var_mem_t, list)
 #define var2memvar(v) container_of(v, struct var_mem_t, var)
@@ -91,9 +79,6 @@ var_more_(void)
         for (i = 0; i < NPERBLK; i++) {
                 blk[i].list = var_freelist;
                 var_freelist = &blk[i];
-#ifndef NDEBUG
-                blk[i].freed = true;
-#endif
         }
 }
 
@@ -107,46 +92,22 @@ var_alloc(void)
 
         vm = list2memvar(var_freelist);
         var_freelist = vm->list;
-        MARK_USED(vm);
+        vm->var.refcount = 1;
         return &vm->var;
 }
 
 static void
 var_free(struct var_t *v)
 {
+        struct var_mem_t *vm;
         REGISTER_FREE();
-        struct var_mem_t *vm = var2memvar(v);
+        bug_on(v->refcount != 0);
+        vm = var2memvar(v);
         vm->list = var_freelist;
-        MARK_FREE(vm);
         var_freelist = vm;
 }
 
-# else
-static struct mempool_t *var_mempool = NULL;
-static struct var_t *
-var_alloc(void)
-{
-        /*
-         * check this here rather than do at modulinit time,
-         * because some vars will need to have been allocated
-         * already by the time our moduleinit has been called.
-         */
-        if (!var_mempool)
-                var_mempool = mempool_new(sizeof(struct var_t));
-
-        struct var_t *ret = mempool_alloc(var_mempool);
-        REGISTER_ALLOC();
-        return ret;
-}
-
-static void
-var_free(struct var_t *v)
-{
-        REGISTER_FREE();
-        mempool_free(var_mempool, v);
-}
-# endif
-#endif
+#endif /* !SIMPLE_ALLOC */
 
 /* Helper to var_new - initialize an empty variable */
 static struct var_t *
@@ -171,7 +132,7 @@ var_new(void)
  * @v: variable to delete.
  */
 void
-var_delete(struct var_t *v)
+var_delete__(struct var_t *v)
 {
         var_reset(v);
         var_free(v);
@@ -194,6 +155,7 @@ var_reset(struct var_t *v)
 
         v->magic = TYPE_EMPTY;
         v->flags = 0;
+        /* don't touch refcount here */
 }
 
 struct type_t TYPEDEFS[NTYPES];
@@ -300,7 +262,7 @@ moduleinit_var(void)
 void
 var_bucket_delete(void *data)
 {
-        var_delete((struct var_t *)data);
+        VAR_DECR_REF((struct var_t *)data);
 }
 
 static struct var_t *

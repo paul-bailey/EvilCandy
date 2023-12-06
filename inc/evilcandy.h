@@ -131,6 +131,7 @@ enum {
  * struct var_t - User variable type
  * @magic: Magic number to determine which builtin type
  * @flags: a VF_* enum
+ * @refcount: DON'T TOUCH THIS! Use VAR_INCR_REF and VAR_DECR_REF instead
  *
  * The remaining fields are specific to the type, determined by @magic,
  * and are handled privately by the type-specific sources in types/xxx.c
@@ -150,7 +151,8 @@ enum {
  */
 struct var_t {
         unsigned int magic;
-        unsigned int flags;
+        unsigned short flags;
+        short refcount; /* signed for easier bug trapping */
         union {
                 struct object_handle_t *o;
                 struct function_handle_t *fn;
@@ -342,7 +344,14 @@ extern bool qop_cmpz(struct var_t *v);
 
 /* var.c */
 extern struct var_t *var_new(void);
-extern void var_delete(struct var_t *v);
+#define VAR_INCR_REF(v) do { (v)->refcount++; } while (0)
+#define VAR_DECR_REF(v) do { \
+        struct var_t *v_ = (v); \
+        v_->refcount--; \
+        if (v_->refcount <= 0) \
+                var_delete__(v_); \
+} while (0)
+extern void var_delete__(struct var_t *v);
 extern void var_reset(struct var_t *v);
 static inline struct var_t *var_copy_of(struct var_t *v)
         { return qop_mov(var_new(), v); }

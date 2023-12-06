@@ -168,11 +168,11 @@ vmframe_free(struct vmframe_t *fr)
          * so we don't delete them here.
          */
         for (vpp = fr->stack; vpp < fr->stackptr; vpp++)
-                var_delete(*vpp);
+                VAR_DECR_REF(*vpp);
         if (fr->owner)
-                var_delete(fr->owner);
+                VAR_DECR_REF(fr->owner);
         if (fr->func)
-                var_delete(fr->func);
+                VAR_DECR_REF(fr->func);
         list_add_tail(&fr->alloc_list, &vframe_free_list);
 }
 
@@ -219,7 +219,7 @@ pop_or_deref(struct vmframe_t *fr, bool *del)
         struct var_t *v = pop(fr);
         if (v->magic == TYPE_VARPTR) {
                 struct var_t *tmp = v->vptr;
-                var_delete(v);
+                VAR_DECR_REF(v);
                 v = tmp;
                 *del = false;
         } else {
@@ -227,25 +227,6 @@ pop_or_deref(struct vmframe_t *fr, bool *del)
         }
         return v;
 }
-
-/*
- * Subtle difference between common binary ops and cmp/assign:
- * if ptr, copy rather than de-reference, since lval will get
- * clobbered by the operation.
- */
-#if 0
-static struct var_t *
-pop_or_deref_copy(struct vmframe_t *fr)
-{
-        struct var_t *v = pop(fr);
-        if (v->magic == TYPE_VARPTR) {
-                struct var_t *tmp = var_copy(v->vptr);
-                var_delete(v);
-                v = tmp;
-        }
-        return v;
-}
-#endif
 
 #define binary_op_common(fr, op) do {   \
         struct var_t *lval, *rval, *res;\
@@ -255,9 +236,9 @@ pop_or_deref_copy(struct vmframe_t *fr)
         res = op(lval, rval);           \
         push(fr, res);                  \
         if (rdel)                       \
-                var_delete(rval);       \
+                VAR_DECR_REF(rval);       \
         if (ldel)                       \
-                var_delete(lval);       \
+                VAR_DECR_REF(lval);       \
 } while (0)
 
 #define unary_op_common(fr, op) do {            \
@@ -268,7 +249,7 @@ pop_or_deref_copy(struct vmframe_t *fr)
         struct var_t *ret = op(truev);          \
         push(fr, ret);                          \
         if (truev != v)                         \
-                var_delete(v);                  \
+                VAR_DECR_REF(v);                  \
 } while (0)
 
 #define assign_common(fr, op) do {              \
@@ -279,10 +260,10 @@ pop_or_deref_copy(struct vmframe_t *fr)
         bug_on(to->magic != TYPE_VARPTR);       \
         res = op(to->vptr, from);               \
         qop_mov(to->vptr, res);                 \
-        var_delete(to);                         \
-        var_delete(res);                        \
+        VAR_DECR_REF(to);                         \
+        VAR_DECR_REF(res);                        \
         if (fdel)                               \
-                var_delete(from);               \
+                VAR_DECR_REF(from);               \
 } while (0)
 
 static inline struct var_t *
@@ -353,7 +334,7 @@ do_push_copy(struct vmframe_t *fr, instruction_t ii)
 static void
 do_pop(struct vmframe_t *fr, instruction_t ii)
 {
-        var_delete(pop(fr));
+        VAR_DECR_REF(pop(fr));
 }
 
 static void
@@ -369,7 +350,7 @@ do_unwind(struct vmframe_t *fr, instruction_t ii)
         struct var_t *sav = pop(fr);
         int count = ii.arg2;
         while (count-- > 0)
-                var_delete(pop(fr));
+                VAR_DECR_REF(pop(fr));
         push(fr, sav);
 }
 
@@ -382,9 +363,9 @@ do_assign(struct vmframe_t *fr, instruction_t ii)
         to = pop(fr);
         bug_on(to->magic != TYPE_VARPTR);
         qop_mov(to->vptr, from);
-        var_delete(to);
+        VAR_DECR_REF(to);
         if (fdel)
-                var_delete(from);
+                VAR_DECR_REF(from);
 }
 
 static void
@@ -477,7 +458,7 @@ do_return_value(struct vmframe_t *fr, instruction_t ii)
         if (fr)
                 push(fr, result);
         else
-                var_delete(result);
+                VAR_DECR_REF(result);
 }
 
 static void
@@ -540,9 +521,9 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 fr_new->ppii = fr_new->ex->instr;
         }
         if (fdel)
-                var_delete(func);
+                VAR_DECR_REF(func);
         if (odel)
-                var_delete(owner);
+                VAR_DECR_REF(owner);
 }
 
 static void
@@ -636,7 +617,7 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
 
         attr = evar_get_attr(obj, deref);
         if (del)
-                var_delete(deref);
+                VAR_DECR_REF(deref);
 
         /*
          * see eval8 in assemble.c... we keep parent on GETATTR command.
@@ -667,11 +648,11 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 
         evar_set_attr(obj, deref, val);
         if (del)
-                var_delete(deref);
+                VAR_DECR_REF(deref);
 
         /* attr is the actual thing, not a copy, so don't delete it. */
-        var_delete(val);
-        var_delete(obj);
+        VAR_DECR_REF(val);
+        VAR_DECR_REF(obj);
 
         /* XXX: push attr back on stack, or not? */
 }
@@ -685,7 +666,7 @@ do_b_if(struct vmframe_t *fr, instruction_t ii)
         if ((bool)ii.arg1 == cond)
                 fr->ppii += ii.arg2;
         if (vdel)
-                var_delete(v);
+                VAR_DECR_REF(v);
 }
 
 static void
@@ -771,9 +752,9 @@ do_cmp(struct vmframe_t *fr, instruction_t ii)
         res = qop_cmp(lval, rval, OCMAP[ii.arg1]);
         push(fr, res);
         if (rdel)
-                var_delete(rval);
+                VAR_DECR_REF(rval);
         if (ldel)
-                var_delete(lval);
+                VAR_DECR_REF(lval);
 }
 
 static void
@@ -812,7 +793,7 @@ do_incr(struct vmframe_t *fr, instruction_t ii)
         struct var_t *v = pop(fr);
         if (v->magic == TYPE_VARPTR) {
                 qop_incr(v->vptr);
-                var_delete(v);
+                VAR_DECR_REF(v);
         } else {
                 /* shouldn't be reachable, right? */
                 breakpoint();
@@ -826,7 +807,7 @@ do_decr(struct vmframe_t *fr, instruction_t ii)
         struct var_t *v = pop(fr);
         if (v->magic == TYPE_VARPTR) {
                 qop_decr(v->vptr);
-                var_delete(v);
+                VAR_DECR_REF(v);
         } else {
                 /* shouldn't be reachable, right? */
                 breakpoint();
@@ -947,7 +928,7 @@ vm_execute(struct executable_t *top_level)
 
         EXECUTE_LOOP(0);
 
-        /* Don't let vmframe_free try to var_delete these */
+        /* Don't let vmframe_free try to VAR_DECR_REF these */
         current_frame->func = NULL;
         current_frame->owner = NULL;
 

@@ -171,8 +171,8 @@ object_foreach(struct var_t *ret)
                  */
                 vm_reenter(func, NULL, 2, argv);
         }
-        var_delete(argv[0]);
-        var_delete(argv[1]);
+        VAR_DECR_REF(argv[0]);
+        VAR_DECR_REF(argv[1]);
 }
 
 

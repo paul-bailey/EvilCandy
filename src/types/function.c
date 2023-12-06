@@ -57,7 +57,7 @@ remove_args(struct var_t **arr, int count)
         for (i = 0; i < count; i++) {
                 /* these arrays could be sparse */
                 if (arr[i])
-                        var_delete(arr[i]);
+                        VAR_DECR_REF(arr[i]);
         }
         free(arr);
 }

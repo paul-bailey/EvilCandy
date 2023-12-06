@@ -3,7 +3,24 @@
 // Change the IIFE arg between sqrt (the function below) and
 // Math.sqrt, and time the execution of this program.
 //
+//  12/2023 Update:
+//  ---------------
+// The brain-dead sqrt algo below (or an in-Python-language
+// equivalent) takes about 4s to complete on Python.  For evilcandy,
+// now that the VM is running, it takes just under 8s, and (when my
+// mac isn't lollygagging) sometimes even under 7s.  This is with
+// the non-optimized per-instruction lookup table in vm.c (as opposed
+// to Python's unreadable perversion of a switch statement in their
+// ceval.c code, optimized up the wazoo with nonstandard arrays of
+// goto labels).
+//
+// >50% the speed of Python is no longer embarrassing.  However,
+// the speed of evilcandy is largely illusive, since it involves
+// compiling with "-O3 -DNDEBUG"... something it's truly unprepared
+// for.
+//
 //  11/2023 results:
+//  ----------------
 // For Math.sqrt, this takes about 0.88s (not bad).
 // For the scripted algo below, this is ~55s, or ~20s
 // when compiled with -O3 -DNDEBUG.

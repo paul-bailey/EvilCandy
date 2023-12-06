@@ -65,7 +65,17 @@ typeface" is a thing that can exist.  So I settled for EvilCandy.
 The Language
 ============
 
-:TODO: I will write this section, when the whole thing is better developed.
+See Documentation.rst
+
+Portability
+===========
+
+*As of 12/2023:*
+I currently have been developing this on one computer, an iMac Pro with
+Intel and macOS 12.5.1.  Nothing else.  When the code is more stable I
+intend to port it to GNU/Linux.
+
+I don't do the Windows thing.
 
 Some Rules
 ==========

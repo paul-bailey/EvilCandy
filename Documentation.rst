@@ -28,6 +28,16 @@ To print a "Hello world" program::
 The semicolon is needed; this isn't Python.  A function definition
 is not needed.  Program flow begins at the first line of a file.
 
+File Encoding Requirements
+==========================
+
+Only ASCII is allowed in the source file.  If I spoke fifty languages
+or had an international team of developers it would be different.  The
+only non-ASCII support currently provided by ``evilcandy`` is that
+string literals (see Variables_ below) may be expressed with backslash
+escapes for UTF-8 characters, using the quasi-standard C convention
+``\Uxxxxxxxx`` or ``\uxxxx``.
+
 Syntax
 ======
 
@@ -450,6 +460,7 @@ may not change type again::
         x.foo = "I'm a string";
 
 A dictionary may be de-referenced in one of two ways:
+
 1. The dot notation::
 
         let y = x.thing;
@@ -819,7 +830,7 @@ the argument should one not be provided by the caller, e.g.::
         function(a, b, c="Hello", d=12.5)
 
 Do not be misled by the "a=b" syntax of parameter definitions.  **The
-order in which arguments are passed always matters.**  For that matter,
+order in which arguments are passed always matters.**  For that reason,
 it makes no sense to place the optional arguments at the front of the
 argument list.
 

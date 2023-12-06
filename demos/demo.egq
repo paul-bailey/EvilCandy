@@ -80,4 +80,7 @@ if (hasattr('Io'))
 else
     print("\t...nope");
 
+print("UTF-8 escape test");
+print("\tValues of \u03b2 will give rise to dom!");
+print("\tDo you see the smiley face? \U0001f600");
 // : vim: set syntax=javascript :

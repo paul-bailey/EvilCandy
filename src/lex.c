@@ -149,6 +149,111 @@ bksl_hex(char **src, int *c)
         return true;
 }
 
+static bool
+isunihex(char *s, int amt)
+{
+        while (amt--) {
+                if (!isxdigit((int)*s))
+                        return false;
+                s++;
+        }
+        return true;
+}
+
+enum {
+        UTF8_SHIFT = 6,
+        UTF8_MASK = (1u << UTF8_SHIFT) - 1,
+};
+
+static unsigned int
+hex_char2val(int c)
+{
+        if (isdigit(c))
+                return c - '0';
+        return toupper(c) - ('A' - 10);
+}
+
+/*
+ * This is for our UTF-8 encoding.
+ * can't use strtoul, because 5th char might be a number,
+ * but it's not a part of the escape
+ */
+static uint32_t
+hex_str2val(char *s, int len)
+{
+        uint32_t v = 0;
+        while (len--) {
+                v <<= 4;
+                v |= hex_char2val(*s++);
+        }
+        return v;
+}
+
+static bool
+bksl_utf8(char **src, int *c, struct buffer_t *tok)
+{
+        char *s = *src;
+        int amt;
+        uint32_t v;
+        uint8_t buf[6];
+
+        if (s[0] == 'u') {
+                amt = 4;
+        } else if (s[0] == 'U') {
+                amt = 8;
+        } else {
+                return false;
+        }
+        s++;
+        if (!isunihex(s, amt))
+                return false;
+
+        v = hex_str2val(s, amt);
+
+        if (v > 0x10FFFFu) {
+                /* utf-8 limit */
+                return false;
+        } else if (v > 0xFFFFu) {
+                buf[3] = (v & 0x3Fu) + 0x80u;
+                v >>= 6;
+                buf[2] = (v & 0x3Fu) + 0x80u;
+                v >>= 6;
+                buf[1] = (v & 0x3Fu) + 0x80u;
+                v >>= 6;
+                buf[0] = (v & 0x07u) | 0xF0u;
+                buffer_putc(tok, buf[0]);
+                buffer_putc(tok, buf[1]);
+                buffer_putc(tok, buf[2]);
+                buffer_putc(tok, buf[3]);
+        } else if (v > 0x7ff) {
+                buf[2] = (v & 0x3Fu) + 0x80u;
+                v >>= 6;
+                buf[1] = (v & 0x3Fu) + 0x80u;
+                v >>= 6;
+                buf[0] = (v & 0x0Fu) + 0xE0u;
+
+                buffer_putc(tok, buf[0]);
+                buffer_putc(tok, buf[1]);
+                buffer_putc(tok, buf[2]);
+        } else if (v > 0x7F) {
+                buf[1] = (v & 0x3Fu) + 0x80u;
+                v >>= 6;
+                buf[0] = (v & 0x1Fu) + 0xC0u;
+                buffer_putc(tok, buf[0]);
+                buffer_putc(tok, buf[1]);
+        } else {
+                /*
+                 * The jerk wrote all those hexes when a simple
+                 * ascii char would have done just fine
+                 */
+                buffer_putc(tok, v);
+        }
+
+        *src = s + amt;
+        *c = 0;
+        return true;
+}
+
 /* pc points at quote */
 static bool
 qlex_string(void)
@@ -163,13 +268,15 @@ retry:
         while ((c = *pc++) != q && c != '\0') {
                 if (c == '\\') {
                         do {
+                                if (bksl_utf8(&pc, &c, tok))
+                                        break;
                                 if (bksl_char(&pc, &c, q))
                                         break;
                                 if (bksl_octal(&pc, &c))
                                         break;
                                 if (bksl_hex(&pc, &c))
                                         break;
-                                syntax("Unsupported escape `%c'", *pc);
+                                warning("Unsupported escape `%c'", *pc);
                         } while (0);
                         if (!c)
                                 continue;

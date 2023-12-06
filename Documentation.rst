@@ -61,20 +61,20 @@ Tokens
 ``evilcandy`` classifies its tokens largely the same way as anyone else does:
 whitespace, identifiers, keywords, constants like quoted strings or
 numerical expressions, operators, and other separators and delimiters.
-Whitespace is ignored, except whereever at least one whitespace
+Whitespace is ignored, except wherever at least one whitespace
 character is needed to delimit two tokens.  (In particular, always leave
 whitespace in between identifiers, numerical expressions, and string
 literals.)
 
 Identifier Tokens
------------------
+~~~~~~~~~~~~~~~~~
 
 Identifiers must start with a letter or an underscore ``_``.
 The remaining characters may be any combination of letters, numbers,
 and underscores.
 
 Keyword Tokens
---------------
+~~~~~~~~~~~~~~
 
 The following keywords are reserved for ``evilcandy``:
 
@@ -89,7 +89,7 @@ Reserved Keywords
 ============ ========= ==========
 
 Operators
----------
+~~~~~~~~~
 
 These are syntactic sugar for what would be function calls.  ``evilcandy``
 uses the following:
@@ -107,7 +107,7 @@ Operator Operation
 ``&&``   logical AND
 ``||``   logical OR
 ``&``    bitwise AND [#]_
-``|``    bitwose OR
+``|``    bitwise OR
 ``<<``   bitwise left shift
 ``>>``   bitwise right shift
 ``^``    bitwise XOR
@@ -147,7 +147,7 @@ An expression may be:
 :block:         ``{`` *expr* *expr* ... ``}``
 
 In the block case, the nested instances of *expr* must be single-line.
-Nested blocks are only pwermitted if they're part of program-flow
+Nested blocks are only permitted if they're part of program-flow
 statements like ``if`` or ``while``. (**TODO** I can't recall why this
 is, maybe I should support it.)
 
@@ -155,24 +155,24 @@ Braces also define a new `Scope`_, see below.
 
 Valid single-line expressions are:
 
-=== ======================= =============================================
-1.  Empty declaration       ``let`` *identifier*
-2.  Assignment              *identifier* ``=`` *value*
-3.  Declaration + assgnment ``let`` *identifier* ``=`` *value*
-4.  Eval [#]_               *identifier* ``(`` *args* ... ``)``
-5.  Eval                    ``(`` *value* ``)``
-6.  Empty expression        *identifier*
-7.  Program flow            ``if (`` *value* ``)`` *expr*
-8.  Program flow            ``if (`` *value* ``)`` *expr* ``else`` *expr*
-9.  Program flow            ``while (`` *value* ``)`` *expr*
-10. Program flow            ``do`` *expr* ``while (`` *value* ``)``
-11. Program flow [#]_       ``for (`` *expr* ... ``)`` *expr*
-12. Return nothing          ``return``
-13. Return something        ``return`` *value*
-14. Break                   ``break``
-15. Load [#]_               ``load``
+=== ======================== =============================================
+1.  Empty declaration        ``let`` *identifier*
+2.  Assignment               *identifier* ``=`` *value*
+3.  Declaration + assignment ``let`` *identifier* ``=`` *value*
+4.  Eval [#]_                *identifier* ``(`` *args* ... ``)``
+5.  Eval                     ``(`` *value* ``)``
+6.  Empty expression         *identifier*
+7.  Program flow             ``if (`` *value* ``)`` *expr*
+8.  Program flow             ``if (`` *value* ``)`` *expr* ``else`` *expr*
+9.  Program flow             ``while (`` *value* ``)`` *expr*
+10. Program flow             ``do`` *expr* ``while (`` *value* ``)``
+11. Program flow [#]_        ``for (`` *expr* ... ``)`` *expr*
+12. Return nothing           ``return``
+13. Return something         ``return`` *value*
+14. Break                    ``break``
+15. Load [#]_                ``load``
 16. Nothing [#]_
-=== ======================= =============================================
+=== ======================== =============================================
 
 .. [#] *Eval* has limitations here, see below.
 
@@ -205,7 +205,7 @@ variable", examples:
 
         (1 + 2) / x
 
-* Function defnition::
+* Function definition::
 
         function() { do_something(); }
 
@@ -213,7 +213,7 @@ variable", examples:
 
         [ "this", "is", "a", "list" ]
 
-* dict defnition::
+* dict definition::
 
         { this: "is", a: "dictionary" }
 
@@ -413,7 +413,7 @@ The last line will change the contents of ``x`` as well as ``y``.
 Dictionaries
 ~~~~~~~~~~~~
 
-A dictionay is referred to as an "object" in JavaScript (as well as,
+A dictionary is referred to as an "object" in JavaScript (as well as,
 unfortunately, my source code).  Here I choose more appropriate language,
 since technically all of these data types have some object-like
 characteristics.
@@ -675,7 +675,7 @@ not supported here).
 ``do`` loop
 -----------
 
-The ``do`` loop takes the fomr::
+The ``do`` loop takes the form::
 
         do
               EXPRESSION
@@ -841,8 +841,184 @@ function Io.open returns a file object upon success, and an error string
 upon failure.  If this is the case (it ought to be documented, right?),
 use the ``typeof`` builtin function to check it.
 
+Callable Dictionaries
+---------------------
+
+Lambda Functions
+----------------
+
+Normal function notation may be used for lambda functions, but if you
+want to be cute and brief, special notation exists for lambdas in
+EvilCandy, best shown in the example::
+
+    let multer = function(n) {
+        return ``(x) x * n``;
+    };
+
+This is equivalent to::
+
+    let multer = function(n) {
+        return function(x) { return x * n; };
+    };
+
+(Note: the out-of-scope use of ``n`` is explained in Closures_ below).
+
+In both examples, the return value is technically a lambda function.
+But for our purposes, *lambda notation* refers to the former case,
+where the double backquote tokens (``````) provide syntactic sugar
+for a very small function.  The general form is::
+
+        `` ( ARGS ) EXPR ``
+
+where *expr* is only an evaluation, with no assignments or ``return``
+statement.  It does not end with a semicolon, and it is only a single
+statement.  To use a multiline lambda, braces are required and
+``return`` is required to return a value... in which case you might
+as well have used regular function notation after all.  (The ``````
+token is hard to spot over more than one line.)
+
+Lambdas are useful in the way they create new functions, for example::
+
+        let multer = function(n) {
+                return ``(x) x * n``;
+        };
+
+        let doubler = multer(2);
+        let tripler = multer(3);
+
+        let a = doubler(11);
+        let b = tripler(11);
+
+        print(a);
+        print(b);
+
+will print the following output::
+
+        22
+        33
+
+In this example, ``multer`` was used to create a function that multiplies
+its input to a value determined at the time of its instantiation.
+
 Closures
 --------
+
+In the previous section `Lambda Functions`_, the lambda function used
+a variable ``n`` that was in its parent function scope.  This variable
+will now persist until the return value (``doubler`` or ``tripler``
+in the example) are deleted.  This is known as a *closure*.  Because
+it is evaluated at the time of the function's creation, it can be
+unique for each instantiation (note that ``doubler`` and ``tripler``
+maintain their own values of ``n``).
+
+Implicit Closure Declaration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To implicitly declare a closure, simply reference a variable in the
+parent function's [#]_ scope, as in the ``multer`` example::
+
+        let multer = function(n) {
+                return ``(x) x * n``;
+        };
+
+.. [#]
+        You could also do this for grandparent, etc. but that isn't
+        recommended.
+
+Note, however, that if the function is not nested, then a closure
+will not be created.  In the example::
+
+        # this is the global scope
+        let n = 0;
+        let foo = function() {
+                bar(n);
+        }
+
+since ``n`` is a global variable, a closure will not be created.
+and ``foo`` will not have unique access to its own copy of ``n``.
+
+Explicit Closure Declaration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Closures may also be declared in a function's parameter heading with
+the syntax::
+
+        : NAME = VALUE
+
+To use the ``multer`` example again::
+
+        let multer = function(n) {
+                return ``(x, :a=n) x * a``;
+        };
+
+Here, the ``a`` of ``:a=n`` is the name of the parameter (which could,
+incidentally, also be called ``n`` for consistency), and ``n`` is the
+value to set it to.
+
+This is **not** an argument to the function!  Unlike with default
+arguments, this value cannot be overridden by a caller's own argument,
+nor does it shift the placement of the actual arguments (though for
+readability, it's still best to place their declarations at the end).
+
+Closure Persistence Nuances
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There's a reason I added the explicit closure declaration even though
+I rarely (actually never) see it in other programming languages.
+
+The two following examples are **not** equivalent:
+
+Ex 1::
+
+        // nested inside of some function
+        let hello = "Hello";
+        ...
+        let world = function(:a=hello.copy()) {
+                bar(a + " world");
+        }
+
+Ex 2::
+
+        let hello = "Hello";
+        ...
+        let world = function() {
+                let a = hello.copy();
+                bar(a + " world");
+        }
+
+In the former example:
+        A closure will be created for the return value of ``hello.copy()``.
+        Even if ``hello`` changes, every call to ``world`` will have
+        predictable results.
+
+In the latter example:
+        A closure will be created for ``hello`` only.  So if the ``hello``
+        changes value even after ``world`` is created, then later calls
+        to ``world()`` will have undesired results.  This is not a problem
+        for floats and integers, which are pass-by-value.  This is mainly
+        an issue for strings.
+
+Built-in Methods
+================
+
+Built-in Methods for Dictionaries
+---------------------------------
+
+
+Built-in Methods for Lists
+--------------------------
+
+Built-in Methods for Strings
+----------------------------
+
+Library
+=======
+
+Io
+--
+
+Math
+----
 
 :TODO: The rest of this documentation
 

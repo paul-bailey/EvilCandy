@@ -76,7 +76,6 @@ getloc_pop(void)
         getloc_stackptr--;
 }
 
-
 /**
  * get_location - Get location of current input processing state
  * @file_name: Pointer to variable to store file name

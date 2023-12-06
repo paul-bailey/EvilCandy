@@ -201,13 +201,6 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
 }
 
 static inline __attribute__((always_inline)) struct var_t *
-VARCOPY(struct vmframe_t *fr, instruction_t ii)
-{
-        struct var_t *vp = VARPTR(fr, ii);
-        return vp ? var_copy(vp) : NULL;
-}
-
-static inline __attribute__((always_inline)) struct var_t *
 RODATA_COPY(struct vmframe_t *fr, instruction_t ii)
 {
         return var_copy(RODATA(fr, ii));
@@ -293,13 +286,6 @@ do_push_ptr(struct vmframe_t *fr, instruction_t ii)
         struct var_t *p = VARPTR(fr, ii);
         VAR_INCR_REF(p);
         push(fr, p);
-}
-
-static void
-do_push_copy(struct vmframe_t *fr, instruction_t ii)
-{
-        struct var_t *v = VARCOPY(fr, ii);
-        push(fr, v);
 }
 
 static void

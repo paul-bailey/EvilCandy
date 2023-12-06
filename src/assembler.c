@@ -803,11 +803,11 @@ maybe_closure(struct assemble_t *a, struct token_t *name)
 }
 
 /*
- * @instr is INSTR_PUSH_PTR (for expression mode) and INSTR_PUSH_COPY
+ * @instr is INSTR_PUSH_PTR (for expression mode)
  * (for eval mode, where vars could be carelessly clobbered).
  */
 static void
-ainstr_push_symbol(struct assemble_t *a, int instr, struct token_t *name)
+ainstr_push_symbol(struct assemble_t *a, struct token_t *name)
 {
         int idx;
 
@@ -819,18 +819,18 @@ ainstr_push_symbol(struct assemble_t *a, int instr, struct token_t *name)
          * de-reference, and FP for our argument de-reference.
          */
         if ((idx = symtab_seek(a, name->s)) >= 0) {
-                add_instr(a, instr, IARG_PTR_AP, idx);
+                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_AP, idx);
         } else if ((idx = arg_seek(a, name->s)) >= 0) {
-                add_instr(a, instr, IARG_PTR_FP, idx);
+                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_FP, idx);
         } else if ((idx = clo_seek(a, name->s)) >= 0) {
-                add_instr(a, instr, IARG_PTR_CP, idx);
+                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_CP, idx);
         } else if (!strcmp(name->s, "__gbl__")) {
-                add_instr(a, instr, IARG_PTR_GBL, 0);
+                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_GBL, 0);
         } else if ((idx = maybe_closure(a, name)) >= 0) {
-                add_instr(a, instr, IARG_PTR_CP, idx);
+                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_CP, idx);
         } else {
                 int namei = seek_or_add_const(a, name);
-                add_instr(a, instr, IARG_PTR_SEEK, namei);
+                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_SEEK, namei);
         }
 }
 
@@ -868,7 +868,7 @@ assemble_eval_atomic(struct assemble_t *a)
 {
         switch (a->oc->t) {
         case 'u':
-                ainstr_push_symbol(a, INSTR_PUSH_COPY, a->oc);
+                ainstr_push_symbol(a, a->oc);
                 break;
 
         case 'i':
@@ -900,7 +900,7 @@ assemble_eval_atomic(struct assemble_t *a)
                 assemble_funcdef(a, true);
                 break;
         case OC_THIS:
-                add_instr(a, INSTR_PUSH_COPY, IARG_PTR_THIS, 0);
+                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_THIS, 0);
                 break;
         default:
                 as_err(a, AE_BADTOK);
@@ -1362,7 +1362,7 @@ assemble_this(struct assemble_t *a, unsigned int flags)
 static void
 assemble_identifier(struct assemble_t *a, unsigned int flags)
 {
-        ainstr_push_symbol(a, INSTR_PUSH_PTR, a->oc);
+        ainstr_push_symbol(a, a->oc);
         assemble_ident_helper(a, flags);
 }
 

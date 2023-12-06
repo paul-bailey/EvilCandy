@@ -844,6 +844,21 @@ use the ``typeof`` builtin function to check it.
 Callable Dictionaries
 ---------------------
 
+A dictionary can be called like a function if it has an attribute
+named ``__callable__``
+
+For example, given the dictionary::
+
+        let mydict = {
+                a: 1,
+                b: 3,
+                __callable__: function () { foo(this.a, this.b); }
+        };
+
+then a call to ``mydict()`` is equivalent to calling
+``mydict.__callable__()``.  The number and type of arguments for
+``__callable__`` are entirely user-defined.
+
 Lambda Functions
 ----------------
 

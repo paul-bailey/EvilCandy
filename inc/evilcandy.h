@@ -4,8 +4,6 @@
 #ifndef EGQ_H
 #define EGQ_H
 
-#define ONLY_VM 1
-
 #include <lib/hashtable.h>
 #include <lib/helpers.h>
 #include <lib/buffer.h>
@@ -62,15 +60,6 @@ enum type_magic_t {
          */
 
         TYPE_STRPTR = NTYPES_USER,
-        /*
-         * FIXME: This causes lots of inefficient de-referencing.
-         * The problem is, floats and ints are pass-by-value.  If a
-         * dictionary's attribute is pushed onto the stack and then
-         * modified, and that attribute is float or int, the dictionary's
-         * attribute will not be truly changed.  So we have this VARPTR
-         * type, which is just a pointer to another struct var_t.
-         */
-        TYPE_VARPTR,
         TYPE_XPTR,
         NTYPES,
 };

@@ -22,8 +22,6 @@ typedefinit_intl(void)
 {
         var_config_type(TYPE_STRPTR, "[internal-use string]",
                         &strptr_primitives, no_methods);
-        var_config_type(TYPE_VARPTR, "[internal-use stack]",
-                        &no_primitives, no_methods);
         var_config_type(TYPE_XPTR, "[internal-use executable]",
                         &no_primitives, no_methods);
 }

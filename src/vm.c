@@ -213,57 +213,30 @@ RODATA_COPY(struct vmframe_t *fr, instruction_t ii)
         return var_copy(RODATA(fr, ii));
 }
 
-static struct var_t *
-pop_or_deref(struct vmframe_t *fr, bool *del)
-{
-        struct var_t *v = pop(fr);
-        if (v->magic == TYPE_VARPTR) {
-                struct var_t *tmp = v->vptr;
-                VAR_DECR_REF(v);
-                v = tmp;
-                *del = false;
-        } else {
-                *del = true;
-        }
-        return v;
-}
-
 #define binary_op_common(fr, op) do {   \
         struct var_t *lval, *rval, *res;\
-        bool rdel, ldel;                \
-        rval = pop_or_deref(fr, &rdel); \
-        lval = pop_or_deref(fr, &ldel); \
+        rval = pop(fr);                 \
+        lval = pop(fr);                 \
         res = op(lval, rval);           \
         push(fr, res);                  \
-        if (rdel)                       \
-                VAR_DECR_REF(rval);       \
-        if (ldel)                       \
-                VAR_DECR_REF(lval);       \
+        VAR_DECR_REF(rval);             \
+        VAR_DECR_REF(lval);             \
 } while (0)
 
-#define unary_op_common(fr, op) do {            \
-        struct var_t *v = pop(fr);              \
-        struct var_t *truev = v;                \
-        if (truev->magic == TYPE_VARPTR)        \
-                truev = v->vptr;                \
-        struct var_t *ret = op(truev);          \
-        push(fr, ret);                          \
-        if (truev != v)                         \
-                VAR_DECR_REF(v);                  \
+#define unary_op_common(fr, op) do {    \
+        struct var_t *v = pop(fr);      \
+        struct var_t *ret = op(v);      \
+        push(fr, ret);                  \
 } while (0)
-
-#define assign_common(fr, op) do {              \
-        struct var_t *from, *to, *res;          \
-        bool fdel;                              \
-        from = pop_or_deref(fr, &fdel);         \
-        to = pop(fr);                           \
-        bug_on(to->magic != TYPE_VARPTR);       \
-        res = op(to->vptr, from);               \
-        qop_mov(to->vptr, res);                 \
-        VAR_DECR_REF(to);                         \
-        VAR_DECR_REF(res);                        \
-        if (fdel)                               \
-                VAR_DECR_REF(from);               \
+#define assign_common(fr, op) do {      \
+        struct var_t *from, *to, *res;  \
+        from = pop(fr);                 \
+        to = pop(fr);                   \
+        res = op(to, from);             \
+        qop_mov(to, res);               \
+        VAR_DECR_REF(to);               \
+        VAR_DECR_REF(res);              \
+        VAR_DECR_REF(from);             \
 } while (0)
 
 static inline struct var_t *
@@ -317,11 +290,9 @@ do_push_const(struct vmframe_t *fr, instruction_t ii)
 static void
 do_push_ptr(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *v, *p = VARPTR(fr, ii);
-        v = var_new();
-        v->magic = TYPE_VARPTR;
-        v->vptr = p;
-        push(fr, v);
+        struct var_t *p = VARPTR(fr, ii);
+        VAR_INCR_REF(p);
+        push(fr, p);
 }
 
 static void
@@ -358,14 +329,11 @@ static void
 do_assign(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *from, *to;
-        bool fdel;
-        from = pop_or_deref(fr, &fdel);
+        from = pop(fr);
         to = pop(fr);
-        bug_on(to->magic != TYPE_VARPTR);
-        qop_mov(to->vptr, from);
+        qop_mov(to, from);
         VAR_DECR_REF(to);
-        if (fdel)
-                VAR_DECR_REF(from);
+        VAR_DECR_REF(from);
 }
 
 static void
@@ -468,7 +436,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         struct vmframe_t *fr_new;
         int narg = ii.arg2;
         bool parent = ii.arg1 == IARG_WITH_PARENT;
-        bool fdel, odel;
+        bool odel = true, fdel = true;
 
         /*
          * XXX REVISIT: This is why a (per-thread) global stack is
@@ -482,9 +450,9 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         while (narg-- > 0)
                 fr_new->stack[narg] = pop(fr);
 
-        func = pop_or_deref(fr, &fdel);
+        func = pop(fr);
         if (parent) {
-                owner = pop_or_deref(fr, &odel);
+                owner = pop(fr);
         } else {
                 odel = false;
                 owner = NULL;
@@ -492,6 +460,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
 
         function_prep_frame(func, fr_new, owner);
 
+        /* XXX: Replace this with VAR_INCR_REF where appropriate */
         if (owner == fr_new->owner)
                 odel = false;
         if (fr_new->func == func)
@@ -660,13 +629,11 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 static void
 do_b_if(struct vmframe_t *fr, instruction_t ii)
 {
-        bool vdel;
-        struct var_t *v = pop_or_deref(fr, &vdel);
+        struct var_t *v = pop(fr);
         bool cond = !qop_cmpz(v);
         if ((bool)ii.arg1 == cond)
                 fr->ppii += ii.arg2;
-        if (vdel)
-                VAR_DECR_REF(v);
+        VAR_DECR_REF(v);
 }
 
 static void
@@ -742,19 +709,16 @@ do_cmp(struct vmframe_t *fr, instruction_t ii)
                 OC_EQEQ, OC_LEQ, OC_GEQ, OC_NEQ, OC_LT, OC_GT
         };
         struct var_t *rval, *lval, *res;
-        bool rdel, ldel;
 
         bug_on(ii.arg1 >= ARRAY_SIZE(OCMAP));
 
-        rval = pop_or_deref(fr, &rdel);
-        lval = pop_or_deref(fr, &ldel);
+        rval = pop(fr);
+        lval = pop(fr);
 
         res = qop_cmp(lval, rval, OCMAP[ii.arg1]);
         push(fr, res);
-        if (rdel)
-                VAR_DECR_REF(rval);
-        if (ldel)
-                VAR_DECR_REF(lval);
+        VAR_DECR_REF(rval);
+        VAR_DECR_REF(lval);
 }
 
 static void
@@ -791,28 +755,16 @@ static void
 do_incr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
-        if (v->magic == TYPE_VARPTR) {
-                qop_incr(v->vptr);
-                VAR_DECR_REF(v);
-        } else {
-                /* shouldn't be reachable, right? */
-                breakpoint();
-                qop_incr(v);
-        }
+        qop_incr(v);
+        VAR_DECR_REF(v);
 }
 
 static void
 do_decr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
-        if (v->magic == TYPE_VARPTR) {
-                qop_decr(v->vptr);
-                VAR_DECR_REF(v);
-        } else {
-                /* shouldn't be reachable, right? */
-                breakpoint();
-                qop_decr(v);
-        }
+        qop_decr(v);
+        VAR_DECR_REF(v);
 }
 
 static void

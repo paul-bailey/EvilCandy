@@ -109,22 +109,17 @@ var_free(struct var_t *v)
 
 #endif /* !SIMPLE_ALLOC */
 
-/* Helper to var_new - initialize an empty variable */
-static struct var_t *
-var_init(struct var_t *v)
-{
-        v->magic = TYPE_EMPTY;
-        v->flags = 0;
-        return v;
-}
-
 /**
- * var_new - Get a new initialized, empty, and unattached variable
+ * var_new - Get a new empty variable
  */
 struct var_t *
 var_new(void)
 {
-        return var_init(var_alloc());
+        struct var_t *v = var_alloc();
+        /* var_alloc took care of refcount already */
+        v->magic = TYPE_EMPTY;
+        v->flags = 0;
+        return v;
 }
 
 /**
@@ -308,12 +303,6 @@ var_get_attr_by_string_l(struct var_t *v, const char *s)
 struct var_t *
 var_get_attr(struct var_t *v, struct var_t *deref)
 {
-        if (v->magic == TYPE_VARPTR)
-                v = v->vptr;
-
-        /* we should not have double pointers */
-        bug_on(v->magic == TYPE_VARPTR);
-
         switch (deref->magic) {
         case TYPE_STRPTR:
                 return attr_by_string_l(v, deref->strptr);
@@ -382,11 +371,6 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
 {
         char *attrstr = NULL;
         int idx = 0;
-        if (v->magic == TYPE_VARPTR)
-                v = v->vptr;
-
-        bug_on(v->magic == TYPE_VARPTR);
-
         switch (deref->magic) {
         case TYPE_STRPTR:
                 attrstr = deref->strptr;

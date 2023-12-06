@@ -86,9 +86,6 @@ print_rodata_str(FILE *fp, struct executable_t *ex, unsigned int i)
         case TYPE_STRPTR:
                 print_escapestr(fp, v->strptr, '"');
                 break;
-        case TYPE_VARPTR:
-                fprintf(fp, "<data-pointer>");
-                break;
         case TYPE_XPTR:
                 fprintf(fp, "<function-pointer>");
                 break;

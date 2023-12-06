@@ -305,6 +305,12 @@ extern void moduleinit_literal(void);
 /* load_file.c */
 extern void load_file(const char *filename);
 
+/* location.c */
+extern void getloc_push(unsigned int (*getloc)(const char **, void *),
+                        void *data);
+extern void getloc_pop(void);
+extern unsigned int get_location(const char **file_name);
+
 /* mempool.c */
 struct mempool_t; /* opaque data type to user */
 extern struct mempool_t *mempool_new(size_t datalen);

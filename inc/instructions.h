@@ -59,6 +59,18 @@ typedef struct {
 } instruction_t;
 
 /**
+ * struct location_t - Location of opcodes within a script, used for
+ *                     splashing error messages
+ * @line:       Line number of the start of a single-line expression
+ * @offs:       Start opcode of the instruction, an index number into
+ *              struct executable's .instr[] array.
+ */
+struct location_t {
+        unsigned int line;
+        unsigned int offs;
+};
+
+/**
  * struct executable_t - Handle to the actual execution code of a
  *                       function or a script body
  * @instr:      Opcode array
@@ -76,6 +88,10 @@ typedef struct {
  *              it.  Garbage collection will only occur if it is
  *              decremented back to zero from one.  (FIXME: Too many ways
  *              to count how this could go wrong.)  Except...
+ * @locations:  Array that matches single-line expressions with line
+ *              numbers in a script, used for splashing error messages.
+ * @n_locations: Number of locations logged, ie. number of single-line
+                expressions in this chunk of code.
  * @flags:      If FE_TOP is set, delete this after it has been executed
  *              once.  Do not delete anything it added to the symbol
  *              table, since later-executed code may use them.
@@ -91,6 +107,8 @@ struct executable_t {
         int file_line;
         struct list_t list;
         int nref;
+        struct location_t *locations;
+        int n_locations;
         unsigned flags;
 };
 

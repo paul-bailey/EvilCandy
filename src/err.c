@@ -18,12 +18,6 @@
  * Get the line number in file of the program counter,
  * for error message printing
  */
-static int
-qlineno(void)
-{
-        return 0;
-}
-
 /* helper to bug__ and breakpoint__ */
 static void
 trap(const char *what, const char *file, int line)
@@ -48,7 +42,14 @@ breakpoint__(const char *file, int line)
 static void
 syntax_msg__(const char *msg, const char *what, va_list ap)
 {
-        fprintf(stderr, "[egq] %s: ", what);
+        const char *file_name;
+        unsigned int line;
+
+        line = get_location(&file_name);
+        if (!file_name)
+                file_name = "(null)";
+
+        fprintf(stderr, "[egq] %s in file %s line %u: ", what, file_name, line);
         vfprintf(stderr, msg, ap);
         fputc('\n', stderr);
 }
@@ -77,8 +78,7 @@ fail(const char *msg, ...)
         va_list ap;
 
         fprintf(stderr,
-                "[versify] System " COLOR(RED, "ERROR")
-                " during line %d: ", qlineno());
+                "[versify] System " COLOR(RED, "ERROR") ": ");
 
         va_start(ap, msg);
         vfprintf(stderr, msg, ap);

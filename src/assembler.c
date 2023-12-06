@@ -80,6 +80,7 @@ enum {
  * @const_alloc: Bytes currently allocated for @x->rodata
  * @label_alloc: Bytes currently allocated for @x->label
  * @instr_alloc: Bytes currently allocated for @x->instr
+ * @location_alloc: Bytes currently allocated for @x->locations
  * @x:          Executable code being built up by this assembler.
  *
  * This wraps @x (the true intended result of this assembly, and will
@@ -104,6 +105,7 @@ struct as_frame_t {
         size_t const_alloc;
         size_t label_alloc;
         size_t instr_alloc;
+        size_t location_alloc;
         struct executable_t *x;
 };
 
@@ -164,6 +166,8 @@ executable_free__(struct executable_t *ex)
         }
         if (ex->label)
                 free(ex->label);
+        if (ex->locations)
+                free(ex->locations);
         list_remove(&ex->list);
         free(ex);
 }
@@ -382,6 +386,21 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
 }
 
 static void
+mark_location(struct assemble_t *a)
+{
+        unsigned int idx;
+        struct executable_t *x = a->fr->x;
+        struct location_t loc = {
+                .line = a->oc->line,
+                .offs = x->n_instr + 1,
+        };
+        as_assert_array_pos(a, x->n_locations,
+                            &x->locations, &a->fr->location_alloc);
+        idx = x->n_locations++;
+        memcpy(&x->locations[idx], &loc, sizeof(loc));
+}
+
+static void
 apush_scope(struct assemble_t *a)
 {
         struct as_frame_t *fr = a->fr;
@@ -591,6 +610,11 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                 int t = as_lex(a);
                 as_unlex(a);
                 if (t == OC_LBRACE) {
+                        /*
+                         * mark_location, because we don't call expression
+                         * for simple lambda.
+                         */
+                        mark_location(a);
                         assemble_expression(a, 0, -1);
                         as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                 } else {
@@ -1576,6 +1600,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         as_err_if(a, skip >= 0, AE_BADEOF);
                         break;
                 }
+                mark_location(a);
 
                 switch (a->oc->t) {
                 case 'u':
@@ -1807,6 +1832,17 @@ free_assembler(struct assemble_t *a, int err)
         free(a);
 }
 
+static unsigned int
+as_get_location(const char **file_name, void *h)
+{
+        struct assemble_t *a = h;
+        bug_on(!a);
+
+        if (file_name)
+                *file_name = a->file_name;
+        return a->oc->line;
+}
+
 /**
  * assemble - Convert an array of tokens into an array of pseudo-
  *            assembly instructions
@@ -1833,6 +1869,8 @@ assemble(const char *source_file_name, struct token_t *token_arr)
         int res;
 
         a = new_assembler(source_file_name, token_arr);
+
+        getloc_push(as_get_location, a);
 
         if ((res = setjmp(a->env)) != 0) {
                 const char *msg;
@@ -1881,8 +1919,7 @@ assemble(const char *source_file_name, struct token_t *token_arr)
                         msg = "Bad instruction";
                         break;
                 }
-                warning("Assembler returned error code %d (%s)", res, msg);
-                warning("near line=%d tok=%s", a->oc->line, a->oc->s);
+                syntax("Assembler returned error code %d (%s)", res, msg);
                 ex = NULL;
         } else {
                 assemble_first_pass(a);
@@ -1893,7 +1930,10 @@ assemble(const char *source_file_name, struct token_t *token_arr)
                 ex = assemble_fifth_pass(a);
         }
 
+        getloc_pop();
+
         free_assembler(a, res);
         return ex;
 }
+
 

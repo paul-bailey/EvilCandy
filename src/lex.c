@@ -21,6 +21,7 @@ static struct {
         size_t _slen; /* for getline calls */
         char *line;   /* ditto */
         FILE *fp;
+        char *filename;
         /* look up tables */
         unsigned char charmap[128];
 } lexer = {
@@ -581,6 +582,14 @@ buffer_putcode(struct buffer_t *buf, struct token_t *oc)
         buffer_putd(buf, oc, sizeof(*oc));
 }
 
+static unsigned int
+lexer_get_location(const char **file_name, void *unused)
+{
+        if (file_name)
+                *file_name = lexer.filename;
+        return lexer.lineno;
+}
+
 /*
  * XXX REVISIT: cf. assembler.c, ``as_lex'' and ``as_unlex''.  Instead of
  * prescanning the whole file, this could be done a token at a time.  It
@@ -596,7 +605,7 @@ prescan(const char *filename)
         struct buffer_t pgm;
 
         bug_on(!filename);
-        literal_put(filename);
+        lexer.filename = literal_put(filename);
 
         /*
          * For some reason, on macOS fopen is succeeding for
@@ -619,12 +628,16 @@ prescan(const char *filename)
                 goto done;
         }
 
+        getloc_push(lexer_get_location, NULL);
+
         buffer_init(&pgm);
         do {
                 t = tokenize(&oc);
                 /* yes, also stuff the EOF version */
                 buffer_putcode(&pgm, &oc);
         } while (t != EOF);
+
+        getloc_pop();
 
 done:
         fclose(lexer.fp);

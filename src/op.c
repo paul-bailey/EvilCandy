@@ -84,7 +84,7 @@ qop_sub(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->sub)
-                epermit("+");
+                epermit("-");
         p->sub(a, b);
 }
 

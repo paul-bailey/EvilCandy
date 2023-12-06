@@ -138,23 +138,143 @@ Operator Operation
 
 .. [#] The "pre-" and "post-" of preincrement and postincrement are undefined for ``evilcandy``.
 
+Expressions
+-----------
+
+An expression may be:
+
+:single-line:   *expr* ``;``
+:block:         ``{`` *expr* *expr* ... ``}``
+
+In the block case, the nested instances of *expr* must be single-line.
+Nested blocks are only pwermitted if they're part of program-flow
+statements like ``if`` or ``while``. (**TODO** I can't recall why this
+is, maybe I should support it.)
+
+Braces also define a new `Scope`_, see below.
+
+Valid single-line expressions are:
+
+=== ======================= =============================================
+1.  Empty declaration       ``let`` *identifier*
+2.  Assignment              *identifier* ``=`` *value*
+3.  Declaration + assgnment ``let`` *identifier* ``=`` *value*
+4.  Eval [#]_               *identifier* ``(`` *args* ... ``)``
+5.  Eval                    ``(`` *value* ``)``
+6.  Empty expression        *identifier*
+7.  Program flow            ``if (`` *value* ``)`` *expr*
+8.  Program flow            ``if (`` *value* ``)`` *expr* ``else`` *expr*
+9.  Program flow            ``while (`` *value* ``)`` *expr*
+10. Program flow            ``do`` *expr* ``while (`` *value* ``)``
+11. Program flow [#]_       ``for (`` *expr* ... ``)`` *expr*
+12. Return nothing          ``return``
+13. Return something        ``return`` *value*
+14. Break                   ``break``
+15. Load [#]_               ``load``
+16. Nothing [#]_
+=== ======================= =============================================
+
+.. [#] *Eval* has limitations here, see below.
+
+.. [#]
+        ``for`` loop header have the same format as C ``for`` loops:
+        expression-eval-expression, delimited by semicolons between
+        them, surrounded by parentheses.  The iteration step (part
+        3 of the header) is one of only two cases where a single-line
+        expression does not end in a semicolon; the other is with
+        EvilCandy's notation for tiny lambdas.
+
+.. [#]
+        ...if I ever get around to implementing it. And when I do,
+        ``load`` is only valid at the top level.  It may not be nested
+        within a function or a loop statement.  It *may* be within an
+        if statement, which is useful in the case of something like::
+
+                if (!__gbl__.hasattr("myclass"))
+                        load "myclass.evc";
+
+.. [#] ie. a line that's just a semicolon ``;``
+
+Value limitations
+~~~~~~~~~~~~~~~~~
+
+*value* here means "thing that can be evaluated and stored in a single
+variable", examples:
+
+* Combination of literals and identifiers::
+
+        (1 + 2) / x
+
+* Function defnition::
+
+        function() { do_something(); }
+
+* List definition::
+
+        [ "this", "is", "a", "list" ]
+
+* dict defnition::
+
+        { this: "is", a: "dictionary" }
+
+Only limited versions of these may *begin* an expression, namely cases
+4-6 in the table above: function calls with ignored return values (#4),
+expressions wrapped in parentheses (#5), and ignored empty identifiers
+(#6).  For a full range of *value* to be permitted, it has to be on the
+right-hand side of an assignment operator, as in cases 2 and 3, or
+within the parentheses of a program-flow statement, as in cases 7-11.
+
+The parentheses exception makes IIFE's possible. Some Javascript
+implementations might allow something like::
+
+        function(arg) { thing(); }(my_arg);     // :(
+
+but I do not, because no good programmer writes that way unless they're
+trying to hide something.  Instead they write::
+
+        (function(arg) { thing(); })(my_arg);   // :)
+
+Conventions make the latter case clearer that you're calling the
+anonymous function rather than just declaring it.  I merely enforce
+the better choice, at the cost of some complexity in my parser.
+
+Identifier Limitations
+~~~~~~~~~~~~~~~~~~~~~~
+
+In the declaration cases (#1 and #3 above), *identifier* must be simple;
+that is, you can type::
+
+        let x = a;      // permissible
+
+but not::
+
+        let x.y = a;    // not permissible
+
+In all other cases of *identifier* "primary elements" notation (things
+like ``this.that``, ``this['that']``, ``this(that).method[i]`` and so
+on...) is allowed.
+
 Variables
 =========
 
 Storage Class
 -------------
 
-There are three storage classes for variables
+Abstracting away how it's truly implemented, there are four storage
+classes for variables:
 
 1. *automatic* variables, those stored in what can be thought of as
    a stack.  These are destroyed by garbage collection as soon as
    program flow leaves scope.
-2. *static* variables.  All static variables are attached to an
-   existing object, either one in scope or one that is some descendant
-   of the global object __gbl__ (more on __gbl__ and friends later).
-3. *internal-access* variables, which have some quasi-visibility to
-   users.  This includes default values to optional function arguments,
-   the closest thing ``evilcandy`` has to what are known as closures.
+2. *closures*, which are analogous to function-scope ``static`` variables
+   in C, except that in EvilCandy, as with JS, there is a different one
+   for each instantiation of a function.
+3. *global* variables, which are syntactically the same thing as automatic
+   variables, except that they remain in scope forever.
+4. Variables that are attributes of another variable... an element of a
+   list or dictionary or one of any type's built-in methods.  These are
+   accessed the same way an attribute of a dictionary or list is accessed
+   (more on that below).
 
 Declaring automatic variables
 -----------------------------
@@ -299,11 +419,11 @@ since technically all of these data types have some object-like
 characteristics.
 
 A dictionary is an associative array--an array where you may de-reference
-it by enumeration instead of by index number.  It contents may be of
-various types.
+it by enumeration instead of by index number.  Unlike lists, its contents
+do not need to all be the same type.
 
-A dictionary may be declared in an initializer, using syntax very
-similar to JavaScript::
+A dictionary may be declared in an initializer, using syntax very similar
+to JavaScript::
 
         let x = {
                 thing: 1,
@@ -313,16 +433,21 @@ similar to JavaScript::
 
 or by assigning undeclared members using the dot notation::
 
+        // make sure x is defined as a dictionary
         let x = {};
 
-        // create new element 'thing'
+        // create new element 'thing' and assign it a value
         x.thing = 1;
 
         // ditto, but 'foo'
         x.foo = function() { bar(); }
 
 Once a member has been declared and initialized to a certain type, it
-may not change type again.
+may not change type again::
+
+        // THIS WILL NOT WORK!
+        x.foo = 1;
+        x.foo = "I'm a string";
 
 A dictionary may be de-referenced in one of two ways:
 1. The dot notation::
@@ -341,9 +466,16 @@ Example 3 is not recommended, nor will it be noticeably faster than
 example 1.
 
 :TODO:
-        As of 11/2023, between examples 1 and 2, 1 is quicker, because
-        of how array indexes of string types are parsed and hashed before
-        a lookup.
+        As of 11/2023, between examples 1 and 2, 1 is slightly quicker,
+        because of how attribute names are hashed during assembly and
+        because of how array indices are evaluated.
+
+You may assign an attribute to another variable::
+
+        let x = y.someattribute;
+
+In this example, if ``someattribute`` is a string, list, or object, then
+any change made to ``x`` will affect ``y.someattribute``.
 
 All dictionaries are pass-by reference.
 
@@ -445,141 +577,21 @@ string     "string"
 function   "function"
 ========== =======================
 
-Expressions
------------
-
-An expression may be:
-
-:single-line:   *expr* ``;``
-:block:         ``{`` *expr* *expr* ... ``}``
-
-In the block case, the nested instances of *expr* must be single-line.
-Nested blocks are only pwermitted if they're part of program-flow
-statements like ``if`` or ``while``. (**TODO** I can't recall why this
-is, maybe I should support it.)
-
-Braces also define a new `Scope`_, see below.
-
-Valid single-line expressions are:
-
-=== ======================= =============================================
-1.  Empty declaration       ``let`` *identifier*
-2.  Assignment              *identifier* ``=`` *value*
-3.  Declaration + assgnment ``let`` *identifier* ``=`` *value*
-4.  Eval [#]_               *identifier* ``(`` *args* ... ``)``
-5.  Eval                    ``(`` *value* ``)``
-6.  Empty expression        *identifier*
-7.  Program flow            ``if (`` *value* ``)`` *expr*
-8.  Program flow            ``if (`` *value* ``)`` *expr* ``else`` *expr*
-9.  Program flow            ``while (`` *value* ``)`` *expr*
-10. Program flow            ``do`` *expr* ``while (`` *value* ``)``
-11. Program flow [#]_       ``for (`` *expr* ... ``)`` *expr*
-12. Return nothing          ``return``
-13. Return something        ``return`` *value*
-14. Break                   ``break``
-15. Load [#]_               ``load``
-16. Nothing [#]_
-=== ======================= =============================================
-
-.. [#] *Eval* has limitations here, see below.
-
-.. [#]
-        ``for`` loop header have the same format as C ``for`` loops:
-        expression-eval-expression, delimited by semicolons between
-        them, surrounded by parentheses.  The iteration step (part
-        3 of the header) is one of only two cases where a single-line
-        expression does not end in a semicolon; the other is with
-        EvilCandy's notation for tiny lambdas.
-
-.. [#]
-        ...if I ever get around to implementing it. And when I do,
-        ``load`` is only valid at the top level.  It may not be nested
-        within a function or a loop statement.  It *may* be within an
-        if statement, which is useful in the case of something like::
-
-                if (!__gbl__.hasattr("myclass"))
-                        load "myclass.evc";
-
-.. [#] ie. a line that's just a semicolon ``;``
-
-Value limitations
-~~~~~~~~~~~~~~~~~
-
-*value* here means "thing that can be evaluated and stored in a single
-variable", examples:
-
-* Combination of literals and identifiers::
-
-        (1 + 2) / x
-
-* Function defnition::
-
-        function() { do_something(); }
-
-* List definition::
-
-        [ "this", "is", "a", "list" ]
-
-* dict defnition::
-
-        { this: "is", a: "dictionary" }
-
-Only limited versions of these may *begin* an expression, namely cases
-4-6 in the table above: function calls with ignored return values (#4),
-expressions wrapped in parentheses (#5), and ignored empty identifiers
-(#6).  For a full range of *value* to be permitted, it has to be on the
-right-hand side of an assignment operator, as in cases 2 and 3, or
-within the parentheses of a program-flow statement, as in cases 7-11.
-
-The parentheses exception makes IIFE's possible. Some Javascript
-implementations might allow something like::
-
-        function(arg) { thing(); }(my_arg);     // :(
-
-but I do not, because no good programmer writes that way unless they're
-trying to hide something.  Instead they write::
-
-        (function(arg) { thing(); })(my_arg);   // :)
-
-Conventions make the latter case clearer that you're calling the
-anonymous function rather than just declaring it.  I merely enforce
-the better choice, at the cost of some complexity in my parser.
-
-Identifier Limitations
-~~~~~~~~~~~~~~~~~~~~~~
-
-In the declaration cases (#1 and #3 above), *identifier* must be simple;
-that is, you can type::
-
-        let x = a;      // permissible
-
-but not::
-
-        let x.y = a;    // not permissible
-
-In all other cases of *identifier* "primary elements" notation (things
-like ``this.that``, ``this['that']``, ``this(that).method[i]`` and so
-on...) is allowed.
-
 Program Flow
 ============
 
 In this section, *condition* refers to a boolean truth statement.
 Since program flow requires this, let's start there...
 
-Condionals
-----------
+Conditionals
+------------
 
-There are no native Boolean types for ``evilcandy``.  (Keywords
-``true`` and ``false`` are aliases for integers with values of
-1 and 0, respectively; ``null`` evaluates to an empty variable.)
 *condition* is evaluated in one of two ways:
 
-1. Comparison between two objects:
+1. Comparison between two objects
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         *l-value* *relational-operator* *r-value*
-
-2. Comparison of an object to some concept of "true"
 
 The following relational operators are:
 
@@ -606,6 +618,13 @@ functions at all.
         comparison of objects are not supported yet, need
         to add ability to customize operators for objects.
 
+2. Comparison of an object to some concept of "true"
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There are no native Boolean types for ``evilcandy``.  Keywords
+``true`` and ``false`` are aliases for integers with values of
+1 and 0, respectively; ``null`` evaluates to an empty variable.
+
 The following conditions result in a variable by itself
 evaluating to *true*:
 
@@ -622,21 +641,20 @@ function   true always
 ========== ===============================
 
 .. [#]
-    Or to be precise, if ``fpclassify`` returns ``FP_ZERO``
+    Or to be precise, true if ``fpclassify`` does not return ``FP_ZERO``
 
 ``if`` Statement
 ~~~~~~~~~~~~~~~~
 
-An ``if`` statement follows the syntax:
+An ``if`` statement follows the syntax::
 
-        ``if`` (*condition*)
-                *expression*;
+        if (CONDITION)
+                EXPRESSION
 
 If *expression* is multi-line, it must be surrounded by braces.
 
 If condition is true, *expression* will be executed, otherwise it will
 be skipped.
-
 
 ``if`` ... ``else if`` ... ``else`` block
 -----------------------------------------
@@ -657,10 +675,10 @@ not supported here).
 ``do`` loop
 -----------
 
-The ``do`` loop is similar to C::
+The ``do`` loop takes the fomr::
 
         do
-              STATEMENT
+              EXPRESSION
         while ( CONDITION );
 
 *expression* is executed the first time always, but successive executions
@@ -669,20 +687,25 @@ depend on *condition*.
 ``while`` loop
 --------------
 
+The ``while`` loop takes the form::
+
+        while ( CONDITION )
+                EXPRESSION
+
 ``for`` loop
 ------------
 
 The ``for`` loop is similar to C.  The statement::
 
-        for ( EXPR_1; EXPR_2; EXPR_3 )
+        for ( EXPR_1; CONDITION; EXPR_2 )
                 STATEMENT
 
 is equivalent to::
 
         EXPR_1
-        while ( EXPR_2 ) {
+        while ( CONDITION ) {
                 STATEMENT
-                EXPR_3
+                EXPR_2
         }
 
 If you declare an iterator in *expr_1*, e.g.::
@@ -746,25 +769,25 @@ Variables may also be declared inside block statements, for even further
 namespace reduction::
 
         let thing = function(a, b) {
-                if (b) {
+                if (b)
                         let x = b;
-                }
 
                 // THIS WON'T WORK!!
-                let a = x;
+                let a = x;  // x no longer exists
                 ...
 
 In this example, ``x`` is only visible inside the ``if`` statement.
 
 One limitation of this is that only one automatic variable of a given
 name may exist in a given scope at any time.  Since all of a
-function's variables outside the ``if`` statement are still in scope,
-``x`` must not have already been declared::
+function's variables outside a block statement are still in scope,
+a variable newly declared inside the block must not have already been
+declared::
 
         let thing = function(a, b) {
                 if (b) {
                         // THIS WON'T WORK
-                        let a = b;
+                        let a = b; // a already exists
                         ...
 
 Function Syntax
@@ -818,11 +841,10 @@ function Io.open returns a file object upon success, and an error string
 upon failure.  If this is the case (it ought to be documented, right?),
 use the ``typeof`` builtin function to check it.
 
-:TODO: The rest of this documentation
-
-
 Closures
 --------
+
+:TODO: The rest of this documentation
 
 .. : vim: set syntax=rst :
 

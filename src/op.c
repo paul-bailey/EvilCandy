@@ -15,11 +15,10 @@
  */
 #include "token.h"
 
-static void
-epermit(const char *op)
-{
-        syntax("%s operation not permitted for this type", op);
-}
+static void epermit(const char *op)
+        { syntax("%s operation not permitted for this type", op); }
+static void econst(void)
+        { syntax("You may not assign a declared const"); }
 
 static inline const struct operator_methods_t *
 primitives_of(struct var_t *v)
@@ -216,6 +215,8 @@ qop_incr(struct var_t *v)
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->incr)
                 epermit("++");
+        if (isconst(v))
+                econst();
         p->incr(v);
 }
 
@@ -226,6 +227,8 @@ qop_decr(struct var_t *v)
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->decr)
                 epermit("--");
+        if (isconst(v))
+                econst();
         p->decr(v);
 }
 
@@ -300,8 +303,8 @@ qop_mov(struct var_t *to, struct var_t *from)
                 p->mov(to, from);
         } else {
                 bug_on(from->magic == TYPE_EMPTY);
-                if (!!(to->flags & VF_CONST))
-                        syntax("You may not assign a declared const");
+                if (isconst(to))
+                        econst();
                 p = primitives_of(to);
                 if (p->mov_strict) {
                         if (p->mov_strict(to, from) == 0)
@@ -312,17 +315,4 @@ qop_mov(struct var_t *to, struct var_t *from)
         }
         return to;
 }
-
-#if 0
-/**
- * like qop_mov, but if @to is an incompatible type,
- * it will be reset and clobbered.
- */
-void
-qop_clobber(struct var_t *to, struct var_t *from)
-{
-        var_reset(to);
-        qop_mov(to, from);
-}
-#endif
 

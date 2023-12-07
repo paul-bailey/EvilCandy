@@ -722,24 +722,24 @@ assemble_objdef(struct assemble_t *a)
         do {
                 struct token_t *name;
                 int namei;
+                bool constflag = false;
+
                 as_errlex(a, 'u');
                 name = a->oc;
                 namei = seek_or_add_const(a, name);
-                as_errlex(a, OC_COLON);
                 as_lex(a);
-
-                /* TODO: support these */
-                if (a->oc->t == OC_PRIV)
+                if (a->oc->t == OC_CONST) {
                         as_lex(a);
-                if (a->oc->t == OC_CONST)
-                        as_lex(a);
-                as_unlex(a);
+                        constflag = true;
+                }
+                as_err_if(a, a->oc->t != OC_COLON, AE_EXPECT);
                 assemble_eval(a);
                 /*
-                 * pop attr, pop array, addattr, push array
-                 * name is always constant, the only other way to
-                 * add an attribute is in function call.
+                 * FIXME: Need way to add flag for ADDATTR
+                 * Also, why not just SETATTR?
                  */
+                if (constflag)
+                        (void)constflag;
                 add_instr(a, INSTR_ADDATTR, 0, namei);
                 as_lex(a);
         } while (a->oc->t == OC_COMMA);
@@ -1174,6 +1174,64 @@ assemble_eval(struct assemble_t *a)
         as_unlex(a);
 }
 
+static void
+assemble_assign(struct assemble_t *a)
+{
+        int t = a->oc->t;
+
+        /* first check the ones that don't call assemble_eval */
+        switch (t) {
+        case OC_PLUSPLUS:
+                add_instr(a, INSTR_INCR, 0, 0);
+                break;
+
+        case OC_MINUSMINUS:
+                add_instr(a, INSTR_DECR, 0, 0);
+                break;
+
+        default:
+                assemble_eval(a);
+
+                switch (t) {
+                case OC_EQ:
+                        add_instr(a, INSTR_ASSIGN, 0, 0);
+                        break;
+                case OC_PLUSEQ:
+                        add_instr(a, INSTR_ASSIGN_ADD, 0, 0);
+                        break;
+                case OC_MINUSEQ:
+                        add_instr(a, INSTR_ASSIGN_SUB, 0, 0);
+                        break;
+                case OC_MULEQ:
+                        add_instr(a, INSTR_ASSIGN_MUL, 0, 0);
+                        break;
+                case OC_DIVEQ:
+                        add_instr(a, INSTR_ASSIGN_DIV, 0, 0);
+                        break;
+                case OC_MODEQ:
+                        add_instr(a, INSTR_ASSIGN_MOD, 0, 0);
+                        break;
+                case OC_XOREQ:
+                        add_instr(a, INSTR_ASSIGN_XOR, 0, 0);
+                        break;
+                case OC_LSEQ:
+                        add_instr(a, INSTR_ASSIGN_LS, 0, 0);
+                        break;
+                case OC_RSEQ:
+                        add_instr(a, INSTR_ASSIGN_RS, 0, 0);
+                        break;
+                case OC_OREQ:
+                        add_instr(a, INSTR_ASSIGN_OR, 0, 0);
+                        break;
+                case OC_ANDEQ:
+                        add_instr(a, INSTR_ASSIGN_AND, 0, 0);
+                        break;
+                default:
+                        bug();
+                }
+        }
+}
+
 /* FIXME: huge DRY violation w/ eval8 */
 static void
 assemble_ident_helper(struct assemble_t *a, unsigned int flags)
@@ -1192,8 +1250,19 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                 int namei;
                 struct token_t *name;
 
-                if (!!(a->oc->t & TF_ASSIGN))
-                        goto assign;
+                if (!!(a->oc->t & TF_ASSIGN)) {
+                        assemble_assign(a);
+                        goto done;
+                }
+
+                /*
+                 * FIXME: For the SETATTR cases below, I should permit
+                 * more than '=', but any of the TF_ASSIGN tokens.
+                 * Requieres a new family of instructions to parallel
+                 * the assignment instructions, ie.
+                 *      INSTR_ASSIGN_LS  <=> INSTR_SETATTR_LS
+                 * and so on..
+                 */
 
                 switch (a->oc->t) {
                 case OC_PER:
@@ -1286,61 +1355,6 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                 as_lex(a);
         }
 
-assign:
-        {
-                int t = a->oc->t;
-
-                /* first check the ones that don't call assemble_eval */
-                switch (t) {
-                case OC_PLUSPLUS:
-                        add_instr(a, INSTR_INCR, 0, 0);
-                        goto done;
-                case OC_MINUSMINUS:
-                        add_instr(a, INSTR_DECR, 0, 0);
-                        goto done;
-                }
-
-                assemble_eval(a);
-
-                switch (t) {
-                case OC_EQ:
-                        add_instr(a, INSTR_ASSIGN, 0, 0);
-                        break;
-                case OC_PLUSEQ:
-                        add_instr(a, INSTR_ASSIGN_ADD, 0, 0);
-                        break;
-                case OC_MINUSEQ:
-                        add_instr(a, INSTR_ASSIGN_SUB, 0, 0);
-                        break;
-                case OC_MULEQ:
-                        add_instr(a, INSTR_ASSIGN_MUL, 0, 0);
-                        break;
-                case OC_DIVEQ:
-                        add_instr(a, INSTR_ASSIGN_DIV, 0, 0);
-                        break;
-                case OC_MODEQ:
-                        add_instr(a, INSTR_ASSIGN_MOD, 0, 0);
-                        break;
-                case OC_XOREQ:
-                        add_instr(a, INSTR_ASSIGN_XOR, 0, 0);
-                        break;
-                case OC_LSEQ:
-                        add_instr(a, INSTR_ASSIGN_LS, 0, 0);
-                        break;
-                case OC_RSEQ:
-                        add_instr(a, INSTR_ASSIGN_RS, 0, 0);
-                        break;
-                case OC_OREQ:
-                        add_instr(a, INSTR_ASSIGN_OR, 0, 0);
-                        break;
-                case OC_ANDEQ:
-                        add_instr(a, INSTR_ASSIGN_AND, 0, 0);
-                        break;
-                default:
-                        bug();
-                }
-        }
-
 done:
         bug_on(inbal < 0);
         if (inbal)
@@ -1370,15 +1384,18 @@ static void
 assemble_let(struct assemble_t *a)
 {
         struct token_t *name;
-        bool top;
+        bool top, constflag = false;
         int namei;
-        as_errlex(a, 'u');
-        name = a->oc;
+
         as_lex(a);
         if (a->oc->t == OC_CONST) {
-                /* FIXME: I need to support this */
+                constflag = true;
                 as_lex(a);
         }
+        as_err_if(a, a->oc->t != 'u', AE_EXPECT);
+
+        name = a->oc;
+        as_lex(a);
 
         top = frame_is_top(a);
         if (top) {
@@ -1395,11 +1412,6 @@ assemble_let(struct assemble_t *a)
                  * assembly only; we know where they lie in the stack,
                  * so we can remove the names from the instruction-set
                  * altogether, and refer to them relative to AP.
-                 *
-                 * XXX REVIST: Is this a good idea?  It kills our
-                 * ability to add an interactive mode.
-                 * (no it doesn't, interactive mode 'interacts' from the
-                 * top level, see above)
                  */
                 namei = assemble_push_noinstr(a, name->s);
                 add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
@@ -1408,17 +1420,19 @@ assemble_let(struct assemble_t *a)
         switch (a->oc->t) {
         case OC_SEMI:
                 /* emtpy declaration */
+                if (constflag)
+                        warning("Assigning 'const' to an empty variable");
                 return;
         case OC_EQ:
-                if (top) {
+                if (top)
                         add_instr(a, INSTR_PUSH_PTR, IARG_PTR_SEEK, namei);
-                        assemble_eval(a);
-                        add_instr(a, INSTR_ASSIGN, 0, 0);
-                } else {
+                else
                         add_instr(a, INSTR_PUSH_PTR, IARG_PTR_AP, namei);
-                        assemble_eval(a);
+                assemble_eval(a);
+                if (constflag)
+                        add_instr(a, INSTR_ASSIGN, IARG_FLAG_CONST, 0);
+                else
                         add_instr(a, INSTR_ASSIGN, 0, 0);
-                }
                 as_errlex(a, OC_SEMI);
                 break;
         default:

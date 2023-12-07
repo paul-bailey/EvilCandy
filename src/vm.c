@@ -312,6 +312,10 @@ do_assign(struct vmframe_t *fr, instruction_t ii)
         from = pop(fr);
         to = pop(fr);
         qop_mov(to, from);
+
+        if (!!(ii.arg1 & IARG_FLAG_CONST))
+                to->flags |= VF_CONST;
+
         VAR_DECR_REF(to);
         VAR_DECR_REF(from);
 }

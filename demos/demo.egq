@@ -95,7 +95,7 @@ print("\tValues of \u03b2 will give rise to dom!");
 let s = "Be \U0001f600!";
 print("\tLength of '{}' is {}, idx#3='{}', idx#4='{}'"
       .format(s, s.len(), s[3], s[4]));
-let COLOR_RED = '\033[31m';
+let COLOR_BLUE = '\033[36m';
 let COLOR_DEF = '\033[39m';
-print("\tAm I " + COLOR_RED + 'RED' + COLOR_DEF + "???");
+print("\tAm I " + COLOR_BLUE + 'BLUE' + COLOR_DEF + "???");
 // : vim: set syntax=javascript :

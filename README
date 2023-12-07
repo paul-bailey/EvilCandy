@@ -34,11 +34,9 @@ nor the implementation is at all stable.
   converts it into byte code, then it executes the script.
 
 * None of this is thread-proof, and very little of it is reentrant-proof.
-  I've started hooks for a ``foreach`` object method, but the reentrance
-  issues need to be fleshed out before I can implement it.
 
-* Lots of recursion on the IRL stack is going on during prescan and
-  assembly, since I'm using a recursive-descent parser for that stage.
+* Lots of recursion on the IRL stack is going on during the prescan and
+  assembly stages, since I'm using a recursive-descent parser for it.
 
 * The current implementation of closures is hacky and unsatisfying.
 

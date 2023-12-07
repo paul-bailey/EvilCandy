@@ -52,6 +52,11 @@ enum {
         IARG_GT
 };
 
+/* ASSIGN enumerations */
+enum {
+        IARG_FLAG_CONST = 0x01,
+};
+
 typedef struct {
         uint8_t code;
         uint8_t arg1;  /* usually an IARG... enum */

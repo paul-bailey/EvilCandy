@@ -1459,30 +1459,39 @@ assemble_return(struct assemble_t *a)
 static void
 assemble_if(struct assemble_t *a, int skip)
 {
-        /*
-         * TODO: some way to peek for ||, for an early branch
-         * if true.
-         */
+        int true_jmpend = as_next_label(a);
         int jmpelse = as_next_label(a);
+        /*
+         * The 'if' of 'else if' is technically the start of its own
+         * expression, so we could do this recursively and more simply,
+         * but let's instead be friendlier to the stack.
+         */
+        while (a->oc->t == OC_IF) {
+                int jmpend = as_next_label(a);
+                assemble_eval(a);
+                add_instr(a, INSTR_B_IF, 0, jmpelse);
+                assemble_expression(a, 0, skip);
+                add_instr(a, INSTR_B, 0, true_jmpend);
+                as_set_label(a, jmpelse);
 
-        assemble_eval(a);
+                as_lex(a);
+                if (a->oc->t == OC_ELSE) {
+                        jmpelse = jmpend;
+                        as_lex(a);
+                } else {
+                        as_unlex(a);
+                        as_set_label(a, jmpend);
+                        goto done;
+                }
+        }
 
-        add_instr(a, INSTR_B_IF, 0, jmpelse);
-
+        /* final else */
+        as_unlex(a);
+        as_set_label(a, jmpelse);
         assemble_expression(a, 0, skip);
 
-        as_lex(a);
-        if (a->oc->t == OC_ELSE) {
-                int endif = as_next_label(a);
-                add_instr(a, INSTR_B, 0, endif);
-                as_set_label(a, jmpelse);
-                assemble_expression(a, 0, skip);
-                as_set_label(a, endif);
-        } else {
-                /* no else, jmpelse *is* our endif */
-                as_set_label(a, jmpelse);
-                as_unlex(a);
-        }
+done:
+        as_set_label(a, true_jmpend);
 }
 
 static void

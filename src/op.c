@@ -300,12 +300,14 @@ qop_mov(struct var_t *to, struct var_t *from)
                 p->mov(to, from);
         } else {
                 bug_on(from->magic == TYPE_EMPTY);
+                if (!!(to->flags & VF_CONST))
+                        syntax("You may not assign a declared const");
                 p = primitives_of(to);
                 if (p->mov_strict) {
                         if (p->mov_strict(to, from) == 0)
                                 return to;
                 }
-                syntax("MOV not permited from %s => %s",
+                syntax("ASSIGN not permited from %s => %s",
                        typestr(from), typestr(to));
         }
         return to;

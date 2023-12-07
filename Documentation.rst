@@ -31,12 +31,9 @@ is not needed.  Program flow begins at the first line of a file.
 File Encoding Requirements
 ==========================
 
-Only ASCII is allowed in the source file.  If I spoke fifty languages
-or had an international team of developers it would be different.  The
-only non-ASCII support currently provided by ``evilcandy`` is that
-string literals (see Variables_ below) may be expressed with backslash
-escapes for UTF-8 characters, using the quasi-standard C convention
-``\Uxxxxxxxx`` or ``\uxxxx``.
+Source files must be either ASCII or UTF-8.  Do not include byte order
+marks in the file.  With the exception of quoted strings (see String_)
+and Comments_, all tokens, including whitespace, must be ASCII.
 
 Syntax
 ======
@@ -55,9 +52,11 @@ them before:
 
 Be a good citizen.  Don't mix/match type 3. with 1. and 2.  I only
 included it because I want to make the hashbang syntax permissible,
-ie. having the first line be::
+ie. having the first line be:
 
-        #!/usr/bin/evilcandy
+.. code-block:: bash
+
+        #!/usr/bin/env evilcandy
 
 so that the file will execute as standard input to ``evilcandy``.
 :Note: (Using standard input for ``evilcandy`` is not supported yet.)
@@ -461,7 +460,8 @@ may not change type again::
 
 A dictionary may be de-referenced in one of two ways:
 
-1. The dot notation::
+1. The dot notation, so long as a key adheres to the rules of
+   an identifier token::
 
         let y = x.thing;
 
@@ -489,17 +489,22 @@ In this example, if ``someattribute`` is a string, list, or object, then
 any change made to ``x`` will affect ``y.someattribute``.
 
 Dictionary constructor statements may use quotes for their keys.
-This could be usefule if you want non-ASCII values in your keys,
-for example::
+This could be useful if you want keys that have non-ASCII characters
+or characters that violate the rules of identifier tokens::
 
         let mydict = {
                 a: 'The letter a',
                 '✓': 'checkmark'
         };
 
-Note, however, any non-ASCII letters in a key means that they cannot
-be accessed with dot notation; they must be accessed using the
-associative-array notation.
+Note, however, keys like this cannot be accessed with dot notation;
+they must be accessed using the associative-array notation::
+
+        // an error will be thrown...
+        let checkmark = mydict.✓;
+
+        // ...but this is okay
+        let checkmark = mydict['✓'];
 
 All dictionaries are pass-by reference.
 
@@ -549,18 +554,34 @@ Examples 2 and 3 are the clearest, but you could be even clearer
 
 This becomes especially useful for long paragraphs and such.
 
-**Important** Unlike most high-level programming languages, strings
-are pass-by-reference.  In the case::
+String literals may contain Unicode, either in UTF-8, or following
+familiar backslash conventions.  The following are all valid ways
+to express the Greek letter β:
 
-        let x = "Some string";
-        let y = x;
+================== ================
+Direct UTF-8       ``"β"``
+lowercase u escape ``"\u03b2"``
+Uppercase U escape ``"\U000003b2"``
+Hexadecimal escape ``"\xce\xb2"``
+Octal escape       ``"\316\262"``
+================== ================
 
-any modification to ``y`` will change ``x``.  To get a duplicate, use
-the builtin ``copy`` method::
+For the uppercase U escape, only Unicode values up to 10FFFF
+hexadecimal (1 114 111 decimal) are supported.
 
-        let x = "Some string";
-        let y = x.copy();
-        // y and x now have handles to separate strings.
+.. important::
+        Unlike most high-level programming languages, strings
+        are pass-by-reference.  In the case::
+
+                let x = "Some string";
+                let y = x;
+
+        any modification to ``y`` will change ``x``.  To get a duplicate, use
+        the builtin ``copy`` method::
+
+                let x = "Some string";
+                let y = x.copy();
+                // y and x now have handles to separate strings.
 
 Function
 ~~~~~~~~
@@ -607,8 +628,8 @@ Program Flow
 In this section, *condition* refers to a boolean truth statement.
 Since program flow requires this, let's start there...
 
-Conditionals
-------------
+Condition Testing
+-----------------
 
 *condition* is evaluated in one of two ways:
 
@@ -747,7 +768,9 @@ One similarity to Python does exist, however: the optional ``else``
 statement after a ``for`` loop.  In the following example (cribbed
 straight from an algorithm in the `Python.org
 <https://docs.python.org/3.12/tutorial/controlflow.html#for-statements>`_
-documentation::
+documentation:
+
+.. code-block:: js
 
         // Print prime number from 2 to 10
         for (let n = 2; n < 10; n++) {
@@ -1061,7 +1084,6 @@ Built-in Methods
 
 Built-in Methods for Dictionaries
 ---------------------------------
-
 
 Built-in Methods for Lists
 --------------------------

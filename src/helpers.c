@@ -305,8 +305,8 @@ done:
 }
 
 /*
- * fnv_hash - The FNV-1a hash algorithm, our default if user
- *              does not select their own.
+ * fnv_hash - The FNV-1a hash algorithm
+ *
  * See Wikipedia article on this.
  * It could be made into 64-bit version with different consts.
  * Users may want to make a case-less version of this, for

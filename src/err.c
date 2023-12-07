@@ -49,7 +49,7 @@ syntax_msg__(const char *msg, const char *what, va_list ap)
         if (!file_name)
                 file_name = "(null)";
 
-        fprintf(stderr, "[egq] %s in file %s line %u: ", what, file_name, line);
+        fprintf(stderr, "[EvilCandy] %s in file %s line %u: ", what, file_name, line);
         vfprintf(stderr, msg, ap);
         fputc('\n', stderr);
 }

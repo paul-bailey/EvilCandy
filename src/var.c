@@ -8,24 +8,25 @@
 
 /*
  * Variable allocation:
- *      SIMPLE_ALLOC = 1        Use stdlib's malloc() and free().
- *                              LIST_ALLOC = don't-care.
  *
- *      SIMPLE_ALLOC = 0
- *              LIST_ALLOC = 1  Use a linked list, and whenever I run out
- *                              allocate a block of them (don't keep track
- *                              of the base pointers, I'll just keep them
- *                              forever), and put them in a linked list of
- *                              available variable structs.
+ * SIMPLE_ALLOC = 1
+ *      Use stdlib's malloc() and free().
  *
- *              LIST_ALLOC = 0  Use the memblk.c API
+ * SIMPLE_ALLOC = 0
+ *      Whenever I run out of stock, allocate a block of them (don't keep
+ *      track of the base pointers, I'll just keep them forever), and put
+ *      them in a singly-linked list of available variable structs.
  *
- * 12/2023 update: With -x option set, the list method clearly is the
- * winner.  The memblk code, which seemed to do great when total vars
- * was less than 64, does NOT perform well under pressure.
+ *      Corner case: If a dictionary allocates a gazillion of these and
+ *      then frees them all when it goes out of scope, and then no one
+ *      else claims so many...
+ *              good:   we'd never have to malloc again
+ *              bad:    we'd probably be wasting RAM and swapping a lot.
+ *
+ * Don't use the memblk.c lib for this.  When the number of variables
+ * required got super high, the library got cripplingly slow.
  */
 #define SIMPLE_ALLOC 0
-#define LIST_ALLOC 1
 
 #ifndef NDEBUG
 static size_t var_nalloc = 0;

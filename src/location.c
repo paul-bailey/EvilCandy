@@ -25,7 +25,7 @@
  *
  * There may be some cases where we throw a syntax error in the
  * transitory state.  That should be a bug, because the only errors
- * we encountered them should call fail() message, not syntax().
+ * we encountered then should call fail(), not syntax().
  */
 
 #include <evilcandy.h>

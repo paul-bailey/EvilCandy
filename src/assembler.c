@@ -1527,13 +1527,18 @@ assemble_do(struct assemble_t *a)
         as_set_label(a, skip);
 }
 
+/*
+ * skip_else here is for the unusual case if break is encountered inside
+ * in the `else' of a `for...else' block, otherwise it isn't used.
+ */
 static void
-assemble_for(struct assemble_t *a)
+assemble_for(struct assemble_t *a, int skip_else)
 {
         int start = as_next_label(a);
         int then = as_next_label(a);
         int skip = as_next_label(a);
         int iter = as_next_label(a);
+        int forelse = as_next_label(a);
         as_errlex(a, OC_LPAR);
 
         /* initializer */
@@ -1548,7 +1553,7 @@ assemble_for(struct assemble_t *a)
                 as_unlex(a);
                 assemble_eval(a);
                 as_errlex(a, OC_SEMI);
-                add_instr(a, INSTR_B_IF, 0, skip);
+                add_instr(a, INSTR_B_IF, 0, forelse);
                 add_instr(a, INSTR_B, 0, then);
         }
         as_set_label(a, iter);
@@ -1557,6 +1562,14 @@ assemble_for(struct assemble_t *a)
         as_set_label(a, then);
         assemble_expression(a, 0, skip);
         add_instr(a, INSTR_B, 0, iter);
+
+        as_set_label(a, forelse);
+        as_lex(a);
+        if (a->oc->t == OC_ELSE)
+                assemble_expression(a, 0, skip_else);
+        else
+                as_unlex(a);
+
         as_set_label(a, skip);
 }
 
@@ -1660,6 +1673,12 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         break;
                 case OC_BREAK:
                         as_err_if(a, skip < 0, AE_BREAK);
+                        /*
+                         * FIXME: This appears like it would only work if
+                         * we're breaking to one level up.  But what if
+                         * we're breaking from a deeply nested if?  We
+                         * need to somehow keep track of our depth.
+                         */
                         apop_scope_instruction_only(a);
                         add_instr(a, INSTR_B, 0, skip);
                         break;
@@ -1670,7 +1689,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         assemble_while(a);
                         break;
                 case OC_FOR:
-                        assemble_for(a);
+                        assemble_for(a, skip);
                         break;
                 case OC_DO:
                         assemble_do(a);

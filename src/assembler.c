@@ -1676,10 +1676,16 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         /*
                          * FIXME: This appears like it would only work if
                          * we're breaking to one level up.  But what if
-                         * we're breaking from a deeply nested if?  We
-                         * need to somehow keep track of our depth.
+                         * we're breaking from within a deeply nested if?
+                         * We need to somehow keep track of what depth we
+                         * were at when `skip' was generated.  This
+                         * matters because local-variable declarations
+                         * might occur in the middle of a block, in which
+                         * case the stack as executed will get misaligned
+                         * from this assembler's assumptions about it.
                          */
-                        apop_scope_instruction_only(a);
+                        if (pop)
+                                apop_scope_instruction_only(a);
                         add_instr(a, INSTR_B, 0, skip);
                         break;
                 case OC_IF:

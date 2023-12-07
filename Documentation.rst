@@ -730,6 +730,25 @@ scope or you will get a multiple-declaration error.
 For those who prefer the Python-like version, use an object's
 ``foreach`` builtin method, described later.
 
+One similarity to Python does exist, however: the optional ``else``
+statement after a ``for`` loop.  In the following example (cribbed
+straight from an algorithm in the `Python.org
+<https://docs.python.org/3.12/tutorial/controlflow.html#for-statements>`_
+documentation::
+
+        // Print prime number from 2 to 10
+        for (let n = 2; n < 10; n++) {
+                for (let x = 2; x < n; x++) {
+                        if ((n % x) == 0)
+                                break;
+                } else {
+                        print("{}".format(n));
+                }
+        }
+
+the ``break`` statement escapes completely from the inner ``for`` loop;
+but if the loop continues to iterate until failure of the ``x < n`` test,
+the statement in the ``else`` block will be executed.
 
 Scope
 =====

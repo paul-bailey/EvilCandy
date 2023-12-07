@@ -8,32 +8,44 @@ EvilCandy tutorial
 **Update** December 2023.  For now, probably until end of year, this
 document is wildly out of date, since the program is changing rapidly.
 
-Reference
-=========
+.. note::
+        If you're reading the raw version of this file, you may notice
+        it uses the syntax highlighting for JavaScript everywhere.
+        This is because I do not expect Github to support anything that
+        isn't widely supported by Pygments.  But this is *cosmetic*.
+        EvilCandy and JavaScript have *fundamentally incompatible*
+        differences, which this document should clear up.
 
-.. [CITKNR]
-        Kernighan, Brian W., and Ritchie, Dennis M.,
-        *The C Programming Language: Second Edition*
-        (Upper Saddle River: Prentice Hall, 1988).
-        My arrangement of the sections below was modelled after
-        Appendix 2 in this book.
+Target Readers
+==============
+
+This document assumes you are already familiar with C, JavaScript,
+and possibly Python.  If EvilCandy is your first programming language,
+then god help you.
+
+:TODO:
+        Need to add the 'what is EvilCandy' kind of stuff: how to
+        compile? how to execute? does it have an interactive mode?
+        etc.
+
+Source File Encoding Requirements
+=================================
+
+Source files must be either ASCII or UTF-8.  Do not include byte order
+marks in the file.  With the exception of quoted strings (see String_)
+and Comments_, all tokens, including whitespace, must be ASCII.
 
 Hello World
 ===========
 
-To print a "Hello world" program::
+To print a "Hello world" program:
+
+.. code-block:: js
 
         print("Hello world");
 
 The semicolon is needed; this isn't Python.  A function definition
 is not needed.  Program flow begins at the first line of a file.
-
-File Encoding Requirements
-==========================
-
-Source files must be either ASCII or UTF-8.  Do not include byte order
-marks in the file.  With the exception of quoted strings (see String_)
-and Comments_, all tokens, including whitespace, must be ASCII.
 
 Syntax
 ======
@@ -51,18 +63,14 @@ them before:
    end of the line.
 
 Be a good citizen.  Don't mix/match type 3. with 1. and 2.  I only
-included it because I want to make the hashbang syntax permissible,
+support 3. because I want to make the shebang syntax permissible,
 ie. having the first line be:
 
 .. code-block:: bash
 
         #!/usr/bin/env evilcandy
 
-so that the file will execute as standard input to ``evilcandy``.
-:Note: (Using standard input for ``evilcandy`` is not supported yet.)
-Don't be shy about using comments, they won't slow down execution
-time, because the file will have already been pre-scanned and
-converted into byte code by the time execution begins.
+so that the file will execute itself.
 
 Tokens
 ------
@@ -79,7 +87,7 @@ Identifier Tokens
 ~~~~~~~~~~~~~~~~~
 
 Identifiers must start with a letter or an underscore ``_``.
-The remaining characters may be any combination of letters, numbers,
+The remaining characters may be any combination of ASCII letters, numbers,
 and underscores.
 
 Keyword Tokens
@@ -87,15 +95,20 @@ Keyword Tokens
 
 The following keywords are reserved for ``evilcandy``:
 
-============ ========= ==========
+:Table 1:
+
+================ ========= ==========
 Reserved Keywords
-=================================
-``function`` ``let``   ``return``
-``this``     ``break`` ``if``
-``while``    ``else``  ``do``
-``for``      ``load``  ``const``
-``private``
-============ ========= ==========
+=====================================
+``function``     ``let``   ``return``
+``this``         ``break`` ``if``
+``while``        ``else``  ``do``
+``for``          ``load``  ``const``
+``private`` [#]_ ``true``  ``false``
+``null``
+================ ========= ==========
+
+.. [#] ``private`` is unsupported, but it's reserved in case I ever do support it.
 
 Operators
 ~~~~~~~~~
@@ -103,49 +116,87 @@ Operators
 These are syntactic sugar for what would be function calls.  ``evilcandy``
 uses the following:
 
-======== =======================
-Binary Operators
---------------------------------
-Operator Operation
-======== =======================
-``+``    add, concatenation [#]_
-``-``    subtract
-``*``    multiply
-``/``    divide
-``%``    modulo (remainder)
-``&&``   logical AND
-``||``   logical OR
-``&``    bitwise AND [#]_
-``|``    bitwise OR
-``<<``   bitwise left shift
-``>>``   bitwise right shift
-``^``    bitwise XOR
-======== =======================
+:Table 2:
 
-======== =======================
-Unary Operators before var
---------------------------------
-Operator Operation
-======== =======================
-``!``    logical NOT
-``~``    bitwise NOT
-``-``    negate (multiply by -1)
-======== =======================
-
-======== =====================
-Unary Operators after var
-------------------------------
-Operator Operation
-======== =====================
-``++``   Increment by one [#]_
-``--``   Decrement by one
-======== =====================
++---------+-------------------------+
+| Operator| Operation               |
++=========+=========================+
+| *Binary Operators*                |
++---------+-------------------------+
+| ``+``   | add, concatenation [#]_ |
++---------+-------------------------+
+| ``-``   | subtract                |
++---------+-------------------------+
+| ``*``   | multiply                |
++---------+-------------------------+
+| ``/``   | divide                  |
++---------+-------------------------+
+| ``%``   | modulo (remainder)      |
++---------+-------------------------+
+| ``&&``  | logical AND             |
++---------+-------------------------+
+| ``||``  | logical OR              |
++---------+-------------------------+
+| ``&``   | bitwise AND [#]_        |
++---------+-------------------------+
+| ``|``   | bitwise OR              |
++---------+-------------------------+
+| ``<<``  | bitwise left shift      |
++---------+-------------------------+
+| ``>>``  | bitwise right shift     |
++---------+-------------------------+
+| ``^``   | bitwise XOR             |
++---------+-------------------------+
+| *Unary Operators* (before var)    |
++---------+-------------------------+
+| ``!``   | logical NOT             |
++---------+-------------------------+
+| ``~``   | bitwise NOT             |
++---------+-------------------------+
+| ``-``   | negate (multiply by -1) |
++---------+-------------------------+
+| *Unary Operators* (after var)     |
++---------+-------------------------+
+| ``++``  | Increment by one [#]_   |
++---------+-------------------------+
+| ``--``  | Decrement by one        |
++---------+-------------------------+
+| *Assignment Operators* [#]_       |
++---------+-------------------------+
+| ``=``   | lval = rval             |
++---------+-------------------------+
+| ``+=``  | lval = lval ``+`` rval  |
++---------+-------------------------+
+| ``-=``  | lval = lval ``-`` rval  |
++---------+-------------------------+
+| ``*=``  | lval = lval ``*`` rval  |
++---------+-------------------------+
+| ``/=``  | lval = lval ``/`` rval  |
++---------+-------------------------+
+| ``%=``  | lval = lval ``%`` rval  |
++---------+-------------------------+
+| ``&=``  | lval = lval ``&`` rval  |
++---------+-------------------------+
+| ``|=``  | lval = lval ``|`` rval  |
++---------+-------------------------+
+| ``<<=`` | lval = lval ``<<`` rval |
++---------+-------------------------+
+| ``>>=`` | lval = lval ``>>`` rval |
++---------+-------------------------+
+| ``^=``  | lval = lval ``^`` rval  |
++---------+-------------------------+
 
 .. [#] For string data types, the plus operator concatenates the two strings.
 
 .. [#] Bitwise operators are only valid when operating on integers.
 
 .. [#] The "pre-" and "post-" of preincrement and postincrement are undefined for ``evilcandy``.
+
+.. [#]
+        Although an expression of the form ``lval OP= rval`` is
+        syntactically equivalent to ``lval = lval OP rval``, the former
+        is slightly faster in EvilCandy due to the way it operates the
+        stack..
 
 Expressions
 -----------
@@ -163,6 +214,8 @@ is, maybe I should support it.)
 Braces also define a new `Scope`_, see below.
 
 Valid single-line expressions are:
+
+:Table 3:
 
 === ======================== =============================================
 1.  Empty declaration        ``let`` *identifier*
@@ -210,52 +263,84 @@ Value limitations
 *value* here means "thing that can be evaluated and stored in a single
 variable", examples:
 
-* Combination of literals and identifiers::
+* Combination of literals and identifiers:
+
+.. code-block:: js
 
         (1 + 2) / x
 
-* Function definition::
+* Function definition [#]_:
 
-        function() { do_something(); }
+.. code-block:: js
 
-* List definition::
+        function() {
+                do_something();
+        }
+
+* List definition:
+
+.. code-block:: js
 
         [ "this", "is", "a", "list" ]
 
-* dict definition::
+* dict definition:
 
-        { this: "is", a: "dictionary" }
+.. code-block:: js
+
+        {
+                this: "is",
+                a: "dictionary"
+        }
+
+.. [#]
+        The "single variable" this evaluates to is a callable handle to
+        the Function_.
 
 Only limited versions of these may *begin* an expression, namely cases
-4-6 in the table above: function calls with ignored return values (#4),
+4-6 in Table 3: function calls with ignored return values (#4),
 expressions wrapped in parentheses (#5), and ignored empty identifiers
 (#6).  For a full range of *value* to be permitted, it has to be on the
 right-hand side of an assignment operator, as in cases 2 and 3, or
 within the parentheses of a program-flow statement, as in cases 7-11.
 
 The parentheses exception makes IIFE's possible. Some Javascript
-implementations might allow something like::
+implementations might allow something like:
 
-        function(arg) { thing(); }(my_arg);     // :(
+.. code-block:: js
+
+        // bad style :(
+        function(arg) {
+                thing();
+        }(my_arg);
 
 but I do not, because no good programmer writes that way unless they're
-trying to hide something.  Instead they write::
+trying to hide something.  Instead they write:
 
-        (function(arg) { thing(); })(my_arg);   // :)
+.. code-block:: js
 
-Conventions make the latter case clearer that you're calling the
-anonymous function rather than just declaring it.  I merely enforce
-the better choice, at the cost of some complexity in my parser.
+        // better style :)
+        (function(arg) {
+                thing();
+        })(my_arg);
+
+It's only because of convention, but still the latter case makes clearer
+that you're calling the anonymous function rather than just declaring it.
+I merely enforce the better choice, at the cost of some complexity in my
+parser.
 
 Identifier Limitations
 ~~~~~~~~~~~~~~~~~~~~~~
 
-In the declaration cases (#1 and #3 above), *identifier* must be simple;
-that is, you can type::
+In the declaration cases (#1 and #3 in Table 3), *identifier* must be simple;
+that is, you can type:
+
+.. code-block:: js
 
         let x = a;      // permissible
 
-but not::
+but not:
+
+.. code-block:: js
 
         let x.y = a;    // not permissible
 
@@ -288,9 +373,14 @@ classes for variables:
 Declaring automatic variables
 -----------------------------
 
-All automatic variables must be declared with the ``let`` keyword::
+All automatic variables and global variable (type 3 above, not type 4)
+must be declared with the ``let`` keyword:
+
+.. code-block:: js
 
         let x;
+
+The JavaScript ``var`` keyword does not exist in EvilCandy.
 
 Types of Variables
 ------------------
@@ -314,21 +404,27 @@ There are no "pointers" in ``evilcandy``.  Instead we use the abstract
 concept of a "handle" when discussing pass-by-reference variables.
 Handles' *contents* may be modified, but the handles themselves
 may not; they may be only assigned.  For example, given a function
-handle assignment::
+handle assignment:
+
+.. code-block:: js
 
         let foo = function() { bar(); }
 
-then the following will result in errors::
+then the following will result in errors:
+
+.. code-block:: js
 
         foo++;
 
-::
+.. code-block:: js
 
         foo = foo + bar;
 
 The only time variables may be assigned using something of a different
 type is when the l-value and r-value are both integers or floats.
-For example::
+For example:
+
+.. code-block:: js
 
         let x = 1;      // integer
         let y = 1.4;    // float
@@ -353,7 +449,7 @@ Floats
 ~~~~~~
 
 These may be expressed as per the C convention, except that suffixes
-like the ``f`` of ``0f`` are not allowed.  The number 12.0 may be
+like the ``f`` of ``lf`` are not allowed.  The number 12.0 may be
 expressed, for example, as ``12.0``, ``12.``, ``12e1``, ``1.2e2``,
 and so on.
 
@@ -362,11 +458,6 @@ numbers.  Floats are pass-by value always.
 
 Lists
 ~~~~~
-
-
-:TODO:
-        As of 11/2022 I'm working on an object lib for more
-        efficient data arrays
 
 Lists are rudimentary forms of numerical arrays.  These are **not**
 efficient at managing large amounts of data.
@@ -380,11 +471,15 @@ There are two main differences:
 2. Lists do not have associative indexes; ie may only be de-referenced
    numerically.
 
-Set an existing member of a list using the square-bracket notation::
+Set an existing member of a list using the square-bracket notation:
+
+.. code-block:: js
 
         x[3] = 2;
 
-De-reference lists with the same kind of notation::
+De-reference lists with the same kind of notation:
+
+.. code-block:: js
 
         y = x[3];
 
@@ -392,32 +487,23 @@ In the above example, ``3`` may be a variable, but the variable type
 **must** be an integer.  It may not be floating point or string.
 
 Declare a list with multiple entries with commas between them,
-like so::
+like so:
+
+.. code-block:: js
 
         let x = [1, 4, 2];
 
 Do **not** place a comma after the last variable.
 
-Lists are pass-by reference.  In the example::
+Lists are pass-by reference.  In the example:
+
+.. code-block:: js
 
         let x = [1, 3, 4];
         let y = x;
         y[0] = 0;
 
 The last line will change the contents of ``x`` as well as ``y``.
-
-:TODO:
-        I'm working on a .copy callback for something like let y=x.copy;
-
-:Note:
-        In the source code the prefix ``array_`` is used in a lot of
-        the functions.  This is unfortunate, because I intend "array" to
-        mean a certain type of built-in library object that deals better
-        with large quantities of data.  But "list" has a different
-        meaning in C, and ``evilcandy`` contains some functionality dedicated
-        to linked-list management, and I didn't want to confuse the two
-        groups of functions.
-
 
 Dictionaries
 ~~~~~~~~~~~~
@@ -432,7 +518,9 @@ it by enumeration instead of by index number.  Unlike lists, its contents
 do not need to all be the same type.
 
 A dictionary may be declared in an initializer, using syntax very similar
-to JavaScript::
+to JavaScript:
+
+.. code-block:: js
 
         let x = {
                 thing: 1,
@@ -440,7 +528,9 @@ to JavaScript::
                 // note, no comma after above last element
         };
 
-or by assigning undeclared members using the dot notation::
+or by assigning undeclared members using the dot notation:
+
+.. code-block:: js
 
         // make sure x is defined as a dictionary
         let x = {};
@@ -452,7 +542,9 @@ or by assigning undeclared members using the dot notation::
         x.foo = function() { bar(); }
 
 Once a member has been declared and initialized to a certain type, it
-may not change type again::
+may not change type again:
+
+.. code-block:: js
 
         // THIS WILL NOT WORK!
         x.foo = 1;
@@ -461,27 +553,36 @@ may not change type again::
 A dictionary may be de-referenced in one of two ways:
 
 1. The dot notation, so long as a key adheres to the rules of
-   an identifier token::
+   an identifier token:
+
+.. code-block:: js
 
         let y = x.thing;
 
-2. Associative-array notation::
+2. Associative-array notation:
+
+.. code-block:: js
 
         let y = x["thing"];
 
-3. Numerical-array notation::
+3. Numerical-array notation:
+
+.. code-block:: js
 
         let y = x[2];
 
 Example 3 is not recommended, nor will it be noticeably faster than
 example 1.
 
-:TODO:
-        As of 11/2023, between examples 1 and 2, 1 is slightly quicker,
-        because of how attribute names are hashed during assembly and
-        because of how array indices are evaluated.
+.. note::
+        Example 1 is slightly faster than example 2, because array
+        indexes are evaluated at runtime, even when they're expressed as
+        literals, while identifers are pre-hashed during assembly.  But
+        the difference is hardly noticeable.
 
-You may assign an attribute to another variable::
+You may assign an attribute to another variable:
+
+.. code-block:: js
 
         let x = y.someattribute;
 
@@ -490,7 +591,9 @@ any change made to ``x`` will affect ``y.someattribute``.
 
 Dictionary constructor statements may use quotes for their keys.
 This could be useful if you want keys that have non-ASCII characters
-or characters that violate the rules of identifier tokens::
+or characters that violate the rules of identifier tokens:
+
+.. code-block:: js
 
         let mydict = {
                 a: 'The letter a',
@@ -498,7 +601,9 @@ or characters that violate the rules of identifier tokens::
         };
 
 Note, however, keys like this cannot be accessed with dot notation;
-they must be accessed using the associative-array notation::
+they must be accessed using the associative-array notation:
+
+.. code-block:: js
 
         // an error will be thrown...
         let checkmark = mydict.✓;
@@ -517,7 +622,9 @@ escapes are recognized (**although** I do not yet support Unicode),
 so you can escape an internal quote with ``\"``.  Or if your string
 literal does not have both kinds of quotes in it, you could simply escape
 it by using the other kind of quote.  The following two strings evaluate
-the same way::
+the same way:
+
+.. code-block:: js
 
         "This is a \"string\""
         'This is a "string"'
@@ -526,33 +633,30 @@ Strings behave a litter weird around line endings.  The following
 examples will all parse identically (save for how the line number
 is saved for error dumps):
 
-Ex 1::
+.. code-block:: js
 
         "A two-line
         string"
 
-Ex 2::
-
         "A two-line\nstring"
-
-Ex 3::
 
         "A two-line\n\
         string"
-
-Ex 4::
 
         "A \
         two-line
         string"
 
 Examples 2 and 3 are the clearest, but you could be even clearer
-(at the expense of some functional overhead) with::
+(at the expense of some functional overhead) with:
+
+.. code-block:: js
 
         [ "A two-line",
           "string" ].join("\n")
 
-This becomes especially useful for long paragraphs and such.
+...at least it would be clearer in the case of long paragraphs
+and such.
 
 String literals may contain Unicode, either in UTF-8, or following
 familiar backslash conventions.  The following are all valid ways
@@ -589,12 +693,16 @@ Function
 A function executes code and returns either a value or an empty variable.
 
 In ``evilcandy``, **all functions are anonymous**.
-The familiar JavaScript notation::
+The familiar JavaScript notation:
+
+.. code-block:: js
 
         function foo() {...
 
 will **not** work.  Instead declare a function by assigning it to a
-variable::
+variable:
+
+.. code-block:: js
 
         let foo = function() {...
 
@@ -606,7 +714,7 @@ The ``typeof`` Builtin Function
 
 Since things like ``x = y`` for ``x`` and ``y`` of different
 types can cause syntax errors (which currently causes the program
-to panic and exit() -PB 11/22), a variable can have its type checked
+to panic and exit() -PB 11/23), a variable can have its type checked
 using the builtin ``typeof`` function.  This returns a value type
 string.  Depending on the type, it will be one of the following:
 
@@ -636,14 +744,14 @@ Condition Testing
 1. Comparison between two objects
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        *l-value* *relational-operator* *r-value*
+        *l-value* OPERATOR *r-value*
 
-The following relational operators are:
+The relational operators are:
 
 ======== ========================
 Operator Meaning
 ======== ========================
-==       Equals [#]_
+==       Equals [#]_ [#]_
 <=       Less than or equal to
 >=       Greater than or equal to
 !=       Not equal to
@@ -659,6 +767,10 @@ functions at all.
     match, ie. the ``==`` operator between two strings is the opposite
     result of C's ``strcmp`` function.
 
+.. [#]
+    EvilCandy does not support the ``===`` operator, which is familiar
+    to JavaScript programmers.
+
 :TODO:
         comparison of objects are not supported yet, need
         to add ability to customize operators for objects.
@@ -670,23 +782,20 @@ There are no native Boolean types for ``evilcandy``.  Keywords
 ``true`` and ``false`` are aliases for integers with values of
 1 and 0, respectively; ``null`` evaluates to an empty variable.
 
-The following conditions result in a variable by itself
+The following conditions result in a variable
 evaluating to *true*:
 
-========== ===============================
+========== ==========================================
 Type       Condition
-========== ===============================
+========== ==========================================
 empty      false always
 integer    != 0
-float      != 0.0 [#]_
+float      ``fpclassify`` does not return ``FP_ZERO``
 list       true always
 dictionary true always
 string     true if not the empty "" string
 function   true always
-========== ===============================
-
-.. [#]
-    Or to be precise, true if ``fpclassify`` does not return ``FP_ZERO``
+========== ==========================================
 
 ``if`` Statement
 ~~~~~~~~~~~~~~~~
@@ -753,7 +862,9 @@ is equivalent to::
                 EXPR_2
         }
 
-If you declare an iterator in *expr_1*, e.g.::
+If you declare an iterator in *expr_1*, e.g.:
+
+.. code-block:: js
 
         for (let i=0; i < n; i++) {...
 
@@ -832,7 +943,9 @@ always get the right one.
     noticeable difference.
 
 Variables may also be declared inside block statements, for even further
-namespace reduction::
+namespace reduction:
+
+.. code-block:: js
 
         let thing = function(a, b) {
                 if (b)
@@ -845,15 +958,37 @@ namespace reduction::
 In this example, ``x`` is only visible inside the ``if`` statement.
 
 One limitation of this is that only one automatic variable of a given
-name may exist in a given scope at any time.  Since all of a
-function's variables outside a block statement are still in scope,
-a variable newly declared inside the block must not have already been
-declared::
+name may exist in a given scope, up to the function level, at any time.
+That is, a local variable may take precedence over a global variable
+of the same name, but a local variable in a block statement may not
+override a variable in the containing function.
 
-        let thing = function(a, b) {
+So while this will work:
+
+.. code-block:: js
+
+        // at the global level
+        let a = 1;
+
+        let thing = function(b) {
+                if (b) {
+                        // local a takes precedence over global a
+                        let a = 2;
+                        ...
+                } else {
+                        // local a left scope and may be re-declared
+                        let a = 3;
+                        ...
+
+this will not:
+
+.. code-block:: js
+
+        let thing = function(b) {
+                let a = 1;
                 if (b) {
                         // THIS WON'T WORK
-                        let a = b; // a already exists
+                        let a = 2; // local a still in scope
                         ...
 
 Function Syntax
@@ -871,7 +1006,9 @@ Function definitions take the form::
 (it's just good practice), but EvilCandy does not enforce that.
 
 *args* is a group of identifiers, delimited by commas, which will be
-used to identify the caller's parameters, e.g.::
+used to identify the caller's parameters, e.g.:
+
+.. code-block:: js
 
         function(x, y, z)
 
@@ -880,45 +1017,51 @@ An *optional argument* may be designated as::
         ARG = DEFAULT
 
 where *default* is an expression that evaluates to a default value for
-the argument should one not be provided by the caller, e.g.::
+the argument should one not be provided by the caller, e.g.:
+
+.. code-block:: js
 
         function(a, b, c="Hello", d=12.5)
 
-Do not be misled by the "a=b" syntax of parameter definitions.  **The
-order in which arguments are passed always matters.**  For that reason,
-it makes no sense to place the optional arguments at the front of the
-argument list.
+Do not be misled by the "a=b" syntax of parameter definitions. These
+are not "keyword arguments".  **The order in which arguments are passed
+always matters.**  For that reason, it makes no sense to place the
+optional arguments at the front of the argument list.
 
 Function Call Syntax
 --------------------
 
-The number of functions provided must be at least as many as the number
-of arguments defined in the function definition up to the last mandatory
-argument defined.  More arguments may be provided than are defined,
-in which case they'll be ignored and the caller would have wasted compute
-cycles...
+The number of arguments provided must be at least as many as the number
+of parameters defined in the function definition up to the last mandatory
+argument defined--that is, the right-most parameter that does not have a
+default value.  No error will be thrown in the case of excess arguments,
+however it will result in wasted stack space.
 
 The arguments are not type-checked.  If the wrong type was provided to
-the function, that will be discovered soon enough while the function
-itself is executing.
+the function, that will likely be discovered soon enough while the
+function itself is executing.
 
 A function may not always return the same type.  For example, the builtin
-function Io.open returns a file object upon success, and an error string
-upon failure.  If this is the case (it ought to be documented, right?),
-use the ``typeof`` builtin function to check it.
+function ``Io.open`` returns a file object upon success, and an error
+string upon failure.  If this is the case (it ought to be documented,
+right?), use the ``typeof`` builtin function to check it.
 
 Callable Dictionaries
 ---------------------
 
 A dictionary can be called like a function if it has an attribute
-named ``__callable__``
+named ``__callable__`` which evaluates to a function handle.
 
-For example, given the dictionary::
+For example, given the dictionary:
+
+.. code-block:: js
 
         let mydict = {
                 a: 1,
                 b: 3,
-                __callable__: function () { foo(this.a, this.b); }
+                __callable__: function () {
+                        foo(this.a, this.b);
+                }
         };
 
 then a call to ``mydict()`` is equivalent to calling
@@ -930,16 +1073,20 @@ Lambda Functions
 
 Normal function notation may be used for lambda functions, but if you
 want to be cute and brief, special notation exists for lambdas in
-EvilCandy, best shown in the example::
+EvilCandy, most easily shown by example:
+
+.. code-block:: js
 
     let multer = function(n) {
-        return ``(x) x * n``;
+            return ``(x) x * n``;
     };
 
-This is equivalent to::
+This is equivalent to:
+
+.. code-block:: js
 
     let multer = function(n) {
-        return function(x) { return x * n; };
+            return function(x) { return x * n; };
     };
 
 (Note: the out-of-scope use of ``n`` is explained in Closures_ below).
@@ -953,12 +1100,14 @@ for a very small function.  The general form is::
 
 where *expr* is only an evaluation, with no assignments or ``return``
 statement.  It does not end with a semicolon, and it is only a single
-statement.  To use a multiline lambda, braces are required and
-``return`` is required to return a value... in which case you might
-as well have used regular function notation after all.  (The ``````
-token is hard to spot over more than one line.)
+statement.  To use a multiline lambda, you must add in the braces and
+``return`` statement... in which case you are better off using the
+regular function notation; the `````` token is hard to spot over more
+than one line.
 
-Lambdas are useful in the way they create new functions, for example::
+Lambdas are useful in the way they create new functions, for example:
+
+.. code-block:: js
 
         let multer = function(n) {
                 return ``(x) x * n``;
@@ -987,7 +1136,7 @@ Closures
 In the previous section `Lambda Functions`_, the lambda function used
 a variable ``n`` that was in its parent function scope.  This variable
 will now persist until the return value (``doubler`` or ``tripler``
-in the example) are deleted.  This is known as a *closure*.  Because
+in the example) is deleted.  This is known as a *closure*.  Because
 it is evaluated at the time of the function's creation, it can be
 unique for each instantiation (note that ``doubler`` and ``tripler``
 maintain their own values of ``n``).
@@ -996,7 +1145,9 @@ Implicit Closure Declaration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 To implicitly declare a closure, simply reference a variable in the
-parent function's [#]_ scope, as in the ``multer`` example::
+parent function's [#]_ scope, as in the ``multer`` example:
+
+.. code-block:: js
 
         let multer = function(n) {
                 return ``(x) x * n``;
@@ -1007,9 +1158,11 @@ parent function's [#]_ scope, as in the ``multer`` example::
         recommended.
 
 Note, however, that if the function is not nested, then a closure
-will not be created.  In the example::
+will not be created.  In the example:
 
-        # this is the global scope
+.. code-block:: js
+
+        // this is the global scope
         let n = 0;
         let foo = function() {
                 bar(n);
@@ -1026,20 +1179,29 @@ the syntax::
 
         : NAME = VALUE
 
-To use the ``multer`` example again::
+To use the ``multer`` example again:
+
+.. code-block:: js
 
         let multer = function(n) {
                 return ``(x, :a=n) x * a``;
         };
 
-Here, the ``a`` of ``:a=n`` is the name of the parameter (which could,
-incidentally, also be called ``n`` for consistency), and ``n`` is the
-value to set it to.
+Here, the ``a`` of ``:a=n`` is the name given to the parameter,
+and ``n`` is the value to set it to [#]_.
 
 This is **not** an argument to the function!  Unlike with default
 arguments, this value cannot be overridden by a caller's own argument,
-nor does it shift the placement of the actual arguments (though for
-readability, it's still best to place their declarations at the end).
+nor does it shift the placement of the actual arguments.
+For the sake of readability, however, placing explicit closure
+declarations like this at the end of the parameter list is
+good practice.
+
+.. [#]
+        Since it will be in a new scope, you could also reuse the
+        name n for consistency, thus the declaration would be
+        ``:n=n``.  I renamed it ``a`` in the example to be clearer
+        what's going on.
 
 Closure Persistence Nuances
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1049,7 +1211,9 @@ I rarely (actually never) see it in other programming languages.
 
 The two following examples are **not** equivalent:
 
-Ex 1::
+Ex 1:
+
+.. code-block:: js
 
         // nested inside of some function
         let hello = "Hello";
@@ -1058,7 +1222,9 @@ Ex 1::
                 bar(a + " world");
         }
 
-Ex 2::
+Ex 2:
+
+.. code-block:: js
 
         let hello = "Hello";
         ...
@@ -1069,15 +1235,16 @@ Ex 2::
 
 In the former example:
         A closure will be created for the return value of ``hello.copy()``.
-        Even if ``hello`` changes, every call to ``world`` will have
+        Even if ``hello`` changes, every call to ``world()`` will have
         predictable results.
 
 In the latter example:
-        A closure will be created for ``hello`` only.  So if the ``hello``
-        changes value even after ``world`` is created, then later calls
-        to ``world()`` will have undesired results.  This is not a problem
-        for floats and integers, which are pass-by-value.  This is mainly
-        an issue for strings.
+        The ``copy()`` method will be called every time ``world`` is
+        called, because a closure will be created for ``hello`` only.
+        So if the outer ``hello`` changes value even after ``world`` is
+        created, then later calls to ``world()`` will have unpredictable
+        results.  This is a problem particularly for pass-by-reference
+        types like strings and dictionaries, not for integers and floats.
 
 Built-in Methods
 ================

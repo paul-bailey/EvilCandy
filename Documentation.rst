@@ -5,6 +5,10 @@ EvilCandy tutorial
 :Author: Paul Bailey
 :Date: November 2023
 
+.. sectnum::
+
+.. contents::
+
 **Update** December 2023.  For now, probably until end of year, this
 document is wildly out of date, since the program is changing rapidly.
 
@@ -16,12 +20,18 @@ document is wildly out of date, since the program is changing rapidly.
         EvilCandy and JavaScript have *fundamentally incompatible*
         differences, which this document should clear up.
 
-Target Readers
-==============
+Introduction
+============
+
+Intended Reader
+---------------
 
 This document assumes you are already familiar with C, JavaScript,
 and possibly Python.  If EvilCandy is your first programming language,
 then god help you.
+
+Running EvilCandy
+-----------------
 
 :TODO:
         Need to add the 'what is EvilCandy' kind of stuff: how to
@@ -29,23 +39,26 @@ then god help you.
         etc.
 
 Source File Encoding Requirements
-=================================
+---------------------------------
 
 Source files must be either ASCII or UTF-8.  Do not include byte order
 marks in the file.  With the exception of quoted strings (see String_)
 and Comments_, all tokens, including whitespace, must be ASCII.
 
 Hello World
-===========
+-----------
 
-To print a "Hello world" program:
+In EvilCandy, a "Hello world" program is the following line:
 
 .. code-block:: js
 
         print("Hello world");
 
-The semicolon is needed; this isn't Python.  A function definition
-is not needed.  Program flow begins at the first line of a file.
+The semicolon is needed; it marks the end of the expression.
+EvilCandy does not look for a function called ``main``.
+It executes expressions in the order they are written,
+at the top level of the file.  (A function definition is a
+kind of partial expression, more on that in Expressions_).
 
 Syntax
 ======
@@ -62,9 +75,9 @@ them before:
 3. Single-line comments, beginning with ``#`` and ending with the
    end of the line.
 
-Be a good citizen.  Don't mix/match type 3. with 1. and 2.  I only
-support 3. because I want to make the shebang syntax permissible,
-ie. having the first line be:
+Be a good citizen.  Don't mix/match type 3. with 1. and 2.  I support 3.
+only because I want to make the shebang syntax permissible, ie. having
+the first line be:
 
 .. code-block:: bash
 
@@ -75,13 +88,25 @@ so that the file will execute itself.
 Tokens
 ------
 
-``evilcandy`` classifies its tokens largely the same way as anyone else does:
+EvilCandy classifies its tokens largely the same way as anyone else does:
 whitespace, identifiers, keywords, constants like quoted strings or
 numerical expressions, operators, and other separators and delimiters.
-Whitespace is ignored, except wherever at least one whitespace
-character is needed to delimit two tokens.  (In particular, always leave
-whitespace in between identifiers, numerical expressions, and string
-literals.)
+
+Whitespace Tokens
+~~~~~~~~~~~~~~~~~
+
+The whitespace characters are space, horizontal tab, vertical tab,
+form-feed, newline, and carriage return.  Do not use non-ASCII whitespace.
+
+EvilCandy ignores whitespace, with two exceptions:
+
+1. The newline character ``\n`` is accounted for, to facilitate error
+   reporting (it's nice to know the line number where a program failed).
+
+2. Some tokens require whitespace to delimit them from each other.
+   In particular, numbers and identifiers which must be adjacent to
+   each other must also have at least one whitespace character to
+   delimit them.
 
 Identifier Tokens
 ~~~~~~~~~~~~~~~~~
@@ -89,13 +114,124 @@ Identifier Tokens
 Identifiers must start with a letter or an underscore ``_``.
 The remaining characters may be any combination of ASCII letters, numbers,
 and underscores.
+All identifiers in EvilCandy are case-sensitive.
+
+String Literal Tokens
+~~~~~~~~~~~~~~~~~~~~~
+
+String literals are wrapped by either single or double quotes.  If the quote
+must contain the quotation mark, you may either backslash-escape it, or
+use the alternative quote.  The following two lines will be interpreted
+exactly the same way:
+
+.. code-block:: js
+
+        "This is a \"string\""
+        'This is a "string"'
+
+Strings behave peculiarly around line endings.  The following
+examples will all be interpreted identically (except for the manner
+in which the line number is saved for error dumps):
+
+.. code-block:: js
+
+        "A two-line
+        string"
+
+        "A two-line\n\
+        string"
+
+        "A two-line\nstring"
+
+        "A \
+        two-line
+        string"
+
+String literals may contain Unicode characters, either encoded in
+UTF-8, or as ASCII representations using familiar backslash
+conventions.  The following are all valid ways to express the Greek
+letter β:
+
+================== ================
+Direct UTF-8       ``"β"``
+lowercase u escape ``"\u03b2"``
+Uppercase U escape ``"\U000003b2"``
+Hexadecimal escape ``"\xCE\xB2"``
+Octal escape       ``"\316\262"``
+================== ================
+
+For the ``u`` and ``U`` escape, EvilCandy will encode the character as
+UTF-8 internally.  Only Unicode values that may be encoded into UTF-8
+(up to 10FFFF hexadecimal, or 1 114 111 decimal) are supported.
+
+The following additional (hopefully familiar) backslash escapes are
+supported.
+
+======== ==============================================
+Escape   Meaning
+-------- ----------------------------------------------
+``"\n"`` newline (ASCII 10)
+``"\r"`` carriage return (ASCII 13)
+``"\t"`` tab (ASCII 9)
+``"\\"`` prevent backslash from escaping next character
+======== ==============================================
+
+EvilCandy doesn't support backslash escapes for things like '\\a' for bel
+(this isn't 1978), or '\\e' for escape (everyone knows '\\033').
+
+Numerical Tokens
+~~~~~~~~~~~~~~~~
+
+EvilCandy interprets two kinds of numbers--integer and float.
+See Integers_ and Floats_ how these are stored internally.
+
+Literal expressions of these numbers follow the convention used by C.
+
+Numerical suffixes are unsupported.
+Write ``12``, not ``12ul``; write ``12.0``, not ``12f``.
+
+The following table demonstrates various ways to express the number 12:
+
+=========== ===========================
+**integer expressions**
+---------------------------------------
+Decimal     ``12``
+Hexadecimal ``0x12``
+Octal       ``014``
+Binary      ``0b1100``
+----------- ---------------------------
+**float expressions**
+---------------------------------------
+Decimal     ``12.``, ``12.000``, *etc.*
+Exponential ``12e1``, ``1.2e2``, *etc.*
+=========== ===========================
+
+Specific rules of numerical interpretation:
+ * A prefix of '0x' or '0X' indicates a number in base 16 (hexadecimal),
+   and it will be interpreted as an integer.
+ * A prefix of '0b' or '0B' indicates a number in base 2 (binary),
+   and it will be interpreted as an integer.
+ * A number that has a period or an 'E' or 'e' at a position appropriate
+   for an exponent indicates a base 10 float.
+ * A number beginning with a '0' otherwise indicates a base 8 (octal)
+   number, and it will be interpreted as an integer.
+ * The remaining valid numerical representations--those begining with
+   '1' through '9' and continuing with '0' through '9'--indicate a base 10
+   (decimal) number, and they will be interpreted as an integer.
+
+
+.. note::
+        As of 12/2023, EvilCandy's assembler does not optimize compound
+        statements that happen to be all literals.  ``1+2`` will be
+        interpreted as two separate tokens, and the addition will be
+        performed on them in the byte code at execution time.
 
 Keyword Tokens
 ~~~~~~~~~~~~~~
 
-The following keywords are reserved for ``evilcandy``:
+The following keywords are reserved for EvilCandy:
 
-:Table 1:
+**Table 1**
 
 ================ ========= ==========
 Reserved Keywords
@@ -110,13 +246,15 @@ Reserved Keywords
 
 .. [#] ``private`` is unsupported, but it's reserved in case I ever do support it.
 
+All keywords in EvilCandy are case-sensitive
+
 Operators
 ~~~~~~~~~
 
-These are syntactic sugar for what would be function calls.  ``evilcandy``
-uses the following:
+Besides *relational operators*, which will be discussed in `Program Flow`_,
+EvilCandy uses the following operators:
 
-:Table 2:
+**Table 2.**
 
 +---------+-------------------------+
 | Operator| Operation               |
@@ -190,13 +328,15 @@ uses the following:
 
 .. [#] Bitwise operators are only valid when operating on integers.
 
-.. [#] The "pre-" and "post-" of preincrement and postincrement are undefined for ``evilcandy``.
+.. [#] The "pre-" and "post-" of preincrement and postincrement are undefined for EvilCandy.
+       Currently increment and decrement operations must be their own expressions.
 
 .. [#]
         Although an expression of the form ``lval OP= rval`` is
         syntactically equivalent to ``lval = lval OP rval``, the former
         is slightly faster in EvilCandy due to the way it operates the
         stack..
+
 
 Expressions
 -----------
@@ -215,7 +355,7 @@ Braces also define a new `Scope`_, see below.
 
 Valid single-line expressions are:
 
-:Table 3:
+**Table 3**
 
 === ======================== =============================================
 1.  Empty declaration        ``let`` *identifier*
@@ -257,11 +397,11 @@ Valid single-line expressions are:
 
 .. [#] ie. a line that's just a semicolon ``;``
 
-Value limitations
-~~~~~~~~~~~~~~~~~
+Syntax Limitations Regarding Evaluation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-*value* here means "thing that can be evaluated and stored in a single
-variable", examples:
+In Table 3, *value* means "thing that can be evaluated and stored in a
+single variable". Some examples:
 
 * Combination of literals and identifiers:
 
@@ -297,9 +437,9 @@ variable", examples:
         the Function_.
 
 Only limited versions of these may *begin* an expression, namely cases
-4-6 in Table 3: function calls with ignored return values (#4),
-expressions wrapped in parentheses (#5), and ignored empty identifiers
-(#6).  For a full range of *value* to be permitted, it has to be on the
+4-6 in Table 3: #4: function calls with ignored return values;
+%5: expressions wrapped in parentheses; and #6: ignored empty identifiers.
+For a full range of *value* to be permitted, it has to be on the
 right-hand side of an assignment operator, as in cases 2 and 3, or
 within the parentheses of a program-flow statement, as in cases 7-11.
 
@@ -386,8 +526,10 @@ Types of Variables
 ------------------
 
 The above example declared ``x`` and set it to be an *empty* variable.
-``evilcandy`` is not dynamically typed; the only variable that may be changed
+EvilCandy is not dynamically typed; the only variable that may be changed
 to a new type is an *empty* variable.  The other types are:
+
+**Table 4**
 
 ========== ========================== =========
 Type       Declaration Example        Pass-by
@@ -400,7 +542,7 @@ string     ``let x = "";``            reference
 function   ``let x = function() {;}`` reference
 ========== ========================== =========
 
-There are no "pointers" in ``evilcandy``.  Instead we use the abstract
+There are no "pointers" in EvilCandy.  Instead we use the abstract
 concept of a "handle" when discussing pass-by-reference variables.
 Handles' *contents* may be modified, but the handles themselves
 may not; they may be only assigned.  For example, given a function
@@ -438,20 +580,15 @@ type of ``x``.
 Integers
 ~~~~~~~~
 
-These may be expressed as digital, octal, or hexadecimal using the
-C convention, eg. 12 can be expressed as ``12``, ``014``, or ``0xC``.
-Currently ``evilcandy`` does **not** support numerical suffixes like ``12ul``.
+The literal expression of integers are discussed in `Numerical Tokens`_.
 
-All integers are stored as 64-bit signed values.  In ``evilcandy`` these
+All integers are stored as *signed* 64-bit values.  In EvilCandy these
 are pass-by-value always.
 
 Floats
 ~~~~~~
 
-These may be expressed as per the C convention, except that suffixes
-like the ``f`` of ``lf`` are not allowed.  The number 12.0 may be
-expressed, for example, as ``12.0``, ``12.``, ``12e1``, ``1.2e2``,
-and so on.
+The literal expression of floats are discussed in `Numerical Tokens`_.
 
 All floats are stored as IEEE-754 double-precision floating point
 numbers.  Floats are pass-by value always.
@@ -459,7 +596,7 @@ numbers.  Floats are pass-by value always.
 Lists
 ~~~~~
 
-Lists are rudimentary forms of numerical arrays.  These are **not**
+Lists are rudimentary forms of numerical arrays.  These are not
 efficient at managing large amounts of data.
 Lists are basically more restrictive versions of dictionaries.
 There are two main differences:
@@ -616,83 +753,33 @@ All dictionaries are pass-by reference.
 String
 ~~~~~~
 
-In ``evilcandy`` a string is an object-like variable, whose literal expression
-is surrounded by either single or double quotes.  The usual backslash
-escapes are recognized (**although** I do not yet support Unicode),
-so you can escape an internal quote with ``\"``.  Or if your string
-literal does not have both kinds of quotes in it, you could simply escape
-it by using the other kind of quote.  The following two strings evaluate
-the same way:
+In EvilCandy a string is an object-like variable, which can be assigned
+either from another string variable or from a string literal (see
+`String Literal Tokens`_ above).
+
+Unlike most high-level programming languages, strings
+are pass-by-reference.  In the case:
 
 .. code-block:: js
 
-        "This is a \"string\""
-        'This is a "string"'
+        let x = "Some string";
+        let y = x;
 
-Strings behave a litter weird around line endings.  The following
-examples will all parse identically (save for how the line number
-is saved for error dumps):
-
-.. code-block:: js
-
-        "A two-line
-        string"
-
-        "A two-line\nstring"
-
-        "A two-line\n\
-        string"
-
-        "A \
-        two-line
-        string"
-
-Examples 2 and 3 are the clearest, but you could be even clearer
-(at the expense of some functional overhead) with:
+any modification to ``y`` will change ``x``.  To get a duplicate, use
+the builtin ``copy`` method:
 
 .. code-block:: js
 
-        [ "A two-line",
-          "string" ].join("\n")
-
-...at least it would be clearer in the case of long paragraphs
-and such.
-
-String literals may contain Unicode, either in UTF-8, or following
-familiar backslash conventions.  The following are all valid ways
-to express the Greek letter β:
-
-================== ================
-Direct UTF-8       ``"β"``
-lowercase u escape ``"\u03b2"``
-Uppercase U escape ``"\U000003b2"``
-Hexadecimal escape ``"\xce\xb2"``
-Octal escape       ``"\316\262"``
-================== ================
-
-For the uppercase U escape, only Unicode values up to 10FFFF
-hexadecimal (1 114 111 decimal) are supported.
-
-.. important::
-        Unlike most high-level programming languages, strings
-        are pass-by-reference.  In the case::
-
-                let x = "Some string";
-                let y = x;
-
-        any modification to ``y`` will change ``x``.  To get a duplicate, use
-        the builtin ``copy`` method::
-
-                let x = "Some string";
-                let y = x.copy();
-                // y and x now have handles to separate strings.
+        let x = "Some string";
+        let y = x.copy();
+        // y and x now have handles to separate strings.
 
 Function
 ~~~~~~~~
 
 A function executes code and returns either a value or an empty variable.
 
-In ``evilcandy``, **all functions are anonymous**.
+In EvilCandy, **all functions are anonymous**.
 The familiar JavaScript notation:
 
 .. code-block:: js
@@ -710,13 +797,15 @@ variable:
 closures, and the like...)
 
 The ``typeof`` Builtin Function
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-------------------------------
 
 Since things like ``x = y`` for ``x`` and ``y`` of different
 types can cause syntax errors (which currently causes the program
 to panic and exit() -PB 11/23), a variable can have its type checked
 using the builtin ``typeof`` function.  This returns a value type
 string.  Depending on the type, it will be one of the following:
+
+**Table 5**
 
 ========== =======================
 Type       ``typeof`` Return value
@@ -748,6 +837,8 @@ Condition Testing
 
 The relational operators are:
 
+**Table 6**
+
 ======== ========================
 Operator Meaning
 ======== ========================
@@ -778,12 +869,14 @@ functions at all.
 2. Comparison of an object to some concept of "true"
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-There are no native Boolean types for ``evilcandy``.  Keywords
+There are no native Boolean types for EvilCandy.  Keywords
 ``true`` and ``false`` are aliases for integers with values of
 1 and 0, respectively; ``null`` evaluates to an empty variable.
 
 The following conditions result in a variable
 evaluating to *true*:
+
+**Table 7**
 
 ========== ==========================================
 Type       Condition
@@ -797,8 +890,8 @@ string     true if not the empty "" string
 function   true always
 ========== ==========================================
 
-``if`` Statement
-~~~~~~~~~~~~~~~~
+``if`` statement
+----------------
 
 An ``if`` statement follows the syntax::
 
@@ -810,8 +903,8 @@ If *expression* is multi-line, it must be surrounded by braces.
 If condition is true, *expression* will be executed, otherwise it will
 be skipped.
 
-``if`` ... ``else if`` ... ``else`` block
------------------------------------------
+``if`` ... ``else if`` ... ``else`` chain
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``if`` statement may continue likewise::
 
@@ -875,9 +968,12 @@ scope or you will get a multiple-declaration error.
 For those who prefer the Python-like version, use an object's
 ``foreach`` builtin method, described later.
 
-One similarity to Python does exist, however: the optional ``else``
-statement after a ``for`` loop.  In the following example (cribbed
-straight from an algorithm in the `Python.org
+``for`` - ``else`` combination
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+EvilCandy's ``for`` loop does have at least one similarity to Python:
+the optional ``else`` statement after a ``for`` loop.  In the following
+example (cribbed straight from an algorithm in the `Python.org
 <https://docs.python.org/3.12/tutorial/controlflow.html#for-statements>`_
 documentation:
 
@@ -1066,14 +1162,14 @@ For example, given the dictionary:
 
 then a call to ``mydict()`` is equivalent to calling
 ``mydict.__callable__()``.  The number and type of arguments for
-``__callable__`` are entirely user-defined.
+``__callable__`` may be entirely user-defined.
 
 Lambda Functions
 ----------------
 
 Normal function notation may be used for lambda functions, but if you
-want to be cute and brief, special notation exists for lambdas in
-EvilCandy, most easily shown by example:
+want to be cute and brief, special notation exists to make small
+lambdas even smaller, most easily shown by example:
 
 .. code-block:: js
 
@@ -1105,7 +1201,7 @@ statement.  To use a multiline lambda, you must add in the braces and
 regular function notation; the `````` token is hard to spot over more
 than one line.
 
-Lambdas are useful in the way they create new functions, for example:
+Lambdas are useful in the way they create new functions, for example [#]_:
 
 .. code-block:: js
 
@@ -1128,7 +1224,15 @@ will print the following output::
         33
 
 In this example, ``multer`` was used to create a function that multiplies
-its input to a value determined at the time of its instantiation.
+its input by a value determined at the time of its instantiation.
+
+.. [#]
+        This example was adapted from
+        `<https://www.w3schools.com/python/python_lambda.asp>`_
+
+It should be noted that lambda notation is merely syntactic sugar designed
+to remove visual clutter from the code.  It has no performance benefit over
+normal function notation.
 
 Closures
 --------
@@ -1266,6 +1370,15 @@ Io
 
 Math
 ----
+
+Low-Level Operation
+===================
+
+Byte Code Instructions
+----------------------
+
+Disassembly Option
+------------------
 
 :TODO: The rest of this documentation
 

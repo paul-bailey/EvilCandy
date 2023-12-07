@@ -28,6 +28,15 @@ new_string_handle(void)
         return ret;
 }
 
+size_t
+string_length(struct var_t *str)
+{
+        if (str->s->enc == STRING_ENC_ASCII)
+                return buffer_size(string_buf__(str));
+        /* TODO: Way to update enc */
+        return utf8_strlen(string_get_cstring(str));
+}
+
 /* len() (no args)
  * returns length of C string stored in self
  *
@@ -404,33 +413,55 @@ string_assign_cstring(struct var_t *str, const char *s)
 
         struct buffer_t *buf = string_buf__(str);
         buffer_reset(buf);
+        str->s->enc = STRING_ENC_ASCII;
         if (!s)
                 s = "";
-        buffer_puts(buf, s);
+        string_puts(str, s);
 }
 
 /**
- * string_substr - Get substring
- * @str: String object
- * @i:  Index into the string to get.
- *      <0 means indexed from the end.
+ * string_nth_child - Get nth char in string
+ * @str:        String var to get char from
+ * @idx:        Index into @str to look
  *
- * Return character at @i, or '\0' if @i is out of range.
- *
- * XXX: Bad name, we're returning a char,
- * not a nulchar-terminated C string
+ * Return:
+ * Char, as a TYPE_STRING struct var_t.  The calling code must be
+ * responsible for the GC for this.
  */
-int
-string_substr(struct var_t *str, int i)
+struct var_t *
+string_nth_child(struct var_t *str, int idx)
 {
-        char *s;
+        struct buffer_t *buf;
+        struct var_t *new;
+        char cbuf[5];
+        char *src;
 
         bug_on(str->magic != TYPE_STRING);
-        i = index_translate(i, string_length(str));
-        if (i < 0)
-                return '\0';
-        s = string_get_cstring(str);
-        return s ? s[i] : '\0';
+        src = string_get_cstring(str);
+        if (!src || src[0] == '\0')
+                return NULL;
+
+        if (str->s->enc == STRING_ENC_ASCII) {
+                buf = string_buf__(str);
+                idx = index_translate(idx, buffer_size(buf));
+                if (idx < 0)
+                        return NULL;
+
+                cbuf[0] = src[idx];
+                cbuf[1] = '\0';
+        } else {
+                /* XXX REVISIT: double-dipping, maybe make
+                 * utf8_...() return more data about the string.
+                 */
+                idx = index_translate(idx, utf8_strlen(src));
+                if (idx < 0)
+                        return NULL;
+                if (utf8_subscr_str(src, idx, cbuf) < 0)
+                        return NULL;
+        }
+        new = var_new();
+        string_init(new, cbuf);
+        return new;
 }
 
 void

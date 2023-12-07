@@ -108,10 +108,8 @@ do_readline(struct var_t *ret)
         FILE *fp = fh->fp;
 
         errno = 0;
-        if (ret->magic == TYPE_EMPTY)
-                string_init(ret, NULL);
-        /* XXX bug, or syntax error? */
-        bug_on(ret->magic != TYPE_STRING);
+        bug_on(ret->magic != TYPE_EMPTY);
+        string_init(ret, NULL);
 
         string_clear(ret);
         while ((c = getc(fp)) != '\n' && c != EOF)

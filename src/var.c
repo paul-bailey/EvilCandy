@@ -310,10 +310,14 @@ var_get_attr(struct var_t *v, struct var_t *deref)
                 /* because idx stores long long, but ii.i is int */
                 if (deref->i < INT_MIN || deref->i > INT_MAX)
                         return NULL;
-                if (v->magic == TYPE_LIST)
+                switch (v->magic) {
+                case TYPE_LIST:
                         return array_child(v, deref->i);
-                else if (v->magic == TYPE_DICT)
+                case TYPE_DICT:
                         return object_nth_child(v, deref->i);
+                case TYPE_STRING:
+                        return string_nth_child(v, deref->i);
+                }
         case TYPE_STRING:
                 return attr_by_string(v, string_get_cstring(deref));
         }

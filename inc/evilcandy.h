@@ -83,6 +83,11 @@ struct token_t;
  */
 struct string_handle_t {
         struct buffer_t b;
+        enum {
+                STRING_ENC_UNK = 0,
+                STRING_ENC_ASCII,
+                STRING_ENC_UTF8,
+        } enc;
 };
 
 /**
@@ -402,13 +407,8 @@ extern void string_assign_cstring(struct var_t *str, const char *s);
 extern struct var_t *string_init(struct var_t *var, const char *cstr);
 static inline void string_clear(struct var_t *str)
         { string_assign_cstring(str, ""); }
-extern int string_substr(struct var_t *str, int i);
-static inline size_t
-string_length(struct var_t *str)
-{
-        bug_on(str->magic != TYPE_STRING);
-        return buffer_size(string_buf__(str));
-}
+extern struct var_t *string_nth_child(struct var_t *str, int idx);
+extern size_t string_length(struct var_t *str);
 /*
  * WARNING!! This is not reentrance safe!  Whatever you are doing
  * with the return value, do it now.
@@ -426,13 +426,15 @@ static inline void
 string_putc(struct var_t *str, int c)
 {
         bug_on(str->magic != TYPE_STRING);
+        if ((unsigned)c > 127)
+                str->s->enc = STRING_ENC_UNK;
         buffer_putc(string_buf__(str), c);
 }
 static inline void
 string_puts(struct var_t *str, const char *s)
 {
-        bug_on(str->magic != TYPE_STRING);
-        buffer_puts(string_buf__(str), s);
+        while (*s)
+                string_putc(str, *s++);
 }
 
 /* vm.c */

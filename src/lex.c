@@ -160,19 +160,6 @@ isunihex(char *s, int amt)
         return true;
 }
 
-enum {
-        UTF8_SHIFT = 6,
-        UTF8_MASK = (1u << UTF8_SHIFT) - 1,
-};
-
-static unsigned int
-hex_char2val(int c)
-{
-        if (isdigit(c))
-                return c - '0';
-        return toupper(c) - ('A' - 10);
-}
-
 /*
  * This is for our UTF-8 encoding.
  * can't use strtoul, because 5th char might be a number,
@@ -184,7 +171,7 @@ hex_str2val(char *s, int len)
         uint32_t v = 0;
         while (len--) {
                 v <<= 4;
-                v |= hex_char2val(*s++);
+                v |= x2bin(*s++);
         }
         return v;
 }
@@ -356,14 +343,18 @@ qlex_hex(void)
 {
         struct buffer_t *tok = &lexer.tok;
         char *pc = lexer.s;
+        int count = 0;
         if (!ishexheader(pc))
                 return false;
         buffer_putc(tok, *pc++);
         buffer_putc(tok, *pc++);
         if (!isxdigit((int)(*pc)))
                 syntax("incorrectly expressed numerical value");
-        while (isxdigit((int)(*pc)))
+        while (isxdigit((int)(*pc))) {
+                if (count++ >= 16)
+                        syntax("Integer too large");
                 buffer_putc(tok, *pc++);
+        }
         if (!q_isdelim(*pc))
                 syntax("Excess characters after hex literal");
         lexer.s = pc;

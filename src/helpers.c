@@ -322,5 +322,118 @@ fnv_hash(const char *s)
         return hash;
 }
 
+/**
+ * like strlen, except @s may contain UTF-8-encoded Unicode characters.
+ * Characters >127 which are not proper UTF-8 will be treated as individuals.
+ * Results may be undefined if a proper UTF-8 character shortly follows such
+ * a malformed character.
+ */
+size_t
+utf8_strlen(const char *s)
+{
+        const char *start = s;
+        unsigned int c, skip = 0;
 
+        /* some weird systems out there */
+        bug_on(sizeof(char) != sizeof(uint8_t));
 
+        while ((c = *s++) != 0) {
+                if (c > 127) {
+                        const uint8_t *ts = (uint8_t *)s;
+                        if ((c & 0xe0) == 0xc0) {
+                                if (*ts++ < 127)
+                                        continue;
+                        } else if ((c & 0xf0) == 0xe0) {
+                                if (*ts++ < 127)
+                                        continue;
+                                if (*ts++ < 127)
+                                        continue;
+                        } else if ((c & 0xf8) == 0xf0) {
+                                if (*ts++ < 127)
+                                        continue;
+                                if (*ts++ < 127)
+                                        continue;
+                                if (*ts++ < 127)
+                                        continue;
+                        } else {
+                                continue;
+                        }
+                        skip += 1 + ts - (uint8_t *)s;
+                        s = (char *)ts;
+                }
+        }
+        return s - start - skip;
+}
+
+/**
+ * Get a subscript of a string, which may be UTF-8
+ * @src:        String to search
+ * @idx:        Index
+ * @dest:       Buffer to contain the undecoded results plus a nulchar
+ *              terminator.  This must be at least 5 bytes long.
+ *
+ * Return:
+ * 0 if found, -1 if out of range.
+ */
+int
+utf8_subscr_str(const char *src, size_t idx, char *dest)
+{
+        int c, i;
+        const uint8_t *s = (uint8_t *)src;
+        for (i = 0, c = *s++; i < idx && c != '\0'; i++, c = *s++) {
+                if (c > 127) {
+                        if ((c & 0xe0) == 0xc0) {
+                                if ((unsigned)s[0] > 127)
+                                        s++;
+                        } else if ((c & 0xf0) == 0xe0) {
+                                if ((unsigned)s[0] > 127 &&
+                                    (unsigned)s[1] > 127) {
+                                        s += 2;
+                                }
+                        } else if ((c & 0xf8) == 0xf0) {
+                                if ((unsigned)s[0] > 127 &&
+                                    (unsigned)s[1] > 127 &&
+                                    (unsigned)s[2] > 127) {
+                                        s += 3;
+                                }
+                        }
+                }
+        }
+        if (c == '\0')
+                return -1;
+
+        if (c > 127) {
+                if ((c & 0xe0) == 0xc0) {
+                        if ((unsigned)s[0] > 127) {
+                                dest[0] = c;
+                                dest[1] = s[0];
+                                dest[2] = '\0';
+                                return 0;
+                        }
+                } else if ((c & 0xf0) == 0xe0) {
+                        if ((unsigned)s[0] > 127 &&
+                            (unsigned)s[1] > 127) {
+                                dest[0] = c;
+                                dest[1] = s[0];
+                                dest[2] = s[1];
+                                dest[3] = '\0';
+                                return 0;
+                        }
+                } else if ((c & 0xf8) == 0xf0) {
+                        if ((unsigned)s[0] > 127 &&
+                            (unsigned)s[1] > 127 &&
+                            (unsigned)s[2] > 127) {
+                                dest[0] = c;
+                                dest[1] = s[0];
+                                dest[2] = s[1];
+                                dest[3] = s[2];
+                                dest[4] = '\0';
+                                return 0;
+                        }
+                }
+        }
+
+        dest[0] = c;
+        dest[1] = '\0';
+        return 0;
+}

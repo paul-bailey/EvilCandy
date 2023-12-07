@@ -270,17 +270,7 @@ do_push_local(struct vmframe_t *fr, instruction_t ii)
 static void
 do_push_const(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *v = RODATA(fr, ii);
-        if (v->magic == TYPE_STRPTR) {
-                /*
-                 * Don't do a naive v=RODATA...VAR_INCR_REF(v),
-                 * because v might be TYPE_STRPTR, in which
-                 * case v needs to be converted into TYPE_STRING
-                 */
-                v = qop_mov(var_new(), v);
-        } else {
-                VAR_INCR_REF(v);
-        }
+        struct var_t *v = qop_mov(var_new(), RODATA(fr, ii));
         push(fr, v);
 }
 
@@ -569,7 +559,16 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
         obj = pop(fr);
 
         attr = evar_get_attr(obj, deref);
-        VAR_INCR_REF(attr);
+        /*
+         * FIXME: This is hacky, but string_nth_child creates
+         * a new var, the others return an existing var, and I need to
+         * know that.  Alternative is to make the getattr callbacks
+         * themselves decide whether or not to VAR_INCR_REF, but that
+         * increases the opportunity for mistakes.
+         */
+        if (obj->magic != TYPE_STRING || deref->magic != TYPE_INT)
+                VAR_INCR_REF(attr);
+
         if (del)
                 VAR_DECR_REF(deref);
 
@@ -784,7 +783,9 @@ vm_get_location(const char **file_name, void *unused)
                 if (offs < ex->locations[i].offs)
                         break;
         }
-        bug_on(i == ex->n_locations);
+        if (i == ex->n_locations)
+                i--;
+        bug_on(i >= ex->n_locations);
 
         if (file_name)
                 *file_name = ex->file_name;

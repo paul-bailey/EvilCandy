@@ -718,13 +718,17 @@ assemble_arraydef(struct assemble_t *a)
 static void
 assemble_objdef(struct assemble_t *a)
 {
+        /* TODO: not too hard to support `set' notation here */
         add_instr(a, INSTR_DEFDICT, 0, 0);
         do {
                 struct token_t *name;
                 int namei;
                 bool constflag = false;
 
-                as_errlex(a, 'u');
+                as_lex(a);
+                as_err_if(a,
+                          a->oc->t != 'u' && a->oc->t != 'q',
+                          AE_EXPECT);
                 name = a->oc;
                 namei = seek_or_add_const(a, name);
                 as_lex(a);

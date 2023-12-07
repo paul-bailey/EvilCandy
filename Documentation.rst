@@ -488,6 +488,19 @@ You may assign an attribute to another variable::
 In this example, if ``someattribute`` is a string, list, or object, then
 any change made to ``x`` will affect ``y.someattribute``.
 
+Dictionary constructor statements may use quotes for their keys.
+This could be usefule if you want non-ASCII values in your keys,
+for example::
+
+        let mydict = {
+                a: 'The letter a',
+                '✓': 'checkmark'
+        };
+
+Note, however, any non-ASCII letters in a key means that they cannot
+be accessed with dot notation; they must be accessed using the
+associative-array notation.
+
 All dictionaries are pass-by reference.
 
 String

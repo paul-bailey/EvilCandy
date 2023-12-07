@@ -10,6 +10,7 @@
     print("Who am I?");
     iterator.whoami();
     print("iterator.len()=={}".format(iterator.len()));
+    print("iterator['✓'] = {}".format(iterator['✓']));
 })({
     tonine: function(x) {
         for (let n = 10; x < n; x++)
@@ -23,7 +24,8 @@
             x++;
         } while (x < n);
 
-    }
+    },
+    "✓": "check"
 });
 
 (function() {

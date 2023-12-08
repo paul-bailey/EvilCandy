@@ -14,11 +14,7 @@ enum {
 
 struct string_handle_t {
         struct buffer_t b;
-        enum {
-                STRING_ENC_UNK = 0,
-                STRING_ENC_ASCII,
-                STRING_ENC_UTF8,
-        } enc;
+        int enc;
 };
 
 static void

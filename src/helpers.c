@@ -322,6 +322,10 @@ fnv_hash(const char *s)
         return hash;
 }
 
+/* true if @c is a valid UTF8 following (ie. not 1st) char */
+static inline bool isutf8(unsigned int c)
+        { return ((c & 0xC0) == 0x80); }
+
 /**
  * like strlen, except @s may contain UTF-8-encoded Unicode characters.
  * Characters >127 which are not proper UTF-8 will be treated as individuals.
@@ -342,21 +346,21 @@ utf8_strlen(const char *s)
                         /* skip is len-1, we only 'skip' the extras */
                         const uint8_t *ts = (uint8_t *)s;
                         if ((c & 0xe0) == 0xc0) {
-                                if (*ts++ < 127)
+                                if (!isutf8(*ts++))
                                         continue;
                                 skip += 1;
                         } else if ((c & 0xf0) == 0xe0) {
-                                if (*ts++ < 127)
+                                if (!isutf8(*ts++))
                                         continue;
-                                if (*ts++ < 127)
+                                if (!isutf8(*ts++))
                                         continue;
                                 skip += 2;
                         } else if ((c & 0xf8) == 0xf0) {
-                                if (*ts++ < 127)
+                                if (!isutf8(*ts++))
                                         continue;
-                                if (*ts++ < 127)
+                                if (!isutf8(*ts++))
                                         continue;
-                                if (*ts++ < 127)
+                                if (!isutf8(*ts++))
                                         continue;
                                 skip += 3;
                         } else {
@@ -366,6 +370,34 @@ utf8_strlen(const char *s)
                 }
         }
         return s - 1 - start - skip;
+}
+
+/* like utf8_strgetc but without putting a nullchar at the end of @dst */
+static size_t
+utf8_strgetc_(const char *s, char *dst)
+{
+        static const unsigned int masks[] = { 0xe0, 0xf0, 0xf8 };
+        static const unsigned int cmps[]  = { 0xc0, 0xe0, 0xf0 };
+
+        dst[0] = s[0];
+        if ((unsigned)s[0] > 127) {
+                int i;
+
+                for (i = 0; i < 3; i++) {
+                        dst[i] = s[i];
+                        if (((unsigned)s[0] & masks[i]) == cmps[i]) {
+                                if (!isutf8(s[i]))
+                                        break;
+                                dst[i + 1] = '\0';
+                                return i + 1;
+                        }
+                }
+        } else if (s[0] == '\0') {
+                return 0;
+        }
+
+        /* ascii or malformed */
+        return 1;
 }
 
 /**
@@ -387,29 +419,64 @@ utf8_strlen(const char *s)
 size_t
 utf8_strgetc(const char *s, char *dst)
 {
-        static const unsigned int masks[] = { 0xe0, 0xf0, 0xf8 };
-        static const unsigned int cmps[]  = { 0xc0, 0xe0, 0xf0 };
+        size_t ret = utf8_strgetc_(s, dst);
+        dst[ret] = '\0';
+        return ret;
+}
 
-        dst[0] = s[0];
-        if ((unsigned)s[0] > 127) {
-                int i;
+/**
+ * utf8_scan - Get info about a C-string
+ * @s:  String to inspect
+ * @info: Struct to fill with info
+ */
+void
+utf8_scan(const char *s, struct utf8_info_t *info)
+{
+        int enc = STRING_ENC_ASCII;
+        size_t skip = 0;
+        const char *start = s;
+        int c;
 
-                for (i = 0; i < 3; i++) {
-                        dst[i] = s[i];
-                        if (((unsigned)s[0] & masks[i]) == cmps[i]) {
-                                if (((unsigned)s[i] & 0xc0) != 0x80)
-                                        break;
-                                dst[i + 1] = '\0';
-                                return i + 1;
+        while ((c = *s++) != '\0') {
+                if (c > 127) {
+                        bool malformed = true;
+                        const char *ts = s;
+                        do {
+                                if ((c & 0xe0) == 0xc0) {
+                                        if (!isutf8(*ts++))
+                                                break;
+                                        malformed = false;
+                                } else if ((c & 0xf0) == 0xe0) {
+                                        if (!isutf8(*ts++))
+                                                break;
+                                        if (!isutf8(*ts++))
+                                                break;
+                                        malformed = false;
+                                } else if ((c & 0xf8) == 0xf0) {
+                                        if (!isutf8(*ts++))
+                                                break;
+                                        if (!isutf8(*ts++))
+                                                break;
+                                        if (!isutf8(*ts++))
+                                                break;
+                                        malformed = false;
+                                }
+                        } while (0);
+                        if (malformed) {
+                                enc = STRING_ENC_UNK;
+                        } else {
+                                if (enc != STRING_ENC_UNK)
+                                        enc = STRING_ENC_UTF8;
+                                skip += ts - s;
+                                s = ts;
                         }
                 }
-        } else if (s[0] == '\0') {
-                return 0;
         }
+        s--;
 
-        /* ascii or malformed */
-        dst[1] = '\0';
-        return 1;
+        info->enc_len = s - start - skip;
+        info->ascii_len = s - start;
+        info->enc = enc;
 }
 
 /**

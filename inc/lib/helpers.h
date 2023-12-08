@@ -29,7 +29,29 @@ extern unsigned long fnv_hash(const char *s);
 #ifndef ARRAY_SIZE
 # define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
+
+/**
+ * utf8_info_t - Output of utf8_scan
+ * @enc:        If STRING_ENC_ASCII, string is ASCII only.
+ *              If STRING_ENC_UTF8, string only has valid UTF-8 chars,
+ *              including some non-ASCII Unicode chars
+ *              If STRING_ENC_UNK, string contains non-UTF-8 chars.
+ * @ascii_len:  Length of C string in bytes
+ * @enc_len:    Length of string in number of Unicode characters; this
+ *              will not be reduced for any non-UFT-8 characters.
+ */
+struct utf8_info_t {
+        enum {
+                STRING_ENC_ASCII,
+                STRING_ENC_UTF8,
+                STRING_ENC_UNK,
+        } enc;
+        size_t ascii_len;
+        size_t enc_len;
+};
+
 size_t utf8_strlen(const char *s);
+extern void utf8_scan(const char *s, struct utf8_info_t *info);
 extern int utf8_subscr_str(const char *src, size_t idx, char *dest);
 extern size_t utf8_strgetc(const char *s, char *dst);
 

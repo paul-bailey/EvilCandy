@@ -5,12 +5,25 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <math.h>
+
+struct string_handle_t {
+        struct buffer_t b;
+        enum {
+                STRING_ENC_UNK = 0,
+                STRING_ENC_ASCII,
+                STRING_ENC_UTF8,
+        } enc;
+};
 
 static void
 emismatch(const char *op)
 {
         syntax("Mismatched types for %s operation", op);
 }
+
+static inline struct buffer_t *string_buf__(struct var_t *str)
+        { return &str->s->b; }
 
 static void
 string_handle_reset(void *h)
@@ -35,6 +48,426 @@ string_length(struct var_t *str)
                 return buffer_size(string_buf__(str));
         /* TODO: Way to update enc */
         return utf8_strlen(string_get_cstring(str));
+}
+
+/* format2 and helpers */
+
+static void
+padwrite(struct buffer_t *buf, int padc, size_t padlen)
+{
+        while (padlen--)
+                buffer_putc(buf, padc);
+}
+
+/*
+ * XXX: This looks redundant, but the alternative--writing to a
+ * temporary buffer before deciding whether to right justify or not--
+ * is maybe slower.  Needs testing, temporary buffers don't have the
+ * overhead of string_putc.
+ */
+static void
+swap_pad(struct buffer_t *buf, size_t count, size_t padlen)
+{
+        char *right = buf->s + buf->p - 1;
+        char *left = right - padlen;
+        if (!buf->s)
+                return;
+        while (count--) {
+                int c = *right;
+                *right-- = *left;
+                *left-- = c;
+        }
+}
+
+static void
+format2_i_helper(struct var_t *ret, unsigned long long ival, int base, int xchar)
+{
+        long long v;
+        if (!ival)
+                return;
+
+        if (ival >= base)
+                format2_i_helper(ret, ival / base, base, xchar);
+
+        v = ival % base;
+        if (v >= 10)
+                v += xchar;
+        else
+                v += '0';
+
+        string_putc(ret, (int)v);
+}
+
+static void
+format2_i(struct var_t *ret, struct var_t *arg,
+          int conv, bool rjust, int padc, size_t padlen, int precision)
+{
+        int base;
+        int xchar = 'A' - 10;
+        long long ival = arg->magic == TYPE_INT
+                         ? arg->i : (long long)ret->f;
+        struct buffer_t *buf = string_buf__(ret);
+        size_t count;
+
+        /* overrule '0' if left-justified */
+        if (!rjust)
+                padc = ' ';
+
+        switch (conv) {
+        case 'd':
+        case 'u':
+                base = 10;
+                break;
+        case 'x':
+                xchar = 'a' - 10;
+                /* fall through */
+        case 'X':
+                base = 16;
+                break;
+        default:
+                bug();
+        }
+
+        count = string_buf__(ret)->p;
+        if (!ival) {
+                string_putc(ret, '0');
+        } else {
+                unsigned long long uval;
+                if (conv == 'd' && ival < 0) {
+                        string_putc(ret, '-');
+                        uval = -ival;
+                } else {
+                        uval = (unsigned long long)ival;
+                }
+                format2_i_helper(ret, uval, base, xchar);
+        }
+
+        count = buf->p - count;
+        if (count < padlen) {
+                padlen -= count;
+                padwrite(buf, padc, padlen);
+                if (rjust) {
+                        swap_pad(buf, count, padlen);
+                }
+        }
+}
+
+/* helper to format2_e - print exponent */
+static void
+format2_e_exp(struct var_t *ret, int exp)
+{
+        if (exp == 0)
+                return;
+        if (exp > 0)
+                format2_e_exp(ret, exp / 10);
+        string_putc(ret, (exp % 10) + '0');
+}
+
+/* FIXME: subtle difference from above, try to eliminate one of these */
+static void
+format2_f_ihelper(struct var_t *ret, unsigned int v)
+{
+        if (v >= 10)
+                format2_f_ihelper(ret, v / 10);
+        string_putc(ret, (v % 10) + '0');
+}
+
+static void
+format2_e(struct var_t *ret, struct var_t *arg,
+          int conv, bool rjust, int padc, size_t padlen, int precision)
+{
+        int exp = 0;
+        int sigfig = 0;
+        double ival;
+        /* checked before this call */
+        double v = arg->magic == TYPE_FLOAT ? arg->f : (double)arg->i;
+        double dv = v;
+        struct buffer_t *buf = string_buf__(ret);
+
+        size_t count = buf->p;
+
+        if (dv < 0.0) {
+                string_putc(ret, '-');
+                dv = -dv;
+        }
+
+        while (dv > 10.0) {
+                dv /= 10.0;
+                exp++;
+        }
+
+        while (isnormal(dv) && dv < 1.0) {
+                dv *= 10.0;
+                exp--;
+        }
+
+        {
+                /* precision rounding */
+                double adj = 5.0;
+                int pr = precision;
+                while (pr--)
+                        adj *= 0.1;
+                dv += adj;
+        }
+
+        /* In case precision rounding carried all the way to the top */
+        if (dv > 10.0) {
+                dv /= 10.0;
+                exp++;
+        }
+
+        dv = modf(dv, &ival);
+        string_putc(ret, (int)ival + '0');
+        ++sigfig;
+
+        string_putc(ret, '.');
+        while (sigfig < precision) {
+                dv *= 10.0;
+                dv = modf(dv, &ival);
+                string_putc(ret, (int)ival + '0');
+                sigfig++;
+        }
+
+        /* print exponent */
+        bug_on(conv != 'e' && conv != 'E');
+        string_putc(ret, conv);
+        if (exp < 0) {
+                string_putc(ret, '-');
+                exp = -exp;
+        } else {
+                string_putc(ret, '+');
+        }
+        /* %e requires exponent to be at least two digits */
+        if (exp < 10)
+                string_putc(ret, '0');
+
+        if (exp == 0)
+                string_putc(ret, '0');
+        else
+                format2_e_exp(ret, exp);
+
+        if (!rjust)
+                padc = ' ';
+        count = buf->p - count;
+        if (count < padlen) {
+                padlen -= count;
+                padwrite(string_buf__(ret), padc, padlen);
+                if (rjust) {
+                        swap_pad(buf, count, padlen);
+                }
+        }
+}
+
+static void
+format2_f(struct var_t *ret, struct var_t *arg,
+          int conv, bool rjust, int padc, size_t padlen, int precision)
+{
+        double v = arg->magic == TYPE_FLOAT ? arg->f : (double)arg->i;
+        bool have_dot = false;
+        struct buffer_t *buf = string_buf__(ret);
+        size_t count = buf->p;
+
+        if (!isfinite(v)) {
+                if (isnan(v)) {
+                        string_puts(ret, "nan");
+                } else {
+                        if (v == -INFINITY)
+                                string_putc(ret, '-');
+                        string_puts(ret, "inf");
+                }
+        } else {
+                double iptr, rem, scale;
+                int i;
+
+                if (v < 0.0) {
+                        string_putc(ret, '-');
+                        v = -v;
+                }
+                for (scale = 1.0, i = 0; i < precision; i++)
+                        scale *= 0.1;
+                v += scale * 0.5;
+                rem = modf(v, &iptr);
+
+                format2_f_ihelper(ret, (unsigned int)iptr);
+
+                if (precision > 0) {
+                        have_dot = true;
+                        string_putc(ret, '.');
+                        while (precision--) {
+                                rem *= 10.0;
+                                string_putc(ret, (int)rem + '0');
+                                rem = modf(rem, &iptr);
+                        }
+                }
+        }
+
+        if (!rjust && !have_dot)
+                padc = ' ';
+        count = buf->p - count;
+        if (count < padlen) {
+                padlen -= count;
+                padwrite(string_buf__(ret), padc, padlen);
+                if (rjust) {
+                        swap_pad(buf, count, padlen);
+                }
+        }
+}
+
+static void
+format2_s(struct var_t *ret, struct var_t *arg,
+          int conv, bool rjust, int padc, size_t padlen, int precision)
+{
+        const char *src;
+        size_t count, count_bytes;
+        struct buffer_t *buf = string_buf__(ret);
+
+        if (arg->magic == TYPE_STRING)
+                src = string_get_cstring(arg);
+        else    /* TYPE_STRPTR */
+                src = arg->strptr;
+
+        if (!src) {
+                count = count_bytes = 6;
+                string_puts(ret, "(null)");
+        } else {
+                count_bytes = buf->p;
+                count = utf8_strlen(src);
+                string_puts(ret, src);
+                count_bytes = buf->p - count_bytes;
+        }
+
+        /*
+         * This is trickier than the numbers' case, because the string
+         * length might get confused by Unicode characters.
+         */
+        if (count < padlen) {
+                padlen -= count;
+                padwrite(string_buf__(ret), padc, padlen);
+                if (rjust)
+                        swap_pad(buf, count_bytes, padlen);
+        }
+}
+
+static size_t
+format2_helper(struct var_t *ret, const char *s, int argi)
+{
+        const char *ssave = s;
+        bool rjust = true;
+        int padc = ' ';
+        size_t padlen = 0;
+        int precision = 6;
+        struct var_t *v = vm_get_arg(argi);
+        int conv;
+
+        /*
+         * XXX should warn, but if this is in a user loop or function,
+         * I don't want to flood the output.
+         */
+        if (!v)
+                return 0;
+
+        /* get flags.  @cbuf already filled with next char */
+        for (;;) {
+                switch (*s) {
+                case '-':
+                        rjust = false;
+                        s++;
+                        continue;
+                case '0':
+                        padc = '0';
+                        s++;
+                        continue;
+                }
+                break;
+        }
+        if (isdigit((int)*s)) {
+                while (isdigit((int)*s)) {
+                        padlen = 10 * padlen + (*s - '0');
+                        s++;
+                }
+        }
+        if (*s == '.') {
+                s++;
+                if (isdigit((int)*s)) {
+                        precision = 0;
+                        while (isdigit((int)*s)) {
+                                precision = 10 * precision + (*s - '0');
+                                s++;
+                        }
+                }
+        }
+
+        switch ((conv = *s++)) {
+        case 'x':
+        case 'X':
+        case 'd':
+        case 'u':
+                if (!isnumvar(v))
+                        return 0;
+                format2_i(ret, v, conv, rjust, padc, padlen, precision);
+                break;
+        case 'f':
+                if (!isnumvar(v))
+                        return 0;
+                format2_f(ret, v, conv, rjust, padc, padlen, precision);
+                break;
+        case 'e':
+        case 'E':
+                if (!isnumvar(v))
+                        return 0;
+                format2_e(ret, v, conv, rjust, padc, padlen, precision);
+                break;
+        case 's':
+                if (v->magic != TYPE_STRING && v->magic != TYPE_STRPTR)
+                        return 0;
+                format2_s(ret, v, conv, rjust, padc, padlen, precision);
+                break;
+        default:
+        case '\0':
+                /* don't try to format this */
+                return 0;
+        }
+
+        return s - ssave;
+}
+
+static void
+string_format2(struct var_t *ret)
+{
+        char cbuf[5];
+        size_t size;
+        struct var_t *self = get_this();
+        const char *s;
+        int argi = 0;
+
+        bug_on(self->magic != TYPE_STRING);
+        s = string_get_cstring(self);
+
+        string_init(ret, 0);
+        if (!s) {
+                string_putc(ret, '\0');
+                return;
+        }
+
+        while ((size = utf8_strgetc(s, cbuf)) != 0) {
+                s += size;
+                if (size > 1) {
+                        string_puts(ret, cbuf);
+                        continue;
+                }
+                if (cbuf[0] != '%') {
+                        string_putc(ret, cbuf[0]);
+                        continue;
+                }
+                size = utf8_strgetc(s, cbuf);
+                if (size == 1 && cbuf[0] == '%') {
+                        s++;
+                        string_putc(ret, '%');
+                        continue;
+                }
+                /* don't update @s, we'll check it again in helper */
+                s += format2_helper(ret, s, argi++);
+        }
 }
 
 /* len() (no args)
@@ -296,6 +729,7 @@ string_copy(struct var_t *ret)
 static struct type_inittbl_t string_methods[] = {
         V_INITTBL("len",     string_length_method, 0, 0),
         V_INITTBL("format",  string_format, 0, -1),
+        V_INITTBL("format2", string_format2, 0, -1),
         V_INITTBL("toint",   string_toint, 0, 0),
         V_INITTBL("tofloat", string_tofloat, 0, 0),
         V_INITTBL("lstrip",  string_lstrip, 0, 1),
@@ -462,6 +896,36 @@ string_nth_child(struct var_t *str, int idx)
         new = var_new();
         string_init(new, cbuf);
         return new;
+}
+
+void
+string_putc(struct var_t *str, int c)
+{
+        bug_on(str->magic != TYPE_STRING);
+        if ((unsigned)c > 127)
+                str->s->enc = STRING_ENC_UNK;
+        buffer_putc(string_buf__(str), c);
+}
+
+void
+string_puts(struct var_t *str, const char *s)
+{
+        while (*s)
+                string_putc(str, *s++);
+}
+
+/*
+ * WARNING!! This is not reentrance safe!  Whatever you are doing
+ * with the return value, do it now.
+ *
+ * FIXME: This is also not thread safe, and "do it quick" is not a good
+ * enough solution.
+ */
+char *
+string_get_cstring(struct var_t *str)
+{
+        bug_on(str->magic != TYPE_STRING);
+        return str->s->b.s;
 }
 
 void

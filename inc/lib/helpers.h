@@ -31,6 +31,7 @@ extern unsigned long fnv_hash(const char *s);
 #endif
 size_t utf8_strlen(const char *s);
 extern int utf8_subscr_str(const char *src, size_t idx, char *dest);
+extern size_t utf8_strgetc(const char *s, char *dst);
 
 
 #endif /* EGQ_HELPERS_H */

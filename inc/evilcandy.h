@@ -78,18 +78,6 @@ struct frame_t;
 struct executable_t;
 struct token_t;
 
-/*
- * PRIVATE STRUCT, placed here so I can inline some things
- */
-struct string_handle_t {
-        struct buffer_t b;
-        enum {
-                STRING_ENC_UNK = 0,
-                STRING_ENC_ASCII,
-                STRING_ENC_UTF8,
-        } enc;
-};
-
 /**
  * struct object_handle_t - Descriptor for an object handle
  * @children:   List of children members
@@ -401,41 +389,15 @@ object_child(struct var_t *o, const char *s)
         { return ((s = literal(s))) ? object_child_l(o, s) : NULL; }
 
 /* types/string.c */
-static inline struct buffer_t *string_buf__(struct var_t *str)
-        { return &str->s->b; }
 extern void string_assign_cstring(struct var_t *str, const char *s);
 extern struct var_t *string_init(struct var_t *var, const char *cstr);
 static inline void string_clear(struct var_t *str)
         { string_assign_cstring(str, ""); }
 extern struct var_t *string_nth_child(struct var_t *str, int idx);
 extern size_t string_length(struct var_t *str);
-/*
- * WARNING!! This is not reentrance safe!  Whatever you are doing
- * with the return value, do it now.
- *
- * FIXME: This is also not thread safe, and "do it quick" is not a good
- * enough solution.
- */
-static inline char *
-string_get_cstring(struct var_t *str)
-{
-        bug_on(str->magic != TYPE_STRING);
-        return str->s->b.s;
-}
-static inline void
-string_putc(struct var_t *str, int c)
-{
-        bug_on(str->magic != TYPE_STRING);
-        if ((unsigned)c > 127)
-                str->s->enc = STRING_ENC_UNK;
-        buffer_putc(string_buf__(str), c);
-}
-static inline void
-string_puts(struct var_t *str, const char *s)
-{
-        while (*s)
-                string_putc(str, *s++);
-}
+extern char *string_get_cstring(struct var_t *str);
+extern void string_putc(struct var_t *str, int c);
+extern void string_puts(struct var_t *str, const char *s);
 
 /* vm.c */
 extern void vm_execute(struct executable_t *top_level);

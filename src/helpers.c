@@ -339,15 +339,18 @@ utf8_strlen(const char *s)
 
         while ((c = *s++) != 0) {
                 if (c > 127) {
+                        /* skip is len-1, we only 'skip' the extras */
                         const uint8_t *ts = (uint8_t *)s;
                         if ((c & 0xe0) == 0xc0) {
                                 if (*ts++ < 127)
                                         continue;
+                                skip += 1;
                         } else if ((c & 0xf0) == 0xe0) {
                                 if (*ts++ < 127)
                                         continue;
                                 if (*ts++ < 127)
                                         continue;
+                                skip += 2;
                         } else if ((c & 0xf8) == 0xf0) {
                                 if (*ts++ < 127)
                                         continue;
@@ -355,14 +358,58 @@ utf8_strlen(const char *s)
                                         continue;
                                 if (*ts++ < 127)
                                         continue;
+                                skip += 3;
                         } else {
                                 continue;
                         }
-                        skip += 1 + ts - (uint8_t *)s;
                         s = (char *)ts;
                 }
         }
-        return s - start - skip;
+        return s - 1 - start - skip;
+}
+
+/**
+ * utf8_strgetc - Get the next character out of @s and store it in @dst
+ * @s:          Source tring
+ * @dst:        Buffer that must be at least five chars long, to store
+ *              the next char or UTF-8 set of chars, plus a nullchar
+ *              terminator.
+ *
+ * Return:
+ * Amount of chars stuffed in @dst, not counting a nulchar terminator.
+ * This is 0 if *s == '\0', 1 if *s was an ASCII or random large datum,
+ * 2-4 if it was a valid UTF-8-encoded character.  In the latter case,
+ * the value will remain encoded and copied verbatim in @dst.
+ *
+ * Careful, this return value is never zero.  Check the value of dst[0]
+ * for that.
+ */
+size_t
+utf8_strgetc(const char *s, char *dst)
+{
+        static const unsigned int masks[] = { 0xe0, 0xf0, 0xf8 };
+        static const unsigned int cmps[]  = { 0xc0, 0xe0, 0xf0 };
+
+        dst[0] = s[0];
+        if ((unsigned)s[0] > 127) {
+                int i;
+
+                for (i = 0; i < 3; i++) {
+                        dst[i] = s[i];
+                        if (((unsigned)s[0] & masks[i]) == cmps[i]) {
+                                if (((unsigned)s[i] & 0xc0) != 0x80)
+                                        break;
+                                dst[i + 1] = '\0';
+                                return i + 1;
+                        }
+                }
+        } else if (s[0] == '\0') {
+                return 0;
+        }
+
+        /* ascii or malformed */
+        dst[1] = '\0';
+        return 1;
 }
 
 /**

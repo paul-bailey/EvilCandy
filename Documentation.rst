@@ -550,7 +550,7 @@ handle assignment:
 
 .. code-block:: js
 
-        let foo = function() { bar(); }
+        let foo = function() { bar(); };
 
 then the following will result in errors:
 

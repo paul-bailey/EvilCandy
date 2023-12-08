@@ -46,6 +46,9 @@ new_string_handle(void)
         return ret;
 }
 
+static inline void string_clear(struct var_t *str)
+        { string_assign_cstring(str, ""); }
+
 size_t
 string_length(struct var_t *str)
 {
@@ -53,6 +56,24 @@ string_length(struct var_t *str)
                 return buffer_size(string_buf__(str));
         /* TODO: Way to update enc */
         return utf8_strlen(string_get_cstring(str));
+}
+
+static void
+string_putc(struct var_t *str, int c)
+{
+        bug_on(str->magic != TYPE_STRING);
+        if ((unsigned)c > 127)
+                str->s->enc = STRING_ENC_UNK;
+        buffer_putc(string_buf__(str), c);
+}
+
+static void
+string_puts(struct var_t *str, const char *s)
+{
+        if (!s)
+                return;
+        while (*s)
+                string_putc(str, *s++);
 }
 
 /* format2 and helpers */
@@ -963,24 +984,6 @@ string_nth_child(struct var_t *str, int idx)
         return new;
 }
 
-void
-string_putc(struct var_t *str, int c)
-{
-        bug_on(str->magic != TYPE_STRING);
-        if ((unsigned)c > 127)
-                str->s->enc = STRING_ENC_UNK;
-        buffer_putc(string_buf__(str), c);
-}
-
-void
-string_puts(struct var_t *str, const char *s)
-{
-        if (!s)
-                return;
-        while (*s)
-                string_putc(str, *s++);
-}
-
 /*
  * WARNING!! This is not reentrance safe!  Whatever you are doing
  * with the return value, do it now.
@@ -994,6 +997,30 @@ string_get_cstring(struct var_t *str)
         bug_on(str->magic != TYPE_STRING);
         return str->s->b.s;
 }
+
+/**
+ * string_init_from_file - Initialize a string with a line from file
+ * @ret:        Empty variable to initialize
+ * @fp:         File to read from
+ * @delim:      Delimiter to read to.
+ * @stuff_delim: True to include the delimiter with the string, false to leave
+ *              it out (it will not be ungetc'd).
+ */
+void
+string_init_from_file(struct var_t *ret, FILE *fp, int delim, bool stuff_delim)
+{
+        int c;
+
+        bug_on(ret->magic != TYPE_EMPTY);
+        string_init(ret, NULL);
+
+        string_clear(ret);
+        while ((c = getc(fp)) != delim && c != EOF)
+                string_putc(ret, c);
+        if (stuff_delim && c == delim)
+                string_putc(ret, c);
+}
+
 
 void
 typedefinit_string(void)

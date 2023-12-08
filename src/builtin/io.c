@@ -103,17 +103,14 @@ do_errno(struct var_t *ret)
 static void
 do_readline(struct var_t *ret)
 {
-        int c, errno_save = errno;
+        int errno_save = errno;
         struct file_handle_t *fh = getfh();
         FILE *fp = fh->fp;
 
-        errno = 0;
         bug_on(ret->magic != TYPE_EMPTY);
-        string_init(ret, NULL);
 
-        string_clear(ret);
-        while ((c = getc(fp)) != '\n' && c != EOF)
-                string_putc(ret, c);
+        errno = 0;
+        string_init_from_file(ret, fp, '\n', false);
         if (errno)
                 fh->err = errno;
         errno = errno_save;

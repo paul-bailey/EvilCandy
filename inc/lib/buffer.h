@@ -36,6 +36,8 @@ extern void buffer_lstrip(struct buffer_t *buf, const char *charset);
 extern void buffer_rstrip(struct buffer_t *buf, const char *charset);
 extern void buffer_putd(struct buffer_t *buf,
                         const void *data, size_t datalen);
+extern void buffer_init_from(struct buffer_t *buf,
+                        char *line, size_t size);
 static inline size_t buffer_size(struct buffer_t *buf) { return buf->p; }
 static inline void
 buffer_reset(struct buffer_t *buf)

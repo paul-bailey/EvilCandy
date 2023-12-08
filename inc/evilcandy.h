@@ -391,13 +391,11 @@ object_child(struct var_t *o, const char *s)
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);
 extern struct var_t *string_init(struct var_t *var, const char *cstr);
-static inline void string_clear(struct var_t *str)
-        { string_assign_cstring(str, ""); }
 extern struct var_t *string_nth_child(struct var_t *str, int idx);
 extern size_t string_length(struct var_t *str);
 extern char *string_get_cstring(struct var_t *str);
-extern void string_putc(struct var_t *str, int c);
-extern void string_puts(struct var_t *str, const char *s);
+extern void string_init_from_file(struct var_t *ret, FILE *fp,
+                                  int delim, bool stuff_delim);
 
 /* vm.c */
 extern void vm_execute(struct executable_t *top_level);

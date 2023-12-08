@@ -125,6 +125,18 @@ buffer_init_(struct buffer_t *b)
 }
 
 /**
+ * buffer_init_from - Initialize @buf using pre-existing pointer
+ *                    and alloc size
+ */
+void
+buffer_init_from(struct buffer_t *buf, char *line, size_t size)
+{
+        buf->s = line;
+        buf->size = size;
+        buf->p = 0;
+}
+
+/**
  * buffer_init - Initialize @buf
  *
  * This is NOT a reset function!

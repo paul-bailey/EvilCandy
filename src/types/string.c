@@ -7,6 +7,11 @@
 #include <errno.h>
 #include <math.h>
 
+/* user argument limits */
+enum {
+        JUST_MAX = 10000,
+};
+
 struct string_handle_t {
         struct buffer_t b;
         enum {
@@ -470,6 +475,7 @@ string_format2(struct var_t *ret)
         }
 }
 
+
 /* len() (no args)
  * returns length of C string stored in self
  *
@@ -726,10 +732,69 @@ string_copy(struct var_t *ret)
         string_init(ret, s);
 }
 
+/* rjust(amt)   integer arg */
+static void
+string_rjust(struct var_t *ret)
+{
+        struct var_t *self = get_this();
+        struct var_t *arg = vm_get_arg(0);
+        size_t len;
+        long long just;
+
+        arg_type_check(arg, TYPE_INT);
+
+        just = arg->i;
+        if (just < 0 || just >= JUST_MAX)
+                syntax("Range limit error");
+
+        len = string_length(self);
+        if (len < just) {
+                /*
+                 * TODO: "need_len = just + (bytes_len - len) + 1"
+                 * Need to replace buffer_t API, allocate this in
+                 * one chunk, and memset... much faster than this
+                 * in the case of "rjust(gazillion)"
+                 */
+                just -= len;
+                string_init(ret, NULL);
+                while (just--)
+                        string_putc(ret, ' ');
+                string_puts(ret, string_get_cstring(self));
+        } else {
+                string_init(ret, string_get_cstring(self));
+        }
+}
+
+/* rjust(amt)    integer arg */
+static void
+string_ljust(struct var_t *ret)
+{
+        struct var_t *self = get_this();
+        struct var_t *arg = vm_get_arg(0);
+        size_t len;
+        long long just;
+
+        arg_type_check(arg, TYPE_INT);
+
+        just = arg->i;
+        if (just < 0 || just >= JUST_MAX)
+                syntax("Range limit error");
+
+        len = string_length(self);
+        string_init(ret, string_get_cstring(self));
+        if (len < just) {
+                just -= len;
+                while (just--)
+                        string_putc(ret, ' ');
+        }
+}
+
 static struct type_inittbl_t string_methods[] = {
         V_INITTBL("len",     string_length_method, 0, 0),
         V_INITTBL("format",  string_format, 0, -1),
         V_INITTBL("format2", string_format2, 0, -1),
+        V_INITTBL("ljust",   string_ljust, 1, 0),
+        V_INITTBL("rjust",   string_rjust, 1, 0),
         V_INITTBL("toint",   string_toint, 0, 0),
         V_INITTBL("tofloat", string_tofloat, 0, 0),
         V_INITTBL("lstrip",  string_lstrip, 0, 1),
@@ -910,6 +975,8 @@ string_putc(struct var_t *str, int c)
 void
 string_puts(struct var_t *str, const char *s)
 {
+        if (!s)
+                return;
         while (*s)
                 string_putc(str, *s++);
 }

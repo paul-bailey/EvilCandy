@@ -709,6 +709,7 @@ assemble_arraydef(struct assemble_t *a)
 
         do {
                 assemble_eval(a);
+                as_lex(a);
                 /* pop attr, pop array, addattr, push array */
                 add_instr(a, INSTR_LIST_APPEND, 0, 0);
         } while (a->oc->t == OC_COMMA);

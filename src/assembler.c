@@ -724,28 +724,23 @@ assemble_objdef(struct assemble_t *a)
         do {
                 struct token_t *name;
                 int namei;
-                bool constflag = false;
+                unsigned attrarg = 0;
 
                 as_lex(a);
+                if (a->oc->t == OC_CONST) {
+                        as_lex(a);
+                        attrarg = IARG_FLAG_CONST;
+                }
                 as_err_if(a,
                           a->oc->t != 'u' && a->oc->t != 'q',
                           AE_EXPECT);
                 name = a->oc;
                 namei = seek_or_add_const(a, name);
                 as_lex(a);
-                if (a->oc->t == OC_CONST) {
-                        as_lex(a);
-                        constflag = true;
-                }
                 as_err_if(a, a->oc->t != OC_COLON, AE_EXPECT);
                 assemble_eval(a);
-                /*
-                 * FIXME: Need way to add flag for ADDATTR
-                 * Also, why not just SETATTR?
-                 */
-                if (constflag)
-                        (void)constflag;
-                add_instr(a, INSTR_ADDATTR, 0, namei);
+                /* REVISIT: why not just SETATTR?  */
+                add_instr(a, INSTR_ADDATTR, attrarg, namei);
                 as_lex(a);
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);

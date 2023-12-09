@@ -543,6 +543,8 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
          * support it.  (Lists have a separate opcode, see
          * do_list_append below.)
          */
+        if (!!(ii.arg1 & IARG_FLAG_CONST))
+                attr->flags |= VF_CONST;
         object_add_child(obj, attr, name);
         VAR_DECR_REF(attr);
         push(fr, obj);

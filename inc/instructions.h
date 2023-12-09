@@ -7,7 +7,9 @@
 
 /* GETATTR, SETATTR, arg1 enumerations */
 enum {
+        /* do not confuse with IARG_FLAG_CONST! */
         IARG_ATTR_CONST = 0,
+
         IARG_ATTR_STACK = 1,
 };
 
@@ -52,9 +54,14 @@ enum {
         IARG_GT
 };
 
-/* ASSIGN enumerations */
+/*
+ * ASSIGN, ADDATTR arg1 enumerations
+ * (these are flags, not a sequence)
+ */
 enum {
         IARG_FLAG_CONST = 0x01,
+        /* ADDATR only */
+        IARG_FLAG_PRIV = 0x02,
 };
 
 typedef struct {

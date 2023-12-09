@@ -359,6 +359,7 @@ extern void array_add_child(struct var_t *array, struct var_t *child);
 extern int array_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
+extern int array_get_type(struct var_t *array);
 
 /* types/function.c */
 extern void function_init_internal(struct var_t *func,

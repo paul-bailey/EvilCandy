@@ -853,6 +853,41 @@ string_ljust(struct var_t *ret)
         }
 }
 
+static void
+string_join(struct var_t *ret)
+{
+        struct var_t *self = get_this();
+        struct var_t *arg = vm_get_arg(0);
+        char *joinstr;
+        struct var_t *elem;
+        int idx;
+
+        if ((joinstr = string_get_cstring(self)) == NULL)
+                joinstr = "";
+
+        arg_type_check(arg, TYPE_LIST);
+
+        idx = 0;
+        elem = array_child(arg, idx);
+        if (!elem) {
+                string_init(ret, "");
+                return;
+        }
+
+        if (elem->magic != TYPE_STRING)
+                syntax("string.join method may only join arrays of strings");
+
+        string_init(ret, string_get_cstring(elem));
+        for (;;) {
+                idx++;
+                elem = array_child(arg, idx);
+                if (!elem)
+                        break;
+                string_puts(ret, joinstr);
+                string_puts(ret, string_get_cstring(elem));
+        }
+}
+
 static struct type_inittbl_t string_methods[] = {
         V_INITTBL("len",     string_length_method, 0, 0),
         V_INITTBL("format",  string_format, 0, -1),
@@ -866,6 +901,7 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("replace", string_replace, 2, 2),
         V_INITTBL("strip",   string_strip, 0, 1),
         V_INITTBL("copy",    string_copy, 0, 0),
+        V_INITTBL("join",    string_join, 1, 0),
         TBLEND,
 };
 

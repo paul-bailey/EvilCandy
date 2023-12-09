@@ -702,15 +702,6 @@ A dictionary may be de-referenced in one of two ways:
 
         let y = x["thing"];
 
-3. Numerical-array notation:
-
-.. code-block:: js
-
-        let y = x[2];
-
-Example 3 is not recommended, nor will it be noticeably faster than
-example 1.
-
 .. note::
         Example 1 is slightly faster than example 2, because array
         indexes are evaluated at runtime, even when they're expressed as

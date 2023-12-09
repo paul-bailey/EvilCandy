@@ -132,6 +132,20 @@ array_from_empty(struct var_t *array)
         return array;
 }
 
+/**
+ * array_get_type - Get the type of data stored in an array
+ * @array: Array containing stuff
+ *
+ * Return:
+ * A TYPE_* enum matching the contents of the array
+ */
+int
+array_get_type(struct var_t *array)
+{
+        bug_on(array->magic != TYPE_LIST);
+        return array->a->type;
+}
+
 static void
 array_reset(struct var_t *a)
 {

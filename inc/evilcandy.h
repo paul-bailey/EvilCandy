@@ -376,7 +376,6 @@ extern void function_init(struct var_t *func,
 /* types/object.c */
 extern struct var_t *object_init(struct var_t *v);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
-extern struct var_t *object_nth_child(struct var_t *o, int n);
 extern void object_add_child(struct var_t *o, struct var_t *v, char *name);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));

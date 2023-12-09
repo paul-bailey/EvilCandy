@@ -71,21 +71,6 @@ object_child_l(struct var_t *o, const char *s)
 }
 
 /**
- * object_nth_child - Get the nth child of an object
- * @o: object to seek
- * @n: The "n" of "nth", indexed from zero
- *
- * Return: the nth child--which of course could be anything, since this
- * is an associative array--or NULL if @n is out of bounds.
- */
-struct var_t *
-object_nth_child(struct var_t *o, int n)
-{
-        /* FIXME: This needs a hashtable nth child or something */
-        return NULL;
-}
-
-/**
  * object_add_child - Append a child to an object
  * @parent: object to append a child to
  * @child: child to append to @parent

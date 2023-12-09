@@ -180,7 +180,7 @@ config_builtin_methods(const struct type_inittbl_t *tbl,
  * @tbl:        Table of additional built-in methods that can be called
  *              by name from a user script.
  *
- * This ic called once for each built-in type, see the typedefinit_*()
+ * This is called once for each built-in type, see the typedefinit_*()
  * functions in types/...c
  *
  * tbl may be NULL, the other arguments may not
@@ -314,8 +314,6 @@ var_get_attr(struct var_t *v, struct var_t *deref)
                 switch (v->magic) {
                 case TYPE_LIST:
                         return array_child(v, deref->i);
-                case TYPE_DICT:
-                        return object_nth_child(v, deref->i);
                 case TYPE_STRING:
                         return string_nth_child(v, deref->i);
                 }

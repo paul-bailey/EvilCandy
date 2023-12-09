@@ -1,3 +1,7 @@
+/*
+ * disassemble.c - Code that handles the -d or -D option, disassemble
+ *                 bytecode back into text a user could read.
+ */
 #include "instructions.h"
 #include "token.h"
 #include <evilcandy.h>

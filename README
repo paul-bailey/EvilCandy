@@ -9,18 +9,104 @@ An Script Interpreter and Programming Language
 :Author: Paul Bailey <roscidcup@falstaffandme.com>
 :Date: November 2022
 
+About
+=====
+
 **EvilCandy** is a(nother) object-oriented interpreted programming
 language and interpreter.  The language itself is nothing original;
 I cherry-picked some of my favorite syntactic features of Python
 and JavaScript, but it looks mostly like JavaScript.  The real purpose
-of the project is in the challenge of writing an interpreter.
+of the project is in the challenge of writing an interpreter and then
+making it fast.
 
 So in that sense (see the all-caps part of COPYING), **EvilCandy**
-is an *exercise*, not a shippable release candidate, not even an
-alpha-phase candidate.
+is an *exercise*, not a shippable release candidate, not even a
+Pre-alpha, really. (see Status_ below).
 
-ISSUES, As of December 2023...
-==============================
+Why Is It Called EvilCandy?
+---------------------------
+
+I wanted to call it CandyScript, but I found out that "Candy Script" was
+already the name of a popular typeface--if "popular typeface" is a thing
+that can exist.  So I settled for EvilCandy.
+
+How Is It Different From JavaScript?
+------------------------------------
+
+In a nutshell, the resemblance between EvilCandy and JavaScript is mostly
+cosmetic.  The biggest similarity is in the way functions can be pretty
+much declared and defined anywhere.
+
+Documentation.rst details the syntax and functionality of the language.
+But here are some major differences...
+
+* EvilCandy is (mostly) statically typed.  You cannot change a string
+  into an integer, for example.
+
+* Most of EvilCandy's built-in methods were modeled after Python rather
+  than JavaScript.  While writing this interpreter I was thinking about
+  JavaScript while keeping an eye on some Python pocketbooks.  For
+  example, ``join`` is a string method, not a list method.
+
+* As of 12/2023, EvilCandy has practically no module library; I'm still
+  tying up loose ends in the core interpreter.  But when I do start
+  working on the library in earnest, I have no intention of trying to
+  continue making it resemble JavaScript, which seems too heavily
+  tailored for Web browsers.
+
+* Some syntactic changes were made.  A couple cases:
+
+  * JavaScript's arrow notation, while cutely imitating the notation of
+    lambda Calculus, is hard to read and even harder for an assembler to
+    parse.  I invented a different notation for lambda functions for
+    EvilScript.
+
+  * I really like the ``else`` clause to Python's ``for`` loop, so I
+    implemented a JavaScript/C-looking ``for`` loop that has an
+    optional ``else`` statement.
+
+  * There's an alternative way to declare closures.
+
+  * There is no ``var`` keyword.  There is only ``let``.
+
+  * EvilCandy (currently) has nothing to do with the Document Object Model.
+
+  * I am tempted to have the program exit if you write a variable with
+    those gawdawful JavaScript names like ``ThisVariableIsAnIteratorInAForLoop``.
+
+* EvilCandy is more bare-bones with its native types.  There is no
+  ``class`` syntax, no ``thing.Prototype.Init`` or whatnot.  The use
+  of IIFE's, closures, lambda, and functions that can return associative
+  arrays, are all such elegant ways to create a user-defined class
+  without actually calling it a class, that the other stuff just clutters
+  the language up.
+
+
+How Fast Is EvilCandy?
+----------------------
+
+As of December 2023 the project is in early development and hasn't been
+tested much for speed.  The only testing I've done thus far is in
+``demos/sqrt.egq``, a brute-force square root algorithm that iterates over
+input values 1.0 to 1000000.0.  An equivalent algorithm in Python takes
+about 4-5s to complete.  Ever since I got the VM (src/vm.c) working, my
+own interpreter is roughly the same, 4-5s.
+
+But one, that only speed-tests basic execution of assembled instructions.
+It doesn't stress test any worst-case scenarios, like abusively long
+lists or strings, large quantities of small variables, things like that.
+
+And two, the Python-like speed is mostly an illusion. I could only get it
+to run that fast when compiling ``-O3 -DNDEBUG``, which the program is
+not ready for.  With all the debug hooks and bug traps left in, it's
+about a third as fast.
+
+Still, this is not embarrassing, and I'm quite proud of how fast it runs.
+
+Status
+======
+
+As of December, 2023...
 
 This project is still under initial development and neither the syntax
 nor the implementation is at all stable.
@@ -53,12 +139,7 @@ nor the implementation is at all stable.
   few builtins that exists mainly to test that access to a builtin
   library even works.
 
-Why Is It Called EvilCandy?
-===========================
-
-I wanted to call it CandyScript, but I looked it up and found out that
-"Candy Script" was already the name of a popular typeface--if "popular
-typeface" is a thing that can exist.  So I settled for EvilCandy.
+I've started to-do.txt to add to my development wishlist.
 
 The Language
 ============

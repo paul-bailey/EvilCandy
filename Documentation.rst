@@ -816,6 +816,16 @@ Program Flow
 In this section, *condition* refers to a boolean truth statement.
 Since program flow requires this, let's start there...
 
+.. warning::
+        Braces around program flow statements are more strongly
+        encouraged for EvilCandy, because unlike JavaScript or C,
+        ``else`` is a clause to both ``if`` *and* ``for``.  If
+        ``if`` is followed by ``for`` or vice-versa, and they are
+        next followed by an ``else`` clause, the ``else`` will be
+        a part of the latter statement, not the former, unless
+        they are clearly delimited by braces.  Do not be fooled by
+        the illusion of indentation, this isn't Python!
+
 Condition Testing
 -----------------
 
@@ -983,6 +993,11 @@ documentation:
 the ``break`` statement escapes completely from the inner ``for`` loop;
 but if the loop continues to iterate until failure of the ``x < n`` test,
 the statement in the ``else`` block will be executed.
+
+A word of caution: Even though the ``for`` loop in this example contains
+only one statement, because it is an ``if`` statement, the braces are still
+needed to prevent the ``else`` from being a part of the inner ``if``
+statement.
 
 Scope
 =====

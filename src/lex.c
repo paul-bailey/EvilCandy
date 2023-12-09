@@ -1,3 +1,4 @@
+/* lex.c - Tokenizer and prescan code */
 #include <evilcandy.h>
 #include "token.h"
 #include <ctype.h>
@@ -643,6 +644,11 @@ tokenize_helper(void)
  * @oc: where to store the result
  *
  * Return: Same value as oc->t
+ *
+ * XXX: not ready for extern linkage yet, need to do the getloc
+ * thing from parent (currently prescan), then we'll add this as
+ * the function as_lex calls in assembler.c, so we can have
+ * interactive mode.
  */
 int
 tokenize(struct token_t *oc)

@@ -109,6 +109,19 @@ convert_path(const char *name)
         return literal_put(path.s);
 }
 
+/*
+ * The goal is that when the 'load' keyword is ready to implement,
+ * the @filename arg to load_file will have a path relative to the
+ * currently loaded file (or to some config.in-defined search path,
+ * sort of like C's angle-bracket includes) if it is not the initial
+ * input file.  We'll use a stack to keep track of which paths are
+ * used, and convert_path above will be meaningful.
+ */
+
+/**
+ * load_file - Read in a file, tokenize it, assemble it, execute it.
+ * @filename: Path to file relative to current working directory
+ */
 void
 load_file(const char *filename)
 {

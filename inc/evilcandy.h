@@ -85,6 +85,8 @@ struct token_t;
  * @priv_cleanup: Way to clean up @priv if destroying this object handle.
  *              If this is NULL and @priv is not NULL, @priv will be
  *              simply freed.
+ * @lock:       Prevent SETATTR, GETATTR during an iterable cycle, such as
+ *              foreach.
  *
  * PRIVATE STRUCT, placed here so I can inline some things
  */
@@ -93,6 +95,7 @@ struct object_handle_t {
         void (*priv_cleanup)(struct object_handle_t *, void *);
         int nchildren;
         struct hashtable_t dict;
+        unsigned int lock;
 };
 
 /**

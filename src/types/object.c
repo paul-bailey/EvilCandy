@@ -94,6 +94,9 @@ object_nth_child(struct var_t *o, int n)
 void
 object_add_child(struct var_t *parent, struct var_t *child, char *name)
 {
+        bug_on(parent->magic != TYPE_DICT);
+        if (parent->o->lock)
+                syntax("Dictionary add/remove locked");
         if (hashtable_put(&parent->o->dict, name, child) < 0)
                 syntax("Object already has element named %s", name);
         VAR_INCR_REF(child);
@@ -147,7 +150,7 @@ object_foreach(struct var_t *ret)
         unsigned int idx;
         struct hashtable_t *htbl;
         void *key, *val;
-        int res;
+        int res, lock;
 
         struct var_t *argv[2];
         argv[0] = var_new(); /* attribute */
@@ -159,6 +162,8 @@ object_foreach(struct var_t *ret)
         bug_on(self->magic != TYPE_DICT);
         htbl = &self->o->dict;
 
+        lock = self->o->lock;
+        self->o->lock = 1;
         for (idx = 0, res = hashtable_iterate(htbl, &key, &val, &idx);
              res == 0; res = hashtable_iterate(htbl, &key, &val, &idx)) {
                 var_reset(argv[0]);
@@ -172,6 +177,8 @@ object_foreach(struct var_t *ret)
                  */
                 vm_reenter(func, NULL, 2, argv);
         }
+        self->o->lock = lock;
+
         VAR_DECR_REF(argv[0]);
         VAR_DECR_REF(argv[1]);
 }

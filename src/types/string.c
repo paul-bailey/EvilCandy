@@ -12,6 +12,8 @@
 /* user argument limits */
 enum {
         JUST_MAX = 10000,
+        PRECISION_MAX = 30,
+        PAD_MAX = JUST_MAX,
 };
 
 struct string_handle_t {
@@ -19,11 +21,10 @@ struct string_handle_t {
         struct utf8_info_t s_info;
 };
 
-static void
-emismatch(const char *op)
-{
-        syntax("Mismatched types for %s operation", op);
-}
+
+/* **********************************************************************
+ *                      Common Helpers
+ ***********************************************************************/
 
 static inline struct buffer_t *string_buf__(struct var_t *str)
         { return &str->s->b; }
@@ -83,7 +84,10 @@ string_puts(struct var_t *str, const char *s)
         buffer_puts(buf, s);
 }
 
-/* format2 and helpers */
+
+/* **********************************************************************
+ *                      format2 and helpers
+ ***********************************************************************/
 
 static void
 padwrite(struct buffer_t *buf, int padc, size_t padlen)
@@ -425,6 +429,10 @@ format2_helper(struct buffer_t *buf, const char *s, int argi)
                         }
                 }
         }
+        if (padlen >= PAD_MAX)
+                padlen = PAD_MAX;
+        if (precision >= PRECISION_MAX)
+                precision = PRECISION_MAX;
 
         switch ((conv = *s++)) {
         case 'x':
@@ -526,6 +534,9 @@ string_format2(struct var_t *ret)
         utf8_scan(string_get_cstring(ret), &ret->s->s_info);
 }
 
+/* **********************************************************************
+ *              Built-in type methods (not format2)
+ * *********************************************************************/
 
 /* len() (no args)
  * returns length of C string stored in self
@@ -858,6 +869,11 @@ static struct type_inittbl_t string_methods[] = {
         TBLEND,
 };
 
+
+/* **********************************************************************
+ *                      Operator Methods
+ * *********************************************************************/
+
 static void
 string_reset(struct var_t *str)
 {
@@ -874,7 +890,7 @@ string_add(struct var_t *a, struct var_t *b)
                 rval = b->strptr;
         else {
                 if (b->magic != TYPE_STRING)
-                        emismatch("+");
+                        syntax("Mismatched types for %s operation", "+");
                 rval = string_get_cstring(b);
         }
         ret = var_new();
@@ -932,6 +948,11 @@ static const struct operator_methods_t string_primitives = {
         .mov_strict     = string_mov_strict,
         .reset          = string_reset,
 };
+
+
+/* **********************************************************************
+ *                           API functions
+ * *********************************************************************/
 
 /**
  * string_init - Convert an empty variable into a string type

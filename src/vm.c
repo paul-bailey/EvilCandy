@@ -777,10 +777,20 @@ vm_get_location(const char **file_name, void *unused)
                 return 0;
         }
 
-        bug_on(!current_frame->ex);
-
         ex = current_frame->ex;
-        offs = current_frame->ppii - 1 - ex->instr;
+        if (!ex) {
+                /*
+                 * ex not set if we're in internal function,
+                 * get line where function was called from.
+                 */
+                struct vmframe_t *prev = current_frame->prev;
+                bug_on(!prev);
+                ex = prev->ex;
+                bug_on(!ex);
+                offs = prev->ppii - 1 - ex->instr;
+        } else {
+                offs = current_frame->ppii - 1 - ex->instr;
+        }
         bug_on((int)offs < 0);
 
         for (i = 0; i < ex->n_locations; i++) {

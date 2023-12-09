@@ -7,6 +7,8 @@
 #include <errno.h>
 #include <math.h>
 
+#define STRING_LENGTH(str)      ((str)->s->s_info.enc_len)
+
 /* user argument limits */
 enum {
         JUST_MAX = 10000,
@@ -14,7 +16,7 @@ enum {
 
 struct string_handle_t {
         struct buffer_t b;
-        int enc;
+        struct utf8_info_t s_info;
 };
 
 static void
@@ -33,41 +35,52 @@ string_handle_reset(void *h)
         buffer_free(&sh->b);
 }
 
+static void
+string_clear_info(struct utf8_info_t *info)
+{
+        info->enc_len = info->ascii_len = 0;
+        info->enc = STRING_ENC_ASCII;
+}
+
 static struct string_handle_t *
 new_string_handle(void)
 {
         struct string_handle_t *ret = type_handle_new(sizeof(*ret),
                                                 string_handle_reset);
         buffer_init(&ret->b);
+        string_clear_info(&ret->s_info);
         return ret;
 }
 
-static inline void string_clear(struct var_t *str)
-        { string_assign_cstring(str, ""); }
-
-size_t
-string_length(struct var_t *str)
+static void
+string_update_info(struct utf8_info_t *dst, struct utf8_info_t *src)
 {
-        if (str->s->enc == STRING_ENC_ASCII)
-                return buffer_size(string_buf__(str));
-        /* TODO: Way to update enc */
-        return utf8_strlen(string_get_cstring(str));
+        dst->enc_len += src->enc_len;
+        dst->ascii_len += src->ascii_len;
+
+        if (dst->enc == STRING_ENC_ASCII || src->enc == STRING_ENC_UNK)
+                dst->enc = src->enc;
+}
+
+static void
+string_clear(struct var_t *str)
+{
+        string_clear_info(&str->s->s_info);
+        buffer_reset(string_buf__(str));
 }
 
 static void
 string_puts(struct var_t *str, const char *s)
 {
         struct buffer_t *buf = string_buf__(str);
-        bool check_enc = str->s->enc == STRING_ENC_ASCII;
+        struct utf8_info_t src_info;
+
         if (!s)
                 return;
-        while (*s) {
-                if (check_enc && (unsigned)*s > 127) {
-                        str->s->enc = STRING_ENC_UNK;
-                        check_enc = false;
-                }
-                buffer_putc(buf, *s++);
-        }
+
+        utf8_scan(s, &src_info);
+        string_update_info(&str->s->s_info, &src_info);
+        buffer_puts(buf, s);
 }
 
 /* format2 and helpers */
@@ -510,25 +523,7 @@ string_format2(struct var_t *ret)
                 }
         }
 
-        /*
-         * We put a lot of characters in buf, so check if any of them
-         * are non-ASCII.  (revisit: I assume it's quicker to do this
-         * in a single pass rather than check for every putc into buf.)
-         *
-         * Don't bother checking if valid UTF-8, 99% of the time it will
-         * be pure ASCII, so just set encoding to UNK and accept the
-         * sloth-time of ut8_*() for the 1%.
-         *
-         * FIXME: Blind assumption being made here about who will use
-         * this program.
-         */
-        ret->s->enc = STRING_ENC_ASCII;
-        for (s = buf->s; *s != '\0'; s++) {
-                if ((unsigned)*s > 127) {
-                        ret->s->enc = STRING_ENC_UNK;
-                        break;
-                }
-        }
+        utf8_scan(string_get_cstring(ret), &ret->s->s_info);
 }
 
 
@@ -542,7 +537,7 @@ string_length_method(struct var_t *ret)
 {
         struct var_t *self = get_this();
         bug_on(self->magic != TYPE_STRING);
-        integer_init(ret, string_length(self));
+        integer_init(ret, STRING_LENGTH(self));
 }
 
 static bool
@@ -743,9 +738,9 @@ string_replace(struct var_t *ret)
 
         /* end not technically needed, but in case of match() bugs */
         haystack = string_get_cstring(self);
-        end = haystack + string_length(self);
+        end = haystack + STRING_LENGTH(self);
         needle = string_get_cstring(vneedle);
-        needle_len = string_length(vneedle);
+        needle_len = STRING_LENGTH(vneedle);
 
         if (!haystack || end == haystack) {
                 buffer_putc(string_buf__(ret), '\0');
@@ -804,7 +799,7 @@ string_rjust(struct var_t *ret)
         if (just < 0 || just >= JUST_MAX)
                 syntax("Range limit error");
 
-        len = string_length(self);
+        len = STRING_LENGTH(self);
         if (len < just) {
                 /*
                  * TODO: "need_len = just + (bytes_len - len) + 1"
@@ -838,7 +833,7 @@ string_ljust(struct var_t *ret)
         if (just < 0 || just >= JUST_MAX)
                 syntax("Range limit error");
 
-        len = string_length(self);
+        len = STRING_LENGTH(self);
         string_init(ret, string_get_cstring(self));
         if (len < just) {
                 just -= len;
@@ -953,6 +948,8 @@ string_init(struct var_t *var, const char *cstr)
         var->s = new_string_handle();
         if (cstr)
                 string_assign_cstring(var, cstr);
+        else
+                string_clear(var);
         return var;
 }
 
@@ -968,9 +965,7 @@ string_assign_cstring(struct var_t *str, const char *s)
 {
         bug_on(str->magic != TYPE_STRING);
 
-        struct buffer_t *buf = string_buf__(str);
-        buffer_reset(buf);
-        str->s->enc = STRING_ENC_ASCII;
+        string_clear(str);
         if (!s)
                 s = "";
         string_puts(str, s);
@@ -988,7 +983,6 @@ string_assign_cstring(struct var_t *str, const char *s)
 struct var_t *
 string_nth_child(struct var_t *str, int idx)
 {
-        struct buffer_t *buf;
         struct var_t *new;
         char cbuf[5];
         char *src;
@@ -998,23 +992,19 @@ string_nth_child(struct var_t *str, int idx)
         if (!src || src[0] == '\0')
                 return NULL;
 
-        if (str->s->enc == STRING_ENC_ASCII) {
-                buf = string_buf__(str);
-                idx = index_translate(idx, buffer_size(buf));
-                if (idx < 0)
-                        return NULL;
+        idx = index_translate(idx, STRING_LENGTH(str));
+        if (idx < 0)
+                return NULL;
 
+        if (str->s->s_info.enc == STRING_ENC_ASCII) {
                 cbuf[0] = src[idx];
                 cbuf[1] = '\0';
         } else {
-                /* XXX REVISIT: double-dipping, maybe make
-                 * utf8_...() return more data about the string.
-                 */
-                idx = index_translate(idx, utf8_strlen(src));
-                if (idx < 0)
+                if (utf8_subscr_str(src, idx, cbuf) < 0) {
+                        /* code managing str->s->s_info has bug */
+                        bug();
                         return NULL;
-                if (utf8_subscr_str(src, idx, cbuf) < 0)
-                        return NULL;
+                }
         }
         new = var_new();
         string_init(new, cbuf);
@@ -1054,14 +1044,25 @@ string_init_from_file(struct var_t *ret, FILE *fp, int delim, bool stuff_delim)
         buf = string_buf__(ret);
         string_clear(ret);
         while ((c = getc(fp)) != delim && c != EOF) {
-                if ((unsigned)c > 127)
-                        ret->s->enc = STRING_ENC_UNK;
                 buffer_putc(buf, c);
         }
         if (stuff_delim && c == delim)
                 buffer_putc(buf, c);
+        utf8_scan(buf->s, &ret->s->s_info);
 }
 
+/**
+ * string_length - Get the length of @str
+ *
+ * Return:
+ * length, in number of CHARACTERS, not bytes.  @str might be UTF-8-
+ * encoded.
+ */
+size_t
+string_length(struct var_t *str)
+{
+        return STRING_LENGTH(str);
+}
 
 void
 typedefinit_string(void)

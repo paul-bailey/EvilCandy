@@ -42,7 +42,7 @@ extern unsigned long fnv_hash(const char *s);
  */
 struct utf8_info_t {
         enum {
-                STRING_ENC_ASCII,
+                STRING_ENC_ASCII = 0,
                 STRING_ENC_UTF8,
                 STRING_ENC_UNK,
         } enc;

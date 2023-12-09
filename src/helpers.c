@@ -335,68 +335,38 @@ static inline bool isutf8(unsigned int c)
 size_t
 utf8_strlen(const char *s)
 {
-        const char *start = s;
-        unsigned int c, skip = 0;
-
-        /* some weird systems out there */
-        bug_on(sizeof(char) != sizeof(uint8_t));
-
-        while ((c = *s++) != 0) {
-                if (c > 127) {
-                        /* skip is len-1, we only 'skip' the extras */
-                        const uint8_t *ts = (uint8_t *)s;
-                        if ((c & 0xe0) == 0xc0) {
-                                if (!isutf8(*ts++))
-                                        continue;
-                                skip += 1;
-                        } else if ((c & 0xf0) == 0xe0) {
-                                if (!isutf8(*ts++))
-                                        continue;
-                                if (!isutf8(*ts++))
-                                        continue;
-                                skip += 2;
-                        } else if ((c & 0xf8) == 0xf0) {
-                                if (!isutf8(*ts++))
-                                        continue;
-                                if (!isutf8(*ts++))
-                                        continue;
-                                if (!isutf8(*ts++))
-                                        continue;
-                                skip += 3;
-                        } else {
-                                continue;
-                        }
-                        s = (char *)ts;
-                }
-        }
-        return s - 1 - start - skip;
+        struct utf8_info_t info;
+        utf8_scan(s, &info);
+        return info.enc_len;
 }
 
 /* like utf8_strgetc but without putting a nullchar at the end of @dst */
 static size_t
 utf8_strgetc_(const char *s, char *dst)
 {
-        static const unsigned int masks[] = { 0xe0, 0xf0, 0xf8 };
-        static const unsigned int cmps[]  = { 0xc0, 0xe0, 0xf0 };
-
-        dst[0] = s[0];
-        if ((unsigned)s[0] > 127) {
-                int i;
-
-                for (i = 0; i < 3; i++) {
-                        dst[i] = s[i];
-                        if (((unsigned)s[0] & masks[i]) == cmps[i]) {
-                                if (!isutf8(s[i]))
-                                        break;
-                                dst[i + 1] = '\0';
-                                return i + 1;
-                        }
-                }
-        } else if (s[0] == '\0') {
+        unsigned int c0;
+        *dst++ = c0 = *s++;
+        if (c0 == 0)
                 return 0;
-        }
 
-        /* ascii or malformed */
+        if (c0 > 127) {
+                unsigned int c;
+                *dst++ = c = *s++;
+                if (!isutf8(c))
+                        return 1;
+                if ((c0 & 0xe0) == 0xc0)
+                        return 2;
+                *dst++ = c = *s++;
+                if (!isutf8(c))
+                        return 1;
+                if ((c0 & 0xf0) == 0xe0)
+                        return 3;
+                *dst++ = c = *s++;
+                if (!isutf8(c))
+                        return 1;
+                if ((c0 & 0xf8) == 0xf0)
+                        return 4;
+        }
         return 1;
 }
 
@@ -437,8 +407,14 @@ utf8_scan(const char *s, struct utf8_info_t *info)
         const char *start = s;
         int c;
 
+        if (!s) {
+                info->enc_len = info->ascii_len = 0;
+                info->enc = STRING_ENC_ASCII;
+                return;
+        }
+
         while ((c = *s++) != '\0') {
-                if (c > 127) {
+                if ((unsigned)c > 127) {
                         bool malformed = true;
                         const char *ts = s;
                         do {
@@ -493,21 +469,19 @@ int
 utf8_subscr_str(const char *src, size_t idx, char *dest)
 {
         int c, i;
-        const uint8_t *s = (uint8_t *)src;
+        const char *s = src;
         for (i = 0, c = *s++; i < idx && c != '\0'; i++, c = *s++) {
-                if (c > 127) {
+                if ((unsigned)c > 127) {
                         if ((c & 0xe0) == 0xc0) {
-                                if ((unsigned)s[0] > 127)
+                                if (isutf8(s[0]))
                                         s++;
                         } else if ((c & 0xf0) == 0xe0) {
-                                if ((unsigned)s[0] > 127 &&
-                                    (unsigned)s[1] > 127) {
+                                if (isutf8(s[0]) && isutf8(s[1]))
                                         s += 2;
-                                }
                         } else if ((c & 0xf8) == 0xf0) {
-                                if ((unsigned)s[0] > 127 &&
-                                    (unsigned)s[1] > 127 &&
-                                    (unsigned)s[2] > 127) {
+                                if (isutf8(s[0]) &&
+                                    isutf8(s[1]) &&
+                                    isutf8(s[2])) {
                                         s += 3;
                                 }
                         }
@@ -516,38 +490,6 @@ utf8_subscr_str(const char *src, size_t idx, char *dest)
         if (c == '\0')
                 return -1;
 
-        if (c > 127) {
-                if ((c & 0xe0) == 0xc0) {
-                        if ((unsigned)s[0] > 127) {
-                                dest[0] = c;
-                                dest[1] = s[0];
-                                dest[2] = '\0';
-                                return 0;
-                        }
-                } else if ((c & 0xf0) == 0xe0) {
-                        if ((unsigned)s[0] > 127 &&
-                            (unsigned)s[1] > 127) {
-                                dest[0] = c;
-                                dest[1] = s[0];
-                                dest[2] = s[1];
-                                dest[3] = '\0';
-                                return 0;
-                        }
-                } else if ((c & 0xf8) == 0xf0) {
-                        if ((unsigned)s[0] > 127 &&
-                            (unsigned)s[1] > 127 &&
-                            (unsigned)s[2] > 127) {
-                                dest[0] = c;
-                                dest[1] = s[0];
-                                dest[2] = s[1];
-                                dest[3] = s[2];
-                                dest[4] = '\0';
-                                return 0;
-                        }
-                }
-        }
-
-        dest[0] = c;
-        dest[1] = '\0';
+        utf8_strgetc(s - 1, dest);
         return 0;
 }

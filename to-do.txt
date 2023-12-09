@@ -1,0 +1,18 @@
+
+* Support stdin; don't required a file name arg
+
+* Support interactive mode
+
+* Support serialization to byte-code files
+
+* assembler.c is the "we have an AST at home" version of an abstract
+  syntax tree.  Rewrite it from the ground up.
+
+* supprt the continue statement
+
+* support a switch statement.  Even though it'll be no faster than
+  an if-else-if block, switch statements are easier to read and
+  therefore less buggy.
+
+* support the load keyword.
+

@@ -5,6 +5,7 @@
 /**
  * struct array_handle_t - Handle to a numerical array
  * @type:       type of data stored in the array, a TYPE_* enum
+ * @lock:       lock to prevent add/remove during foreach
  * @nmemb:      Size of the array, in number of elements
  * @allocsize:  Size of the array, in number of bytes currently allocated
  *              for it
@@ -12,7 +13,7 @@
  *              keep figuring it out from @type all the time)
  */
 struct array_handle_t {
-        int type;
+        int type, lock;
         unsigned int nmemb;
         struct buffer_t children;
 };
@@ -78,7 +79,12 @@ array_child(struct var_t *array, int idx)
 int
 array_set_child(struct var_t *array, int idx, struct var_t *child)
 {
-        struct var_t *memb = array_child(array, idx);
+        struct var_t *memb;
+
+        if (array->a->lock)
+                syntax("attempting to modify array while locked");
+
+        memb = array_child(array, idx);
         if (!memb)
                 return -1;
         qop_mov(memb, child);
@@ -99,6 +105,9 @@ void
 array_add_child(struct var_t *array, struct var_t *child)
 {
         struct array_handle_t *h = array->a;
+
+        if (h->lock)
+                syntax("attempting to modify array while locked");
         if (child->magic == TYPE_EMPTY)
                 syntax("You may not add an empty var to array");
         if (h->type == TYPE_EMPTY) {
@@ -175,8 +184,74 @@ array_len(struct var_t *ret)
         integer_init(ret, self->a->nmemb);
 }
 
+static void
+array_foreach(struct var_t *ret)
+{
+        struct var_t *self, *func, *argv[2], **ppvar;
+        unsigned int idx, lock;
+        struct array_handle_t *h;
+
+        self = get_this();
+        func = frame_get_arg(0);
+        bug_on(self->magic != TYPE_LIST);
+        if (!func)
+                syntax("Expected: function");
+        h = self->a;
+        if (!h->nmemb)
+                return;
+
+        ppvar = (struct var_t **)h->children.s;
+
+        argv[0] = var_new(); /* item */
+        argv[1] = var_new(); /* index of item */
+        integer_init(argv[1], 0);
+
+        lock = h->lock;
+        h->lock = 1;
+        for (idx = 0; idx < h->nmemb; idx++) {
+                var_reset(argv[0]);
+                qop_mov(argv[0], ppvar[idx]);
+                argv[1]->i = idx;
+
+                vm_reenter(func, NULL, 2, argv);
+        }
+        h->lock = lock;
+
+        VAR_DECR_REF(argv[0]);
+        VAR_DECR_REF(argv[1]);
+}
+
+static void
+array_append(struct var_t *ret)
+{
+        struct var_t *self, *arg;
+        struct array_handle_t *ah;
+        self = get_this();
+        arg = vm_get_arg(0);
+        bug_on(self->magic != TYPE_LIST);
+        ah = self->a;
+
+        if (!arg) {
+                syntax("Expected: item");
+        }
+        if (ah->type != TYPE_EMPTY && ah->type != arg->magic) {
+                bug_on(ah->nmemb <= 0);
+                /*
+                 * bloated way to print type, but we're already
+                 * in failure mode, so time is not a consideration
+                 * anymore.
+                 */
+                struct var_t *somechild = array_child(self, 0);
+                syntax("Cannot append type %s to list type %s",
+                       typestr(somechild), typestr(arg));
+        }
+        array_add_child(self, arg);
+}
+
 static const struct type_inittbl_t array_methods[] = {
+        V_INITTBL("append",     array_append,   0, 0),
         V_INITTBL("len",        array_len,      0, 0),
+        V_INITTBL("foreach",    array_foreach,  0, 0),
         TBLEND,
 };
 

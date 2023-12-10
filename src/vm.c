@@ -262,6 +262,12 @@ do_nop(struct vmframe_t *fr, instruction_t ii)
 }
 
 static void
+do_load(struct vmframe_t *fr, instruction_t ii)
+{
+        load_file(RODATA_STR(fr, ii));
+}
+
+static void
 do_push_local(struct vmframe_t *fr, instruction_t ii)
 {
         push(fr, var_new());

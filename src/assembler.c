@@ -1580,8 +1580,10 @@ assemble_for(struct assemble_t *a, int skip_else)
 static void
 assemble_load(struct assemble_t *a)
 {
-        /* 12/2023: VM is not reentrant yet. */
-        as_err(a, AE_NOTIMPL);
+        as_errlex(a, 'q');
+        add_instr(a, INSTR_LOAD, 0,
+                  seek_or_add_const(a, a->oc));
+        as_errlex(a, OC_SEMI);
 }
 
 /*

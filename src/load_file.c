@@ -2,79 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-static inline bool
-isupdir(const char *s)
-{
-        return s[0] == '.' && s[1] == '.' && s[2] == '/';
-}
+#define MAX_LOADS RECURSION_MAX
 
-static inline bool
-issamedir(const char *s)
-{
-        return s[0] == '.' && s[1] == '/';
-}
+static const char *paths[MAX_LOADS];
+static int path_sp = 0;
 
-static struct buffer_t path = {
-        .s = NULL,
-        .p = 0,
-        .size = 0,
-};
-
-static char *
-prev_or_start(char *p, char *start, int c)
+static const char *
+cur_path(void)
 {
-        while (p > start && *p != (char)c)
-                --p;
-        return p;
-}
-
-static void
-convert_path_helper(const char *src, const char *src_end)
-{
-        while (src < src_end) {
-                if (*src == '/') {
-                        while (*src == '/')
-                                ++src;
-                } else if (issamedir(src)) {
-                        src += 2;
-                } else if (isupdir(src)) {
-                        /* try reduce "a/b/../" to just "a/" */
-                        char *start = path.s;
-                        char *dst = path.s + path.p;
-                        if (dst == start ||
-                            (dst - start >= 3 && isupdir(dst-3))) {
-                                /* We're upstream of CWD */
-                                buffer_putc(&path, *src++);
-                                buffer_putc(&path, *src++);
-                                buffer_putc(&path, *src++);
-                        } else {
-                                /*
-                                 * Downstream of CWD, we can reduce
-                                 * Reset struct buffer_t to previous '/'.
-                                 *
-                                 *      Hack alert!
-                                 * Requires knowledge of token.c code.
-                                 * Even though we have '/' in place,
-                                 * move ptr to that pos and buffer_putc '/'
-                                 * anyway.  It guarantees a nulchar right
-                                 * afterward in case we finish here.
-                                 */
-                                bug_on(dst[-1] != '/');
-                                bug_on(dst - start < 2);
-                                dst = prev_or_start(dst - 2, start, '/');
-                                path.p = dst - start;
-                                buffer_putc(&path, '/');
-                                src += 3;
-                        }
-                } else {
-                        /* Just copy this dir */
-                        int c;
-                        while (src < src_end && (c = *src++) != '/')
-                                buffer_putc(&path, c);
-                        if (src < src_end)
-                                buffer_putc(&path, '/');
-                }
-        }
+        return path_sp <= 0 ? "" : paths[path_sp-1];
 }
 
 /*
@@ -87,36 +23,53 @@ convert_path_helper(const char *src, const char *src_end)
 static char *
 convert_path(const char *name)
 {
-        char *old_path;
+        const char *path, *notdir;
+        char *new_path;
+        size_t old_len;
 
-        if (!path.s)
-                buffer_putc(&path, 'a');
-        buffer_reset(&path);
+        /* absolute path? */
+        if (name[0] == '/')
+                goto new_only;
 
-        /* TODO: This will be different when we implement ``load'' keyword */
-        old_path = "";
-        if (!old_path)  /* <- in case of stdin */
-                old_path = "";
-        convert_path_helper(old_path, my_strrchrnul(old_path, '/'));
-        if (path.s[0] != '\0')
-                buffer_putc(&path, '/');
+        path = cur_path();
+        if (path[0] == '\0')
+                goto new_only;
 
-        /* skip the most frequently-typed redundancy in path */
-        while (issamedir(name))
-                name += 2;
+        notdir = my_strrchrnul(path, '/');
+        if (notdir[0] == '\0')
+                goto new_only;
 
-        convert_path_helper(name, name + strlen(name));
-        return literal_put(path.s);
+        /* maybe not a bug, but who would put a script in '/'? */
+        bug_on(notdir == path);
+
+        old_len = notdir - path;
+
+        /* +2 for '/' and nulchar at end */
+        new_path = malloc(old_len + strlen(name) + 2);
+        memcpy(new_path, path, old_len);
+        new_path[old_len] = '/';
+        strcpy(new_path + old_len + 1, name);
+        return new_path;
+
+new_only:
+        return strdup(name);
 }
 
-/*
- * The goal is that when the 'load' keyword is ready to implement,
- * the @filename arg to load_file will have a path relative to the
- * currently loaded file (or to some config.in-defined search path,
- * sort of like C's angle-bracket includes) if it is not the initial
- * input file.  We'll use a stack to keep track of which paths are
- * used, and convert_path above will be meaningful.
- */
+static void
+push_path(const char *path)
+{
+        if (path_sp >= MAX_LOADS)
+                fail("Files loads nested too deep");
+        paths[path_sp++] = path;
+}
+
+static void
+pop_path(void)
+{
+        bug_on(path_sp <= 0);
+        --path_sp;
+        free((char *)paths[path_sp]);
+}
 
 /**
  * load_file - Read in a file, tokenize it, assemble it, execute it.
@@ -130,23 +83,21 @@ load_file(const char *filename)
         struct executable_t *ex;
 
         bug_on(!filename);
-
-        /*
-         * TODO (someday): If !filename, skip prescan and enter
-         * interactive mode.
-         */
         path = filename[0] == '/'
-                ? literal_put(filename) : convert_path(filename);
+                ? strdup(filename) : convert_path(filename);
+        push_path(path);
         oc = prescan(path);
         if (!oc)
-                return;
+                goto out;
 
         if ((ex = assemble(filename, oc)) == NULL)
                 syntax("Failed to assemble");
 
         if (q_.opt.disassemble_only)
-                return;
+                goto out;
 
         if (ex)
                 vm_execute(ex);
+out:
+        pop_path();
 }

@@ -1,0 +1,49 @@
+// See how default args handle byref values
+
+let f = function(a="hello") {
+    return a + " world";
+};
+
+let helloworld = f();
+helloworld += "!";
+let helloagain = f();
+
+print("These *should* be different...");
+print("\t{}\n\t{}".format(helloworld, helloagain));
+
+(function() {
+    let o = function(a=null) {
+        let old_or_new = function(a) {
+            if (a == null)
+                return {};
+            return a;
+        };
+        let b = old_or_new(a);
+
+        b.a = 'a';
+        b.b = 'b';
+        return b;
+    };
+
+    let printobj = function(obj) {
+        print("Printing object");
+        obj.foreach(function(e, s) {
+            print("\t{}: {}".format(s, e));
+        });
+    };
+
+    let a = o();
+    a.a = 'x';
+    let b = o();
+    let c =  { d: 1 };
+    let d = o(c);
+    print("A");
+    printobj(a);
+    print("B (should != A)");
+    printobj(b);
+    print("D");
+    printobj(d);
+    print("C (should == D)");
+    printobj(c);
+})();
+

@@ -1,0 +1,2 @@
+load "2.egq";
+print("This is demo 1");

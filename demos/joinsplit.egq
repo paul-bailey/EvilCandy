@@ -1,0 +1,20 @@
+#!./evilcandy
+
+// some code to see how join, append, and foreach behave
+print('\n'.join(['a', 'b', 'c', 'd']));
+
+(['a', 'b', 'c'].foreach(function(e, i){
+        print("{}:'{}'".format(i, e));
+}));
+
+let myar = [];
+myar.append(1);
+myar.append(234);
+
+print("myar.len()={}".format(myar.len()));
+myar.foreach(function(e, i) {
+        print("\t%2d: %4d".format2(i, e));
+});
+
+([].append(2));
+

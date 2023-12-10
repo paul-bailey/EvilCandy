@@ -124,13 +124,29 @@ struct executable_t {
         unsigned flags;
 };
 
-#define EXECUTABLE_CLAIM(ex) do { (ex)->nref++; } while (0)
-#define EXECUTABLE_RELEASE(ex) do { \
+/*
+ * FIXME: currently executable code has to stay in RAM for the duration
+ * of the program.  Consider the exmample:
+ *
+ *      x.foreach(function(e, s) { ...code... });
+ *
+ * Because it is anonymously defined in the argument, it will go out of
+ * scope after it is removed from x.foreach's argument stack, destroying
+ * the code.  The next time an object's .foreach method is called, the
+ * program will crash due to the executable code being deleted.
+ */
+#if 1
+# define EXECUTABLE_CLAIM(ex) do { (void)0; } while (0)
+# define EXECUTABLE_RELEASE(ex) do { (void)0; } while (0)
+#else
+# define EXECUTABLE_CLAIM(ex) do { (ex)->nref++; } while (0)
+# define EXECUTABLE_RELEASE(ex) do { \
         struct executable_t *ex_ = (ex); \
         ex_->nref--; \
         if (ex_->nref <= 0) \
                 executable_free__(ex_); \
 } while (0)
+#endif
 
 /* in assembler.c */
 extern void executable_free__(struct executable_t *ex);

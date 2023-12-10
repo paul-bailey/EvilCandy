@@ -132,6 +132,18 @@ object_mov(struct var_t *to, struct var_t *from)
         to->magic = TYPE_DICT;
 }
 
+static int
+object_cmp(struct var_t *a, struct var_t *b)
+{
+        if (b->magic != TYPE_DICT)
+                return -1;
+        if (a->o == b->o)
+                return 0;
+        if (a->o < b->o)
+                return -1;
+        return 1;
+}
+
 static bool
 object_cmpz(struct var_t *obj)
 {
@@ -342,6 +354,7 @@ static const struct type_inittbl_t object_methods[] = {
  * user-defined operator callbacks
  */
 static const struct operator_methods_t object_primitives = {
+        .cmp            = object_cmp,
         .cmpz           = object_cmpz,
         .mov            = object_mov,
         .reset          = object_reset,

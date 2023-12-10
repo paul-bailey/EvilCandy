@@ -88,6 +88,36 @@ object_add_child(struct var_t *parent, struct var_t *child, char *name)
         parent->o->nchildren++;
 }
 
+/* if @child is known to be a direct child of @parent */
+static void
+object_remove_child_(struct var_t *parent, struct var_t *child)
+{
+        VAR_DECR_REF(child);
+        parent->o->nchildren--;
+}
+
+/**
+ * object_remove_child - Remove a child from an object
+ * @parent: object to remove child from
+ * @name: Name of the child
+ */
+void
+object_remove_child_l(struct var_t *parent, const char *name)
+{
+        struct var_t *child;
+        if (!name)
+                return;
+        if (parent->o->lock)
+                syntax("Dictionary add/remove locked");
+        child = hashtable_remove(&parent->o->dict, name);
+        /*
+         * XXX REVISIT: If !child, should I throw a doesn't-exist error,
+         * or should I silently ignore it like this?
+         */
+        if (child)
+                object_remove_child_(parent, child);
+}
+
 
 /* **********************************************************************
  *              Built-in Operator Callbacks
@@ -279,12 +309,31 @@ object_getattr(struct var_t *ret)
                 qop_mov(ret, attr);
 }
 
+static void
+object_delattr(struct var_t *ret)
+{
+        struct var_t *self = get_this();
+        struct var_t *name = vm_get_arg(0);
+        char *s;
+
+        bug_on(self->magic != TYPE_DICT);
+        arg_type_check(name, TYPE_STRING);
+
+        s = string_get_cstring(name);
+        if (s)
+                s = literal(s);
+        if (!s)
+                return;
+        object_remove_child(self, s);
+}
+
 static const struct type_inittbl_t object_methods[] = {
         V_INITTBL("len",       object_len,       0, 0),
         V_INITTBL("foreach",   object_foreach,   1, 1),
         V_INITTBL("hasattr",   object_hasattr,   1, 1),
         V_INITTBL("setattr",   object_setattr,   2, 2),
         V_INITTBL("getattr",   object_getattr,   1, 1),
+        V_INITTBL("delattr",   object_delattr,   1, 1),
         TBLEND,
 };
 

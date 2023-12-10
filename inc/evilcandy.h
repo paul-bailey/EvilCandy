@@ -378,6 +378,7 @@ extern void function_init(struct var_t *func,
 extern struct var_t *object_init(struct var_t *v);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
 extern void object_add_child(struct var_t *o, struct var_t *v, char *name);
+extern void object_remove_child_l(struct var_t *o, const char *s);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
 static inline void *object_get_priv(struct var_t *o)
@@ -387,9 +388,15 @@ static inline void *object_get_priv(struct var_t *o)
  *            - the built-in method matching @s if the child is not found
  *            - NULL if neither are found.
  */
-static inline struct var_t *
-object_child(struct var_t *o, const char *s)
+static inline struct var_t *object_child(struct var_t *o, const char *s)
         { return ((s = literal(s))) ? object_child_l(o, s) : NULL; }
+static inline void
+object_remove_child(struct var_t *o, const char *s)
+{
+        s = literal(s);
+        if (s)
+                object_remove_child_l(o, s);
+}
 
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);

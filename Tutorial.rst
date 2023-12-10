@@ -1130,6 +1130,50 @@ are not "keyword arguments".  **The order in which arguments are passed
 always matters.**  For that reason, it makes no sense to place the
 optional arguments at the front of the argument list.
 
+A Caution About Using Optional Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Default arguments can be tricky when by-reference variables are
+concerned.  Consider the following constructor:
+
+.. code-block:: js
+
+        let MyNewObj = function(x = {}) {
+                x.a = methodA;
+                x.b = methodB;
+                return x;
+        }
+
+It *seems* to allow a caller to choose whether to have a child inherit
+the properties of MyNewObj by passing an argument, or to get a new
+instantiation of the MyNewObj class altogether, by not passing an
+argument.
+
+The problem is that since the default literal ``{}`` is evaluated
+only once, during the creation of the function, a handle to the
+*same instantiation* will be returned to *all callers* who do not
+pass an argument to MyNewObj.
+
+The solution is to do this:
+
+.. code-block:: js
+
+        let MyNewObj = function(x = null) {
+                // assign y <= either x or new instantiation
+                let y = (function(x) {
+                        if (x == null)
+                                return {};
+                        return x;
+                })(x);
+                y.a = methodA;
+                y.b = methodB;
+                return y;
+        }
+
+In this case, the literal ``{}`` is evaluated anew every time the
+function is called, so a caller who does not pass an argument to
+MyNewObj will always get a brand-new instantiation.
+
 Function Call Syntax
 --------------------
 

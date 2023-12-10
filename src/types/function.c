@@ -279,6 +279,14 @@ function_init(struct var_t *func, struct executable_t *ex)
 }
 
 
+static int
+func_cmp(struct var_t *a, struct var_t *b)
+{
+        if (b->magic != TYPE_FUNCTION || b->fn != a->fn)
+                return -1;
+        return 0;
+}
+
 static bool
 func_cmpz(struct var_t *func)
 {
@@ -301,6 +309,7 @@ func_reset(struct var_t *func)
 }
 
 static const struct operator_methods_t function_primitives = {
+        .cmp = func_cmp,
         .cmpz = func_cmpz,
         .mov  = func_mov,
         .reset = func_reset,

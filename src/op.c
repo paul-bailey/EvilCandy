@@ -98,7 +98,9 @@ qop_cmp(struct var_t *a, struct var_t *b, int op)
 {
         int ret, cmp;
         struct var_t *v;
-        const struct operator_methods_t *p = primitives_of(a);
+        const struct operator_methods_t *p;
+
+        p = primitives_of(a);
         if (!p->cmp)
                 epermit("cmp");
         cmp = p->cmp(a, b);

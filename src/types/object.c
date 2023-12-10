@@ -135,12 +135,8 @@ object_mov(struct var_t *to, struct var_t *from)
 static int
 object_cmp(struct var_t *a, struct var_t *b)
 {
-        if (b->magic != TYPE_DICT)
-                return -1;
-        if (a->o == b->o)
+        if (b->magic == TYPE_DICT && b->o == a->o)
                 return 0;
-        if (a->o < b->o)
-                return -1;
         return 1;
 }
 

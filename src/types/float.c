@@ -55,7 +55,9 @@ float_sub(struct var_t *a, struct var_t *b)
 static int
 float_cmp(struct var_t *a, struct var_t *b)
 {
-        double f = var2float(b, "cmp");
+        if (!isnumvar(b))
+                return -1;
+        double f = var2float_(b);
         return OP_CMP(a->f, f);
 }
 

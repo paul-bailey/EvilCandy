@@ -170,8 +170,22 @@ array_mov(struct var_t *to, struct var_t *from)
         to->magic = TYPE_LIST;
 }
 
+static int
+array_cmp(struct var_t *a, struct var_t *b)
+{
+        if (b->magic != TYPE_LIST || b->a != a->a)
+                return -1;
+        /*
+         * XXX REVISIT: Good policy choice?
+         *      if different handle but same length, same type,
+         *      check if all elements per index also match.
+         */
+        return 0;
+}
+
 static const struct operator_methods_t array_primitives = {
         /* To do, I may want to support some of these */
+        .cmp = array_cmp,
         .mov = array_mov,
         .reset = array_reset,
 };

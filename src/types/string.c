@@ -935,16 +935,32 @@ string_add(struct var_t *a, struct var_t *b)
         return ret;
 }
 
+/* helper to string_cmp */
+static int
+compare_strings(const char *a, const char *b)
+{
+        if (!a || !b)
+                return a != b;
+        return !!strcmp(a, b);
+}
+
 static int
 string_cmp(struct var_t *a, struct var_t *b)
 {
-        int r;
-        if (!string_get_cstring(a))
-                return string_get_cstring(b) ? -1 : 1;
-        else if (!string_get_cstring(b))
+        switch (b->magic) {
+        case TYPE_STRING:
+                if (a->s == b->s)
+                        return 0;
+                if (a->s->s_info.ascii_len != b->s->s_info.ascii_len)
+                        return 1;
+                return compare_strings(string_get_cstring(a),
+                                       string_get_cstring(b));
+        case TYPE_STRPTR:
+                return compare_strings(string_get_cstring(a),
+                                       b->strptr);
+        default:
                 return 1;
-        r = strcmp(string_get_cstring(a), string_get_cstring(b));
-        return r ? (r < 0 ? -1 : 1) : 0;
+        }
 }
 
 static bool

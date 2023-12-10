@@ -63,7 +63,9 @@ int_sub(struct var_t *a, struct var_t *b)
 static int
 int_cmp(struct var_t *a, struct var_t *b)
 {
-        long long i = var2int(b, "cmp");
+        if (!isnumvar(b))
+                return -1;
+        long long i = var2int_(b);
         return OP_CMP(a->i, i);
 }
 

@@ -245,6 +245,13 @@ moduleinit_var(void)
         for (i = 0; i < NTYPES; i++) {
                 if (TYPEDEFS[i].name == NULL)
                         bug();
+
+                /* All user-visible types should have a cmp method */
+                if (i < NTYPES_USER &&
+                    (TYPEDEFS[i].opm == NULL ||
+                     TYPEDEFS[i].opm->cmp == NULL)) {
+                        bug();
+                }
         }
 #ifndef NDEBUG
         atexit(var_alloc_tell);

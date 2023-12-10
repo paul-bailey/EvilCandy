@@ -843,29 +843,43 @@ The relational operators are:
 ======== ========================
 Operator Meaning
 ======== ========================
-==       Equals [#]_ [#]_
+==       Equals
+!=       Not equal to
 <=       Less than or equal to
 >=       Greater than or equal to
-!=       Not equal to
 <        Less than
 >        Greater than
 ======== ========================
 
-Do not compare values of different types.  Do not compare
-functions at all.
+Non-numerical types (everything but ``integer`` and ``float``) should
+only use ``==`` and ``!=``.  The other comparisons have undefined
+results.
 
-.. [#]
-    In the case of strings, the test is whether or not their contents
-    match, ie. the ``==`` operator between two strings is the opposite
-    result of C's ``strcmp`` function.
+If the left and right values are the **same non-numerical
+type**, ``==`` tests the following:
 
-.. [#]
-    EvilCandy does not support the ``===`` operator, which is familiar
-    to JavaScript programmers.
+:string:        Do the contents match?
+:list:          Do both variables point to the same handle?
+:dictionary:    Do both variables point to the same handle?
+:function:
+        Do both variables point to the same *instantiation* handle?
+        This is not the byte-code handle.  The executable byte code is
+        common to the same class of function, but the instantiation
+        handle points to metadata unique to one *instantiation* of a
+        function, such as closures and optional-argument defaults.
 
-:TODO:
-        comparison of objects are not supported yet, need
-        to add ability to customize operators for objects.
+If the left and right values are **different types** and at least one of
+them is non-numerical, then ``==`` will return ``false``, and
+``!=`` will return ``true``.
+
+Comparing values of different types is useful when checking if a variable
+is ``null``.  This special comparison is a little different than with
+some other programming languages. The comparison ``x == null`` is
+equivalent to ``typeof(x) == "empty"``.  See an example in
+`A Caution About Using Optional Arguments`_.
+
+EvilCandy does not support the ``===`` operator, which may be familiar
+to JavaScript programmers.
 
 2. Comparison of an object to some concept of "true"
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -879,17 +893,17 @@ evaluating to *true*:
 
 **Table 7**
 
-========== ==========================================
+========== ==================================================
 Type       Condition
-========== ==========================================
+========== ==================================================
 empty      false always
-integer    != 0
-float      ``fpclassify`` does not return ``FP_ZERO``
+integer    true if != 0
+float      true if ``fpclassify`` does not return ``FP_ZERO``
 list       true always
 dictionary true always
 string     true if not the empty "" string
 function   true always
-========== ==========================================
+========== ==================================================
 
 ``if`` statement
 ----------------
@@ -1133,8 +1147,8 @@ optional arguments at the front of the argument list.
 A Caution About Using Optional Arguments
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Default arguments can be tricky when by-reference variables are
-concerned.  Consider the following constructor:
+Default values for arguments can be tricky when they are by-reference.
+Consider the following constructor:
 
 .. code-block:: js
 

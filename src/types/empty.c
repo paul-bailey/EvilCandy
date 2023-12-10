@@ -6,6 +6,12 @@ empty_cmpz(struct var_t *v)
         return true;
 }
 
+static int
+empty_cmp(struct var_t *a, struct var_t *b)
+{
+        return b->magic == TYPE_EMPTY ? 0 : -1;
+}
+
 static struct var_t *
 empty_bit_not(struct var_t *v)
 {
@@ -15,6 +21,7 @@ empty_bit_not(struct var_t *v)
 }
 
 static const struct operator_methods_t empty_primitives = {
+        .cmp            = empty_cmp,
         .cmpz           = empty_cmpz,
         .bit_not        = empty_bit_not,
 };

@@ -721,6 +721,10 @@ assemble_objdef(struct assemble_t *a)
 {
         /* TODO: not too hard to support `set' notation here */
         add_instr(a, INSTR_DEFDICT, 0, 0);
+        as_lex(a);
+        if (a->oc->t == OC_RBRACE) /* empty dict */
+                return;
+        as_unlex(a);
         do {
                 struct token_t *name;
                 int namei;

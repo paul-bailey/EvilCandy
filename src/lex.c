@@ -701,31 +701,15 @@ lexer_get_location(const char **file_name, void *unused)
  * VM that can run in interactive mode.
  */
 struct token_t *
-prescan(const char *filename)
+prescan(FILE *fp, const char *filename)
 {
         struct token_t oc;
         int t;
-        struct stat st;
         struct buffer_t pgm;
 
         bug_on(!filename);
         lexer.filename = literal_put(filename);
-
-        /*
-         * For some reason, on macOS fopen is succeeding for
-         * directories, something I didn't know you can do,
-         * so I'm manually checking first.
-         */
-        t = stat(filename, &st);
-        if (t < 0)
-                fail("Cannot access %s", filename);
-        if (!S_ISREG(st.st_mode))
-                fail("%s is not a regular file", filename);
-
-        lexer.fp = fopen(filename, "r");
-        if (!lexer.fp)
-                fail("Cannot open %s", filename);
-
+        lexer.fp = fp;
         lexer.lineno = 0;
         if (lexer_next_line() == -1) {
                 pgm.s = NULL;
@@ -744,7 +728,6 @@ prescan(const char *filename)
         getloc_pop();
 
 done:
-        fclose(lexer.fp);
         lexer.fp = 0;
         return (struct token_t *)pgm.s;
 }

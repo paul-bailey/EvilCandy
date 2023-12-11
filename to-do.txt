@@ -6,14 +6,16 @@
 
 * Support serialization to byte-code files
 
-* assembler.c is the "we have an AST at home" version of an abstract
+* Assembler.c is the "we have an AST at home" version of an abstract
   syntax tree.  Rewrite it from the ground up.
 
-* supprt the continue statement
+* Supprt the continue statement
 
-* support a switch statement.  Even though it'll be no faster than
+* Support a switch statement.  Even though it'll be no faster than
   an if-else-if block, switch statements are easier to read and
   therefore less buggy.
 
-* support the load keyword.
+* Figure out how to deal with duplicate or cyclic loads.  It can't just
+  be a cache of path names, because the same path can be expressed the
+  same way.
 

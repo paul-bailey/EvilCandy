@@ -34,7 +34,13 @@ endif
 
 pwd := $(shell pwd)
 
-CFLAGS += -Wall
+# Location of library scripts.
+# When this is more releasable, this would be something
+# like /usr/local/share/EvilCandy, or automake's
+# $(datarootdir)/EvilCandy
+rcdatadir := $(pwd)/lib
+
+CFLAGS += -Wall -DRCDATADIR=\"$(rcdatadir)\"
 CPPFLAGS += -Iinc
 ifeq ($(MAKECMDGOALS),release)
 CFLAGS += -O3

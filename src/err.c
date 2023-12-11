@@ -78,7 +78,7 @@ fail(const char *msg, ...)
         va_list ap;
 
         fprintf(stderr,
-                "[versify] System " COLOR(RED, "ERROR") ": ");
+                "[EvilCandy] System " COLOR(RED, "ERROR") ": ");
 
         va_start(ap, msg);
         vfprintf(stderr, msg, ap);

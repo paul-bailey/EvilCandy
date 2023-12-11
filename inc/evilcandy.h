@@ -281,7 +281,7 @@ extern int keyword_seek(const char *s);
 extern void moduleinit_keyword(void);
 
 /* lex.c */
-extern struct token_t *prescan(const char *filename);
+extern struct token_t *prescan(FILE *fp, const char *filename);
 extern void moduleinit_lex(void);
 
 /* literal.c */
@@ -322,10 +322,11 @@ extern struct var_t *qop_bit_not(struct var_t *v);
 extern struct var_t *qop_negate(struct var_t *v);
 extern struct var_t *qop_lnot(struct var_t *v);
 extern struct var_t *qop_mov(struct var_t *to, struct var_t *from);
-#if 0
-extern void qop_clobber(struct var_t *to, struct var_t *from);
-#endif
 extern bool qop_cmpz(struct var_t *v);
+
+/* path.c */
+extern FILE *find_import(const char *cur_path, const char *file_name,
+                         char *pathfill, size_t size);
 
 /* var.c */
 extern struct var_t *var_new(void);

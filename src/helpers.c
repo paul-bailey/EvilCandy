@@ -21,6 +21,14 @@ x2bin(int c)
         return -1;
 }
 
+const char *
+notdir(const char *path)
+{
+        const char *ret = my_strrchrnul(path, '/');
+        if (ret[0] == '\0')
+                return path;
+        return ret + 1;
+}
 
 /* Amazinglly, this is not in every C library */
 char *
@@ -382,9 +390,6 @@ utf8_strgetc_(const char *s, char *dst)
  * This is 0 if *s == '\0', 1 if *s was an ASCII or random large datum,
  * 2-4 if it was a valid UTF-8-encoded character.  In the latter case,
  * the value will remain encoded and copied verbatim in @dst.
- *
- * Careful, this return value is never zero.  Check the value of dst[0]
- * for that.
  */
 size_t
 utf8_strgetc(const char *s, char *dst)
@@ -493,3 +498,4 @@ utf8_subscr_str(const char *src, size_t idx, char *dest)
         utf8_strgetc(s - 1, dest);
         return 0;
 }
+

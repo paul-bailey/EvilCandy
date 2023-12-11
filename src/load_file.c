@@ -1,6 +1,14 @@
+/*
+ * FIXME: The path resolution in this file is naive, nor is there a
+ * "search" mechanisim to determine if the module being loaded is
+ * relative to the currently executing module or to the library path.
+ * The former is being assumed.  We also need need some way to know that
+ * we aren't cyclically loading the same files back and forth.
+ */
 #include <evilcandy.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #define MAX_LOADS RECURSION_MAX
 
@@ -8,55 +16,13 @@ static const char *paths[MAX_LOADS];
 static int path_sp = 0;
 
 static const char *
-cur_path(void)
+current_path(void)
 {
-        return path_sp <= 0 ? "" : paths[path_sp-1];
-}
-
-/*
- * Since we don't change directory into path of new files,
- * we need to fake it.
- * @name:       path of new file relative to previous file.
- * Return:      (newly allocated) path of new file relative to the
- *              working directory,
- */
-static char *
-convert_path(const char *name)
-{
-        const char *path, *notdir;
-        char *new_path;
-        size_t old_len;
-
-        /* absolute path? */
-        if (name[0] == '/')
-                goto new_only;
-
-        path = cur_path();
-        if (path[0] == '\0')
-                goto new_only;
-
-        notdir = my_strrchrnul(path, '/');
-        if (notdir[0] == '\0')
-                goto new_only;
-
-        /* maybe not a bug, but who would put a script in '/'? */
-        bug_on(notdir == path);
-
-        old_len = notdir - path;
-
-        /* +2 for '/' and nulchar at end */
-        new_path = malloc(old_len + strlen(name) + 2);
-        memcpy(new_path, path, old_len);
-        new_path[old_len] = '/';
-        strcpy(new_path + old_len + 1, name);
-        return new_path;
-
-new_only:
-        return strdup(name);
+        return path_sp <= 0 ? "." : paths[path_sp-1];
 }
 
 static void
-push_path(const char *path)
+push_path_(const char *path)
 {
         if (path_sp >= MAX_LOADS)
                 fail("Files loads nested too deep");
@@ -71,33 +37,47 @@ pop_path(void)
         free((char *)paths[path_sp]);
 }
 
+static FILE *
+push_path(const char *filename)
+{
+        /*
+         * XXX this isn't a reentrant func, should this giant buffer
+         * be on the stack?
+         */
+        char pathfill[PATH_MAX];
+        FILE *fp = find_import(current_path(), filename,
+                               pathfill, PATH_MAX);
+        if (!fp)
+                fail("Could not open '%s'", filename);
+        push_path_(estrdup(pathfill));
+        return fp;
+}
+
 /**
  * load_file - Read in a file, tokenize it, assemble it, execute it.
- * @filename: Path to file relative to current working directory
+ * @filename:   Path to file as written after the "load" keyword or on
+ *              the command line.
  */
 void
 load_file(const char *filename)
 {
-        struct token_t *oc;
-        char *path;
-        struct executable_t *ex;
+        FILE *fp = push_path(filename);
+        do {
+                struct token_t *oc;
+                struct executable_t *ex;
+                oc = prescan(fp, notdir(filename));
+                fclose(fp);
+                if (!oc)
+                        break;
 
-        bug_on(!filename);
-        path = filename[0] == '/'
-                ? strdup(filename) : convert_path(filename);
-        push_path(path);
-        oc = prescan(path);
-        if (!oc)
-                goto out;
+                if ((ex = assemble(filename, oc)) == NULL)
+                        syntax("Failed to assemble");
 
-        if ((ex = assemble(filename, oc)) == NULL)
-                syntax("Failed to assemble");
+                if (q_.opt.disassemble_only)
+                        break;
 
-        if (q_.opt.disassemble_only)
-                goto out;
-
-        if (ex)
-                vm_execute(ex);
-out:
+                if (ex)
+                        vm_execute(ex);
+        } while (0);
         pop_path();
 }

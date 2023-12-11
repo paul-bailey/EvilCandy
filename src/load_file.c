@@ -1,9 +1,7 @@
 /*
- * FIXME: The path resolution in this file is naive, nor is there a
- * "search" mechanisim to determine if the module being loaded is
- * relative to the currently executing module or to the library path.
- * The former is being assumed.  We also need need some way to know that
- * we aren't cyclically loading the same files back and forth.
+ * FIXME: The path resolution in this file is naive.  We need need some
+ * way to know that we aren't cyclically loading the same files back and
+ * forth.
  */
 #include <evilcandy.h>
 #include <stdlib.h>

@@ -2,9 +2,9 @@
 EvilCandy
 =========
 
-----------------------------------------------
-An Script Interpreter and Programming Language
-----------------------------------------------
+---------------------------------------------
+A Script Interpreter and Programming Language
+---------------------------------------------
 
 :Author: Paul Bailey <roscidcup@falstaffandme.com>
 :Date: November 2022
@@ -70,9 +70,6 @@ But here are some major differences...
   * There is no ``var`` keyword.  There is only ``let``.
 
   * EvilCandy (currently) has nothing to do with the Document Object Model.
-
-  * I am tempted to have the program exit if you write a variable with
-    those gawdawful JavaScript names like ``ThisVariableIsAnIteratorInAForLoop``.
 
 * EvilCandy is more bare-bones with its native types.  There is no
   ``class`` syntax, no ``thing.Prototype.Init`` or whatnot.  The use

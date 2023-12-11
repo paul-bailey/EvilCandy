@@ -80,6 +80,21 @@ bksl_char(char **src, int *c, int q)
         if (!!q && *p == q) {
                 *c = q;
         } else switch (*p) {
+        case 'a':
+                *c = '\a';
+                break;
+        case 'b':
+                *c = '\b';
+                break;
+        case 'e':
+                *c = '\033';
+                break;
+        case 'f':
+                *c = '\f';
+                break;
+        case 'v':
+                *c = '\v';
+                break;
         case 'n':
                 *c = '\n';
                 break;

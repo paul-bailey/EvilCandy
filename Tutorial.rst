@@ -8,6 +8,7 @@ EvilCandy tutorial
 .. sectnum::
 
 .. contents::
+   :depth: 2
 
 **Update** December 2023.  For now, probably until end of year, this
 document is wildly out of date, since the program is changing rapidly.
@@ -98,15 +99,17 @@ Whitespace Tokens
 The whitespace characters are space, horizontal tab, vertical tab,
 form-feed, newline, and carriage return.  Do not use non-ASCII whitespace.
 
-EvilCandy ignores whitespace, with two exceptions:
+EvilCandy ignores whitespace, with three exceptions:
 
 1. The newline character ``\n`` is accounted for, to facilitate error
    reporting (it's nice to know the line number where a program failed).
 
-2. Some tokens require whitespace to delimit them from each other.
-   In particular, numbers and identifiers which must be adjacent to
-   each other must also have at least one whitespace character to
-   delimit them.
+#. If a string literal spans a newline, unless that newline is escaped
+   with a backslash, that newline will be a part of the string literal.
+   (See `String Literal Tokens`_).
+
+#. Some tokens may require at least one whitespace character to delimit
+   them from each other.
 
 Identifier Tokens
 ~~~~~~~~~~~~~~~~~
@@ -115,6 +118,14 @@ Identifiers must start with a letter or an underscore ``_``.
 The remaining characters may be any combination of ASCII letters, numbers,
 and underscores.
 All identifiers in EvilCandy are case-sensitive.
+
+Avoid using identifiers of the pattern "``__*__``" where '``*``' is a
+wildcard, except for their use where documented in this tutorial.
+EvilCandy uses this pattern for some built-in identifiers that may be
+visible to the user.
+
+Identifiers matching the pattern ``_{name}`` are built-in modules,
+wherein their appurtenant load command would be ``load "{name}.evc"``.
 
 String Literal Tokens
 ~~~~~~~~~~~~~~~~~~~~~
@@ -164,20 +175,33 @@ For the ``u`` and ``U`` escape, EvilCandy will encode the character as
 UTF-8 internally.  Only Unicode values that may be encoded into UTF-8
 (up to 10FFFF hexadecimal, or 1 114 111 decimal) are supported.
 
+Octal escapes ``\NNN`` must contain one to three numerical values.
+Hexadecimal escapes ``\xNN`` must contain one to two numerical values.
+The best practice is to always use two digits for hexadecimal escapes
+and three digits for octal escapes.  This prevents confusion between
+an escaped numerical character and an adjacent numerical character that
+is not to be escaped.
+
 The following additional (hopefully familiar) backslash escapes are
 supported.
 
-======== ==============================================
-Escape   Meaning
--------- ----------------------------------------------
-``"\n"`` newline (ASCII 10)
-``"\r"`` carriage return (ASCII 13)
-``"\t"`` tab (ASCII 9)
-``"\\"`` prevent backslash from escaping next character
-======== ==============================================
+================ =====================================
+Escape           Meaning
+---------------- -------------------------------------
+``"\a"``         bell (ASCII 7--what is this, 1978?)
+``"\b"``         backspace (ASCII 8)
+``"\t"``         horizontal tab (ASCII 9)
+``"\n"``         newline (ASCII 10)
+``"\v"``         vertical tab (ASCII 11)
+``"\f"``         form feed (ASCII 12)
+``"\r"``         carriage return (ASCII 13)
+``"\\"``         backslash itself
+``"\<newline>"`` do not include newline in the literal
+================ =====================================
 
-EvilCandy doesn't support backslash escapes for things like '\\a' for bel
-(this isn't 1978), or '\\e' for escape (everyone knows '\\033').
+:TODO:
+        support for HTML-entity escaping, like ``"\&{ldquo}"``
+        would be nice.
 
 Numerical Tokens
 ~~~~~~~~~~~~~~~~
@@ -428,7 +452,7 @@ single variable". Some examples:
 .. code-block:: js
 
         {
-                this: "is",
+                _this: "is",
                 a: "dictionary"
         }
 
@@ -511,7 +535,7 @@ classes for variables:
    (more on that below).
 
 Declaring automatic variables
------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 All automatic variables and global variable (type 3 above, not type 4)
 must be declared with the ``let`` keyword:
@@ -578,7 +602,7 @@ type of ``x``.
 
 
 Integers
-~~~~~~~~
+--------
 
 The literal expression of integers are discussed in `Numerical Tokens`_.
 
@@ -586,7 +610,7 @@ All integers are stored as *signed* 64-bit values.  In EvilCandy these
 are pass-by-value always.
 
 Floats
-~~~~~~
+------
 
 The literal expression of floats are discussed in `Numerical Tokens`_.
 
@@ -594,7 +618,7 @@ All floats are stored as IEEE-754 double-precision floating point
 numbers.  Floats are pass-by value always.
 
 Lists
-~~~~~
+-----
 
 Lists are rudimentary forms of numerical arrays.  These are not
 efficient at managing large amounts of data.
@@ -643,7 +667,7 @@ Lists are pass-by reference.  In the example:
 The last line will change the contents of ``x`` as well as ``y``.
 
 Dictionaries
-~~~~~~~~~~~~
+------------
 
 A dictionary is referred to as an "object" in JavaScript (as well as,
 unfortunately, my source code).  Here I choose more appropriate language,
@@ -654,18 +678,59 @@ A dictionary is an associative array--an array where you may de-reference
 it by enumeration instead of by index number.  Unlike lists, its contents
 do not need to all be the same type.
 
-A dictionary may be declared in an initializer, using syntax very similar
-to JavaScript:
+All dictionaries are pass-by reference.
+
+Dictionary Literals
+~~~~~~~~~~~~~~~~~~~
+
+A dictionary may be declared in an initializer using syntax of the form::
+
+        {
+                KEY_1: VALUE_1,
+                KEY_2: VALUE_2,
+                ...
+                KEY_n: VALUE_n
+        }
+
+as in the example:
 
 .. code-block:: js
 
         let x = {
                 thing: 1,
                 foo: function () { bar(); }
-                // note, no comma after above last element
         };
 
-or by assigning undeclared members using the dot notation:
+Note the lack of a comma between the last attribute and the closing
+brace.  Unlike with most JavaScript interpreters, this is strictly
+enforced with EvilCandy.
+
+KEY_i may be either an identifier token or quoted text.  This could be
+useful if you want keys that have non-ASCII characters or characters
+that violate the rules of identifier tokens:
+
+.. code-block:: js
+
+        let mydict = {
+                pi:  3.14159,
+                '✓': 'checkmark'
+        };
+
+Take care to be consistent how Unicode combinations are entered,
+or you may unwittingly use the wrong key later when trying to
+retrieve the value.
+An explanation of the normalization issue can be found at Unicode's
+website `here <https://unicode.org/reports/tr15/>`_.)
+Currently EvilCandy does not perform NFKC normalization on Unicode
+characters.
+
+Adding Dictionary Attributes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A dictionary may be assigned an empty associative array (``{}``),
+and have its attributes added later.
+It may use the dot notation, so long as the attribute key is a valid
+identifier token:
 
 .. code-block:: js
 
@@ -678,6 +743,30 @@ or by assigning undeclared members using the dot notation:
         // ditto, but 'foo'
         x.foo = function() { bar(); }
 
+or it may use the associative-array notation:
+
+.. code-block:: js
+
+        x['thing'] = 1;
+
+The associative-array notation requires the attribute key to be written
+as either a quoted string, as in the example above, or a string variable,
+like so:
+
+.. code-block:: js
+
+        let key = 'thing';
+        x[key] = 1;
+
+Either way, if the key's characters adhere to the rules of an identifier
+token, it may still be de-referenced using dot notation.
+
+.. code-block:: js
+
+        x['thing'] = 1;
+        // this works because 'thing' is a valid identifier name
+        let y = x.thing;
+
 Once a member has been declared and initialized to a certain type, it
 may not change type again:
 
@@ -687,7 +776,15 @@ may not change type again:
         x.foo = 1;
         x.foo = "I'm a string";
 
-A dictionary may be de-referenced in one of two ways:
+You would need to explicitly delete the attribute ``foo``
+(see `Built-in Methods for Dictionaries`_) and recreate it in order to
+change its type.
+
+Getting Dictionary Attributes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A dictionary may be de-referenced using the same kind of notation
+used for setting attributes:
 
 1. The dot notation, so long as a key adheres to the rules of
    an identifier token:
@@ -708,41 +805,32 @@ A dictionary may be de-referenced in one of two ways:
         literals, while identifers are pre-hashed during assembly.  But
         the difference is hardly noticeable.
 
-You may assign an attribute to another variable:
+Is It a Class or a Dictionary?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: js
+In a word...yes.
 
-        let x = y.someattribute;
+It depends on what you want it to be. Dictionaries are the most mutable of
+EvilCandy's data types.  EvilCandy permits dot notation on dictionaries
+specifically for the purpose of making them be object classes, with a
+user-defined set of named methods and private data.
 
-In this example, if ``someattribute`` is a string, list, or object, then
-any change made to ``x`` will affect ``y.someattribute``.
+Part of my motivation for imitating JavaScript's model of data types and
+tokens (as opposed to Python's or--god forbid--PHP's or Visual Basic's)
+is the beautiful elegance [#]_ with which JavaScript allows you to use
+dictionaries, closures, and lambdas to invent an object class without
+actually requiring a syntax dedicated to creating classes.  JavaScript's
+"class" notation is superfluous, and seems to mollycoddle programmers
+whose minds are locked into whatever paradigm their previous programming
+language taught them.
 
-Dictionary constructor statements may use quotes for their keys.
-This could be useful if you want keys that have non-ASCII characters
-or characters that violate the rules of identifier tokens:
-
-.. code-block:: js
-
-        let mydict = {
-                a: 'The letter a',
-                '✓': 'checkmark'
-        };
-
-Note, however, keys like this cannot be accessed with dot notation;
-they must be accessed using the associative-array notation:
-
-.. code-block:: js
-
-        // an error will be thrown...
-        let checkmark = mydict.✓;
-
-        // ...but this is okay
-        let checkmark = mydict['✓'];
-
-All dictionaries are pass-by reference.
+.. [#]
+        I do not extend that compliment to the unreadable and frankly
+        ugly conventions of JavaScript programming style.
+        Its name is ``i``, not ``ThisVariableIsAnIteratorInAForLoop``!
 
 String
-~~~~~~
+------
 
 In EvilCandy a string is an object-like variable, which can be assigned
 either from another string variable or from a string literal (see
@@ -766,7 +854,7 @@ the builtin ``copy`` method:
         // y and x now have handles to separate strings.
 
 Function
-~~~~~~~~
+--------
 
 A function executes code and returns either a value or an empty variable.
 
@@ -905,6 +993,12 @@ string     true if not the empty "" string
 function   true always
 ========== ==================================================
 
+``true`` and ``false`` are for convenient assignments and return values,
+not for comparisons.  Never use ``if (myinteger == true)``; you shouldn't
+use ``if (myinteger != false)`` either, if you are not certain
+``myinteger`` is actually an integer.  Instead use just
+``if (myinteger)``.
+
 ``if`` statement
 ----------------
 
@@ -988,13 +1082,13 @@ For those who prefer the Python-like version, use an object's
 
 EvilCandy's ``for`` loop does have at least one similarity to Python:
 the optional ``else`` statement after a ``for`` loop.  In the following
-example (cribbed straight from an algorithm in the `Python.org
-<https://docs.python.org/3.12/tutorial/controlflow.html#for-statements>`_
-documentation:
+example (cribbed and adapted straight from an algorithm in the
+python.org `documentation
+<https://docs.python.org/3.12/tutorial/controlflow.html#for-statements>`_):
 
 .. code-block:: js
 
-        // Print prime number from 2 to 10
+        // Print prime numbers from 2 to 10
         for (let n = 2; n < 10; n++) {
                 for (let x = 2; x < n; x++) {
                         if ((n % x) == 0)
@@ -1166,7 +1260,7 @@ argument.
 The problem is that since the default literal ``{}`` is evaluated
 only once, during the creation of the function, a handle to the
 *same instantiation* will be returned to *all callers* who do not
-pass an argument to MyNewObj.
+pass an argument to MyNewObj.  The result is pure chaos.
 
 The solution is to do this:
 
@@ -1260,8 +1354,8 @@ for a very small function.  The general form is::
 
 where *expr* is only an evaluation, with no assignments or ``return``
 statement.  It does not end with a semicolon, and it is only a single
-statement.  To use a multiline lambda, you must add in the braces and
-``return`` statement... in which case you are better off using the
+statement.  To use a multiline lambda, you must add back in the braces
+and ``return`` statement...in which case you are better off using the
 regular function notation; the `````` token is hard to spot over more
 than one line.
 
@@ -1387,18 +1481,19 @@ Ex 1:
         let hello = "Hello";
         ...
         let world = function(:a=hello.copy()) {
-                bar(a + " world");
+                foo(a + " world");
         }
 
 Ex 2:
 
 .. code-block:: js
 
+        // nested inside of some function
         let hello = "Hello";
         ...
         let world = function() {
                 let a = hello.copy();
-                bar(a + " world");
+                foo(a + " world");
         }
 
 In the former example:

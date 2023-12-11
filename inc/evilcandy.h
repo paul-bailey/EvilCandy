@@ -325,11 +325,12 @@ extern FILE *find_import(const char *cur_path, const char *file_name,
 
 /* var.c */
 extern struct var_t *var_new(void);
+/* note: v only evaluated once in VAR_*_REF() */
 #define VAR_INCR_REF(v) do { (v)->refcount++; } while (0)
-#define VAR_DECR_REF(v) do { \
-        struct var_t *v_ = (v); \
-        v_->refcount--; \
-        if (v_->refcount <= 0) \
+#define VAR_DECR_REF(v) do {      \
+        struct var_t *v_ = (v);   \
+        v_->refcount--;           \
+        if (v_->refcount <= 0)    \
                 var_delete__(v_); \
 } while (0)
 extern void var_delete__(struct var_t *v);

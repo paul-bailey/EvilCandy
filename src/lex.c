@@ -197,8 +197,9 @@ bksl_utf8(char **src, int *c, struct buffer_t *tok)
 {
         char *s = *src;
         int amt;
-        uint32_t v;
-        uint8_t buf[6];
+        uint32_t point;
+        char buf[5];
+        size_t bufsize;
 
         if (s[0] == 'u') {
                 amt = 4;
@@ -211,46 +212,11 @@ bksl_utf8(char **src, int *c, struct buffer_t *tok)
         if (!isunihex(s, amt))
                 return false;
 
-        v = hex_str2val(s, amt);
-
-        if (v > 0x10FFFFu) {
-                /* utf-8 limit */
+        point = hex_str2val(s, amt);
+        bufsize = utf8_encode(point, buf);
+        if (bufsize == 0)
                 return false;
-        } else if (v > 0xFFFFu) {
-                buf[3] = (v & 0x3Fu) + 0x80u;
-                v >>= 6;
-                buf[2] = (v & 0x3Fu) + 0x80u;
-                v >>= 6;
-                buf[1] = (v & 0x3Fu) + 0x80u;
-                v >>= 6;
-                buf[0] = (v & 0x07u) | 0xF0u;
-                buffer_putc(tok, buf[0]);
-                buffer_putc(tok, buf[1]);
-                buffer_putc(tok, buf[2]);
-                buffer_putc(tok, buf[3]);
-        } else if (v > 0x7ff) {
-                buf[2] = (v & 0x3Fu) + 0x80u;
-                v >>= 6;
-                buf[1] = (v & 0x3Fu) + 0x80u;
-                v >>= 6;
-                buf[0] = (v & 0x0Fu) + 0xE0u;
-
-                buffer_putc(tok, buf[0]);
-                buffer_putc(tok, buf[1]);
-                buffer_putc(tok, buf[2]);
-        } else if (v > 0x7F) {
-                buf[1] = (v & 0x3Fu) + 0x80u;
-                v >>= 6;
-                buf[0] = (v & 0x1Fu) + 0xC0u;
-                buffer_putc(tok, buf[0]);
-                buffer_putc(tok, buf[1]);
-        } else {
-                /*
-                 * The jerk wrote all those hexes when a simple
-                 * ascii char would have done just fine
-                 */
-                buffer_putc(tok, v);
-        }
+        buffer_nputs(tok, buf, bufsize);
 
         *src = s + amt;
         *c = 0;

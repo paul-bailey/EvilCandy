@@ -43,7 +43,7 @@ Source File Encoding Requirements
 ---------------------------------
 
 Source files must be either ASCII or UTF-8.  Do not include byte order
-marks in the file.  With the exception of quoted strings (see String_)
+marks in the file.  With the exception of quoted Strings_
 and Comments_, all tokens, including whitespace, must be ASCII.
 
 Hello World
@@ -175,15 +175,19 @@ For the ``u`` and ``U`` escape, EvilCandy will encode the character as
 UTF-8 internally.  Only Unicode values that may be encoded into UTF-8
 (up to 10FFFF hexadecimal, or 1 114 111 decimal) are supported.
 
-Octal escapes ``\NNN`` must contain one to three numerical values.
-Hexadecimal escapes ``\xNN`` must contain one to two numerical values.
+The rules for numerical backslashes are as follows:
+
+* ``\U`` must be followed by eight hexadecimal digits.
+* ``\u`` must be followed by four hexadecimal digits.
+* Octal escapes ``\NNN`` must contain one to three octal digits.
+* Hexadecimal escapes ``\xNN`` must contain one to two hexadecimal digits.
+
 The best practice is to always use two digits for hexadecimal escapes
 and three digits for octal escapes.  This prevents confusion between
 an escaped numerical character and an adjacent numerical character that
 is not to be escaped.
 
-The following additional (hopefully familiar) backslash escapes are
-supported.
+The following additional backslash escapes are supported.
 
 ================ =====================================
 Escape           Meaning
@@ -239,15 +243,14 @@ Specific rules of numerical interpretation:
    for an exponent indicates a base 10 float.
  * A number beginning with a '0' otherwise indicates a base 8 (octal)
    number, and it will be interpreted as an integer.
- * The remaining valid numerical representations--those begining with
+ * The remaining valid numerical representations--those beginning with
    '1' through '9' and continuing with '0' through '9'--indicate a base 10
    (decimal) number, and they will be interpreted as an integer.
-
 
 .. note::
         As of 12/2023, EvilCandy's assembler does not optimize compound
         statements that happen to be all literals.  ``1+2`` will be
-        interpreted as two separate tokens, and the addition will be
+        interpreted as two separate numbers, and the addition will be
         performed on them in the byte code at execution time.
 
 Keyword Tokens
@@ -458,7 +461,7 @@ single variable". Some examples:
 
 .. [#]
         The "single variable" this evaluates to is a callable handle to
-        the Function_.
+        the function.
 
 Only limited versions of these may *begin* an expression, namely cases
 4-6 in Table 3: #4: function calls with ignored return values;
@@ -829,8 +832,8 @@ language taught them.
         ugly conventions of JavaScript programming style.
         Its name is ``i``, not ``ThisVariableIsAnIteratorInAForLoop``!
 
-String
-------
+Strings
+-------
 
 In EvilCandy a string is an object-like variable, which can be assigned
 either from another string variable or from a string literal (see
@@ -853,8 +856,8 @@ the builtin ``copy`` method:
         let y = x.copy();
         // y and x now have handles to separate strings.
 
-Function
---------
+Functions
+---------
 
 A function executes code and returns either a value or an empty variable.
 

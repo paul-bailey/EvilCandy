@@ -1,16 +1,21 @@
 /*
- * buffer.c - Append something to the tail of a buffer without
- *              worrying about buffer overflow
+ * buffer.c - Append something to the tail of a buffer without worrying
+ *            about buffer overflow
  *
  * Use this if:
- *      1. Nothing in the buffer will need pointers to them
- *         persistently (eg. they aren't part of linked lists
- *         or such.  THIS IS IMPORTANT, because realloc may
- *         be called on the buffer at times.
+ *      1. Nothing in the buffer will need pointers to them persistently
+ *         (eg. they aren't part of linked lists or such).
+ *                      THIS IS IMPORTANT
+ *         because realloc may be called on the buffer at times.
  *      2. You need each new datum to be tangential to the last
  *
- * See stack.c and mempool.c for different scenarios where those
- * might be more appropriate.  This can be used in two ways:
+ * Do not use this if:
+ *      1. Amortization is badly needed in the case of array growth.
+ *         In this module, the array always grows by the same constant
+ *         amount.  If amortization is badly needed, see assert_array_pos
+ *         in helpers.c
+ *
+ * This module can be used in two ways:
  *
  *      binary API:     buffer_putd
  *                      buffer_size     <- amt of data stored, in bytes

@@ -499,3 +499,56 @@ utf8_subscr_str(const char *src, size_t idx, char *dest)
         return 0;
 }
 
+static size_t
+utf8_encode_(uint32_t point, char *buf)
+{
+        if (point > 0x10FFFFu || point == 0) {
+                return 0;
+        } else if (point > 0xFFFFu) {
+                buf[3] = (point & 0x3Fu) | 0x80u;
+                point >>= 6;
+                buf[2] = (point & 0x3Fu) | 0x80u;
+                point >>= 6;
+                buf[1] = (point & 0x3Fu) | 0x80u;
+                point >>= 6;
+                buf[0] = (point & 0x07u) | 0xF0u;
+                return 4;
+        } else if (point > 0x7ff) {
+                buf[2] = (point & 0x3Fu) | 0x80u;
+                point >>= 6;
+                buf[1] = (point & 0x3Fu) | 0x80u;
+                point >>= 6;
+                buf[0] = (point & 0x0Fu) | 0xE0u;
+                return 3;
+        } else if (point > 0x7F) {
+                buf[1] = (point & 0x3Fu) | 0x80u;
+                point >>= 6;
+                buf[0] = (point & 0x1Fu) | 0xC0u;
+                return 2;
+        } else {
+                /*
+                 * The jerk wrote all those hexes when a simple
+                 * ascii char would have done just fine
+                 */
+                buf[0] = point;
+                return 1;
+        }
+}
+
+/**
+ * utf8_encode - Encode a Unicode point in UTF-8
+ * @point:      A unicode point from U+0001 to U+10FFFF
+ * @buf:        Buffer to store encoded result plus a nulchar terminator.
+ *              This must be at least five bytes long.
+ *
+ * Return:
+ * Size of @buf filled, not counting the nulchar terminator.  If zero,
+ * then @point was either zero or too large.
+ */
+size_t
+utf8_encode(uint32_t point, char *buf)
+{
+        size_t ret = utf8_encode_(point, buf);
+        buf[ret] = '\0';
+        return ret;
+}

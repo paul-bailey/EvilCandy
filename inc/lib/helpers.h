@@ -55,6 +55,7 @@ size_t utf8_strlen(const char *s);
 extern void utf8_scan(const char *s, struct utf8_info_t *info);
 extern int utf8_subscr_str(const char *src, size_t idx, char *dest);
 extern size_t utf8_strgetc(const char *s, char *dst);
+extern size_t utf8_encode(uint32_t point, char *buf);
 
 
 #endif /* EGQ_HELPERS_H */

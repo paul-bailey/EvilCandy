@@ -77,9 +77,13 @@ static bool
 bksl_char(char **src, int *c, int q)
 {
         char *p = *src;
-        if (!!q && *p == q) {
-                *c = q;
-        } else switch (*p) {
+        switch (*p) {
+        case '\'':
+                *c = '\'';
+                break;
+        case '"':
+                *c = '"';
+                break;
         case 'a':
                 *c = '\a';
                 break;

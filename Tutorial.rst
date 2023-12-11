@@ -76,9 +76,9 @@ them before:
 3. Single-line comments, beginning with ``#`` and ending with the
    end of the line.
 
-Be a good citizen.  Don't mix/match type 3. with 1. and 2.  I support 3.
-only because I want to make the shebang syntax permissible, ie. having
-the first line be:
+Be a good citizen.  Don't mix/match type 3. with 1. and 2.  The only
+reason I support 3. is because I want to make the shebang syntax
+permissible, ie. having the first line be:
 
 .. code-block:: bash
 
@@ -124,8 +124,9 @@ wildcard, except for their use where documented in this tutorial.
 EvilCandy uses this pattern for some built-in identifiers that may be
 visible to the user.
 
-Identifiers matching the pattern ``_{name}`` are built-in modules,
-wherein their appurtenant load command would be ``load "{name}.evc"``.
+Identifiers matching the pattern ``_*`` are built-in C accelerators for
+library modules, wherein their appurtenant load command would be
+``load "*.evc"``.
 
 String Literal Tokens
 ~~~~~~~~~~~~~~~~~~~~~
@@ -172,8 +173,8 @@ Octal escape       ``"\316\262"``
 ================== ================
 
 For the ``u`` and ``U`` escape, EvilCandy will encode the character as
-UTF-8 internally.  Only Unicode values that may be encoded into UTF-8
-(up to 10FFFF hexadecimal, or 1 114 111 decimal) are supported.
+UTF-8 internally.  Only Unicode values between U+0001 and U+10FFFF are
+supported.
 
 The rules for numerical backslashes are as follows:
 
@@ -219,11 +220,11 @@ syntactically identical:
 .. code-block:: javascript
 
         let s = "Hello "  // first part of token
-                "world"   // second part of token
+                "world";  // second part of token
 
 .. code-block:: javascript
 
-        let s = "Hello world"
+        let s = "Hello world";
 
 This kind of concatenation is quicker than using the ``+`` operator,
 because it occurs while tokenizing the input.  The ``+`` operation, on

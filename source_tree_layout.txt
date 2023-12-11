@@ -1,0 +1,27 @@
+     Top level
+        |
+        +------src/             Core C sources
+        |       |
+        |       +---builtin/    C accelerators for library modues
+        |       |
+        |       +---types/      Callbacks and methods for built-in types
+        |
+        +------inc/             Main API headers
+        |       |
+        |       +---lib/        Headers for code that is semi-independent,
+        |                       and which can with relative ease be
+        |                       ported to a different project.
+        |
+        +-------lib/            The main library of source files that
+        |                       user sources can load.  These will likely
+        |                       be installed in some place like
+        |                       /usr/local/share/EvilCandy/
+        |
+        +-------demos/          EvilCandy scripts that test the code,
+        |                       both the stressful kind and the
+        |                       see-if-it-works kind.
+        |
+        +-------tools/          Code generators & such.
+        |
+        +-------etc/            Miscellaneous files and programs.
+

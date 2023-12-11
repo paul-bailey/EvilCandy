@@ -143,6 +143,8 @@ bksl_octal(char **src, int *c)
                 /* '0' & 7 happens to be 0 */
                 v += (*p++) & 7;
         }
+        if (v == 0)
+                return false;
         *c = v;
         *src = p;
         return true;
@@ -164,6 +166,8 @@ bksl_hex(char **src, int *c)
                 ++p;
                 v = (v << 4) | nybble;
         }
+        if (v == 0)
+                return false;
         *c = v;
         *src = p;
         return true;

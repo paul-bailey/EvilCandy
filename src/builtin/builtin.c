@@ -89,6 +89,7 @@ static const struct inittbl_t gblinit[] = {
         TOFTBL("print",  do_print,  1, -1),
         TOFTBL("setnl",  do_setnl,  1, 1),
         TOFTBL("typeof", do_typeof, 1, 1),
+        /* XXX: maybe exit should be a method of __gbl__._sys */
         TOFTBL("exit",   do_exit,   0, -1),
         TOOTBL("_math",  bi_math_inittbl__),
         TOOTBL("_io",    bi_io_inittbl__),

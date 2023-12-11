@@ -245,11 +245,6 @@ extern void fail(const char *msg, ...);
 extern void warning(const char *msg, ...);
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
-extern void err_expected__(int opcode);
-#define expect(oc_) do {                \
-        if (cur_oc->t != oc_)           \
-                err_expected__(oc_);    \
-} while (0)
 
 /* compile.c */
 extern void compile_function(struct var_t *v);

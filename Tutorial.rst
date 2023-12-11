@@ -1414,8 +1414,11 @@ In the latter example:
         results.  This is a problem particularly for pass-by-reference
         types like strings and dictionaries, not for integers and floats.
 
-Built-in Methods
-================
+Importing Modules
+=================
+
+Built-in Methods and Inheritance
+================================
 
 Built-in Methods for Dictionaries
 ---------------------------------

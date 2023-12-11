@@ -187,6 +187,11 @@ and three digits for octal escapes.  This prevents confusion between
 an escaped numerical character and an adjacent numerical character that
 is not to be escaped.
 
+Do not try to use backslash escapes to insert a nulchar in the middle
+of the string.  This will result in undefined behavior.  If you must
+have a value of zero in the middle, choose a different data type than
+a string.
+
 The following additional backslash escapes are supported.
 
 ================ =====================================
@@ -206,6 +211,24 @@ Escape           Meaning
 :TODO:
         support for HTML-entity escaping, like ``"\&{ldquo}"``
         would be nice.
+
+Adjacent string literals whose only tokens between them are whitespace
+or comments will be concatentated.  The following two examples are
+syntactically identical:
+
+.. code-block:: javascript
+
+        let s = "Hello "  // first part of token
+                "world"   // second part of token
+
+.. code-block:: javascript
+
+        let s = "Hello world"
+
+This kind of concatenation is quicker than using the ``+`` operator,
+because it occurs while tokenizing the input.  The ``+`` operation, on
+the other hand, occurs at execution time, even when the l-value and
+r-value are expressed as literals.
 
 Numerical Tokens
 ~~~~~~~~~~~~~~~~

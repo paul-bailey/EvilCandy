@@ -579,6 +579,16 @@ qlex_delim(int *ret)
         return false;
 }
 
+static int
+qlex_slide(void)
+{
+        do {
+                qslide();
+                if (*lexer.s == '\0')
+                        return EOF;
+        } while (qlex_comment());
+        return 0;
+}
 
 /*
  * returns:
@@ -598,15 +608,15 @@ tokenize_helper(void)
 
         buffer_reset(tok);
 
-        do {
-                qslide();
-                if (*lexer.s == '\0')
-                        return EOF;
-        } while (qlex_comment());
+        if ((ret = qlex_slide()) == EOF)
+                return ret;
 
         if (qlex_delim(&ret)) {
                 return ret;
         } else if (qlex_string()) {
+                do {
+                        ret = qlex_slide();
+                } while (ret != EOF && qlex_string());
                 return 'q';
         } else if (qlex_identifier()) {
                 int k = keyword_seek(tok->s);

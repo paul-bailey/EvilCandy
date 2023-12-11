@@ -1,2 +1,4 @@
 load "2.egq";
-print("This is demo 1");
+let s = "This is"  // while we're here, see how well
+        " demo 1"; // well string lits are concatenated.
+print(s);

@@ -1,6 +1,6 @@
 * Support exceptions.  Don't just throw an error and call exit().
 
-* Support stdin; don't required a file name arg
+* Support stdin; don't require a file name arg
 
 * Support interactive mode
 

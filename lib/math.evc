@@ -1,0 +1,15 @@
+// Math - hook to __gbl__._math
+
+let Math = (function(m){
+    /*
+     * Inherit @m, which ought to be only some built-in C accelerator
+     * functions, and add some consts to it.
+     */
+    m.pi    = 3.14159265358979323846;
+    m.e     = 2.71828182845904523536;
+    m.gamma = 0.57721566490153286060; /* euler */
+    m.deg   = 57.2957795130823208768; /* deg/rad */
+    m.phi   = 1.61803398874989484820; /* golden ratio */
+    return m;
+})(__gbl__._math);
+

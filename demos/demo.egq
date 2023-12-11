@@ -1,5 +1,9 @@
 #!./evilcandy
 
+// only needed in one wrapper spot, but it's bad practice
+// to use 'load' in a function.
+load "math.evc";
+
 (function(iterator) {
     iterator['whoami'] = function() {
         print("me, of course!");
@@ -28,9 +32,11 @@
     "✓": "check"
 });
 
+
 (function() {
     print("Some mathy stuff:");
-    print("\tpi is: {}".format(Math.pi));
+    print("\tpi is: %13.10f".format2(Math.pi));
+    print("\te is:  %13.10f".format2(Math.e));
     (function(mypow) {
         print("\tMy Pow: 4^4 = {}".format(mypow(4, 4)));
     })(function(x, y) {

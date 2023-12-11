@@ -35,6 +35,8 @@
 // having more gotos and an extra frame push).  So clearly
 // what's mssing is more optimized byte code.
 
+load "math.evc";
+
 let sqrt = function(x) {
     let y = 10.;
     let min = 0.;
@@ -62,7 +64,7 @@ let sqrt = function(x) {
     return y;
 };
 
-if (true) {
+if (false) {
     (function(sqrt) {
         let x = 0.;
         for (let i = 0.; i < 1000000.0; i++)

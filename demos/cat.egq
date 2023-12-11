@@ -1,4 +1,7 @@
 #!./evilcandy
+
+load "io.evc";
+
 // Print myself
 (function(name) {
         let f = Io.open(name, "r");

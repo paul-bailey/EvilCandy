@@ -90,8 +90,8 @@ static const struct inittbl_t gblinit[] = {
         TOFTBL("setnl",  do_setnl,  1, 1),
         TOFTBL("typeof", do_typeof, 1, 1),
         TOFTBL("exit",   do_exit,   0, -1),
-        TOOTBL("Math",  bi_math_inittbl__),
-        TOOTBL("Io",    bi_io_inittbl__),
+        TOOTBL("_math",  bi_math_inittbl__),
+        TOOTBL("_io",    bi_io_inittbl__),
         { .name = NULL },
 };
 

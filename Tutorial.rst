@@ -131,33 +131,50 @@ library modules, wherein their appurtenant load command would be
 String Literal Tokens
 ~~~~~~~~~~~~~~~~~~~~~
 
-String literals are wrapped by either single or double quotes.  If the quote
-must contain the quotation mark, you may either backslash-escape it, or
-use the alternative quote.  The following two lines will be interpreted
-exactly the same way:
+String literals are wrapped by either single or double quotes.
 
-.. code-block:: js
+Backslash Escapes
+`````````````````
 
-        "This is a \"string\""
-        'This is a "string"'
+The following backslash escapes are supported for single characters:
 
-Strings behave peculiarly around line endings.  The following
-examples will all be interpreted identically (except for the manner
-in which the line number is saved for error dumps):
+================ =====================================
+Escape           Meaning
+---------------- -------------------------------------
+``"\a"``         bell (ASCII 7--what is this, 1978?)
+``"\b"``         backspace (ASCII 8)
+``"\t"``         horizontal tab (ASCII 9)
+``"\n"``         newline (ASCII 10)
+``"\v"``         vertical tab (ASCII 11)
+``"\f"``         form feed (ASCII 12)
+``"\r"``         carriage return (ASCII 13)
+``"\\"``         backslash itself
+``"\<newline>"`` do not include newline in the literal
+================ =====================================
 
-.. code-block:: js
+Numerical backslashes are also supported.  The rules for numerical
+backslashes are as follows:
 
-        "A two-line
-        string"
+* ``\U`` must be followed by eight hexadecimal digits.
+* ``\u`` must be followed by four hexadecimal digits.
+* Octal escapes ``\NNN`` must contain one to three octal digits.
+* Hexadecimal escapes ``\xNN`` must contain one to two hexadecimal digits.
 
-        "A two-line\n\
-        string"
+The best practice is to always use two digits for hexadecimal escapes
+and three digits for octal escapes.  This prevents confusion between
+an escaped numerical character and an adjacent numerical character that
+is not to be escaped.
 
-        "A two-line\nstring"
+Backslash escapes that attempt to insert a nulchar, such as ``"\x00"`` or
+``"\u0000"``, will be rejected.  If you must have a value of zero in the
+middle, choose a different data type than a string.
 
-        "A \
-        two-line
-        string"
+Unsupported backslash escape sequences will be interpreted literally,
+eg. ``"\0"`` will be interpreted as a two-character string containing
+backslash (ASCII 92) and zero (ASCII 48).
+
+Unicode Escapes
+```````````````
 
 String literals may contain Unicode characters, either encoded in
 UTF-8, or as ASCII representations using familiar backslash
@@ -176,42 +193,46 @@ For the ``u`` and ``U`` escape, EvilCandy will encode the character as
 UTF-8 internally.  Only Unicode values between U+0001 and U+10FFFF are
 supported.
 
-The rules for numerical backslashes are as follows:
-
-* ``\U`` must be followed by eight hexadecimal digits.
-* ``\u`` must be followed by four hexadecimal digits.
-* Octal escapes ``\NNN`` must contain one to three octal digits.
-* Hexadecimal escapes ``\xNN`` must contain one to two hexadecimal digits.
-
-The best practice is to always use two digits for hexadecimal escapes
-and three digits for octal escapes.  This prevents confusion between
-an escaped numerical character and an adjacent numerical character that
-is not to be escaped.
-
-Do not try to use backslash escapes to insert a nulchar in the middle
-of the string.  This will result in undefined behavior.  If you must
-have a value of zero in the middle, choose a different data type than
-a string.
-
-The following additional backslash escapes are supported.
-
-================ =====================================
-Escape           Meaning
----------------- -------------------------------------
-``"\a"``         bell (ASCII 7--what is this, 1978?)
-``"\b"``         backspace (ASCII 8)
-``"\t"``         horizontal tab (ASCII 9)
-``"\n"``         newline (ASCII 10)
-``"\v"``         vertical tab (ASCII 11)
-``"\f"``         form feed (ASCII 12)
-``"\r"``         carriage return (ASCII 13)
-``"\\"``         backslash itself
-``"\<newline>"`` do not include newline in the literal
-================ =====================================
-
 :TODO:
         support for HTML-entity escaping, like ``"\&{ldquo}"``
         would be nice.
+
+Quotation Escapes
+`````````````````
+
+If the string literal must contain the same quotation mark as the one
+wrapping it, you may either backslash-escape it, or use the alternative
+quote.  The following two lines will be interpreted exactly the same way:
+
+.. code-block:: js
+
+        "This is a \"string\""
+        'This is a "string"'
+
+Linefeed Escapes
+````````````````
+
+A linefeed can be inserted with ``\n``.  If a string literal wraps to the
+next line, the linefeed in the literal can be escaped with a backslash.
+The following examples will all be interpreted identically (except for
+the manner in which the line number is saved for error dumps):
+
+.. code-block:: js
+
+        "A two-line
+        string"
+
+        "A two-line\n\
+        string"
+
+        "A two-line\nstring"
+
+        "A \
+        two-line
+        string"
+
+String Literal Concatenation
+````````````````````````````
 
 Adjacent string literals whose only tokens between them are whitespace
 or comments will be concatentated.  The following two examples are
@@ -239,7 +260,7 @@ See Integers_ and Floats_ how these are stored internally.
 
 Literal expressions of these numbers follow the convention used by C.
 
-Numerical suffixes are unsupported.
+Do not use numerical suffixes.
 Write ``12``, not ``12ul``; write ``12.0``, not ``12f``.
 
 The following table demonstrates various ways to express the number 12:

@@ -19,3 +19,4 @@
   be a cache of path names, because the same path can be expressed the
   same way.
 
+* Support imaginary numbers

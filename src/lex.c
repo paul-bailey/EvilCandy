@@ -322,33 +322,61 @@ qlex_identifier(void)
         return true;
 }
 
+/* parse hex/binary int if '0x' or '0b' */
 static bool
-ishexheader(char *s)
-{
-        return (s[0] == '0' && toupper((int)s[1]) == 'X');
-}
-
-static bool
-qlex_hex(void)
+qlex_int_hdr(void)
 {
         struct buffer_t *tok = &lexer.tok;
-        char *pc = lexer.s;
         int count = 0;
-        if (!ishexheader(pc))
+        char *pc = lexer.s;
+
+        if (pc[0] != '0')
                 return false;
-        buffer_putc(tok, *pc++);
-        buffer_putc(tok, *pc++);
-        if (!isxdigit((int)(*pc)))
-                syntax("incorrectly expressed numerical value");
-        while (isxdigit((int)(*pc))) {
-                if (count++ >= 16)
-                        syntax("Integer too large");
+
+        switch (pc[1]) {
+        case 'x':
+        case 'X':
                 buffer_putc(tok, *pc++);
+                buffer_putc(tok, *pc++);
+                if (!isxdigit(*pc))
+                        goto e_malformed;
+                while (isxdigit((int)(*pc))) {
+                        if (count++ >= 16)
+                                goto e_toobig;
+                        buffer_putc(tok, *pc++);
+                }
+                break;
+
+        case 'b':
+        case 'B':
+                buffer_putc(tok, *pc++);
+                buffer_putc(tok, *pc++);
+                if (*pc != '0' && *pc != '1')
+                        goto e_malformed;
+                while (*pc == '0' || *pc == '1') {
+                        if (count++ >= 64)
+                                goto e_toobig;
+                        buffer_putc(tok, *pc++);
+                }
+                break;
+
+        default:
+                /* decimal int or float */
+                return false;
         }
+
+
         if (!q_isdelim(*pc))
-                syntax("Excess characters after hex literal");
+                goto e_malformed;
+
         lexer.s = pc;
         return true;
+
+e_toobig:
+        syntax("Integer too large");
+e_malformed:
+        syntax("incorectly expressed numerical value");
+        return false;
 }
 
 static int
@@ -357,7 +385,7 @@ qlex_number(void)
         char *pc, *start;
         int ret;
 
-        if (qlex_hex())
+        if (qlex_int_hdr())
                 return 'i';
 
         pc = start = lexer.s;
@@ -388,7 +416,6 @@ qlex_number(void)
                                 goto malformed;
                 }
         }
-
 
         /* We don't allow suffixes like f, u, ul, etc. */
         if (!q_isdelim(*pc))

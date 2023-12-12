@@ -269,7 +269,7 @@ The following table demonstrates various ways to express the number 12:
 **integer expressions**
 ---------------------------------------
 Decimal     ``12``
-Hexadecimal ``0x12``
+Hexadecimal ``0xC``
 Octal       ``014``
 Binary      ``0b1100``
 ----------- ---------------------------

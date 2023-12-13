@@ -153,6 +153,10 @@ struct var_t {
         };
 };
 
+struct block_t {
+        struct var_t **stack_level;
+};
+
 /* FIXME: Needs to be more private than this */
 struct vmframe_t {
         struct var_t *owner, *func;
@@ -160,6 +164,8 @@ struct vmframe_t {
         struct var_t *stack[FRAME_STACK_MAX];
         struct executable_t *ex;
         int ap;
+        int n_blocks;
+        struct block_t blocks[FRAME_NEST_MAX];
         instruction_t *ppii;
         struct var_t **clo;
         struct vmframe_t *prev;

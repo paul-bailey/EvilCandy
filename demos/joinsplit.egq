@@ -16,5 +16,9 @@ myar.foreach(function(e, i) {
         print("\t%2d: %4d".format2(i, e));
 });
 
+// These are useless statements, since the results instantly go out of
+// scope and get garbage-collected, but just the same test that wrapping
+// them in parentheses prevents a syntax error.
 ([].append(2));
+(''.join(['a', 'b', 'c']));
 

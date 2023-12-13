@@ -1,3 +1,19 @@
+* Fix problem with "break" w/r/t to "else" part of a "for-else" block
+  (comment in assemble_for).  My choices are either to come up with a
+  solution or to get rid of the "for-else" combination and have it be
+  a simple "for" loop.
+
+* Get rid of the by-reference policy on strings, it's probably not
+  improving speed any but it's a nightmare to disclaim in Tutorial.txt.
+
+* Start adding in test scaffolding where possible.
+
+* Support the CRLF case for eol escapes in string literals.
+
+* Support use of newline to substitute for semicolon (BIG LIFT).
+
+* Support complex numbers.
+
 * Support exceptions.  Don't just throw an error and call exit().
 
 * Support stdin; don't require a file name arg
@@ -19,4 +35,7 @@
   be a cache of path names, because the same path can be expressed the
   same way.
 
-* Support imaginary numbers
+* Figure out how to de-chaos-ify and elegantize multiple inheritance
+  without having to add a 'class' syntax.
+
+* Fix the cyclic-reference problem in GC.

@@ -48,11 +48,10 @@ But here are some major differences...
   JavaScript while keeping an eye on some Python pocketbooks.  For
   example, ``join`` is a string method, not a list method.
 
-* As of 12/2023, EvilCandy has practically no module library; I'm still
-  tying up loose ends in the core interpreter.  But when I do start
-  working on the library in earnest, I have no intention of trying to
-  continue making it resemble JavaScript, which seems too heavily
-  tailored for Web browsers.
+* When I get to work on the module library (see Status_) I have no
+  intention of trying to continue making it resemble JavaScript, which
+  seems too heavily tailored for Web browsers to be a good model for
+  EvilCandy.
 
 * Some syntactic changes were made.  A couple cases:
 

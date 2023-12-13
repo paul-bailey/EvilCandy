@@ -410,26 +410,13 @@ apush_scope(struct assemble_t *a)
         fr->fp = fr->sp;
 }
 
-/* writes instructions, doesn't update @a, use apop_scope for that */
-static void
-apop_scope_instruction_only(struct assemble_t *a)
-{
-        bug_on(a->fr->nest <= 0);
-        int cur_fp = a->fr->sp;
-        int prev_fp = a->fr->scope[a->fr->nest - 1];
-        bug_on(cur_fp < prev_fp);
-        while (cur_fp-- > prev_fp)
-                add_instr(a, INSTR_POP, 0, 0);
-}
-
 static void
 apop_scope(struct assemble_t *a)
 {
+        /* Don't add the instructions, that's implicit in POP_BLOCK */
         bug_on(a->fr->nest <= 0);
-        while (a->fr->sp > a->fr->fp) {
+        while (a->fr->sp > a->fr->fp)
                 a->fr->sp--;
-                add_instr(a, INSTR_POP, 0, 0);
-        }
         a->fr->nest--;
         a->fr->fp = a->fr->scope[a->fr->nest];
 }
@@ -1504,6 +1491,8 @@ assemble_while(struct assemble_t *a)
         int start = as_next_label(a);
         int skip  = as_next_label(a);
 
+        add_instr(a, INSTR_PUSH_BLOCK, 0, 0);
+
         as_set_label(a, start);
 
         as_errlex(a, OC_LPAR);
@@ -1515,6 +1504,8 @@ assemble_while(struct assemble_t *a)
         add_instr(a, INSTR_B, 0, start);
 
         as_set_label(a, skip);
+
+        add_instr(a, INSTR_POP_BLOCK, 0, 0);
 }
 
 static void
@@ -1523,12 +1514,16 @@ assemble_do(struct assemble_t *a)
         int start = as_next_label(a);
         int skip  = as_next_label(a);
 
+        add_instr(a, INSTR_PUSH_BLOCK, 0, 0);
+
         as_set_label(a, start);
         assemble_expression(a, 0, skip);
         as_errlex(a, OC_WHILE);
         assemble_eval(a);
         add_instr(a, INSTR_B_IF, 1, start);
         as_set_label(a, skip);
+
+        add_instr(a, INSTR_POP_BLOCK, 0, 0);
 }
 
 /*
@@ -1538,12 +1533,15 @@ assemble_do(struct assemble_t *a)
 static void
 assemble_for(struct assemble_t *a, int skip_else)
 {
-        int start = as_next_label(a);
-        int then = as_next_label(a);
-        int skip = as_next_label(a);
-        int iter = as_next_label(a);
+        int start   = as_next_label(a);
+        int then    = as_next_label(a);
+        int skip    = as_next_label(a);
+        int iter    = as_next_label(a);
         int forelse = as_next_label(a);
+
         as_errlex(a, OC_LPAR);
+
+        add_instr(a, INSTR_PUSH_BLOCK, 0, 0);
 
         /* initializer */
         assemble_expression(a, 0, skip);
@@ -1568,13 +1566,22 @@ assemble_for(struct assemble_t *a, int skip_else)
         add_instr(a, INSTR_B, 0, iter);
 
         as_set_label(a, forelse);
+
+        /*
+         * FIXME: Below should be skip_else, not skip.  But that would
+         * skip past POP_BLOCK below in the case of "break", causing a
+         * stack imbalance.  To prevent this, "break" inside the "else"
+         * of "for-else" only breaks to the end of the loop.  This is
+         * an unacceptable long-term solution.
+         */
         as_lex(a);
         if (a->oc->t == OC_ELSE)
-                assemble_expression(a, 0, skip_else);
+                assemble_expression(a, 0, skip);
         else
                 as_unlex(a);
 
         as_set_label(a, skip);
+        add_instr(a, INSTR_POP_BLOCK, 0, 0);
 }
 
 static void
@@ -1679,19 +1686,6 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         break;
                 case OC_BREAK:
                         as_err_if(a, skip < 0, AE_BREAK);
-                        /*
-                         * FIXME: This appears like it would only work if
-                         * we're breaking to one level up.  But what if
-                         * we're breaking from within a deeply nested if?
-                         * We need to somehow keep track of what depth we
-                         * were at when `skip' was generated.  This
-                         * matters because local-variable declarations
-                         * might occur in the middle of a block, in which
-                         * case the stack as executed will get misaligned
-                         * from this assembler's assumptions about it.
-                         */
-                        if (pop)
-                                apop_scope_instruction_only(a);
                         add_instr(a, INSTR_B, 0, skip);
                         break;
                 case OC_IF:

@@ -312,6 +312,32 @@ do_unwind(struct vmframe_t *fr, instruction_t ii)
 }
 
 static void
+do_push_block(struct vmframe_t *fr, instruction_t ii)
+{
+        struct block_t *bl;
+        if (fr->n_blocks >= FRAME_NEST_MAX)
+                syntax("Frame stack overflow");
+        bl = &fr->blocks[fr->n_blocks];
+        bl->stack_level = fr->stackptr;
+        fr->n_blocks++;
+}
+
+static void
+do_pop_block(struct vmframe_t *fr, instruction_t ii)
+{
+        struct block_t *bl;
+        if (fr->n_blocks <= 0)
+                syntax("Frame stack underflow");
+
+        fr->n_blocks--;
+        bl = &fr->blocks[fr->n_blocks];
+        while (fr->stackptr > bl->stack_level) {
+                struct var_t *v = pop(fr);
+                VAR_DECR_REF(v);
+        }
+}
+
+static void
 do_assign(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *from, *to;

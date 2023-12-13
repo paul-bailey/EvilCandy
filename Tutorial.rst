@@ -440,32 +440,15 @@ Valid single-line expressions are:
 8.  Program flow             ``if (`` *value* ``)`` *expr* ``else`` *expr*
 9.  Program flow             ``while (`` *value* ``)`` *expr*
 10. Program flow             ``do`` *expr* ``while (`` *value* ``)``
-11. Program flow [#]_        ``for (`` *expr* ... ``)`` *expr*
+11. Program flow             ``for (`` *expr* ... ``)`` *expr*
 12. Return nothing           ``return``
 13. Return something         ``return`` *value*
 14. Break                    ``break``
-15. Load [#]_                ``load``
+15. Load                     ``load``
 16. Nothing [#]_
 === ======================== =============================================
 
 .. [#] *Eval* has limitations here, see below.
-
-.. [#]
-        ``for`` loop header have the same format as C ``for`` loops:
-        expression-eval-expression, delimited by semicolons between
-        them, surrounded by parentheses.  The iteration step (part
-        3 of the header) is one of only two cases where a single-line
-        expression does not end in a semicolon; the other is with
-        EvilCandy's notation for tiny lambdas.
-
-.. [#]
-        ...if I ever get around to implementing it. And when I do,
-        ``load`` is only valid at the top level.  It may not be nested
-        within a function or a loop statement.  It *may* be within an
-        if statement, which is useful in the case of something like::
-
-                if (!__gbl__.hasattr("myclass"))
-                        load "myclass.evc";
 
 .. [#] ie. a line that's just a semicolon ``;``
 
@@ -877,6 +860,12 @@ language taught them.
         ugly conventions of JavaScript programming style.
         Its name is ``i``, not ``ThisVariableIsAnIteratorInAForLoop``!
 
+Dictionary Insertion Order
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dictionary insertion order is not preserved, nor may its contents be
+accessed with numerical subscripts.
+
 Strings
 -------
 
@@ -1112,15 +1101,19 @@ is equivalent to::
                 EXPR_2
         }
 
-If you declare an iterator in *expr_1*, e.g.:
+The iteration step (the *expr_2* part of the ``for`` loop header) is one
+of only two cases where a single-line expression does not end in a
+semicolon; the other is with EvilCandy's notation for tiny lambdas.
+
+You may declare the iterator in *expr_1* with ``let``, e.g.:
 
 .. code-block:: js
 
         for (let i=0; i < n; i++) {...
 
-then in this example ``i`` will be visible inside the loop but not
-outside of it.  However, ``i`` must not be declared yet in the outer
-scope or you will get a multiple-declaration error.
+in which case ``i`` will be visible inside the loop but not outside of
+it.  However, this only works if ``i`` has not been declared yet in the
+outer scope, or you will get a multiple-declaration error.  (See Scope_.)
 
 For those who prefer the Python-like version, use an object's
 ``foreach`` builtin method, described later.

@@ -64,6 +64,14 @@ enum {
         IARG_FLAG_PRIV = 0x02,
 };
 
+/*
+ * PUSH/POP_BLOCK args
+ */
+enum {
+        IARG_BLOCK,
+        IARG_LOOP,
+};
+
 typedef struct {
         uint8_t code;
         uint8_t arg1;  /* usually an IARG... enum */

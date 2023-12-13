@@ -1491,7 +1491,8 @@ assemble_while(struct assemble_t *a)
         int start = as_next_label(a);
         int skip  = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, 0, 0);
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
+        apush_scope(a);
 
         as_set_label(a, start);
 
@@ -1503,9 +1504,10 @@ assemble_while(struct assemble_t *a)
         assemble_expression(a, 0, skip);
         add_instr(a, INSTR_B, 0, start);
 
-        as_set_label(a, skip);
-
+        apop_scope(a);
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
+
+        as_set_label(a, skip);
 }
 
 static void
@@ -1514,16 +1516,19 @@ assemble_do(struct assemble_t *a)
         int start = as_next_label(a);
         int skip  = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, 0, 0);
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
+        apush_scope(a);
 
         as_set_label(a, start);
         assemble_expression(a, 0, skip);
         as_errlex(a, OC_WHILE);
         assemble_eval(a);
         add_instr(a, INSTR_B_IF, 1, start);
-        as_set_label(a, skip);
 
+        apop_scope(a);
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
+
+        as_set_label(a, skip);
 }
 
 /*
@@ -1541,7 +1546,8 @@ assemble_for(struct assemble_t *a, int skip_else)
 
         as_errlex(a, OC_LPAR);
 
-        add_instr(a, INSTR_PUSH_BLOCK, 0, 0);
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
+        apush_scope(a);
 
         /* initializer */
         assemble_expression(a, 0, skip);
@@ -1567,21 +1573,16 @@ assemble_for(struct assemble_t *a, int skip_else)
 
         as_set_label(a, forelse);
 
-        /*
-         * FIXME: Below should be skip_else, not skip.  But that would
-         * skip past POP_BLOCK below in the case of "break", causing a
-         * stack imbalance.  To prevent this, "break" inside the "else"
-         * of "for-else" only breaks to the end of the loop.  This is
-         * an unacceptable long-term solution.
-         */
         as_lex(a);
         if (a->oc->t == OC_ELSE)
-                assemble_expression(a, 0, skip);
+                assemble_expression(a, 0, skip_else);
         else
                 as_unlex(a);
 
-        as_set_label(a, skip);
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
+        apop_scope(a);
+
+        as_set_label(a, skip);
 }
 
 static void
@@ -1638,6 +1639,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                 brace++;
                 pop = true;
                 apush_scope(a);
+                add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
         } else {
                 /* single line statement */
                 as_unlex(a);
@@ -1686,6 +1688,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         break;
                 case OC_BREAK:
                         as_err_if(a, skip < 0, AE_BREAK);
+                        add_instr(a, INSTR_BREAK, 0, 0);
                         add_instr(a, INSTR_B, 0, skip);
                         break;
                 case OC_IF:
@@ -1718,8 +1721,10 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
 
         RECURSION_DECR();
 
-        if (pop)
+        if (pop) {
+                add_instr(a, INSTR_POP_BLOCK, 0, 0);
                 apop_scope(a);
+        }
 }
 
 static void

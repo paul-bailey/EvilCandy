@@ -200,6 +200,37 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
         return NULL;
 }
 
+static struct block_t *
+vmframe_pop_block(struct vmframe_t *fr)
+{
+        if (fr->n_blocks <= 0)
+                syntax("Frame stack underflow");
+
+        fr->n_blocks--;
+        return &fr->blocks[fr->n_blocks];
+}
+
+static void
+vmframe_push_block(struct vmframe_t *fr, unsigned char reason)
+{
+        struct block_t *bl;
+        if (fr->n_blocks >= FRAME_NEST_MAX)
+                syntax("Frame stack overflow");
+        bl = &fr->blocks[fr->n_blocks];
+        bl->stack_level = fr->stackptr;
+        bl->type = reason;
+        fr->n_blocks++;
+}
+
+static void
+vmframe_unwind_block(struct vmframe_t *fr, struct block_t *bl)
+{
+        while (fr->stackptr > bl->stack_level) {
+                struct var_t *v = pop(fr);
+                VAR_DECR_REF(v);
+        }
+}
+
 #define binary_op_common(fr, op) do {   \
         struct var_t *lval, *rval, *res;\
         rval = pop(fr);                 \
@@ -314,27 +345,23 @@ do_unwind(struct vmframe_t *fr, instruction_t ii)
 static void
 do_push_block(struct vmframe_t *fr, instruction_t ii)
 {
-        struct block_t *bl;
-        if (fr->n_blocks >= FRAME_NEST_MAX)
-                syntax("Frame stack overflow");
-        bl = &fr->blocks[fr->n_blocks];
-        bl->stack_level = fr->stackptr;
-        fr->n_blocks++;
+        vmframe_push_block(fr, ii.arg1);
 }
 
 static void
 do_pop_block(struct vmframe_t *fr, instruction_t ii)
 {
-        struct block_t *bl;
-        if (fr->n_blocks <= 0)
-                syntax("Frame stack underflow");
+        vmframe_unwind_block(fr, vmframe_pop_block(fr));
+}
 
-        fr->n_blocks--;
-        bl = &fr->blocks[fr->n_blocks];
-        while (fr->stackptr > bl->stack_level) {
-                struct var_t *v = pop(fr);
-                VAR_DECR_REF(v);
-        }
+static void
+do_break(struct vmframe_t *fr, instruction_t ii)
+{
+        struct block_t *bl;
+        do {
+                bl = vmframe_pop_block(fr);
+        } while (bl->type != IARG_LOOP);
+        vmframe_unwind_block(fr, bl);
 }
 
 static void

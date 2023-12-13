@@ -1208,11 +1208,16 @@ namespace reduction:
 
 In this example, ``x`` is only visible inside the ``if`` statement.
 
-One limitation of this is that only one automatic variable of a given
-name may exist in a given scope, up to the function level, at any time.
-That is, a local variable may take precedence over a global variable
-of the same name, but a local variable in a block statement may not
-override a variable in the containing function.
+There are two limitations to this.  First, this is only true inside of
+functions.  If the loop or ``if`` statement is global, any variables
+declared inside will also be global and remain visible outside their
+scopes.
+
+Two, only one automatic variable of a given name may exist in a given
+scope, up to the function level, at any time.  That is, a function's
+local variable may take precedence over a global variable of the same
+name, but a local variable in a block statement may not override a
+variable in the containing function.
 
 So while this will work:
 

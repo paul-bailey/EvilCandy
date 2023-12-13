@@ -155,6 +155,7 @@ struct var_t {
 
 struct block_t {
         struct var_t **stack_level;
+        unsigned char type;
 };
 
 /* FIXME: Needs to be more private than this */

@@ -1193,14 +1193,16 @@ always get the right one.
     function variables, but in testing I've been unable to see a very
     noticeable difference.
 
-Variables may also be declared inside block statements, for even further
-namespace reduction:
+Variables may also be declared inside braced block statements, for even
+further namespace reduction:
 
 .. code-block:: js
 
         let thing = function(a, b) {
-                if (b)
+                if (b) {
                         let x = b;
+                        ...
+                }
 
                 // THIS WON'T WORK!!
                 let a = x;  // x no longer exists

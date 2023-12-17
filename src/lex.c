@@ -111,6 +111,11 @@ bksl_char(char **src, int *c, int q)
         case '\\':
                 *c = '\\';
                 break;
+        case '\r':
+                *c = 0;
+                if (p[1] == '\n')
+                        *src += 1;
+                break;
         case '\n':
                 /*
                  * \<eol> means "string is wrapped for readability

@@ -1,7 +1,9 @@
-* Fix problem with "break" w/r/t to "else" part of a "for-else" block
-  (comment in assemble_for).  My choices are either to come up with a
-  solution or to get rid of the "for-else" combination and have it be
-  a simple "for" loop.
+* Support regular expressions
+
+* Use autoconf, automake & cet., not just a hand-written Makefile
+
+* Add "foreach" loop that resembles Python's "for" loop; this would be
+  an alternative to the .foreach built-in method.
 
 * Get rid of the by-reference policy on strings, it's probably not
   improving speed any but it's a nightmare to disclaim in Tutorial.txt.
@@ -25,7 +27,7 @@
 * Assembler.c is the "we have an AST at home" version of an abstract
   syntax tree.  Rewrite it from the ground up.
 
-* Supprt the continue statement
+* Support the continue statement
 
 * Support a switch statement.  Even though it'll be no faster than
   an if-else-if block, switch statements are easier to read and

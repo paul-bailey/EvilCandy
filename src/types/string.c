@@ -473,7 +473,7 @@ format2_helper(struct buffer_t *buf, const char *s, int argi)
  *
  * Lightweight printf-like alternative to format()
  *
- * Accepts %{flags}{pad}.{precision}{conversion}
+ * Accepts %[{flags}{pad}.{precision}]{conversion}
  *      flags:  - left-justify instead of default right-justify
  *              0 zero pad instead of default space pad, if permitted
  *                for conversion specifier & justification
@@ -875,7 +875,7 @@ string_join(struct var_t *ret)
         }
 
         if (elem->magic != TYPE_STRING)
-                syntax("string.join method may only join arrays of strings");
+                syntax("string.join method may only join lists of strings");
 
         string_init(ret, string_get_cstring(elem));
         for (;;) {

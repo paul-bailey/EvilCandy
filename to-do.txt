@@ -57,3 +57,8 @@ Mebbe/Wishlist
 * Figure out how to de-chaos-ify and elegantize multiple inheritance
   without having to add a 'class' syntax.
 
+* String data type encodes Unicode in utf-8, which is compact, but it
+  makes for slower processing.  Instead do something like cpython, which
+  has an array data-width variable in its meta-data.  C-string
+  termination still works, so long as the right uint*_t type is used
+  when checking for a value of zero.

@@ -226,7 +226,7 @@ static inline bool isnumvar(struct var_t *v)
 
 /* assembler.c */
 extern struct executable_t *assemble(const char *source_file_name,
-                                     struct token_t *token_arr);
+                                     FILE *fp);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);
@@ -252,12 +252,6 @@ extern void fail(const char *msg, ...);
 extern void warning(const char *msg, ...);
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
-
-/* compile.c */
-extern void compile_function(struct var_t *v);
-extern void compile_object(struct var_t *v);
-extern void compile_array(struct var_t *v);
-extern void compile_lambda(struct var_t *v);
 
 /* disassemble.c */
 extern void disassemble_start(FILE *fp, const char *sourcefile_name);

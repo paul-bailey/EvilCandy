@@ -1595,6 +1595,12 @@ assemble_load(struct assemble_t *a)
 }
 
 /*
+ * FIXME: assemble_expression() should be the wrapping point for
+ * code outside of this file, so that interactive mode can work.
+ * Needs rethinking of the API of this file, lex.c, and load_file.c
+ */
+
+/*
  * assemble_expression - Parser for the top-level expresison
  * @flags: If FE_FOR, we're in the iterator part of a for loop header.
  *         If FE_TOP (we're at the top level, not in a function).
@@ -1901,8 +1907,7 @@ as_get_location(const char **file_name, void *h)
  *            assembly instructions
  * @source_file_name:   Name of the input source file, for record
  *      keeping and reporting in case a syntax error was found
- * @token_arr: Array of tokens from a file.  These MUST be EOF-
- *      terminated.
+ * @fp: file associated with @source_file_name
  *
  * Return:
  * Array of executable instructions for the top-level scope, which
@@ -1915,11 +1920,16 @@ as_get_location(const char **file_name, void *h)
  * in memory until the program terminates.
  */
 struct executable_t *
-assemble(const char *source_file_name, struct token_t *token_arr)
+assemble(const char *source_file_name, FILE *fp)
 {
         struct assemble_t *a;
         struct executable_t *ex;
+        struct token_t *token_arr;
         int res;
+
+        token_arr = prescan(fp, notdir(source_file_name));
+        if (!token_arr)
+                return NULL;
 
         a = new_assembler(source_file_name, token_arr);
 

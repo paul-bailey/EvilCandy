@@ -27,9 +27,11 @@ push_path_(const char *path)
         paths[path_sp++] = path;
 }
 
+/* fp should be return value of balanced call to push_path */
 static void
-pop_path(void)
+pop_path(FILE *fp)
 {
+        fclose(fp);
         bug_on(path_sp <= 0);
         --path_sp;
         free((char *)paths[path_sp]);
@@ -61,14 +63,8 @@ load_file(const char *filename)
 {
         FILE *fp = push_path(filename);
         do {
-                struct token_t *oc;
                 struct executable_t *ex;
-                oc = prescan(fp, notdir(filename));
-                fclose(fp);
-                if (!oc)
-                        break;
-
-                if ((ex = assemble(filename, oc)) == NULL)
+                if ((ex = assemble(filename, fp)) == NULL)
                         syntax("Failed to assemble");
 
                 if (q_.opt.disassemble_only)
@@ -77,5 +73,5 @@ load_file(const char *filename)
                 if (ex)
                         vm_execute(ex);
         } while (0);
-        pop_path();
+        pop_path(fp);
 }

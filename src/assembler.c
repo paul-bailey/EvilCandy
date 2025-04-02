@@ -1857,7 +1857,7 @@ assemble_fourth_pass(struct assemble_t *a)
 #endif
 
 static struct executable_t *
-assemble_fifth_pass(struct assemble_t *a)
+as_top_executable(struct assemble_t *a)
 {
         struct as_frame_t *fr = list2frame(a->finished_frames.next);
         bug_on(&fr->list == &a->finished_frames);
@@ -1904,14 +1904,27 @@ free_assembler(struct assemble_t *a, int err)
         free(a);
 }
 
+/**
+ * trim_assembler - Delete no-longer-needed info in @a, but hold on to
+ *                  its current input parser state.
+ *
+ * Used when assemble_next() is getting called one expression at a time,
+ * ie. during interactive mode.
+ */
 void
 trim_assembler(struct assemble_t *a)
 {
         /*
-         * FIXME: This zombifies previous fr->x,
-         * but there's no other way to do it.
+         * Delete the (probably) just-run top-level executable code,
+         * but leave child executables zombified, since they may
+         * still be referenced somewhere.
+         *
+         * FIXME: for the descendant executables--function defs
+         * and whatnot--this is what EXECUTABLE_CLAIM and
+         * EXECUTABLE_RELEASE are supposed to handle.
          */
-        as_delete_frames(a, true);
+        executable_free__(as_top_executable(a));
+        as_delete_frames(a, false);
 
         list_init(&a->active_frames);
         list_init(&a->finished_frames);
@@ -2013,7 +2026,7 @@ assemble_next(struct assemble_t *a, bool toeof)
                 assemble_third_pass(a);
                 if (assemble_fourth_pass(a) < 0)
                         warning("Could not disassemble %s", a->file_name);
-                ex = assemble_fifth_pass(a);
+                ex = as_top_executable(a);
         }
 
         getloc_pop();

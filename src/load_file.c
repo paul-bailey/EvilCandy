@@ -62,16 +62,7 @@ void
 load_file(const char *filename)
 {
         FILE *fp = push_path(filename);
-        do {
-                struct executable_t *ex;
-                if ((ex = assemble(filename, fp)) == NULL)
-                        syntax("Failed to assemble");
-
-                if (q_.opt.disassemble_only)
-                        break;
-
-                if (ex)
-                        vm_execute(ex);
-        } while (0);
+        run_script(filename, fp);
         pop_path(fp);
 }
+

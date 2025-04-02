@@ -1782,11 +1782,11 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
  * and one for each function definition
  */
 static void
-assemble_first_pass(struct assemble_t *a)
+assemble_first_pass(struct assemble_t *a, bool toeof)
 {
         do {
                 assemble_expression(a, FE_TOP, -1);
-        } while (a->oc->t != EOF);
+        } while (toeof && a->oc->t != EOF);
         add_instr(a, INSTR_END, 0, 0);
 
         list_remove(&a->fr->list);
@@ -1866,7 +1866,16 @@ assemble_fifth_pass(struct assemble_t *a)
         return fr->x;
 }
 
-static struct assemble_t *
+/**
+ * new_assembler - Start an assembler state machine for a new input stream
+ * @source_file_name: Name of input stream, for error reporting;
+ *              must not be NULL
+ * @fp:         FILE handle associated with @source_file_name
+ *
+ * Return: Handle to the assembler state machine.  This is never NULL; an
+ *      error would be thrown before returning if that's the case.
+ */
+struct assemble_t *
 new_assembler(const char *source_file_name, FILE *fp)
 {
         struct assemble_t *a = ecalloc(sizeof(*a));
@@ -1878,18 +1887,35 @@ new_assembler(const char *source_file_name, FILE *fp)
         list_init(&a->active_frames);
         list_init(&a->finished_frames);
         as_frame_push(a, 0);
-
-        /* first alex() is @0 */
-        a->oc--;
         return a;
 }
 
-static void
+/**
+ * free_assembler - Free an assembler state machine
+ * @a:          Handle to the assembler state machine
+ * @err:        Zero to keep the executable opcodes in memory,
+ *              non-zero to delete those also.
+ */
+void
 free_assembler(struct assemble_t *a, int err)
 {
         as_delete_frames(a, err);
         token_state_free(a->prog);
         free(a);
+}
+
+void
+trim_assembler(struct assemble_t *a)
+{
+        /*
+         * FIXME: This zombifies previous fr->x,
+         * but there's no other way to do it.
+         */
+        as_delete_frames(a, true);
+
+        list_init(&a->active_frames);
+        list_init(&a->finished_frames);
+        as_frame_push(a, 0);
 }
 
 static unsigned int
@@ -1904,30 +1930,31 @@ as_get_location(const char **file_name, void *h)
 }
 
 /**
- * assemble - Convert an array of tokens into an array of pseudo-
- *            assembly instructions
- * @source_file_name:   Name of the input source file, for record
- *      keeping and reporting in case a syntax error was found
- * @fp: file associated with @source_file_name
+ * assemble_next - Parse input and convert into an array of pseudo-
+ *                 assembly instructions
+ * @a:          Handle to the assembler state machine
+ * @toeof:      true to parse an entire input stream
  *
- * Return:
- * Array of executable instructions for the top-level scope, which
- * happens to be all you need.  The instructions for any functions
- * defined in the script exist out there in RAM somewhere, but they
- * will be reached eventually, since they are referenced by top-level
- * instructions.  GC will happen when the last variable referencing them
- * is destroyed.  Note to users: Don't assign an insignificant function
- * to a global-, therefore immortal-, scope variable, or it will remain
- * in memory until the program terminates.
+ * Return: Either...
+ *      a) Array of executable instructions for the top-level scope,
+ *         which happens to be all you need.  The instructions for any
+ *         functions defined in the script exist out there in RAM
+ *         somewhere, but they will be reached eventually, since they are
+ *         referenced by top-level instructions.  GC will happen when the
+ *         last variable referencing them is destroyed.  Note to users:
+ *         Don't assign an insignificant function to a global-, therefore
+ *         immortal-, scope variable, or it will remain in memory until
+ *         the program terminates.
+ *      b) NULL if @a is already at end of input
  */
 struct executable_t *
-assemble(const char *source_file_name, FILE *fp)
+assemble_next(struct assemble_t *a, bool toeof)
 {
-        struct assemble_t *a;
         struct executable_t *ex;
         int res;
 
-        a = new_assembler(source_file_name, fp);
+        if (a->oc && a->oc->t == EOF)
+                return NULL;
 
         getloc_push(as_get_location, a);
 
@@ -1981,7 +2008,7 @@ assemble(const char *source_file_name, FILE *fp)
                 syntax("Assembler returned error code %d (%s)", res, msg);
                 ex = NULL;
         } else {
-                assemble_first_pass(a);
+                assemble_first_pass(a, toeof);
                 assemble_second_pass(a);
                 assemble_third_pass(a);
                 if (assemble_fourth_pass(a) < 0)
@@ -1991,7 +2018,6 @@ assemble(const char *source_file_name, FILE *fp)
 
         getloc_pop();
 
-        free_assembler(a, res);
         return ex;
 }
 

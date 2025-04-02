@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <getopt.h>
+#include <unistd.h>
 
 struct global_t q_;
 
@@ -69,15 +70,45 @@ parse_args(int argc, char **argv)
                         q_.opt.infile = s;
                 }
         }
-        if (!q_.opt.infile) {
-                fprintf(stderr, "Input file not specified");
-                goto er;
-        }
         return 0;
 
 er:
         fprintf(stderr, "Expected: '%s [OPTIONS] INFILE'\n", argv[0]);
         return -1;
+}
+
+/*
+ * parallel to run_tty, but has extern linkage so that load_file()
+ * can wrap around it.
+ */
+void
+run_script(const char *filename, FILE *fp)
+{
+        struct executable_t *ex;
+        struct assemble_t *a;
+        a = new_assembler(filename, fp);
+        if ((ex = assemble_next(a, true)) == NULL)
+                syntax("Failed to assemble");
+        free_assembler(a, ex == NULL);
+
+        if (ex && !q_.opt.disassemble_only)
+                vm_execute(ex);
+}
+
+static void
+run_tty(void)
+{
+        struct executable_t *ex;
+        struct assemble_t *a;
+        a = new_assembler("(stdin)", stdin);
+
+        printf("\n>>>> ");
+        while ((ex = assemble_next(a, false)) != NULL) {
+                vm_execute(ex);
+                trim_assembler(a);
+                printf("\n>>>> ");
+        }
+        free_assembler(a, true);
 }
 
 /**
@@ -91,7 +122,19 @@ main(int argc, char **argv)
         if (parse_args(argc, argv) < 0)
                 return -1;
 
-        load_file(q_.opt.infile);
+        if (q_.opt.infile) {
+                load_file(q_.opt.infile);
+        } else {
+                if (isatty(fileno(stdin))) {
+                        run_tty();
+                } else {
+                        /*
+                         * in a pipe; parse entire file
+                         * but don't push file path.
+                         */
+                        run_script("(stdin)", stdin);
+                }
+        }
 
         return 0;
 }

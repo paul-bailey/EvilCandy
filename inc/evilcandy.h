@@ -78,6 +78,7 @@ struct frame_t;
 struct executable_t;
 struct token_t;
 struct token_state_t;
+struct assemble_t;
 
 /**
  * struct object_handle_t - Descriptor for an object handle
@@ -215,6 +216,7 @@ struct global_t {
 
 /* main.c */
 extern struct global_t q_;
+extern void run_script(const char *filename, FILE *fp);
 
 /* helpers to classify a variable */
 static inline bool isconst(struct var_t *v)
@@ -226,8 +228,12 @@ static inline bool isnumvar(struct var_t *v)
         { return v->magic == TYPE_INT || v->magic == TYPE_FLOAT; }
 
 /* assembler.c */
-extern struct executable_t *assemble(const char *source_file_name,
-                                     FILE *fp);
+extern struct executable_t *assemble_next(struct assemble_t *a,
+                                          bool toeof);
+extern struct assemble_t *new_assembler(const char *source_file_name,
+                                        FILE *fp);
+extern void free_assembler(struct assemble_t *a, int err);
+extern void trim_assembler(struct assemble_t *a);
 
 /* builtin/builtin.c */
 extern void moduleinit_builtin(void);

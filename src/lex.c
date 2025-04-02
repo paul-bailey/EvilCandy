@@ -14,27 +14,35 @@ enum {
         QDDELIM = 0x08,
 };
 
-/* we do not recurse here, so just let it be a static struct */
-static struct {
+/**
+ * struct token_state_t - Keep track of all the tokenize calls
+                          in a single file.
+ * @lineno:     Current line number in file.
+ * @tok:        Last parsed token, not literal()-ized yet
+ * @s:          Current pointer into @line, where to look for next token
+ * @_slen:      Length of line buffer, for getline calls
+ * @line:       line buffer, for getline calls
+ * @fp:         File we're getting input from
+ * @filename:   name of @fp
+ */
+struct token_state_t {
         int lineno;
         struct buffer_t tok;
         char *s;
-        size_t _slen; /* for getline calls */
-        char *line;   /* ditto */
+        size_t _slen;
+        char *line;
         FILE *fp;
         char *filename;
-        /* look up tables */
-        unsigned char charmap[128];
-} lexer = {
-        .lineno = 0,
-        .s = NULL,
 };
+
+/* a sort of "ctype" for tokens */
+static unsigned char lexer_charmap[128];
 
 static inline bool q_isascii(int c) { return c && c == (c & 0x7fu); }
 static inline bool
 q_isflags(int c, unsigned char flags)
 {
-        return q_isascii(c) && (lexer.charmap[c] & flags) == flags;
+        return q_isascii(c) && (lexer_charmap[c] & flags) == flags;
 }
 
 static inline bool q_isdelim(int c) { return q_isflags(c, QDELIM); }
@@ -44,32 +52,29 @@ static inline bool q_isident(int c) { return q_isflags(c, QIDENT); }
 static inline bool q_isident1(int c) { return q_isflags(c, QIDENT1); }
 
 static int
-lexer_next_line(void)
+lexer_next_line(struct token_state_t *state)
 {
-        int res = getline(&lexer.line, &lexer._slen, lexer.fp);
+        int res = getline(&state->line, &state->_slen, state->fp);
         if (res != -1) {
-                lexer.s = lexer.line;
-                lexer.lineno++;
+                state->s = state->line;
+                state->lineno++;
         } else {
-                lexer.s = NULL;
+                state->s = NULL;
         }
         return res;
 }
 
-/* because this is @#$%!-ing tedious to type */
-#define cur_pc lexer.s
-
 /* if at '\0' after this, then end of namespace */
 static void
-qslide(void)
+qslide(struct token_state_t *state)
 {
         char *s;
         do {
-                s = lexer.s;
+                s = state->s;
                 while (*s != '\0' && isspace((int)(*s)))
                         ++s;
-        } while (*s == '\0' && lexer_next_line() != -1);
-        lexer.s = s;
+        } while (*s == '\0' && lexer_next_line(state) != -1);
+        state->s = s;
 }
 
 /* parse the usual backslash suspects */
@@ -238,10 +243,10 @@ bksl_utf8(char **src, int *c, struct buffer_t *tok)
 
 /* pc points at quote */
 static bool
-qlex_string(void)
+qlex_string(struct token_state_t *state)
 {
-        struct buffer_t *tok = &lexer.tok;
-        char *pc = lexer.s;
+        struct buffer_t *tok = &state->tok;
+        char *pc = state->s;
         int c, q = *pc++;
         if (!isquote(q))
                 return false;
@@ -267,19 +272,19 @@ retry:
         }
 
         if (c == '\0') {
-                if (lexer_next_line() == -1)
+                if (lexer_next_line(state) == -1)
                         syntax("Unterminated quote");
                 goto retry;
         }
 
-        lexer.s = pc;
+        state->s = pc;
         return true;
 }
 
 static bool
-qlex_comment(void)
+qlex_comment(struct token_state_t *state)
 {
-        char *pc = lexer.s;
+        char *pc = state->s;
         if (*pc == '#')
                 goto oneline;
 
@@ -294,12 +299,12 @@ qlex_comment(void)
                 do {
                         ++pc;
                         if (*pc == '\0') {
-                                if (lexer_next_line() == -1)
+                                if (lexer_next_line(state) == -1)
                                         syntax("Unterminated comment");
-                                pc = lexer.s;
+                                pc = state->s;
                         }
                 } while (!(pc[0] == '*' && pc[1] == '/'));
-                lexer.s = pc + 2;
+                state->s = pc + 2;
                 return true;
         }
         return false;
@@ -308,32 +313,32 @@ oneline:
         /* single-line comment */
         while (*pc != '\n' && *pc != '\0')
                 ++pc;
-        lexer.s = pc;
+        state->s = pc;
         return true;
 }
 
 static bool
-qlex_identifier(void)
+qlex_identifier(struct token_state_t *state)
 {
-        struct buffer_t *tok = &lexer.tok;
-        char *pc = lexer.s;
+        struct buffer_t *tok = &state->tok;
+        char *pc = state->s;
         if (!q_isident1(*pc))
                 return false;
         while (q_isident(*pc))
                 buffer_putc(tok, *pc++);
         if (!q_isdelim(*pc))
                 syntax("invalid chars in identifier or keyword");
-        lexer.s = pc;
+        state->s = pc;
         return true;
 }
 
 /* parse hex/binary int if '0x' or '0b' */
 static bool
-qlex_int_hdr(void)
+qlex_int_hdr(struct token_state_t *state)
 {
-        struct buffer_t *tok = &lexer.tok;
+        struct buffer_t *tok = &state->tok;
         int count = 0;
-        char *pc = lexer.s;
+        char *pc = state->s;
 
         if (pc[0] != '0')
                 return false;
@@ -374,7 +379,7 @@ qlex_int_hdr(void)
         if (!q_isdelim(*pc))
                 goto e_malformed;
 
-        lexer.s = pc;
+        state->s = pc;
         return true;
 
 e_toobig:
@@ -385,15 +390,15 @@ e_malformed:
 }
 
 static int
-qlex_number(void)
+qlex_number(struct token_state_t *state)
 {
         char *pc, *start;
         int ret;
 
-        if (qlex_int_hdr())
+        if (qlex_int_hdr(state))
                 return 'i';
 
-        pc = start = lexer.s;
+        pc = start = state->s;
 
         while (isdigit((int)*pc))
                 ++pc;
@@ -427,8 +432,8 @@ qlex_number(void)
                 goto malformed;
 
         while (start < pc)
-                buffer_putc(&lexer.tok, *start++);
-        lexer.s = pc;
+                buffer_putc(&state->tok, *start++);
+        state->s = pc;
         return ret;
 
 malformed:
@@ -437,10 +442,8 @@ malformed:
 }
 
 static int
-qlex_delim_helper(int *ret)
+qlex_delim_helper(int *ret, const char *s)
 {
-        char *s = lexer.s;
-
         switch (*s++) {
         case '+':
                 switch (*s) {
@@ -604,14 +607,14 @@ qlex_delim_helper(int *ret)
 }
 
 static bool
-qlex_delim(int *ret)
+qlex_delim(int *ret, struct token_state_t *state)
 {
-        int count = qlex_delim_helper(ret);
+        int count = qlex_delim_helper(ret, state->s);
         if (count) {
-                char *s = lexer.s;
-                lexer.s += count;
-                while (s < lexer.s) {
-                        buffer_putc(&lexer.tok, *s);
+                char *s = state->s;
+                state->s += count;
+                while (s < state->s) {
+                        buffer_putc(&state->tok, *s);
                         s++;
                 }
                 return true;
@@ -620,13 +623,13 @@ qlex_delim(int *ret)
 }
 
 static int
-qlex_slide(void)
+qlex_slide(struct token_state_t *state)
 {
         do {
-                qslide();
-                if (*lexer.s == '\0')
+                qslide(state);
+                if (*(state->s) == '\0')
                         return EOF;
-        } while (qlex_comment());
+        } while (qlex_comment(state));
         return 0;
 }
 
@@ -641,27 +644,27 @@ qlex_slide(void)
  * EOF if end of file
  */
 static int
-tokenize_helper(void)
+tokenize_helper(struct token_state_t *state)
 {
-        struct buffer_t *tok = &lexer.tok;
+        struct buffer_t *tok = &state->tok;
         int ret;
 
         buffer_reset(tok);
 
-        if ((ret = qlex_slide()) == EOF)
+        if ((ret = qlex_slide(state)) == EOF)
                 return ret;
 
-        if (qlex_delim(&ret)) {
+        if (qlex_delim(&ret, state)) {
                 return ret;
-        } else if (qlex_string()) {
+        } else if (qlex_string(state)) {
                 do {
-                        ret = qlex_slide();
-                } while (ret != EOF && qlex_string());
+                        ret = qlex_slide(state);
+                } while (ret != EOF && qlex_string(state));
                 return 'q';
-        } else if (qlex_identifier()) {
+        } else if (qlex_identifier(state)) {
                 int k = keyword_seek(tok->s);
                 return k >= 0 ? k : 'u';
-        } else if ((ret = qlex_number()) != 0) {
+        } else if ((ret = qlex_number(state)) != 0) {
                 return ret;
         }
 
@@ -682,9 +685,9 @@ tokenize_helper(void)
  * interactive mode.
  */
 int
-tokenize(struct token_t *oc)
+tokenize(struct token_t *oc, struct token_state_t *state)
 {
-        int ret = tokenize_helper();
+        int ret = tokenize_helper(state);
         if (ret == EOF) {
                 static const struct token_t eofoc = {
                         .t = EOF,
@@ -695,8 +698,8 @@ tokenize(struct token_t *oc)
                 memcpy(oc, &eofoc, sizeof(*oc));
         } else {
                 oc->t = ret;
-                oc->line = lexer.lineno;
-                oc->s = literal_put(lexer.tok.s);
+                oc->line = state->lineno;
+                oc->s = literal_put(state->tok.s);
                 bug_on(oc->s == NULL);
                 if (oc->t == 'f') {
                         double f = strtod(oc->s, NULL);
@@ -720,9 +723,44 @@ buffer_putcode(struct buffer_t *buf, struct token_t *oc)
 static unsigned int
 lexer_get_location(const char **file_name, void *unused)
 {
+        struct token_state_t *state = (struct token_state_t *)unused;
         if (file_name)
-                *file_name = lexer.filename;
-        return lexer.lineno;
+                *file_name = state->filename;
+        return state->lineno;
+}
+
+static void
+token_state_free(struct token_state_t *state)
+{
+        buffer_free(&state->tok);
+        if (state->line)
+                free(state->line);
+}
+
+static struct token_state_t *
+token_state_new(FILE *fp, const char *filename)
+{
+        struct token_state_t *state = emalloc(sizeof(*state));
+
+        buffer_init(&state->tok);
+        state->line     = NULL;
+        state->_slen    = 0;
+        state->s        = NULL;
+        state->filename = literal_put(filename);
+        state->fp       = fp;
+        state->lineno   = 0;
+
+        /*
+         * Get first line, so that the
+         * above functions don't all have to start
+         * with "if (state->s == NULL)"
+         */
+        if (lexer_next_line(state) == -1) {
+                token_state_free(state);
+                return NULL;
+        }
+
+        return state;
 }
 
 /*
@@ -731,35 +769,37 @@ lexer_get_location(const char **file_name, void *unused)
  * saves some steps and makes it easier to transition the project into a
  * VM that can run in interactive mode.
  */
+
+/*
+ * Unless error interrupts this, returns array of tokens whose last
+ * member has a .t value of EOF.
+ */
 struct token_t *
 prescan(FILE *fp, const char *filename)
 {
         struct token_t oc;
+        struct token_state_t *state;
         int t;
         struct buffer_t pgm;
 
         bug_on(!filename);
-        lexer.filename = literal_put(filename);
-        lexer.fp = fp;
-        lexer.lineno = 0;
-        if (lexer_next_line() == -1) {
-                pgm.s = NULL;
-                goto done;
-        }
 
-        getloc_push(lexer_get_location, NULL);
+        state = token_state_new(fp, filename);
+        if (!state)
+                return NULL;
+
+        getloc_push(lexer_get_location, state);
 
         buffer_init(&pgm);
         do {
-                t = tokenize(&oc);
-                /* yes, also stuff the EOF version */
+                t = tokenize(&oc, state);
+                /* yes, also stuff the EOF token */
                 buffer_putcode(&pgm, &oc);
         } while (t != EOF);
 
         getloc_pop();
 
-done:
-        lexer.fp = 0;
+        token_state_free(state);
         return (struct token_t *)pgm.s;
 }
 
@@ -775,31 +815,30 @@ moduleinit_lex(void)
         const char *s;
         int i;
 
-        buffer_init(&lexer.tok);
+        /*
+         * Set up lexer_charmap
+         * XXX: more optimal to put this in a code generator
+         * so it's all done at compile time instead.
+         */
 
-        lexer.line = NULL;
-        lexer._slen = 0;
-        lexer.s = NULL;
-
-        /* Set up lexer.charmap */
         /* delimiter */
         for (s = DELIMS; *s != '\0'; s++)
-                lexer.charmap[(int)*s] |= QDELIM;
+                lexer_charmap[(int)*s] |= QDELIM;
         /* double-delimeters */
         for (s = DELIMDBL; *s != '\0'; s++)
-                lexer.charmap[(int)*s] |= QDDELIM;
+                lexer_charmap[(int)*s] |= QDDELIM;
 
         /* special case */
-        lexer.charmap[(int)'`'] |= (QDELIM | QDDELIM);
-        lexer.charmap[0] |= QDELIM;
+        lexer_charmap[(int)'`'] |= (QDELIM | QDDELIM);
+        lexer_charmap[0] |= QDELIM;
 
         /* permitted identifier chars */
         for (i = 'a'; i < 'z'; i++)
-                lexer.charmap[i] |= QIDENT | QIDENT1;
+                lexer_charmap[i] |= QIDENT | QIDENT1;
         for (i = 'A'; i < 'Z'; i++)
-                lexer.charmap[i] |= QIDENT | QIDENT1;
+                lexer_charmap[i] |= QIDENT | QIDENT1;
         for (i = '0'; i < '9'; i++)
-                lexer.charmap[i] |= QIDENT;
-        lexer.charmap['_'] |= QIDENT | QIDENT1;
+                lexer_charmap[i] |= QIDENT;
+        lexer_charmap['_'] |= QIDENT | QIDENT1;
 }
 

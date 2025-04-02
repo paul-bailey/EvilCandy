@@ -16,9 +16,10 @@ enum {
 
 /**
  * struct token_state_t - Keep track of all the tokenize calls
-                          in a single file.
+ *                        for a given input stream.
  * @lineno:     Current line number in file.
- * @tok:        Last parsed token, not literal()-ized yet
+ * @tok:        Last parsed token, not literal()-ized yet.  Library use
+ *              only.
  * @s:          Current pointer into @line, where to look for next token
  * @_slen:      Length of line buffer, for getline calls
  * @line:       line buffer, for getline calls
@@ -33,6 +34,11 @@ struct token_state_t {
         char *line;
         FILE *fp;
         char *filename;
+
+        struct buffer_t pgm;
+        int ntok;
+        int nexttok;
+        bool eof;
 };
 
 /* a sort of "ctype" for tokens */
@@ -672,54 +678,7 @@ tokenize_helper(struct token_state_t *state)
         return 0;
 }
 
-/**
- * tokenize - Get the next token from the current
- *            input file.
- * @oc: where to store the result
- *
- * Return: Same value as oc->t
- *
- * XXX: not ready for extern linkage yet, need to do the getloc
- * thing from parent (currently prescan), then we'll add this as
- * the function as_lex calls in assembler.c, so we can have
- * interactive mode.
- */
-int
-tokenize(struct token_t *oc, struct token_state_t *state)
-{
-        int ret = tokenize_helper(state);
-        if (ret == EOF) {
-                static const struct token_t eofoc = {
-                        .t = EOF,
-                        .line = 0,
-                        .s = NULL,
-                        .i = 0LL,
-                };
-                memcpy(oc, &eofoc, sizeof(*oc));
-        } else {
-                oc->t = ret;
-                oc->line = state->lineno;
-                oc->s = literal_put(state->tok.s);
-                bug_on(oc->s == NULL);
-                if (oc->t == 'f') {
-                        double f = strtod(oc->s, NULL);
-                        oc->f = f;
-                } else if (oc->t == 'i') {
-                        long long i = strtoul(oc->s, NULL, 0);
-                        oc->i = i;
-                } else {
-                        oc->i = 0LL;
-                }
-        }
-        return ret;
-}
-
-static void
-buffer_putcode(struct buffer_t *buf, struct token_t *oc)
-{
-        buffer_putd(buf, oc, sizeof(*oc));
-}
-
+/* getloc callback during tokenize() */
 static unsigned int
 lexer_get_location(const char **file_name, void *unused)
 {
@@ -729,15 +688,131 @@ lexer_get_location(const char **file_name, void *unused)
         return state->lineno;
 }
 
-static void
-token_state_free(struct token_state_t *state)
+/* Get the next token from the current input file. */
+static int
+tokenize(struct token_state_t *state)
+{
+        int ret;
+
+        getloc_push(lexer_get_location, state);
+        ret = tokenize_helper(state);
+        getloc_pop();
+
+        if (ret == EOF) {
+                static const struct token_t eofoc = {
+                        .t = EOF,
+                        .line = 0,
+                        .s = NULL,
+                        .i = 0LL,
+                };
+                state->eof = true;
+                buffer_putd(&state->pgm, &eofoc, sizeof(eofoc));
+        } else {
+                struct token_t oc;
+
+                oc.t = ret;
+                oc.line = state->lineno;
+                oc.s = literal_put(state->tok.s);
+                bug_on(oc.s == NULL);
+                if (ret == 'f') {
+                        double f = strtod(oc.s, NULL);
+                        oc.f = f;
+                } else if (ret == 'i') {
+                        long long i = strtoul(oc.s, NULL, 0);
+                        oc.i = i;
+                } else {
+                        oc.i = 0LL;
+                }
+                buffer_putd(&state->pgm, &oc, sizeof(oc));
+        }
+        state->ntok++;
+        return ret;
+}
+
+#define TOKBUF(state_) ((struct token_t *)(state_)->pgm.s)
+
+/**
+ * get_tok - Get the next token
+ * @state:      Token state machine
+ * @tok:        (output) pointer to the next token
+ *
+ * Return: Type of token stored in @tok
+ */
+int
+get_tok(struct token_state_t *state, struct token_t **tok)
+{
+        struct token_t *cur;
+
+        bug_on(tok == NULL);
+
+        /*
+         * If next token has not yet been parsed, parse it.
+         * Otherwise return the next parsed token.
+         */
+        if (state->nexttok >= state->ntok) {
+                if (state->eof) {
+                        /*
+                         * At EOF and "need" new token.
+                         * Keep returning EOF token
+                         */
+                        bug_on(state->ntok <= 0);
+                        cur = TOKBUF(state) + state->ntok - 1;
+                        bug_on(cur->t != EOF);
+                        goto done;
+                }
+                tokenize(state);
+                bug_on(state->nexttok >= state->ntok);
+        }
+
+        /* tokenize() may have changed state->nexttok, so refresh this */
+        cur = TOKBUF(state) + state->nexttok;
+        state->nexttok++;
+
+done:
+        *tok = cur;
+        return cur->t;
+}
+
+/**
+ * unget_tok - Back up the token state to previous token
+ * @state:      Token state machine
+ * @tok:        Variable storing pointer to new "current" token.
+ *
+ *      WARNING!! @tok may be an invalid pointer if number of unget_tok()
+ *      calls match or outnumber get_tok() calls.  Calling code must keep
+ *      track of this, and be sure not to de-reference @tok when the
+ *      imbalance was intentional, eg. when un-peeking at the first token
+ *      of the input stream.
+ */
+void
+unget_tok(struct token_state_t *state, struct token_t **tok)
+{
+        bug_on(state->nexttok <= 0);
+        state->nexttok--;
+        *tok = TOKBUF(state) + state->nexttok - 1;
+}
+
+/*
+ * Use when you still need what's been parsed from @state,
+ * but you don't need the current-token bits.
+ */
+void
+token_state_trim(struct token_state_t *state)
 {
         buffer_free(&state->tok);
         if (state->line)
                 free(state->line);
 }
 
-static struct token_state_t *
+void
+token_state_free(struct token_state_t *state)
+{
+        token_state_trim(state);
+        buffer_free(&state->pgm);
+        free(state);
+}
+
+struct token_state_t *
 token_state_new(FILE *fp, const char *filename)
 {
         struct token_state_t *state = emalloc(sizeof(*state));
@@ -749,6 +824,11 @@ token_state_new(FILE *fp, const char *filename)
         state->filename = literal_put(filename);
         state->fp       = fp;
         state->lineno   = 0;
+
+        buffer_init(&state->pgm);
+        state->ntok     = 0;
+        state->nexttok  = 0;
+        state->eof      = false;
 
         /*
          * Get first line, so that the
@@ -764,51 +844,15 @@ token_state_new(FILE *fp, const char *filename)
 }
 
 /*
- * XXX REVISIT: cf. assembler.c, ``as_lex'' and ``as_unlex''.  Instead of
- * prescanning the whole file, this could be done a token at a time.  It
- * saves some steps and makes it easier to transition the project into a
- * VM that can run in interactive mode.
- */
-
-/*
  * Unless error interrupts this, returns array of tokens whose last
  * member has a .t value of EOF.
  */
-struct token_t *
-prescan(FILE *fp, const char *filename)
-{
-        struct token_t oc;
-        struct token_state_t *state;
-        int t;
-        struct buffer_t pgm;
-
-        bug_on(!filename);
-
-        state = token_state_new(fp, filename);
-        if (!state)
-                return NULL;
-
-        getloc_push(lexer_get_location, state);
-
-        buffer_init(&pgm);
-        do {
-                t = tokenize(&oc, state);
-                /* yes, also stuff the EOF token */
-                buffer_putcode(&pgm, &oc);
-        } while (t != EOF);
-
-        getloc_pop();
-
-        token_state_free(state);
-        return (struct token_t *)pgm.s;
-}
-
 void
 moduleinit_lex(void)
 {
         /*
          * IMPORTANT!! These two strings must be in same order as
-         *             their QD_* enums in opcode.h
+         *             their OC_* enums in token.h
          */
         static const char *const DELIMS = "+-<>=&|.!;,/*%^()[]{}:~ \t\n";
         static const char *const DELIMDBL = "+-<>=&|";

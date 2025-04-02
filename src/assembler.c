@@ -112,8 +112,8 @@ struct as_frame_t {
 /**
  * struct assemble_t - The top-level assembler, contains all the
  *                     function definitions in the same source file.
- * @prog:       The full array of tokens for input file
- * @oc:         Pointer into @prog
+ * @prog:       The token state machine
+ * @oc:         Pointer into current parsed token in @prog
  * @func:       Label number for next function
  * @env:        Buffer to longjmp from in case of error
  * @active_frames:
@@ -128,7 +128,7 @@ struct as_frame_t {
  */
 struct assemble_t {
         char *file_name;
-        struct token_t *prog;
+        struct token_state_t *prog;
         struct token_t *oc;
         int func;
         jmp_buf env;
@@ -184,7 +184,10 @@ as_frame_push(struct assemble_t *a, int funcno)
         fr->x = ecalloc(sizeof(*(fr->x)));
         list_init(&fr->x->list);
         fr->x->file_name = a->file_name;
-        fr->x->file_line = a->oc->line;
+        if (a->oc)
+                fr->x->file_line = a->oc->line;
+        else
+                fr->x->file_line = 1;
         fr->x->n_label = JMP_INIT;
 
         list_init(&fr->list);
@@ -307,17 +310,13 @@ as_delete_frames(struct assemble_t *a, int err)
 static void
 as_unlex(struct assemble_t *a)
 {
-        /* "minus one" should be fine */
-        bug_on(a->oc < a->prog);
-        a->oc--;
+        unget_tok(a->prog, &a->oc);
 }
 
 static int
 as_lex(struct assemble_t *a)
 {
-        if (a->oc->t != EOF)
-                a->oc++;
-        return a->oc->t;
+        return get_tok(a->prog, &a->oc);
 }
 
 static int
@@ -1785,8 +1784,9 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
 static void
 assemble_first_pass(struct assemble_t *a)
 {
-        while (a->oc->t != EOF)
+        do {
                 assemble_expression(a, FE_TOP, -1);
+        } while (a->oc->t != EOF);
         add_instr(a, INSTR_END, 0, 0);
 
         list_remove(&a->fr->list);
@@ -1867,12 +1867,12 @@ assemble_fifth_pass(struct assemble_t *a)
 }
 
 static struct assemble_t *
-new_assembler(const char *source_file_name, struct token_t *token_arr)
+new_assembler(const char *source_file_name, FILE *fp)
 {
         struct assemble_t *a = ecalloc(sizeof(*a));
         a->file_name = (char *)source_file_name;
-        a->prog = token_arr;
-        a->oc = a->prog;
+        a->prog = token_state_new(fp, notdir(source_file_name));
+        a->oc = NULL;
         /* don't let the first ones be zero, that looks bad */
         a->func = FUNC_INIT;
         list_init(&a->active_frames);
@@ -1888,6 +1888,7 @@ static void
 free_assembler(struct assemble_t *a, int err)
 {
         as_delete_frames(a, err);
+        token_state_free(a->prog);
         free(a);
 }
 
@@ -1924,14 +1925,9 @@ assemble(const char *source_file_name, FILE *fp)
 {
         struct assemble_t *a;
         struct executable_t *ex;
-        struct token_t *token_arr;
         int res;
 
-        token_arr = prescan(fp, notdir(source_file_name));
-        if (!token_arr)
-                return NULL;
-
-        a = new_assembler(source_file_name, token_arr);
+        a = new_assembler(source_file_name, fp);
 
         getloc_push(as_get_location, a);
 

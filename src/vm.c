@@ -5,6 +5,23 @@
  *
  * When loading a file, vm_execute is called.  When calling a function
  * from internal code (eg. in a foreach loop), vm_reenter is called.
+ *
+ * EvilCandy uses a jump table of function pointers.  Most of this file
+ * consists of the callbacks; the table itself is auto-generated as
+ * "vm_gen.c.h" and inserted with an #include in the middle of JUMP_TABLE
+ * below.
+ *
+ * This is slightly less optimal than a switch statement, since the
+ * callbacks need access to some upstream variables; C's pass-by-value
+ * enforcement requires the overhead of passing pointers onto the stack
+ * during these function calls.  The problem with switch statements is
+ * that they will compile into a (crippling, in this case) if-else-if
+ * block unless you take the sort of fussy precautions that are way to
+ * easy to overlook.  Looking at Cpython's code, I see that they use a
+ * fifty-mile-long switch statement with tons of gimmicks and Gnu
+ * extensions like arrays of goto labels.  Well, more power to them,
+ * since they also have legions of developers to check each other.
+ * I'll play it safe and accept being like 5% slower.
  */
 #include <instructions.h>
 #include <evilcandy.h>

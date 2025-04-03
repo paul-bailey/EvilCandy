@@ -1,6 +1,43 @@
 /*
  * FIXME: This whole file is a hacky duct-tape way to do things, because
  * I couldn't be bothered to research the topic of abstract syntax trees.
+ *
+ * I use a recursive descent parser.
+ * For an expression like
+ *              let a = (x + y.z() * 2.0);
+ * the parser's entry point is assemble_expression().
+ * The part to the right of the "="
+ *              (x + y.z() * 2.0)
+ * is evaluated starting at assemble_eval().  Since this is what can be
+ * evaluated and reduced to a single datum during runtime, it's what the
+ * documentation refers to as VALUE.  I mildly regret not treating full
+ * expressions as returning a value, since it would make something like
+ * Python's eval() statement much easier to do here.
+ *
+ * The API pseudocode is, for each input stream...
+ *
+ *      A) If it's a script file or pipe:
+ *           1. call new_assembler()
+ *           2. ex = assemble_next(toeof=true)
+ *           3. free_assembler(err=false)
+ *           4. pass ex to vm.c API for execution
+ *
+ *      B) If it's a TTY input:
+ *           1. call new_assembler()
+ *           2. repeat for each non-NULL ex
+ *                   2a. ex = assemble_next(toeof=false)
+ *               [*] 2b. pass ex to vm.c API for execution
+ *                   2c. trim_assembler()
+ *           3. free_assembler(err=false)
+ *
+ * [* Do 2b. before 2c. due to a temporary hack, see comment in
+ *    trim_assembler() and to-do.txt re: memory leak bug. ]
+ *
+ * In the TTY case, assemble_next will return when an end of a top-level
+ * statement is reached (along with a required newline, on most
+ * terminals).  trim_assembler() adds a lot of per-statement overhead,
+ * but it's fast enough compared to someone typing.  In the script case,
+ * line-by-line parsing is not needed, so the overhead is only per-file.
  */
 #include "instructions.h"
 #include "token.h"
@@ -1248,7 +1285,7 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                 /*
                  * FIXME: For the SETATTR cases below, I should permit
                  * more than '=', but any of the TF_ASSIGN tokens.
-                 * Requieres a new family of instructions to parallel
+                 * Requires a new family of instructions to parallel
                  * the assignment instructions, ie.
                  *      INSTR_ASSIGN_LS  <=> INSTR_SETATTR_LS
                  * and so on..
@@ -1592,12 +1629,6 @@ assemble_load(struct assemble_t *a)
                   seek_or_add_const(a, a->oc));
         as_errlex(a, OC_SEMI);
 }
-
-/*
- * FIXME: assemble_expression() should be the wrapping point for
- * code outside of this file, so that interactive mode can work.
- * Needs rethinking of the API of this file, lex.c, and load_file.c
- */
 
 /*
  * assemble_expression - Parser for the top-level expresison

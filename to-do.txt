@@ -8,9 +8,11 @@ Bugs/Must-Do
 
 * Start adding in test scaffolding where possible.
 
-* Support exceptions.  Don't just throw an error and call exit().
-
-* Support stdin; don't require a file name arg
+* Support exceptions.  Don't just throw an error and call exit(), unless
+  it's a system error.  (maybe let ewrappers.c be only for system errors,
+  not for syntax errors.) Do not quit on syntax() if in interactive mode.
+  BIG LIFT, requires proper unwinding and lots of stacks of jmp_bufs in
+  each struct
 
 * Support serialization to byte-code files
 
@@ -21,6 +23,13 @@ Bugs/Must-Do
   different ways.
 
 * Fix the cyclic-reference problem in GC.
+
+* MEMORY LEAK BUG:  When top-level expressions have been executed, their
+  executable code should be deleted.  Same for function definitions when
+  handles referencitn them leave scope.  However, naive GC doesn't work,
+  because it causes IIFEs to delete before they are executed.  So for
+  now, GC is turned off for all executable code, even if it gets
+  zombified.
 
 Library/Language Features
 -------------------------
@@ -40,9 +49,16 @@ Library/Language Features
 Mebbe/Wishlist
 --------------
 
-* Do not quit on syntax() if in interactive mode.  BIG LIFT, requires
-  proper unwinding and lots of stacks of jmp_bufs in each struct; see
-  above to-do re: exception handling.
+* At assemble_eval() time, determine if certain expressions can be
+  reduced to single consts known at assemble time.  Currently something
+  like "1 + 2" will result in an operation at execution time.
+
+* Make better distinction between syntax errors and other user errors
+  (eg. array out of bounds, symbol not found...).  Currently syntax()
+  is used for both.
+
+* Preserve token buffer in interactive mode so that the UP arrow will
+  recall previous expressions.
 
 * Add "foreach" loop that resembles Python's "for" loop; this would be
   an alternative to the .foreach built-in method.

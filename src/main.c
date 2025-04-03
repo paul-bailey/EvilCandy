@@ -102,11 +102,11 @@ run_tty(void)
         struct assemble_t *a;
         a = new_assembler("(stdin)", stdin);
 
-        printf("\n>>>> ");
+        printf("EvilCandy > ");
         while ((ex = assemble_next(a, false)) != NULL) {
                 vm_execute(ex);
                 trim_assembler(a);
-                printf("\n>>>> ");
+                printf("EvilCandy > ");
         }
         free_assembler(a, true);
 }

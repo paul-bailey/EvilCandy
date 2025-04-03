@@ -48,8 +48,9 @@ my_strrchrnul(const char *s, int c)
  * @s:          Input string
  * @charset:    Characters to filter
  * @end:        Pointer to last character in @s before the nullchar
- *              termination...since our struct buffer_t's happen to know
- *              this without requiring a strlen call.
+ *              termination...it's not a very standard-looking arg,
+ *              but our struct buffer_t's happen to already know this,
+ *              forgoing our need for a strlen call.
  *
  * Return: Number of characters spanned.
  */

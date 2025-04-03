@@ -12,9 +12,9 @@
         |                       and which can with relative ease be
         |                       ported to a different project.
         |
-        +-------lib/            The main library of source files that
-        |                       user sources can load.  These will likely
-        |                       be installed in some place like
+        +-------lib/            The main library of scripts that user
+        |                       sources can load by default.  These ought
+        |                       to be installed in some place like
         |                       /usr/local/share/EvilCandy/
         |
         +-------demos/          EvilCandy scripts that test the code,

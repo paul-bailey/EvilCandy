@@ -7,7 +7,7 @@ A Script Interpreter and Programming Language
 ---------------------------------------------
 
 :Author: Paul Bailey <roscidcup@falstaffandme.com>
-:Date: November 2022
+:Date: April 2025
 
 About
 =====
@@ -102,7 +102,7 @@ Still, this is not embarrassing, and I'm quite proud of how fast it runs.
 Status
 ======
 
-As of December, 2023...
+As of April, 2025...
 
 This project is still under initial development and neither the syntax
 nor the implementation is at all stable.
@@ -111,9 +111,6 @@ nor the implementation is at all stable.
   **For the love of god do not try to pitch this as an actual interpreter
   worth anyone's salt!**  I still get the occasional segfault when I hard
   test it with code.
-
-* There is currently no interactive mode.  It prescans an entire file,
-  converts it into byte code, then it executes the script.
 
 * None of this is thread-proof, and very little of it is reentrant-proof.
 
@@ -140,7 +137,7 @@ I've started to-do.txt to add to my development wishlist.
 The Language
 ============
 
-See Documentation.rst
+See Tutorial.rst
 
 Portability
 ===========

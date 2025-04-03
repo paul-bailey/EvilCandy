@@ -20,7 +20,7 @@
  * f.tell()        Return the current offset into f
  * f.rewind()      Return to the start of the file
  *
- *
+ * TODO: Binary file operations, need better array class than list.
  */
 #include "builtin.h"
 #include <errno.h>

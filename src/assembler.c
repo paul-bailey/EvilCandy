@@ -1946,7 +1946,10 @@ as_get_location(const char **file_name, void *h)
  * assemble_next - Parse input and convert into an array of pseudo-
  *                 assembly instructions
  * @a:          Handle to the assembler state machine
- * @toeof:      true to parse an entire input stream
+ * @toeof:      `true' to parse an entire input stream.  `false' to parse
+ *              a single full statement; this may contain sub-statements
+ *              if, for example, it's a program flow statement or it
+ *              contains a function definition.
  *
  * Return: Either...
  *      a) Array of executable instructions for the top-level scope,

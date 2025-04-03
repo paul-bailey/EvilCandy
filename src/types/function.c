@@ -134,9 +134,21 @@ function_prep_frame(struct var_t *fn,
         argc = (fh->f_magic == FUNC_INTERNAL)
                ? fh->f_minargs : fh->f_argc;
         for (i = fr->ap; i < argc; i++) {
-                struct var_t *v = fh->f_argv[i];
+                struct var_t *v;
+
+                /*
+                 * XXX shouldn't this be caught earlier?  f_minargs
+                 * should never be larger than f_argc.  I put this
+                 * trap here because if no optional args exist,
+                 * f_argv/f_argc will never get initialized.  But it's
+                 * sloppy...
+                 */
+                if (i > fh->f_argc)
+                        goto er;
+                v = fh->f_argv[i];
                 if (!v)
-                        syntax("Missing non-optional arg #%d", i);
+                        goto er;
+
                 fr->stack[fr->ap++] = v;
                 VAR_INCR_REF(v);
         }
@@ -152,6 +164,10 @@ function_prep_frame(struct var_t *fn,
         if (fh->f_magic == FUNC_USER)
                 fr->ex = fh->f_ex;
         return fr->func;
+
+er:
+        syntax("Missing non-optional arg #%d", i + 1);
+        return NULL; /* for compiler */
 }
 
 /*

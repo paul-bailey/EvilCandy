@@ -126,6 +126,11 @@ main(int argc, char **argv)
                 load_file(q_.opt.infile);
         } else {
                 if (isatty(fileno(stdin))) {
+                        if (q_.opt.disassemble_only) {
+                                fprintf(stderr,
+                                        "Error: Disassembly not available in interactive mode\n");
+                                return 1;
+                        }
                         run_tty();
                 } else {
                         /*

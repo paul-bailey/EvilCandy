@@ -12,8 +12,6 @@ Bugs/Must-Do
 
 * Support stdin; don't require a file name arg
 
-* Support interactive mode
-
 * Support serialization to byte-code files
 
 * Support the continue statement
@@ -42,6 +40,10 @@ Library/Language Features
 Mebbe/Wishlist
 --------------
 
+* Do not quit on syntax() if in interactive mode.  BIG LIFT, requires
+  proper unwinding and lots of stacks of jmp_bufs in each struct; see
+  above to-do re: exception handling.
+
 * Add "foreach" loop that resembles Python's "for" loop; this would be
   an alternative to the .foreach built-in method.
 
@@ -62,3 +64,4 @@ Mebbe/Wishlist
   has an array data-width variable in its meta-data.  C-string
   termination still works, so long as the right uint*_t type is used
   when checking for a value of zero.
+

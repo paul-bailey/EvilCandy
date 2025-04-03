@@ -23,7 +23,7 @@ static void
 push_path_(const char *path)
 {
         if (path_sp >= MAX_LOADS)
-                fail("Files loads nested too deep");
+                fail("File loads nested too deeply");
         paths[path_sp++] = path;
 }
 

@@ -77,11 +77,7 @@ er:
         return -1;
 }
 
-/*
- * parallel to run_tty, but has extern linkage so that load_file()
- * can wrap around it.
- */
-void
+static void
 run_script(const char *filename, FILE *fp)
 {
         struct executable_t *ex;
@@ -112,8 +108,18 @@ run_tty(void)
 }
 
 /**
- * script_read - Read and execute a script
+ * load_file - Read in a file, tokenize it, assemble it, execute it.
+ * @filename:   Path to file as written after the "load" keyword or on
+ *              the command line.
  */
+void
+load_file(const char *filename)
+{
+        FILE *fp = push_path(filename);
+        run_script(filename, fp);
+        pop_path(fp);
+}
+
 int
 main(int argc, char **argv)
 {

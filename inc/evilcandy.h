@@ -216,7 +216,7 @@ struct global_t {
 
 /* main.c */
 extern struct global_t q_;
-extern void run_script(const char *filename, FILE *fp);
+extern void load_file(const char *filename);
 
 /* helpers to classify a variable */
 static inline bool isconst(struct var_t *v)
@@ -297,9 +297,6 @@ extern char *literal(const char *s);
 extern char *literal_put(const char *s);
 extern void moduleinit_literal(void);
 
-/* load_file.c */
-extern void load_file(const char *filename);
-
 /* location.c */
 extern void getloc_push(unsigned int (*getloc)(const char **, void *),
                         void *data);
@@ -332,9 +329,13 @@ extern struct var_t *qop_lnot(struct var_t *v);
 extern struct var_t *qop_mov(struct var_t *to, struct var_t *from);
 extern bool qop_cmpz(struct var_t *v);
 
-/* path.c */
+/* find_import.c */
 extern FILE *find_import(const char *cur_path, const char *file_name,
                          char *pathfill, size_t size);
+
+/* path.c */
+extern void pop_path(FILE *fp);
+extern FILE *push_path(const char *filename);
 
 /* var.c */
 extern struct var_t *var_new(void);

@@ -843,49 +843,7 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
 };
 
-static unsigned int
-vm_get_location(const char **file_name, void *unused)
-{
-        unsigned int i, offs;
-        struct executable_t *ex;
-
-        if (!current_frame) {
-                if (file_name)
-                        *file_name = NULL;
-                return 0;
-        }
-
-        ex = current_frame->ex;
-        if (!ex) {
-                /*
-                 * ex not set if we're in internal function,
-                 * get line where function was called from.
-                 */
-                struct vmframe_t *prev = current_frame->prev;
-                bug_on(!prev);
-                ex = prev->ex;
-                bug_on(!ex);
-                offs = prev->ppii - 1 - ex->instr;
-        } else {
-                offs = current_frame->ppii - 1 - ex->instr;
-        }
-        bug_on((int)offs < 0);
-
-        for (i = 0; i < ex->n_locations; i++) {
-                if (offs < ex->locations[i].offs)
-                        break;
-        }
-        if (i == ex->n_locations)
-                i--;
-        bug_on(i >= ex->n_locations);
-
-        if (file_name)
-                *file_name = ex->file_name;
-        return ex->locations[i].line;
-}
-
 #define EXECUTE_LOOP(CHECK_NULL) do {                                   \
-        getloc_push(vm_get_location, NULL);                             \
         instruction_t ii;                                               \
         while ((ii = *(current_frame->ppii)++).code != INSTR_END) {     \
                 bug_on((unsigned int)ii.code >= N_INSTR);               \
@@ -898,7 +856,6 @@ vm_get_location(const char **file_name, void *unused)
                 if (CHECK_NULL && !current_frame)                       \
                         break;                                          \
         }                                                               \
-        getloc_pop();                                                   \
 } while (0)
 
 /*

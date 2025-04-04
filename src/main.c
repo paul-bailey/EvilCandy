@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <unistd.h>
+#include <errno.h>
 
 struct global_t q_;
 
@@ -83,7 +84,9 @@ run_script(const char *filename, FILE *fp)
         struct executable_t *ex;
         struct assemble_t *a;
         a = new_assembler(filename, fp);
-        if ((ex = assemble_next(a, true)) == NULL)
+        if (!a)
+                return;
+        if ((ex = assemble_next(a, true, NULL)) == NULL)
                 syntax("Failed to assemble");
         free_assembler(a, ex == NULL);
 
@@ -97,12 +100,17 @@ run_tty(void)
         struct executable_t *ex;
         struct assemble_t *a;
         a = new_assembler("(stdin)", stdin);
+        if (!a)
+                return;
 
-        printf("EvilCandy > ");
-        while ((ex = assemble_next(a, false)) != NULL) {
-                vm_execute(ex);
+        for (;;) {
+                int status;
+                ex = assemble_next(a, false, &status);
+                if (ex != NULL)
+                        vm_execute(ex);
+                else if (status == EPIPE)
+                        break;
                 trim_assembler(a);
-                printf("EvilCandy > ");
         }
         free_assembler(a, true);
 }

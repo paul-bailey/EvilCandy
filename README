@@ -45,6 +45,8 @@ But here are some major differences...
 
 * There is no ``var`` keyword.  There is only ``let``.
 
+* There is no ``try`` and ``catch``.
+
 * EvilCandy is (mostly) statically typed.  You cannot change a string
   into an integer, for example.
 

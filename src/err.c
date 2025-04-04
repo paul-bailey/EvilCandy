@@ -39,35 +39,6 @@ breakpoint__(const char *file, int line)
         trap(COLOR(GRN, "BREAKPOINT"), file, line);
 }
 
-static void
-syntax_msg__(const char *msg, const char *what, va_list ap)
-{
-        const char *file_name;
-        unsigned int line;
-
-        line = get_location(&file_name);
-        if (!file_name)
-                file_name = "(null)";
-
-        fprintf(stderr, "[EvilCandy] %s in file %s line %u: ", what, file_name, line);
-        vfprintf(stderr, msg, ap);
-        fputc('\n', stderr);
-}
-
-/**
- * warning - Like syntax(), except that it only warns.
- * @msg: Formatted message to print
- */
-void
-warning(const char *msg, ...)
-{
-        va_list ap;
-
-        va_start(ap, msg);
-        syntax_msg__(msg, COLOR(YEL, "WARNING"), ap);
-        va_end(ap);
-}
-
 /**
  * fail - Like syntax, but for system failures or library funciton failures
  * @msg: Formatted message to print before dying
@@ -93,6 +64,59 @@ fail(const char *msg, ...)
         exit(1);
 }
 
+static void
+syntax_noexit__(const char *filename, unsigned int line,
+                const char *what, const char *msg, va_list ap)
+{
+        fprintf(stderr, "[EvilCandy] %s", what);
+        if (filename != NULL)
+                fprintf(stderr, " in file %s line %u", filename, line);
+        fprintf(stderr, ": ");
+        vfprintf(stderr, msg, ap);
+        fputc('\n', stderr);
+}
+
+void
+syntax_noexit_(const char *filename, unsigned int line, const char *msg, ...)
+{
+        va_list ap;
+        va_start(ap, msg);
+        syntax_noexit__(filename, line, COLOR(RED, "ERROR"), msg, ap);
+        va_end(ap);
+}
+
+void
+syntax_noexit(const char *msg, ...)
+{
+        va_list ap;
+        va_start(ap, msg);
+        syntax_noexit__(NULL, 0, COLOR(RED, "ERROR"), msg, ap);
+        va_end(ap);
+}
+
+/**
+ * warning - Like syntax(), except that it only warns.
+ * @msg: Formatted message to print
+ */
+void
+warning(const char *msg, ...)
+{
+        va_list ap;
+
+        va_start(ap, msg);
+        syntax_noexit__(NULL, 0, COLOR(YEL, "WARNING"), msg, ap);
+        va_end(ap);
+}
+
+void
+warning_(const char *filename, unsigned int line, const char *msg, ...)
+{
+        va_list ap;
+
+        va_start(ap, msg);
+        syntax_noexit__(filename, line, COLOR(YEL, "WARNING"), msg, ap);
+        va_end(ap);
+}
 
 /**
  * syntax - Like syntax, except that it gets the line number and file
@@ -104,7 +128,7 @@ syntax(const char *msg, ...)
         va_list ap;
 
         va_start(ap, msg);
-        syntax_msg__(msg, COLOR(RED, "ERROR"), ap);
+        syntax_noexit__(NULL, 0, COLOR(RED, "ERROR"), msg, ap);
         va_end(ap);
         exit(1);
 }

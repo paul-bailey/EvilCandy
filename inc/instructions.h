@@ -108,10 +108,6 @@ struct location_t {
  *              it.  Garbage collection will only occur if it is
  *              decremented back to zero from one.  (FIXME: Too many ways
  *              to count how this could go wrong.)  Except...
- * @locations:  Array that matches single-line expressions with line
- *              numbers in a script, used for splashing error messages.
- * @n_locations: Number of locations logged, ie. number of single-line
-                expressions in this chunk of code.
  * @flags:      If FE_TOP is set, delete this after it has been executed
  *              once.  Do not delete anything it added to the symbol
  *              table, since later-executed code may use them.
@@ -127,8 +123,6 @@ struct executable_t {
         int file_line;
         struct list_t list;
         int nref;
-        struct location_t *locations;
-        int n_locations;
         unsigned flags;
 };
 

@@ -1,18 +1,12 @@
-/*
- * token.c - Tokenizer code
- *
- * TODO: Replace all the syntax() calls with proper stack unwinding
- * so it can be done in one spot in the code. This shouldn't require
- * setjmp or anything.  It would make it easier to change things so
- * that syntax() doesn't just close the program when in interactive
- * mode.
- */
+/* token.c - Tokenizer code */
 #include <evilcandy.h>
 #include "token.h"
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <setjmp.h>
+#include <unistd.h>
 #include <sys/stat.h>
 
 enum {
@@ -21,6 +15,19 @@ enum {
         QIDENT1 = 0x04,
         QDDELIM = 0x08,
 };
+
+/* Token errors, args to longjmp(state->env) */
+enum {
+        TE_UNTERM_QUOTE = 1, /* may not be zero */
+        TE_UNTERM_COMMENT,
+        TE_INVALID_CHARS,
+        TE_TOO_BIG,
+        TE_MALFORMED,
+        TE_HALFLAMBDA,
+        TE_UNRECOGNIZED
+};
+
+#define token_errset(state_, err_) longjmp((state_)->env, err_)
 
 /**
  * struct token_state_t - Keep track of all the tokenize calls
@@ -37,6 +44,7 @@ enum {
  * @ntok:       Number of tokens in @pgm
  * @nexttok:    Next token in @pgm to get with get_tok()
  * @eof:        True if @fp has reached EOF
+ * @env:        Jump buffer, USE ONLY IN THE tokenize_helper() CONTEXT!
  *
  * Although using pointers for @ntok and @nexttok would make [un]get_tok
  * slightly faster, @pgm's buffer could get realloc'd, so for safety's
@@ -54,6 +62,8 @@ struct token_state_t {
         int ntok;
         int nexttok;
         bool eof;
+        bool tty;
+        jmp_buf env;
 };
 
 /* a sort of "ctype" for tokens */
@@ -79,6 +89,8 @@ tok_next_line(struct token_state_t *state)
         if (res != -1) {
                 state->s = state->line;
                 state->lineno++;
+                if (state->tty)
+                        fprintf(stderr, "EvilCandy> ");
         } else {
                 state->s = NULL;
         }
@@ -292,7 +304,8 @@ retry:
                                         break;
                                 if (bksl_hex(&pc, &c))
                                         break;
-                                warning("Unsupported escape `%c'", *pc);
+                                warning_(state->filename, state->lineno,
+                                         "Unsupported escape `%c'", *pc);
                         } while (0);
                         if (!c)
                                 continue;
@@ -307,7 +320,7 @@ retry:
                  *      spans more than one line"
                  */
                 if (tok_next_line(state) == -1)
-                        syntax("Unterminated quote");
+                        token_errset(state, TE_UNTERM_QUOTE);
                 goto retry;
         }
 
@@ -334,7 +347,7 @@ skip_comment(struct token_state_t *state)
                         ++pc;
                         if (*pc == '\0') {
                                 if (tok_next_line(state) == -1)
-                                        syntax("Unterminated comment");
+                                        token_errset(state, TE_UNTERM_COMMENT);
                                 pc = state->s;
                         }
                 } while (!(pc[0] == '*' && pc[1] == '/'));
@@ -364,7 +377,7 @@ get_tok_identifier(struct token_state_t *state)
         while (tokc_isident(*pc))
                 buffer_putc(tok, *pc++);
         if (!tokc_isdelim(*pc))
-                syntax("invalid chars in identifier or keyword");
+                token_errset(state, TE_INVALID_CHARS);
         state->s = pc;
         return true;
 }
@@ -420,9 +433,9 @@ get_tok_int_hdr(struct token_state_t *state)
         return true;
 
 e_toobig:
-        syntax("Integer too large");
+        token_errset(state, TE_TOO_BIG);
 e_malformed:
-        syntax("incorectly expressed numerical value");
+        token_errset(state, TE_MALFORMED);
         return false;
 }
 
@@ -479,7 +492,7 @@ get_tok_number(struct token_state_t *state)
         return ret;
 
 malformed:
-        syntax("Malformed numerical expression");
+        token_errset(state, TE_MALFORMED);
         return 0;
 }
 
@@ -645,7 +658,8 @@ get_tok_delim_helper(int *ret, const char *s)
                 return 1;
         case '`':
                 if (*s != '`')
-                        syntax("Unrecognized token '`'");
+                        return 0;
+                        // token_errset(state, TE_HALFLAMBDA);
                 *ret = OC_LAMBDA;
                 return 2;
         }
@@ -705,49 +719,96 @@ skip_whitespace(struct token_state_t *state)
  * 'f' if float
  * 'u' if identifier
  * EOF if end of file
+ *
+ * TOKEN_ERROR if bad or unparseable token.  Do not de-reference
+ * token data if this happens.
  */
 static int
 tokenize_helper(struct token_state_t *state)
 {
-        struct buffer_t *tok = &state->tok;
+        /*
+         * XXX: setjmp for every token?
+         * Too much overhead?
+         * Better to be more fussy with return values?
+         */
         int ret;
 
-        buffer_reset(tok);
+        if ((ret = setjmp(state->env)) != 0) {
+                const char *msg;
+                switch (ret) {
+                case TE_UNTERM_QUOTE:
+                        msg = "Unterminated quote";
+                        break;
+                case TE_UNTERM_COMMENT:
+                        msg = "Unterminated comment";
+                        break;
+                case TE_INVALID_CHARS:
+                        msg = "Invalid chars in identifier or keyword";
+                        break;
+                case TE_TOO_BIG:
+                        msg = "Integer too large";
+                        break;
+                case TE_MALFORMED:
+                        msg = "Malformed numerical expression";
+                        break;
+                case TE_HALFLAMBDA:
+                        msg = "Unrecognized token '`'";
+                        break;
+                case TE_UNRECOGNIZED:
+                        msg = "Unrecognized token";
+                        break;
+                default:
+                        msg = "Token parsing error";
+                        break;
+                }
 
-        if ((ret = skip_whitespace(state)) == EOF)
-                return ret;
+                syntax_noexit_(state->filename, state->lineno, msg);
+                if (state->line != NULL) {
+                        fprintf(stderr, "\t%s\t", state->line);
+                        if (state->s != NULL) {
+                                ssize_t col = state->s - state->line;
+                                while (col-- > 0)
+                                        fputc(' ', stderr);
+                                fprintf(stderr, "^\n");
+                        }
 
-        if (get_tok_delim(&ret, state)) {
-                return ret;
-        } else if (get_tok_string(state)) {
-                /*
-                 * this allows for strings expressed like
-                 *      "..." "..."
-                 * to be parsed as single concatenated literals.
-                 */
-                do {
-                        ret = skip_whitespace(state);
-                } while (ret != EOF && get_tok_string(state));
-                return 'q';
-        } else if (get_tok_identifier(state)) {
-                int k = keyword_seek(tok->s);
-                return k >= 0 ? k : 'u';
-        } else if ((ret = get_tok_number(state)) != 0) {
-                return ret;
+                        /* Flush this whole line */
+                        state->s = state->line;
+                        state->s[0] = '\0';
+                }
+
+        } else {
+                /* repurpose ret to be a token-type result */
+                struct buffer_t *tok = &state->tok;
+
+                buffer_reset(tok);
+
+                if ((ret = skip_whitespace(state)) == EOF)
+                        return ret;
+
+                if (get_tok_delim(&ret, state)) {
+                        return ret;
+                } else if (get_tok_string(state)) {
+                        /*
+                         * this allows for strings expressed like
+                         *      "..." "..."
+                         * to be parsed as single concatenated literals.
+                         */
+                        do {
+                                ret = skip_whitespace(state);
+                        } while (ret != EOF && get_tok_string(state));
+                        return 'q';
+                } else if (get_tok_identifier(state)) {
+                        int k = keyword_seek(tok->s);
+                        return k >= 0 ? k : 'u';
+                } else if ((ret = get_tok_number(state)) != 0) {
+                        return ret;
+                }
+                token_errset(state, TE_UNRECOGNIZED);
         }
 
-        syntax("Unrecognized token");
-        return 0;
-}
-
-/* getloc callback during tokenize() */
-static unsigned int
-tok_get_location(const char **file_name, void *unused)
-{
-        struct token_state_t *state = (struct token_state_t *)unused;
-        if (file_name)
-                *file_name = state->filename;
-        return state->lineno;
+        /* If we're here, some error happened */
+        return TOKEN_ERROR;
 }
 
 /* Get the next token from the current input file. */
@@ -756,11 +817,10 @@ tokenize(struct token_state_t *state)
 {
         int ret;
 
-        getloc_push(tok_get_location, state);
         ret = tokenize_helper(state);
-        getloc_pop();
-
-        if (ret == EOF) {
+        if (ret == TOKEN_ERROR) {
+                return ret;
+        } else if (ret == EOF) {
                 static const struct token_t eofoc = {
                         .t = EOF,
                         .line = 0,
@@ -798,7 +858,8 @@ tokenize(struct token_state_t *state)
  * @state:      Token state machine
  * @tok:        (output) pointer to the next token
  *
- * Return: Type of token stored in @tok
+ * Return: Type of token stored in @tok.  If TOKEN_ERROR, then @tok was
+ * not updated and an error message was printed to stderr.
  */
 int
 get_tok(struct token_state_t *state, struct token_t **tok)
@@ -822,7 +883,8 @@ get_tok(struct token_state_t *state, struct token_t **tok)
                         bug_on(cur->t != EOF);
                         goto done;
                 }
-                tokenize(state);
+                if (tokenize(state) == TOKEN_ERROR)
+                        return TOKEN_ERROR;
                 bug_on(state->nexttok >= state->ntok);
         }
 
@@ -906,12 +968,14 @@ token_state_new(FILE *fp, const char *filename)
         state->ntok     = 0;
         state->nexttok  = 0;
         state->eof      = false;
+        state->tty      = !!isatty(fileno(fp));
 
         /*
          * Get first line, so that the
          * above functions don't all have to start
          * with "if (state->s == NULL)"
          */
+        fprintf(stderr, "EvilCandy> ");
         if (tok_next_line(state) == -1) {
                 token_state_free(state);
                 return NULL;

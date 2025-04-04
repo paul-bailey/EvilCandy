@@ -229,7 +229,7 @@ static inline bool isnumvar(struct var_t *v)
 
 /* assembler.c */
 extern struct executable_t *assemble_next(struct assemble_t *a,
-                                          bool toeof);
+                                bool toeof, int *status);
 extern struct assemble_t *new_assembler(const char *source_file_name,
                                         FILE *fp);
 extern void free_assembler(struct assemble_t *a, int err);
@@ -255,8 +255,13 @@ extern void moduleinit_builtin(void);
         }                               \
 } while (0)
 extern void syntax(const char *msg, ...);
+extern void syntax_noexit(const char *msg, ...);
+extern void syntax_noexit_(const char *filename,
+                        unsigned int line, const char *msg, ...);
 extern void fail(const char *msg, ...);
 extern void warning(const char *msg, ...);
+extern void warning_(const char *filename,
+                        unsigned int line, const char *msg, ...);
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
 
@@ -296,12 +301,6 @@ extern void moduleinit_token(void);
 extern char *literal(const char *s);
 extern char *literal_put(const char *s);
 extern void moduleinit_literal(void);
-
-/* location.c */
-extern void getloc_push(unsigned int (*getloc)(const char **, void *),
-                        void *data);
-extern void getloc_pop(void);
-extern unsigned int get_location(const char **file_name);
 
 /* mempool.c */
 struct mempool_t; /* opaque data type to user */

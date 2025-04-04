@@ -25,6 +25,8 @@ Bugs/Must-Do
 
 * Fix the cyclic-reference problem in GC.
 
+* Add try/catch
+
 * MEMORY LEAK BUG:  When top-level expressions have been executed, their
   executable code should be deleted.  Same for functions' executables
   when they leave scope, ie when their references go to zero.  However,

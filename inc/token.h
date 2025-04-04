@@ -4,6 +4,7 @@
 #define TO_TOK(c1_, c2_)        ((c1_) | ((c2_) << 8))
 #define TO_DTOK(c_)             TO_TOK('d', c_)
 #define TO_KTOK(c_)             TO_TOK('k', c_)
+#define TOKEN_ERROR             TO_TOK('!', TD_ERROR)
 
 enum {
         TF_LOGICAL      = 0x00010000,
@@ -67,6 +68,8 @@ enum {
         TD_RSEQ,
         TD_OREQ,
         TD_ANDEQ,
+
+        TD_ERROR,
 };
 
 /* keyword codes */

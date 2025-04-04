@@ -128,7 +128,6 @@ enum {
  * @const_alloc: Bytes currently allocated for @x->rodata
  * @label_alloc: Bytes currently allocated for @x->label
  * @instr_alloc: Bytes currently allocated for @x->instr
- * @location_alloc: Bytes currently allocated for @x->locations
  * @x:          Executable code being built up by this assembler.
  *
  * This wraps @x (the true intended result of this assembly, and will
@@ -153,7 +152,6 @@ struct as_frame_t {
         size_t const_alloc;
         size_t label_alloc;
         size_t instr_alloc;
-        size_t location_alloc;
         struct executable_t *x;
 };
 
@@ -205,6 +203,10 @@ static inline bool frame_is_top(struct assemble_t *a)
 void
 executable_free__(struct executable_t *ex)
 {
+        /* happens if we're cleaning up after an error */
+        if (!ex)
+                return;
+
         if (ex->instr)
                 free(ex->instr);
         if (ex->rodata) {
@@ -214,8 +216,6 @@ executable_free__(struct executable_t *ex)
         }
         if (ex->label)
                 free(ex->label);
-        if (ex->locations)
-                free(ex->locations);
         list_remove(&ex->list);
         free(ex);
 }
@@ -364,7 +364,10 @@ as_unlex(struct assemble_t *a)
 static int
 as_lex(struct assemble_t *a)
 {
-        return get_tok(a->prog, &a->oc);
+        int ret = get_tok(a->prog, &a->oc);
+        if (ret == TOKEN_ERROR)
+                as_err(a, AE_BADTOK);
+        return ret;
 }
 
 static int
@@ -430,21 +433,6 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
         ii->code = code;
         ii->arg1 = arg1;
         ii->arg2 = arg2;
-}
-
-static void
-mark_location(struct assemble_t *a)
-{
-        unsigned int idx;
-        struct executable_t *x = a->fr->x;
-        struct location_t loc = {
-                .line = a->oc->line,
-                .offs = x->n_instr + 1,
-        };
-        as_assert_array_pos(a, x->n_locations,
-                            &x->locations, &a->fr->location_alloc);
-        idx = x->n_locations++;
-        memcpy(&x->locations[idx], &loc, sizeof(loc));
 }
 
 static void
@@ -648,7 +636,6 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                          * mark_location, because we don't call expression
                          * for simple lambda.
                          */
-                        mark_location(a);
                         assemble_expression(a, 0, -1);
                         as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                 } else {
@@ -1698,7 +1685,6 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         as_err_if(a, skip >= 0, AE_BADEOF);
                         break;
                 }
-                mark_location(a);
 
                 switch (a->oc->t) {
                 case 'u':
@@ -1902,8 +1888,17 @@ static struct executable_t *
 as_top_executable(struct assemble_t *a)
 {
         struct as_frame_t *fr = list2frame(a->finished_frames.next);
+#if 0
         bug_on(&fr->list == &a->finished_frames);
         bug_on(!(fr->x->flags & FE_TOP));
+#else
+        /*
+         * fr->x could be NULL if last call to
+         * assemble_next encountered an error
+         */
+        bug_on(!!fr->x && &fr->list == &a->finished_frames);
+        bug_on(!!fr->x && !(fr->x->flags & FE_TOP));
+#endif
 
         return fr->x;
 }
@@ -1920,9 +1915,16 @@ as_top_executable(struct assemble_t *a)
 struct assemble_t *
 new_assembler(const char *source_file_name, FILE *fp)
 {
-        struct assemble_t *a = ecalloc(sizeof(*a));
+        struct assemble_t *a;
+        struct token_state_t *prog;
+
+        prog = token_state_new(fp, notdir(source_file_name));
+        if (!prog) /* no tokens, just eof */
+                return NULL;
+
+        a = ecalloc(sizeof(*a));
         a->file_name = (char *)source_file_name;
-        a->prog = token_state_new(fp, notdir(source_file_name));
+        a->prog = prog;
         a->oc = NULL;
         /* don't let the first ones be zero, that looks bad */
         a->func = FUNC_INIT;
@@ -1973,17 +1975,6 @@ trim_assembler(struct assemble_t *a)
         as_frame_push(a, 0);
 }
 
-static unsigned int
-as_get_location(const char **file_name, void *h)
-{
-        struct assemble_t *a = h;
-        bug_on(!a);
-
-        if (file_name)
-                *file_name = a->file_name;
-        return a->oc->line;
-}
-
 /**
  * assemble_next - Parse input and convert into an array of pseudo-
  *                 assembly instructions
@@ -1992,6 +1983,9 @@ as_get_location(const char **file_name, void *h)
  *              a single full statement; this may contain sub-statements
  *              if, for example, it's a program flow statement or it
  *              contains a function definition.
+ * @status:     If return value is NULL, this will store either EPIPE
+ *              if at end of file or EINVAL if an error occured.
+ *              Otherwise it will store the value 0.
  *
  * Return: Either...
  *      a) Array of executable instructions for the top-level scope,
@@ -2006,15 +2000,16 @@ as_get_location(const char **file_name, void *h)
  *      b) NULL if @a is already at end of input
  */
 struct executable_t *
-assemble_next(struct assemble_t *a, bool toeof)
+assemble_next(struct assemble_t *a, bool toeof, int *status)
 {
         struct executable_t *ex;
         int res;
 
-        if (a->oc && a->oc->t == EOF)
+        if (a->oc && a->oc->t == EOF) {
+                if (status)
+                        *status = EPIPE;
                 return NULL;
-
-        getloc_push(as_get_location, a);
+        }
 
         if ((res = setjmp(a->env)) != 0) {
                 const char *msg;
@@ -2063,7 +2058,13 @@ assemble_next(struct assemble_t *a, bool toeof)
                         msg = "Bad instruction";
                         break;
                 }
-                syntax("Assembler returned error code %d (%s)", res, msg);
+                fprintf(stderr, "Assembler returned error code %d (%s)\n",
+                        res, msg);
+                /*
+                 * TODO: probably more meticulous cleanup needed here,
+                 * we don't know exactly where we failed.
+                 */
+                trim_assembler(a);
                 ex = NULL;
         } else {
                 assemble_first_pass(a, toeof);
@@ -2074,8 +2075,8 @@ assemble_next(struct assemble_t *a, bool toeof)
                 ex = as_top_executable(a);
         }
 
-        getloc_pop();
-
+        if (status)
+                *status = ex ? 0 : EINVAL;
         return ex;
 }
 

@@ -1,4 +1,6 @@
 /*
+ * XXX: Do I still use this file anywhere?
+ *
  * trie.c - Code for managing a bitwise (ie array-mapped) trie
  *
  * This is an insert-only trie, there are no deletions.

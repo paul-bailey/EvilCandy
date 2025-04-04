@@ -11,6 +11,13 @@ struct global_t q_;
 static void
 init_lib(void)
 {
+        /*
+         * "moduleinit" was a poorly chosen name for these constructors.
+         * They are "modules" because they are for C files that have
+         * private data to initialize; they are not related to the
+         * loadable script "modules" in this source tree's lib/ folder,
+         * or to the C accelerators in builtin/, unless by coincidence.
+         */
         static const struct initfn_tbl_t {
                 void (*initfn)(void);
         } INITFNS[] = {
@@ -110,6 +117,18 @@ run_tty(void)
                         vm_execute(ex);
                 else if (status == EPIPE)
                         break;
+                /*
+                 * XXX REVISIT: would be great if I could delete
+                 * assembler and create new one for every assemble_next
+                 * while in TTY mode--still faster than user typing--
+                 * with the idea of resetting user prompt.  For example,
+                 * Python prompts with ">>> " for first line of a
+                 * compound statement and "... " for the remaining lines,
+                 * resetting for the start of the next statement.
+                 * But Python has a newline at the end of every
+                 * statement, while EvilCandy could hypothetically have
+                 * more than one statement per line.
+                 */
                 trim_assembler(a);
         }
         free_assembler(a, true);

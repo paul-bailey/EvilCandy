@@ -16,7 +16,7 @@
  * enforcement requires the overhead of passing pointers onto the stack
  * during these function calls.  The problem with switch statements is
  * that they will compile into a (crippling, in this case) if-else-if
- * block unless you take the sort of fussy precautions that are way to
+ * block unless you take the sort of fussy precautions that are way too
  * easy to overlook.  Looking at Cpython's code, I see that they use a
  * fifty-mile-long switch statement with tons of gimmicks and Gnu
  * extensions like arrays of goto labels.  Well, more power to them,

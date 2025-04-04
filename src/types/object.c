@@ -1,5 +1,5 @@
 /*
- * Definitions for the dictionary class of objects.
+ * Definitions for the dictionary (ie. associative array) class of objects.
  *
  * JavaScript calls these "objects".  Python calls them "dictionaries".
  * I should have done like Python, since *all* these classes are
@@ -120,7 +120,7 @@ object_remove_child_l(struct var_t *parent, const char *name)
         child = hashtable_remove(&parent->o->dict, name);
         /*
          * XXX REVISIT: If !child, should I throw a doesn't-exist error,
-         * or should I silently ignore it like this?
+         * or should I silently ignore it like I'm doing now?
          */
         if (child)
                 object_remove_child_(parent, child);

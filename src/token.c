@@ -764,6 +764,7 @@ tokenize_helper(struct token_state_t *state)
 
                 syntax_noexit_(state->filename, state->lineno, msg);
                 if (state->line != NULL) {
+                        /* the newline is included in the "%s" here */
                         fprintf(stderr, "\t%s\t", state->line);
                         if (state->s != NULL) {
                                 ssize_t col = state->s - state->line;
@@ -860,6 +861,19 @@ tokenize(struct token_state_t *state)
  *
  * Return: Type of token stored in @tok.  If TOKEN_ERROR, then @tok was
  * not updated and an error message was printed to stderr.
+ *
+ * WARNING!! @tok will point into an array of struct token_t's, which
+ * could be moved if a later get_tok() call triggers a realloc.  Do not
+ * dereference the old pointer after the next call to get_tok().  If
+ * the earlier @tok's contents are still needed, first declare another
+ * struct token_t (these aren't big) and memcpy @tok's contents into it
+ * before calling get_tok() again.  This should be safe; even if a later
+ * get_tok() moves the array again, the CONTENTS of the old @tok,
+ * including its .s pointer, have already been finalized by the time
+ * calling code ever sees it,
+ *
+ * XXX REVISIT: Should @tok just be a single pointer for us to memcpy
+ * into it?  Saves a lot of policy.
  */
 int
 get_tok(struct token_state_t *state, struct token_t **tok)
@@ -975,7 +989,6 @@ token_state_new(FILE *fp, const char *filename)
          * above functions don't all have to start
          * with "if (state->s == NULL)"
          */
-        fprintf(stderr, "EvilCandy> ");
         if (tok_next_line(state) == -1) {
                 token_state_free(state);
                 return NULL;

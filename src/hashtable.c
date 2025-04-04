@@ -1,4 +1,4 @@
-/* Implementation of an egq-specific hash table. */
+/* Implementation of an EvilCandy-specific hash table. */
 #include <lib/hashtable.h>
 #include <evilcandy.h>
 #include <stdlib.h>

@@ -171,7 +171,8 @@ enum {
  * @t:          Type of token, an OC_* enum, or one of "fiuq"
  * @line:       Line number in file where this token was parsed,
  *              used for tracing for error messages.
- *              XXX Wasteful, there are ways to reduce this.
+ *              XXX Wasteful, this is only used for disassembly, and for
+ *              only the first opcode of an executable, nowhere else.
  * @s:          Content of the token parsed
  * @f:          Value of the token, if @t is 'f'
  * @i:          Value of the token, if @t is 'i'

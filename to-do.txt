@@ -7,13 +7,6 @@ Bugs/Must-Do
 
 * Start adding in test scaffolding where possible.
 
-* Support exceptions.  When in interactive mode, do not just throw an
-  error and call exit() for user errors, instead do all the proper
-  unwinding and prompt user for next input.  Only quit if its a script
-  or if it's a system error like being out of memory.
-  BIG LIFT, requires proper unwinding and heaps of jmp_bufs in each
-  struct
-
 * Support serialization to byte-code files, so we don't have to parse
   the same script every time.
 
@@ -49,8 +42,18 @@ Library/Language Features
 
 * Add stdin and shell environment to Io module
 
-Mebbe/Wishlist
---------------
+Mebbe/Wishlist/Low-prio bugs
+----------------------------
+
+* Support backslash-zero escape in string literals (moderate lift,
+  most standard-library C-string functions cannot be used).
+
+* Replace jmp_buf in token.c with either fussier management of helper
+  functions' return values, or with a big damn get_tok function.
+
+* If in interactive mode, do not automatically quit for detectable
+  user errors in runtime.  Instead, do like at assemble time: throw
+  an error message and then prompt user for the next input.
 
 * At assemble_eval() time, determine if certain expressions can be
   reduced to single consts known at assemble time.  Currently something

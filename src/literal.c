@@ -1,6 +1,5 @@
 /*
- * q-literal.c - Code for storing and retrieving persistent string
- *               literals
+ * literal.c - Code for storing and retrieving persistent string literals
  *
  * literal_put(s)       copies s and puts it in a hash table, unless
  *                      the entry already exists.  Either way, it
@@ -26,39 +25,33 @@
  *    in persistent memory but they don't get duplicated and zombified
  *    all over the place.
  *
- * Notes:
- * 1. When parsing prescanned byte code, do not call literal() for
- *    "cur_oc->s".  That is already a return value of literal(), so calling
- *    it again will be a redundant waste of compute cycles; you already got
- *    your answer.
+ * Usage notes:
+ *
+ * 1. After things are up and running, generally, tokens and associative
+ *    array member names have been passed to literal_put(), while most
+ *    TYPE_STRING variables have not, and should for safety's sake be
+ *    treated as if they have not.
  *
  * 2. Use the buffer.c API instead of literal() for strings that you intend
  *    to edit.
  *
- * 3. When building built-in attachments to the global object at init
- *    time, use literal_put() when setting variable names.  This should
- *    be the only time besides prescan() time when literal_put() is used
- *    instead of just literal().
- *
- * 4. Corrollary to note 1:
- *    Don't call literal() when searching for the 'that' of
- *
+ * 3. Careful when getting user-expressed names for associative arrays.
+ *    The 'that' of the following expressions:
  *            this.that
- *
- *    DO call literal if it was expressed as
- *
  *            this['that']
+ *    are token strings that have been literal'd.  But in the latter case,
+ *    by the time we dereference it, we no longer know if 'that' was
+ *    expressed as this literal or as something like
+ *            x + y + z.something()
+ *    which evaluates to 'that'.
  *
- *    even though 'that' is a hard-coded token, since array indexes
- *    between brackets are eval()'d and put in a struct buffer_t (*not*
- *    the same pointer as a literal() return value).  By that point, we
- *    won't know if it was written as a literal 'that' or as something
- *    dynamic like
- *
- *            this[x + y + z.something()]
- *
- *    where "x+y+z.something()" evaluates to 'that'.  (I probably should
- *    not even allow such a thing, but I do.)
+ * XXX: Some testing should be done for the average speed of comparisons
+ * when one string has been literal()'d and one has not.  Is the
+ * following...
+ *              return !strcmp(s1, s2);
+ * faster in general than...
+ *              s1 = literal(s1);
+ *              return s1 == s2;
  */
 #include <evilcandy.h>
 #include <string.h>

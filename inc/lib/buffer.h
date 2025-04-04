@@ -42,7 +42,7 @@ static inline size_t buffer_size(struct buffer_t *buf) { return buf->p; }
 static inline void
 buffer_reset(struct buffer_t *buf)
 {
-        buf->p = '\0';
+        buf->p = 0;
         if (buf->s)
                 buf->s[0] = '\0';
 }

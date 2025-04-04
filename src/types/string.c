@@ -89,6 +89,27 @@ string_puts(struct var_t *str, const char *s)
  *                      format2 and helpers
  ***********************************************************************/
 
+/*
+ * FIXME: It would be great to reduce these ~500 lines of code to just:
+ *
+ *      ssize_t need_len = snprintf(NULL, 0, msg, ap);
+ *      if (need_len > 0) {
+ *              new_ptr = realloc(buf->s, buf->size + need_len + 1);
+ *              sprintf(new_ptr + buf->size, msg, ap);
+ *              buf->s = new_ptr;
+ *              buf->size += need_len;
+ *      }
+ *
+ * The double-call is a lot of overhead, but my hand-coded implementation
+ * below is probably not much faster, and not nearly as well debugged.
+ * Using asprintf() would have only the overhead of realloc and strcat,
+ * but it seems to be Gnu-only.  The hard part would be figuring out how
+ * to build ap, since it's not called from a variadic function.
+ *
+ * Is this snprintf behavior (return proper count if size=0) standard? or
+ * is it specific to just POSIX?
+ */
+
 static void
 padwrite(struct buffer_t *buf, int padc, size_t padlen)
 {

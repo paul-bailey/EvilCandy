@@ -1,15 +1,4 @@
 /*
- * URGENT FIXME: Some references to struct token_t's are getting
- * de-referenced after future calls to as_lex(), but as_lex()
- * wraps around potential calls to realloc, which may invalidate
- * the older pointers.  Scrub through this file, make sure that
- * no such de-reference is occuring, or else they are getting copied
- * into a struct token_t in the local stack first (which is safe:
- * a struct token_t's .s pointer will not change after the token
- * has been parsed, even if the pointer to the token itself has
- * changed.)
- */
-/*
  * FIXME: This whole file is a hacky duct-tape way to do things, because
  * I couldn't be bothered to research the topic of abstract syntax trees.
  *
@@ -189,6 +178,25 @@ static void assemble_expression(struct assemble_t *a,
 
 static inline bool frame_is_top(struct assemble_t *a)
         { return a->active_frames.next == &a->fr->list; }
+
+/*
+ * See comments above get_tok().
+ * We cannot naively have something like
+ *      old_tokptr = a->oc;
+ *      as_lex();
+ *      next_tokptr = a->oc;
+ * because as_lex() doesn't always merely increment the pointer a->oc.
+ * It might also move the token array with realloc, invalidating the old
+ * pointer.  So we occasionally have to declare a local struct token_t
+ * and copy a->oc's contents to it.
+ *
+ * @src is assumed to be a->oc, but we'll keep it general.
+ */
+static inline void
+as_savetok(struct token_t *dst, const struct token_t *src)
+{
+        memcpy(dst, src, sizeof(*dst));
+}
 
 /*
  * This function wrapped by public macros
@@ -379,7 +387,7 @@ as_errlex(struct assemble_t *a, int exp)
 }
 
 static int
-symtab_seek(struct assemble_t *a, char *s)
+symtab_seek(struct assemble_t *a, const char *s)
 {
         int i;
         struct as_frame_t *fr = a->fr;
@@ -391,7 +399,7 @@ symtab_seek(struct assemble_t *a, char *s)
 }
 
 static int
-arg_seek(struct assemble_t *a, char *s)
+arg_seek(struct assemble_t *a, const char *s)
 {
         int i;
         struct as_frame_t *fr = a->fr;
@@ -403,7 +411,7 @@ arg_seek(struct assemble_t *a, char *s)
 }
 
 static int
-clo_seek(struct assemble_t *a, char *s)
+clo_seek(struct assemble_t *a, const char *s)
 {
         int i;
         struct as_frame_t *fr = a->fr;
@@ -747,7 +755,6 @@ assemble_objdef(struct assemble_t *a)
                 return;
         as_unlex(a);
         do {
-                struct token_t *name;
                 int namei;
                 unsigned attrarg = 0;
 
@@ -759,8 +766,7 @@ assemble_objdef(struct assemble_t *a)
                 as_err_if(a,
                           a->oc->t != 'u' && a->oc->t != 'q',
                           AE_EXPECT);
-                name = a->oc;
-                namei = seek_or_add_const(a, name);
+                namei = seek_or_add_const(a, a->oc);
                 as_lex(a);
                 as_err_if(a, a->oc->t != OC_COLON, AE_EXPECT);
                 assemble_eval(a);
@@ -780,7 +786,7 @@ static void assemble_eval_atomic(struct assemble_t *a);
  * check enclosing function before resorting to IARG_PTR_SEEK
  */
 static int
-maybe_closure(struct assemble_t *a, struct token_t *name)
+maybe_closure(struct assemble_t *a, const char *name)
 {
         /*
          * Check for closure.  When we started parsing this (child)
@@ -805,9 +811,9 @@ maybe_closure(struct assemble_t *a, struct token_t *name)
                 return -1;
 
         if (!frame_is_top(a)) {
-                if (symtab_seek(a, name->s) >= 0 ||
-                    arg_seek(a, name->s) >= 0 ||
-                    clo_seek(a, name->s) >= 0)  {
+                if (symtab_seek(a, name) >= 0 ||
+                    arg_seek(a, name) >= 0 ||
+                    clo_seek(a, name) >= 0)  {
                         assemble_eval_atomic(a);
                         /* back to identifier */
                         as_unlex(a);
@@ -820,21 +826,26 @@ maybe_closure(struct assemble_t *a, struct token_t *name)
 
         if (success) {
                 as_err_if(a, a->fr->cp >= FRAME_CLOSURE_MAX, AE_OVERFLOW);
-                a->fr->clo[a->fr->cp++] = name->s;
+                a->fr->clo[a->fr->cp++] = (char *)name;
         }
 
         /* try this again */
-        return clo_seek(a, name->s);
+        return clo_seek(a, name);
 }
 
-/*
- * @instr is INSTR_PUSH_PTR (for expression mode)
- * (for eval mode, where vars could be carelessly clobbered).
- */
 static void
 ainstr_push_symbol(struct assemble_t *a, struct token_t *name)
 {
         int idx;
+        struct token_t namesav;
+
+        /*
+         * XXX: Inelegant hack.  I'm copying this because
+         *  1) maybe_closure() could call as_lex(), and
+         *  2) seek_or_add_const() requires @name's full token info,
+         *     and I can't place it earlier than maybe_closure().
+         */
+        as_savetok(&namesav, name);
 
         /*
          * Note: in our implementation, FP <= AP <= SP,
@@ -843,18 +854,18 @@ ainstr_push_symbol(struct assemble_t *a, struct token_t *name)
          * so we use AP instead of FP for our local-variable
          * de-reference, and FP for our argument de-reference.
          */
-        if ((idx = symtab_seek(a, name->s)) >= 0) {
+        if ((idx = symtab_seek(a, namesav.s)) >= 0) {
                 add_instr(a, INSTR_PUSH_PTR, IARG_PTR_AP, idx);
-        } else if ((idx = arg_seek(a, name->s)) >= 0) {
+        } else if ((idx = arg_seek(a, namesav.s)) >= 0) {
                 add_instr(a, INSTR_PUSH_PTR, IARG_PTR_FP, idx);
-        } else if ((idx = clo_seek(a, name->s)) >= 0) {
+        } else if ((idx = clo_seek(a, namesav.s)) >= 0) {
                 add_instr(a, INSTR_PUSH_PTR, IARG_PTR_CP, idx);
-        } else if (!strcmp(name->s, "__gbl__")) {
+        } else if (!strcmp(namesav.s, "__gbl__")) {
                 add_instr(a, INSTR_PUSH_PTR, IARG_PTR_GBL, 0);
-        } else if ((idx = maybe_closure(a, name)) >= 0) {
+        } else if ((idx = maybe_closure(a, namesav.s)) >= 0) {
                 add_instr(a, INSTR_PUSH_PTR, IARG_PTR_CP, idx);
         } else {
-                int namei = seek_or_add_const(a, name);
+                int namei = seek_or_add_const(a, &namesav);
                 add_instr(a, INSTR_PUSH_PTR, IARG_PTR_SEEK, namei);
         }
 }
@@ -983,7 +994,7 @@ assemble_eval8(struct assemble_t *a)
 
         while (!!(a->oc->t & TF_INDIRECT)) {
                 int namei;
-                struct token_t *name;
+                struct token_t name;
 
                 switch (a->oc->t) {
                 case OC_PER:
@@ -1001,9 +1012,9 @@ assemble_eval8(struct assemble_t *a)
                         switch (a->oc->t) {
                         case 'q':
                         case 'i':
-                                name = a->oc;
+                                as_savetok(&name, a->oc);
                                 if (as_lex(a) == OC_RBRACK) {
-                                        namei = seek_or_add_const(a, name);
+                                        namei = seek_or_add_const(a, &name);
                                         as_unlex(a);
                                         add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
                                         break;
@@ -1273,7 +1284,7 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
 
         for (;;) {
                 int namei;
-                struct token_t *name;
+                struct token_t name;
 
                 if (!!(a->oc->t & TF_ASSIGN)) {
                         assemble_assign(a);
@@ -1315,9 +1326,9 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                                  * this is inelegant, but it reduces the number of
                                  * stack operations in the final assembly
                                  */
-                                name = a->oc;
+                                as_savetok(&name, a->oc);
                                 if (as_lex(a) == OC_RBRACK) {
-                                        namei = seek_or_add_const(a, name);
+                                        namei = seek_or_add_const(a, &name);
                                         if (as_lex(a) == OC_EQ) {
                                                 assemble_eval(a);
                                                 add_instr(a, INSTR_SETATTR, IARG_ATTR_CONST, namei);
@@ -1408,7 +1419,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
 static void
 assemble_let(struct assemble_t *a)
 {
-        struct token_t *name;
+        struct token_t name;
         bool top, constflag = false;
         int namei;
 
@@ -1419,7 +1430,7 @@ assemble_let(struct assemble_t *a)
         }
         as_err_if(a, a->oc->t != 'u', AE_EXPECT);
 
-        name = a->oc;
+        as_savetok(&name, a->oc);
         as_lex(a);
 
         top = frame_is_top(a);
@@ -1428,7 +1439,7 @@ assemble_let(struct assemble_t *a)
                  * For global scope, stack is for temporary evaluation
                  * only; we store 'let' variables in a symbol table.
                  */
-                namei = seek_or_add_const(a, name);
+                namei = seek_or_add_const(a, &name);
                 add_instr(a, INSTR_SYMTAB, 0, namei);
         } else {
                 /*
@@ -1438,7 +1449,7 @@ assemble_let(struct assemble_t *a)
                  * so we can remove the names from the instruction-set
                  * altogether, and refer to them relative to AP.
                  */
-                namei = assemble_push_noinstr(a, name->s);
+                namei = assemble_push_noinstr(a, name.s);
                 add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
         }
 
@@ -1888,17 +1899,12 @@ static struct executable_t *
 as_top_executable(struct assemble_t *a)
 {
         struct as_frame_t *fr = list2frame(a->finished_frames.next);
-#if 0
-        bug_on(&fr->list == &a->finished_frames);
-        bug_on(!(fr->x->flags & FE_TOP));
-#else
         /*
          * fr->x could be NULL if last call to
          * assemble_next encountered an error
          */
         bug_on(!!fr->x && &fr->list == &a->finished_frames);
         bug_on(!!fr->x && !(fr->x->flags & FE_TOP));
-#endif
 
         return fr->x;
 }
@@ -2058,8 +2064,8 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                         msg = "Bad instruction";
                         break;
                 }
-                fprintf(stderr, "Assembler returned error code %d (%s)\n",
-                        res, msg);
+                syntax_noexit("Assembler returned error code %d (%s)",
+                              res, msg);
                 /*
                  * TODO: probably more meticulous cleanup needed here,
                  * we don't know exactly where we failed.

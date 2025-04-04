@@ -61,6 +61,10 @@ struct bufblk_t {
  * FIXME: This looks like a DRY violation with the memory management
  * in var.c (because it sort of is), but I cannot combine the two,
  * because they are fundamentally different from each other.
+ *
+ * XXX REVISIT: The way we push and pop strings on the stack has
+ * fundamentally changed since I wrote this.  Has this become more
+ * overhead than it's worth?
  */
 struct list_t bufblk_list = {
         .next = &bufblk_list,

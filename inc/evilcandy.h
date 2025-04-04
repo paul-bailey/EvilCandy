@@ -290,7 +290,7 @@ extern struct token_state_t *token_state_new(FILE *fp,
                                         const char *filename);
 extern int get_tok(struct token_state_t *state, struct token_t **tok);
 extern void unget_tok(struct token_state_t *state, struct token_t **tok);
-extern void moduleinit_lex(void);
+extern void moduleinit_token(void);
 
 /* literal.c */
 extern char *literal(const char *s);

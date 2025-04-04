@@ -18,7 +18,7 @@ init_lib(void)
                 { .initfn = moduleinit_literal },
                 { .initfn = moduleinit_var },
                 { .initfn = moduleinit_builtin },
-                { .initfn = moduleinit_lex },
+                { .initfn = moduleinit_token },
                 { .initfn = moduleinit_vm },
                 { .initfn = NULL },
         };

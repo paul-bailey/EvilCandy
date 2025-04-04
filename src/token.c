@@ -1,4 +1,4 @@
-/* lex.c - Tokenizer and prescan code */
+/* token.c - Tokenizer code */
 #include <evilcandy.h>
 #include "token.h"
 #include <ctype.h>
@@ -25,6 +25,10 @@ enum {
  * @line:       line buffer, for getline calls
  * @fp:         File we're getting input from
  * @filename:   name of @fp
+ * @pgm:        Buffer struct containing array of parsed tokens
+ * @ntok:       Number of tokens in @pgm
+ * @nexttok:    Next token in @pgm to get with get_tok()
+ * @eof:        True if @fp has reached EOF
  */
 struct token_state_t {
         int lineno;
@@ -42,23 +46,23 @@ struct token_state_t {
 };
 
 /* a sort of "ctype" for tokens */
-static unsigned char lexer_charmap[128];
+static unsigned char tok_charmap[128];
 
-static inline bool q_isascii(int c) { return c && c == (c & 0x7fu); }
+static inline bool tokc_isascii(int c) { return c && c == (c & 0x7fu); }
 static inline bool
-q_isflags(int c, unsigned char flags)
+tokc_isflags(int c, unsigned char flags)
 {
-        return q_isascii(c) && (lexer_charmap[c] & flags) == flags;
+        return tokc_isascii(c) && (tok_charmap[c] & flags) == flags;
 }
 
-static inline bool q_isdelim(int c) { return q_isflags(c, QDELIM); }
+static inline bool tokc_isdelim(int c) { return tokc_isflags(c, QDELIM); }
 /* may be in identifier */
-static inline bool q_isident(int c) { return q_isflags(c, QIDENT); }
+static inline bool tokc_isident(int c) { return tokc_isflags(c, QIDENT); }
 /* may be 1st char of identifier */
-static inline bool q_isident1(int c) { return q_isflags(c, QIDENT1); }
+static inline bool tokc_isident1(int c) { return tokc_isflags(c, QIDENT1); }
 
 static int
-lexer_next_line(struct token_state_t *state)
+tok_next_line(struct token_state_t *state)
 {
         int res = getline(&state->line, &state->_slen, state->fp);
         if (res != -1) {
@@ -68,19 +72,6 @@ lexer_next_line(struct token_state_t *state)
                 state->s = NULL;
         }
         return res;
-}
-
-/* if at '\0' after this, then end of namespace */
-static void
-qslide(struct token_state_t *state)
-{
-        char *s;
-        do {
-                s = state->s;
-                while (*s != '\0' && isspace((int)(*s)))
-                        ++s;
-        } while (*s == '\0' && lexer_next_line(state) != -1);
-        state->s = s;
 }
 
 /* parse the usual backslash suspects */
@@ -247,9 +238,12 @@ bksl_utf8(char **src, int *c, struct buffer_t *tok)
         return true;
 }
 
-/* pc points at quote */
+/*
+ * Get string literal, or return false if token is something different.
+ * state->s points at first quote
+ */
 static bool
-qlex_string(struct token_state_t *state)
+get_tok_string(struct token_state_t *state)
 {
         struct buffer_t *tok = &state->tok;
         char *pc = state->s;
@@ -278,7 +272,7 @@ retry:
         }
 
         if (c == '\0') {
-                if (lexer_next_line(state) == -1)
+                if (tok_next_line(state) == -1)
                         syntax("Unterminated quote");
                 goto retry;
         }
@@ -288,7 +282,7 @@ retry:
 }
 
 static bool
-qlex_comment(struct token_state_t *state)
+skip_comment(struct token_state_t *state)
 {
         char *pc = state->s;
         if (*pc == '#')
@@ -305,7 +299,7 @@ qlex_comment(struct token_state_t *state)
                 do {
                         ++pc;
                         if (*pc == '\0') {
-                                if (lexer_next_line(state) == -1)
+                                if (tok_next_line(state) == -1)
                                         syntax("Unterminated comment");
                                 pc = state->s;
                         }
@@ -323,24 +317,27 @@ oneline:
         return true;
 }
 
+/*
+ * Get identifier token, or return false if token is something different
+ */
 static bool
-qlex_identifier(struct token_state_t *state)
+get_tok_identifier(struct token_state_t *state)
 {
         struct buffer_t *tok = &state->tok;
         char *pc = state->s;
-        if (!q_isident1(*pc))
+        if (!tokc_isident1(*pc))
                 return false;
-        while (q_isident(*pc))
+        while (tokc_isident(*pc))
                 buffer_putc(tok, *pc++);
-        if (!q_isdelim(*pc))
+        if (!tokc_isdelim(*pc))
                 syntax("invalid chars in identifier or keyword");
         state->s = pc;
         return true;
 }
 
-/* parse hex/binary int if '0x' or '0b' */
+/* parse hex/binary int if token begins with '0x' or '0b' */
 static bool
-qlex_int_hdr(struct token_state_t *state)
+get_tok_int_hdr(struct token_state_t *state)
 {
         struct buffer_t *tok = &state->tok;
         int count = 0;
@@ -382,7 +379,7 @@ qlex_int_hdr(struct token_state_t *state)
         }
 
 
-        if (!q_isdelim(*pc))
+        if (!tokc_isdelim(*pc))
                 goto e_malformed;
 
         state->s = pc;
@@ -395,13 +392,18 @@ e_malformed:
         return false;
 }
 
+/*
+ * Get and interpret number literal.
+ *
+ * Return: 'i' if integer, 'f' if float, 0 if token is not a number.
+ */
 static int
-qlex_number(struct token_state_t *state)
+get_tok_number(struct token_state_t *state)
 {
         char *pc, *start;
         int ret;
 
-        if (qlex_int_hdr(state))
+        if (get_tok_int_hdr(state))
                 return 'i';
 
         pc = start = state->s;
@@ -434,7 +436,7 @@ qlex_number(struct token_state_t *state)
         }
 
         /* We don't allow suffixes like f, u, ul, etc. */
-        if (!q_isdelim(*pc))
+        if (!tokc_isdelim(*pc))
                 goto malformed;
 
         while (start < pc)
@@ -447,8 +449,12 @@ malformed:
         return 0;
 }
 
+/*
+ * Return size of delimiter token, or 0 if token is not a
+ * known delimiter
+ */
 static int
-qlex_delim_helper(int *ret, const char *s)
+get_tok_delim_helper(int *ret, const char *s)
 {
         switch (*s++) {
         case '+':
@@ -612,10 +618,13 @@ qlex_delim_helper(int *ret, const char *s)
         return 0;
 }
 
+/*
+ * Get delimiter token, or return false if token is not a delimiter
+ */
 static bool
-qlex_delim(int *ret, struct token_state_t *state)
+get_tok_delim(int *ret, struct token_state_t *state)
 {
-        int count = qlex_delim_helper(ret, state->s);
+        int count = get_tok_delim_helper(ret, state->s);
         if (count) {
                 char *s = state->s;
                 state->s += count;
@@ -628,14 +637,28 @@ qlex_delim(int *ret, struct token_state_t *state)
         return false;
 }
 
+/* return EOF if only whitespace to end of file, 0 otherwise */
 static int
-qlex_slide(struct token_state_t *state)
+skip_whitespace(struct token_state_t *state)
 {
         do {
-                qslide(state);
-                if (*(state->s) == '\0')
+                char *s;
+                do {
+                        /*
+                         * Careful!  This looks like a spinlock bug,
+                         * but it isn't.  tok_next_line() below updates
+                         * state->s, both the pointer _and_ the buffer's
+                         * contents.  So we aren't repeating the same
+                         * thing over again.
+                         */
+                        s = state->s;
+                        while (*s != '\0' && isspace((int)(*s)))
+                                ++s;
+                } while (*s == '\0' && tok_next_line(state) != -1);
+                state->s = s;
+                if (*s == '\0')
                         return EOF;
-        } while (qlex_comment(state));
+        } while (skip_comment(state));
         return 0;
 }
 
@@ -657,20 +680,25 @@ tokenize_helper(struct token_state_t *state)
 
         buffer_reset(tok);
 
-        if ((ret = qlex_slide(state)) == EOF)
+        if ((ret = skip_whitespace(state)) == EOF)
                 return ret;
 
-        if (qlex_delim(&ret, state)) {
+        if (get_tok_delim(&ret, state)) {
                 return ret;
-        } else if (qlex_string(state)) {
+        } else if (get_tok_string(state)) {
+                /*
+                 * this allows for strings expressed like
+                 *      "..." "..."
+                 * to be parsed as single concatenated literals.
+                 */
                 do {
-                        ret = qlex_slide(state);
-                } while (ret != EOF && qlex_string(state));
+                        ret = skip_whitespace(state);
+                } while (ret != EOF && get_tok_string(state));
                 return 'q';
-        } else if (qlex_identifier(state)) {
+        } else if (get_tok_identifier(state)) {
                 int k = keyword_seek(tok->s);
                 return k >= 0 ? k : 'u';
-        } else if ((ret = qlex_number(state)) != 0) {
+        } else if ((ret = get_tok_number(state)) != 0) {
                 return ret;
         }
 
@@ -680,7 +708,7 @@ tokenize_helper(struct token_state_t *state)
 
 /* getloc callback during tokenize() */
 static unsigned int
-lexer_get_location(const char **file_name, void *unused)
+tok_get_location(const char **file_name, void *unused)
 {
         struct token_state_t *state = (struct token_state_t *)unused;
         if (file_name)
@@ -694,7 +722,7 @@ tokenize(struct token_state_t *state)
 {
         int ret;
 
-        getloc_push(lexer_get_location, state);
+        getloc_push(tok_get_location, state);
         ret = tokenize_helper(state);
         getloc_pop();
 
@@ -804,6 +832,12 @@ token_state_trim(struct token_state_t *state)
                 free(state->line);
 }
 
+/**
+ * token_state_free - Destructor for a token state machine
+ * @state: A return value of token_state_new()
+ *
+ * Called when finished parsing a full file.
+ */
 void
 token_state_free(struct token_state_t *state)
 {
@@ -812,6 +846,15 @@ token_state_free(struct token_state_t *state)
         free(state);
 }
 
+/**
+ * token_state_new - Get a new token state machine
+ * @fp: Open file to parse
+ * @filename: Name of @fp, used for printing syntax errors
+ *      This may not be NULL.  Name it something like
+ *      "(stdin)" or "(pipe)" if not a regular script file.
+ *
+ * Return: New token state machine.
+ */
 struct token_state_t *
 token_state_new(FILE *fp, const char *filename)
 {
@@ -835,7 +878,7 @@ token_state_new(FILE *fp, const char *filename)
          * above functions don't all have to start
          * with "if (state->s == NULL)"
          */
-        if (lexer_next_line(state) == -1) {
+        if (tok_next_line(state) == -1) {
                 token_state_free(state);
                 return NULL;
         }
@@ -843,12 +886,8 @@ token_state_new(FILE *fp, const char *filename)
         return state;
 }
 
-/*
- * Unless error interrupts this, returns array of tokens whose last
- * member has a .t value of EOF.
- */
 void
-moduleinit_lex(void)
+moduleinit_token(void)
 {
         /*
          * IMPORTANT!! These two strings must be in same order as
@@ -860,29 +899,29 @@ moduleinit_lex(void)
         int i;
 
         /*
-         * Set up lexer_charmap
+         * Set up tok_charmap
          * XXX: more optimal to put this in a code generator
          * so it's all done at compile time instead.
          */
 
         /* delimiter */
         for (s = DELIMS; *s != '\0'; s++)
-                lexer_charmap[(int)*s] |= QDELIM;
+                tok_charmap[(int)*s] |= QDELIM;
         /* double-delimeters */
         for (s = DELIMDBL; *s != '\0'; s++)
-                lexer_charmap[(int)*s] |= QDDELIM;
+                tok_charmap[(int)*s] |= QDDELIM;
 
         /* special case */
-        lexer_charmap[(int)'`'] |= (QDELIM | QDDELIM);
-        lexer_charmap[0] |= QDELIM;
+        tok_charmap[(int)'`'] |= (QDELIM | QDDELIM);
+        tok_charmap[0] |= QDELIM;
 
         /* permitted identifier chars */
         for (i = 'a'; i < 'z'; i++)
-                lexer_charmap[i] |= QIDENT | QIDENT1;
+                tok_charmap[i] |= QIDENT | QIDENT1;
         for (i = 'A'; i < 'Z'; i++)
-                lexer_charmap[i] |= QIDENT | QIDENT1;
+                tok_charmap[i] |= QIDENT | QIDENT1;
         for (i = '0'; i < '9'; i++)
-                lexer_charmap[i] |= QIDENT;
-        lexer_charmap['_'] |= QIDENT | QIDENT1;
+                tok_charmap[i] |= QIDENT;
+        tok_charmap['_'] |= QIDENT | QIDENT1;
 }
 

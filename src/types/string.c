@@ -974,9 +974,7 @@ string_cmpz(struct var_t *a)
 static void
 string_mov(struct var_t *to, struct var_t *from)
 {
-        to->s = from->s;
-        TYPE_HANDLE_INCR_REF(to->s);
-        to->magic = TYPE_STRING;
+        string_init(to, string_get_cstring(from));
 }
 
 static int

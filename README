@@ -40,6 +40,11 @@ much declared and defined anywhere.
 Documentation.rst details the syntax and functionality of the language.
 But here are some major differences...
 
+* All functions are anonymous.  They must be assigned to some variable
+  to have a "name".
+
+* There is no ``var`` keyword.  There is only ``let``.
+
 * EvilCandy is (mostly) statically typed.  You cannot change a string
   into an integer, for example.
 
@@ -53,20 +58,18 @@ But here are some major differences...
   seems too heavily tailored for Web browsers to be a good model for
   EvilCandy.
 
-* Some syntactic changes were made.  A couple cases:
+* Some other examples of syntactic changes:
 
   * JavaScript's arrow notation, while cutely imitating the notation of
     lambda Calculus, is hard to read and even harder for an assembler to
-    parse.  I invented a different notation for lambda functions for
-    EvilScript.
+    parse.  EvilCandy uses an entirely different notation for lambda
+    functions.
 
   * I really like the ``else`` clause to Python's ``for`` loop, so I
     implemented a JavaScript/C-looking ``for`` loop that has an
     optional ``else`` statement.
 
   * There's an alternative way to declare closures.
-
-  * There is no ``var`` keyword.  There is only ``let``.
 
   * EvilCandy (currently) has nothing to do with the Document Object Model.
 

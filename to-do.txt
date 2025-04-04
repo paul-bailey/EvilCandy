@@ -3,18 +3,17 @@ Bugs/Must-Do
 
 * Use autoconf, automake & cet., not just a hand-written Makefile
 
-* Get rid of the by-reference policy on strings, it's probably not
-  improving speed any but it's a nightmare to disclaim in Tutorial.txt.
-
 * Start adding in test scaffolding where possible.
 
-* Support exceptions.  Don't just throw an error and call exit(), unless
-  it's a system error.  (maybe let ewrappers.c be only for system errors,
-  not for syntax errors.) Do not quit on syntax() if in interactive mode.
-  BIG LIFT, requires proper unwinding and lots of stacks of jmp_bufs in
-  each struct
+* Support exceptions.  When in interactive mode, do not just throw an
+  error and call exit() for user errors, instead do all the proper
+  unwinding and prompt user for next input.  Only quit if its a script
+  or if it's a system error like being out of memory.
+  BIG LIFT, requires proper unwinding and heaps of jmp_bufs in each
+  struct
 
-* Support serialization to byte-code files
+* Support serialization to byte-code files, so we don't have to parse
+  the same script every time.
 
 * Support the continue statement
 
@@ -25,11 +24,11 @@ Bugs/Must-Do
 * Fix the cyclic-reference problem in GC.
 
 * MEMORY LEAK BUG:  When top-level expressions have been executed, their
-  executable code should be deleted.  Same for function definitions when
-  handles referencitn them leave scope.  However, naive GC doesn't work,
-  because it causes IIFEs to delete before they are executed.  So for
-  now, GC is turned off for all executable code, even if it gets
-  zombified.
+  executable code should be deleted.  Same for functions' executables
+  when they leave scope, ie when their references go to zero.  However,
+  current GC implementation is too naive for this, deleting IIFEs before
+  they can execute.  So for now, GC is turned off for all executable
+  code, letting it zombify.
 
 Library/Language Features
 -------------------------
@@ -51,7 +50,8 @@ Mebbe/Wishlist
 
 * At assemble_eval() time, determine if certain expressions can be
   reduced to single consts known at assemble time.  Currently something
-  like "1 + 2" will result in an operation at execution time.
+  like "1 + 2" will result in an operation at execution time instead
+  of being compiled to just "3".
 
 * Make better distinction between syntax errors and other user errors
   (eg. array out of bounds, symbol not found...).  Currently syntax()
@@ -81,3 +81,4 @@ Mebbe/Wishlist
   termination still works, so long as the right uint*_t type is used
   when checking for a value of zero.
 
+.. : vim: set syntax=rst :

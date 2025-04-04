@@ -593,7 +593,7 @@ integer    ``let x = 0;``             value
 float      ``let x = 0.;``            value
 list       ``lex x = [];``            reference
 dictionary ``let x = {};``            reference
-string     ``let x = "";``            reference
+string     ``let x = "";``            value
 function   ``let x = function() {;}`` reference
 ========== ========================== =========
 
@@ -873,22 +873,14 @@ In EvilCandy a string is an object-like variable, which can be assigned
 either from another string variable or from a string literal (see
 `String Literal Tokens`_ above).
 
-Unlike most high-level programming languages, strings
-are pass-by-reference.  In the case:
+Strings are pass-by-value.  In the case:
 
 .. code-block:: js
 
         let x = "Some string";
         let y = x;
 
-any modification to ``y`` will change ``x``.  To get a duplicate, use
-the builtin ``copy`` method:
-
-.. code-block:: js
-
-        let x = "Some string";
-        let y = x.copy();
-        // y and x now have handles to separate strings.
+any modification to ``y`` will have no effect on ``x``.
 
 Functions
 ---------
@@ -1513,49 +1505,13 @@ good practice.
         ``:n=n``.  I renamed it ``a`` in the example to be clearer
         what's going on.
 
-Closure Persistence Nuances
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-There's a reason I added the explicit closure declaration even though
-I rarely (actually never) see it in other programming languages.
-
-The two following examples are **not** equivalent:
-
-Ex 1:
-
-.. code-block:: js
-
-        // nested inside of some function
-        let hello = "Hello";
-        ...
-        let world = function(:a=hello.copy()) {
-                foo(a + " world");
-        }
-
-Ex 2:
-
-.. code-block:: js
-
-        // nested inside of some function
-        let hello = "Hello";
-        ...
-        let world = function() {
-                let a = hello.copy();
-                foo(a + " world");
-        }
-
-In the former example:
-        A closure will be created for the return value of ``hello.copy()``.
-        Even if ``hello`` changes, every call to ``world()`` will have
-        predictable results.
-
-In the latter example:
-        The ``copy()`` method will be called every time ``world`` is
-        called, because a closure will be created for ``hello`` only.
-        So if the outer ``hello`` changes value even after ``world`` is
-        created, then later calls to ``world()`` will have unpredictable
-        results.  This is a problem particularly for pass-by-reference
-        types like strings and dictionaries, not for integers and floats.
+Explicit closure declarations are a consequence of early development
+when I had the stupid idea of making strings be pass-by-reference,
+and duplicated with a call to their ``.copy`` method.  This causes
+a nuance where the ``.copy`` call would in one case be called when
+the closure is created and in another case be called each time the
+function containing the closure is called.  But since then, strings
+are now pass-by-value, so explicit closures hardly matter.
 
 Importing Modules
 =================

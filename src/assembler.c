@@ -1,4 +1,15 @@
 /*
+ * URGENT FIXME: Some references to struct token_t's are getting
+ * de-referenced after future calls to as_lex(), but as_lex()
+ * wraps around potential calls to realloc, which may invalidate
+ * the older pointers.  Scrub through this file, make sure that
+ * no such de-reference is occuring, or else they are getting copied
+ * into a struct token_t in the local stack first (which is safe:
+ * a struct token_t's .s pointer will not change after the token
+ * has been parsed, even if the pointer to the token itself has
+ * changed.)
+ */
+/*
  * FIXME: This whole file is a hacky duct-tape way to do things, because
  * I couldn't be bothered to research the topic of abstract syntax trees.
  *

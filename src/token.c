@@ -1,4 +1,12 @@
-/* token.c - Tokenizer code */
+/*
+ * token.c - Tokenizer code
+ *
+ * TODO: Replace all the syntax() calls with proper stack unwinding
+ * so it can be done in one spot in the code. This shouldn't require
+ * setjmp or anything.  It would make it easier to change things so
+ * that syntax() doesn't just close the program when in interactive
+ * mode.
+ */
 #include <evilcandy.h>
 #include "token.h"
 #include <ctype.h>
@@ -29,6 +37,10 @@ enum {
  * @ntok:       Number of tokens in @pgm
  * @nexttok:    Next token in @pgm to get with get_tok()
  * @eof:        True if @fp has reached EOF
+ *
+ * Although using pointers for @ntok and @nexttok would make [un]get_tok
+ * slightly faster, @pgm's buffer could get realloc'd, so for safety's
+ * sake they're indices instead.
  */
 struct token_state_t {
         int lineno;
@@ -38,7 +50,6 @@ struct token_state_t {
         char *line;
         FILE *fp;
         char *filename;
-
         struct buffer_t pgm;
         int ntok;
         int nexttok;
@@ -87,6 +98,7 @@ bksl_char(char **src, int *c, int q)
                 *c = '"';
                 break;
         case 'a':
+                /* BELL - apparently it's still 1978 */
                 *c = '\a';
                 break;
         case 'b':
@@ -193,7 +205,7 @@ isunihex(char *s, int amt)
 
 /*
  * This is for our UTF-8 encoding.
- * can't use strtoul, because 5th char might be a number,
+ * can't use strtoul, because @len'th char might be a number,
  * but it's not a part of the escape
  */
 static uint32_t
@@ -207,6 +219,10 @@ hex_str2val(char *s, int len)
         return v;
 }
 
+/*
+ * If input is something like "\u1234",
+ * stuff the utf-8-encoded equivalent string into @tok.
+ */
 static bool
 bksl_utf8(char **src, int *c, struct buffer_t *tok)
 {
@@ -254,6 +270,19 @@ get_tok_string(struct token_state_t *state)
 retry:
         while ((c = *pc++) != q && c != '\0') {
                 if (c == '\\') {
+                        /*
+                         * If these return true, they changed c.
+                         * - bksl_utf8 sets c=0 because it fills tok itself.
+                         * - Other bksl_* set c to a value to put into tok, or
+                         *   to zero, which means "include neither the backslash
+                         *   nor the following char," such as escaped actual
+                         *   newlines in string literals.  (They could just make
+                         *   adjacent literals on two lines, but I'm a sucker
+                         *   for giving them alternatives, I guess, LOL.)
+                         * If all return false (unsupported escape), then
+                         * c is still '\'.  Throw warning, stuff without
+                         * interpreting.
+                         */
                         do {
                                 if (bksl_utf8(&pc, &c, tok))
                                         break;
@@ -272,6 +301,11 @@ retry:
         }
 
         if (c == '\0') {
+                /*
+                 * Got multi-line string such as
+                 *      "This is a string that
+                 *      spans more than one line"
+                 */
                 if (tok_next_line(state) == -1)
                         syntax("Unterminated quote");
                 goto retry;
@@ -649,7 +683,7 @@ skip_whitespace(struct token_state_t *state)
                          * but it isn't.  tok_next_line() below updates
                          * state->s, both the pointer _and_ the buffer's
                          * contents.  So we aren't repeating the same
-                         * thing over again.
+                         * thing when the do loop reiterates.
                          */
                         s = state->s;
                         while (*s != '\0' && isspace((int)(*s)))

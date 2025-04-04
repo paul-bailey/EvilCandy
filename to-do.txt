@@ -1,6 +1,8 @@
 Bugs/Must-Do
 ------------
 
+* Address the URGENT FIXME at top of assembler.c
+
 * Use autoconf, automake & cet., not just a hand-written Makefile
 
 * Start adding in test scaffolding where possible.

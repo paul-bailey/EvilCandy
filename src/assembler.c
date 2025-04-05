@@ -640,10 +640,6 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                 int t = as_lex(a);
                 as_unlex(a);
                 if (t == OC_LBRACE) {
-                        /*
-                         * mark_location, because we don't call expression
-                         * for simple lambda.
-                         */
                         assemble_expression(a, 0, -1);
                         as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                 } else {

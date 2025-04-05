@@ -14,10 +14,6 @@
 
 #define COLOR(what, str)      COLOR_##what str COLOR_DEF
 
-/*
- * Get the line number in file of the program counter,
- * for error message printing
- */
 /* helper to bug__ and breakpoint__ */
 static void
 trap(const char *what, const char *file, int line)
@@ -118,10 +114,6 @@ warning_(const char *filename, unsigned int line, const char *msg, ...)
         va_end(ap);
 }
 
-/**
- * syntax - Like syntax, except that it gets the line number and file
- *              from the program counter in @state
- */
 void
 syntax(const char *msg, ...)
 {

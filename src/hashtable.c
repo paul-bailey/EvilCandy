@@ -197,7 +197,7 @@ hashtable_put(struct hashtable_t *htbl, void *key, void *data)
 }
 
 /*
- *      Hack alert!!
+ *      Hack alert!!   Back door for literal.c code
  *
  * literal_put() would have a lot of unnecessary redundant steps
  * if it just used the hashtable_put|get API, so it needs some
@@ -379,7 +379,7 @@ hashtable_iterate(struct hashtable_t *htbl, void **key,
  *
  * These take advantage of the fact that literal() has already removed
  * duplicates at parse-time, and so lots of hash tables in this program
- * has matching pointers for matching strings.  For tables where this
+ * have matching pointers for matching strings.  For tables where this
  * isn't the case, use something like fnv_hash in helpers.c and a memcmp
  * for the matching algo.
  */

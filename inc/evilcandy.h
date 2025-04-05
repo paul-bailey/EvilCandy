@@ -14,14 +14,6 @@
 #include <stdio.h>
 #include <sys/types.h>
 
-/**
- * DOC: Tunable parameters
- *
- * @STACK_MAX:          Size of evaluation stack
- * @LOAD_MAX:           Max number of external modules that may be loaded
- * @RECURSION_MAX:      Max permissible recursion permitted by eval() and
- *                      expression()
- */
 enum {
         /* Tunable parameters */
         RECURSION_MAX   = 256,
@@ -38,12 +30,12 @@ enum {
  * @TYPE_EMPTY:         Uninitialized variable
  * @TYPE_DICT:          Object, or to be egg-headed and more precise, an
  *                      associative array
- * @TYPE_FUNCTION:    Function callable by script.
+ * @TYPE_FUNCTION:      Function callable by script.
  * @TYPE_FLOAT:         Floating point number
  * @TYPE_INT:           Integer number
- * @TYPE_STRING:      C-string and some useful metadata
- * @TYPE_LIST:       Numerical array, ie. [ a, b, c...]-type array
- * @NTYPES_USER:           Boundary to check a magic number against
+ * @TYPE_STRING:        C-string and some useful metadata
+ * @TYPE_LIST:          Numerical array, ie. [ a, b, c...]-type array
+ * @NTYPES_USER:        Boundary to check a magic number against
  */
 enum type_magic_t {
         TYPE_EMPTY = 0,

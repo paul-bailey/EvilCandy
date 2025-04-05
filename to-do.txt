@@ -1,8 +1,6 @@
 Bugs/Must-Do
 ------------
 
-* Address the URGENT FIXME at top of assembler.c
-
 * Use autoconf, automake & cet., not just a hand-written Makefile
 
 * Start adding in test scaffolding where possible.
@@ -44,6 +42,10 @@ Library/Language Features
 
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* Consider using a (per-thread) global stack instead of a
+  per-frame stack.  See comment in vm.c, do_call_func(), for
+  a rationale.
 
 * Support backslash-zero escape in string literals (moderate lift,
   most standard-library C-string functions cannot be used).

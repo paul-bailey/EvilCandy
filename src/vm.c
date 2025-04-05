@@ -256,12 +256,16 @@ vmframe_unwind_block(struct vmframe_t *fr, struct block_t *bl)
         push(fr, res);                  \
         VAR_DECR_REF(rval);             \
         VAR_DECR_REF(lval);             \
+        /* for now */                   \
+        return 0;                       \
 } while (0)
 
 #define unary_op_common(fr, op) do {    \
         struct var_t *v = pop(fr);      \
         struct var_t *ret = op(v);      \
         push(fr, ret);                  \
+        /* for now */                   \
+        return 0;                       \
 } while (0)
 #define assign_common(fr, op) do {      \
         struct var_t *from, *to, *res;  \
@@ -272,6 +276,8 @@ vmframe_unwind_block(struct vmframe_t *fr, struct block_t *bl)
         VAR_DECR_REF(to);               \
         VAR_DECR_REF(res);              \
         VAR_DECR_REF(from);             \
+        /* for now */                   \
+        return 0;                       \
 } while (0)
 
 static inline struct var_t *
@@ -304,45 +310,51 @@ lshift(struct var_t *a, struct var_t *b)
         return qop_shift(a, b, OC_LSHIFT);
 }
 
-static void
+static int
 do_nop(struct vmframe_t *fr, instruction_t ii)
 {
+        return 0;
 }
 
-static void
+static int
 do_load(struct vmframe_t *fr, instruction_t ii)
 {
         load_file(RODATA_STR(fr, ii));
+        return 0;
 }
 
-static void
+static int
 do_push_local(struct vmframe_t *fr, instruction_t ii)
 {
         push(fr, var_new());
+        return 0;
 }
 
-static void
+static int
 do_push_const(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = qop_mov(var_new(), RODATA(fr, ii));
         push(fr, v);
+        return 0;
 }
 
-static void
+static int
 do_push_ptr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *p = VARPTR(fr, ii);
         VAR_INCR_REF(p);
         push(fr, p);
+        return 0;
 }
 
-static void
+static int
 do_pop(struct vmframe_t *fr, instruction_t ii)
 {
         VAR_DECR_REF(pop(fr));
+        return 0;
 }
 
-static void
+static int
 do_unwind(struct vmframe_t *fr, instruction_t ii)
 {
         /*
@@ -357,21 +369,24 @@ do_unwind(struct vmframe_t *fr, instruction_t ii)
         while (count-- > 0)
                 VAR_DECR_REF(pop(fr));
         push(fr, sav);
+        return 0;
 }
 
-static void
+static int
 do_push_block(struct vmframe_t *fr, instruction_t ii)
 {
         vmframe_push_block(fr, ii.arg1);
+        return 0;
 }
 
-static void
+static int
 do_pop_block(struct vmframe_t *fr, instruction_t ii)
 {
         vmframe_unwind_block(fr, vmframe_pop_block(fr));
+        return 0;
 }
 
-static void
+static int
 do_break(struct vmframe_t *fr, instruction_t ii)
 {
         struct block_t *bl;
@@ -379,9 +394,10 @@ do_break(struct vmframe_t *fr, instruction_t ii)
                 bl = vmframe_pop_block(fr);
         } while (bl->type != IARG_LOOP);
         vmframe_unwind_block(fr, bl);
+        return 0;
 }
 
-static void
+static int
 do_assign(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *from, *to;
@@ -394,84 +410,97 @@ do_assign(struct vmframe_t *fr, instruction_t ii)
 
         VAR_DECR_REF(to);
         VAR_DECR_REF(from);
+        return 0;
 }
 
-static void
+static int
 do_assign_add(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, qop_add);
+        return 0;
 }
 
-static void
+static int
 do_assign_sub(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, qop_sub);
+        return 0;
 }
 
-static void
+static int
 do_assign_mul(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, qop_mul);
+        return 0;
 }
 
-static void
+static int
 do_assign_div(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, qop_div);
+        return 0;
 }
 
-static void
+static int
 do_assign_mod(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, qop_mod);
+        return 0;
 }
 
-static void
+static int
 do_assign_xor(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, qop_xor);
+        return 0;
 }
 
-static void
+static int
 do_assign_ls(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, lshift);
+        return 0;
 }
 
-static void
+static int
 do_assign_rs(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, rshift);
+        return 0;
 }
 
-static void
+static int
 do_assign_or(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, qop_bit_or);
+        return 0;
 }
 
-static void
+static int
 do_assign_and(struct vmframe_t *fr, instruction_t ii)
 {
         assign_common(fr, qop_bit_and);
+        return 0;
 }
 
-static void
+static int
 do_symtab(struct vmframe_t *fr, instruction_t ii)
 {
         char *s = RODATA_STR(fr, ii);
         hashtable_put(symbol_table, s, var_new());
+        return 0;
 }
 
-static void
+static int
 do_push_zero(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = var_new();
         integer_init(v, 0LL);
         push(fr, v);
+        return 0;
 }
 
-static void
+static int
 do_return_value(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *result = pop(fr);
@@ -487,9 +516,10 @@ do_return_value(struct vmframe_t *fr, instruction_t ii)
                 push(fr, result);
         else
                 VAR_DECR_REF(result);
+        return 0;
 }
 
-static void
+static int
 do_call_func(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *func, *owner, *res;
@@ -545,9 +575,10 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 bug_on(!fr_new->ex);
                 fr_new->ppii = fr_new->ex->instr;
         }
+        return 0;
 }
 
-static void
+static int
 do_deffunc(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *func = var_new();
@@ -555,9 +586,10 @@ do_deffunc(struct vmframe_t *fr, instruction_t ii)
         bug_on(loc->magic != TYPE_XPTR);
         function_init(func, loc->xptr);
         push(fr, func);
+        return 0;
 }
 
-static void
+static int
 do_add_closure(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *clo = pop(fr);
@@ -565,9 +597,10 @@ do_add_closure(struct vmframe_t *fr, instruction_t ii)
 
         function_add_closure(func, clo);
         push(fr, func);
+        return 0;
 }
 
-static void
+static int
 do_add_default(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *deflt = pop(fr);
@@ -580,17 +613,19 @@ do_add_default(struct vmframe_t *fr, instruction_t ii)
          */
         function_add_default(func, deflt, ii.arg2);
         push(fr, func);
+        return 0;
 }
 
-static void
+static int
 do_deflist(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *arr = var_new();
         array_from_empty(arr);
         push(fr, arr);
+        return 0;
 }
 
-static void
+static int
 do_list_append(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *child = pop(fr);
@@ -598,17 +633,19 @@ do_list_append(struct vmframe_t *fr, instruction_t ii)
         array_add_child(parent, child);
         VAR_DECR_REF(child);
         push(fr, parent);
+        return 0;
 }
 
-static void
+static int
 do_defdict(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *obj = var_new();
         object_init(obj);
         push(fr, obj);
+        return 0;
 }
 
-static void
+static int
 do_addattr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *attr = pop(fr);
@@ -624,8 +661,9 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
         object_add_child(obj, attr, name);
         VAR_DECR_REF(attr);
         push(fr, obj);
+        return 0;
 }
-static void
+static int
 do_getattr(struct vmframe_t *fr, instruction_t ii)
 {
         bool del = false;
@@ -662,9 +700,10 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
          */
         push(fr, obj);
         push(fr, attr);
+        return 0;
 }
 
-static void
+static int
 do_setattr(struct vmframe_t *fr, instruction_t ii)
 {
         bool del = false;
@@ -687,9 +726,10 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 
         VAR_DECR_REF(val);
         VAR_DECR_REF(obj);
+        return 0;
 }
 
-static void
+static int
 do_b_if(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
@@ -697,75 +737,87 @@ do_b_if(struct vmframe_t *fr, instruction_t ii)
         if ((bool)ii.arg1 == cond)
                 fr->ppii += ii.arg2;
         VAR_DECR_REF(v);
+        return 0;
 }
 
-static void
+static int
 do_b(struct vmframe_t *fr, instruction_t ii)
 {
         fr->ppii += ii.arg2;
+        return 0;
 }
 
-static void
+static int
 do_bitwise_not(struct vmframe_t *fr, instruction_t ii)
 {
         unary_op_common(fr, qop_bit_not);
+        return 0;
 }
 
-static void
+static int
 do_negate(struct vmframe_t *fr, instruction_t ii)
 {
         unary_op_common(fr, qop_negate);
+        return 0;
 }
 
-static void
+static int
 do_logical_not(struct vmframe_t *fr, instruction_t ii)
 {
         unary_op_common(fr, qop_lnot);
+        return 0;
 }
 
-static void
+static int
 do_mul(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, qop_mul);
+        return 0;
 }
 
-static void
+static int
 do_div(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, qop_div);
+        return 0;
 }
 
-static void
+static int
 do_mod(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, qop_mod);
+        return 0;
 }
 
-static void
+static int
 do_add(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, qop_add);
+        return 0;
 }
 
-static void
+static int
 do_sub(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, qop_sub);
+        return 0;
 }
 
-static void
+static int
 do_lshift(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, lshift);
+        return 0;
 }
 
-static void
+static int
 do_rshift(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, rshift);
+        return 0;
 }
 
-static void
+static int
 do_cmp(struct vmframe_t *fr, instruction_t ii)
 {
         static const int OCMAP[] = {
@@ -782,62 +834,72 @@ do_cmp(struct vmframe_t *fr, instruction_t ii)
         push(fr, res);
         VAR_DECR_REF(rval);
         VAR_DECR_REF(lval);
+        return 0;
 }
 
-static void
+static int
 do_binary_and(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, qop_bit_and);
+        return 0;
 }
 
-static void
+static int
 do_binary_or(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, qop_bit_or);
+        return 0;
 }
 
-static void
+static int
 do_binary_xor(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, qop_xor);
+        return 0;
 }
 
-static void
+static int
 do_logical_or(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, logical_or);
+        return 0;
 }
 
-static void
+static int
 do_logical_and(struct vmframe_t *fr, instruction_t ii)
 {
         binary_op_common(fr, logical_and);
+        return 0;
 }
 
-static void
+static int
 do_incr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
         qop_incr(v);
         VAR_DECR_REF(v);
+        return 0;
 }
 
-static void
+static int
 do_decr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
         qop_decr(v);
         VAR_DECR_REF(v);
+        return 0;
 }
 
-static void
+static int
 do_end(struct vmframe_t *fr, instruction_t ii)
 {
         /* dummy func, INSTR_END is handled in calling function */
+        return 0;
 }
 
 
-typedef void (*callfunc_t)(struct vmframe_t *fr, instruction_t ii);
+/* return value is 0 or OPRES_* enum */
+typedef int (*callfunc_t)(struct vmframe_t *fr, instruction_t ii);
 
 static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
@@ -847,7 +909,9 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
         instruction_t ii;                                               \
         while ((ii = *(current_frame->ppii)++).code != INSTR_END) {     \
                 bug_on((unsigned int)ii.code >= N_INSTR);               \
-                JUMP_TABLE[ii.code](current_frame, ii);                 \
+                int res = JUMP_TABLE[ii.code](current_frame, ii);       \
+                /* Just for now... */                                   \
+                (void)res;                                              \
                 /*                                                      \
                  * In reentrance mode, INSTR_RETURN may set             \
                  * current_frame to NULL.  This, rather than            \

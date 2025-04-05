@@ -52,7 +52,8 @@ struct operator_methods_t {
  * struct type_t - Used to get info about a typedef
  * @name:       Name of the type
  * @methods:    Linked list of built-in methods for the type; these are
- *              things scripts call as functions.
+ *              things scripts call as functions. var_config_type() fills
+ *              in this hashtable during initialization time.
  * @reset:      Callback to reset the variable, or NULL if no special
  *              action is needed.
  * @opm:        Callbacks for performing primitive operations like

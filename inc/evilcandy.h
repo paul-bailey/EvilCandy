@@ -135,6 +135,11 @@ enum {
  * destructor callbacks, etc.).  Do not memset() it to zero or manually
  * change it, either.  Use things like var_reset(), qop_assign...(), etc.
  * access functions.
+ *
+ * XXX REVISIT (probably big lift): Simplify this with the *_handle_t
+ * structs being embedded, something like var_string_t, var_object_t,
+ * & cet.  Way less allocating, even if it means tearing apart var.c's
+ * memory management methods.
  */
 struct var_t {
         unsigned int magic;
@@ -298,8 +303,16 @@ extern void unget_tok(struct token_state_t *state, struct token_t **tok);
 extern void moduleinit_token(void);
 
 /* literal.c */
-extern char *literal(const char *s);
-extern char *literal_put(const char *s);
+extern struct hashtable_t literal_htbl__;
+/* see comments above literal.c for usage */
+static inline char *literal_put(const char *key)
+{
+        return hashtable_put_literal(&literal_htbl__, key);
+}
+static inline char *literal(const char *key)
+{
+        return hashtable_get(&literal_htbl__, key);
+}
 extern void moduleinit_literal(void);
 
 /* mempool.c */

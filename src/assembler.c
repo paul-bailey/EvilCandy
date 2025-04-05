@@ -2019,6 +2019,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
 
         if ((res = setjmp(a->env)) != 0) {
                 const char *msg;
+                int lineno;
                 switch (res) {
                 default:
                 case AE_GEN:
@@ -2064,8 +2065,10 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                         msg = "Bad instruction";
                         break;
                 }
-                syntax_noexit("Assembler returned error code %d (%s)",
-                              res, msg);
+                lineno = a->oc ? a->oc->line : 0;
+                syntax_noexit_(a->file_name, lineno,
+                               "Assembler returned error code %d (%s)",
+                               res, msg);
                 /*
                  * TODO: probably more meticulous cleanup needed here,
                  * we don't know exactly where we failed.

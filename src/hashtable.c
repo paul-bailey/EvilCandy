@@ -52,8 +52,27 @@ seek_helper(struct hashtable_t *htbl, const void *key,
                         break;
                 /*
                  * Collision or dead entry.
-                 * See big comment in seek_helper in literal.c
-                 * I'm doing the same thing here.
+                 *
+                 * Way to cope with a power-of-2-sized hash table, esp.
+                 * an open-address one.  Idea & algo taken from Python.
+                 * See cpython source code, "Object/dictobject.c" at
+                 *
+                 *      https://github.com/python/cpython.git
+                 *
+                 * Don't just seek the next adjacent empty slot.  For any
+                 * non-trivial alpha, this quickly degenerates into a
+                 * linear array search.  "Perturb it" instead.  This will
+                 * not spinlock because:
+                 *
+                 * 1. There is always at least one blank entry
+                 *
+                 * 2. We will eventually hit an empty slot, even in the
+                 *    worst-case scenario, because after floor(64/5)=12
+                 *    iterations, perturb will become zero, and
+                 *    (i*5+1) % SIZE will eventually hit every index at
+                 *    least once when size is a power of 2.  (I don't
+                 *    know the proof, but every which way I've tested it,
+                 *    it turns out to be true.)
                  */
                 perturb >>= 5;
                 i = bucketi(htbl, i * 5 + perturb + 1);
@@ -92,6 +111,16 @@ transfer_table(struct hashtable_t *htbl, size_t old_size)
 static void
 refresh_grow_markers(struct hashtable_t *htbl)
 {
+        /*
+         * XXX REVISIT: "/3" is arbitrary division
+         *
+         * alpha=75%, "(x*3)>>2" is quicker, but its near the poor-
+         * performance range for open-address tables. alpha=50%, "x>>1",
+         * is a lot of wasted real-estate, probably resulting in lots of
+         * cache misses, killing the advantage that open-address has over
+         * chaining.  I'm assuming that amortization is reason enough not
+         * to care about any of this.
+         */
         htbl->grow_size = (htbl->size << 1) / 3;
         htbl->shrink_size = htbl->used <= INIT_SIZE
                             ? 0: htbl->grow_size / 3;
@@ -102,6 +131,10 @@ maybe_grow_table(struct hashtable_t *htbl)
 {
         size_t old_size = htbl->size;
         while (htbl->count > htbl->grow_size) {
+                /*
+                 * size must always be a power of 2 or else the
+                 * perturbation algo could spinlock.
+                 */
                 htbl->size *= 2;
                 refresh_grow_markers(htbl);
         }
@@ -126,6 +159,30 @@ maybe_shrink_table(struct hashtable_t *htbl)
                 transfer_table(htbl, old_size);
 }
 
+static inline void
+insert_common(struct hashtable_t *htbl, void *key,
+              void *data, hash_t hash, unsigned int i)
+{
+        struct bucket_t *b = bucket_alloc();
+        b->key = key;
+        b->data = data;
+        b->hash = hash;
+        htbl->bucket[i] = b;
+        htbl->count++;
+        htbl->used++;
+        maybe_grow_table(htbl);
+}
+
+/**
+ * hashtable_put - Add a new entry to a hash table
+ * @htbl:       Hash table to add to
+ * @key:        Key for new entry
+ * @data:       Data for new entry
+ *
+ * Return: 0 if new entry was added, -1 if not due to an entry
+ * already existing for @key.  If calling code wants to clobber
+ * the old data, it will have to first call hashtable_remove().
+ */
 int
 hashtable_put(struct hashtable_t *htbl, void *key, void *data)
 {
@@ -135,17 +192,42 @@ hashtable_put(struct hashtable_t *htbl, void *key, void *data)
         if (b)
                 return -1;
 
-        b = bucket_alloc();
-        b->key = key;
-        b->data = data;
-        b->hash = hash;
-        htbl->bucket[i] = b;
-        htbl->count++;
-        htbl->used++;
-        maybe_grow_table(htbl);
+        insert_common(htbl, key, data, hash, i);
         return 0;
 }
 
+/*
+ *      Hack alert!!
+ *
+ * literal_put() would have a lot of unnecessary redundant steps
+ * if it just used the hashtable_put|get API, so it needs some
+ * special treatment, basically an alternative to hashtable_put().
+ *
+ * No one else should use this.
+ */
+char *
+hashtable_put_literal(struct hashtable_t *htbl, const char *key)
+{
+        char *keycopy;
+        unsigned int i;
+        hash_t hash = htbl->calc_hash(key);
+        struct bucket_t *b = seek_helper(htbl, key, hash, &i);
+        if (b)
+                return b->data;
+
+        keycopy = estrdup(key);
+        insert_common(htbl, keycopy, keycopy, hash, i);
+        return keycopy;
+}
+
+/**
+ * hashtable_get - Retrieve data from a hash table
+ * @htbl:       Hash table to search
+ * @key:        Key to the entry to get
+ *
+ * Return: pointer to data associated with @key, or NULL if
+ * there is no entry for @key
+ */
 void *
 hashtable_get(struct hashtable_t *htbl, const void *key)
 {
@@ -155,6 +237,15 @@ hashtable_get(struct hashtable_t *htbl, const void *key)
         return b ? b->data : NULL;
 }
 
+/**
+ * hashtable_remove - Delete an entry in a hash table
+ * @htbl:       Hash table to remove entry from
+ * @key:        Key of the entry to remove
+ *
+ * Return: Pointer to the data removed from the table, or NULL
+ * if there was no entry for @key.  Unlike with
+ * hashtable_clear_entries, the data itself has not been deleted.
+ */
 void *
 hashtable_remove(struct hashtable_t *htbl, const void *key)
 {
@@ -172,6 +263,14 @@ hashtable_remove(struct hashtable_t *htbl, const void *key)
         return ret;
 }
 
+/**
+ * hashtable_init - Initialize a hash table
+ * @htbl:       Hash table to initialize
+ * @calc_hash:  Method for calculating the hash number
+ * @key_match:  Method to compare two keys and return true if they match
+ * @delete_data: Method delete data in table when calling
+ *              hashtable_clear_entries()
+ */
 void
 hashtable_init(struct hashtable_t *htbl,
                 hash_t (*calc_hash)(const void *),
@@ -206,6 +305,12 @@ hashtable_clear_entries_(struct hashtable_t *htbl)
         htbl->count = htbl->used = 0;
 }
 
+/**
+ * hashtable_clear_entries - Empty a hash table and clear all its data
+ *
+ * The deletions will use the @delete_data method passed to
+ * hashtable_init().
+ */
 void
 hashtable_clear_entries(struct hashtable_t *htbl)
 {
@@ -213,7 +318,14 @@ hashtable_clear_entries(struct hashtable_t *htbl)
         maybe_shrink_table(htbl);
 }
 
-/* call only when the containing object will be destroyed */
+/**
+ * hashtable_destroy - Delete everything in a hash table, excpt for the
+ *                     pointer to @htbl itself.
+ *
+ * Call this instead of hashtable_clear_entries() if the hash table is
+ * never to be used again, eg. during a containing object's cleanup
+ * method.
+ */
 void
 hashtable_destroy(struct hashtable_t *htbl)
 {
@@ -262,13 +374,37 @@ hashtable_iterate(struct hashtable_t *htbl, void **key,
         return 0;
 }
 
+/*
+ * Some hash and match algos useful for EvilCandy.
+ *
+ * These take advantage of the fact that literal() has already removed
+ * duplicates at parse-time, and so lots of hash tables in this program
+ * has matching pointers for matching strings.  For tables where this
+ * isn't the case, use something like fnv_hash in helpers.c and a memcmp
+ * for the matching algo.
+ */
+
+/* For array indexes, if we use this, I guess */
 hash_t
 idx_hash(const void *key)
 {
-        /* For array indexes, if we use this, I guess */
         return (hash_t)(*(unsigned int *)key);
 }
 
+/*
+ * Only use this if the @key used in the hashtable search algos are known
+ * to be return values of literal(), eg. @key is a user token, otherwise
+ * matching strings could be at different locations, and therefore get
+ * different hashes.
+ *
+ * Rationale: "Just return the pointer" is less likely to put an entry
+ * into a "random" spot in a table than a more involved hash algo, but
+ * the 80/20 rule applies here: A more involved hash algo will only
+ * marginally reduce the number of times we hit the collision algo in
+ * seek_helper(), and that itself is not involved enough to be worth
+ * trying to avoid; appropriate table resizing does a better job of
+ * avoiding it anyway.
+ */
 hash_t
 ptr_hash(const void *key)
 {
@@ -277,10 +413,17 @@ ptr_hash(const void *key)
          * trailing zeros.  Shift those out, so we don't keep colliding
          * on our first modulo in the hash table.
          */
-        enum { HASH_RSHIFT = (8 * sizeof(hash_t)) - 4 };
-        return ((hash_t)key >> 4) | ((hash_t)key << HASH_RSHIFT);
+        enum {
+                HASH_RSHIFT = 4,
+                HASH_LSHIFT = (8 * sizeof(hash_t)) - HASH_RSHIFT
+        };
+        return ((hash_t)key >> HASH_RSHIFT) | ((hash_t)key << HASH_LSHIFT);
 }
 
+/*
+ * matching algo used when both keys are known to be return values
+ * of literal(), forgoing need for a strcmp.
+ */
 bool
 ptr_key_match(const void *key1, const void *key2)
 {

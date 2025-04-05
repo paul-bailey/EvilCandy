@@ -43,5 +43,8 @@ extern hash_t ptr_hash(const void *key);
 extern hash_t idx_hash(const void *key);
 extern bool ptr_key_match(const void *k1, const void *k2);
 
+/* just for literal.c */
+char *hashtable_put_literal(struct hashtable_t *htbl, const char *key);
+
 #endif /* EGQ_HASHTABLE_H */
 

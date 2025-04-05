@@ -22,7 +22,6 @@ init_lib(void)
                 void (*initfn)(void);
         } INITFNS[] = {
                 /* Note: the order of this table matters */
-                { .initfn = moduleinit_keyword },
                 { .initfn = moduleinit_literal },
                 { .initfn = moduleinit_var },
                 { .initfn = moduleinit_builtin },

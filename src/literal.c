@@ -43,13 +43,14 @@
  *    by the time we dereference it, we no longer know if 'that' was
  *    expressed as this literal or as something like
  *            x + y + z.something()
- *    which evaluates to 'that'.
+ *    which evaluates to 'that' and would have been put in a TYPE_STRING
+ *    user-variable; see 1. above, these are not necessarily literal()'d.
  *
- * XXX: Some testing should be done for the average speed of comparisons
+ * XXX: Some testing should be done for the average speed of matching
  * when one string has been literal()'d and one has not.  Is the
  * following...
  *              return !strcmp(s1, s2);
- * faster in general than...
+ * faster on average than...
  *              s1 = literal(s1);
  *              return s1 == s2;
  */

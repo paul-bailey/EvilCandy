@@ -44,8 +44,7 @@ seek_helper(struct hashtable_t *htbl, const void *key,
         struct bucket_t *b;
         unsigned long perturb = hash;
         /* this won't spinlock because we ensure table has
-         * enough room.  See comment in literal.c about
-         * why the perturbation algo won't spinlock.
+         * enough room.  See comment below.
          */
         while ((b = htbl->bucket[i]) != NULL) {
                 if (b != BUCKET_DEAD && htbl->key_match(b->key, key))
@@ -72,7 +71,8 @@ seek_helper(struct hashtable_t *htbl, const void *key,
                  *    (i*5+1) % SIZE will eventually hit every index at
                  *    least once when size is a power of 2.  (I don't
                  *    know the proof, but every which way I've tested it,
-                 *    it turns out to be true.)
+                 *    it turns out to be true.  Also, very smart people
+                 *    claim to have proven it and they're smart.)
                  */
                 perturb >>= 5;
                 i = bucketi(htbl, i * 5 + perturb + 1);

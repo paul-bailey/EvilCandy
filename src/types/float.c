@@ -100,7 +100,7 @@ float_mov_strict(struct var_t *to, struct var_t *from)
         return 0;
 }
 
-static void
+static int
 float_tostr(struct var_t *ret)
 {
         char buf[64];
@@ -114,6 +114,7 @@ float_tostr(struct var_t *ret)
         (void)len; /* in case NDEBUG */
 
         string_init(ret, buf);
+        return 0;
 }
 
 static const struct type_inittbl_t float_methods[] = {

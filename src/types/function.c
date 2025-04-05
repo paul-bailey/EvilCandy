@@ -33,7 +33,7 @@ struct function_handle_t {
         } f_magic;
         int f_minargs;
         int f_maxargs;
-        void (*f_cb)(struct var_t *ret);
+        int (*f_cb)(struct var_t *ret);
         struct executable_t *f_ex;
         struct var_t **f_argv;
         struct var_t **f_clov;
@@ -175,7 +175,7 @@ er:
  * execute it)
  */
 struct var_t *
-call_function(struct var_t *fn)
+call_function(struct var_t *fn, int *status)
 {
         struct var_t *ret = NULL;
         struct function_handle_t *fh = fn->fn;
@@ -185,9 +185,20 @@ call_function(struct var_t *fn)
         case FUNC_INTERNAL:
                 ret = var_new();
                 bug_on(!fh->f_cb);
-                fh->f_cb(ret);
+                bug_on(!status);
+                *status = fh->f_cb(ret);
+                if (*status != 0) {
+                        /*
+                         * XXX: return value of f_cb should be
+                         * an err enum of some sort, but it gets
+                         * lost here.
+                         */
+                        VAR_DECR_REF(ret);
+                        return NULL;
+                }
                 break;
         case FUNC_USER:
+                *status = 0;
                 break;
         default:
                 bug();
@@ -257,7 +268,7 @@ function_add_default(struct var_t *func,
  * @maxargs: Maximum number of args used by the function
  */
 void
-function_init_internal(struct var_t *func, void (*cb)(struct var_t *),
+function_init_internal(struct var_t *func, int (*cb)(struct var_t *),
                        int minargs, int maxargs)
 {
         struct function_handle_t *fh;

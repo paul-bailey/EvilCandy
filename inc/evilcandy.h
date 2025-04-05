@@ -325,8 +325,8 @@ extern struct var_t *qop_bit_and(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_bit_or(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_xor(struct var_t *a, struct var_t *b);
 extern bool qop_cmpz(struct var_t *v);
-extern void qop_incr(struct var_t *v);
-extern void qop_decr(struct var_t *v);
+extern int qop_incr(struct var_t *v);
+extern int qop_decr(struct var_t *v);
 extern struct var_t *qop_bit_not(struct var_t *v);
 extern struct var_t *qop_negate(struct var_t *v);
 extern struct var_t *qop_lnot(struct var_t *v);
@@ -378,11 +378,11 @@ extern int array_get_type(struct var_t *array);
 
 /* types/function.c */
 extern void function_init_internal(struct var_t *func,
-                        void (*cb)(struct var_t *),
+                        int (*cb)(struct var_t *),
                         int minargs, int maxargs);
 extern struct var_t *function_prep_frame(struct var_t *fn,
                         struct vmframe_t *fr, struct var_t *owner);
-extern struct var_t *call_function(struct var_t *fn);
+extern struct var_t *call_function(struct var_t *fn, int *status);
 extern void function_add_closure(struct var_t *func, struct var_t *clo);
 extern void function_add_default(struct var_t *func,
                         struct var_t *deflt, int argno);
@@ -424,8 +424,8 @@ extern void string_init_from_file(struct var_t *ret, FILE *fp,
 
 /* vm.c */
 extern void vm_execute(struct executable_t *top_level);
-extern void vm_reenter(struct var_t *func, struct var_t *owner,
-                       int argc, struct var_t **argv);
+extern int vm_reenter(struct var_t *func, struct var_t *owner,
+                      int argc, struct var_t **argv);
 extern void moduleinit_vm(void);
 extern struct var_t *vm_get_this(void);
 extern struct var_t *vm_get_arg(unsigned int idx);

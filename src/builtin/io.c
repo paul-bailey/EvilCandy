@@ -59,11 +59,12 @@ getfh(void)
  *
  * Return integer, 1 if file is at eof, 0 if not
  */
-static void
+static int
 do_eof(struct var_t *ret)
 {
         struct file_handle_t *fh = getfh();
         integer_init(ret, !!feof(fh->fp));
+        return 0;
 }
 
 /*
@@ -71,12 +72,13 @@ do_eof(struct var_t *ret)
  *
  * No return value.  Clears error flags and file's errno.
  */
-static void
+static int
 do_clearerr(struct var_t *ret)
 {
         struct file_handle_t *fh = getfh();
         fh->err = 0;
         clearerr(fh->fp);
+        return 0;
 }
 
 /*
@@ -84,11 +86,12 @@ do_clearerr(struct var_t *ret)
  *
  * Return integer, errno of last error on file
  */
-static void
+static int
 do_errno(struct var_t *ret)
 {
         struct file_handle_t *fh = getfh();
         integer_init(ret, (long long)fh->err);
+        return 0;
 }
 
 /*
@@ -100,7 +103,7 @@ do_errno(struct var_t *ret)
  * If eof, string will be ""; empty lines can be distinguished from
  * EOF with the eof() built-in method.
  */
-static void
+static int
 do_readline(struct var_t *ret)
 {
         int errno_save = errno;
@@ -114,6 +117,7 @@ do_readline(struct var_t *ret)
         if (errno)
                 fh->err = errno;
         errno = errno_save;
+        return 0;
 }
 
 /*
@@ -124,7 +128,7 @@ do_readline(struct var_t *ret)
  * This will write all of str, including any newline found.
  * It will not add an additional newline.
  */
-static void
+static int
 do_writeline(struct var_t *ret)
 {
         FILE *fp;
@@ -155,6 +159,7 @@ done:
                 fh->err = errno;
         errno = errno_save;
         integer_init(ret, res);
+        return 0;
 }
 
 /*
@@ -163,7 +168,7 @@ done:
  * Return integer, offset of file or -1 if error, possibly
  * set the file's errno
  */
-static void
+static int
 do_tell(struct var_t *ret)
 {
         struct file_handle_t *fh = getfh();
@@ -176,6 +181,7 @@ do_tell(struct var_t *ret)
                 fh->err = errno;
         errno = errno_save;
         integer_init(ret, off);
+        return 0;
 }
 
 /*
@@ -183,7 +189,7 @@ do_tell(struct var_t *ret)
  *
  * Return nothing, rewind the file, possibly set file's errno
  */
-static void
+static int
 do_rewind(struct var_t *ret)
 {
         int errno_save = errno;
@@ -193,16 +199,17 @@ do_rewind(struct var_t *ret)
         if (errno)
                 fh->err = errno;
         errno = errno_save;
+        return 0;
 }
 
 static const struct inittbl_t file_methods[] = {
-        TOFTBL("eof",      do_eof, 0, 0),
-        TOFTBL("clearerr", do_clearerr, 0, 0),
-        TOFTBL("errno",    do_errno, 0, 0),
+        TOFTBL("eof",       do_eof, 0, 0),
+        TOFTBL("clearerr",  do_clearerr, 0, 0),
+        TOFTBL("errno",     do_errno, 0, 0),
         TOFTBL("readline",  do_readline, 0, 0),
         TOFTBL("writeline", do_writeline, 1, 1),
-        TOFTBL("tell",     do_tell, 0, 0),
-        TOFTBL("rewind",   do_rewind, 0, 0),
+        TOFTBL("tell",      do_tell, 0, 0),
+        TOFTBL("rewind",    do_rewind, 0, 0),
         TBLEND,
 };
 
@@ -252,7 +259,7 @@ file_new(const char *path, const char *mode)
  *
  * Check with typeof to determine success or failure
  */
-static void
+static int
 do_open(struct var_t *ret)
 {
         struct var_t *vname = frame_get_arg(0);
@@ -276,11 +283,16 @@ do_open(struct var_t *ret)
         object_init(ret);
         object_set_priv(ret, fh, file_reset);
         bi_build_internal_object__(ret, file_methods);
-        return;
+        return 0;
 
 bad:
+        /*
+         * TODO: Return error instead and let user decide
+         * whether to trap with try/catch
+         */
         string_init(ret, strerror(errno));
         errno = errno_save;
+        return 0;
 }
 
 const struct inittbl_t bi_io_inittbl__[] = {

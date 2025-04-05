@@ -12,11 +12,12 @@ static struct gbl_private_t {
         char nl[NLMAX];
 } gbl;
 
-static void
+static int
 do_typeof(struct var_t *ret)
 {
         struct var_t *p = frame_get_arg(0);
         string_init(ret, typestr(p));
+        return 0;
 }
 
 static bool
@@ -49,7 +50,7 @@ print_nl(void)
                 putchar((int)*s);
 }
 
-static void
+static int
 do_print(struct var_t *ret)
 {
         struct var_t *p = frame_get_arg(0);
@@ -61,28 +62,32 @@ do_print(struct var_t *ret)
                 do_print_helper(p);
         }
         print_nl();
-        /* return empty */
+        return 0;
 }
 
-static void
+static int
 do_exit(struct var_t *ret)
 {
         struct var_t *p = frame_get_arg(0);
         if (p && p->magic == TYPE_STRING)
                 printf("%s\n", string_get_cstring(p));
         exit(0);
+        return 0; /* compiler made me do this */
 }
 
-static void
+static int
 do_setnl(struct var_t *ret)
 {
         struct var_t *nl = frame_get_arg(0);
         char *s;
-        if (nl->magic != TYPE_STRING)
-                syntax("Expected argument: string");
+        if (nl->magic != TYPE_STRING) {
+                syntax_noexit("Expected argument: string");
+                return -1;
+        }
         s = string_get_cstring(nl);
         memset(gbl.nl, 0, NLMAX);
         strncpy(gbl.nl, s, NLMAX-1);
+        return 0;
 }
 
 static const struct inittbl_t gblinit[] = {

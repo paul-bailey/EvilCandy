@@ -64,7 +64,7 @@ let sqrt = function(x) {
     return y;
 };
 
-if (false) {
+if (true) {
     (function(sqrt) {
         let x = 0.;
         for (let i = 0.; i < 1000000.0; i++)

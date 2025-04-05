@@ -515,7 +515,7 @@ format2_helper(struct buffer_t *buf, const char *s, int argi)
  *              s Insert arg string here.  pad is for Unicode characters,
  *                not necessarily bytes.
  */
-static void
+static int
 string_format2(struct var_t *ret)
 {
         char cbuf[5];
@@ -532,7 +532,7 @@ string_format2(struct var_t *ret)
         buf = string_buf__(ret);
         if (!s) {
                 buffer_putc(buf, '\0');
-                return;
+                return 0;
         }
 
         while ((size = utf8_strgetc(s, cbuf)) != 0) {
@@ -553,6 +553,7 @@ string_format2(struct var_t *ret)
         }
 
         utf8_scan(string_get_cstring(ret), &ret->s->s_info);
+        return 0;
 }
 
 /* **********************************************************************
@@ -564,12 +565,13 @@ string_format2(struct var_t *ret)
  *
  * Gotta call it something different, "string_length" already taken
  */
-static void
+static int
 string_length_method(struct var_t *ret)
 {
         struct var_t *self = get_this();
         bug_on(self->magic != TYPE_STRING);
         integer_init(ret, STRING_LENGTH(self));
+        return 0;
 }
 
 static bool
@@ -621,7 +623,7 @@ string_format_helper(char **src, struct buffer_t *t, int *lastarg)
  * format(...)
  * returns type string
  */
-static void
+static int
 string_format(struct var_t *ret)
 {
         static struct buffer_t t = { 0 };
@@ -649,12 +651,13 @@ string_format(struct var_t *ret)
 
 done:
         string_init(ret, t.s);
+        return 0;
 }
 
 /* toint() (no args)
  * returns int
  */
-static void
+static int
 string_toint(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -662,6 +665,7 @@ string_toint(struct var_t *ret)
         char *s;
         bug_on(self->magic != TYPE_STRING);
         s = string_get_cstring(self);
+        /* XXX Revisit: throw exception if not numerical? */
         if (s) {
                 int errno_save = errno;
                 char *endptr;
@@ -671,13 +675,14 @@ string_toint(struct var_t *ret)
                 errno = errno_save;
         }
         integer_init(ret, i);
+        return 0;
 }
 
 /*
  * tofloat()  (no args)
  * returns float
  */
-static void
+static int
 string_tofloat(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -694,6 +699,7 @@ string_tofloat(struct var_t *ret)
                 errno = errno_save;
         }
         float_init(ret, f);
+        return 0;
 }
 
 static const char *
@@ -707,7 +713,8 @@ strip_common(struct var_t *ret)
         if (arg)
                 arg_type_check(arg, TYPE_STRING);
 
-        qop_mov(ret, self);
+        if (!qop_mov(ret, self))
+                return NULL;
         return arg ? string_get_cstring(arg) : NULL;
 }
 
@@ -715,37 +722,40 @@ strip_common(struct var_t *ret)
  * lstrip()             no args implies whitespace
  * lstrip(charset)      charset is string
  */
-static void
+static int
 string_lstrip(struct var_t *ret)
 {
         const char *charset = strip_common(ret);
         buffer_lstrip(string_buf__(ret), charset);
+        return 0;
 }
 
 /*
  * rstrip()             no args implies whitespace
  * rstrip(charset)      charset is string
  */
-static void
+static int
 string_rstrip(struct var_t *ret)
 {
         const char *charset = strip_common(ret);
         buffer_rstrip(string_buf__(ret), charset);
+        return 0;
 }
 
 /*
  *  strip()             no args implies whitespace
  *  strip(charset)      charset is string
  */
-static void
+static int
 string_strip(struct var_t *ret)
 {
         const char *charset = strip_common(ret);
         buffer_rstrip(string_buf__(ret), charset);
         buffer_lstrip(string_buf__(ret), charset);
+        return 0;
 }
 
-static void
+static int
 string_replace(struct var_t *ret)
 {
         struct var_t *self    = get_this();
@@ -776,12 +786,12 @@ string_replace(struct var_t *ret)
 
         if (!haystack || end == haystack) {
                 buffer_putc(string_buf__(ret), '\0');
-                return;
+                return 0;
         }
 
         if (!needle || !needle_len) {
                 buffer_puts(string_buf__(ret), string_get_cstring(self));
-                return;
+                return 0;
         }
 
         while (*haystack && haystack < end) {
@@ -795,9 +805,10 @@ string_replace(struct var_t *ret)
         bug_on(haystack > end);
         if (*haystack != '\0')
                 buffer_puts(string_buf__(ret), haystack);
+        return 0;
 }
 
-static void
+static int
 string_copy(struct var_t *ret)
 {
         char *s;
@@ -811,12 +822,13 @@ string_copy(struct var_t *ret)
         buffer_reset(string_buf__(ret));
         s = string_get_cstring(self);
         if (!s)
-                return;
+                return 0;
         string_init(ret, s);
+        return 0;
 }
 
 /* rjust(amt)   integer arg */
-static void
+static int
 string_rjust(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -828,8 +840,10 @@ string_rjust(struct var_t *ret)
         arg_type_check(arg, TYPE_INT);
 
         just = arg->i;
-        if (just < 0 || just >= JUST_MAX)
-                syntax("Range limit error");
+        if (just < 0 || just >= JUST_MAX) {
+                syntax_noexit("Range limit error");
+                return -1;
+        }
 
         len = STRING_LENGTH(self);
         if (len < just) {
@@ -847,10 +861,11 @@ string_rjust(struct var_t *ret)
         } else {
                 string_init(ret, string_get_cstring(self));
         }
+        return 0;
 }
 
 /* rjust(amt)    integer arg */
-static void
+static int
 string_ljust(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -862,8 +877,10 @@ string_ljust(struct var_t *ret)
         arg_type_check(arg, TYPE_INT);
 
         just = arg->i;
-        if (just < 0 || just >= JUST_MAX)
-                syntax("Range limit error");
+        if (just < 0 || just >= JUST_MAX) {
+                syntax_noexit("Range limit error");
+                return -1;
+        }
 
         len = STRING_LENGTH(self);
         string_init(ret, string_get_cstring(self));
@@ -872,9 +889,10 @@ string_ljust(struct var_t *ret)
                 while (just--)
                         buffer_putc(buf, ' ');
         }
+        return 0;
 }
 
-static void
+static int
 string_join(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -892,7 +910,7 @@ string_join(struct var_t *ret)
         elem = array_child(arg, idx);
         if (!elem) {
                 string_init(ret, "");
-                return;
+                return 0;
         }
 
         if (elem->magic != TYPE_STRING)
@@ -907,6 +925,7 @@ string_join(struct var_t *ret)
                 string_puts(ret, joinstr);
                 string_puts(ret, string_get_cstring(elem));
         }
+        return 0;
 }
 
 static struct type_inittbl_t string_methods[] = {

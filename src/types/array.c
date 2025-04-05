@@ -87,7 +87,8 @@ array_set_child(struct var_t *array, int idx, struct var_t *child)
         memb = array_child(array, idx);
         if (!memb)
                 return -1;
-        qop_mov(memb, child);
+        if (!qop_mov(memb, child))
+                return -1;
         return 0;
 }
 
@@ -190,29 +191,33 @@ static const struct operator_methods_t array_primitives = {
         .reset = array_reset,
 };
 
-static void
+static int
 array_len(struct var_t *ret)
 {
         struct var_t *self = get_this();
         bug_on(self->magic != TYPE_LIST);
         integer_init(ret, self->a->nmemb);
+        return 0;
 }
 
-static void
+static int
 array_foreach(struct var_t *ret)
 {
         struct var_t *self, *func, *argv[2], **ppvar;
         unsigned int idx, lock;
         struct array_handle_t *h;
+        int status = 0;
 
         self = get_this();
         func = frame_get_arg(0);
         bug_on(self->magic != TYPE_LIST);
-        if (!func)
-                syntax("Expected: function");
+        if (!func) {
+                syntax_noexit("Expected: function");
+                return -1;
+        }
         h = self->a;
-        if (!h->nmemb)
-                return;
+        if (!h->nmemb) /* nothing to iterate over */
+                return 0;
 
         ppvar = (struct var_t **)h->children.s;
 
@@ -224,18 +229,24 @@ array_foreach(struct var_t *ret)
         h->lock = 1;
         for (idx = 0; idx < h->nmemb; idx++) {
                 var_reset(argv[0]);
-                qop_mov(argv[0], ppvar[idx]);
+                if (!qop_mov(argv[0], ppvar[idx])) {
+                        status = -1;
+                        break;
+                }
                 argv[1]->i = idx;
 
-                vm_reenter(func, NULL, 2, argv);
+                status = vm_reenter(func, NULL, 2, argv);
+                if (status)
+                        break;
         }
         h->lock = lock;
 
         VAR_DECR_REF(argv[0]);
         VAR_DECR_REF(argv[1]);
+        return status;
 }
 
-static void
+static int
 array_append(struct var_t *ret)
 {
         struct var_t *self, *arg;
@@ -260,6 +271,7 @@ array_append(struct var_t *ret)
                        typestr(somechild), typestr(arg));
         }
         array_add_child(self, arg);
+        return 0;
 }
 
 static const struct type_inittbl_t array_methods[] = {

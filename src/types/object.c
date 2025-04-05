@@ -173,7 +173,7 @@ object_reset(struct var_t *o)
  *      it happens to be.
  * Returns nothing
  */
-void
+int
 object_foreach(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -182,6 +182,7 @@ object_foreach(struct var_t *ret)
         struct hashtable_t *htbl;
         void *key, *val;
         int res, lock;
+        int status = 0;
 
         struct var_t *argv[2];
         argv[0] = var_new(); /* attribute */
@@ -198,7 +199,10 @@ object_foreach(struct var_t *ret)
         for (idx = 0, res = hashtable_iterate(htbl, &key, &val, &idx);
              res == 0; res = hashtable_iterate(htbl, &key, &val, &idx)) {
                 var_reset(argv[0]);
-                qop_mov(argv[0], (struct var_t *)val);
+                if (qop_mov(argv[0], (struct var_t *)val) < 0) {
+                        status = -1;
+                        break;
+                }
                 string_assign_cstring(argv[1], (char *)key);
                 /*
                  * XXX REVISIT: should ``this'' in a foreach callback
@@ -206,12 +210,15 @@ object_foreach(struct var_t *ret)
                  * be the object owning the calling function?  This is a
                  * philosophical conundrum, not a bug.
                  */
-                vm_reenter(func, NULL, 2, argv);
+                status = vm_reenter(func, NULL, 2, argv);
+                if (status)
+                        break;
         }
         self->o->lock = lock;
 
         VAR_DECR_REF(argv[0]);
         VAR_DECR_REF(argv[1]);
+        return status;
 }
 
 
@@ -219,7 +226,7 @@ object_foreach(struct var_t *ret)
  * len()  (no args)
  * returns number of elements in object
  */
-static void
+static int
 object_len(struct var_t *ret)
 {
         struct var_t *v;
@@ -241,9 +248,10 @@ object_len(struct var_t *ret)
                 i = 1;
         }
         integer_init(ret, i);
+        return 0;
 }
 
-static void
+static int
 object_hasattr(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -253,17 +261,20 @@ object_hasattr(struct var_t *ret)
 
         bug_on(self->magic != TYPE_DICT);
 
-        if (!name || name->magic != TYPE_STRING)
-                syntax("hasattr expected arg: string");
+        if (!name || name->magic != TYPE_STRING) {
+                syntax_noexit("hasattr expected arg: string");
+                return -1;
+        }
 
         if ((s = string_get_cstring(name)) != NULL)
                 child = object_child(self, s);
 
         integer_init(ret, (int)(child != NULL));
+        return 0;
 }
 
 /* "obj.setattr('name', val)" is an alternative to "obj.name = val" */
-static void
+static int
 object_setattr(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -275,20 +286,26 @@ object_setattr(struct var_t *ret)
         bug_on(self->magic != TYPE_DICT);
         arg_type_check(name, TYPE_STRING);
 
-        if (!value)
-                syntax("setattr expected: value");
+        if (!value) {
+                syntax_noexit("setattr expected: value");
+                return -1;
+        }
 
         s = string_get_cstring(name);
-        if (!s)
-                syntax("setattr: name may not be empty");
+        if (!s) {
+                syntax_noexit("setattr: name may not be empty");
+                return -1;
+        }
 
         attr = object_child(self, s);
         if (attr) {
                 /* could throw a type-mismatch error */
-                qop_mov(attr, value);
+                if (qop_mov(attr, value) < 0)
+                        return -1;
         } else {
                 object_add_child(self, value, literal_put(s));
         }
+        return 0;
 }
 
 /*
@@ -305,7 +322,7 @@ object_setattr(struct var_t *ret)
  * "x = obj.getattr('name')", x will be set to the empty variable
  * if 'name' does not exist.
  */
-static void
+static int
 object_getattr(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -317,15 +334,20 @@ object_getattr(struct var_t *ret)
         arg_type_check(name, TYPE_STRING);
 
         s = string_get_cstring(name);
-        if (!s)
-                syntax("setattr: name may not be empty");
+        if (!s) {
+                syntax_noexit("setattr: name may not be empty");
+                return -1;
+        }
 
         attr = object_child(self, s);
-        if (attr)
-                qop_mov(ret, attr);
+        if (attr) {
+                if (qop_mov(ret, attr) < 0)
+                        return -1;
+        }
+        return 0;
 }
 
-static void
+static int
 object_delattr(struct var_t *ret)
 {
         struct var_t *self = get_this();
@@ -338,9 +360,11 @@ object_delattr(struct var_t *ret)
         s = string_get_cstring(name);
         if (s)
                 s = literal(s);
+#warning "revisit this: is it an error or normal behavior?"
         if (!s)
-                return;
+                return 0;
         object_remove_child(self, s);
+        return 0;
 }
 
 static const struct type_inittbl_t object_methods[] = {

@@ -26,7 +26,7 @@ struct inittbl_t {
         const char *name;
         union {
                 struct {
-                        void (*cb)(struct var_t *);
+                        int (*cb)(struct var_t *);
                         int minargs;
                         int maxargs;
                 };

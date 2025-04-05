@@ -19,7 +19,7 @@
 /* XXX: should be called type_methods_t or something */
 struct type_inittbl_t {
         const char *name;
-        void (*fn)(struct var_t *);
+        int (*fn)(struct var_t *);
         int minargs;
         int maxargs;
 };

@@ -157,7 +157,7 @@ int_mov_strict(struct var_t *a, struct var_t *b)
         return 0;
 }
 
-static void
+static int
 int_tostr(struct var_t *ret)
 {
         char buf[64];
@@ -170,6 +170,7 @@ int_tostr(struct var_t *ret)
         (void)len; /* in case NDEBUG */
 
         string_init(ret, buf);
+        return 0;
 }
 
 static const struct type_inittbl_t int_methods[] = {

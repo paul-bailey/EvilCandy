@@ -403,10 +403,12 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
 set_by_str:
         if (v->magic == TYPE_DICT) {
                 struct var_t *child = object_child_l(v, attrstr);
-                if (child)
-                        qop_mov(child, attr);
-                else
+                if (child) {
+                        if (!qop_mov(child, attr))
+                                return -1;
+                } else {
                         object_add_child(v, attr, attrstr);
+                }
                 return 0;
         }
         /*

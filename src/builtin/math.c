@@ -4,34 +4,54 @@
 #include "builtin.h"
 #include <math.h>
 
+/* XXX easier to just return NAN for bad? */
 static double
-get_floatarg(int argno)
+get_floatarg(int argno, int *status)
 {
         struct var_t *x = frame_get_arg(argno);
         bug_on(!x);
-        if (x->magic == TYPE_INT)
+        if (x->magic == TYPE_INT) {
+                *status = 0;
                 return (double)x->i;
-        else if (x->magic == TYPE_FLOAT)
+        } else if (x->magic == TYPE_FLOAT) {
+                *status = 0;
                 return x->f;
-        else
-                syntax("Expected: float or int");
+        } else {
+                *status = -1;
+        }
         return 0.;
 }
 
-static void
+static int
 do_pow(struct var_t *ret)
 {
         double x, y;
-        x = get_floatarg(0);
-        y = get_floatarg(1);
+        int status;
+        x = get_floatarg(0, &status);
+        if (status)
+                goto bad;
+        y = get_floatarg(1, &status);
+        if (status)
+                goto bad;
         float_init(ret, pow(x, y));
+        return 0;
+
+bad:
+        return -1;
 }
 
-static void
+static int
 do_sqrt(struct var_t *ret)
 {
-        double x = get_floatarg(0);
+        int status;
+        double x = get_floatarg(0, &status);
+        if (status)
+                goto bad;
         float_init(ret, sqrt(x));
+        return 0;
+
+bad:
+        return -1;
 }
 
 /*

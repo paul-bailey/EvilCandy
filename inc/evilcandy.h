@@ -85,9 +85,9 @@ enum {
  *
  * @RES_OK:             Success
  * @RES_EXCEPTION:      User raised an exception
- * @RES_ERROR:          Well... Sometimes I plan ahead and think things
- *                      through.  Other times I type away YOLO-like and
- *                      say "I should return an error code here but I
+ * @RES_ERROR:          Marklar error. Sometimes I plan ahead and think
+ *                      things through.  Other times I type away YOLO-like
+ *                      and say "I should return an error code here but I
  *                      haven't defined any yet, so I'll just return my
  *                      trusty old -1 for now and change it later."
  *                      Don't judge, you KNOW you do it too.
@@ -463,7 +463,7 @@ extern void string_init_from_file(struct var_t *ret, FILE *fp,
                                   int delim, bool stuff_delim);
 
 /* vm.c */
-extern void vm_execute(struct executable_t *top_level);
+extern int vm_execute(struct executable_t *top_level);
 extern int vm_reenter(struct var_t *func, struct var_t *owner,
                       int argc, struct var_t **argv);
 extern void moduleinit_vm(void);

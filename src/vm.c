@@ -947,30 +947,46 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
 };
 
-/*
- * TODO: Need to know if we gotta exit, raise an exception
- * (ie. are we vm_execute or vm_reenter?), or just return an
- * error value if in TTY mode.
- */
-#define EXECUTE_LOOP(CHECK_NULL) do {                                   \
-        instruction_t ii;                                               \
-        while ((ii = *(current_frame->ppii)++).code != INSTR_END) {     \
-                bug_on((unsigned int)ii.code >= N_INSTR);               \
-                int res = JUMP_TABLE[ii.code](current_frame, ii);       \
-                /* Just for now... */                                   \
-                if (res != 0) {                                         \
-                        err_print_last(stderr);                         \
-                        exit(1);                                        \
-                }                                                       \
-                /*                                                      \
-                 * In reentrance mode, INSTR_RETURN may set             \
-                 * current_frame to NULL.  This, rather than            \
-                 * INSTR_END, is our trigger to leave.                  \
-                 */                                                     \
-                if (CHECK_NULL && !current_frame)                       \
-                        break;                                          \
-        }                                                               \
-} while (0)
+static int
+execute_loop(bool check_null)
+{
+        instruction_t ii;
+        int res = RES_OK;
+        while ((ii = *(current_frame->ppii)++).code != INSTR_END) {
+                bug_on((unsigned int)ii.code >= N_INSTR);
+                res = JUMP_TABLE[ii.code](current_frame, ii);
+                /* Just for now... */
+                if (res != 0) {
+                        /*
+                         * TODO: Need to know if we gotta exit, unwind
+                         * an exception (if we're in a try/catch loop),
+                         * or just return an error value if in TTY mode.
+                         * Right now we're just printing error and
+                         * returning result.
+                         */
+                        err_print_last(stderr);
+                        break;
+                }
+
+                /*
+                 * TODO: Check for ghost errors, ie. res == 0 but
+                 * err_get returns stuff.
+                 */
+
+                /*
+                 * In reentrance mode, INSTR_RETURN may set current_frame
+                 * to NULL.  This, rather than INSTR_END, is our trigger
+                 * to leave.
+                 *
+                 * TODO: simplify this by adding RES_RETURN to result_t
+                 * enum and have do_return_value return that.  Maybe also
+                 * RES_BREAK.
+                 */
+                if (check_null && !current_frame)
+                        break;
+        }
+        return res;
+}
 
 /*
  * reentrance means recursion, means stack stress (the irl stack, not the
@@ -1010,10 +1026,14 @@ static int vmframe_recursion_stack_idx = 0;
 /**
  * vm_execute - Execute from the top level of a script.
  * @top_level: Result of assemble()
+ *
+ * Return: RES_OK or an error
  */
-void
+int
 vm_execute(struct executable_t *top_level)
 {
+        int res;
+
         bug_on(!(top_level->flags & FE_TOP));
         REENTRANT_PUSH();
 
@@ -1025,7 +1045,7 @@ vm_execute(struct executable_t *top_level)
         current_frame->stackptr = current_frame->stack;
         current_frame->owner = GlobalObject;
 
-        EXECUTE_LOOP(0);
+        res = execute_loop(0);
 
         /* Don't let vmframe_free try to VAR_DECR_REF these */
         current_frame->func = NULL;
@@ -1041,6 +1061,7 @@ vm_execute(struct executable_t *top_level)
          * particular code again.
          */
         EXECUTABLE_RELEASE(top_level);
+        return res;
 }
 
 /**
@@ -1104,7 +1125,7 @@ vm_reenter(struct var_t *func, struct var_t *owner,
                 vmframe_free(fr);
         } else if (funcstatus == 0) {
                 fr->ppii = fr->ex->instr;
-                EXECUTE_LOOP(1);
+                funcstatus = execute_loop(1);
                 bug_on(current_frame);
                 /* fr was already done by do_return_value */
         }

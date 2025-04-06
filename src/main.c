@@ -92,31 +92,35 @@ run_script(const char *filename, FILE *fp)
         struct assemble_t *a;
         int status;
         a = new_assembler(filename, fp);
-        if (!a)
+        if (!a) /* likely due to empty file */
                 return;
         ex = assemble_next(a, true, &status);
-        if (status != RES_OK) {
-                /*
-                 * Philosophical ish--
-                 *
-                 * We could have descended into a file imported with the
-                 * "load" command.  Call exit? or just return to parent
-                 * script, where another error will likely be symbol-not-
-                 * found?  This would cascade with a nest of uncompleted
-                 * scripts, all the way to the top, which will finally
-                 * return early.  Meanwhile there'd be a paper trail on
-                 * stderr, making the culprit easy to find.
-                 *
-                 * ...but for now I'll just exit early.
-                 */
-                err_print_last(stderr);
-                exit(1);
-        }
+        if (status != RES_OK)
+                goto er;
         free_assembler(a, false);
         if (ex && !q_.opt.disassemble_only) {
-                vm_execute(ex);
+                status = vm_execute(ex);
                 EXECUTABLE_RELEASE(ex);
+                if (status != RES_OK)
+                        goto er;
         }
+        return;
+
+er:
+        /*
+         * Philosophical ish--
+         *
+         * We could have recursed into a file imported with the "load"
+         * command.  Call exit? or just return to parent script, where
+         * another error will likely be symbol-not-found?  This would
+         * cascade with a nest of uncompleted scripts, all the way to
+         * the top, which will finally return early.  Meanwhile there'd
+         * be a paper trail on stderr, making the culprit easy to find.
+         *
+         * ...but for now I'll just exit early.
+         */
+        err_print_last(stderr);
+        exit(1);
 }
 
 static void
@@ -140,8 +144,10 @@ run_tty(void)
                         err_print_last(stderr);
                 } else {
                         bug_on(status != RES_OK);
-                        vm_execute(ex);
+                        status = vm_execute(ex);
                         EXECUTABLE_RELEASE(ex);
+                        if (status != RES_OK)
+                                err_print_last(stderr);
                 }
                 free_assembler(a, 1);
         }

@@ -125,14 +125,31 @@ err_get(struct var_t **exc, char **msg)
 void
 err_print(FILE *fp, struct var_t *exc, char *msg)
 {
-        char *errtype = string_get_cstring(exc);
-        bool tty = !!isatty(fileno(fp));
+        char *errtype;
+        bool tty;
+
+        if (!exc || !msg)
+                return;
+
+        errtype = string_get_cstring(exc);
         bug_on(!errtype);
+        tty = !!isatty(fileno(fp));
+
         fprintf(fp, "[EvilCandy] %s%s%s %s\n",
                 tty ? COLOR_RED : "",
                 errtype,
                 tty ? COLOR_DEF : "",
                 msg);
+}
+
+/* print last error and clear it */
+void
+err_print_last(FILE *fp)
+{
+        char *emsg;
+        struct var_t *exc;
+        err_get(&exc, &emsg);
+        err_print(fp, exc, emsg);
 }
 
 /*

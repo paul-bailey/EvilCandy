@@ -89,8 +89,10 @@ tok_next_line(struct token_state_t *state)
         if (res != -1) {
                 state->s = state->line;
                 state->lineno++;
-                if (state->tty)
-                        fprintf(stderr, "EvilCandy> ");
+                /*
+                 * TODO: if state->tty, here's where to print
+                 * continuation prompt
+                 */
         } else {
                 state->s = NULL;
         }

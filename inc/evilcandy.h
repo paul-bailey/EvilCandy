@@ -305,6 +305,7 @@ extern void warning_(const char *filename,
 extern void err_setstr(struct var_t *exc, const char *msg, ...);
 extern void err_get(struct var_t **exc, char **msg);
 extern void err_print(FILE *fp, struct var_t *exc, char *msg);
+extern void err_print_last(FILE *fp);
 extern void err_attribute(const char *getorset,
                           struct var_t *deref, struct var_t *obj);
 extern void err_argtype(const char *what);

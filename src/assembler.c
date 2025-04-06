@@ -2003,9 +2003,9 @@ trim_assembler(struct assemble_t *a)
  *              a single full statement; this may contain sub-statements
  *              if, for example, it's a program flow statement or it
  *              contains a function definition.
- * @status:     If return value is NULL, this will store either EPIPE
- *              if at end of file or EINVAL if an error occured.
- *              Otherwise it will store the value 0.
+ * @status:     stores RES_OK if all is well (ex could still be NULL if
+ *              normal EOF), RES_ERROR if an assembler error occurred.
+ *              This may not be NULL
  *
  * Return: Either...
  *      a) Array of executable instructions for the top-level scope,
@@ -2026,8 +2026,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
         int res;
 
         if (a->oc && a->oc->t == EOF) {
-                if (status)
-                        *status = EPIPE;
+                *status = RES_OK;
                 return NULL;
         }
 
@@ -2100,6 +2099,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                  * we don't know exactly where we failed.
                  */
                 trim_assembler(a);
+                *status = RES_ERROR;
                 ex = NULL;
         } else {
                 assemble_first_pass(a, toeof);
@@ -2111,11 +2111,11 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                         fprintf(stderr, "Could not disassemble %s",
                                 a->file_name);
                 }
+
+                *status = RES_OK;
                 ex = as_top_executable(a);
         }
 
-        if (status)
-                *status = ex ? 0 : EINVAL;
         return ex;
 }
 

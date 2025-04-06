@@ -947,6 +947,11 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
 };
 
+/*
+ * TODO: Need to know if we gotta exit, raise an exception
+ * (ie. are we vm_execute or vm_reenter?), or just return an
+ * error value if in TTY mode.
+ */
 #define EXECUTE_LOOP(CHECK_NULL) do {                                   \
         instruction_t ii;                                               \
         while ((ii = *(current_frame->ppii)++).code != INSTR_END) {     \
@@ -954,18 +959,7 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
                 int res = JUMP_TABLE[ii.code](current_frame, ii);       \
                 /* Just for now... */                                   \
                 if (res != 0) {                                         \
-                        char *msg;                                      \
-                        struct var_t *exc;                              \
-                        err_get(&exc, &msg);                            \
-                        /* TODO: when try/catch are added, these        \
-                         * might be NULL                                \
-                         */                                             \
-                        bug_on(exc == NULL || msg == NULL);             \
-                        err_print(stderr, exc, msg);                    \
-                        /*                                              \
-                         * TODO: if in TTY mode and at top level,       \
-                         * unwind everything and parse next expr.       \
-                         */                                             \
+                        err_print_last(stderr);                         \
                         exit(1);                                        \
                 }                                                       \
                 /*                                                      \

@@ -90,50 +90,61 @@ run_script(const char *filename, FILE *fp)
 {
         struct executable_t *ex;
         struct assemble_t *a;
+        int status;
         a = new_assembler(filename, fp);
         if (!a)
                 return;
-        if ((ex = assemble_next(a, true, NULL)) == NULL) {
-                fprintf(stderr, "Failed to assemble");
+        ex = assemble_next(a, true, &status);
+        if (status != RES_OK) {
+                /*
+                 * Philosophical ish--
+                 *
+                 * We could have descended into a file imported with the
+                 * "load" command.  Call exit? or just return to parent
+                 * script, where another error will likely be symbol-not-
+                 * found?  This would cascade with a nest of uncompleted
+                 * scripts, all the way to the top, which will finally
+                 * return early.  Meanwhile there'd be a paper trail on
+                 * stderr, making the culprit easy to find.
+                 *
+                 * ...but for now I'll just exit early.
+                 */
+                err_print_last(stderr);
                 exit(1);
         }
-        free_assembler(a, ex == NULL);
-
-        if (ex && !q_.opt.disassemble_only)
+        free_assembler(a, false);
+        if (ex && !q_.opt.disassemble_only) {
                 vm_execute(ex);
+                EXECUTABLE_RELEASE(ex);
+        }
 }
 
 static void
 run_tty(void)
 {
-        struct executable_t *ex;
-        struct assemble_t *a;
-        a = new_assembler("(stdin)", stdin);
-        if (!a)
-                return;
-
         for (;;) {
                 int status;
-                ex = assemble_next(a, false, &status);
-                if (ex != NULL)
-                        vm_execute(ex);
-                else if (status == EPIPE)
+                struct executable_t *ex;
+                struct assemble_t *a;
+
+                a = new_assembler("(stdin)", stdin);
+                if (!a)
                         break;
-                /*
-                 * XXX REVISIT: would be great if I could delete
-                 * assembler and create new one for every assemble_next
-                 * while in TTY mode--still faster than user typing--
-                 * with the idea of resetting user prompt.  For example,
-                 * Python prompts with ">>> " for first line of a
-                 * compound statement and "... " for the remaining lines,
-                 * resetting for the start of the next statement.
-                 * But Python has a newline at the end of every
-                 * statement, while EvilCandy could hypothetically have
-                 * more than one statement per line.
-                 */
-                trim_assembler(a);
+
+                ex = assemble_next(a, false, &status);
+                if (ex == NULL) {
+                        if (status == RES_OK) {
+                                /* normal EOF, user typed ^d */
+                                break;
+                        }
+                        err_print_last(stderr);
+                } else {
+                        bug_on(status != RES_OK);
+                        vm_execute(ex);
+                        EXECUTABLE_RELEASE(ex);
+                }
+                free_assembler(a, 1);
         }
-        free_assembler(a, true);
 }
 
 /**

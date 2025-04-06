@@ -80,7 +80,7 @@ function_handle_new(void)
 }
 
 /*
- * Helper to call_function and call_function_from_intl
+ * Helper to function_prep_frame
  * If @fn is a function, return that.
  * If @fn is a callable object, return the callable function, and
  *      update @owner accordingly.
@@ -166,8 +166,8 @@ function_prep_frame(struct var_t *fn,
         return fr->func;
 
 er:
-        syntax("Missing non-optional arg #%d", i + 1);
-        return NULL; /* for compiler */
+        syntax_noexit("Missing non-optional arg #%d", i + 1);
+        return NULL;
 }
 
 /*

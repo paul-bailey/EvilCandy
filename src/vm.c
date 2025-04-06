@@ -555,7 +555,12 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         else
                 owner = NULL;
 
-        function_prep_frame(func, fr_new, owner);
+        if (function_prep_frame(func, fr_new, owner) == NULL) {
+                /* frame only partly set up, we need to set this */
+                fr->stackptr = fr->stack + fr->ap;
+                vmframe_free(fr);
+                return -1;
+        }
 
         /* ap may have been updated with optional-arg defaults */
         fr_new->stackptr = fr_new->stack + fr_new->ap;
@@ -571,9 +576,10 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 VAR_DECR_REF(owner);
 
         bug_on(res && funcstatus != 0);
-        if (res) {
-                /* Internal, already called and executed
-                 * pop new frame, push result in old frame
+        if (res != NULL || funcstatus != 0) {
+                /* !!res: Internal func, already called and executed
+                 *        pop new frame, push result in old frame
+                 * !!funcstatus: Error, don't go on executing
                  */
                 bug_on(!!funcstatus);
 
@@ -966,6 +972,7 @@ vm_execute(struct executable_t *top_level)
         bug_on(!(top_level->flags & FE_TOP));
         REENTRANT_PUSH();
 
+        bug_on(current_frame != NULL);
         current_frame = vmframe_alloc();
         current_frame->ex = top_level;
         current_frame->prev = NULL;
@@ -1027,7 +1034,12 @@ vm_reenter(struct var_t *func, struct var_t *owner,
                 VAR_INCR_REF(argv[argc]);
         }
 
-        function_prep_frame(func, fr, owner);
+        if (function_prep_frame(func, fr, owner) == NULL) {
+                /* frame only partly set up, we need to set this */
+                fr->stackptr = fr->stack + fr->ap;
+                vmframe_free(fr);
+                return -1;
+        }
 
         /*
          * can't push sooner, because function_prep_frame will
@@ -1040,7 +1052,13 @@ vm_reenter(struct var_t *func, struct var_t *owner,
         fr->stackptr = fr->stack + fr->ap;
 
         res = call_function(fr->func, &funcstatus);
-        if (res) {
+        if (res != NULL || funcstatus != 0) {
+                /*
+                 * res != NULL means we executed internal function.
+                 * funcstatus != 0 means error, don't continue
+                 * in the called function
+                 */
+                bug_on(funcstatus != 0 && res != NULL);
                 current_frame = fr->prev;
                 vmframe_free(fr);
         } else if (funcstatus == 0) {

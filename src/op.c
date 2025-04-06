@@ -15,10 +15,19 @@
  */
 #include "token.h"
 
-static void epermit(const char *op)
-        { syntax_noexit("%s operation not permitted for this type", op); }
-static void econst(void)
-        { syntax_noexit("You may not assign a declared const"); }
+static void
+epermit(const char *op, struct var_t *var)
+{
+        err_setstr(RuntimeError,
+                   "%s operation not permitted for type %s",
+                   op, typestr(var));
+}
+
+static void
+econst(void)
+{
+        err_setstr(RuntimeError, "You may not assign a declared const");
+}
 
 static inline const struct operator_methods_t *
 primitives_of(struct var_t *v)
@@ -35,7 +44,7 @@ qop_mul(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->mul) {
-                epermit("*");
+                epermit("*", a);
                 return NULL;
         }
         return p->mul(a, b);
@@ -49,7 +58,7 @@ qop_div(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->div) {
-                epermit("/");
+                epermit("/", a);
         }
         return p->div(a, b);
 }
@@ -62,7 +71,7 @@ qop_mod(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->mod) {
-                epermit("%");
+                epermit("%", a);
                 return NULL;
         }
         return p->mod(a, b);
@@ -76,7 +85,7 @@ qop_add(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->add) {
-                epermit("+");
+                epermit("+", a);
                 return NULL;
         }
         return p->add(a, b);
@@ -90,7 +99,7 @@ qop_sub(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->sub) {
-                epermit("-");
+                epermit("-", a);
                 return NULL;
         }
         return p->sub(a, b);
@@ -111,7 +120,7 @@ qop_cmp(struct var_t *a, struct var_t *b, int op)
 
         p = primitives_of(a);
         if (!p->cmp) {
-                epermit("cmp");
+                epermit("cmp", a);
                 return NULL;
         }
         cmp = p->cmp(a, b);
@@ -161,14 +170,14 @@ qop_shift(struct var_t *a, struct var_t *b, int op)
         const struct operator_methods_t *p = primitives_of(a);
         if (op == OC_LSHIFT) {
                 if (!p->lshift) {
-                        epermit("<<");
+                        epermit("<<", a);
                         return NULL;
                 }
                 return p->lshift(a, b);
         } else {
                 bug_on(op != OC_RSHIFT);
                 if (!p->rshift) {
-                        epermit(">>");
+                        epermit(">>", a);
                         return NULL;
                 }
                 return p->rshift(a, b);
@@ -181,7 +190,7 @@ qop_bit_and(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->bit_and) {
-                epermit("&");
+                epermit("&", a);
                 return NULL;
         }
         return p->bit_and(a, b);
@@ -193,7 +202,7 @@ qop_bit_or(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->bit_or) {
-                epermit("|");
+                epermit("|", a);
                 return NULL;
         }
         return p->bit_or(a, b);
@@ -205,7 +214,7 @@ qop_xor(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->xor) {
-                epermit("^");
+                epermit("^", a);
                 return NULL;
         }
         return p->xor(a, b);
@@ -227,7 +236,7 @@ qop_cmpz(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->cmpz) {
-                epermit("cmpz");
+                epermit("cmpz", v);
                 /* FIXME: Error return value! */
                 return true;
         }
@@ -240,7 +249,7 @@ qop_incr(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->incr) {
-                epermit("++");
+                epermit("++", v);
                 return -1;
         }
         if (isconst(v)) {
@@ -257,7 +266,7 @@ qop_decr(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->decr) {
-                epermit("--");
+                epermit("--", v);
                 return -1;
         }
         if (isconst(v)) {
@@ -274,7 +283,7 @@ qop_bit_not(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->bit_not) {
-                epermit("~");
+                epermit("~", v);
                 return NULL;
         }
         return p->bit_not(v);
@@ -286,7 +295,7 @@ qop_negate(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->negate) {
-                epermit("-");
+                epermit("-", v);
                 return NULL;
         }
         return p->negate(v);
@@ -352,8 +361,9 @@ qop_mov(struct var_t *to, struct var_t *from)
                         if (p->mov_strict(to, from) == 0)
                                 return to;
                 }
-                syntax_noexit("ASSIGN not permited from %s => %s",
-                              typestr(from), typestr(to));
+                err_setstr(RuntimeError,
+                           "ASSIGN not permited from %s => %s",
+                           typestr(from), typestr(to));
                 return NULL;
         }
         return to;

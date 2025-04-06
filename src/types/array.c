@@ -35,6 +35,14 @@ array_handle_new(void)
         return ret;
 }
 
+static void
+array_type_err(struct array_handle_t *h, struct var_t *would_be_child)
+{
+        err_setstr(RuntimeError,
+                   "You man not add type %s to %s array",
+                   typestr(would_be_child), typestr_(h->type));
+}
+
 /**
  * array_child - Get nth member of an array
  * @array: Array to seek
@@ -73,7 +81,7 @@ array_set_child(struct var_t *array, int idx, struct var_t *child)
         struct var_t *memb;
 
         if (array->a->lock) {
-                syntax_noexit("attempting to modify array while locked");
+                err_locked();
                 return -1;
         }
 
@@ -101,11 +109,11 @@ array_add_child(struct var_t *array, struct var_t *child)
         struct array_handle_t *h = array->a;
 
         if (h->lock) {
-                syntax_noexit("attempting to modify array while locked");
+                err_locked();
                 return -1;
         }
         if (child->magic == TYPE_EMPTY) {
-                syntax_noexit("You may not add an empty var to array");
+                err_setstr(RuntimeError, "You may not add an empty var to array");
                 return -1;
         }
         if (h->type == TYPE_EMPTY) {
@@ -115,8 +123,7 @@ array_add_child(struct var_t *array, struct var_t *child)
         }
 
         if (h->type != child->magic) {
-                syntax_noexit("Trying to add type '%s' to '%d' array",
-                              typestr(child), h->type);
+                array_type_err(h, child);
                 return -1;
         }
 
@@ -214,7 +221,7 @@ array_foreach(struct var_t *ret)
         func = frame_get_arg(0);
         bug_on(self->magic != TYPE_LIST);
         if (!func) {
-                syntax_noexit("Expected: function");
+                err_argtype("function");
                 return -1;
         }
         h = self->a;
@@ -259,19 +266,13 @@ array_append(struct var_t *ret)
         ah = self->a;
 
         if (!arg) {
-                syntax_noexit("Expected: item");
+                /* ugh, I know what it means */
+                err_argtype("item");
                 return -1;
         }
         if (ah->type != TYPE_EMPTY && ah->type != arg->magic) {
                 bug_on(ah->nmemb <= 0);
-                /*
-                 * bloated way to print type, but we're already
-                 * in failure mode, so time is not a consideration
-                 * anymore.
-                 */
-                struct var_t *somechild = array_child(self, 0);
-                syntax_noexit("Cannot append type %s to list type %s",
-                       typestr(somechild), typestr(arg));
+                array_type_err(ah, arg);
                 return -1;
         }
         array_add_child(self, arg);

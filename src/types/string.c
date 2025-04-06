@@ -702,22 +702,6 @@ string_tofloat(struct var_t *ret)
         return 0;
 }
 
-static const char *
-strip_common(struct var_t *ret)
-{
-        struct var_t *arg = frame_get_arg(0);
-        struct var_t *self = get_this();
-        bug_on(self->magic != TYPE_STRING);
-
-        /* arg may be NULL, else it must be string */
-        if (arg)
-                arg_type_check(arg, TYPE_STRING);
-
-        if (!qop_mov(ret, self))
-                return NULL;
-        return arg ? string_get_cstring(arg) : NULL;
-}
-
 /*
  * lstrip()             no args implies whitespace
  * lstrip(charset)      charset is string
@@ -725,7 +709,19 @@ strip_common(struct var_t *ret)
 static int
 string_lstrip(struct var_t *ret)
 {
-        const char *charset = strip_common(ret);
+        const char *charset;
+        struct var_t *arg = frame_get_arg(0);
+        struct var_t *self = get_this();
+        bug_on(self->magic != TYPE_STRING);
+
+        /* arg may be NULL, else it must be string */
+        if (arg && arg_type_check(arg, TYPE_STRING) != 0)
+                return -1;
+
+        if (!qop_mov(ret, self))
+                charset = NULL;
+        else
+                charset = arg ? string_get_cstring(arg) : NULL;
         buffer_lstrip(string_buf__(ret), charset);
         return 0;
 }
@@ -737,7 +733,19 @@ string_lstrip(struct var_t *ret)
 static int
 string_rstrip(struct var_t *ret)
 {
-        const char *charset = strip_common(ret);
+        const char *charset;
+        struct var_t *arg = frame_get_arg(0);
+        struct var_t *self = get_this();
+        bug_on(self->magic != TYPE_STRING);
+
+        /* arg may be NULL, else it must be string */
+        if (arg && arg_type_check(arg, TYPE_STRING) != 0)
+                return -1;
+
+        if (!qop_mov(ret, self))
+                charset = NULL;
+        else
+                charset = arg ? string_get_cstring(arg) : NULL;
         buffer_rstrip(string_buf__(ret), charset);
         return 0;
 }
@@ -749,7 +757,19 @@ string_rstrip(struct var_t *ret)
 static int
 string_strip(struct var_t *ret)
 {
-        const char *charset = strip_common(ret);
+        const char *charset;
+        struct var_t *arg = frame_get_arg(0);
+        struct var_t *self = get_this();
+        bug_on(self->magic != TYPE_STRING);
+
+        /* arg may be NULL, else it must be string */
+        if (arg && arg_type_check(arg, TYPE_STRING) != 0)
+                return -1;
+
+        if (!qop_mov(ret, self))
+                charset = NULL;
+        else
+                charset = arg ? string_get_cstring(arg) : NULL;
         buffer_rstrip(string_buf__(ret), charset);
         buffer_lstrip(string_buf__(ret), charset);
         return 0;
@@ -767,8 +787,10 @@ string_replace(struct var_t *ret)
         bug_on(self->magic != TYPE_STRING);
         bug_on(!vneedle || !vrepl);
 
-        arg_type_check(vneedle, TYPE_STRING);
-        arg_type_check(vrepl, TYPE_STRING);
+        if (arg_type_check(vneedle, TYPE_STRING) != 0)
+                return -1;
+        if (arg_type_check(vrepl, TYPE_STRING) != 0)
+                return -1;
 
         /* guarantee ret is string */
         if (ret->magic == TYPE_EMPTY)
@@ -837,11 +859,12 @@ string_rjust(struct var_t *ret)
         long long just;
         struct buffer_t *buf = string_buf__(ret);
 
-        arg_type_check(arg, TYPE_INT);
+        if (arg_type_check(arg, TYPE_INT) != 0)
+                return -1;
 
         just = arg->i;
         if (just < 0 || just >= JUST_MAX) {
-                syntax_noexit("Range limit error");
+                err_setstr(RuntimeError, "Range limit error");
                 return -1;
         }
 
@@ -874,11 +897,12 @@ string_ljust(struct var_t *ret)
         long long just;
         struct buffer_t *buf = string_buf__(ret);
 
-        arg_type_check(arg, TYPE_INT);
+        if (arg_type_check(arg, TYPE_INT) != 0)
+                return -1;
 
         just = arg->i;
         if (just < 0 || just >= JUST_MAX) {
-                syntax_noexit("Range limit error");
+                err_setstr(RuntimeError, "Range limit error");
                 return -1;
         }
 
@@ -904,7 +928,8 @@ string_join(struct var_t *ret)
         if ((joinstr = string_get_cstring(self)) == NULL)
                 joinstr = "";
 
-        arg_type_check(arg, TYPE_LIST);
+        if (arg_type_check(arg, TYPE_LIST) != 0)
+                return -1;
 
         idx = 0;
         elem = array_child(arg, idx);
@@ -914,7 +939,8 @@ string_join(struct var_t *ret)
         }
 
         if (elem->magic != TYPE_STRING) {
-                syntax_noexit("string.join method may only join lists of strings");
+                err_setstr(RuntimeError,
+                           "string.join method may only join lists of strings");
                 return -1;
         }
 
@@ -968,7 +994,8 @@ string_add(struct var_t *a, struct var_t *b)
                 rval = b->strptr;
         else {
                 if (b->magic != TYPE_STRING) {
-                        syntax_noexit("Mismatched types for %s operation", "+");
+                        err_setstr(RuntimeError,
+                                   "Mismatched types for + operation");
                         NULL;
                 }
                 rval = string_get_cstring(b);

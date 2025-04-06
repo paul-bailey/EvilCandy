@@ -81,7 +81,7 @@ do_setnl(struct var_t *ret)
         struct var_t *nl = frame_get_arg(0);
         char *s;
         if (nl->magic != TYPE_STRING) {
-                syntax_noexit("Expected argument: string");
+                err_argtype("string");
                 return -1;
         }
         s = string_get_cstring(nl);
@@ -98,6 +98,14 @@ static const struct inittbl_t gblinit[] = {
         TOFTBL("exit",   do_exit,   0, -1),
         TOOTBL("_math",  bi_math_inittbl__),
         TOOTBL("_io",    bi_io_inittbl__),
+        TOSTBL("ParserError", "Parser Error"),
+        TOSTBL("RuntimeError",  "Runtime Error"),
+        /*
+         * these are for non-fatal errors. Things like bug traps
+         * or failed malloc calls result in a stderr message and exit(),
+         * so no fancy error handling for that.
+         */
+        TOSTBL("SystemError",   "System error"),
         { .name = NULL },
 };
 
@@ -154,15 +162,27 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
         }
 }
 
+struct var_t *GlobalObject;
+struct var_t *ParserError;
+struct var_t *RuntimeError;
+struct var_t *SystemError;
+
 /* initialize the builtin/ C file modules */
 void
 moduleinit_builtin(void)
 {
         /* Do this first.  bi_build_internal_object__ de-references it. */
-        q_.gbl = var_new();
-        object_init(q_.gbl);
-        object_set_priv(q_.gbl, &gbl, NULL);
-        bi_build_internal_object__(q_.gbl, gblinit);
+        GlobalObject = var_new();
+        object_init(GlobalObject);
+        object_set_priv(GlobalObject, &gbl, NULL);
+        bi_build_internal_object__(GlobalObject, gblinit);
+
+        ParserError     = object_child(GlobalObject, "ParserError");
+        RuntimeError    = object_child(GlobalObject, "RuntimeError");
+        SystemError     = object_child(GlobalObject, "SystemError");
+        if (!ParserError || !RuntimeError || !SystemError) {
+                fail("Could not create error objects");
+        }
 
         /* Set up gbl private data */
         strcpy(gbl.nl, "\n");

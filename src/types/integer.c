@@ -1,11 +1,5 @@
 #include "var.h"
 
-static void
-emsg(const char *op)
-{
-        syntax_noexit("Invalid/mismatched type for '%s' operator", op);
-}
-
 static inline long long
 var2int(struct var_t *v)
 {
@@ -24,7 +18,7 @@ static struct var_t *
 int_mul(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("*");
+                err_mismatch("*");
                 return NULL;
         }
         return int_new(a->i * var2int(b));
@@ -34,7 +28,7 @@ static struct var_t *
 int_div(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("/");
+                err_mismatch("/");
                 return NULL;
         }
         long long i = var2int(b);
@@ -48,7 +42,7 @@ static struct var_t *
 int_mod(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("%");
+                err_mismatch("%");
                 return NULL;
         }
         long long i = var2int(b);
@@ -62,7 +56,7 @@ static struct var_t *
 int_add(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("+");
+                err_mismatch("+");
                 return NULL;
         }
         return int_new(a->i + var2int(b));
@@ -72,7 +66,7 @@ static struct var_t *
 int_sub(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("-");
+                err_mismatch("-");
                 return NULL;
         }
         return int_new(a->i - var2int(b));
@@ -91,7 +85,7 @@ static struct var_t *
 int_lshift(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("<<");
+                err_mismatch("<<");
                 return NULL;
         }
         long long shift = var2int(b);
@@ -109,7 +103,7 @@ int_rshift(struct var_t *a, struct var_t *b)
          * or arithmetic shift?
          */
         if (!isnumvar(b)) {
-                emsg(">>");
+                err_mismatch(">>");
                 return NULL;
         }
         long long shift = var2int(b);
@@ -124,7 +118,7 @@ static struct var_t *
 int_bit_and(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("&");
+                err_mismatch("&");
                 return NULL;
         }
         return int_new(a->i & var2int(b));
@@ -134,7 +128,7 @@ static struct var_t *
 int_bit_or(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("|");
+                err_mismatch("|");
                 return NULL;
         }
         return int_new(a->i | var2int(b));
@@ -144,7 +138,7 @@ static struct var_t *
 int_xor(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("^");
+                err_mismatch("^");
                 return NULL;
         }
         return int_new(a->i ^ var2int(b));

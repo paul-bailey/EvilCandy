@@ -72,35 +72,31 @@ enum {
         FE_TOP = 0x02,
 };
 
-/*
- * Statuses passed around during runtime, ie. after parsing.
+/**
+ * DOC: Statuses passed around during runtime, ie. after parsing.
  *
- * Fatal errors like failed allocations will cause the program to close,
- * and don't need a status value (system errno will do).  For less severe
- * errors, such as user errors that a parser would not detect at assemble
- * time (array access out of bounds, symbol not found, a file does not
- * have the right permissions, etc.), execution returns an error to the
- * VM, which must decide what to do next.
+ * Fatal errors--mostly bug traps or running out of memory--cause the
+ * program to exit immediately after printing an error message, so they
+ * don't have any return values enumerated.  The following are for
+ * runtime (ie. post-parsing) errors caused by user, system errors that
+ * are not considered fatal, or exceptions intentionally raised by the
+ * user.  They will eventually trickle their way back into the VM's
+ * main loop, which will decide what to do next.
+ *
+ * @RES_OK:             Success
+ * @RES_EXCEPTION:      User raised an exception
+ * @RES_ERROR:          Well... Sometimes I plan ahead and think things
+ *                      through.  Other times I type away YOLO-like and
+ *                      say "I should return an error code here but I
+ *                      haven't defined any yet, so I'll just return my
+ *                      trusty old -1 for now and change it later."
+ *                      Don't judge, you KNOW you do it too.
+ *                      Anyway, it's "later" now, and I can't be bothered
+ *                      to track down all those -1s.
  */
 enum result_t {
         RES_OK = 0,
-        RES_EXCEPTION = 1,      /* user raised exception */
-        RES_LOCKED,             /* operation locked for object */
-        RES_ARGERR,             /* function argument error */
-        /* TODO: lots of other errors, more specific than just RES_ERROR */
-
-        /*
-         * Sometimes I plan ahead and think things through.
-         *
-         * Other times I type away YOLO-like and say "I should return an
-         * error code here but I haven't defined those yet, so I'll just
-         * return my trusty old -1 for now and change it later."
-         *
-         * Don't scoff, you _know_ you do it too.
-         *
-         * Anyway, it's "later" now, and I can't be bothered to track down
-         * all those -1's.
-         */
+        RES_EXCEPTION = 1,
         RES_ERROR = -1,
 };
 
@@ -231,7 +227,6 @@ struct vmframe_t {
  * @executables: Active executable functions
  */
 struct global_t {
-        struct var_t *gbl; /* "__gbl__" as user sees it */
         int recursion;
         struct frame_t *frame;
         struct {
@@ -276,6 +271,14 @@ extern void free_assembler(struct assemble_t *a, int err);
 extern void trim_assembler(struct assemble_t *a);
 
 /* builtin/builtin.c */
+/*
+ * These global variables probably ought to be in struct global_t,
+ * but do I really want to type "q_.Something" all over the place?
+ */
+extern struct var_t *GlobalObject;
+extern struct var_t *ParserError;
+extern struct var_t *RuntimeError;
+extern struct var_t *SystemError;
 extern void moduleinit_builtin(void);
 
 /* err.c */
@@ -287,21 +290,27 @@ extern void moduleinit_builtin(void);
 # define bug_on(...)    do { (void)0; } while (0)
 #endif
 #define breakpoint() breakpoint__(__FILE__, __LINE__)
-#define warn_once(...) do {             \
-        static bool once_ = false;      \
-        if (!once_) {                   \
-                warning(__VA_ARGS__);   \
-                once_ = true;           \
-        }                               \
-} while (0)
+
+extern void fail(const char *msg, ...);
+#if 0
 extern void syntax(const char *msg, ...);
 extern void syntax_noexit(const char *msg, ...);
 extern void syntax_noexit_(const char *filename,
                         unsigned int line, const char *msg, ...);
-extern void fail(const char *msg, ...);
 extern void warning(const char *msg, ...);
 extern void warning_(const char *filename,
                         unsigned int line, const char *msg, ...);
+#endif /* 0 */
+
+extern void err_setstr(struct var_t *exc, const char *msg, ...);
+extern void err_get(struct var_t **exc, char **msg);
+extern void err_print(FILE *fp, struct var_t *exc, char *msg);
+extern void err_attribute(const char *getorset,
+                          struct var_t *deref, struct var_t *obj);
+extern void err_argtype(const char *what);
+extern void err_locked(void);
+extern void err_mismatch(const char *op);
+
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
 
@@ -399,6 +408,7 @@ extern struct var_t *var_get_attr_by_string_l(struct var_t *v,
 extern int var_set_attr(struct var_t *v,
                         struct var_t *deref, struct var_t *attr);
 extern const char *typestr(struct var_t *v);
+extern const char *typestr_(int magic);
 extern const char *attr_str(struct var_t *deref);
 static inline struct var_t *var_copy(struct var_t *v)
         { return qop_mov(var_new(), v); }
@@ -430,7 +440,8 @@ extern void function_init(struct var_t *func,
 /* types/object.c */
 extern struct var_t *object_init(struct var_t *v);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
-extern int object_add_child(struct var_t *o, struct var_t *v, char *name);
+extern int object_add_child(struct var_t *o,
+                            struct var_t *v, const char *name);
 extern int object_remove_child_l(struct var_t *o, const char *s);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));

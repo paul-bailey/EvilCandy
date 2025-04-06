@@ -1,12 +1,6 @@
 #include "var.h"
 #include <math.h>
 
-static void
-emsg(const char *op)
-{
-        syntax_noexit("Invalid/mismatched type for '%s' operator", op);
-}
-
 static inline double
 var2float(struct var_t *v)
 {
@@ -25,7 +19,7 @@ static struct var_t *
 float_mul(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("*");
+                err_mismatch("*");
                 return NULL;
         }
         return float_new(a->f * var2float(b));
@@ -35,7 +29,7 @@ static struct var_t *
 float_div(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("/");
+                err_mismatch("/");
                 return NULL;
         }
         double f = var2float(b);
@@ -50,7 +44,7 @@ static struct var_t *
 float_add(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("+");
+                err_mismatch("+");
                 return NULL;
         }
         return float_new(a->f + var2float(b));
@@ -60,7 +54,7 @@ static struct var_t *
 float_sub(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
-                emsg("-");
+                err_mismatch("-");
                 return NULL;
         }
         return float_new(a->f - var2float(b));

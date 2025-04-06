@@ -3,6 +3,7 @@
 #define EGQ_BUFFER_H
 
 #include <sys/types.h> /* for ssize_t */
+#include <stdarg.h> /* ugh, for buffer_vprintf */
 
 /**
  * struct buffer_t - Handle to metadata about a dynamically allocated
@@ -46,6 +47,8 @@ buffer_reset(struct buffer_t *buf)
         if (buf->s)
                 buf->s[0] = '\0';
 }
+extern void buffer_vprintf(struct buffer_t *buf,
+                           const char *msg, va_list ap);
 
 #endif /* EGQ_BUFFER_H */
 

@@ -140,7 +140,8 @@ do_writeline(struct var_t *ret)
 
         bug_on(vs == NULL);
 
-        arg_type_check(vs, TYPE_STRING);
+        if (arg_type_check(vs, TYPE_STRING) != 0)
+                return -1;
         s = string_get_cstring(vs);
         if (!s)
                 goto done;
@@ -268,8 +269,10 @@ do_open(struct var_t *ret)
         struct file_handle_t *fh;
         int errno_save = errno;
 
-        arg_type_check(vname, TYPE_STRING);
-        arg_type_check(vmode, TYPE_STRING);
+        if (arg_type_check(vname, TYPE_STRING) != 0)
+                return -1;
+        if (arg_type_check(vmode, TYPE_STRING) != 0)
+                return -1;
         name = string_get_cstring(vname);
         mode = string_get_cstring(vmode);
         if (name == NULL || mode == NULL) {

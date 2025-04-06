@@ -27,6 +27,7 @@
  *                      buffer_shrinkstr
  *                      buffer_lstrip
  *                      buffer_rstrip
+ *                      buffer_printf
  *                      buffer_size     <- strlen, not counting '\0'
  *
  *      common to both: buffer_init
@@ -46,6 +47,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 struct bufblk_t {
         struct list_t list;
@@ -363,4 +365,27 @@ buffer_putd(struct buffer_t *buf, const void *data, size_t datalen)
         buf->p += datalen;
 }
 
+/**
+ * buffer_printf - Do a formatted printf into a buffer
+ * @buf: Buffer to print to
+ * @msg: Formatted message
+ * @ap:  Variable-arg list already initialized with va_start
+ *
+ * This makes a double-call to standard library snprintf/sprintf,
+ * so only use this if you don't need to be super quick.
+ */
+void
+buffer_vprintf(struct buffer_t *buf, const char *msg, va_list ap)
+{
+        va_list ap2;
+        ssize_t need_size;
 
+        va_copy(ap2, ap);
+        need_size = vsnprintf(NULL, 0, msg, ap2);
+        va_end(ap2);
+
+        if (need_size >= 0) {
+                buffer_maybe_realloc(buf, need_size + 1);
+                vsnprintf(&buf->s[buf->p], need_size + 1, msg, ap);
+        }
+}

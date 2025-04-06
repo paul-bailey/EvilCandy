@@ -110,7 +110,7 @@ function_of(struct var_t *fn, struct var_t **owner)
                         fn = NULL;
                 }
         }
-        syntax_noexit("Value is not callable");
+        err_setstr(RuntimeError, "Object is not callable");
         return NULL;
 
 done:
@@ -171,7 +171,7 @@ function_prep_frame(struct var_t *fn,
         return fr->func;
 
 er:
-        syntax_noexit("Missing non-optional arg #%d", i + 1);
+        err_setstr(RuntimeError, "Missing non-optional arg #%d", i + 1);
         return NULL;
 }
 

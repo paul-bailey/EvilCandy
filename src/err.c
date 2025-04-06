@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #define CSI "\033["
 #define COLOR_RED CSI "31m"
@@ -12,7 +13,16 @@
 #define COLOR_YEL CSI "33m"
 #define COLOR_DEF CSI "39m"
 
+/*
+ * TODO: set some file-scope variables to COLOR(...) or "",
+ * depending on whether stderr is a TTY or not.
+ */
 #define COLOR(what, str)      COLOR_##what str COLOR_DEF
+
+static struct buffer_t msg_buf;
+static bool msg_buf_init = false;
+static char *msg_last = NULL;
+static struct var_t *exception_last = NULL;
 
 /* helper to bug__ and breakpoint__ */
 static void
@@ -36,7 +46,10 @@ breakpoint__(const char *file, int line)
 }
 
 /**
- * fail - Like syntax, but for system failures or library funciton failures
+ * fail - Print an error message to stderr and die
+ *
+ * Not for user errors.  This is for fatal system errors
+ * like being out of memory.
  * @msg: Formatted message to print before dying
  */
 void
@@ -44,6 +57,7 @@ fail(const char *msg, ...)
 {
         va_list ap;
 
+        /* FIXME: if isatty(fileno(stderr))... */
         fprintf(stderr,
                 "[EvilCandy] System " COLOR(RED, "ERROR") ": ");
 
@@ -61,67 +75,120 @@ fail(const char *msg, ...)
 }
 
 static void
-syntax_noexit__(const char *filename, unsigned int line,
-                const char *what, const char *msg, va_list ap)
+err_vsetstr(struct var_t *exc, const char *msg, va_list ap)
 {
-        fprintf(stderr, "[EvilCandy] %s", what);
-        if (filename != NULL)
-                fprintf(stderr, " in file %s line %u", filename, line);
-        fprintf(stderr, ": ");
-        vfprintf(stderr, msg, ap);
-        fputc('\n', stderr);
+        if (!msg_buf_init) {
+                buffer_init(&msg_buf);
+                /*
+                 * put a dummy in just to be sure its string pointer
+                 * is valid.
+                 */
+                buffer_putc(&msg_buf, '1');
+                msg_buf_init = true;
+        }
+
+        buffer_reset(&msg_buf);
+
+        /*
+         * buffer_vprintf calls s[n]printf twice.
+         * I assume that we're only here because we hit the slow path.
+         */
+
+        buffer_vprintf(&msg_buf, msg, ap);
+
+        msg_last = msg_buf.s;
+        exception_last = exc;
 }
 
 void
-syntax_noexit_(const char *filename, unsigned int line, const char *msg, ...)
+err_setstr(struct var_t *exc, const char *msg, ...)
 {
         va_list ap;
         va_start(ap, msg);
-        syntax_noexit__(filename, line, COLOR(RED, "ERROR"), msg, ap);
+        err_vsetstr(exc, msg, ap);
         va_end(ap);
 }
 
 void
-syntax_noexit(const char *msg, ...)
+err_get(struct var_t **exc, char **msg)
 {
-        va_list ap;
-        va_start(ap, msg);
-        syntax_noexit__(NULL, 0, COLOR(RED, "ERROR"), msg, ap);
-        va_end(ap);
+        *exc = exception_last;
+        *msg = msg_last;
+        /*
+         * Don't decrement the reference.
+         * exc is a global exception object
+         */
+        exception_last = NULL;
+        msg_last = NULL;
 }
 
-/**
- * warning - Like syntax(), except that it only warns.
- * @msg: Formatted message to print
+void
+err_print(FILE *fp, struct var_t *exc, char *msg)
+{
+        char *errtype = string_get_cstring(exc);
+        bool tty = !!isatty(fileno(fp));
+        bug_on(!errtype);
+        fprintf(fp, "[EvilCandy] %s%s%s %s\n",
+                tty ? COLOR_RED : "",
+                errtype,
+                tty ? COLOR_DEF : "",
+                msg);
+}
+
+/*
+ *      Below are some syntactic sugar wrappers to err_setstr()
  */
-void
-warning(const char *msg, ...)
-{
-        va_list ap;
 
-        va_start(ap, msg);
-        syntax_noexit__(NULL, 0, COLOR(YEL, "WARNING"), msg, ap);
-        va_end(ap);
+/* @getorset: either "get" or "set" */
+void
+err_attribute(const char *getorset, struct var_t *deref, struct var_t *obj)
+{
+        err_setstr(RuntimeError, "Cannot %s attribute '%s' of type %s",
+                   getorset, attr_str(deref), typestr(obj));
+}
+
+/* @what: name of expected argument type */
+void
+err_argtype(const char *what)
+{
+        err_setstr(RuntimeError, "Expected argument: %s", what);
 }
 
 void
-warning_(const char *filename, unsigned int line, const char *msg, ...)
+err_locked(void)
 {
-        va_list ap;
-
-        va_start(ap, msg);
-        syntax_noexit__(filename, line, COLOR(YEL, "WARNING"), msg, ap);
-        va_end(ap);
+        err_setstr(RuntimeError,
+                   "Operation not permitted while object is locked");
 }
 
+/* @op: string expression of operation, eg "*", "+", "<<", etc. */
 void
-syntax(const char *msg, ...)
+err_mismatch(const char *op)
 {
-        va_list ap;
-
-        va_start(ap, msg);
-        syntax_noexit__(NULL, 0, COLOR(RED, "ERROR"), msg, ap);
-        va_end(ap);
-        exit(1);
+        /* You can't do that with me! I'm not your type! */
+        err_setstr(RuntimeError,
+                   "Invalid/mismatched type for '%s' operator", op);
 }
+
+/*
+ * slow-path completion of arg_type_check() in uarg.h.
+ * figure out what error message to print and return an error value
+ */
+int
+arg_type_check_failed(struct var_t *v, int want)
+{
+        if (!v) {
+                /* XXX trapped at function_prepare_frame() time? */
+                err_setstr(RuntimeError,
+                           "%s argument missing",
+                           typestr_(want));
+        } else {
+                bug_on(v->magic == want);
+                err_setstr(RuntimeError,
+                           "Expected argument %s but got %s",
+                           typestr_(want), typestr(v));
+        }
+        return -1;
+}
+
 

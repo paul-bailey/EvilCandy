@@ -87,15 +87,17 @@ object_child_l(struct var_t *o, const char *s)
  * @name: Name of the child.
  */
 int
-object_add_child(struct var_t *parent, struct var_t *child, char *name)
+object_add_child(struct var_t *parent,
+                 struct var_t *child, const char *name)
 {
         bug_on(parent->magic != TYPE_DICT);
         if (parent->o->lock) {
-                syntax_noexit("Dictionary add/remove locked");
+                err_locked();
                 return -1;
         }
-        if (hashtable_put(&parent->o->dict, name, child) < 0) {
-                syntax_noexit("Object already has element named %s", name);
+        if (hashtable_put(&parent->o->dict, (void *)name, child) < 0) {
+                err_setstr(RuntimeError,
+                           "Object already has element named %s", name);
                 return -1;
         }
         VAR_INCR_REF(child);
@@ -123,7 +125,7 @@ object_remove_child_l(struct var_t *parent, const char *name)
         if (!name)
                 return 0;
         if (parent->o->lock) {
-                syntax_noexit("Dictionary add/remove locked");
+                err_locked();
                 return -1;
         }
         child = hashtable_remove(&parent->o->dict, name);
@@ -198,7 +200,7 @@ object_foreach(struct var_t *ret)
         self = get_this();
         func = frame_get_arg(0);
         if (!func) {
-                syntax_noexit("Expected: function");
+                err_argtype("function");
                 return -1;
         }
         argv[0] = var_new(); /* attribute */
@@ -276,7 +278,7 @@ object_hasattr(struct var_t *ret)
         bug_on(self->magic != TYPE_DICT);
 
         if (!name || name->magic != TYPE_STRING) {
-                syntax_noexit("hasattr expected arg: string");
+                err_argtype("string");
                 return -1;
         }
 
@@ -298,16 +300,17 @@ object_setattr(struct var_t *ret)
         char *s;
 
         bug_on(self->magic != TYPE_DICT);
-        arg_type_check(name, TYPE_STRING);
+        if (arg_type_check(name, TYPE_STRING) != 0)
+                return -1;
 
         if (!value) {
-                syntax_noexit("setattr expected: value");
+                err_argtype("value");
                 return -1;
         }
 
         s = string_get_cstring(name);
         if (!s) {
-                syntax_noexit("setattr: name may not be empty");
+                err_setstr(RuntimeError, "setattr: name may not be empty");
                 return -1;
         }
 
@@ -346,11 +349,12 @@ object_getattr(struct var_t *ret)
         char *s;
 
         bug_on(self->magic != TYPE_DICT);
-        arg_type_check(name, TYPE_STRING);
+        if (arg_type_check(name, TYPE_STRING) != 0)
+                return -1;
 
         s = string_get_cstring(name);
         if (!s) {
-                syntax_noexit("setattr: name may not be empty");
+                err_setstr(RuntimeError, "getattr: name may not be empty");
                 return -1;
         }
 
@@ -370,7 +374,8 @@ object_delattr(struct var_t *ret)
         char *s;
 
         bug_on(self->magic != TYPE_DICT);
-        arg_type_check(name, TYPE_STRING);
+        if (arg_type_check(name, TYPE_STRING) != 0)
+                return -1;
 
         s = string_get_cstring(name);
         return object_remove_child(self, s);

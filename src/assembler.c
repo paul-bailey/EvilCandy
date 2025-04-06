@@ -87,6 +87,8 @@ enum {
         AE_NOTIMPL,
         AE_ARGNAME,
         AE_BADINSTR,
+
+        AE_PARSER,
 };
 
 enum {
@@ -374,7 +376,7 @@ as_lex(struct assemble_t *a)
 {
         int ret = get_tok(a->prog, &a->oc);
         if (ret == TOKEN_ERROR)
-                as_err(a, AE_BADTOK);
+                as_err(a, AE_PARSER);
         return ret;
 }
 
@@ -1451,9 +1453,15 @@ assemble_let(struct assemble_t *a)
 
         switch (a->oc->t) {
         case OC_SEMI:
+                /*
+                 * TODO: removed warning(), either remove this
+                 * or call something else
+                 */
+#if 0
                 /* emtpy declaration */
                 if (constflag)
                         warning("Assigning 'const' to an empty variable");
+#endif
                 return;
         case OC_EQ:
                 if (top)
@@ -1841,6 +1849,8 @@ assemble_second_pass(struct assemble_t *a)
  * Since data going into executable_t won't be resized anymore,
  * ie. the pointers won't change from further reallocs, it's safe to
  * move them into their permanent struct.
+ *
+ * XXX REVISIT: is  a struct executable_t's sibling list even necessary?
  */
 static void
 assemble_third_pass(struct assemble_t *a)
@@ -1856,11 +1866,19 @@ assemble_third_pass(struct assemble_t *a)
 
 #ifdef NDEBUG
 
+/* XXX REVISIT: What's wrong with disassembling in release mode? */
 static int
 assemble_fourth_pass(struct assemble_t *a)
 {
-        if (q_.opt.disassemble)
-                warning("Disassembly unavailable in release mode");
+        if (q_.opt.disassemble) {
+                /* warn just once */
+                bool once = false;
+                if (!once) {
+                        fprintf(stderr,
+                                "Disassembly unavailable in release mode");
+                        once = true;
+                }
+        }
         return 0;
 }
 
@@ -2015,7 +2033,6 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
 
         if ((res = setjmp(a->env)) != 0) {
                 const char *msg;
-                int lineno;
                 switch (res) {
                 default:
                 case AE_GEN:
@@ -2060,11 +2077,24 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                 case AE_BADINSTR:
                         msg = "Bad instruction";
                         break;
+                case AE_PARSER:
+                        /* Parser already set error message */
+                        msg = NULL;
+                        break;
                 }
-                lineno = a->oc ? a->oc->line : 0;
-                syntax_noexit_(a->file_name, lineno,
-                               "Assembler returned error code %d (%s)",
-                               res, msg);
+                if (msg) {
+                        err_setstr(ParserError, "%s", msg);
+                        /*
+                         * FIXME: more hax, need to put this in main.c
+                         * also, we know the file name and line
+                         */
+                        char *emsg;
+                        struct var_t *exc;
+                        err_get(&exc, &emsg);
+                        bug_on(!exc || !emsg);
+                        err_print(stderr, exc, emsg);
+                }
+
                 /*
                  * TODO: probably more meticulous cleanup needed here,
                  * we don't know exactly where we failed.
@@ -2075,8 +2105,12 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                 assemble_first_pass(a, toeof);
                 assemble_second_pass(a);
                 assemble_third_pass(a);
-                if (assemble_fourth_pass(a) < 0)
-                        warning("Could not disassemble %s", a->file_name);
+                assemble_fourth_pass(a);
+                if (assemble_fourth_pass(a) < 0) {
+                        /* FIXME: sloppy way to warn user */
+                        fprintf(stderr, "Could not disassemble %s",
+                                a->file_name);
+                }
                 ex = as_top_executable(a);
         }
 

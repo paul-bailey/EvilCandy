@@ -304,8 +304,13 @@ retry:
                                         break;
                                 if (bksl_hex(&pc, &c))
                                         break;
+                                /* TODO: warning() removed, replace this with
+                                 * something else
+                                 */
+#if 0
                                 warning_(state->filename, state->lineno,
                                          "Unsupported escape `%c'", *pc);
+#endif
                         } while (0);
                         if (!c)
                                 continue;
@@ -795,8 +800,17 @@ tokenize_helper(struct token_state_t *state)
                         break;
                 }
 
-                syntax_noexit_(state->filename, state->lineno, msg);
+                err_setstr(ParserError, msg);
+
+                /* XXX: Hacky, but do for now, remove to main.c wrapper */
+                char *emsg;
+                struct var_t *exc;
+                err_get(&exc, &emsg);
+                bug_on(exc == NULL || emsg == NULL);
+                err_print(stderr, exc, emsg);
                 if (state->line != NULL) {
+                        fprintf(stderr, "In file %s line %d:\n",
+                                state->filename, state->lineno);
                         /* the newline is included in the "%s" here */
                         fprintf(stderr, "\t%s\t", state->line);
                         if (state->s != NULL) {

@@ -433,12 +433,17 @@ set_by_idx:
 
 /* for debugging and builtin functions */
 const char *
-typestr(struct var_t *v)
+typestr_(int magic)
 {
-        int magic = v->magic;
         if (magic < 0 || magic >= NTYPES)
                 return "[bug]";
         return TYPEDEFS[magic].name;
+}
+
+const char *
+typestr(struct var_t *v)
+{
+        return typestr_(v->magic);
 }
 
 

@@ -7,11 +7,16 @@
 
 #include <evilcandy.h>
 
-#define arg_type_err(v) \
-        syntax("Argument wrong type: '%s'", typestr(v))
-#define arg_type_check(v, want) do { \
-        if (!(v) || (v)->magic != (want)) \
-                arg_type_err(v); \
-} while (0)
+/* err.c */
+extern int arg_type_check_failed(struct var_t *v, int want);
+
+static inline int
+arg_type_check(struct var_t *v, int want)
+{
+        if (v && v->magic == want)
+                return 0;
+        else
+                return arg_type_check_failed(v, want);
+}
 
 #endif /* EGQ_UARG_H */

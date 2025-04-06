@@ -116,12 +116,12 @@ symbol_seek_(const char *s)
                 gbl = literal("__gbl__");
 
         if (s == gbl)
-                return q_.gbl;
+                return GlobalObject;
         if ((v = hashtable_get(symbol_table, s)) != NULL)
                 return v;
         if ((v = symbol_seek_this_(s)) != NULL)
                 return v;
-        return var_get_attr_by_string_l(q_.gbl, s);
+        return var_get_attr_by_string_l(GlobalObject, s);
 }
 
 static struct var_t *
@@ -129,7 +129,7 @@ symbol_seek(const char *s)
 {
         struct var_t *ret = symbol_seek_(s);
         if (!ret)
-                syntax_noexit("Symbol %s not found", s);
+                err_setstr(RuntimeError, "Symbol %s not found", s);
         return ret;
 }
 
@@ -208,7 +208,7 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
                 return symbol_seek(name);
         }
         case IARG_PTR_GBL:
-                return q_.gbl;
+                return GlobalObject;
         case IARG_PTR_THIS:
                 bug_on(!current_frame || !current_frame->owner);
                 return current_frame->owner;
@@ -233,7 +233,7 @@ vmframe_push_block(struct vmframe_t *fr, unsigned char reason)
 {
         struct block_t *bl;
         if (fr->n_blocks >= FRAME_NEST_MAX) {
-                syntax_noexit("Frame stack overflow");
+                err_setstr(RuntimeError, "Frame stack overflow");
                 return -1;
         }
         bl = &fr->blocks[fr->n_blocks];
@@ -707,8 +707,7 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
 
         attr = var_get_attr(obj, deref);
         if (!attr) {
-                syntax_noexit("Cannot get attribute '%s' of type %s",
-                              attr_str(deref), typestr(obj));
+                err_attribute("get", deref, obj);
                 ret = -1;
         } else if (obj->magic != TYPE_STRING || deref->magic != TYPE_INT) {
                 /*
@@ -756,8 +755,7 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
         obj = pop(fr);
 
         if (var_set_attr(obj, deref, val) != 0) {
-                syntax_noexit("Cannot set attribute '%s' of type %s",
-                              attr_str(deref), typestr(obj));
+                err_attribute("set", deref, obj);
                 ret = -1;
         }
 
@@ -936,8 +934,21 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
                 bug_on((unsigned int)ii.code >= N_INSTR);               \
                 int res = JUMP_TABLE[ii.code](current_frame, ii);       \
                 /* Just for now... */                                   \
-                if (res != 0)                                           \
-                        syntax("Runtime Error");                        \
+                if (res != 0) {                                         \
+                        char *msg;                                      \
+                        struct var_t *exc;                              \
+                        err_get(&exc, &msg);                            \
+                        /* TODO: when try/catch are added, these        \
+                         * might be NULL                                \
+                         */                                             \
+                        bug_on(exc == NULL || msg == NULL);             \
+                        err_print(stderr, exc, msg);                    \
+                        /*                                              \
+                         * TODO: if in TTY mode and at top level,       \
+                         * unwind everything and parse next expr.       \
+                         */                                             \
+                        exit(1);                                        \
+                }                                                       \
                 /*                                                      \
                  * In reentrance mode, INSTR_RETURN may set             \
                  * current_frame to NULL.  This, rather than            \
@@ -999,7 +1010,7 @@ vm_execute(struct executable_t *top_level)
         current_frame->prev = NULL;
         current_frame->ppii = top_level->instr;
         current_frame->stackptr = current_frame->stack;
-        current_frame->owner = q_.gbl;
+        current_frame->owner = GlobalObject;
 
         EXECUTE_LOOP(0);
 
@@ -1028,24 +1039,20 @@ vm_execute(struct executable_t *top_level)
  * @argv:       Array of arguments
  *
  * The return value of the user function will be thrown away
+ *
+ * FIXME: It's just killing me that we can't just reenter vm_execute,
+ * surely all it takes is re-thinking struct executable_t.
+ * There are lots of subtle differences between the code below and
+ * d_call_func/do_return_value, but they're DRY violations just the same.
  */
 int
 vm_reenter(struct var_t *func, struct var_t *owner,
            int argc, struct var_t **argv)
 {
-        /*
-         * FIXME: This is still not **fully** reentrance-proof, it still
-         * doesn't allow for the ``load'' command.
-         */
         struct vmframe_t *fr;
         struct var_t *res;
         int funcstatus;
 
-        /*
-         * XXX REVISIT: lots of subtle differences between this and
-         * do_call_func/do_return_value, but they're DRY violations just
-         * the same.
-         */
         bug_on(current_frame == NULL);
 
         fr = vmframe_alloc();

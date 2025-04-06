@@ -1,18 +1,16 @@
 #include "var.h"
 #include <math.h>
 
-static inline double
-var2float_(struct var_t *v)
+static void
+emsg(const char *op)
 {
-        return v->magic == TYPE_INT ? (double)v->i : v->f;
+        syntax_noexit("Invalid/mismatched type for '%s' operator", op);
 }
 
 static inline double
-var2float(struct var_t *v, const char *op)
+var2float(struct var_t *v)
 {
-        if (!isnumvar(v))
-                syntax("Invalid/mismatched type for '%s' operator", op);
-        return var2float_(v);
+        return v->magic == TYPE_INT ? (double)v->i : v->f;
 }
 
 static struct var_t *
@@ -26,13 +24,21 @@ float_new(double v)
 static struct var_t *
 float_mul(struct var_t *a, struct var_t *b)
 {
-        return float_new(a->f * var2float(b, "*"));
+        if (!isnumvar(b)) {
+                emsg("*");
+                return NULL;
+        }
+        return float_new(a->f * var2float(b));
 }
 
 static struct var_t *
 float_div(struct var_t *a, struct var_t *b)
 {
-        double f = var2float(b, "/");
+        if (!isnumvar(b)) {
+                emsg("/");
+                return NULL;
+        }
+        double f = var2float(b);
         /* XXX: Should have some way of logging error to user */
         if (fpclassify(f) != FP_NORMAL)
                 return float_new(0.);
@@ -43,13 +49,21 @@ float_div(struct var_t *a, struct var_t *b)
 static struct var_t *
 float_add(struct var_t *a, struct var_t *b)
 {
-        return float_new(a->f + var2float(b, "+"));
+        if (!isnumvar(b)) {
+                emsg("+");
+                return NULL;
+        }
+        return float_new(a->f + var2float(b));
 }
 
 static struct var_t *
 float_sub(struct var_t *a, struct var_t *b)
 {
-        return float_new(a->f - var2float(b, "-"));
+        if (!isnumvar(b)) {
+                emsg("-");
+                return NULL;
+        }
+        return float_new(a->f - var2float(b));
 }
 
 static int
@@ -57,7 +71,7 @@ float_cmp(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b))
                 return -1;
-        double f = var2float_(b);
+        double f = var2float(b);
         return OP_CMP(a->f, f);
 }
 
@@ -96,7 +110,7 @@ float_mov_strict(struct var_t *to, struct var_t *from)
 {
         if (!isnumvar(from))
                 return -1;
-        to->f = var2float_(from);
+        to->f = var2float(from);
         return 0;
 }
 

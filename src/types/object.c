@@ -72,6 +72,8 @@ object_set_priv(struct var_t *o, void *priv,
 struct var_t *
 object_child_l(struct var_t *o, const char *s)
 {
+        if (!s)
+                return NULL;
         bug_on(o->magic != TYPE_DICT);
         bug_on(!o->o);
 
@@ -84,16 +86,21 @@ object_child_l(struct var_t *o, const char *s)
  * @child: child to append to @parent
  * @name: Name of the child.
  */
-void
+int
 object_add_child(struct var_t *parent, struct var_t *child, char *name)
 {
         bug_on(parent->magic != TYPE_DICT);
-        if (parent->o->lock)
-                syntax("Dictionary add/remove locked");
-        if (hashtable_put(&parent->o->dict, name, child) < 0)
-                syntax("Object already has element named %s", name);
+        if (parent->o->lock) {
+                syntax_noexit("Dictionary add/remove locked");
+                return -1;
+        }
+        if (hashtable_put(&parent->o->dict, name, child) < 0) {
+                syntax_noexit("Object already has element named %s", name);
+                return -1;
+        }
         VAR_INCR_REF(child);
         parent->o->nchildren++;
+        return 0;
 }
 
 /* if @child is known to be a direct child of @parent */
@@ -105,18 +112,20 @@ object_remove_child_(struct var_t *parent, struct var_t *child)
 }
 
 /**
- * object_remove_child - Remove a child from an object
- * @parent: object to remove child from
- * @name: Name of the child
+ * object_remove_child_l - Like object_remove_child, but
+ *                      @name is either NULL or known to be a
+ *                      possible return value of literal()
  */
-void
+int
 object_remove_child_l(struct var_t *parent, const char *name)
 {
         struct var_t *child;
         if (!name)
-                return;
-        if (parent->o->lock)
-                syntax("Dictionary add/remove locked");
+                return 0;
+        if (parent->o->lock) {
+                syntax_noexit("Dictionary add/remove locked");
+                return -1;
+        }
         child = hashtable_remove(&parent->o->dict, name);
         /*
          * XXX REVISIT: If !child, should I throw a doesn't-exist error,
@@ -124,6 +133,7 @@ object_remove_child_l(struct var_t *parent, const char *name)
          */
         if (child)
                 object_remove_child_(parent, child);
+        return 0;
 }
 
 
@@ -176,21 +186,25 @@ object_reset(struct var_t *o)
 int
 object_foreach(struct var_t *ret)
 {
-        struct var_t *self = get_this();
-        struct var_t *func = frame_get_arg(0);
+        struct var_t *self;
+        struct var_t *func;
         unsigned int idx;
         struct hashtable_t *htbl;
         void *key, *val;
         int res, lock;
         int status = 0;
-
         struct var_t *argv[2];
+
+        self = get_this();
+        func = frame_get_arg(0);
+        if (!func) {
+                syntax_noexit("Expected: function");
+                return -1;
+        }
         argv[0] = var_new(); /* attribute */
         argv[1] = var_new(); /* name of attribute */
         string_init(argv[1], NULL);
 
-        if (!func)
-                syntax("Expected: function");
         bug_on(self->magic != TYPE_DICT);
         htbl = &self->o->dict;
 
@@ -303,7 +317,8 @@ object_setattr(struct var_t *ret)
                 if (qop_mov(attr, value) < 0)
                         return -1;
         } else {
-                object_add_child(self, value, literal_put(s));
+                if (object_add_child(self, value, literal_put(s)) != 0)
+                        return -1;
         }
         return 0;
 }
@@ -358,13 +373,7 @@ object_delattr(struct var_t *ret)
         arg_type_check(name, TYPE_STRING);
 
         s = string_get_cstring(name);
-        if (s)
-                s = literal(s);
-#warning "revisit this: is it an error or normal behavior?"
-        if (!s)
-                return 0;
-        object_remove_child(self, s);
-        return 0;
+        return object_remove_child(self, s);
 }
 
 static const struct type_inittbl_t object_methods[] = {

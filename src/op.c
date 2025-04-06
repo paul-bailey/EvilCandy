@@ -352,8 +352,9 @@ qop_mov(struct var_t *to, struct var_t *from)
                         if (p->mov_strict(to, from) == 0)
                                 return to;
                 }
-                syntax("ASSIGN not permited from %s => %s",
-                       typestr(from), typestr(to));
+                syntax_noexit("ASSIGN not permited from %s => %s",
+                              typestr(from), typestr(to));
+                return NULL;
         }
         return to;
 }

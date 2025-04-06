@@ -1,17 +1,15 @@
 #include "var.h"
 
-static inline long long
-var2int_(struct var_t *v)
+static void
+emsg(const char *op)
 {
-        return v->magic == TYPE_INT ? v->i : (long long)v->f;
+        syntax_noexit("Invalid/mismatched type for '%s' operator", op);
 }
 
 static inline long long
-var2int(struct var_t *v, const char *op)
+var2int(struct var_t *v)
 {
-        if (!isnumvar(v))
-                syntax("Invalid or mismatched types for '%s' operator", op);
-        return var2int_(v);
+        return v->magic == TYPE_INT ? v->i : (long long)v->f;
 }
 
 static inline struct var_t *
@@ -25,13 +23,21 @@ int_new(long long initval)
 static struct var_t *
 int_mul(struct var_t *a, struct var_t *b)
 {
-        return int_new(a->i * var2int(b, "*"));
+        if (!isnumvar(b)) {
+                emsg("*");
+                return NULL;
+        }
+        return int_new(a->i * var2int(b));
 }
 
 static struct var_t *
 int_div(struct var_t *a, struct var_t *b)
 {
-        long long i = var2int(b, "/");
+        if (!isnumvar(b)) {
+                emsg("/");
+                return NULL;
+        }
+        long long i = var2int(b);
         if (i == 0LL)
                 return int_new(0LL);
         else
@@ -41,7 +47,11 @@ int_div(struct var_t *a, struct var_t *b)
 static struct var_t *
 int_mod(struct var_t *a, struct var_t *b)
 {
-        long long i = var2int(b, "%");
+        if (!isnumvar(b)) {
+                emsg("%");
+                return NULL;
+        }
+        long long i = var2int(b);
         if (i == 0LL)
                 return int_new(0LL);
         else
@@ -51,13 +61,21 @@ int_mod(struct var_t *a, struct var_t *b)
 static struct var_t *
 int_add(struct var_t *a, struct var_t *b)
 {
-        return int_new(a->i + var2int(b, "+"));
+        if (!isnumvar(b)) {
+                emsg("+");
+                return NULL;
+        }
+        return int_new(a->i + var2int(b));
 }
 
 static struct var_t *
 int_sub(struct var_t *a, struct var_t *b)
 {
-        return int_new(a->i - var2int(b, "-"));
+        if (!isnumvar(b)) {
+                emsg("-");
+                return NULL;
+        }
+        return int_new(a->i - var2int(b));
 }
 
 static int
@@ -65,14 +83,18 @@ int_cmp(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b))
                 return -1;
-        long long i = var2int_(b);
+        long long i = var2int(b);
         return OP_CMP(a->i, i);
 }
 
 static struct var_t *
 int_lshift(struct var_t *a, struct var_t *b)
 {
-        long long shift = var2int(b, "<<");
+        if (!isnumvar(b)) {
+                emsg("<<");
+                return NULL;
+        }
+        long long shift = var2int(b);
         if (shift >= 64 || shift <= 0)
                 return int_new(0LL);
         else
@@ -86,7 +108,11 @@ int_rshift(struct var_t *a, struct var_t *b)
          * XXX REVISIT: Policy decision, is this logical shift,
          * or arithmetic shift?
          */
-        long long shift = var2int(b, ">>");
+        if (!isnumvar(b)) {
+                emsg(">>");
+                return NULL;
+        }
+        long long shift = var2int(b);
         unsigned long long i = a->i;
         if (shift >= 64 || shift <= 0)
                 return int_new(0LL);
@@ -97,19 +123,31 @@ int_rshift(struct var_t *a, struct var_t *b)
 static struct var_t *
 int_bit_and(struct var_t *a, struct var_t *b)
 {
-        return int_new(a->i & var2int(b, "&"));
+        if (!isnumvar(b)) {
+                emsg("&");
+                return NULL;
+        }
+        return int_new(a->i & var2int(b));
 }
 
 static struct var_t *
 int_bit_or(struct var_t *a, struct var_t *b)
 {
-        return int_new(a->i | var2int(b, "|"));
+        if (!isnumvar(b)) {
+                emsg("|");
+                return NULL;
+        }
+        return int_new(a->i | var2int(b));
 }
 
 static struct var_t *
 int_xor(struct var_t *a, struct var_t *b)
 {
-        return int_new(a->i ^ var2int(b, "^"));
+        if (!isnumvar(b)) {
+                emsg("^");
+                return NULL;
+        }
+        return int_new(a->i ^ var2int(b));
 }
 
 static bool
@@ -153,7 +191,7 @@ int_mov_strict(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b))
                 return -1;
-        a->i = var2int_(b);
+        a->i = var2int(b);
         return 0;
 }
 

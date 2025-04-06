@@ -19,15 +19,6 @@ struct array_handle_t {
 };
 
 static void
-check_type_match(struct array_handle_t *h, struct var_t *child)
-{
-        if (h->type != child->magic) {
-                syntax("Trying to add type '%s' to '%d' array",
-                        typestr(child), h->type);
-        }
-}
-
-static void
 array_handle_reset(void *arr)
 {
         struct array_handle_t *ah = (struct array_handle_t *)arr;
@@ -81,8 +72,10 @@ array_set_child(struct var_t *array, int idx, struct var_t *child)
 {
         struct var_t *memb;
 
-        if (array->a->lock)
-                syntax("attempting to modify array while locked");
+        if (array->a->lock) {
+                syntax_noexit("attempting to modify array while locked");
+                return -1;
+        }
 
         memb = array_child(array, idx);
         if (!memb)
@@ -102,26 +95,35 @@ array_set_child(struct var_t *array, int idx, struct var_t *child)
  * array_add_child for this array, then the array's type will be locked
  * to @child->magic.
  */
-void
+int
 array_add_child(struct var_t *array, struct var_t *child)
 {
         struct array_handle_t *h = array->a;
 
-        if (h->lock)
-                syntax("attempting to modify array while locked");
-        if (child->magic == TYPE_EMPTY)
-                syntax("You may not add an empty var to array");
+        if (h->lock) {
+                syntax_noexit("attempting to modify array while locked");
+                return -1;
+        }
+        if (child->magic == TYPE_EMPTY) {
+                syntax_noexit("You may not add an empty var to array");
+                return -1;
+        }
         if (h->type == TYPE_EMPTY) {
                 /* first time, set type and assign datasize */
                 bug_on(h->nmemb != 0);
                 h->type = child->magic;
         }
 
-        check_type_match(h, child);
+        if (h->type != child->magic) {
+                syntax_noexit("Trying to add type '%s' to '%d' array",
+                              typestr(child), h->type);
+                return -1;
+        }
 
         h->nmemb++;
         VAR_INCR_REF(child);
         buffer_putd(&h->children, &child, sizeof(void *));
+        return 0;
 }
 
 /**
@@ -257,7 +259,8 @@ array_append(struct var_t *ret)
         ah = self->a;
 
         if (!arg) {
-                syntax("Expected: item");
+                syntax_noexit("Expected: item");
+                return -1;
         }
         if (ah->type != TYPE_EMPTY && ah->type != arg->magic) {
                 bug_on(ah->nmemb <= 0);
@@ -267,8 +270,9 @@ array_append(struct var_t *ret)
                  * anymore.
                  */
                 struct var_t *somechild = array_child(self, 0);
-                syntax("Cannot append type %s to list type %s",
+                syntax_noexit("Cannot append type %s to list type %s",
                        typestr(somechild), typestr(arg));
+                return -1;
         }
         array_add_child(self, arg);
         return 0;

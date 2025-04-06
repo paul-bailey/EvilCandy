@@ -142,7 +142,15 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                         bug();
                 }
                 bug_on(child->magic == TYPE_EMPTY);
-                object_add_child(parent, child, literal_put(t->name));
+                if (object_add_child(parent, child, literal_put(t->name))
+                    != 0) {
+                        /*
+                         * Whether this is a "bug" or not is philosophical.
+                         * Anyway, it can't be user error, so something
+                         * internal failed this operation.
+                         */
+                        bug();
+                }
         }
 }
 

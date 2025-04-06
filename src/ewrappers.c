@@ -42,37 +42,4 @@ ecalloc(size_t size)
         return res;
 }
 
-int
-ebuffer_substr(struct buffer_t *tok, int i)
-{
-        int c = buffer_substr(tok, i);
-        if (c < 0)
-                syntax("String index out of bounds");
-        return c;
-}
-
-static void
-atrerr(struct var_t *obj, struct var_t *deref, const char *what)
-{
-        syntax("Cannot %s attribute '%s' of type %s",
-               what, attr_str(deref), typestr(obj));
-}
-
-struct var_t *
-evar_get_attr(struct var_t *obj, struct var_t *deref)
-{
-        struct var_t *v = var_get_attr(obj, deref);
-        if (!v)
-                atrerr(obj, deref, "get");
-        return v;
-}
-
-int
-evar_set_attr(struct var_t *obj, struct var_t *deref, struct var_t *attr)
-{
-        int res = var_set_attr(obj, deref, attr);
-        if (res != 0)
-                atrerr(obj, deref, "set");
-        return res;
-}
 

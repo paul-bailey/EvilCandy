@@ -913,8 +913,10 @@ string_join(struct var_t *ret)
                 return 0;
         }
 
-        if (elem->magic != TYPE_STRING)
-                syntax("string.join method may only join lists of strings");
+        if (elem->magic != TYPE_STRING) {
+                syntax_noexit("string.join method may only join lists of strings");
+                return -1;
+        }
 
         string_init(ret, string_get_cstring(elem));
         for (;;) {
@@ -965,8 +967,10 @@ string_add(struct var_t *a, struct var_t *b)
         if (b->magic == TYPE_STRPTR)
                 rval = b->strptr;
         else {
-                if (b->magic != TYPE_STRING)
-                        syntax("Mismatched types for %s operation", "+");
+                if (b->magic != TYPE_STRING) {
+                        syntax_noexit("Mismatched types for %s operation", "+");
+                        NULL;
+                }
                 rval = string_get_cstring(b);
         }
         ret = var_new();

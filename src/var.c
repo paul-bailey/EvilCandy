@@ -407,7 +407,8 @@ set_by_str:
                         if (!qop_mov(child, attr))
                                 return -1;
                 } else {
-                        object_add_child(v, attr, attrstr);
+                        if (object_add_child(v, attr, attrstr) != 0)
+                                return -1;
                 }
                 return 0;
         }

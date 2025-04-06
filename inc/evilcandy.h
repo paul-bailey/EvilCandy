@@ -56,9 +56,52 @@ enum type_magic_t {
         NTYPES,
 };
 
+/**
+ * DOC: Flags for scope of currently parsed or executed expression
+ * @FE_FOR: We're in that middle part of a for loop between two
+ *          semicolons.  Only used by assembler.
+ * @FE_TOP: We're at the top level, ie. not in a function.  In assembler
+ *          this has the additional meaning that we are not inside of any
+ *          program flow statement, even if we're at the script level.
+ *
+ * 99% for assembler.c use only, but pulled out to this header because
+ * FE_TOP is handy for extra info in disassembler and VM
+ */
 enum {
         FE_FOR = 0x01,
         FE_TOP = 0x02,
+};
+
+/*
+ * Statuses passed around during runtime, ie. after parsing.
+ *
+ * Fatal errors like failed allocations will cause the program to close,
+ * and don't need a status value (system errno will do).  For less severe
+ * errors, such as user errors that a parser would not detect at assemble
+ * time (array access out of bounds, symbol not found, a file does not
+ * have the right permissions, etc.), execution returns an error to the
+ * VM, which must decide what to do next.
+ */
+enum result_t {
+        RES_OK = 0,
+        RES_EXCEPTION = 1,      /* user raised exception */
+        RES_LOCKED,             /* operation locked for object */
+        RES_ARGERR,             /* function argument error */
+        /* TODO: lots of other errors, more specific than just RES_ERROR */
+
+        /*
+         * Sometimes I plan ahead and think things through.
+         *
+         * Other times I type away YOLO-like and say "I should return an
+         * error code here but I haven't defined those yet, so I'll just
+         * return my trusty old -1 for now and change it later."
+         *
+         * Don't scoff, you _know_ you do it too.
+         *
+         * Anyway, it's "later" now, and I can't be bothered to track down
+         * all those -1's.
+         */
+        RES_ERROR = -1,
 };
 
 struct var_t;
@@ -270,11 +313,6 @@ extern void disassemble(FILE *fp, struct executable_t *ex);
 extern char *estrdup(const char *s);
 extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
-extern int ebuffer_substr(struct buffer_t *buf, int i);
-extern struct var_t *evar_get_attr(struct var_t *v,
-                                   struct var_t *deref);
-extern int evar_set_attr(struct var_t *v,
-                        struct var_t *deref, struct var_t *attr);
 
 /* types/float.c */
 extern struct var_t *float_init(struct var_t *v, double value);
@@ -370,7 +408,7 @@ extern void var_bucket_delete(void *data);
 
 /* types/array.c */
 extern struct var_t *array_child(struct var_t *array, int idx);
-extern void array_add_child(struct var_t *array, struct var_t *child);
+extern int array_add_child(struct var_t *array, struct var_t *child);
 extern int array_set_child(struct var_t *array,
                             int idx, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
@@ -392,26 +430,17 @@ extern void function_init(struct var_t *func,
 /* types/object.c */
 extern struct var_t *object_init(struct var_t *v);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
-extern void object_add_child(struct var_t *o, struct var_t *v, char *name);
-extern void object_remove_child_l(struct var_t *o, const char *s);
+extern int object_add_child(struct var_t *o, struct var_t *v, char *name);
+extern int object_remove_child_l(struct var_t *o, const char *s);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
 static inline void *object_get_priv(struct var_t *o)
         { return o->o->priv; }
-/*
- * Return:    - the child if found
- *            - the built-in method matching @s if the child is not found
- *            - NULL if neither are found.
- */
+/* obj..._l() can handle if literal(s) is NULL, so these are safe. */
 static inline struct var_t *object_child(struct var_t *o, const char *s)
-        { return ((s = literal(s))) ? object_child_l(o, s) : NULL; }
-static inline void
-object_remove_child(struct var_t *o, const char *s)
-{
-        s = literal(s);
-        if (s)
-                object_remove_child_l(o, s);
-}
+        { return object_child_l(o, literal(s)); }
+static inline int object_remove_child(struct var_t *o, const char *s)
+        { return object_remove_child_l(o, literal(s)); }
 
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);

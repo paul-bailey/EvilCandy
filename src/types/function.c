@@ -110,15 +110,18 @@ function_of(struct var_t *fn, struct var_t **owner)
                         fn = NULL;
                 }
         }
-        syntax("Value is not callable");
+        syntax_noexit("Value is not callable");
+        return NULL;
+
 done:
         *owner = new_owner;
         return fn;
 }
 
 /*
- * return: either @fn or the callable descendant of @fn to pass
+ * return: If success: either @fn or the callable descendant of @fn to pass
  *         to call_function
+ *         If error or not callable: NULL
  */
 struct var_t *
 function_prep_frame(struct var_t *fn,
@@ -128,6 +131,8 @@ function_prep_frame(struct var_t *fn,
         int i, argc;
 
         fn = function_of(fn, &owner);
+        if (!fn)
+                return NULL;
         fh = fn->fn;
         bug_on(!fh);
 

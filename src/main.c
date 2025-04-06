@@ -2,6 +2,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <getopt.h>
 #include <unistd.h>
 #include <errno.h>
@@ -92,8 +93,10 @@ run_script(const char *filename, FILE *fp)
         a = new_assembler(filename, fp);
         if (!a)
                 return;
-        if ((ex = assemble_next(a, true, NULL)) == NULL)
-                syntax("Failed to assemble");
+        if ((ex = assemble_next(a, true, NULL)) == NULL) {
+                fprintf(stderr, "Failed to assemble");
+                exit(1);
+        }
         free_assembler(a, ex == NULL);
 
         if (ex && !q_.opt.disassemble_only)

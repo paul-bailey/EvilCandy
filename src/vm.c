@@ -129,7 +129,7 @@ symbol_seek(const char *s)
 {
         struct var_t *ret = symbol_seek_(s);
         if (!ret)
-                syntax("Symbol %s not found", s);
+                syntax_noexit("Symbol %s not found", s);
         return ret;
 }
 
@@ -220,23 +220,27 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
 static struct block_t *
 vmframe_pop_block(struct vmframe_t *fr)
 {
+        /* XXX can a user error also cause this? */
         if (fr->n_blocks <= 0)
-                syntax("Frame stack underflow");
+                fail("(possible bug) Frame stack underflow");
 
         fr->n_blocks--;
         return &fr->blocks[fr->n_blocks];
 }
 
-static void
+static int
 vmframe_push_block(struct vmframe_t *fr, unsigned char reason)
 {
         struct block_t *bl;
-        if (fr->n_blocks >= FRAME_NEST_MAX)
-                syntax("Frame stack overflow");
+        if (fr->n_blocks >= FRAME_NEST_MAX) {
+                syntax_noexit("Frame stack overflow");
+                return -1;
+        }
         bl = &fr->blocks[fr->n_blocks];
         bl->stack_level = fr->stackptr;
         bl->type = reason;
         fr->n_blocks++;
+        return 0;
 }
 
 static void
@@ -361,6 +365,8 @@ static int
 do_push_ptr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *p = VARPTR(fr, ii);
+        if (!p)
+                return -1;
         VAR_INCR_REF(p);
         push(fr, p);
         return 0;
@@ -394,8 +400,7 @@ do_unwind(struct vmframe_t *fr, instruction_t ii)
 static int
 do_push_block(struct vmframe_t *fr, instruction_t ii)
 {
-        vmframe_push_block(fr, ii.arg1);
-        return 0;
+        return vmframe_push_block(fr, ii.arg1);
 }
 
 static int
@@ -670,6 +675,7 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
         struct var_t *attr = pop(fr);
         struct var_t *obj = pop(fr);
         char *name = RODATA_STR(fr, ii);
+        int res;
         /*
          * There is no var_*_attr for add, since only dictionaries
          * support it.  (Lists have a separate opcode, see
@@ -677,16 +683,18 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
          */
         if (!!(ii.arg1 & IARG_FLAG_CONST))
                 attr->flags |= VF_CONST;
-        object_add_child(obj, attr, name);
+        res = object_add_child(obj, attr, name);
         VAR_DECR_REF(attr);
         push(fr, obj);
-        return 0;
+        return res;
 }
+
 static int
 do_getattr(struct vmframe_t *fr, instruction_t ii)
 {
         bool del = false;
         struct var_t *attr, *deref, *obj;
+        int ret = 0;
 
         if (ii.arg1 == IARG_ATTR_STACK) {
                 deref = pop(fr);
@@ -697,16 +705,21 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
 
         obj = pop(fr);
 
-        attr = evar_get_attr(obj, deref);
-        /*
-         * FIXME: This is hacky, but string_nth_child creates
-         * a new var, the others return an existing var, and I need to
-         * know that.  Alternative is to make the getattr callbacks
-         * themselves decide whether or not to VAR_INCR_REF, but that
-         * increases the opportunity for mistakes.
-         */
-        if (obj->magic != TYPE_STRING || deref->magic != TYPE_INT)
+        attr = var_get_attr(obj, deref);
+        if (!attr) {
+                syntax_noexit("Cannot get attribute '%s' of type %s",
+                              attr_str(deref), typestr(obj));
+                ret = -1;
+        } else if (obj->magic != TYPE_STRING || deref->magic != TYPE_INT) {
+                /*
+                 * FIXME: This is hacky, but string_nth_child creates a
+                 * new var, the others return an existing var, and I need to
+                 * know that.  Alternative is to make the getattr callbacks
+                 * themselves decide whether or not to VAR_INCR_REF, but that
+                 * increases the opportunity for mistakes.
+                 */
                 VAR_INCR_REF(attr);
+        }
 
         if (del)
                 VAR_DECR_REF(deref);
@@ -718,8 +731,10 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
          * stack discrepancy with INSTR_UNWIND
          */
         push(fr, obj);
-        push(fr, attr);
-        return 0;
+        if (attr)
+                push(fr, attr);
+
+        return ret;
 }
 
 static int
@@ -727,6 +742,7 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 {
         bool del = false;
         struct var_t *val, *deref, *obj;
+        int ret = 0;
 
         val = pop(fr);
 
@@ -739,13 +755,18 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 
         obj = pop(fr);
 
-        evar_set_attr(obj, deref, val);
+        if (var_set_attr(obj, deref, val) != 0) {
+                syntax_noexit("Cannot set attribute '%s' of type %s",
+                              attr_str(deref), typestr(obj));
+                ret = -1;
+        }
+
         if (del)
                 VAR_DECR_REF(deref);
 
         VAR_DECR_REF(val);
         VAR_DECR_REF(obj);
-        return 0;
+        return ret;
 }
 
 static int
@@ -940,7 +961,7 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 
 #define REENTRANT_PUSH_(arr, idx) do { \
         if (idx >= VM_REENT_MAX) \
-                syntax("Recursion max reahced"); \
+                fail("Recursion max reached: you may need to adjust VM_REENT_MAX"); \
         arr[idx] = current_frame; \
         current_frame = NULL; \
         idx++; \

@@ -306,8 +306,15 @@ assign_common(struct vmframe_t *fr,
 static inline struct var_t *
 logical_or(struct var_t *a, struct var_t *b)
 {
-        bool res = !qop_cmpz(a) || !qop_cmpz(b);
-        struct var_t *ret = var_new();
+        int status;
+        struct var_t *ret = NULL;
+        bool res = !qop_cmpz(a, &status);
+        if (status)
+                return NULL;
+        res = res || !qop_cmpz(b, &status);
+        if (status)
+                return NULL;
+        ret = var_new();
         integer_init(ret, (int)res);
         return ret;
 }
@@ -315,8 +322,15 @@ logical_or(struct var_t *a, struct var_t *b)
 static inline struct var_t *
 logical_and(struct var_t *a, struct var_t *b)
 {
-        bool res = !qop_cmpz(a) && !qop_cmpz(b);
-        struct var_t *ret = var_new();
+        int status;
+        struct var_t *ret = NULL;
+        bool res = !qop_cmpz(a, &status);
+        if (status)
+                return NULL;
+        res = res && !qop_cmpz(b, &status);
+        if (status)
+                return NULL;
+        ret = var_new();
         integer_init(ret, (int)res);
         return ret;
 }
@@ -357,6 +371,8 @@ static int
 do_push_const(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = qop_mov(var_new(), RODATA(fr, ii));
+        if (!v)
+                return -1;
         push(fr, v);
         return 0;
 }
@@ -425,16 +441,17 @@ static int
 do_assign(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *from, *to;
+        int res = 0;
         from = pop(fr);
         to = pop(fr);
-        qop_mov(to, from);
-
-        if (!!(ii.arg1 & IARG_FLAG_CONST))
+        if (qop_mov(to, from) == NULL)
+                res = -1;
+        else if (!!(ii.arg1 & IARG_FLAG_CONST))
                 to->flags |= VF_CONST;
 
         VAR_DECR_REF(to);
         VAR_DECR_REF(from);
-        return 0;
+        return res;
 }
 
 static int
@@ -770,12 +787,13 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 static int
 do_b_if(struct vmframe_t *fr, instruction_t ii)
 {
+        int status;
         struct var_t *v = pop(fr);
-        bool cond = !qop_cmpz(v);
-        if ((bool)ii.arg1 == cond)
+        bool cond = !qop_cmpz(v, &status);
+        if (!status && (bool)ii.arg1 == cond)
                 fr->ppii += ii.arg2;
         VAR_DECR_REF(v);
-        return 0;
+        return status;
 }
 
 static int
@@ -859,10 +877,11 @@ do_cmp(struct vmframe_t *fr, instruction_t ii)
         lval = pop(fr);
 
         res = qop_cmp(lval, rval, OCMAP[ii.arg1]);
-        push(fr, res);
+        if (res)
+                push(fr, res);
         VAR_DECR_REF(rval);
         VAR_DECR_REF(lval);
-        return 0;
+        return res ? 0 : -1;
 }
 
 static int
@@ -899,18 +918,18 @@ static int
 do_incr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
-        qop_incr(v);
+        int res = qop_incr(v);
         VAR_DECR_REF(v);
-        return 0;
+        return res;
 }
 
 static int
 do_decr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = pop(fr);
-        qop_decr(v);
+        int res = qop_decr(v);
         VAR_DECR_REF(v);
-        return 0;
+        return res;
 }
 
 static int

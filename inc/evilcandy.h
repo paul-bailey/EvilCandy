@@ -371,14 +371,13 @@ extern struct var_t *qop_shift(struct var_t *a, struct var_t *b, int op);
 extern struct var_t *qop_bit_and(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_bit_or(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_xor(struct var_t *a, struct var_t *b);
-extern bool qop_cmpz(struct var_t *v);
+extern bool qop_cmpz(struct var_t *v, int *status);
 extern int qop_incr(struct var_t *v);
 extern int qop_decr(struct var_t *v);
 extern struct var_t *qop_bit_not(struct var_t *v);
 extern struct var_t *qop_negate(struct var_t *v);
 extern struct var_t *qop_lnot(struct var_t *v);
 extern struct var_t *qop_mov(struct var_t *to, struct var_t *from);
-extern bool qop_cmpz(struct var_t *v);
 
 /* find_import.c */
 extern FILE *find_import(const char *cur_path, const char *file_name,

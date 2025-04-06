@@ -222,6 +222,8 @@ qop_xor(struct var_t *a, struct var_t *b)
 
 /**
  * qop_cmpz - Compare @v to zero, NULL, or something like it
+ * @status:  To be set to -1 if cmpz not permitted, 0 otherwise
+ *           This may not be NULL.
  *
  * Return: if @v is...
  *      empty:          true always
@@ -232,14 +234,15 @@ qop_xor(struct var_t *a, struct var_t *b)
  *      anything else:  false or error
  */
 bool
-qop_cmpz(struct var_t *v)
+qop_cmpz(struct var_t *v, int *status)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->cmpz) {
                 epermit("cmpz", v);
-                /* FIXME: Error return value! */
+                *status = -1;
                 return true;
         }
+        *status = 0;
         return p->cmpz(v);
 }
 
@@ -301,12 +304,15 @@ qop_negate(struct var_t *v)
         return p->negate(v);
 }
 
-/* !v WARNING! this clobbers v's type */
 struct var_t *
 qop_lnot(struct var_t *v)
 {
-        struct var_t *ret = var_new();
-        bool cond = qop_cmpz(v);
+        int status;
+        struct var_t *ret;
+        bool cond = qop_cmpz(v, &status);
+        if (status)
+                return NULL;
+        ret = var_new();
         integer_init(ret, (int)cond);
         return ret;
 }

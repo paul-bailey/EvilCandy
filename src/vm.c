@@ -629,7 +629,7 @@ static int
 do_deflist(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *arr = var_new();
-        array_from_empty(arr);
+        array_init(arr);
         push(fr, arr);
         return 0;
 }
@@ -639,7 +639,7 @@ do_list_append(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *child = pop(fr);
         struct var_t *parent = pop(fr);
-        array_add_child(parent, child);
+        array_append(parent, child);
         VAR_DECR_REF(child);
         push(fr, parent);
         return 0;
@@ -668,7 +668,7 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
          */
         if (!!(ii.arg1 & IARG_FLAG_CONST))
                 attr->flags |= VF_CONST;
-        res = object_add_child(obj, attr, name);
+        res = object_addattr(obj, attr, name);
         VAR_DECR_REF(attr);
         push(fr, obj);
         return res;

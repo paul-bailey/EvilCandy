@@ -25,6 +25,13 @@
  *              is mandatory.
  * @f_clov:     Array of closures.
  * @f_argc:     Highest argument number that has a default
+ *
+ * TODO: Some cleanup and simplification is in order:
+ *      f_argv and f_clov could be TYPE_LIST vars now, since list
+ *      no longer requires its members to all be the same type.
+ *      f_cb and f_ex could be in a union.
+ *      f_minargs/f_maxargs/f_argc are all confusing, and I'm not
+ *      sure I'm even still using maxargs
  */
 struct function_handle_t {
         enum {
@@ -105,7 +112,7 @@ function_of(struct var_t *fn, struct var_t **owner)
                                 callable = literal_put("__callable__");
 
                         new_owner = fn;
-                        fn = object_child_l(fn, callable);
+                        fn = object_getattr_l(fn, callable);
                 } else {
                         fn = NULL;
                 }

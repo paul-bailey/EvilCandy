@@ -275,7 +275,7 @@ attr_by_string_l(struct var_t *v, const char *s)
                 return NULL;
         if (v->magic == TYPE_DICT) {
                 struct var_t *res;
-                if ((res = object_child_l(v, s)) != NULL)
+                if ((res = object_getattr_l(v, s)) != NULL)
                         return res;
         }
         return builtin_method_l(v, s);
@@ -376,54 +376,14 @@ attr_str(struct var_t *deref)
 enum result_t
 var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
 {
-        char *attrstr = NULL;
-        int idx = 0;
-        switch (deref->magic) {
-        case TYPE_STRPTR:
-                attrstr = deref->strptr;
-                goto set_by_str;
-        case TYPE_INT:
-                if (deref->i < INT_MIN || deref->i > INT_MAX)
-                        return RES_ERROR;
-                idx = deref->i;
-                goto set_by_idx;
-        case TYPE_STRING:
-                attrstr = string_get_cstring(deref);
-                if (attrstr)
-                        attrstr = literal(attrstr);
-                if (!attrstr)
-                        return RES_ERROR;
-                goto set_by_str;
+        switch (v->magic) {
+        case TYPE_DICT:
+                return object_setattr(v, deref, attr);
+        case TYPE_LIST:
+                return array_insert(v, deref, attr);
+        default:
+                return RES_ERROR;
         }
-        return RES_ERROR;
-
-set_by_str:
-        if (v->magic == TYPE_DICT) {
-                struct var_t *child = object_child_l(v, attrstr);
-                if (child) {
-                        if (!qop_mov(child, attr))
-                                return RES_ERROR;
-                } else {
-                        if (object_add_child(v, attr, attrstr) != 0)
-                                return RES_ERROR;
-                }
-                return RES_OK;
-        }
-        /*
-         * currently no other native types have attributes that are
-         * settable by name.
-         */
-        return RES_ERROR;
-
-
-set_by_idx:
-        if (v->magic == TYPE_LIST)
-                return array_set_child(v, idx, attr);
-        /*
-         * currently no other native types have attributes that are
-         * settable by subscript.  (TODO: allow this for strings)
-         */
-        return RES_ERROR;
 }
 
 /* philosophical debate: should this be here or in types/integer.c? */

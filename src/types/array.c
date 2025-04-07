@@ -16,6 +16,7 @@
  */
 #include "var.h"
 #include <stdlib.h>
+#include <limits.h>
 
 /**
  * struct array_handle_t - Handle to a numerical array
@@ -55,8 +56,12 @@ array_handle_new(void)
  * @child: Variable to store the result, which must be permitted
  *         to receive it (ie. it ought to be TYPE_EMPTY)
  *
- * Return 0 for success, -1 for failure
+ * Return: child member, or NULL if idx out of bounds.
+ *         This does not return ErrorVar because the call could just
+ *         be a probe.
  *
+ * Calling code needs to call VAR_INCR_REF if it uses it.
+ * That's not done here.
  */
 struct var_t *
 array_child(struct var_t *array, int idx)
@@ -72,7 +77,8 @@ array_child(struct var_t *array, int idx)
 }
 
 /**
- * array_set_child - Set the value of an array member
+ * array_insert - Insert @child into @idx and throw error if
+ *                array out of bounds.
  * @array:      Array to operate on
  * @idx:        Index into the array
  * @child:      Variable storing the data to set in array
@@ -81,16 +87,32 @@ array_child(struct var_t *array, int idx)
  * dealt with w/r/t garbage collection by calling code.
  */
 enum result_t
-array_set_child(struct var_t *array, int idx, struct var_t *child)
+array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
 {
         struct var_t *memb;
+
+        if (idx->magic != TYPE_INT) {
+                err_setstr(RuntimeError, "Array subscript must be integer");
+                return RES_ERROR;
+        }
+        if (idx->i < INT_MIN || idx->i > INT_MAX) {
+                err_setstr(RuntimeError, "Array index out of bounds");
+                return RES_ERROR;
+        }
 
         if (array->a->lock) {
                 err_locked();
                 return RES_ERROR;
         }
 
-        memb = array_child(array, idx);
+        /*
+         * XXX REVISIT: Policy decision: Instead of this, better to...
+         *      VAR_DECR_REF(memb);
+         *      VAR_INCR_REF(child);
+         *      ppvar[idx] = child;
+         * See same insertion dilemma in object.c
+         */
+        memb = array_child(array, (int)idx->i);
         if (!memb)
                 return RES_ERROR;
         if (!qop_mov(memb, child))
@@ -99,17 +121,12 @@ array_set_child(struct var_t *array, int idx, struct var_t *child)
 }
 
 /**
- * array_add_child - Append a new element to an array
+ * array_append - Append a new element to an array
  * @array:  Array to add to
  * @child:  New element to put in array
- *
- * @child may not be an empty variable.  It must be the same type as the
- * other variables stored in @array.  If this is the first call to
- * array_add_child for this array, then the array's type will be locked
- * to @child->magic.
  */
 enum result_t
-array_add_child(struct var_t *array, struct var_t *child)
+array_append(struct var_t *array, struct var_t *child)
 {
         struct array_handle_t *h = array->a;
 
@@ -125,12 +142,13 @@ array_add_child(struct var_t *array, struct var_t *child)
 
         h->nmemb++;
         VAR_INCR_REF(child);
+        /* XXX: poor amortization, maybe assert_array_pos instead */
         buffer_putd(&h->children, &child, sizeof(void *));
         return RES_OK;
 }
 
 /**
- * array_from_empty - Turn an empty variable into a new array
+ * array_init - Turn an empty variable into a new array
  * @array: Variable to turn into an array
  *
  * Return: @array, always
@@ -138,7 +156,7 @@ array_add_child(struct var_t *array, struct var_t *child)
  * This will create a new array handle
  */
 struct var_t *
-array_from_empty(struct var_t *array)
+array_init(struct var_t *array)
 {
         bug_on(array->magic != TYPE_EMPTY);
         array->magic = TYPE_LIST;
@@ -183,7 +201,7 @@ static const struct operator_methods_t array_primitives = {
 };
 
 static struct var_t *
-array_len(struct vmframe_t *fr)
+do_array_len(struct vmframe_t *fr)
 {
         struct var_t *ret = var_new();
         struct var_t *self = get_this(fr);
@@ -193,7 +211,7 @@ array_len(struct vmframe_t *fr)
 }
 
 static struct var_t *
-array_foreach(struct vmframe_t *fr)
+do_array_foreach(struct vmframe_t *fr)
 {
         struct var_t *self, *func, *argv[2], **ppvar;
         unsigned int idx, lock;
@@ -246,7 +264,7 @@ out:
 }
 
 static struct var_t *
-array_append(struct vmframe_t *fr)
+do_array_append(struct vmframe_t *fr)
 {
         struct var_t *self, *arg;
         self = get_this(fr);
@@ -258,14 +276,14 @@ array_append(struct vmframe_t *fr)
                 err_argtype("item");
                 return ErrorVar;
         }
-        array_add_child(self, arg);
+        array_append(self, arg);
         return NULL;
 }
 
 static const struct type_inittbl_t array_methods[] = {
-        V_INITTBL("append",     array_append,   0, 0),
-        V_INITTBL("len",        array_len,      0, 0),
-        V_INITTBL("foreach",    array_foreach,  0, 0),
+        V_INITTBL("append",     do_array_append,   0, 0),
+        V_INITTBL("len",        do_array_len,      0, 0),
+        V_INITTBL("foreach",    do_array_foreach,  0, 0),
         TBLEND,
 };
 

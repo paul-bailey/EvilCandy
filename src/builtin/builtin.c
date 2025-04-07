@@ -156,8 +156,7 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                         bug();
                 }
                 bug_on(child->magic == TYPE_EMPTY);
-                if (object_add_child(parent, child, literal_put(t->name))
-                    != 0) {
+                if (object_addattr(parent, child, t->name) != 0) {
                         /*
                          * Whether this is a "bug" or not is philosophical.
                          * Anyway, it can't be user error, so something
@@ -183,9 +182,9 @@ moduleinit_builtin(void)
         object_set_priv(GlobalObject, &gbl, NULL);
         bi_build_internal_object__(GlobalObject, gblinit);
 
-        ParserError     = object_child(GlobalObject, "ParserError");
-        RuntimeError    = object_child(GlobalObject, "RuntimeError");
-        SystemError     = object_child(GlobalObject, "SystemError");
+        ParserError  = object_getattr(GlobalObject, "ParserError");
+        RuntimeError = object_getattr(GlobalObject, "RuntimeError");
+        SystemError  = object_getattr(GlobalObject, "SystemError");
         if (!ParserError || !RuntimeError || !SystemError) {
                 fail("Could not create error objects");
         }

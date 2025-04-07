@@ -104,6 +104,14 @@ void
 err_setstr(struct var_t *exc, const char *msg, ...)
 {
         va_list ap;
+        /*
+         * XXX REVISIT: @exc could be NULL if a function is called and
+         * encounters an error during early initialization, before the
+         * XxxError pointers have been set.  But fatal system errors do
+         * not call err_setstr, and users can't cause an error so early,
+         * only bad C code can.  So it's a bug, right?
+         */
+        bug_on(exc == NULL);
         va_start(ap, msg);
         err_vsetstr(exc, msg, ap);
         va_end(ap);

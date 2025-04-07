@@ -120,6 +120,12 @@ refresh_grow_markers(struct hashtable_t *htbl)
          * cache misses, killing the advantage that open-address has over
          * chaining.  I'm assuming that amortization is reason enough not
          * to care about any of this.
+         *
+         * TODO 4/2025: not necessary: if size * 3 > growsize * 2, grow it.
+         * If size * 2 < shrinksize * 3, shrink it.  Then each time we
+         * resize we multiply/divide all values by 2.  The division is
+         * no longer arbitrary.
+         * Do that instead of this below.
          */
         htbl->grow_size = (htbl->size << 1) / 3;
         htbl->shrink_size = htbl->used <= INIT_SIZE

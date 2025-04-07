@@ -114,11 +114,12 @@ struct assemble_t;
 
 /**
  * struct object_handle_t - Descriptor for an object handle
- * @children:   List of children members
  * @priv:       Internal private data, used by some built-in object types
  * @priv_cleanup: Way to clean up @priv if destroying this object handle.
  *              If this is NULL and @priv is not NULL, @priv will be
- *              simply freed.
+ *              simply freed.  Used by C accelerator modules, not scripts.
+ * @nchildren:  Number of attributes
+ * @dict:       Hash table of attributes
  * @lock:       Prevent SETATTR, GETATTR during an iterable cycle, such as
  *              foreach.
  *
@@ -418,11 +419,11 @@ extern void var_bucket_delete(void *data);
 
 /* types/array.c */
 extern struct var_t *array_child(struct var_t *array, int idx);
-extern enum result_t array_add_child(struct var_t *array,
-                                     struct var_t *child);
-extern enum result_t array_set_child(struct var_t *array,
-                                     int idx, struct var_t *child);
-extern struct var_t *array_from_empty(struct var_t *array);
+extern enum result_t array_append(struct var_t *array,
+                                  struct var_t *child);
+extern enum result_t array_insert(struct var_t *array,
+                                  struct var_t *idx, struct var_t *child);
+extern struct var_t *array_init(struct var_t *array);
 extern int array_get_type(struct var_t *array);
 
 /* types/function.c */
@@ -440,17 +441,19 @@ extern void function_init(struct var_t *func,
 
 /* types/object.c */
 extern struct var_t *object_init(struct var_t *v);
-extern struct var_t *object_child_l(struct var_t *o, const char *s);
-extern enum result_t object_add_child(struct var_t *o,
-                                      struct var_t *v, const char *name);
+extern struct var_t *object_getattr_l(struct var_t *o, const char *s);
+extern enum result_t object_addattr(struct var_t *o,
+                                    struct var_t *v, const char *name);
+extern enum result_t object_setattr(struct var_t *o,
+                                    struct var_t *name, struct var_t *attr);
 extern enum result_t object_remove_child_l(struct var_t *o, const char *s);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
 static inline void *object_get_priv(struct var_t *o)
         { return o->o->priv; }
 /* obj..._l() can handle if literal(s) is NULL, so these are safe. */
-static inline struct var_t *object_child(struct var_t *o, const char *s)
-        { return object_child_l(o, literal(s)); }
+static inline struct var_t *object_getattr(struct var_t *o, const char *s)
+        { return object_getattr_l(o, literal(s)); }
 static inline int object_remove_child(struct var_t *o, const char *s)
         { return object_remove_child_l(o, literal(s)); }
 

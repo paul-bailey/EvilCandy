@@ -66,11 +66,11 @@ object_set_priv(struct var_t *o, void *priv,
 }
 
 /**
- * object_child_l - Like object_child, but @s is already known be a
+ * object_getattr_l - Like object_getattr, but @s is already known be a
  *                  return value of literal()
  */
 struct var_t *
-object_child_l(struct var_t *o, const char *s)
+object_getattr_l(struct var_t *o, const char *s)
 {
         if (!s)
                 return NULL;
@@ -81,13 +81,17 @@ object_child_l(struct var_t *o, const char *s)
 }
 
 /**
- * object_add_child - Append a child to an object
+ * object_addattr - Append a child to an object
  * @parent: object to append a child to
  * @child: child to append to @parent
  * @name: Name of the child.
+ *
+ * Like object_setattr, except that it throws an error if the atttribute
+ * already exists, and it takes into account that most callers have a
+ * C string, not a TYPE_STRING var_t.
  */
 enum result_t
-object_add_child(struct var_t *parent,
+object_addattr(struct var_t *parent,
                  struct var_t *child, const char *name)
 {
         bug_on(parent->magic != TYPE_DICT);
@@ -95,7 +99,7 @@ object_add_child(struct var_t *parent,
                 err_locked();
                 return RES_ERROR;
         }
-        if (hashtable_put(&parent->o->dict, (void *)name, child) < 0) {
+        if (hashtable_put(&parent->o->dict, literal_put(name), child) < 0) {
                 err_setstr(RuntimeError,
                            "Object already has element named %s", name);
                 return RES_ERROR;
@@ -186,7 +190,7 @@ object_reset(struct var_t *o)
  * Returns nothing
  */
 struct var_t *
-object_foreach(struct vmframe_t *fr)
+do_object_foreach(struct vmframe_t *fr)
 {
         struct var_t *self;
         struct var_t *func;
@@ -249,7 +253,7 @@ object_foreach(struct vmframe_t *fr)
  * returns number of elements in object
  */
 static struct var_t *
-object_len(struct vmframe_t *fr)
+do_object_len(struct vmframe_t *fr)
 {
         struct var_t *v, *ret;
         int i = 0;
@@ -276,7 +280,7 @@ object_len(struct vmframe_t *fr)
 }
 
 static struct var_t *
-object_hasattr(struct vmframe_t *fr)
+do_object_hasattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = frame_get_arg(fr, 0);
@@ -292,47 +296,91 @@ object_hasattr(struct vmframe_t *fr)
         }
 
         if ((s = string_get_cstring(name)) != NULL)
-                child = object_child(self, s);
+                child = object_getattr(self, s);
 
         ret = var_new();
         integer_init(ret, (int)(child != NULL));
         return ret;
 }
 
+/**
+ * object_setattr - Insert an attribute to dictionary if it doesn't exist,
+ *                  or change the existing attribute if it does.
+ * @self:       Dictionary object
+ * @name:       Name of attribute key
+ * @attr:       Value to set
+ *
+ * This does not touch the type's built-in-method attributes.
+ *
+ * Return: res_ok or RES_ERROR.
+ *
+ * XXX REVISIT: When replacing old attribute, this performs a MOV operation.
+ *       Good idea or bad idea?
+ *       Consider the code
+ *              let A = B.SomeAttr;
+ *              B.SomeAttr = SomethingElseNow;
+ *      What happens with handle A after changing B.SomeAttr?
+ *      Isn't it better to VAR_DECR_REF(old B.SomeAttr), and let a's
+ *      handle be independent of b when this happens?
+ */
+enum result_t
+object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
+{
+        char *namestr;
+        struct var_t *child;
+
+        bug_on(dict->magic != TYPE_DICT);
+
+        switch (name->magic) {
+        case TYPE_STRPTR:
+                namestr = name->strptr;
+                break;
+        case TYPE_STRING:
+                namestr = string_get_cstring(name);
+                break;
+        default:
+                err_argtype("name");
+                return RES_ERROR;
+        }
+
+        /*
+         * if exists, change it. Otherwise add it.
+         * XXX: POLICY DECISION: qop_mov as below, or delte old
+         * and replace it with new?
+         */
+        child = object_getattr_l(dict, namestr);
+        if (child) {
+                /* already exists */
+                if (!qop_mov(child, attr))
+                        return RES_ERROR;
+        } else {
+                if (object_addattr(dict, attr, namestr) != 0)
+                        return RES_ERROR;
+        }
+        return RES_OK;
+}
+
 /* "obj.setattr('name', val)" is an alternative to "obj.name = val" */
 static struct var_t *
-object_setattr(struct vmframe_t *fr)
+do_object_setattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = frame_get_arg(fr, 0);
         struct var_t *value = frame_get_arg(fr, 1);
-        struct var_t *attr;
-        char *s;
 
         bug_on(self->magic != TYPE_DICT);
-        if (arg_type_check(name, TYPE_STRING) != 0)
-                return ErrorVar;
 
+        if (!name) {
+                err_argtype("name");
+                return ErrorVar;
+        }
         if (!value) {
                 err_argtype("value");
                 return ErrorVar;
         }
-
-        s = string_get_cstring(name);
-        if (!s) {
-                err_setstr(RuntimeError, "setattr: name may not be empty");
+        if (object_setattr(self, name, value) != RES_OK)
                 return ErrorVar;
-        }
 
-        attr = object_child(self, s);
-        if (attr) {
-                /* could throw a type-mismatch error */
-                if (qop_mov(attr, value) < 0)
-                        return ErrorVar;
-        } else {
-                if (object_add_child(self, value, literal_put(s)) != 0)
-                        return ErrorVar;
-        }
         return NULL;
 }
 
@@ -351,7 +399,7 @@ object_setattr(struct vmframe_t *fr)
  * if 'name' does not exist.
  */
 static struct var_t *
-object_getattr(struct vmframe_t *fr)
+do_object_getattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = frame_get_arg(fr, 0);
@@ -369,7 +417,7 @@ object_getattr(struct vmframe_t *fr)
         }
 
         ret = var_new();
-        if ((attr = object_child(self, s)) != NULL) {
+        if ((attr = object_getattr(self, s)) != NULL) {
                 if (qop_mov(ret, attr) < 0) {
                         VAR_DECR_REF(ret);
                         return ErrorVar;
@@ -380,7 +428,7 @@ object_getattr(struct vmframe_t *fr)
 }
 
 static struct var_t *
-object_delattr(struct vmframe_t *fr)
+do_object_delattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = vm_get_arg(fr, 0);
@@ -397,12 +445,12 @@ object_delattr(struct vmframe_t *fr)
 }
 
 static const struct type_inittbl_t object_methods[] = {
-        V_INITTBL("len",       object_len,       0, 0),
-        V_INITTBL("foreach",   object_foreach,   1, 1),
-        V_INITTBL("hasattr",   object_hasattr,   1, 1),
-        V_INITTBL("setattr",   object_setattr,   2, 2),
-        V_INITTBL("getattr",   object_getattr,   1, 1),
-        V_INITTBL("delattr",   object_delattr,   1, 1),
+        V_INITTBL("len",       do_object_len,       0, 0),
+        V_INITTBL("foreach",   do_object_foreach,   1, 1),
+        V_INITTBL("hasattr",   do_object_hasattr,   1, 1),
+        V_INITTBL("setattr",   do_object_setattr,   2, 2),
+        V_INITTBL("getattr",   do_object_getattr,   1, 1),
+        V_INITTBL("delattr",   do_object_delattr,   1, 1),
         TBLEND,
 };
 

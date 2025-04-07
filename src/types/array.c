@@ -19,7 +19,6 @@
 
 /**
  * struct array_handle_t - Handle to a numerical array
- * @type:       type of data stored in the array, a TYPE_* enum
  * @lock:       lock to prevent add/remove during foreach
  * @nmemb:      Size of the array, in number of elements
  * @allocsize:  Size of the array, in number of bytes currently allocated
@@ -28,7 +27,7 @@
  *              keep figuring it out from @type all the time)
  */
 struct array_handle_t {
-        int type, lock;
+        int lock;
         unsigned int nmemb;
         struct buffer_t children;
 };
@@ -45,17 +44,8 @@ array_handle_new(void)
 {
         struct array_handle_t *ret = type_handle_new(sizeof(*ret),
                                                      array_handle_reset);
-        ret->type = TYPE_EMPTY;
         buffer_init(&ret->children);
         return ret;
-}
-
-static void
-array_type_err(struct array_handle_t *h, struct var_t *would_be_child)
-{
-        err_setstr(RuntimeError,
-                   "You man not add type %s to %s array",
-                   typestr(would_be_child), typestr_(h->type));
 }
 
 /**
@@ -128,17 +118,8 @@ array_add_child(struct var_t *array, struct var_t *child)
                 return RES_ERROR;
         }
         if (child->magic == TYPE_EMPTY) {
+                /* XXX bug? */
                 err_setstr(RuntimeError, "You may not add an empty var to array");
-                return RES_ERROR;
-        }
-        if (h->type == TYPE_EMPTY) {
-                /* first time, set type and assign datasize */
-                bug_on(h->nmemb != 0);
-                h->type = child->magic;
-        }
-
-        if (h->type != child->magic) {
-                array_type_err(h, child);
                 return RES_ERROR;
         }
 
@@ -164,20 +145,6 @@ array_from_empty(struct var_t *array)
 
         array->a = array_handle_new();
         return array;
-}
-
-/**
- * array_get_type - Get the type of data stored in an array
- * @array: Array containing stuff
- *
- * Return:
- * A TYPE_* enum matching the contents of the array
- */
-int
-array_get_type(struct var_t *array)
-{
-        bug_on(array->magic != TYPE_LIST);
-        return array->a->type;
 }
 
 static void
@@ -282,20 +249,13 @@ static struct var_t *
 array_append(struct vmframe_t *fr)
 {
         struct var_t *self, *arg;
-        struct array_handle_t *ah;
         self = get_this(fr);
         arg = vm_get_arg(fr, 0);
         bug_on(self->magic != TYPE_LIST);
-        ah = self->a;
 
         if (!arg) {
                 /* ugh, I know what it means */
                 err_argtype("item");
-                return ErrorVar;
-        }
-        if (ah->type != TYPE_EMPTY && ah->type != arg->magic) {
-                bug_on(ah->nmemb <= 0);
-                array_type_err(ah, arg);
                 return ErrorVar;
         }
         array_add_child(self, arg);

@@ -740,6 +740,10 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
         obj = pop(fr);
 
         if (var_set_attr(obj, deref, val) != 0) {
+                /*
+                 * XXX This could clobber a pending error message that
+                 * was set during var_set_attr
+                 */
                 err_attribute("set", deref, obj);
                 ret = -1;
         }

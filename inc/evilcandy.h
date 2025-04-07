@@ -85,6 +85,7 @@ enum {
  *
  * @RES_OK:             Success
  * @RES_EXCEPTION:      User raised an exception
+ * @RES_RETURN:         Return from function or script.  Used only by VM
  * @RES_ERROR:          Marklar error. Sometimes I plan ahead and think
  *                      things through.  Other times I type away YOLO-like
  *                      and say "I should return an error code here but I
@@ -97,6 +98,7 @@ enum {
 enum result_t {
         RES_OK = 0,
         RES_EXCEPTION = 1,
+        RES_RETURN = 2,
         RES_ERROR = -1,
 };
 
@@ -105,7 +107,6 @@ struct object_handle_t;
 struct array_handle_t;
 struct string_handle_t;
 struct function_handle_t;
-struct frame_t;
 struct executable_t;
 struct token_t;
 struct token_state_t;
@@ -216,19 +217,14 @@ struct vmframe_t {
 
 /**
  * struct global_t - This program's global data, declared as q_
- * @gbl:        __gbl__, as the user sees it
- * @ns:         Linked list of all loaded files' opcodes in RAM.
- * @pc:         "program counter", often called PC in comments
  * @recursion:  For the RECURSION_INCR and RECURSION_DECR macros,
  *              to keep check on excess recursion with our eval()
  *              and expression() functions.
- * @frame:      Current stack, FP, SP, LR, etc.
  * @opt:        Command-line options
  * @executables: Active executable functions
  */
 struct global_t {
         int recursion;
-        struct frame_t *frame;
         struct {
                 bool disassemble;
                 bool disassemble_only;
@@ -304,6 +300,7 @@ extern void warning_(const char *filename,
 
 extern void err_setstr(struct var_t *exc, const char *msg, ...);
 extern void err_get(struct var_t **exc, char **msg);
+extern bool err_exists(void);
 extern void err_print(FILE *fp, struct var_t *exc, char *msg);
 extern void err_print_last(FILE *fp);
 extern void err_attribute(const char *getorset,

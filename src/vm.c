@@ -534,20 +534,7 @@ do_push_zero(struct vmframe_t *fr, instruction_t ii)
 static int
 do_return_value(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *result = pop(fr);
-
-        current_frame = fr->prev;
-        vmframe_free(fr);
-        fr = current_frame;
-        /*
-         * FIXME: This means results cannot be returned
-         * from reentrant calls, such as in a foreach loop.
-         */
-        if (fr)
-                push(fr, result);
-        else
-                VAR_DECR_REF(result);
-        return 0;
+        return RES_RETURN;
 }
 
 static int
@@ -579,8 +566,8 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
 
         if (function_prep_frame(func, fr_new, owner) == NULL) {
                 /* frame only partly set up, we need to set this */
-                fr->stackptr = fr->stack + fr->ap;
-                vmframe_free(fr);
+                fr_new->stackptr = fr_new->stack + fr_new->ap;
+                vmframe_free(fr_new);
                 return -1;
         }
 
@@ -649,8 +636,8 @@ do_add_default(struct vmframe_t *fr, instruction_t ii)
         /*
          * XXX what's a check for the reasonable size of ii.arg2 here?
          * 99% of the time, this is single-digit, but some weirdos out
-         * there love breaking weak programs.  It's signed 16-bits, so
-         * the largest number of args can be 32767.
+         * there love breaking weak programs. FRAME_STACK_MAX limits
+         * number of args to something than can easily fit into ii.arg2.
          */
         function_add_default(func, deflt, ii.arg2);
         push(fr, func);
@@ -947,6 +934,21 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
 };
 
+#ifndef NDEBUG
+static void
+check_ghost_errors(int res)
+{
+        bool e = err_exists();
+
+        if (e && res == RES_OK)
+                fprintf(stderr, "EvilCandy: Ghost error slipped by\n");
+        if (!e && res != RES_OK && res != RES_RETURN)
+                fprintf(stderr, "EvilCandy: Error return but none reported\n");
+}
+#else
+# define check_ghost_erors(x_) do { (void)0; } while (0)
+#endif
+
 static int
 execute_loop(bool check_null)
 {
@@ -955,35 +957,49 @@ execute_loop(bool check_null)
         while ((ii = *(current_frame->ppii)++).code != INSTR_END) {
                 bug_on((unsigned int)ii.code >= N_INSTR);
                 res = JUMP_TABLE[ii.code](current_frame, ii);
-                /* Just for now... */
-                if (res != 0) {
+
+                check_ghost_errors(res);
+
+                if (res == RES_OK)
+                        continue; /* fast path */
+
+                if (res == RES_RETURN) {
+                        struct vmframe_t *fr;
+                        struct var_t *returnvar;
+
+                        res = RES_OK;
+                        fr = current_frame;
+                        returnvar = pop(fr);
+                        current_frame = fr->prev;
+                        vmframe_free(fr);
+                        if (current_frame) {
+                                /* called from within script */
+                                push(current_frame, returnvar);
+                                continue;
+                        } else {
+                                /*
+                                 * called from vm_reenter or
+                                 * returning from top level of script.
+                                 *
+                                 * FIXME: this means we cannot return
+                                 * value when called from vm_reenter.
+                                 */
+                                bug_on(!check_null);
+                                VAR_DECR_REF(returnvar);
+                                break;
+                        }
+                } else {
                         /*
-                         * TODO: Need to know if we gotta exit, unwind
-                         * an exception (if we're in a try/catch loop),
-                         * or just return an error value if in TTY mode.
-                         * Right now we're just printing error and
-                         * returning result.
+                         * res neither 0 nor RES_RETURN, it's an error or exception.
+                         *
+                         * TODO: Need to know if we gotta exit, unwind an exception
+                         * (if we're in a try/catch loop), or just return an error
+                         * value if in TTY mode.  Right now we just print error and
+                         * return result.
                          */
                         err_print_last(stderr);
                         break;
                 }
-
-                /*
-                 * TODO: Check for ghost errors, ie. res == 0 but
-                 * err_get returns stuff.
-                 */
-
-                /*
-                 * In reentrance mode, INSTR_RETURN may set current_frame
-                 * to NULL.  This, rather than INSTR_END, is our trigger
-                 * to leave.
-                 *
-                 * TODO: simplify this by adding RES_RETURN to result_t
-                 * enum and have do_return_value return that.  Maybe also
-                 * RES_BREAK.
-                 */
-                if (check_null && !current_frame)
-                        break;
         }
         return res;
 }
@@ -1077,7 +1093,7 @@ vm_execute(struct executable_t *top_level)
  * FIXME: It's just killing me that we can't just reenter vm_execute,
  * surely all it takes is re-thinking struct executable_t.
  * There are lots of subtle differences between the code below and
- * d_call_func/do_return_value, but they're DRY violations just the same.
+ * do_call_func/do_return_value, but they're DRY violations just the same.
  */
 int
 vm_reenter(struct var_t *func, struct var_t *owner,

@@ -120,7 +120,7 @@ done:
 
 /*
  * return: If success: either @fn or the callable descendant of @fn to pass
- *         to call_function
+ *         to call_function()
  *         If error or not callable: NULL
  */
 struct var_t *

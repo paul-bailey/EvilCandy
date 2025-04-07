@@ -122,6 +122,12 @@ err_get(struct var_t **exc, char **msg)
         msg_last = NULL;
 }
 
+bool
+err_exists(void)
+{
+        return exception_last != NULL;
+}
+
 void
 err_print(FILE *fp, struct var_t *exc, char *msg)
 {

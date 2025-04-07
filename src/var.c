@@ -417,10 +417,8 @@ set_by_str:
 
 
 set_by_idx:
-        if (v->magic == TYPE_LIST) {
-                array_set_child(v, idx, attr);
-                return RES_OK;
-        }
+        if (v->magic == TYPE_LIST)
+                return array_set_child(v, idx, attr);
         /*
          * currently no other native types have attributes that are
          * settable by subscript.  (TODO: allow this for strings)

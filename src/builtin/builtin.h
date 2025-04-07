@@ -26,7 +26,7 @@ struct inittbl_t {
         const char *name;
         union {
                 struct {
-                        int (*cb)(struct var_t *);
+                        struct var_t *(*cb)(struct vmframe_t *);
                         int minargs;
                         int maxargs;
                 };

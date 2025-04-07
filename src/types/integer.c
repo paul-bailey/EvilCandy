@@ -189,20 +189,22 @@ int_mov_strict(struct var_t *a, struct var_t *b)
         return 0;
 }
 
-static int
-int_tostr(struct var_t *ret)
+static struct var_t *
+int_tostr(struct vmframe_t *fr)
 {
         char buf[64];
         ssize_t len;
-        struct var_t *self = get_this();
+        struct var_t *ret;
+        struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_INT);
 
         len = snprintf(buf, sizeof(buf), "%lld", self->i);
         bug_on(len >= sizeof(buf));
         (void)len; /* in case NDEBUG */
 
+        ret = var_new();
         string_init(ret, buf);
-        return 0;
+        return ret;
 }
 
 static const struct type_inittbl_t int_methods[] = {

@@ -44,9 +44,9 @@ struct file_handle_t {
 };
 
 static struct file_handle_t *
-getfh(void)
+getfh(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
+        struct var_t *self = get_this(fr);
         struct file_handle_t *fh;
         bug_on(self->magic != TYPE_DICT);
         fh = object_get_priv(self);
@@ -59,12 +59,13 @@ getfh(void)
  *
  * Return integer, 1 if file is at eof, 0 if not
  */
-static int
-do_eof(struct var_t *ret)
+static struct var_t *
+do_eof(struct vmframe_t *fr)
 {
-        struct file_handle_t *fh = getfh();
+        struct file_handle_t *fh = getfh(fr);
+        struct var_t *ret = var_new();
         integer_init(ret, !!feof(fh->fp));
-        return 0;
+        return ret;
 }
 
 /*
@@ -72,13 +73,13 @@ do_eof(struct var_t *ret)
  *
  * No return value.  Clears error flags and file's errno.
  */
-static int
-do_clearerr(struct var_t *ret)
+static struct var_t *
+do_clearerr(struct vmframe_t *fr)
 {
-        struct file_handle_t *fh = getfh();
+        struct file_handle_t *fh = getfh(fr);
         fh->err = 0;
         clearerr(fh->fp);
-        return 0;
+        return var_new();
 }
 
 /*
@@ -86,12 +87,13 @@ do_clearerr(struct var_t *ret)
  *
  * Return integer, errno of last error on file
  */
-static int
-do_errno(struct var_t *ret)
+static struct var_t *
+do_errno(struct vmframe_t *fr)
 {
-        struct file_handle_t *fh = getfh();
+        struct file_handle_t *fh = getfh(fr);
+        struct var_t *ret = var_new();
         integer_init(ret, (long long)fh->err);
-        return 0;
+        return ret;
 }
 
 /*
@@ -103,21 +105,25 @@ do_errno(struct var_t *ret)
  * If eof, string will be ""; empty lines can be distinguished from
  * EOF with the eof() built-in method.
  */
-static int
-do_readline(struct var_t *ret)
+static struct var_t *
+do_readline(struct vmframe_t *fr)
 {
         int errno_save = errno;
-        struct file_handle_t *fh = getfh();
+        struct var_t *ret = var_new();
+        struct file_handle_t *fh = getfh(fr);
         FILE *fp = fh->fp;
 
         bug_on(ret->magic != TYPE_EMPTY);
 
         errno = 0;
         string_init_from_file(ret, fp, '\n', false);
-        if (errno)
+        if (errno) {
+                VAR_DECR_REF(ret);
+                ret = ErrorVar;
                 fh->err = errno;
+        }
         errno = errno_save;
-        return 0;
+        return ret;
 }
 
 /*
@@ -128,20 +134,21 @@ do_readline(struct var_t *ret)
  * This will write all of str, including any newline found.
  * It will not add an additional newline.
  */
-static int
-do_writeline(struct var_t *ret)
+static struct var_t *
+do_writeline(struct vmframe_t *fr)
 {
         FILE *fp;
         char *s;
-        struct file_handle_t *fh = getfh();
-        struct var_t *vs = frame_get_arg(0);
+        struct var_t *ret;
+        struct file_handle_t *fh = getfh(fr);
+        struct var_t *vs = frame_get_arg(fr, 0);
         int res = 0;
         int errno_save = errno;
 
         bug_on(vs == NULL);
 
         if (arg_type_check(vs, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
         s = string_get_cstring(vs);
         if (!s)
                 goto done;
@@ -159,8 +166,14 @@ done:
         if (errno)
                 fh->err = errno;
         errno = errno_save;
-        integer_init(ret, res);
-        return 0;
+
+        if (res == 0) {
+                ret = var_new();
+                integer_init(ret, res);
+        } else {
+                ret = ErrorVar;
+        }
+        return ret;
 }
 
 /*
@@ -169,20 +182,25 @@ done:
  * Return integer, offset of file or -1 if error, possibly
  * set the file's errno
  */
-static int
-do_tell(struct var_t *ret)
+static struct var_t *
+do_tell(struct vmframe_t *fr)
 {
-        struct file_handle_t *fh = getfh();
+        struct var_t *ret;
+        struct file_handle_t *fh = getfh(fr);
         int errno_save = errno;
         long off;
 
         errno = 0;
         off = ftell(fh->fp);
-        if (errno)
+        if (errno) {
+                ret = ErrorVar;
                 fh->err = errno;
+        } else {
+                ret = var_new();
+                integer_init(ret, off);
+        }
         errno = errno_save;
-        integer_init(ret, off);
-        return 0;
+        return ret;
 }
 
 /*
@@ -190,17 +208,22 @@ do_tell(struct var_t *ret)
  *
  * Return nothing, rewind the file, possibly set file's errno
  */
-static int
-do_rewind(struct var_t *ret)
+static struct var_t *
+do_rewind(struct vmframe_t *fr)
 {
+        struct var_t *ret;
         int errno_save = errno;
-        struct file_handle_t *fh = getfh();
+        struct file_handle_t *fh = getfh(fr);
         errno = 0;
         rewind(fh->fp);
-        if (errno)
+        if (errno) {
                 fh->err = errno;
+                ret = ErrorVar;
+        } else {
+                ret = var_new();
+        }
         errno = errno_save;
-        return 0;
+        return ret;
 }
 
 static const struct inittbl_t file_methods[] = {
@@ -260,19 +283,20 @@ file_new(const char *path, const char *mode)
  *
  * Check with typeof to determine success or failure
  */
-static int
-do_open(struct var_t *ret)
+static struct var_t *
+do_open(struct vmframe_t *fr)
 {
-        struct var_t *vname = frame_get_arg(0);
-        struct var_t *vmode = frame_get_arg(1);
+        struct var_t *vname = frame_get_arg(fr, 0);
+        struct var_t *vmode = frame_get_arg(fr, 1);
         char *name, *mode;
         struct file_handle_t *fh;
         int errno_save = errno;
+        struct var_t *ret;
 
         if (arg_type_check(vname, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
         if (arg_type_check(vmode, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
         name = string_get_cstring(vname);
         mode = string_get_cstring(vmode);
         if (name == NULL || mode == NULL) {
@@ -283,19 +307,16 @@ do_open(struct var_t *ret)
         if ((fh = file_new(name, mode)) == NULL)
                 goto bad;
 
+        ret = var_new();
         object_init(ret);
         object_set_priv(ret, fh, file_reset);
         bi_build_internal_object__(ret, file_methods);
-        return 0;
+        return ret;
 
 bad:
-        /*
-         * TODO: Return error instead and let user decide
-         * whether to trap with try/catch
-         */
-        string_init(ret, strerror(errno));
+        /* User should be able to retrieve this from sys.errno */
         errno = errno_save;
-        return 0;
+        return ErrorVar;
 }
 
 const struct inittbl_t bi_io_inittbl__[] = {

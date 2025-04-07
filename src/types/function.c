@@ -33,7 +33,7 @@ struct function_handle_t {
         } f_magic;
         int f_minargs;
         int f_maxargs;
-        int (*f_cb)(struct var_t *ret);
+        struct var_t *(*f_cb)(struct vmframe_t *);
         struct executable_t *f_ex;
         struct var_t **f_argv;
         struct var_t **f_clov;
@@ -157,8 +157,6 @@ function_prep_frame(struct var_t *fn,
                 fr->stack[fr->ap++] = v;
                 VAR_INCR_REF(v);
         }
-        if (!owner)
-                owner = get_this();
         fr->owner = owner;
         fr->func  = fn;
         fr->clo   = fh->f_clov;
@@ -193,36 +191,23 @@ struct var_t *
 call_function(struct vmframe_t *fr, struct var_t *fn)
 {
         struct function_handle_t *fh = fn->fn;
+
         bug_on(fn->magic != TYPE_FUNCTION);
         bug_on(!fh);
-        switch (fh->f_magic) {
-        case FUNC_INTERNAL:
-        {
-                /*
-                 * TODO: New candidate for functions that
-                 * return ErrorVar
-                 */
+        bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
+
+        if (fh->f_magic == FUNC_INTERNAL) {
                 bug_on(!fh->f_cb);
-                struct var_t *ret = var_new();
-                int status = fh->f_cb(ret);
-                if (status != RES_OK) {
-                        /*
-                         * XXX: return value of f_cb should be
-                         * an err enum of some sort, but it gets
-                         * lost here.
-                         */
-                        VAR_DECR_REF(ret);
-                        return ErrorVar;
-                }
+
+                struct var_t *ret = fh->f_cb(fr);
+
+                /* Did programmer on autopilot do the NULL-is-error thing? */
+                bug_on(!ret);
                 return ret;
-        }
-        case FUNC_USER:
+        } else {
+                /* FUNC_USER */
                 return execute_loop(fr);
-        default:
-                bug();
-                break;
         }
-        return ErrorVar;
 }
 
 void
@@ -286,7 +271,8 @@ function_add_default(struct var_t *func,
  * @maxargs: Maximum number of args used by the function
  */
 void
-function_init_internal(struct var_t *func, int (*cb)(struct var_t *),
+function_init_internal(struct var_t *func,
+                       struct var_t *(*cb)(struct vmframe_t *),
                        int minargs, int maxargs)
 {
         struct function_handle_t *fh;
@@ -366,6 +352,10 @@ typedefinit_function(void)
         var_config_type(TYPE_FUNCTION,
                         "function",
                         &function_primitives,
+                        /*
+                         * TODO: function methods, like
+                         *      strbuf = myfunc.disassemble();
+                         */
                         NULL);
 }
 

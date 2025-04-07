@@ -12,12 +12,13 @@ static struct gbl_private_t {
         char nl[NLMAX];
 } gbl;
 
-static int
-do_typeof(struct var_t *ret)
+static struct var_t *
+do_typeof(struct vmframe_t *fr)
 {
-        struct var_t *p = frame_get_arg(0);
+        struct var_t *ret = var_new();
+        struct var_t *p = frame_get_arg(fr, 0);
         string_init(ret, typestr(p));
-        return 0;
+        return ret;
 }
 
 static bool
@@ -50,10 +51,10 @@ print_nl(void)
                 putchar((int)*s);
 }
 
-static int
-do_print(struct var_t *ret)
+static struct var_t *
+do_print(struct vmframe_t *fr)
 {
-        struct var_t *p = frame_get_arg(0);
+        struct var_t *p = frame_get_arg(fr, 0);
         if (p->magic == TYPE_STRING) {
                 char *s = string_get_cstring(p);
                 while (*s)
@@ -62,32 +63,37 @@ do_print(struct var_t *ret)
                 do_print_helper(p);
         }
         print_nl();
-        return 0;
+        return var_new();
 }
 
-static int
-do_exit(struct var_t *ret)
+static struct var_t *
+do_exit(struct vmframe_t *fr)
 {
-        struct var_t *p = frame_get_arg(0);
+        struct var_t *p = frame_get_arg(fr, 0);
         if (p && p->magic == TYPE_STRING)
                 printf("%s\n", string_get_cstring(p));
         exit(0);
-        return 0; /* compiler made me do this */
+
+        /*
+         * we'll obviously never reach this.
+         * Compilers make me do these things.
+         */
+        return var_new();
 }
 
-static int
-do_setnl(struct var_t *ret)
+static struct var_t *
+do_setnl(struct vmframe_t *fr)
 {
-        struct var_t *nl = frame_get_arg(0);
+        struct var_t *nl = frame_get_arg(fr, 0);
         char *s;
         if (nl->magic != TYPE_STRING) {
                 err_argtype("string");
-                return -1;
+                return ErrorVar;
         }
         s = string_get_cstring(nl);
         memset(gbl.nl, 0, NLMAX);
         strncpy(gbl.nl, s, NLMAX-1);
-        return 0;
+        return var_new();
 }
 
 static const struct inittbl_t gblinit[] = {

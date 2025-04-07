@@ -90,7 +90,7 @@ RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 static struct var_t *
 symbol_seek_this_(const char *s)
 {
-        struct var_t *o = get_this();
+        struct var_t *o = get_this(current_frame);
         if (o)
                 return var_get_attr_by_string_l(o, s);
         return NULL;
@@ -1091,7 +1091,9 @@ vm_reenter(struct var_t *func, struct var_t *owner,
                 VAR_INCR_REF(argv[argc]);
         }
 
-        if (function_prep_frame(func, fr, owner) == NULL) {
+        if (function_prep_frame(func, fr,
+                                owner ? owner : get_this(current_frame))
+            == NULL) {
                 /* frame only partly set up, we need to set this */
                 fr->stackptr = fr->stack + fr->ap;
                 vmframe_free(fr);
@@ -1125,30 +1127,4 @@ moduleinit_vm(void)
         hashtable_init(symbol_table, ptr_hash, ptr_key_match,
                        var_bucket_delete);
 }
-
-/**
- * vm_get_this - Get the object currently corresponding to the ``this''
- *               keyword.
- */
-struct var_t *
-vm_get_this(void)
-{
-        bug_on(!current_frame);
-        return current_frame->owner;
-}
-
-/**
- * vm_get_arg - Get an argument provided by user to internal function
- * @idx: Argument, indexed from zero.
- *
- * Return: Argument, or NULL if @idx is out of the argument frame.
- */
-struct var_t *
-vm_get_arg(unsigned int idx)
-{
-        if (idx >= current_frame->ap)
-                return NULL;
-        return current_frame->stack[idx];
-}
-
 

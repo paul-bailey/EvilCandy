@@ -200,33 +200,34 @@ static const struct operator_methods_t array_primitives = {
         .reset = array_reset,
 };
 
-static int
-array_len(struct var_t *ret)
+static struct var_t *
+array_len(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
+        struct var_t *ret = var_new();
+        struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_LIST);
         integer_init(ret, self->a->nmemb);
-        return 0;
+        return ret;
 }
 
-static int
-array_foreach(struct var_t *ret)
+static struct var_t *
+array_foreach(struct vmframe_t *fr)
 {
         struct var_t *self, *func, *argv[2], **ppvar;
         unsigned int idx, lock;
         struct array_handle_t *h;
-        int status = 0;
+        int status = RES_OK;
 
-        self = get_this();
-        func = frame_get_arg(0);
+        self = get_this(fr);
+        func = frame_get_arg(fr, 0);
         bug_on(self->magic != TYPE_LIST);
         if (!func) {
                 err_argtype("function");
-                return -1;
+                return ErrorVar;
         }
         h = self->a;
         if (!h->nmemb) /* nothing to iterate over */
-                return 0;
+                goto out;
 
         ppvar = (struct var_t **)h->children.s;
 
@@ -240,7 +241,7 @@ array_foreach(struct var_t *ret)
                 struct var_t *retval;
                 var_reset(argv[0]);
                 if (!qop_mov(argv[0], ppvar[idx])) {
-                        status = -1;
+                        status = RES_ERROR;
                         break;
                 }
                 argv[1]->i = idx;
@@ -257,31 +258,32 @@ array_foreach(struct var_t *ret)
 
         VAR_DECR_REF(argv[0]);
         VAR_DECR_REF(argv[1]);
-        return status;
+out:
+        return status == RES_OK ? var_new() : ErrorVar;
 }
 
-static int
-array_append(struct var_t *ret)
+static struct var_t *
+array_append(struct vmframe_t *fr)
 {
         struct var_t *self, *arg;
         struct array_handle_t *ah;
-        self = get_this();
-        arg = vm_get_arg(0);
+        self = get_this(fr);
+        arg = vm_get_arg(fr, 0);
         bug_on(self->magic != TYPE_LIST);
         ah = self->a;
 
         if (!arg) {
                 /* ugh, I know what it means */
                 err_argtype("item");
-                return -1;
+                return ErrorVar;
         }
         if (ah->type != TYPE_EMPTY && ah->type != arg->magic) {
                 bug_on(ah->nmemb <= 0);
                 array_type_err(ah, arg);
-                return -1;
+                return ErrorVar;
         }
         array_add_child(self, arg);
-        return 0;
+        return var_new();
 }
 
 static const struct type_inittbl_t array_methods[] = {

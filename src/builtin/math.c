@@ -6,9 +6,9 @@
 
 /* XXX easier to just return NAN for bad? */
 static double
-get_floatarg(int argno, int *status)
+get_floatarg(struct vmframe_t *fr, int argno, int *status)
 {
-        struct var_t *x = frame_get_arg(argno);
+        struct var_t *x = frame_get_arg(fr, argno);
         bug_on(!x);
         if (x->magic == TYPE_INT) {
                 *status = 0;
@@ -22,36 +22,38 @@ get_floatarg(int argno, int *status)
         return 0.;
 }
 
-static int
-do_pow(struct var_t *ret)
+static struct var_t *
+do_pow(struct vmframe_t *fr)
 {
+        struct var_t *ret;
         double x, y;
         int status;
-        x = get_floatarg(0, &status);
+        x = get_floatarg(fr, 0, &status);
         if (status)
                 goto bad;
-        y = get_floatarg(1, &status);
+        y = get_floatarg(fr, 1, &status);
         if (status)
                 goto bad;
+
+        ret = var_new();
         float_init(ret, pow(x, y));
-        return 0;
+        return ret;
 
 bad:
-        return -1;
+        return ErrorVar;
 }
 
-static int
-do_sqrt(struct var_t *ret)
+static struct var_t *
+do_sqrt(struct vmframe_t *fr)
 {
+        struct var_t *ret;
         int status;
-        double x = get_floatarg(0, &status);
+        double x = get_floatarg(fr, 0, &status);
         if (status)
-                goto bad;
+                return ErrorVar;
+        ret = var_new();
         float_init(ret, sqrt(x));
-        return 0;
-
-bad:
-        return -1;
+        return ret;
 }
 
 /*

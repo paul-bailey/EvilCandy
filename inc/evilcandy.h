@@ -428,7 +428,7 @@ extern int array_get_type(struct var_t *array);
 
 /* types/function.c */
 extern void function_init_internal(struct var_t *func,
-                        int (*cb)(struct var_t *),
+                        struct var_t *(*cb)(struct vmframe_t *),
                         int minargs, int maxargs);
 extern struct var_t *function_prep_frame(struct var_t *fn,
                         struct vmframe_t *fr, struct var_t *owner);
@@ -470,11 +470,14 @@ extern struct var_t *execute_loop(struct vmframe_t *fr);
 extern struct var_t *vm_reenter(struct var_t *func, struct var_t *owner,
                                 int argc, struct var_t **argv);
 extern void moduleinit_vm(void);
-extern struct var_t *vm_get_this(void);
-extern struct var_t *vm_get_arg(unsigned int idx);
+static inline struct var_t *vm_get_this(struct vmframe_t *fr)
+        { return fr->owner; }
+static inline struct var_t *vm_get_arg(struct vmframe_t *fr, unsigned int idx)
+        { return idx >= fr->ap ? NULL : fr->stack[idx]; }
+
 /* TODO: Get rid of references to frame_get_arg */
-# define frame_get_arg(i)       vm_get_arg(i)
-# define get_this()             vm_get_this()
+# define frame_get_arg(fr, i)   vm_get_arg(fr, i)
+# define get_this(fr)           vm_get_this(fr)
 
 
 #endif /* EGQ_H */

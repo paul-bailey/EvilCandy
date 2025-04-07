@@ -403,14 +403,14 @@ format2_s(struct buffer_t *buf, struct var_t *arg,
 }
 
 static size_t
-format2_helper(struct buffer_t *buf, const char *s, int argi)
+format2_helper(struct vmframe_t *fr, struct buffer_t *buf, const char *s, int argi)
 {
         const char *ssave = s;
         bool rjust = true;
         int padc = ' ';
         size_t padlen = 0;
         int precision = 6;
-        struct var_t *v = vm_get_arg(argi);
+        struct var_t *v = vm_get_arg(fr, argi);
         int conv;
 
         /*
@@ -515,12 +515,12 @@ format2_helper(struct buffer_t *buf, const char *s, int argi)
  *              s Insert arg string here.  pad is for Unicode characters,
  *                not necessarily bytes.
  */
-static int
-string_format2(struct var_t *ret)
+static struct var_t *
+string_format2(struct vmframe_t *fr)
 {
         char cbuf[5];
         size_t size;
-        struct var_t *self = get_this();
+        struct var_t *ret, *self = get_this(fr);
         const char *s;
         struct buffer_t *buf;
         int argi = 0;
@@ -528,12 +528,11 @@ string_format2(struct var_t *ret)
         bug_on(self->magic != TYPE_STRING);
         s = string_get_cstring(self);
 
-        string_init(ret, 0);
+        ret = var_new();
+        string_init(ret, "");
         buf = string_buf__(ret);
-        if (!s) {
-                buffer_putc(buf, '\0');
-                return 0;
-        }
+        if (!s || *s == '\0')
+                return ret;
 
         while ((size = utf8_strgetc(s, cbuf)) != 0) {
                 s += size;
@@ -545,7 +544,7 @@ string_format2(struct var_t *ret)
                                 s++;
                                 buffer_putc(buf, '%');
                         } else {
-                                s += format2_helper(buf, s, argi++);
+                                s += format2_helper(fr, buf, s, argi++);
                         }
                 } else  {
                         buffer_putc(buf, cbuf[0]);
@@ -553,7 +552,7 @@ string_format2(struct var_t *ret)
         }
 
         utf8_scan(string_get_cstring(ret), &ret->s->s_info);
-        return 0;
+        return ret;
 }
 
 /* **********************************************************************
@@ -565,17 +564,19 @@ string_format2(struct var_t *ret)
  *
  * Gotta call it something different, "string_length" already taken
  */
-static int
-string_length_method(struct var_t *ret)
+static struct var_t *
+string_length_method(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
+        struct var_t *ret = var_new();
+        struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_STRING);
         integer_init(ret, STRING_LENGTH(self));
-        return 0;
+        return ret;
 }
 
 static bool
-string_format_helper(char **src, struct buffer_t *t, int *lastarg)
+string_format_helper(struct vmframe_t *fr, char **src,
+                     struct buffer_t *t, int *lastarg)
 {
         char vbuf[64];
         char *s = *src;
@@ -583,12 +584,12 @@ string_format_helper(char **src, struct buffer_t *t, int *lastarg)
         struct var_t *q = NULL;
         ++s;
         if (*s == '}') {
-                q = frame_get_arg(la++);
+                q = frame_get_arg(fr, la++);
         } else if (isdigit(*s)) {
                 char *endptr;
                 int i = strtoul(s, &endptr, 10);
                 if (*endptr == '}') {
-                        q = frame_get_arg(i);
+                        q = frame_get_arg(fr, i);
                         la = i + 1;
                         s = endptr;
                 }
@@ -623,11 +624,12 @@ string_format_helper(char **src, struct buffer_t *t, int *lastarg)
  * format(...)
  * returns type string
  */
-static int
-string_format(struct var_t *ret)
+static struct var_t *
+string_format(struct vmframe_t *fr)
 {
         static struct buffer_t t = { 0 };
-        struct var_t *self = get_this();
+        struct var_t *self = get_this(fr);
+        struct var_t *ret = var_new();
         int lastarg = 0;
         char *s, *self_s;
         bug_on(self->magic != TYPE_STRING);
@@ -643,7 +645,7 @@ string_format(struct var_t *ret)
 
         for (s = self_s; *s != '\0'; s++) {
                 if (*s == '{' &&
-                    string_format_helper(&s, &t, &lastarg)) {
+                    string_format_helper(fr, &s, &t, &lastarg)) {
                         continue;
                 }
                 buffer_putc(&t, *s);
@@ -651,18 +653,19 @@ string_format(struct var_t *ret)
 
 done:
         string_init(ret, t.s);
-        return 0;
+        return ret;
 }
 
 /* toint() (no args)
  * returns int
  */
-static int
-string_toint(struct var_t *ret)
+static struct var_t *
+string_toint(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
+        struct var_t *ret, *self = get_this(fr);
         long long i = 0LL;
         char *s;
+
         bug_on(self->magic != TYPE_STRING);
         s = string_get_cstring(self);
         /* XXX Revisit: throw exception if not numerical? */
@@ -674,18 +677,19 @@ string_toint(struct var_t *ret)
                         i = 0;
                 errno = errno_save;
         }
+        ret = var_new();
         integer_init(ret, i);
-        return 0;
+        return ret;
 }
 
 /*
  * tofloat()  (no args)
  * returns float
  */
-static int
-string_tofloat(struct var_t *ret)
+static struct var_t *
+string_tofloat(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
+        struct var_t *ret, *self = get_this(fr);
         double f = 0.;
         char *s;
         bug_on(self->magic != TYPE_STRING);
@@ -698,89 +702,97 @@ string_tofloat(struct var_t *ret)
                         f = 0.;
                 errno = errno_save;
         }
+        ret = var_new();
         float_init(ret, f);
-        return 0;
+        return ret;
 }
 
 /*
  * lstrip()             no args implies whitespace
  * lstrip(charset)      charset is string
  */
-static int
-string_lstrip(struct var_t *ret)
+static struct var_t *
+string_lstrip(struct vmframe_t *fr)
 {
         const char *charset;
-        struct var_t *arg = frame_get_arg(0);
-        struct var_t *self = get_this();
+        struct var_t *ret;
+        struct var_t *arg = frame_get_arg(fr, 0);
+        struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_STRING);
 
         /* arg may be NULL, else it must be string */
         if (arg && arg_type_check(arg, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
 
+        ret = var_new();
         if (!qop_mov(ret, self))
                 charset = NULL;
         else
                 charset = arg ? string_get_cstring(arg) : NULL;
         buffer_lstrip(string_buf__(ret), charset);
-        return 0;
+        return ret;
 }
 
 /*
  * rstrip()             no args implies whitespace
  * rstrip(charset)      charset is string
  */
-static int
-string_rstrip(struct var_t *ret)
+static struct var_t *
+string_rstrip(struct vmframe_t *fr)
 {
         const char *charset;
-        struct var_t *arg = frame_get_arg(0);
-        struct var_t *self = get_this();
+        struct var_t *ret;
+        struct var_t *arg = frame_get_arg(fr, 0);
+        struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_STRING);
 
         /* arg may be NULL, else it must be string */
         if (arg && arg_type_check(arg, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
 
+        ret = var_new();
         if (!qop_mov(ret, self))
                 charset = NULL;
         else
                 charset = arg ? string_get_cstring(arg) : NULL;
         buffer_rstrip(string_buf__(ret), charset);
-        return 0;
+        return ret;
 }
 
 /*
  *  strip()             no args implies whitespace
  *  strip(charset)      charset is string
  */
-static int
-string_strip(struct var_t *ret)
+static struct var_t *
+string_strip(struct vmframe_t *fr)
 {
         const char *charset;
-        struct var_t *arg = frame_get_arg(0);
-        struct var_t *self = get_this();
+        struct var_t *ret;
+        struct var_t *arg = frame_get_arg(fr, 0);
+        struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_STRING);
 
         /* arg may be NULL, else it must be string */
         if (arg && arg_type_check(arg, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
 
+        ret = var_new();
         if (!qop_mov(ret, self))
                 charset = NULL;
         else
                 charset = arg ? string_get_cstring(arg) : NULL;
         buffer_rstrip(string_buf__(ret), charset);
         buffer_lstrip(string_buf__(ret), charset);
-        return 0;
+        return ret;
 }
 
-static int
-string_replace(struct var_t *ret)
+static struct var_t *
+string_replace(struct vmframe_t *fr)
 {
-        struct var_t *self    = get_this();
-        struct var_t *vneedle = frame_get_arg(0);
-        struct var_t *vrepl   = frame_get_arg(1);
+        struct var_t *ret;
+        struct var_t *self    = get_this(fr);
+        struct var_t *vneedle = frame_get_arg(fr, 0);
+        struct var_t *vrepl   = frame_get_arg(fr, 1);
         char *haystack, *needle, *end;
         size_t needle_len;
 
@@ -788,15 +800,13 @@ string_replace(struct var_t *ret)
         bug_on(!vneedle || !vrepl);
 
         if (arg_type_check(vneedle, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
         if (arg_type_check(vrepl, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
 
         /* guarantee ret is string */
-        if (ret->magic == TYPE_EMPTY)
-                string_init(ret, NULL);
-        /* XXX bug, or syntax error? */
-        bug_on(ret->magic != TYPE_STRING);
+        ret = var_new();
+        string_init(ret, "");
 
         buffer_reset(string_buf__(ret));
 
@@ -808,12 +818,12 @@ string_replace(struct var_t *ret)
 
         if (!haystack || end == haystack) {
                 buffer_putc(string_buf__(ret), '\0');
-                return 0;
+                return ret;
         }
 
         if (!needle || !needle_len) {
                 buffer_puts(string_buf__(ret), string_get_cstring(self));
-                return 0;
+                return ret;
         }
 
         while (*haystack && haystack < end) {
@@ -827,47 +837,39 @@ string_replace(struct var_t *ret)
         bug_on(haystack > end);
         if (*haystack != '\0')
                 buffer_puts(string_buf__(ret), haystack);
-        return 0;
+        return ret;
 }
 
-static int
-string_copy(struct var_t *ret)
+static struct var_t *
+string_copy(struct vmframe_t *fr)
 {
-        char *s;
-        struct var_t *self = get_this();
+        struct var_t *ret, *self = get_this(fr);
         bug_on(self->magic != TYPE_STRING);
 
-        if (ret->magic == TYPE_EMPTY)
-                string_init(ret, NULL);
-        bug_on(ret->magic != TYPE_STRING);
-
-        buffer_reset(string_buf__(ret));
-        s = string_get_cstring(self);
-        if (!s)
-                return 0;
-        string_init(ret, s);
-        return 0;
+        ret = var_new();
+        string_init(ret, string_get_cstring(self));
+        return ret;
 }
 
 /* rjust(amt)   integer arg */
-static int
-string_rjust(struct var_t *ret)
+static struct var_t *
+string_rjust(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
-        struct var_t *arg = vm_get_arg(0);
+        struct var_t *ret, *self = get_this(fr);
+        struct var_t *arg = vm_get_arg(fr, 0);
         size_t len;
         long long just;
-        struct buffer_t *buf = string_buf__(ret);
 
         if (arg_type_check(arg, TYPE_INT) != 0)
-                return -1;
+                return ErrorVar;
 
         just = arg->i;
         if (just < 0 || just >= JUST_MAX) {
                 err_setstr(RuntimeError, "Range limit error");
-                return -1;
+                return ErrorVar;
         }
 
+        ret = var_new();
         len = STRING_LENGTH(self);
         if (len < just) {
                 /*
@@ -876,51 +878,54 @@ string_rjust(struct var_t *ret)
                  * one chunk, and memset... much faster than this
                  * in the case of "rjust(gazillion)"
                  */
+                struct buffer_t *buf;
                 just -= len;
-                string_init(ret, NULL);
+                string_init(ret, "");
+                buf = string_buf__(ret);
                 while (just--)
                         buffer_putc(buf, ' ');
                 string_puts(ret, string_get_cstring(self));
         } else {
                 string_init(ret, string_get_cstring(self));
         }
-        return 0;
+        return ret;
 }
 
 /* rjust(amt)    integer arg */
-static int
-string_ljust(struct var_t *ret)
+static struct var_t *
+string_ljust(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
-        struct var_t *arg = vm_get_arg(0);
+        struct var_t *ret, *self = get_this(fr);
+        struct var_t *arg = vm_get_arg(fr, 0);
         size_t len;
         long long just;
-        struct buffer_t *buf = string_buf__(ret);
 
         if (arg_type_check(arg, TYPE_INT) != 0)
-                return -1;
+                return ErrorVar;
 
         just = arg->i;
         if (just < 0 || just >= JUST_MAX) {
                 err_setstr(RuntimeError, "Range limit error");
-                return -1;
+                return ErrorVar;
         }
 
         len = STRING_LENGTH(self);
+        ret = var_new();
         string_init(ret, string_get_cstring(self));
         if (len < just) {
+                struct buffer_t *buf = string_buf__(ret);
                 just -= len;
                 while (just--)
                         buffer_putc(buf, ' ');
         }
-        return 0;
+        return ret;
 }
 
-static int
-string_join(struct var_t *ret)
+static struct var_t *
+string_join(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
-        struct var_t *arg = vm_get_arg(0);
+        struct var_t *ret, *self = get_this(fr);
+        struct var_t *arg = vm_get_arg(fr, 0);
         char *joinstr;
         struct var_t *elem;
         int idx;
@@ -929,21 +934,23 @@ string_join(struct var_t *ret)
                 joinstr = "";
 
         if (arg_type_check(arg, TYPE_LIST) != 0)
-                return -1;
+                return ErrorVar;
 
         idx = 0;
         elem = array_child(arg, idx);
         if (!elem) {
+                ret = var_new();
                 string_init(ret, "");
-                return 0;
+                return ret;
         }
 
         if (elem->magic != TYPE_STRING) {
                 err_setstr(RuntimeError,
                            "string.join method may only join lists of strings");
-                return -1;
+                return ErrorVar;
         }
 
+        ret = var_new();
         string_init(ret, string_get_cstring(elem));
         for (;;) {
                 idx++;
@@ -953,7 +960,7 @@ string_join(struct var_t *ret)
                 string_puts(ret, joinstr);
                 string_puts(ret, string_get_cstring(elem));
         }
-        return 0;
+        return ret;
 }
 
 static struct type_inittbl_t string_methods[] = {

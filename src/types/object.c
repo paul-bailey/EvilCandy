@@ -185,8 +185,8 @@ object_reset(struct var_t *o)
  *      it happens to be.
  * Returns nothing
  */
-int
-object_foreach(struct var_t *ret)
+struct var_t *
+object_foreach(struct vmframe_t *fr)
 {
         struct var_t *self;
         struct var_t *func;
@@ -194,14 +194,14 @@ object_foreach(struct var_t *ret)
         struct hashtable_t *htbl;
         void *key, *val;
         int res, lock;
-        int status = 0;
+        int status = RES_OK;
         struct var_t *argv[2];
 
-        self = get_this();
-        func = frame_get_arg(0);
+        self = get_this(fr);
+        func = frame_get_arg(fr, 0);
         if (!func) {
                 err_argtype("function");
-                return -1;
+                return ErrorVar;
         }
         argv[0] = var_new(); /* attribute */
         argv[1] = var_new(); /* name of attribute */
@@ -217,7 +217,7 @@ object_foreach(struct var_t *ret)
                 struct var_t *retval;
                 var_reset(argv[0]);
                 if (qop_mov(argv[0], (struct var_t *)val) < 0) {
-                        status = -1;
+                        status = RES_ERROR;
                         break;
                 }
                 string_assign_cstring(argv[1], (char *)key);
@@ -239,7 +239,7 @@ object_foreach(struct var_t *ret)
 
         VAR_DECR_REF(argv[0]);
         VAR_DECR_REF(argv[1]);
-        return status;
+        return status == RES_OK ? var_new(): ErrorVar;
 }
 
 
@@ -247,15 +247,15 @@ object_foreach(struct var_t *ret)
  * len()  (no args)
  * returns number of elements in object
  */
-static int
-object_len(struct var_t *ret)
+static struct var_t *
+object_len(struct vmframe_t *fr)
 {
-        struct var_t *v;
+        struct var_t *v, *ret;
         int i = 0;
 
-        v = frame_get_arg(0);
+        v = frame_get_arg(fr, 0);
         if (!v) {
-                v = get_this();
+                v = get_this(fr);
                 bug_on(v->magic != TYPE_DICT);
         }
         switch (v->magic) {
@@ -268,67 +268,71 @@ object_len(struct var_t *ret)
         default:
                 i = 1;
         }
+
+        ret = var_new();
         integer_init(ret, i);
-        return 0;
+        return ret;
 }
 
-static int
-object_hasattr(struct var_t *ret)
+static struct var_t *
+object_hasattr(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
-        struct var_t *name = frame_get_arg(0);
+        struct var_t *self = get_this(fr);
+        struct var_t *name = frame_get_arg(fr, 0);
         struct var_t *child = NULL;
+        struct var_t *ret;
         char *s;
 
         bug_on(self->magic != TYPE_DICT);
 
         if (!name || name->magic != TYPE_STRING) {
                 err_argtype("string");
-                return -1;
+                return ErrorVar;
         }
 
         if ((s = string_get_cstring(name)) != NULL)
                 child = object_child(self, s);
 
+        ret = var_new();
         integer_init(ret, (int)(child != NULL));
-        return 0;
+        return ret;
 }
 
 /* "obj.setattr('name', val)" is an alternative to "obj.name = val" */
-static int
-object_setattr(struct var_t *ret)
+static struct var_t *
+object_setattr(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
-        struct var_t *name = frame_get_arg(0);
-        struct var_t *value = frame_get_arg(1);
+        struct var_t *self = get_this(fr);
+        struct var_t *name = frame_get_arg(fr, 0);
+        struct var_t *value = frame_get_arg(fr, 1);
         struct var_t *attr;
         char *s;
 
         bug_on(self->magic != TYPE_DICT);
         if (arg_type_check(name, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
 
         if (!value) {
                 err_argtype("value");
-                return -1;
+                return ErrorVar;
         }
 
         s = string_get_cstring(name);
         if (!s) {
                 err_setstr(RuntimeError, "setattr: name may not be empty");
-                return -1;
+                return ErrorVar;
         }
 
         attr = object_child(self, s);
         if (attr) {
                 /* could throw a type-mismatch error */
                 if (qop_mov(attr, value) < 0)
-                        return -1;
+                        return ErrorVar;
         } else {
                 if (object_add_child(self, value, literal_put(s)) != 0)
-                        return -1;
+                        return ErrorVar;
         }
-        return 0;
+        return var_new();
 }
 
 /*
@@ -345,45 +349,51 @@ object_setattr(struct var_t *ret)
  * "x = obj.getattr('name')", x will be set to the empty variable
  * if 'name' does not exist.
  */
-static int
-object_getattr(struct var_t *ret)
+static struct var_t *
+object_getattr(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
-        struct var_t *name = frame_get_arg(0);
-        struct var_t *attr;
+        struct var_t *self = get_this(fr);
+        struct var_t *name = frame_get_arg(fr, 0);
+        struct var_t *attr, *ret;
         char *s;
 
         bug_on(self->magic != TYPE_DICT);
         if (arg_type_check(name, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
 
         s = string_get_cstring(name);
         if (!s) {
                 err_setstr(RuntimeError, "getattr: name may not be empty");
-                return -1;
+                return ErrorVar;
         }
 
         attr = object_child(self, s);
+        ret = var_new();
         if (attr) {
-                if (qop_mov(ret, attr) < 0)
-                        return -1;
+                if (qop_mov(ret, attr) < 0) {
+                        VAR_DECR_REF(ret);
+                        return ErrorVar;
+                }
         }
-        return 0;
+        /* If !attr leave ret TYPE_EMPTY */
+        return ret;
 }
 
-static int
-object_delattr(struct var_t *ret)
+static struct var_t *
+object_delattr(struct vmframe_t *fr)
 {
-        struct var_t *self = get_this();
-        struct var_t *name = vm_get_arg(0);
+        struct var_t *self = get_this(fr);
+        struct var_t *name = vm_get_arg(fr, 0);
         char *s;
 
         bug_on(self->magic != TYPE_DICT);
         if (arg_type_check(name, TYPE_STRING) != 0)
-                return -1;
+                return ErrorVar;
 
         s = string_get_cstring(name);
-        return object_remove_child(self, s);
+        if (object_remove_child(self, s) != RES_OK)
+                return ErrorVar;
+        return var_new();
 }
 
 static const struct type_inittbl_t object_methods[] = {

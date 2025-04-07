@@ -108,12 +108,13 @@ float_mov_strict(struct var_t *to, struct var_t *from)
         return 0;
 }
 
-static int
-float_tostr(struct var_t *ret)
+static struct var_t *
+float_tostr(struct vmframe_t *fr)
 {
         char buf[64];
         ssize_t len;
-        struct var_t *self = get_this();
+        struct var_t *ret;
+        struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_FLOAT);
 
         len = snprintf(buf, sizeof(buf), "%.8g", self->f);
@@ -121,8 +122,9 @@ float_tostr(struct var_t *ret)
         bug_on(len >= sizeof(buf));
         (void)len; /* in case NDEBUG */
 
+        ret = var_new();
         string_init(ret, buf);
-        return 0;
+        return ret;
 }
 
 static const struct type_inittbl_t float_methods[] = {

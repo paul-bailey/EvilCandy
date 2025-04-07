@@ -208,7 +208,6 @@ struct vmframe_t {
         struct block_t blocks[FRAME_NEST_MAX];
         instruction_t *ppii;
         struct var_t **clo;
-        struct vmframe_t *prev;
         struct list_t alloc_list;
 #ifndef NDEBUG
         bool freed;
@@ -467,8 +466,9 @@ extern void string_init_from_file(struct var_t *ret, FILE *fp,
 /* vm.c */
 extern enum result_t vm_execute(struct executable_t *top_level);
 extern struct var_t *execute_loop(struct vmframe_t *fr);
-extern struct var_t *vm_reenter(struct var_t *func, struct var_t *owner,
-                                int argc, struct var_t **argv);
+extern struct var_t *vm_reenter(struct vmframe_t *fr, struct var_t *func,
+                                struct var_t *owner, int argc,
+                                struct var_t **argv);
 extern void moduleinit_vm(void);
 static inline struct var_t *vm_get_this(struct vmframe_t *fr)
         { return fr->owner; }

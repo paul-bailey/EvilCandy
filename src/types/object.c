@@ -227,7 +227,7 @@ object_foreach(struct vmframe_t *fr)
                  * be the object owning the calling function?  This is a
                  * philosophical conundrum, not a bug.
                  */
-                retval = vm_reenter(func, NULL, 2, argv);
+                retval = vm_reenter(fr, func, NULL, 2, argv);
                 if (retval == ErrorVar) {
                         status = RES_ERROR;
                         break;

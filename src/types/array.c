@@ -246,7 +246,7 @@ array_foreach(struct vmframe_t *fr)
                 }
                 argv[1]->i = idx;
 
-                retval = vm_reenter(func, NULL, 2, argv);
+                retval = vm_reenter(fr, func, NULL, 2, argv);
                 if (retval == ErrorVar) {
                         status = RES_ERROR;
                         break;

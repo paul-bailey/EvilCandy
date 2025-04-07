@@ -30,8 +30,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct vmframe_t *current_frame;
-
 /* XXX arbitrary */
 static struct hashtable_t *symbol_table;
 
@@ -88,9 +86,9 @@ RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 #endif /* DEBUG */
 
 static struct var_t *
-symbol_seek_this_(const char *s)
+symbol_seek_this_(struct vmframe_t *fr, const char *s)
 {
-        struct var_t *o = get_this(current_frame);
+        struct var_t *o = get_this(fr);
         if (o)
                 return var_get_attr_by_string_l(o, s);
         return NULL;
@@ -105,7 +103,7 @@ symbol_seek_this_(const char *s)
  *   4. attribute of __gbl__ with matching name
  */
 static struct var_t *
-symbol_seek_(const char *s)
+symbol_seek_(struct vmframe_t *fr, const char *s)
 {
         static char *gbl = NULL;
         struct var_t *v;
@@ -119,15 +117,15 @@ symbol_seek_(const char *s)
                 return GlobalObject;
         if ((v = hashtable_get(symbol_table, s)) != NULL)
                 return v;
-        if ((v = symbol_seek_this_(s)) != NULL)
+        if ((v = symbol_seek_this_(fr, s)) != NULL)
                 return v;
         return var_get_attr_by_string_l(GlobalObject, s);
 }
 
 static struct var_t *
-symbol_seek(const char *s)
+symbol_seek(struct vmframe_t *fr, const char *s)
 {
-        struct var_t *ret = symbol_seek_(s);
+        struct var_t *ret = symbol_seek_(fr, s);
         if (!ret)
                 err_setstr(RuntimeError, "Symbol %s not found", s);
         return ret;
@@ -164,8 +162,6 @@ vmframe_free(struct vmframe_t *fr)
         struct var_t **vpp;
 
         bug_on(!fr);
-        if (fr == current_frame)
-                current_frame = fr->prev;
 
 #ifndef NDEBUG
         bug_on(fr->freed);
@@ -205,13 +201,13 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
                 return fr->clo[ii.arg2];
         case IARG_PTR_SEEK: {
                 char *name = RODATA_STR(fr, ii);
-                return symbol_seek(name);
+                return symbol_seek(fr, name);
         }
         case IARG_PTR_GBL:
                 return GlobalObject;
         case IARG_PTR_THIS:
-                bug_on(!current_frame || !current_frame->owner);
-                return current_frame->owner;
+                bug_on(!fr || !fr->owner);
+                return fr->owner;
         }
         bug();
         return NULL;
@@ -557,7 +553,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 owner = NULL;
 
         /* see comments to vm_reenter: this may be NULL */
-        retval = vm_reenter(func, owner, argc, argv);
+        retval = vm_reenter(fr, func, owner, argc, argv);
         if (!retval)
                 retval = var_new();
 
@@ -926,9 +922,42 @@ check_ghost_errors(int res)
 # define check_ghost_errors(x_) do { (void)0; } while (0)
 #endif
 
+/*
+ * DOC: VM_RECURSION_MAX
+ *
+ * "Reentrance" was chosen for lack of a better word.  In this case, it's
+ * one of three things:
+ *      1) a script being executed (ergo execute_loop is running) loads
+ *         another script, thus recursion occurs on execute_loop.
+ *      2) a built-in C function calls a user-define script function
+ *         (vm_reenter), also causing recursion of execute_loop.
+ *      3) Trying to keep calls to non-built-in functions within the same
+ *         recursion of execute_loop--no matter how deeply nested--
+ *         resulted in spaghetti code so confusing and error-prone that
+ *         _any_ instance of INSTR_CALL_FUNC also causes recursion.  It's
+ *         just cleaner that way.
+ *
+ * Recursion means stack stress (the irl stack, not the user-data stack).
+ * Users shouldn't abuse an object's foreach method with lots of nested
+ * calls back into another foreach method.  But in case they do,
+ * VM_REENT_MAX is the limit at which this can happen.
+ *
+ * XXX: Arbitrary choice for value, do some research and find out if
+ * there's a known reason for a specific pick/method for stack overrun
+ * protection.
+ */
+#define VM_RECURSION_MAX 128
+
 struct var_t *
 execute_loop(struct vmframe_t *fr)
 {
+        static int recursion_count = 0;
+        struct var_t *retval;
+
+        if (recursion_count >= VM_RECURSION_MAX)
+                fail("Recursion max reached: you may need to adjust VM_RECURSION_MAX");
+        recursion_count++;
+
         instruction_t ii;
         while ((ii = *(fr->ppii)++).code != INSTR_END) {
                 enum result_t res;
@@ -941,7 +970,8 @@ execute_loop(struct vmframe_t *fr)
                         continue; /* fast path */
 
                 if (res == RES_RETURN) {
-                        return pop(fr);
+                        retval = pop(fr);
+                        goto out;
                 } else {
                         /*
                          * res neither 0 nor RES_RETURN, it's an error or exception.
@@ -952,63 +982,21 @@ execute_loop(struct vmframe_t *fr)
                          * return result.
                          */
                         err_print_last(stderr);
-                        return ErrorVar;
+                        retval = ErrorVar;
+                        goto out;
                 }
         }
         /*
          * We hit INSTR_END without any RETURN.
          * Return zero by default.
          */
-        return new_zerovar();
+        retval = new_zerovar();
+
+out:
+        bug_on(recursion_count < 0);
+        recursion_count--;
+        return retval;
 }
-
-/*
- * DOC: REENTRANT_PUSH and REENTRANT_POP
- *
- * FIXME: Below is not true anymore, because execute_loop is now called
- * for every function!
- *
- * "Reentrance" was chosen for lack of a better word.  In this case, it's
- * one of two things:
- *      1) a script being executed (ergo execute_loop is running) loads
- *         another script, thus recursion occurs on execute_loop.
- *      2) a built-in C function calls a user-define script function
- *         (vm_reenter), also causing recursion of execute_loop.
- *
- * Recursion means stack stress (the irl stack, not the user-data stack).
- * Users shouldn't abuse an object's foreach method with lots of nested
- * calls back into another foreach method.  But in case they do,
- * VM_REENT_MAX is the limit at which this can happen.
- *
- * XXX: Arbitrary choice for value, do some research and find out if
- * there's a known reason for a specific pick/method for stack overrun
- * protection.
- */
-#define VM_REENT_MAX 128
-
-#define REENTRANT_PUSH_(arr, idx) do { \
-        if (idx >= VM_REENT_MAX) \
-                fail("Recursion max reached: you may need to adjust VM_REENT_MAX"); \
-        arr[idx] = current_frame; \
-        current_frame = NULL; \
-        idx++; \
-} while (0)
-#define REENTRANT_POP_(arr, idx) do { \
-        bug_on(idx <= 0); \
-        --idx; \
-        current_frame = arr[idx]; \
-} while (0)
-
-#define REENTRANT_PUSH()                         \
-        REENTRANT_PUSH_(vmframe_recursion_stack, \
-                        vmframe_recursion_stack_idx)
-
-#define REENTRANT_POP()                         \
-        REENTRANT_POP_(vmframe_recursion_stack, \
-                        vmframe_recursion_stack_idx)
-
-static struct vmframe_t *vmframe_recursion_stack[VM_REENT_MAX];
-static int vmframe_recursion_stack_idx = 0;
 
 /**
  * vm_execute - Execute from the top level of a script.
@@ -1021,19 +1009,17 @@ vm_execute(struct executable_t *top_level)
 {
         struct var_t *res;
         enum result_t ret;
+        struct vmframe_t *fr;
 
         bug_on(!(top_level->flags & FE_TOP));
-        REENTRANT_PUSH();
 
-        bug_on(current_frame != NULL);
-        current_frame = vmframe_alloc();
-        current_frame->ex = top_level;
-        current_frame->prev = NULL;
-        current_frame->ppii = top_level->instr;
-        current_frame->stackptr = current_frame->stack;
-        current_frame->owner = GlobalObject;
+        fr = vmframe_alloc();
+        fr->ex = top_level;
+        fr->ppii = top_level->instr;
+        fr->stackptr = fr->stack;
+        fr->owner = GlobalObject;
 
-        res = execute_loop(current_frame);
+        res = execute_loop(fr);
         if (res == ErrorVar) {
                 ret = RES_ERROR;
         } else {
@@ -1046,25 +1032,17 @@ vm_execute(struct executable_t *top_level)
         }
 
         /* Don't let vmframe_free try to VAR_DECR_REF these */
-        current_frame->func = NULL;
-        current_frame->owner = NULL;
+        fr->func = NULL;
+        fr->owner = NULL;
 
-        vmframe_free(current_frame);
-        bug_on(current_frame != NULL);
-
-        REENTRANT_POP();
-
-        /*
-         * We're a script, not a function, so we'll never see this
-         * particular code again.
-         */
-        EXECUTABLE_RELEASE(top_level);
+        vmframe_free(fr);
         return ret;
 }
 
 /**
  * vm_reenter - Call a function--user-defined or internal--from a builtin
  *              callback
+ * @fr_old:     Frame we're currently in
  * @func:       Function to call
  * @owner:      ``this'' to set
  * @arc:        Number of arguments being passed to the function
@@ -1077,13 +1055,11 @@ vm_execute(struct executable_t *top_level)
  *         calls to var_new().
  */
 struct var_t *
-vm_reenter(struct var_t *func, struct var_t *owner,
-           int argc, struct var_t **argv)
+vm_reenter(struct vmframe_t *fr_old, struct var_t *func,
+           struct var_t *owner, int argc, struct var_t **argv)
 {
         struct vmframe_t *fr;
         struct var_t *res;
-
-        bug_on(current_frame == NULL);
 
         fr = vmframe_alloc();
         fr->ap = argc;
@@ -1093,7 +1069,7 @@ vm_reenter(struct var_t *func, struct var_t *owner,
         }
 
         if (function_prep_frame(func, fr,
-                                owner ? owner : get_this(current_frame))
+                                owner ? owner : get_this(fr_old))
             == ErrorVar) {
                 /* frame only partly set up, we need to set this */
                 fr->stackptr = fr->stack + fr->ap;
@@ -1105,19 +1081,14 @@ vm_reenter(struct var_t *func, struct var_t *owner,
          * can't push sooner, because function_prep_frame will
          * call get_this() if @owner is NULL
          */
-        fr->prev = current_frame;
-        current_frame = fr;
-
         fr->stackptr = fr->stack + fr->ap;
 
         if (fr->ex)
                 fr->ppii = fr->ex->instr;
 
         res = call_function(fr, fr->func);
-        current_frame = fr->prev;
         vmframe_free(fr);
 
-        bug_on(!current_frame);
         return res;
 }
 

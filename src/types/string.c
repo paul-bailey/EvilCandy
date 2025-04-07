@@ -940,7 +940,7 @@ string_join(struct vmframe_t *fr)
         elem = array_child(arg, idx);
         if (!elem) {
                 ret = var_new();
-                string_init(ret, "");
+                string_init(ret, joinstr);
                 return ret;
         }
 

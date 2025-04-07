@@ -233,13 +233,14 @@ object_foreach(struct vmframe_t *fr)
                         break;
                 }
                 /* foreach throws away retval */
-                VAR_DECR_REF(retval);
+                if (retval)
+                        VAR_DECR_REF(retval);
         }
         self->o->lock = lock;
 
         VAR_DECR_REF(argv[0]);
         VAR_DECR_REF(argv[1]);
-        return status == RES_OK ? var_new(): ErrorVar;
+        return status == RES_OK ? NULL: ErrorVar;
 }
 
 
@@ -332,7 +333,7 @@ object_setattr(struct vmframe_t *fr)
                 if (object_add_child(self, value, literal_put(s)) != 0)
                         return ErrorVar;
         }
-        return var_new();
+        return NULL;
 }
 
 /*
@@ -367,15 +368,14 @@ object_getattr(struct vmframe_t *fr)
                 return ErrorVar;
         }
 
-        attr = object_child(self, s);
         ret = var_new();
-        if (attr) {
+        if ((attr = object_child(self, s)) != NULL) {
                 if (qop_mov(ret, attr) < 0) {
                         VAR_DECR_REF(ret);
                         return ErrorVar;
                 }
         }
-        /* If !attr leave ret TYPE_EMPTY */
+        /* if no child, return empty var */
         return ret;
 }
 
@@ -393,7 +393,7 @@ object_delattr(struct vmframe_t *fr)
         s = string_get_cstring(name);
         if (object_remove_child(self, s) != RES_OK)
                 return ErrorVar;
-        return var_new();
+        return NULL;
 }
 
 static const struct type_inittbl_t object_methods[] = {

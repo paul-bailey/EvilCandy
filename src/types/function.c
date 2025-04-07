@@ -198,12 +198,7 @@ call_function(struct vmframe_t *fr, struct var_t *fn)
 
         if (fh->f_magic == FUNC_INTERNAL) {
                 bug_on(!fh->f_cb);
-
-                struct var_t *ret = fh->f_cb(fr);
-
-                /* Did programmer on autopilot do the NULL-is-error thing? */
-                bug_on(!ret);
-                return ret;
+                return fh->f_cb(fr);
         } else {
                 /* FUNC_USER */
                 return execute_loop(fr);
@@ -266,7 +261,14 @@ function_add_default(struct var_t *func,
  * function_init_internal - Initialize @func to be a callable
  *                          builtin function
  * @func: Empty variable to configure
- * @cb: Callback that executes the function
+ * @cb: Callback that executes the function.  It may pass the vmframe_t
+ *      to vm_get_this and vm_get_arg to retrieve its "this" and
+ *      arguments.  It must return ErrorVar if it encountered an error,
+ *      or some other struct var_t return value.  If there's nothing
+ *      to return, return NULL; this saves us the double-task of
+ *      creating and destroying a return value that won't be used;
+ *      the wrapping function will convert it to a TYPE_EMPTY for
+ *      callers that must receive a return value.
  * @minargs: Minimum number of args used by the function
  * @maxargs: Maximum number of args used by the function
  */

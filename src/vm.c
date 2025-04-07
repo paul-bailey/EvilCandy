@@ -556,7 +556,10 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         else
                 owner = NULL;
 
+        /* see comments to vm_reenter: this may be NULL */
         retval = vm_reenter(func, owner, argc, argv);
+        if (!retval)
+                retval = var_new();
 
         /* Unwind stack in calling frame */
         while (argc-- != 0)
@@ -1068,12 +1071,10 @@ vm_execute(struct executable_t *top_level)
  * @argv:       Array of arguments
  *
  * Return: Return value of function being called or ErrorVar if execution
- *         failed.
- *
- * FIXME: It's just killing me that we can't just reenter vm_execute,
- * surely all it takes is re-thinking struct executable_t.
- * There are lots of subtle differences between the code below and
- * do_call_func/do_return_value, but they're DRY violations just the same.
+ *         failed.  NULL means "nothing to return; if you need a return
+ *         value, make an empty var nad you that".  Not all functions
+ *         calling vm_reenter() need this, so lets not make superfluous
+ *         calls to var_new().
  */
 struct var_t *
 vm_reenter(struct var_t *func, struct var_t *owner,

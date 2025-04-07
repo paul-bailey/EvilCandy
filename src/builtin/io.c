@@ -79,7 +79,7 @@ do_clearerr(struct vmframe_t *fr)
         struct file_handle_t *fh = getfh(fr);
         fh->err = 0;
         clearerr(fh->fp);
-        return var_new();
+        return NULL;
 }
 
 /*

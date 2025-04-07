@@ -63,7 +63,7 @@ do_print(struct vmframe_t *fr)
                 do_print_helper(p);
         }
         print_nl();
-        return var_new();
+        return NULL;
 }
 
 static struct var_t *
@@ -78,7 +78,7 @@ do_exit(struct vmframe_t *fr)
          * we'll obviously never reach this.
          * Compilers make me do these things.
          */
-        return var_new();
+        return NULL;
 }
 
 static struct var_t *
@@ -93,7 +93,7 @@ do_setnl(struct vmframe_t *fr)
         s = string_get_cstring(nl);
         memset(gbl.nl, 0, NLMAX);
         strncpy(gbl.nl, s, NLMAX-1);
-        return var_new();
+        return NULL;
 }
 
 static const struct inittbl_t gblinit[] = {

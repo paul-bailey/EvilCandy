@@ -252,14 +252,15 @@ array_foreach(struct vmframe_t *fr)
                         break;
                 }
                 /* foreach throws away retval */
-                VAR_DECR_REF(retval);
+                if (retval)
+                        VAR_DECR_REF(retval);
         }
         h->lock = lock;
 
         VAR_DECR_REF(argv[0]);
         VAR_DECR_REF(argv[1]);
 out:
-        return status == RES_OK ? var_new() : ErrorVar;
+        return status == RES_OK ? NULL : ErrorVar;
 }
 
 static struct var_t *
@@ -283,7 +284,7 @@ array_append(struct vmframe_t *fr)
                 return ErrorVar;
         }
         array_add_child(self, arg);
-        return var_new();
+        return NULL;
 }
 
 static const struct type_inittbl_t array_methods[] = {

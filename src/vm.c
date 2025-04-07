@@ -595,7 +595,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
                 current_frame = fr_new->prev;
                 vmframe_free(fr_new);
                 push(fr, res);
-        } else if (funcstatus == 0) {
+        } else {
                 /*
                  * User function, not yet executed,
                  * carry on in new frame
@@ -949,11 +949,11 @@ check_ghost_errors(int res)
 # define check_ghost_erors(x_) do { (void)0; } while (0)
 #endif
 
-static int
+static enum result_t
 execute_loop(bool check_null)
 {
         instruction_t ii;
-        int res = RES_OK;
+        enum result_t res = RES_OK;
         while ((ii = *(current_frame->ppii)++).code != INSTR_END) {
                 bug_on((unsigned int)ii.code >= N_INSTR);
                 res = JUMP_TABLE[ii.code](current_frame, ii);
@@ -1045,10 +1045,10 @@ static int vmframe_recursion_stack_idx = 0;
  *
  * Return: RES_OK or an error
  */
-int
+enum result_t
 vm_execute(struct executable_t *top_level)
 {
-        int res;
+        enum result_t res;
 
         bug_on(!(top_level->flags & FE_TOP));
         REENTRANT_PUSH();
@@ -1095,13 +1095,13 @@ vm_execute(struct executable_t *top_level)
  * There are lots of subtle differences between the code below and
  * do_call_func/do_return_value, but they're DRY violations just the same.
  */
-int
+enum result_t
 vm_reenter(struct var_t *func, struct var_t *owner,
            int argc, struct var_t **argv)
 {
         struct vmframe_t *fr;
         struct var_t *res;
-        int funcstatus;
+        enum result_t funcstatus;
 
         bug_on(current_frame == NULL);
 

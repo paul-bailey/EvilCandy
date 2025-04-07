@@ -75,22 +75,22 @@ array_child(struct var_t *array, int idx)
  * Data is moved from @child to the array member, @child must still be
  * dealt with w/r/t garbage collection by calling code.
  */
-int
+enum result_t
 array_set_child(struct var_t *array, int idx, struct var_t *child)
 {
         struct var_t *memb;
 
         if (array->a->lock) {
                 err_locked();
-                return -1;
+                return RES_ERROR;
         }
 
         memb = array_child(array, idx);
         if (!memb)
-                return -1;
+                return RES_ERROR;
         if (!qop_mov(memb, child))
-                return -1;
-        return 0;
+                return RES_ERROR;
+        return RES_OK;
 }
 
 /**
@@ -103,18 +103,18 @@ array_set_child(struct var_t *array, int idx, struct var_t *child)
  * array_add_child for this array, then the array's type will be locked
  * to @child->magic.
  */
-int
+enum result_t
 array_add_child(struct var_t *array, struct var_t *child)
 {
         struct array_handle_t *h = array->a;
 
         if (h->lock) {
                 err_locked();
-                return -1;
+                return RES_ERROR;
         }
         if (child->magic == TYPE_EMPTY) {
                 err_setstr(RuntimeError, "You may not add an empty var to array");
-                return -1;
+                return RES_ERROR;
         }
         if (h->type == TYPE_EMPTY) {
                 /* first time, set type and assign datasize */
@@ -124,13 +124,13 @@ array_add_child(struct var_t *array, struct var_t *child)
 
         if (h->type != child->magic) {
                 array_type_err(h, child);
-                return -1;
+                return RES_ERROR;
         }
 
         h->nmemb++;
         VAR_INCR_REF(child);
         buffer_putd(&h->children, &child, sizeof(void *));
-        return 0;
+        return RES_OK;
 }
 
 /**

@@ -86,23 +86,23 @@ object_child_l(struct var_t *o, const char *s)
  * @child: child to append to @parent
  * @name: Name of the child.
  */
-int
+enum result_t
 object_add_child(struct var_t *parent,
                  struct var_t *child, const char *name)
 {
         bug_on(parent->magic != TYPE_DICT);
         if (parent->o->lock) {
                 err_locked();
-                return -1;
+                return RES_ERROR;
         }
         if (hashtable_put(&parent->o->dict, (void *)name, child) < 0) {
                 err_setstr(RuntimeError,
                            "Object already has element named %s", name);
-                return -1;
+                return RES_ERROR;
         }
         VAR_INCR_REF(child);
         parent->o->nchildren++;
-        return 0;
+        return RES_OK;
 }
 
 /* if @child is known to be a direct child of @parent */
@@ -118,15 +118,15 @@ object_remove_child_(struct var_t *parent, struct var_t *child)
  *                      @name is either NULL or known to be a
  *                      possible return value of literal()
  */
-int
+enum result_t
 object_remove_child_l(struct var_t *parent, const char *name)
 {
         struct var_t *child;
         if (!name)
-                return 0;
+                return RES_OK;
         if (parent->o->lock) {
                 err_locked();
-                return -1;
+                return RES_ERROR;
         }
         child = hashtable_remove(&parent->o->dict, name);
         /*
@@ -135,7 +135,7 @@ object_remove_child_l(struct var_t *parent, const char *name)
          */
         if (child)
                 object_remove_child_(parent, child);
-        return 0;
+        return RES_OK;
 }
 
 

@@ -308,6 +308,7 @@ extern void err_attribute(const char *getorset,
 extern void err_argtype(const char *what);
 extern void err_locked(void);
 extern void err_mismatch(const char *op);
+extern void err_permit(const char *op, struct var_t *var);
 
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
@@ -369,9 +370,9 @@ extern struct var_t *qop_shift(struct var_t *a, struct var_t *b, int op);
 extern struct var_t *qop_bit_and(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_bit_or(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_xor(struct var_t *a, struct var_t *b);
-extern bool qop_cmpz(struct var_t *v, int *status);
-extern int qop_incr(struct var_t *v);
-extern int qop_decr(struct var_t *v);
+extern bool qop_cmpz(struct var_t *v, enum result_t *status);
+extern enum result_t qop_incr(struct var_t *v);
+extern enum result_t qop_decr(struct var_t *v);
 extern struct var_t *qop_bit_not(struct var_t *v);
 extern struct var_t *qop_negate(struct var_t *v);
 extern struct var_t *qop_lnot(struct var_t *v);
@@ -402,8 +403,9 @@ extern struct var_t *var_get_attr(struct var_t *v,
                                 struct var_t *deref);
 extern struct var_t *var_get_attr_by_string_l(struct var_t *v,
                                 const char *s);
-extern int var_set_attr(struct var_t *v,
-                        struct var_t *deref, struct var_t *attr);
+extern enum result_t var_set_attr(struct var_t *v,
+                                  struct var_t *deref,
+                                  struct var_t *attr);
 extern const char *typestr(struct var_t *v);
 extern const char *typestr_(int magic);
 extern const char *attr_str(struct var_t *deref);
@@ -415,9 +417,10 @@ extern void var_bucket_delete(void *data);
 
 /* types/array.c */
 extern struct var_t *array_child(struct var_t *array, int idx);
-extern int array_add_child(struct var_t *array, struct var_t *child);
-extern int array_set_child(struct var_t *array,
-                            int idx, struct var_t *child);
+extern enum result_t array_add_child(struct var_t *array,
+                                     struct var_t *child);
+extern enum result_t array_set_child(struct var_t *array,
+                                     int idx, struct var_t *child);
 extern struct var_t *array_from_empty(struct var_t *array);
 extern int array_get_type(struct var_t *array);
 
@@ -437,9 +440,9 @@ extern void function_init(struct var_t *func,
 /* types/object.c */
 extern struct var_t *object_init(struct var_t *v);
 extern struct var_t *object_child_l(struct var_t *o, const char *s);
-extern int object_add_child(struct var_t *o,
-                            struct var_t *v, const char *name);
-extern int object_remove_child_l(struct var_t *o, const char *s);
+extern enum result_t object_add_child(struct var_t *o,
+                                      struct var_t *v, const char *name);
+extern enum result_t object_remove_child_l(struct var_t *o, const char *s);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
 static inline void *object_get_priv(struct var_t *o)
@@ -460,13 +463,13 @@ extern void string_init_from_file(struct var_t *ret, FILE *fp,
                                   int delim, bool stuff_delim);
 
 /* vm.c */
-extern int vm_execute(struct executable_t *top_level);
-extern int vm_reenter(struct var_t *func, struct var_t *owner,
-                      int argc, struct var_t **argv);
+extern enum result_t vm_execute(struct executable_t *top_level);
+extern enum result_t vm_reenter(struct var_t *func, struct var_t *owner,
+                                int argc, struct var_t **argv);
 extern void moduleinit_vm(void);
 extern struct var_t *vm_get_this(void);
 extern struct var_t *vm_get_arg(unsigned int idx);
-/* TODO: Get rid of references ot frame_get_arg */
+/* TODO: Get rid of references to frame_get_arg */
 # define frame_get_arg(i)       vm_get_arg(i)
 # define get_this()             vm_get_this()
 

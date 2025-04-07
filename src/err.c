@@ -193,6 +193,15 @@ err_mismatch(const char *op)
                    "Invalid/mismatched type for '%s' operator", op);
 }
 
+/* *op: same as in err_mismatch */
+void
+err_permit(const char *op, struct var_t *var)
+{
+        err_setstr(RuntimeError,
+                   "%s operation not permitted for type %s",
+                   op, typestr(var));
+}
+
 /*
  * slow-path completion of arg_type_check() in uarg.h.
  * figure out what error message to print and return an error value

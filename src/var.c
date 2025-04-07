@@ -371,12 +371,9 @@ attr_str(struct var_t *deref)
  * @deref:      Variable storing the index number or name
  * @attr:       Variable storing the attribute to set.  This will be
  *              copied, so calling function still must handle GC for this
- * Return:
- * 0 if success, -1 if failure does not exist.  A syntax error will be
- * thrown if the attribute exists but the MOV operation is not permitted
- * for the type.
+ * Return:      RES_OK if success, RES_ERROR if failure does not exist.
  */
-int
+enum result_t
 var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
 {
         char *attrstr = NULL;
@@ -387,7 +384,7 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
                 goto set_by_str;
         case TYPE_INT:
                 if (deref->i < INT_MIN || deref->i > INT_MAX)
-                        return -1;
+                        return RES_ERROR;
                 idx = deref->i;
                 goto set_by_idx;
         case TYPE_STRING:
@@ -395,40 +392,40 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
                 if (attrstr)
                         attrstr = literal(attrstr);
                 if (!attrstr)
-                        return -1;
+                        return RES_ERROR;
                 goto set_by_str;
         }
-        return -1;
+        return RES_ERROR;
 
 set_by_str:
         if (v->magic == TYPE_DICT) {
                 struct var_t *child = object_child_l(v, attrstr);
                 if (child) {
                         if (!qop_mov(child, attr))
-                                return -1;
+                                return RES_ERROR;
                 } else {
                         if (object_add_child(v, attr, attrstr) != 0)
-                                return -1;
+                                return RES_ERROR;
                 }
-                return 0;
+                return RES_OK;
         }
         /*
          * currently no other native types have attributes that are
          * settable by name.
          */
-        return -1;
+        return RES_ERROR;
 
 
 set_by_idx:
         if (v->magic == TYPE_LIST) {
                 array_set_child(v, idx, attr);
-                return 0;
+                return RES_OK;
         }
         /*
          * currently no other native types have attributes that are
          * settable by subscript.  (TODO: allow this for strings)
          */
-        return -1;
+        return RES_ERROR;
 }
 
 /* for debugging and builtin functions */

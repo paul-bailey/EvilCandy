@@ -43,6 +43,13 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
+* Have all functions returning a var_t pointer never return
+  NULL unless NULL is (at that stage) a non-error return value.
+  An error return should be a pointer to RuntimeError.
+
+* Clean up the mess w/r/t "recursion" in vm.c.  Esp. vm_reenter
+  and do_call_func are soooo dirty.
+
 * Consider using a (per-thread) global stack instead of a
   per-frame stack.  See comment in vm.c, do_call_func(), for
   a rationale.

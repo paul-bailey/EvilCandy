@@ -8,20 +8,13 @@
 #include <typedefs.h>
 #include <math.h>
 #include <string.h>
+
 /*
  * TODO: this for OC_* in qop_cmp, but should use IARG instead
  * (likely a faster switch statement because they're
  * sequential).
  */
 #include "token.h"
-
-static void
-epermit(const char *op, struct var_t *var)
-{
-        err_setstr(RuntimeError,
-                   "%s operation not permitted for type %s",
-                   op, typestr(var));
-}
 
 static void
 econst(void)
@@ -44,7 +37,7 @@ qop_mul(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->mul) {
-                epermit("*", a);
+                err_permit("*", a);
                 return NULL;
         }
         return p->mul(a, b);
@@ -58,7 +51,7 @@ qop_div(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->div) {
-                epermit("/", a);
+                err_permit("/", a);
         }
         return p->div(a, b);
 }
@@ -71,7 +64,7 @@ qop_mod(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->mod) {
-                epermit("%", a);
+                err_permit("%", a);
                 return NULL;
         }
         return p->mod(a, b);
@@ -85,7 +78,7 @@ qop_add(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->add) {
-                epermit("+", a);
+                err_permit("+", a);
                 return NULL;
         }
         return p->add(a, b);
@@ -99,7 +92,7 @@ qop_sub(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->sub) {
-                epermit("-", a);
+                err_permit("-", a);
                 return NULL;
         }
         return p->sub(a, b);
@@ -120,7 +113,7 @@ qop_cmp(struct var_t *a, struct var_t *b, int op)
 
         p = primitives_of(a);
         if (!p->cmp) {
-                epermit("cmp", a);
+                err_permit("cmp", a);
                 return NULL;
         }
         cmp = p->cmp(a, b);
@@ -170,14 +163,14 @@ qop_shift(struct var_t *a, struct var_t *b, int op)
         const struct operator_methods_t *p = primitives_of(a);
         if (op == OC_LSHIFT) {
                 if (!p->lshift) {
-                        epermit("<<", a);
+                        err_permit("<<", a);
                         return NULL;
                 }
                 return p->lshift(a, b);
         } else {
                 bug_on(op != OC_RSHIFT);
                 if (!p->rshift) {
-                        epermit(">>", a);
+                        err_permit(">>", a);
                         return NULL;
                 }
                 return p->rshift(a, b);
@@ -190,7 +183,7 @@ qop_bit_and(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->bit_and) {
-                epermit("&", a);
+                err_permit("&", a);
                 return NULL;
         }
         return p->bit_and(a, b);
@@ -202,7 +195,7 @@ qop_bit_or(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->bit_or) {
-                epermit("|", a);
+                err_permit("|", a);
                 return NULL;
         }
         return p->bit_or(a, b);
@@ -214,7 +207,7 @@ qop_xor(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
         if (!p->xor) {
-                epermit("^", a);
+                err_permit("^", a);
                 return NULL;
         }
         return p->xor(a, b);
@@ -222,8 +215,8 @@ qop_xor(struct var_t *a, struct var_t *b)
 
 /**
  * qop_cmpz - Compare @v to zero, NULL, or something like it
- * @status:  To be set to -1 if cmpz not permitted, 0 otherwise
- *           This may not be NULL.
+ * @status:  To be set to RES_ERROR if cmpz not permitted,
+ *           RES_OK otherwise.  This may not be NULL.
  *
  * Return: if @v is...
  *      empty:          true always
@@ -234,50 +227,50 @@ qop_xor(struct var_t *a, struct var_t *b)
  *      anything else:  false or error
  */
 bool
-qop_cmpz(struct var_t *v, int *status)
+qop_cmpz(struct var_t *v, enum result_t *status)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->cmpz) {
-                epermit("cmpz", v);
-                *status = -1;
+                err_permit("cmpz", v);
+                *status = RES_ERROR;
                 return true;
         }
-        *status = 0;
+        *status = RES_OK;
         return p->cmpz(v);
 }
 
 /* v++ */
-int
+enum result_t
 qop_incr(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->incr) {
-                epermit("++", v);
-                return -1;
+                err_permit("++", v);
+                return RES_ERROR;
         }
         if (isconst(v)) {
                 econst();
-                return -1;
+                return RES_ERROR;
         }
         p->incr(v);
-        return 0;
+        return RES_OK;
 }
 
 /* v-- */
-int
+enum result_t
 qop_decr(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->decr) {
-                epermit("--", v);
-                return -1;
+                err_permit("--", v);
+                return RES_ERROR;
         }
         if (isconst(v)) {
                 econst();
-                return -1;
+                return RES_ERROR;
         }
         p->decr(v);
-        return 0;
+        return RES_OK;
 }
 
 /* ~v */
@@ -286,7 +279,7 @@ qop_bit_not(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->bit_not) {
-                epermit("~", v);
+                err_permit("~", v);
                 return NULL;
         }
         return p->bit_not(v);
@@ -298,7 +291,7 @@ qop_negate(struct var_t *v)
 {
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->negate) {
-                epermit("-", v);
+                err_permit("-", v);
                 return NULL;
         }
         return p->negate(v);

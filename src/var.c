@@ -428,6 +428,15 @@ set_by_idx:
         return RES_ERROR;
 }
 
+/* philosophical debate: should this be here or in types/integer.c? */
+struct var_t *
+new_zerovar(void)
+{
+        struct var_t *z = var_new();
+        integer_init(z, 0LL);
+        return z;
+}
+
 /* for debugging and builtin functions */
 const char *
 typestr_(int magic)

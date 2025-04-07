@@ -175,41 +175,46 @@ er:
         return NULL;
 }
 
-/*
- * return function result if INTERNAL, NULL if VM (let vm.c code
- * execute it)
+/**
+ * call_function - Call a function if it's a builtin C function,
+ *                 otherwise just finish setting up the frame
+ *                 (started with function_prep_frame) and return
+ * @fn: Function to call.
+ *
+ * Return:      ErrorVar if error encountered
+ *              NULL if @fn is a user function
+ *              Return value of function if built-in function.
  */
 struct var_t *
-call_function(struct var_t *fn, int *status)
+call_function(struct var_t *fn)
 {
-        struct var_t *ret = NULL;
         struct function_handle_t *fh = fn->fn;
         bug_on(fn->magic != TYPE_FUNCTION);
         bug_on(!fh);
         switch (fh->f_magic) {
         case FUNC_INTERNAL:
-                ret = var_new();
+        {
                 bug_on(!fh->f_cb);
-                bug_on(!status);
-                *status = fh->f_cb(ret);
-                if (*status != 0) {
+                struct var_t *ret = var_new();
+                int status = fh->f_cb(ret);
+                if (status != RES_OK) {
                         /*
                          * XXX: return value of f_cb should be
                          * an err enum of some sort, but it gets
                          * lost here.
                          */
                         VAR_DECR_REF(ret);
-                        return NULL;
+                        return ErrorVar;
                 }
-                break;
+                return ret;
+        }
         case FUNC_USER:
-                *status = 0;
-                break;
+                return NULL;
         default:
                 bug();
                 break;
         }
-        return ret;
+        return ErrorVar;
 }
 
 void

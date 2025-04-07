@@ -248,6 +248,7 @@ struct global_t {
 /* main.c */
 extern struct global_t q_;
 extern void load_file(const char *filename);
+extern struct var_t *ErrorVar;
 
 /* helpers to classify a variable */
 static inline bool isconst(struct var_t *v)
@@ -406,6 +407,7 @@ extern struct var_t *var_get_attr_by_string_l(struct var_t *v,
 extern enum result_t var_set_attr(struct var_t *v,
                                   struct var_t *deref,
                                   struct var_t *attr);
+extern struct var_t *new_zerovar(void);
 extern const char *typestr(struct var_t *v);
 extern const char *typestr_(int magic);
 extern const char *attr_str(struct var_t *deref);
@@ -430,7 +432,7 @@ extern void function_init_internal(struct var_t *func,
                         int minargs, int maxargs);
 extern struct var_t *function_prep_frame(struct var_t *fn,
                         struct vmframe_t *fr, struct var_t *owner);
-extern struct var_t *call_function(struct var_t *fn, int *status);
+extern struct var_t *call_function(struct var_t *fn);
 extern void function_add_closure(struct var_t *func, struct var_t *clo);
 extern void function_add_default(struct var_t *func,
                         struct var_t *deflt, int argno);
@@ -464,7 +466,7 @@ extern void string_init_from_file(struct var_t *ret, FILE *fp,
 
 /* vm.c */
 extern enum result_t vm_execute(struct executable_t *top_level);
-extern enum result_t vm_reenter(struct var_t *func, struct var_t *owner,
+extern struct var_t *vm_reenter(struct var_t *func, struct var_t *owner,
                                 int argc, struct var_t **argv);
 extern void moduleinit_vm(void);
 extern struct var_t *vm_get_this(void);

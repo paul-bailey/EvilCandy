@@ -214,6 +214,7 @@ object_foreach(struct var_t *ret)
         self->o->lock = 1;
         for (idx = 0, res = hashtable_iterate(htbl, &key, &val, &idx);
              res == 0; res = hashtable_iterate(htbl, &key, &val, &idx)) {
+                struct var_t *retval;
                 var_reset(argv[0]);
                 if (qop_mov(argv[0], (struct var_t *)val) < 0) {
                         status = -1;
@@ -226,9 +227,13 @@ object_foreach(struct var_t *ret)
                  * be the object owning the calling function?  This is a
                  * philosophical conundrum, not a bug.
                  */
-                status = vm_reenter(func, NULL, 2, argv);
-                if (status)
+                retval = vm_reenter(func, NULL, 2, argv);
+                if (retval == ErrorVar) {
+                        status = RES_ERROR;
                         break;
+                }
+                /* foreach throws away retval */
+                VAR_DECR_REF(retval);
         }
         self->o->lock = lock;
 

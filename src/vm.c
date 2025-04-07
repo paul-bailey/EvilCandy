@@ -543,7 +543,6 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         struct var_t *func, *owner, *res;
         struct vmframe_t *fr_new;
         int narg = ii.arg2;
-        int funcstatus;
         bool parent = ii.arg1 == IARG_WITH_PARENT;
 
         /*
@@ -578,32 +577,30 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         fr_new->prev = current_frame;
 
         current_frame = fr_new;
-        res = call_function(fr_new->func, &funcstatus);
+        res = call_function(fr_new->func);
 
         VAR_DECR_REF(func);
         if (owner)
                 VAR_DECR_REF(owner);
 
-        bug_on(res && funcstatus != 0);
-        if (res != NULL || funcstatus != 0) {
-                /* !!res: Internal func, already called and executed
-                 *        pop new frame, push result in old frame
-                 * !!funcstatus: Error, don't go on executing
-                 */
-                bug_on(!!funcstatus);
-
-                current_frame = fr_new->prev;
-                vmframe_free(fr_new);
-                push(fr, res);
-        } else {
+        if (res == NULL) {
                 /*
                  * User function, not yet executed,
                  * carry on in new frame
                  */
                 bug_on(!fr_new->ex);
                 fr_new->ppii = fr_new->ex->instr;
+                return RES_OK;
         }
-        return funcstatus;
+
+        /* Function executed or we have an error */
+        current_frame = fr_new->prev;
+        vmframe_free(fr_new);
+        if (res == ErrorVar)
+                return RES_ERROR;
+
+        push(fr, res);
+        return RES_OK;
 }
 
 static int
@@ -934,7 +931,12 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
 };
 
-#ifndef NDEBUG
+/*
+ * TODO: Some fancy level-of-debuggery configuration.
+ * I don't want this bogging down my system just because
+ * DEBUG is defined.
+ */
+#if 0
 static void
 check_ghost_errors(int res)
 {
@@ -946,15 +948,15 @@ check_ghost_errors(int res)
                 fprintf(stderr, "EvilCandy: Error return but none reported\n");
 }
 #else
-# define check_ghost_erors(x_) do { (void)0; } while (0)
+# define check_ghost_errors(x_) do { (void)0; } while (0)
 #endif
 
-static enum result_t
+static struct var_t *
 execute_loop(bool check_null)
 {
         instruction_t ii;
-        enum result_t res = RES_OK;
         while ((ii = *(current_frame->ppii)++).code != INSTR_END) {
+                enum result_t res;
                 bug_on((unsigned int)ii.code >= N_INSTR);
                 res = JUMP_TABLE[ii.code](current_frame, ii);
 
@@ -973,20 +975,21 @@ execute_loop(bool check_null)
                         current_frame = fr->prev;
                         vmframe_free(fr);
                         if (current_frame) {
-                                /* called from within script */
+                                /*
+                                 * function called from within same
+                                 * script.  push return value onto old
+                                 * frame, carry on.
+                                 */
                                 push(current_frame, returnvar);
                                 continue;
                         } else {
                                 /*
                                  * called from vm_reenter or
                                  * returning from top level of script.
-                                 *
-                                 * FIXME: this means we cannot return
-                                 * value when called from vm_reenter.
+                                 * Return this value to C code.
                                  */
                                 bug_on(!check_null);
-                                VAR_DECR_REF(returnvar);
-                                break;
+                                return returnvar;
                         }
                 } else {
                         /*
@@ -998,10 +1001,14 @@ execute_loop(bool check_null)
                          * return result.
                          */
                         err_print_last(stderr);
-                        break;
+                        return ErrorVar;
                 }
         }
-        return res;
+        /*
+         * We hit INSTR_END without any RETURN.
+         * Return zero by default.
+         */
+        return new_zerovar();
 }
 
 /*
@@ -1048,7 +1055,8 @@ static int vmframe_recursion_stack_idx = 0;
 enum result_t
 vm_execute(struct executable_t *top_level)
 {
-        enum result_t res;
+        struct var_t *res;
+        enum result_t ret;
 
         bug_on(!(top_level->flags & FE_TOP));
         REENTRANT_PUSH();
@@ -1062,6 +1070,16 @@ vm_execute(struct executable_t *top_level)
         current_frame->owner = GlobalObject;
 
         res = execute_loop(0);
+        if (res == ErrorVar) {
+                ret = RES_ERROR;
+        } else {
+                /*
+                 * Top level of script does not return a value.  This is
+                 * probably the defaault zero value.  Throw it away.
+                 */
+                ret = RES_OK;
+                VAR_DECR_REF(res);
+        }
 
         /* Don't let vmframe_free try to VAR_DECR_REF these */
         current_frame->func = NULL;
@@ -1077,7 +1095,7 @@ vm_execute(struct executable_t *top_level)
          * particular code again.
          */
         EXECUTABLE_RELEASE(top_level);
-        return res;
+        return ret;
 }
 
 /**
@@ -1088,20 +1106,20 @@ vm_execute(struct executable_t *top_level)
  * @arc:        Number of arguments being passed to the function
  * @argv:       Array of arguments
  *
- * The return value of the user function will be thrown away
+ * Return: Return value of function being called or ErrorVar if execution
+ *         failed.
  *
  * FIXME: It's just killing me that we can't just reenter vm_execute,
  * surely all it takes is re-thinking struct executable_t.
  * There are lots of subtle differences between the code below and
  * do_call_func/do_return_value, but they're DRY violations just the same.
  */
-enum result_t
+struct var_t *
 vm_reenter(struct var_t *func, struct var_t *owner,
            int argc, struct var_t **argv)
 {
         struct vmframe_t *fr;
         struct var_t *res;
-        enum result_t funcstatus;
 
         bug_on(current_frame == NULL);
 
@@ -1116,7 +1134,7 @@ vm_reenter(struct var_t *func, struct var_t *owner,
                 /* frame only partly set up, we need to set this */
                 fr->stackptr = fr->stack + fr->ap;
                 vmframe_free(fr);
-                return -1;
+                return ErrorVar;
         }
 
         /*
@@ -1129,26 +1147,25 @@ vm_reenter(struct var_t *func, struct var_t *owner,
 
         fr->stackptr = fr->stack + fr->ap;
 
-        res = call_function(fr->func, &funcstatus);
-        if (res != NULL || funcstatus != 0) {
+        res = call_function(fr->func);
+        if (res == NULL) {
                 /*
-                 * res != NULL means we executed internal function.
-                 * funcstatus != 0 means error, don't continue
-                 * in the called function
+                 * no return value because we just started
+                 * a user function.  Run it and get result.
                  */
-                bug_on(funcstatus != 0 && res != NULL);
-                current_frame = fr->prev;
-                vmframe_free(fr);
-        } else if (funcstatus == 0) {
                 fr->ppii = fr->ex->instr;
-                funcstatus = execute_loop(1);
+                res = execute_loop(1);
                 bug_on(current_frame);
                 /* fr was already done by do_return_value */
+        } else {
+                /* res == ErrorVar or return value of builtin func. */
+                current_frame = fr->prev;
+                vmframe_free(fr);
         }
 
         REENTRANT_POP();
         bug_on(!current_frame);
-        return funcstatus;
+        return res;
 }
 
 void

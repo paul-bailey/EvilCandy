@@ -237,6 +237,7 @@ array_foreach(struct var_t *ret)
         lock = h->lock;
         h->lock = 1;
         for (idx = 0; idx < h->nmemb; idx++) {
+                struct var_t *retval;
                 var_reset(argv[0]);
                 if (!qop_mov(argv[0], ppvar[idx])) {
                         status = -1;
@@ -244,9 +245,13 @@ array_foreach(struct var_t *ret)
                 }
                 argv[1]->i = idx;
 
-                status = vm_reenter(func, NULL, 2, argv);
-                if (status)
+                retval = vm_reenter(func, NULL, 2, argv);
+                if (retval == ErrorVar) {
+                        status = RES_ERROR;
                         break;
+                }
+                /* foreach throws away retval */
+                VAR_DECR_REF(retval);
         }
         h->lock = lock;
 

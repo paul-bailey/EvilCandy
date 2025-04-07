@@ -9,6 +9,12 @@
 
 struct global_t q_;
 
+/*
+ * Dummy variable, since for some functions a return value of NULL
+ * is not considered an error.
+ */
+struct var_t *ErrorVar;
+
 static void
 init_lib(void)
 {
@@ -34,6 +40,10 @@ init_lib(void)
 
         for (t = INITFNS; t->initfn != NULL; t++)
                 t->initfn();
+
+        ErrorVar = var_new();
+        string_init(ErrorVar,
+                "If you can see this from the console, this is a BUG!!!\n");
 }
 
 static int

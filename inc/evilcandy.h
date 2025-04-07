@@ -432,7 +432,7 @@ extern void function_init_internal(struct var_t *func,
                         int minargs, int maxargs);
 extern struct var_t *function_prep_frame(struct var_t *fn,
                         struct vmframe_t *fr, struct var_t *owner);
-extern struct var_t *call_function(struct var_t *fn);
+extern struct var_t *call_function(struct vmframe_t *fr, struct var_t *fn);
 extern void function_add_closure(struct var_t *func, struct var_t *clo);
 extern void function_add_default(struct var_t *func,
                         struct var_t *deflt, int argno);
@@ -466,6 +466,7 @@ extern void string_init_from_file(struct var_t *ret, FILE *fp,
 
 /* vm.c */
 extern enum result_t vm_execute(struct executable_t *top_level);
+extern struct var_t *execute_loop(struct vmframe_t *fr);
 extern struct var_t *vm_reenter(struct var_t *func, struct var_t *owner,
                                 int argc, struct var_t **argv);
 extern void moduleinit_vm(void);

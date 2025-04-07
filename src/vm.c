@@ -540,66 +540,38 @@ do_return_value(struct vmframe_t *fr, instruction_t ii)
 static int
 do_call_func(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *func, *owner, *res;
-        struct vmframe_t *fr_new;
-        int narg = ii.arg2;
-        bool parent = ii.arg1 == IARG_WITH_PARENT;
+        struct var_t *func, *owner, *retval, **argv;
+        int argc;
 
+        argc = ii.arg2;
         /*
-         * XXX REVISIT: This is why a (per-thread) global stack is
-         * useful: we already pushed the args in order, but now we're
-         * popping them and pushing them again into the new frame's
-         * stack, an unnecesssary triple-operation.
+         * Low-level hack alert!!
+         * It would be cleaner to allocate an array and fill
+         * it by pop()-ing off the stack, but that's overkill
          */
-
-        fr_new = vmframe_alloc();
-        fr_new->ap = narg;
-        while (narg-- > 0)
-                fr_new->stack[narg] = pop(fr);
-
-        func = pop(fr);
-        if (parent)
-                owner = pop(fr);
+        argv = fr->stackptr - argc;
+        func = *(fr->stackptr - argc - 1);
+        if (ii.arg1 == IARG_WITH_PARENT)
+                owner = *(fr->stackptr - argc - 2);
         else
                 owner = NULL;
 
-        if (function_prep_frame(func, fr_new, owner) == NULL) {
-                /* frame only partly set up, we need to set this */
-                fr_new->stackptr = fr_new->stack + fr_new->ap;
-                vmframe_free(fr_new);
-                return -1;
-        }
+        retval = vm_reenter(func, owner, argc, argv);
 
-        /* ap may have been updated with optional-arg defaults */
-        fr_new->stackptr = fr_new->stack + fr_new->ap;
-
-        /* push new frame */
-        fr_new->prev = current_frame;
-
-        current_frame = fr_new;
-        res = call_function(fr_new->func);
-
+        /* Unwind stack in calling frame */
+        while (argc-- != 0)
+                pop(fr); /* arg */
+        pop(fr); /* func */
         VAR_DECR_REF(func);
-        if (owner)
+        if (owner) {
+                pop(fr); /* owner */
                 VAR_DECR_REF(owner);
-
-        if (res == NULL) {
-                /*
-                 * User function, not yet executed,
-                 * carry on in new frame
-                 */
-                bug_on(!fr_new->ex);
-                fr_new->ppii = fr_new->ex->instr;
-                return RES_OK;
         }
 
-        /* Function executed or we have an error */
-        current_frame = fr_new->prev;
-        vmframe_free(fr_new);
-        if (res == ErrorVar)
+        if (retval == ErrorVar)
                 return RES_ERROR;
 
-        push(fr, res);
+        push(fr, retval);
         return RES_OK;
 }
 
@@ -951,14 +923,14 @@ check_ghost_errors(int res)
 # define check_ghost_errors(x_) do { (void)0; } while (0)
 #endif
 
-static struct var_t *
-execute_loop(bool check_null)
+struct var_t *
+execute_loop(struct vmframe_t *fr)
 {
         instruction_t ii;
-        while ((ii = *(current_frame->ppii)++).code != INSTR_END) {
+        while ((ii = *(fr->ppii)++).code != INSTR_END) {
                 enum result_t res;
                 bug_on((unsigned int)ii.code >= N_INSTR);
-                res = JUMP_TABLE[ii.code](current_frame, ii);
+                res = JUMP_TABLE[ii.code](fr, ii);
 
                 check_ghost_errors(res);
 
@@ -966,31 +938,7 @@ execute_loop(bool check_null)
                         continue; /* fast path */
 
                 if (res == RES_RETURN) {
-                        struct vmframe_t *fr;
-                        struct var_t *returnvar;
-
-                        res = RES_OK;
-                        fr = current_frame;
-                        returnvar = pop(fr);
-                        current_frame = fr->prev;
-                        vmframe_free(fr);
-                        if (current_frame) {
-                                /*
-                                 * function called from within same
-                                 * script.  push return value onto old
-                                 * frame, carry on.
-                                 */
-                                push(current_frame, returnvar);
-                                continue;
-                        } else {
-                                /*
-                                 * called from vm_reenter or
-                                 * returning from top level of script.
-                                 * Return this value to C code.
-                                 */
-                                bug_on(!check_null);
-                                return returnvar;
-                        }
+                        return pop(fr);
                 } else {
                         /*
                          * res neither 0 nor RES_RETURN, it's an error or exception.
@@ -1012,9 +960,22 @@ execute_loop(bool check_null)
 }
 
 /*
- * reentrance means recursion, means stack stress (the irl stack, not the
- * user-data stack).  Users shouldn't abuse an object's foreach method
- * with lots of nested calls back into another foreach method.
+ * DOC: REENTRANT_PUSH and REENTRANT_POP
+ *
+ * FIXME: Below is not true anymore, because execute_loop is now called
+ * for every function!
+ *
+ * "Reentrance" was chosen for lack of a better word.  In this case, it's
+ * one of two things:
+ *      1) a script being executed (ergo execute_loop is running) loads
+ *         another script, thus recursion occurs on execute_loop.
+ *      2) a built-in C function calls a user-define script function
+ *         (vm_reenter), also causing recursion of execute_loop.
+ *
+ * Recursion means stack stress (the irl stack, not the user-data stack).
+ * Users shouldn't abuse an object's foreach method with lots of nested
+ * calls back into another foreach method.  But in case they do,
+ * VM_REENT_MAX is the limit at which this can happen.
  *
  * XXX: Arbitrary choice for value, do some research and find out if
  * there's a known reason for a specific pick/method for stack overrun
@@ -1069,7 +1030,7 @@ vm_execute(struct executable_t *top_level)
         current_frame->stackptr = current_frame->stack;
         current_frame->owner = GlobalObject;
 
-        res = execute_loop(0);
+        res = execute_loop(current_frame);
         if (res == ErrorVar) {
                 ret = RES_ERROR;
         } else {
@@ -1141,29 +1102,18 @@ vm_reenter(struct var_t *func, struct var_t *owner,
          * can't push sooner, because function_prep_frame will
          * call get_this() if @owner is NULL
          */
-        REENTRANT_PUSH();
+        fr->prev = current_frame;
         current_frame = fr;
-        fr->prev = NULL;
 
         fr->stackptr = fr->stack + fr->ap;
 
-        res = call_function(fr->func);
-        if (res == NULL) {
-                /*
-                 * no return value because we just started
-                 * a user function.  Run it and get result.
-                 */
+        if (fr->ex)
                 fr->ppii = fr->ex->instr;
-                res = execute_loop(1);
-                bug_on(current_frame);
-                /* fr was already done by do_return_value */
-        } else {
-                /* res == ErrorVar or return value of builtin func. */
-                current_frame = fr->prev;
-                vmframe_free(fr);
-        }
 
-        REENTRANT_POP();
+        res = call_function(fr, fr->func);
+        current_frame = fr->prev;
+        vmframe_free(fr);
+
         bug_on(!current_frame);
         return res;
 }

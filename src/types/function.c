@@ -179,14 +179,18 @@ er:
  * call_function - Call a function if it's a builtin C function,
  *                 otherwise just finish setting up the frame
  *                 (started with function_prep_frame) and return
+ * @fr: Frame to pass to execute_loop if it's a user-defined
+ *      function.
  * @fn: Function to call.
  *
+ * XXX: @fn is a field of @fr, do we need this extra stack variable
+ *      for every recursion into call_function?
+ *
  * Return:      ErrorVar if error encountered
- *              NULL if @fn is a user function
- *              Return value of function if built-in function.
+ *              Return value of function otherwise
  */
 struct var_t *
-call_function(struct var_t *fn)
+call_function(struct vmframe_t *fr, struct var_t *fn)
 {
         struct function_handle_t *fh = fn->fn;
         bug_on(fn->magic != TYPE_FUNCTION);
@@ -194,6 +198,10 @@ call_function(struct var_t *fn)
         switch (fh->f_magic) {
         case FUNC_INTERNAL:
         {
+                /*
+                 * TODO: New candidate for functions that
+                 * return ErrorVar
+                 */
                 bug_on(!fh->f_cb);
                 struct var_t *ret = var_new();
                 int status = fh->f_cb(ret);
@@ -209,7 +217,7 @@ call_function(struct var_t *fn)
                 return ret;
         }
         case FUNC_USER:
-                return NULL;
+                return execute_loop(fr);
         default:
                 bug();
                 break;

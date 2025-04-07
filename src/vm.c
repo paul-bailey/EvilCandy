@@ -1094,7 +1094,7 @@ vm_reenter(struct var_t *func, struct var_t *owner,
 
         if (function_prep_frame(func, fr,
                                 owner ? owner : get_this(current_frame))
-            == NULL) {
+            == ErrorVar) {
                 /* frame only partly set up, we need to set this */
                 fr->stackptr = fr->stack + fr->ap;
                 vmframe_free(fr);

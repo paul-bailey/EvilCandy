@@ -121,7 +121,7 @@ done:
 /*
  * return: If success: either @fn or the callable descendant of @fn to pass
  *         to call_function()
- *         If error or not callable: NULL
+ *         If error or not callable: ErrorVar
  */
 struct var_t *
 function_prep_frame(struct var_t *fn,
@@ -132,7 +132,7 @@ function_prep_frame(struct var_t *fn,
 
         fn = function_of(fn, &owner);
         if (!fn)
-                return NULL;
+                return ErrorVar;
         fh = fn->fn;
         bug_on(!fh);
 
@@ -170,7 +170,7 @@ function_prep_frame(struct var_t *fn,
 
 er:
         err_setstr(RuntimeError, "Missing non-optional arg #%d", i + 1);
-        return NULL;
+        return ErrorVar;
 }
 
 /**

@@ -1088,10 +1088,13 @@ string_init(struct var_t *var, const char *cstr)
         bug_on(var->magic != TYPE_EMPTY);
         var->magic = TYPE_STRING;
         var->s = new_string_handle();
-        if (cstr)
-                string_assign_cstring(var, cstr);
-        else
-                string_clear(var);
+        /*
+         * Too many occasions of NULL-buffer crashes to trust
+         * "string_clear()" at this early stage.
+         */
+        if (!cstr)
+                cstr = "";
+        string_assign_cstring(var, cstr);
         return var;
 }
 
@@ -1182,7 +1185,7 @@ string_init_from_file(struct var_t *ret, FILE *fp, int delim, bool stuff_delim)
         struct buffer_t *buf;
 
         bug_on(ret->magic != TYPE_EMPTY);
-        string_init(ret, NULL);
+        string_init(ret, "");
         buf = string_buf__(ret);
         string_clear(ret);
         while ((c = getc(fp)) != delim && c != EOF) {

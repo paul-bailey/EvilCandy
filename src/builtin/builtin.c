@@ -15,10 +15,8 @@ static struct gbl_private_t {
 static struct var_t *
 do_typeof(struct vmframe_t *fr)
 {
-        struct var_t *ret = var_new();
         struct var_t *p = frame_get_arg(fr, 0);
-        string_init(ret, typestr(p));
-        return ret;
+        return stringvar_new(typestr(p));
 }
 
 static bool
@@ -130,29 +128,30 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
         if (!tbl)
                 return;
         for (t = tbl; t->name != NULL; t++) {
-                struct var_t *child = var_new();
+                struct var_t *child;
                 switch (t->magic) {
                 case TYPE_DICT:
-                        object_init(child);
+                        child = objectvar_new();
                         bi_build_internal_object__(child, t->tbl);
                         break;
                 case TYPE_FUNCTION:
-                        function_init_internal(child,
-                                        t->cb, t->minargs, t->maxargs);
+                        child = funcvar_new_intl(t->cb,
+                                                 t->minargs, t->maxargs);
                         break;
                 case TYPE_STRING:
-                        string_init(child, t->s);
+                        child = stringvar_new(t->s);
                         child->flags = VF_CONST;
                         break;
                 case TYPE_INT:
-                        integer_init(child, t->i);
+                        child = intvar_new(t->i);
                         child->flags = VF_CONST;
                         break;
                 case TYPE_FLOAT:
-                        float_init(child, t->f);
+                        child = floatvar_new(t->f);
                         child->flags = VF_CONST;
                         break;
                 default:
+                        child = NULL;
                         bug();
                 }
                 bug_on(child->magic == TYPE_EMPTY);
@@ -177,8 +176,7 @@ void
 moduleinit_builtin(void)
 {
         /* Do this first.  bi_build_internal_object__ de-references it. */
-        GlobalObject = var_new();
-        object_init(GlobalObject);
+        GlobalObject = objectvar_new();
         object_set_priv(GlobalObject, &gbl, NULL);
         bi_build_internal_object__(GlobalObject, gblinit);
 

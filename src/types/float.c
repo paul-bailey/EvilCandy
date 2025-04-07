@@ -7,11 +7,12 @@ var2float(struct var_t *v)
         return v->magic == TYPE_INT ? (double)v->i : v->f;
 }
 
-static struct var_t *
-float_new(double v)
+struct var_t *
+floatvar_new(double v)
 {
         struct var_t *ret = var_new();
-        float_init(ret, v);
+        ret->f = v;
+        ret->magic = TYPE_FLOAT;
         return ret;
 }
 
@@ -22,7 +23,7 @@ float_mul(struct var_t *a, struct var_t *b)
                 err_mismatch("*");
                 return NULL;
         }
-        return float_new(a->f * var2float(b));
+        return floatvar_new(a->f * var2float(b));
 }
 
 static struct var_t *
@@ -35,9 +36,9 @@ float_div(struct var_t *a, struct var_t *b)
         double f = var2float(b);
         /* XXX: Should have some way of logging error to user */
         if (fpclassify(f) != FP_NORMAL)
-                return float_new(0.);
+                return floatvar_new(0.);
         else
-                return float_new(a->f /= f);
+                return floatvar_new(a->f /= f);
 }
 
 static struct var_t *
@@ -47,7 +48,7 @@ float_add(struct var_t *a, struct var_t *b)
                 err_mismatch("+");
                 return NULL;
         }
-        return float_new(a->f + var2float(b));
+        return floatvar_new(a->f + var2float(b));
 }
 
 static struct var_t *
@@ -57,7 +58,7 @@ float_sub(struct var_t *a, struct var_t *b)
                 err_mismatch("-");
                 return NULL;
         }
-        return float_new(a->f - var2float(b));
+        return floatvar_new(a->f - var2float(b));
 }
 
 static int
@@ -90,13 +91,14 @@ float_decr(struct var_t *a)
 static struct var_t *
 float_negate(struct var_t *a)
 {
-        return float_new(-(a->f));
+        return floatvar_new(-(a->f));
 }
 
 static void
 float_mov(struct var_t *to, struct var_t *from)
 {
-        float_init(to, from->f);
+        to->f = from->f;
+        to->magic = TYPE_FLOAT;
 }
 
 static int
@@ -113,7 +115,6 @@ float_tostr(struct vmframe_t *fr)
 {
         char buf[64];
         ssize_t len;
-        struct var_t *ret;
         struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_FLOAT);
 
@@ -122,9 +123,7 @@ float_tostr(struct vmframe_t *fr)
         bug_on(len >= sizeof(buf));
         (void)len; /* in case NDEBUG */
 
-        ret = var_new();
-        string_init(ret, buf);
-        return ret;
+        return stringvar_new(buf);
 }
 
 static const struct type_inittbl_t float_methods[] = {
@@ -145,15 +144,6 @@ static const struct operator_methods_t float_primitives = {
         .mov            = float_mov,
         .mov_strict     = float_mov_strict,
 };
-
-struct var_t *
-float_init(struct var_t *v, double f)
-{
-        bug_on(v->magic != TYPE_EMPTY);
-        v->f = f;
-        v->magic = TYPE_FLOAT;
-        return v;
-}
 
 void
 typedefinit_float(void)

@@ -265,9 +265,7 @@ function_add_default(struct var_t *func,
 }
 
 /**
- * function_init_internal - Initialize @func to be a callable
- *                          builtin function
- * @func: Empty variable to configure
+ * funcvar_new_intl - create a builtin function var
  * @cb: Callback that executes the function.  It may pass the vmframe_t
  *      to vm_get_this and vm_get_arg to retrieve its "this" and
  *      arguments.  It must return ErrorVar if it encountered an error,
@@ -279,13 +277,12 @@ function_add_default(struct var_t *func,
  * @minargs: Minimum number of args used by the function
  * @maxargs: Maximum number of args used by the function
  */
-void
-function_init_internal(struct var_t *func,
-                       struct var_t *(*cb)(struct vmframe_t *),
-                       int minargs, int maxargs)
+struct var_t *
+funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
+                 int minargs, int maxargs)
 {
+        struct var_t *func = var_new();
         struct function_handle_t *fh;
-        bug_on(func->magic != TYPE_EMPTY);
 
         fh = function_handle_new();
         fh->f_magic = FUNC_INTERNAL;
@@ -294,20 +291,18 @@ function_init_internal(struct var_t *func,
         fh->f_maxargs = maxargs;
         func->fn = fh;
         func->magic = TYPE_FUNCTION;
+        return func;
 }
 
 /**
- * function_init - Turn an empty variable into a user function
- * @func:       Variable to turn into a function
+ * funcvar_new_user - create a user function var
  * @ex:         Executable code to assign to function
- *
- * This is the user parallel of function_init_internal
  */
-void
-function_init(struct var_t *func, struct executable_t *ex)
+struct var_t *
+funcvar_new_user(struct executable_t *ex)
 {
+        struct var_t *func = var_new();
         struct function_handle_t *fh;
-        bug_on(func->magic != TYPE_EMPTY);
 
         fh = function_handle_new();
         fh->f_magic = FUNC_USER;
@@ -316,8 +311,8 @@ function_init(struct var_t *func, struct executable_t *ex)
 
         func->magic = TYPE_FUNCTION;
         func->fn = fh;
+        return func;
 }
-
 
 static int
 func_cmp(struct var_t *a, struct var_t *b)

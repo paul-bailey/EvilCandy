@@ -30,17 +30,10 @@ object_handle_reset(void *h)
         hashtable_destroy(&oh->dict);
 }
 
-/**
- * object_init - Convert an empty variable into an initialized
- *                      object type.
- * @v: An empty variable to turn into an object
- *
- * Return: @v
- */
 struct var_t *
-object_init(struct var_t *o)
+objectvar_new(void)
 {
-        bug_on(o->magic != TYPE_EMPTY);
+        struct var_t *o = var_new();
         o->magic = TYPE_DICT;
 
         o->o = type_handle_new(sizeof(*o->o), object_handle_reset);
@@ -208,8 +201,7 @@ do_object_foreach(struct vmframe_t *fr)
                 return ErrorVar;
         }
         argv[0] = var_new(); /* attribute */
-        argv[1] = var_new(); /* name of attribute */
-        string_init(argv[1], NULL);
+        argv[1] = stringvar_new(NULL); /* name of attribute */
 
         bug_on(self->magic != TYPE_DICT);
         htbl = &self->o->dict;
@@ -255,7 +247,7 @@ do_object_foreach(struct vmframe_t *fr)
 static struct var_t *
 do_object_len(struct vmframe_t *fr)
 {
-        struct var_t *v, *ret;
+        struct var_t *v;
         int i = 0;
 
         v = frame_get_arg(fr, 0);
@@ -274,9 +266,7 @@ do_object_len(struct vmframe_t *fr)
                 i = 1;
         }
 
-        ret = var_new();
-        integer_init(ret, i);
-        return ret;
+        return intvar_new(i);
 }
 
 static struct var_t *
@@ -285,7 +275,6 @@ do_object_hasattr(struct vmframe_t *fr)
         struct var_t *self = get_this(fr);
         struct var_t *name = frame_get_arg(fr, 0);
         struct var_t *child = NULL;
-        struct var_t *ret;
         char *s;
 
         bug_on(self->magic != TYPE_DICT);
@@ -298,9 +287,7 @@ do_object_hasattr(struct vmframe_t *fr)
         if ((s = string_get_cstring(name)) != NULL)
                 child = object_getattr(self, s);
 
-        ret = var_new();
-        integer_init(ret, (int)(child != NULL));
-        return ret;
+        return intvar_new((int)(child != NULL));
 }
 
 /**
@@ -416,6 +403,11 @@ do_object_getattr(struct vmframe_t *fr)
                 return ErrorVar;
         }
 
+        /*
+         * FIXME: better to just VAR_INCR_REF, and then have object_setattr
+         * replace this pointer in the table with new attr, thereby
+         * not clobbering this while it's being used by the caller.
+         */
         ret = var_new();
         if ((attr = object_getattr(self, s)) != NULL) {
                 if (qop_mov(ret, attr) < 0) {

@@ -316,32 +316,26 @@ static inline struct var_t *
 logical_or(struct var_t *a, struct var_t *b)
 {
         int status;
-        struct var_t *ret = NULL;
         bool res = !qop_cmpz(a, &status);
         if (status)
                 return NULL;
         res = res || !qop_cmpz(b, &status);
         if (status)
                 return NULL;
-        ret = var_new();
-        integer_init(ret, (int)res);
-        return ret;
+        return intvar_new((int)res);
 }
 
 static inline struct var_t *
 logical_and(struct var_t *a, struct var_t *b)
 {
         int status;
-        struct var_t *ret = NULL;
         bool res = !qop_cmpz(a, &status);
         if (status)
                 return NULL;
         res = res && !qop_cmpz(b, &status);
         if (status)
                 return NULL;
-        ret = var_new();
-        integer_init(ret, (int)res);
-        return ret;
+        return intvar_new((int)res);
 }
 
 static inline struct var_t *
@@ -534,8 +528,7 @@ do_symtab(struct vmframe_t *fr, instruction_t ii)
 static int
 do_push_zero(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *v = var_new();
-        integer_init(v, 0LL);
+        struct var_t *v = intvar_new(0LL);
         push(fr, v);
         return 0;
 }
@@ -590,10 +583,10 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
 static int
 do_deffunc(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *func = var_new();
+        struct var_t *func;
         struct var_t *loc = RODATA(fr, ii);
         bug_on(loc->magic != TYPE_XPTR);
-        function_init(func, loc->xptr);
+        func = funcvar_new_user(loc->xptr);
         push(fr, func);
         return 0;
 }
@@ -628,8 +621,7 @@ do_add_default(struct vmframe_t *fr, instruction_t ii)
 static int
 do_deflist(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *arr = var_new();
-        array_init(arr);
+        struct var_t *arr = arrayvar_new();
         push(fr, arr);
         return 0;
 }
@@ -648,8 +640,7 @@ do_list_append(struct vmframe_t *fr, instruction_t ii)
 static int
 do_defdict(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *obj = var_new();
-        object_init(obj);
+        struct var_t *obj = objectvar_new();
         push(fr, obj);
         return 0;
 }
@@ -1006,7 +997,7 @@ execute_loop(struct vmframe_t *fr)
          * We hit INSTR_END without any RETURN.
          * Return zero by default.
          */
-        retval = new_zerovar();
+        retval = intvar_new(0LL);
 
 out:
         bug_on(recursion_count < 0);

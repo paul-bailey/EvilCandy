@@ -15,9 +15,7 @@ empty_cmp(struct var_t *a, struct var_t *b)
 static struct var_t *
 empty_bit_not(struct var_t *v)
 {
-        struct var_t *new = var_new();
-        integer_init(new, -1LL);
-        return new;
+        return intvar_new(-1LL);
 }
 
 static const struct operator_methods_t empty_primitives = {

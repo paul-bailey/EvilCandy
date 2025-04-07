@@ -25,9 +25,9 @@ get_floatarg(struct vmframe_t *fr, int argno, int *status)
 static struct var_t *
 do_pow(struct vmframe_t *fr)
 {
-        struct var_t *ret;
         double x, y;
         int status;
+
         x = get_floatarg(fr, 0, &status);
         if (status)
                 goto bad;
@@ -35,9 +35,7 @@ do_pow(struct vmframe_t *fr)
         if (status)
                 goto bad;
 
-        ret = var_new();
-        float_init(ret, pow(x, y));
-        return ret;
+        return floatvar_new(pow(x, y));
 
 bad:
         return ErrorVar;
@@ -46,14 +44,12 @@ bad:
 static struct var_t *
 do_sqrt(struct vmframe_t *fr)
 {
-        struct var_t *ret;
         int status;
         double x = get_floatarg(fr, 0, &status);
         if (status)
                 return ErrorVar;
-        ret = var_new();
-        float_init(ret, sqrt(x));
-        return ret;
+
+        return floatvar_new(sqrt(x));
 }
 
 /*

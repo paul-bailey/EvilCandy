@@ -84,6 +84,27 @@ string_puts(struct var_t *str, const char *s)
         buffer_puts(buf, s);
 }
 
+/* common to stringvar_new and string_mov */
+/*
+ * FIXME: Get rid of extern linkage to this.
+ *      4/2025 requires fixing the qop_mov routine...we're almost there
+ */
+struct var_t *
+string_init(struct var_t *var, const char *cstr)
+{
+        bug_on(var->magic != TYPE_EMPTY);
+        var->magic = TYPE_STRING;
+        var->s = new_string_handle();
+        /*
+         * Too many occasions of NULL-buffer crashes to trust
+         * "string_clear()" at this early stage.
+         */
+        if (!cstr)
+                cstr = "";
+        string_assign_cstring(var, cstr);
+        return var;
+}
+
 
 /* **********************************************************************
  *                      format2 and helpers
@@ -528,8 +549,7 @@ string_format2(struct vmframe_t *fr)
         bug_on(self->magic != TYPE_STRING);
         s = string_get_cstring(self);
 
-        ret = var_new();
-        string_init(ret, "");
+        ret = stringvar_new("");
         buf = string_buf__(ret);
         if (!s || *s == '\0')
                 return ret;
@@ -567,11 +587,9 @@ string_format2(struct vmframe_t *fr)
 static struct var_t *
 string_length_method(struct vmframe_t *fr)
 {
-        struct var_t *ret = var_new();
         struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_STRING);
-        integer_init(ret, STRING_LENGTH(self));
-        return ret;
+        return intvar_new(STRING_LENGTH(self));
 }
 
 static bool
@@ -627,9 +645,9 @@ string_format_helper(struct vmframe_t *fr, char **src,
 static struct var_t *
 string_format(struct vmframe_t *fr)
 {
+        /* FIXME Static! Reentrance safe but not thread safe */
         static struct buffer_t t = { 0 };
         struct var_t *self = get_this(fr);
-        struct var_t *ret = var_new();
         int lastarg = 0;
         char *s, *self_s;
         bug_on(self->magic != TYPE_STRING);
@@ -652,8 +670,7 @@ string_format(struct vmframe_t *fr)
         }
 
 done:
-        string_init(ret, t.s);
-        return ret;
+        return stringvar_new(t.s);
 }
 
 /* toint() (no args)
@@ -662,7 +679,7 @@ done:
 static struct var_t *
 string_toint(struct vmframe_t *fr)
 {
-        struct var_t *ret, *self = get_this(fr);
+        struct var_t *self = get_this(fr);
         long long i = 0LL;
         char *s;
 
@@ -677,9 +694,7 @@ string_toint(struct vmframe_t *fr)
                         i = 0;
                 errno = errno_save;
         }
-        ret = var_new();
-        integer_init(ret, i);
-        return ret;
+        return intvar_new(i);
 }
 
 /*
@@ -689,7 +704,7 @@ string_toint(struct vmframe_t *fr)
 static struct var_t *
 string_tofloat(struct vmframe_t *fr)
 {
-        struct var_t *ret, *self = get_this(fr);
+        struct var_t *self = get_this(fr);
         double f = 0.;
         char *s;
         bug_on(self->magic != TYPE_STRING);
@@ -702,9 +717,7 @@ string_tofloat(struct vmframe_t *fr)
                         f = 0.;
                 errno = errno_save;
         }
-        ret = var_new();
-        float_init(ret, f);
-        return ret;
+        return floatvar_new(f);
 }
 
 /*
@@ -804,10 +817,7 @@ string_replace(struct vmframe_t *fr)
         if (arg_type_check(vrepl, TYPE_STRING) != 0)
                 return ErrorVar;
 
-        /* guarantee ret is string */
-        ret = var_new();
-        string_init(ret, "");
-
+        ret = stringvar_new("");
         buffer_reset(string_buf__(ret));
 
         /* end not technically needed, but in case of match() bugs */
@@ -843,19 +853,16 @@ string_replace(struct vmframe_t *fr)
 static struct var_t *
 string_copy(struct vmframe_t *fr)
 {
-        struct var_t *ret, *self = get_this(fr);
+        struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_STRING);
-
-        ret = var_new();
-        string_init(ret, string_get_cstring(self));
-        return ret;
+        return stringvar_new(string_get_cstring(self));
 }
 
 /* rjust(amt)   integer arg */
 static struct var_t *
 string_rjust(struct vmframe_t *fr)
 {
-        struct var_t *ret, *self = get_this(fr);
+        struct var_t *self = get_this(fr);
         struct var_t *arg = vm_get_arg(fr, 0);
         size_t len;
         long long just;
@@ -869,7 +876,6 @@ string_rjust(struct vmframe_t *fr)
                 return ErrorVar;
         }
 
-        ret = var_new();
         len = STRING_LENGTH(self);
         if (len < just) {
                 /*
@@ -878,17 +884,16 @@ string_rjust(struct vmframe_t *fr)
                  * one chunk, and memset... much faster than this
                  * in the case of "rjust(gazillion)"
                  */
-                struct buffer_t *buf;
+                struct var_t *ret = stringvar_new("");
+                struct buffer_t *buf = string_buf__(ret);
                 just -= len;
-                string_init(ret, "");
-                buf = string_buf__(ret);
                 while (just--)
                         buffer_putc(buf, ' ');
                 string_puts(ret, string_get_cstring(self));
+                return ret;
         } else {
-                string_init(ret, string_get_cstring(self));
+                return stringvar_new(string_get_cstring(self));
         }
-        return ret;
 }
 
 /* rjust(amt)    integer arg */
@@ -910,8 +915,7 @@ string_ljust(struct vmframe_t *fr)
         }
 
         len = STRING_LENGTH(self);
-        ret = var_new();
-        string_init(ret, string_get_cstring(self));
+        ret = stringvar_new(string_get_cstring(self));
         if (len < just) {
                 struct buffer_t *buf = string_buf__(ret);
                 just -= len;
@@ -938,11 +942,8 @@ string_join(struct vmframe_t *fr)
 
         idx = 0;
         elem = array_child(arg, idx);
-        if (!elem) {
-                ret = var_new();
-                string_init(ret, joinstr);
-                return ret;
-        }
+        if (!elem)
+                return stringvar_new(joinstr);
 
         if (elem->magic != TYPE_STRING) {
                 err_setstr(RuntimeError,
@@ -950,8 +951,7 @@ string_join(struct vmframe_t *fr)
                 return ErrorVar;
         }
 
-        ret = var_new();
-        string_init(ret, string_get_cstring(elem));
+        ret = stringvar_new(string_get_cstring(elem));
         for (;;) {
                 idx++;
                 elem = array_child(arg, idx);
@@ -1007,8 +1007,7 @@ string_add(struct var_t *a, struct var_t *b)
                 }
                 rval = string_get_cstring(b);
         }
-        ret = var_new();
-        string_init(ret, lval);
+        ret = stringvar_new(lval);
         buffer_puts(string_buf__(ret), rval);
         return ret;
 }
@@ -1083,26 +1082,17 @@ static const struct operator_methods_t string_primitives = {
  * *********************************************************************/
 
 /**
- * string_init - Convert an empty variable into a string type
- * @var: An empty variable to turn into a string
- * @cstr: Initial C-string to set @v to, or NULL to do that later
+ * stringvar_new - Get a string var
+ * @cstr: Initial C-string to set string to, or NULL to do that later
  *
- * Return: @var
+ * Return: new string var
  */
 struct var_t *
-string_init(struct var_t *var, const char *cstr)
+stringvar_new(const char *cstr)
 {
-        bug_on(var->magic != TYPE_EMPTY);
-        var->magic = TYPE_STRING;
-        var->s = new_string_handle();
-        /*
-         * Too many occasions of NULL-buffer crashes to trust
-         * "string_clear()" at this early stage.
-         */
-        if (!cstr)
-                cstr = "";
-        string_assign_cstring(var, cstr);
-        return var;
+        struct var_t *ret = var_new();
+        string_init(ret, cstr);
+        return ret;
 }
 
 /**
@@ -1135,7 +1125,6 @@ string_assign_cstring(struct var_t *str, const char *s)
 struct var_t *
 string_nth_child(struct var_t *str, int idx)
 {
-        struct var_t *new;
         char cbuf[5];
         char *src;
 
@@ -1158,9 +1147,7 @@ string_nth_child(struct var_t *str, int idx)
                         return NULL;
                 }
         }
-        new = var_new();
-        string_init(new, cbuf);
-        return new;
+        return stringvar_new(cbuf);
 }
 
 /*
@@ -1178,21 +1165,22 @@ string_get_cstring(struct var_t *str)
 }
 
 /**
- * string_init_from_file - Initialize a string with a line from file
- * @ret:        Empty variable to initialize
+ * string_from_file - get a line from file and put in in a string var
  * @fp:         File to read from
  * @delim:      Delimiter to read to.
  * @stuff_delim: True to include the delimiter with the string, false to leave
  *              it out (it will not be ungetc'd).
+ *
+ * Return: the line as a string var
  */
-void
-string_init_from_file(struct var_t *ret, FILE *fp, int delim, bool stuff_delim)
+struct var_t *
+string_from_file(FILE *fp, int delim, bool stuff_delim)
 {
         int c;
         struct buffer_t *buf;
+        struct var_t *ret;
 
-        bug_on(ret->magic != TYPE_EMPTY);
-        string_init(ret, "");
+        ret = stringvar_new("");
         buf = string_buf__(ret);
         string_clear(ret);
         while ((c = getc(fp)) != delim && c != EOF) {
@@ -1201,6 +1189,7 @@ string_init_from_file(struct var_t *ret, FILE *fp, int delim, bool stuff_delim)
         if (stuff_delim && c == delim)
                 buffer_putc(buf, c);
         utf8_scan(buf->s, &ret->s->s_info);
+        return ret;
 }
 
 /**

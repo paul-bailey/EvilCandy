@@ -147,18 +147,10 @@ array_append(struct var_t *array, struct var_t *child)
         return RES_OK;
 }
 
-/**
- * array_init - Turn an empty variable into a new array
- * @array: Variable to turn into an array
- *
- * Return: @array, always
- *
- * This will create a new array handle
- */
 struct var_t *
-array_init(struct var_t *array)
+arrayvar_new(void)
 {
-        bug_on(array->magic != TYPE_EMPTY);
+        struct var_t *array = var_new();
         array->magic = TYPE_LIST;
 
         array->a = array_handle_new();
@@ -203,11 +195,9 @@ static const struct operator_methods_t array_primitives = {
 static struct var_t *
 do_array_len(struct vmframe_t *fr)
 {
-        struct var_t *ret = var_new();
         struct var_t *self = get_this(fr);
         bug_on(self->magic != TYPE_LIST);
-        integer_init(ret, self->a->nmemb);
-        return ret;
+        return intvar_new(self->a->nmemb);
 }
 
 static struct var_t *
@@ -232,8 +222,7 @@ do_array_foreach(struct vmframe_t *fr)
         ppvar = (struct var_t **)h->children.s;
 
         argv[0] = var_new(); /* item */
-        argv[1] = var_new(); /* index of item */
-        integer_init(argv[1], 0);
+        argv[1] = intvar_new(0); /* index of item */
 
         lock = h->lock;
         h->lock = 1;

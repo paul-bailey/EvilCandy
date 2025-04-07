@@ -162,9 +162,9 @@ config_builtin_methods(const struct type_inittbl_t *tbl,
 {
         const struct type_inittbl_t *t = tbl;
         while (t->name != NULL) {
-                struct var_t *v = var_new();
+                struct var_t *v;
 
-                function_init_internal(v, t->fn, t->minargs, t->maxargs);
+                v = funcvar_new_intl(t->fn, t->minargs, t->maxargs);
                 hashtable_put(htbl, literal_put(t->name), v);
                 t++;
         }
@@ -384,15 +384,6 @@ var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
         default:
                 return RES_ERROR;
         }
-}
-
-/* philosophical debate: should this be here or in types/integer.c? */
-struct var_t *
-new_zerovar(void)
-{
-        struct var_t *z = var_new();
-        integer_init(z, 0LL);
-        return z;
 }
 
 /* for debugging and builtin functions */

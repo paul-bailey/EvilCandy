@@ -41,9 +41,7 @@ init_lib(void)
         for (t = INITFNS; t->initfn != NULL; t++)
                 t->initfn();
 
-        ErrorVar = var_new();
-        string_init(ErrorVar,
-                "If you can see this from the console, this is a BUG!!!\n");
+        ErrorVar = stringvar_new("If you can see this from the console, this is a BUG!!!\n");
 }
 
 static int

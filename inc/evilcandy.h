@@ -324,9 +324,9 @@ extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
 
 /* types/float.c */
-extern struct var_t *float_init(struct var_t *v, double value);
+extern struct var_t *floatvar_new(double value);
 /* types/integer.c */
-extern struct var_t *integer_init(struct var_t *v, long long value);
+extern struct var_t *intvar_new(long long value);
 
 /* keyword.c */
 extern int keyword_seek(const char *s);
@@ -407,7 +407,6 @@ extern struct var_t *var_get_attr_by_string_l(struct var_t *v,
 extern enum result_t var_set_attr(struct var_t *v,
                                   struct var_t *deref,
                                   struct var_t *attr);
-extern struct var_t *new_zerovar(void);
 extern const char *typestr(struct var_t *v);
 extern const char *typestr_(int magic);
 extern const char *attr_str(struct var_t *deref);
@@ -423,24 +422,25 @@ extern enum result_t array_append(struct var_t *array,
                                   struct var_t *child);
 extern enum result_t array_insert(struct var_t *array,
                                   struct var_t *idx, struct var_t *child);
-extern struct var_t *array_init(struct var_t *array);
+extern struct var_t *arrayvar_new(void);
 extern int array_get_type(struct var_t *array);
 
 /* types/function.c */
-extern void function_init_internal(struct var_t *func,
-                        struct var_t *(*cb)(struct vmframe_t *),
-                        int minargs, int maxargs);
+extern struct var_t *funcvar_new_user(struct executable_t *ex);
+struct var_t *funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
+                               int minargs, int maxargs);
 extern struct var_t *function_prep_frame(struct var_t *fn,
                         struct vmframe_t *fr, struct var_t *owner);
 extern struct var_t *call_function(struct vmframe_t *fr, struct var_t *fn);
 extern void function_add_closure(struct var_t *func, struct var_t *clo);
 extern void function_add_default(struct var_t *func,
                         struct var_t *deflt, int argno);
-extern void function_init(struct var_t *func,
-                        struct executable_t *ex);
+
+/* types/intl.c */
+extern struct var_t *strptrvar_new(char *cstr);
 
 /* types/object.c */
-extern struct var_t *object_init(struct var_t *v);
+extern struct var_t *objectvar_new(void);
 extern struct var_t *object_getattr_l(struct var_t *o, const char *s);
 extern enum result_t object_addattr(struct var_t *o,
                                     struct var_t *v, const char *name);
@@ -459,12 +459,12 @@ static inline int object_remove_child(struct var_t *o, const char *s)
 
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);
-extern struct var_t *string_init(struct var_t *var, const char *cstr);
 extern struct var_t *string_nth_child(struct var_t *str, int idx);
 extern size_t string_length(struct var_t *str);
 extern char *string_get_cstring(struct var_t *str);
-extern void string_init_from_file(struct var_t *ret, FILE *fp,
-                                  int delim, bool stuff_delim);
+extern struct var_t *string_from_file(FILE *fp,
+                                      int delim, bool stuff_delim);
+extern struct var_t *stringvar_new(const char *cstr);
 
 /* vm.c */
 extern enum result_t vm_execute(struct executable_t *top_level);

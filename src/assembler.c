@@ -583,25 +583,25 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
                 as_assert_array_pos(a, x->n_rodata + 1,
                                     &x->rodata, &fr->const_alloc);
 
-                v = var_new();
                 switch (oc->t) {
                 case OC_TRUE:
-                        integer_init(v, 1);
+                        v = intvar_new(1);
                         break;
                 case OC_FALSE:
-                        integer_init(v, 0);
+                        v = intvar_new(0);
                         break;
                 case 'i':
-                        integer_init(v, oc->i);
+                        v = intvar_new(oc->i);
                         break;
                 case 'f':
-                        float_init(v, oc->f);
+                        v = floatvar_new(oc->f);
                         break;
                 case 'u':
                 case 'q':
-                        v->magic = TYPE_STRPTR;
-                        v->strptr = oc->s;
+                        v = strptrvar_new(oc->s);
                         break;
+                default:
+                        bug();
                 }
 
                 x->rodata[x->n_rodata++] = v;

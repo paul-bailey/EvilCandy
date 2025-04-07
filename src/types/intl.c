@@ -5,6 +5,7 @@
 static void
 strptr_mov(struct var_t *to, struct var_t *from)
 {
+        extern struct var_t *string_init(struct var_t *var, const char *cstr);
         string_init(to, from->strptr);
 }
 
@@ -25,6 +26,15 @@ strptr_cmp(struct var_t *to, struct var_t *from)
                 return 0;
 
         return !!strcmp(s1, s2);
+}
+
+struct var_t *
+strptrvar_new(char *cstr)
+{
+        struct var_t *v = var_new();
+        v->magic = TYPE_STRPTR;
+        v->strptr = cstr;
+        return v;
 }
 
 static const struct operator_methods_t strptr_primitives = {

@@ -108,7 +108,6 @@ struct var_t *
 qop_cmp(struct var_t *a, struct var_t *b, int op)
 {
         int ret, cmp;
-        struct var_t *v;
         const struct operator_methods_t *p;
 
         p = primitives_of(a);
@@ -146,10 +145,7 @@ qop_cmp(struct var_t *a, struct var_t *b, int op)
                 bug();
         }
 
-        /* clobber @a and store ret in it */
-        v = var_new();
-        integer_init(v, ret);
-        return v;
+        return intvar_new(ret);
 }
 
 /**
@@ -301,13 +297,10 @@ struct var_t *
 qop_lnot(struct var_t *v)
 {
         int status;
-        struct var_t *ret;
         bool cond = qop_cmpz(v, &status);
         if (status)
                 return NULL;
-        ret = var_new();
-        integer_init(ret, (int)cond);
-        return ret;
+        return intvar_new((int)cond);
 }
 
 /**

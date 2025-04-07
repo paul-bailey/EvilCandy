@@ -63,9 +63,7 @@ static struct var_t *
 do_eof(struct vmframe_t *fr)
 {
         struct file_handle_t *fh = getfh(fr);
-        struct var_t *ret = var_new();
-        integer_init(ret, !!feof(fh->fp));
-        return ret;
+        return intvar_new(!!feof(fh->fp));
 }
 
 /*
@@ -91,9 +89,7 @@ static struct var_t *
 do_errno(struct vmframe_t *fr)
 {
         struct file_handle_t *fh = getfh(fr);
-        struct var_t *ret = var_new();
-        integer_init(ret, (long long)fh->err);
-        return ret;
+        return intvar_new((long long)fh->err);
 }
 
 /*
@@ -109,14 +105,12 @@ static struct var_t *
 do_readline(struct vmframe_t *fr)
 {
         int errno_save = errno;
-        struct var_t *ret = var_new();
+        struct var_t *ret;
         struct file_handle_t *fh = getfh(fr);
         FILE *fp = fh->fp;
 
-        bug_on(ret->magic != TYPE_EMPTY);
-
         errno = 0;
-        string_init_from_file(ret, fp, '\n', false);
+        ret = string_from_file(fp, '\n', false);
         if (errno) {
                 VAR_DECR_REF(ret);
                 ret = ErrorVar;
@@ -168,8 +162,7 @@ done:
         errno = errno_save;
 
         if (res == 0) {
-                ret = var_new();
-                integer_init(ret, res);
+                ret = intvar_new(res);
         } else {
                 ret = ErrorVar;
         }
@@ -196,8 +189,7 @@ do_tell(struct vmframe_t *fr)
                 ret = ErrorVar;
                 fh->err = errno;
         } else {
-                ret = var_new();
-                integer_init(ret, off);
+                ret = intvar_new(off);
         }
         errno = errno_save;
         return ret;
@@ -307,8 +299,7 @@ do_open(struct vmframe_t *fr)
         if ((fh = file_new(name, mode)) == NULL)
                 goto bad;
 
-        ret = var_new();
-        object_init(ret);
+        ret = objectvar_new();
         object_set_priv(ret, fh, file_reset);
         bi_build_internal_object__(ret, file_methods);
         return ret;

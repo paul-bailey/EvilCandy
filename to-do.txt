@@ -1,6 +1,9 @@
 Bugs/Must-Do
 ------------
 
+* BUGs 2025 Apr 7: for-loop parses strangely in TTY mode, and
+  functions' default args might be getting overwritten.
+
 * Use autoconf, automake & cet., not just a hand-written Makefile
 
 * Start adding in test scaffolding where possible.
@@ -28,7 +31,7 @@ Bugs/Must-Do
 Library/Language Features
 -------------------------
 
-* Add a Matrix/DSP module
+* Add a Matrix/DSP module, something like NumPy for Python
 
 * Support regular expressions
 

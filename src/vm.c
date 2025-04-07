@@ -131,6 +131,19 @@ symbol_seek(struct vmframe_t *fr, const char *s)
         return ret;
 }
 
+/*
+ * DOC: Frame allocation
+ *
+ *      When returning from one function it will probably not be long
+ *      before we call another one.  It makes no sense to keep on calling
+ *      malloc and free for our frame structs.  Instead we never free the
+ *      old frame; we add it to an inactive-frames list, to be repurposed
+ *      on the next function call.  We only need to call malloc whenever
+ *      we exceed our previous max of how deeply nested our function calls
+ *      have been.  The total number of allocated frames will never exceed
+ *      VM_RECURSION_MAX, and they will rarely even exceed a small handful,
+ *      even in long-running scripts.
+ */
 static struct list_t vframe_free_list = LIST_INIT(&vframe_free_list);
 
 static struct vmframe_t *
@@ -925,26 +938,25 @@ check_ghost_errors(int res)
 /*
  * DOC: VM_RECURSION_MAX
  *
- * "Reentrance" was chosen for lack of a better word.  In this case, it's
+ * "Recursion" was chosen for lack of a better word.  In this case, it's
  * one of three things:
  *      1) a script being executed (ergo execute_loop is running) loads
  *         another script, thus recursion occurs on execute_loop.
  *      2) a built-in C function calls a user-define script function
  *         (vm_reenter), also causing recursion of execute_loop.
- *      3) Trying to keep calls to non-built-in functions within the same
- *         recursion of execute_loop--no matter how deeply nested--
- *         resulted in spaghetti code so confusing and error-prone that
- *         _any_ instance of INSTR_CALL_FUNC also causes recursion.  It's
- *         just cleaner that way.
+ *      3) ANY call to a user function causes recursion of execute_loop.
+ *         I previously tried to limit these calls to the same instance,
+ *         no matter how deeply nested the CALL_FUNC instructions got,
+ *         but that made a dirty, confusing, error-prone mess of things,
+ *         so I gave up and also recurse here.  It's just cleaner that way.
  *
  * Recursion means stack stress (the irl stack, not the user-data stack).
- * Users shouldn't abuse an object's foreach method with lots of nested
- * calls back into another foreach method.  But in case they do,
- * VM_REENT_MAX is the limit at which this can happen.
+ * Users shouldn't write absurdly deep recursive functions.  In case they
+ * do, VM_RECURSION_MAX is the limit at which this can happen.
  *
- * XXX: Arbitrary choice for value, do some research and find out if
- * there's a known reason for a specific pick/method for stack overrun
- * protection.
+ * XXX: Make this configurable by the command-line.  Arbitrary choice for
+ * value, do some research and find out if there's a known reason for a
+ * specific pick/method for stack overrun protection.
  */
 #define VM_RECURSION_MAX 128
 
@@ -1049,10 +1061,11 @@ vm_execute(struct executable_t *top_level)
  * @argv:       Array of arguments
  *
  * Return: Return value of function being called or ErrorVar if execution
- *         failed.  NULL means "nothing to return; if you need a return
- *         value, make an empty var nad you that".  Not all functions
- *         calling vm_reenter() need this, so lets not make superfluous
- *         calls to var_new().
+ *         failed.  NULL means "nothing to return." Not all functions
+ *         calling vm_reenter() use the return value, so let's not make
+ *         superfluous calls to var_new()/VAR_DECR_REF().  For callers
+ *         who do use the return value, NULL can mean "call var_new() and
+ *         use that."
  */
 struct var_t *
 vm_reenter(struct vmframe_t *fr_old, struct var_t *func,

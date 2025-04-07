@@ -1,5 +1,5 @@
 /*
- * find_inport.c - resolves path for ``load'' command
+ * find_import.c - resolves path for ``load'' command
  *
  * This checks the new file path relative to the current loaded
  * directory.  If not found there, try RCDATADIR.

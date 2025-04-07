@@ -1,4 +1,19 @@
-/* array.c - Code for managing numerical arrays */
+/*
+ * array.c - Code for managing numerical arrays
+ *
+ * These are called "lists" in the documentation, since
+ *      1) that's what Python calls them, so why not, and
+ *      2) calling them "arrays" could mislead users into thinking
+ *         these are fast in the way that C arrays are fast.
+ *
+ * But here I call them "arrays" because I started writing this
+ * file before I thought things through. (LOL, cf. object.c)
+ *
+ * XXX REVISIT: Policy decision... Should I continue to enforce
+ *      lists having all the same type of items?  JavaScript
+ *      doesn't do that.  Neither does Python.  There are some
+ *      actual advantages to NOT enforcing it.
+ */
 #include "var.h"
 #include <stdlib.h>
 

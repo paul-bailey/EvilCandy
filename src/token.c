@@ -923,7 +923,7 @@ tokenize(struct token_state_t *state)
  * calling code ever sees it,
  *
  * XXX REVISIT: Should @tok just be a single pointer for us to memcpy
- * into it?  Saves a lot of policy.
+ * into it?  Saves a lot of policy.  They're only 24 measly bytes.
  */
 int
 get_tok(struct token_state_t *state, struct token_t **tok)

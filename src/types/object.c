@@ -205,6 +205,12 @@ do_object_foreach(struct vmframe_t *fr)
         bug_on(self->magic != TYPE_DICT);
         htbl = &self->o->dict;
 
+        /*
+         * TODO: Something like Python dict's .keys attribute, so
+         * I can iterate over a premade temporary list.  That makes
+         * it safe for a child's removal from @self in the middle
+         * of this foreach loop.  Precludes need for a lock.
+         */
         lock = self->o->lock;
         self->o->lock = 1;
         for (idx = 0, res = hashtable_iterate(htbl, &key, &val, &idx);
@@ -242,6 +248,9 @@ do_object_foreach(struct vmframe_t *fr)
 /*
  * len()  (no args)
  * returns number of elements in object
+ *
+ * len(x)
+ * returns length of x
  */
 static struct var_t *
 do_object_len(struct vmframe_t *fr)
@@ -254,6 +263,7 @@ do_object_len(struct vmframe_t *fr)
                 v = get_this(fr);
                 bug_on(v->magic != TYPE_DICT);
         }
+        /* XXX REVISIT: should be in var.c as var_length */
         switch (v->magic) {
         case TYPE_DICT:
                 i = oh_nchildren(v->o);
@@ -261,7 +271,11 @@ do_object_len(struct vmframe_t *fr)
         case TYPE_STRING:
                 i = string_length(v);
                 break;
+        case TYPE_LIST:
+                i = array_length(v);
+                break;
         default:
+                /* XXX does it make sense to return 0 for EMPTY? */
                 i = 1;
         }
 
@@ -435,6 +449,27 @@ do_object_delattr(struct vmframe_t *fr)
         return NULL;
 }
 
+static struct var_t *
+do_object_keys(struct vmframe_t *fr)
+{
+        struct var_t *keys, *self = get_this(fr);
+        struct hashtable_t *d;
+        void *k, *v; /* v is unused dummy */
+        int res;
+        unsigned int i;
+
+        bug_on(self->magic != TYPE_DICT);
+        d = &self->o->dict;
+        keys = arrayvar_new();
+
+        for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
+             res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
+                array_append(keys, stringvar_new((char *)k));
+        }
+        /* XXX: probably ought to sort this before returning */
+        return keys;
+}
+
 static const struct type_inittbl_t object_methods[] = {
         V_INITTBL("len",       do_object_len,       0, 0),
         V_INITTBL("foreach",   do_object_foreach,   1, 1),
@@ -442,11 +477,12 @@ static const struct type_inittbl_t object_methods[] = {
         V_INITTBL("setattr",   do_object_setattr,   2, 2),
         V_INITTBL("getattr",   do_object_getattr,   1, 1),
         V_INITTBL("delattr",   do_object_delattr,   1, 1),
+        V_INITTBL("keys",      do_object_keys,      0, 0),
         TBLEND,
 };
 
 /*
- * FIXME: Would be nice if we could do like Python and let objects have
+ * XXX: Would be nice if we could do like Python and let objects have
  * user-defined operator callbacks
  */
 static const struct operator_methods_t object_primitives = {

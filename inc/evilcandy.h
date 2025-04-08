@@ -422,6 +422,7 @@ extern enum result_t array_insert(struct var_t *array,
                                   struct var_t *idx, struct var_t *child);
 extern struct var_t *arrayvar_new(void);
 extern int array_get_type(struct var_t *array);
+extern int array_length(struct var_t *array);
 
 /* types/function.c */
 extern struct var_t *funcvar_new_user(struct executable_t *ex);

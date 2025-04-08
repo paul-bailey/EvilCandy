@@ -147,6 +147,13 @@ array_append(struct var_t *array, struct var_t *child)
         return RES_OK;
 }
 
+int
+array_length(struct var_t *array)
+{
+        bug_on(array->magic != TYPE_LIST);
+        return array->a->nmemb;
+}
+
 struct var_t *
 arrayvar_new(void)
 {

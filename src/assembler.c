@@ -831,20 +831,15 @@ maybe_closure(struct assemble_t *a, const char *name)
         return clo_seek(a, name);
 }
 
+/*
+ * ainstr_push_symbol_or_assign - common to ainstr_push_symbol and ainstr_assign
+ * @instr: either INSTR_PUSH_PTR, INSTR_INCR, INSTR_DECR, or INSTR_ASSIGN(_XXX)
+ * @name:  name of symbol, token assumed to be saved from a->oc already.
+ */
 static void
-ainstr_push_symbol(struct assemble_t *a, struct token_t *name)
+ainstr_push_symbol_or_assign(struct assemble_t *a, struct token_t *name, int instr)
 {
         int idx;
-        struct token_t namesav;
-
-        /*
-         * XXX: Inelegant hack.  I'm copying this because
-         *  1) maybe_closure() could call as_lex(), and
-         *  2) seek_or_add_const() requires @name's full token info,
-         *     and I can't place it earlier than maybe_closure().
-         */
-        as_savetok(&namesav, name);
-
         /*
          * Note: in our implementation, FP <= AP <= SP,
          * that is, AP is the *top* of the argument stack.
@@ -852,20 +847,28 @@ ainstr_push_symbol(struct assemble_t *a, struct token_t *name)
          * so we use AP instead of FP for our local-variable
          * de-reference, and FP for our argument de-reference.
          */
-        if ((idx = symtab_seek(a, namesav.s)) >= 0) {
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_AP, idx);
-        } else if ((idx = arg_seek(a, namesav.s)) >= 0) {
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_FP, idx);
-        } else if ((idx = clo_seek(a, namesav.s)) >= 0) {
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_CP, idx);
-        } else if (!strcmp(namesav.s, "__gbl__")) {
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_GBL, 0);
-        } else if ((idx = maybe_closure(a, namesav.s)) >= 0) {
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_CP, idx);
+        if ((idx = symtab_seek(a, name->s)) >= 0) {
+                add_instr(a, instr, IARG_PTR_AP, idx);
+        } else if ((idx = arg_seek(a, name->s)) >= 0) {
+                add_instr(a, instr, IARG_PTR_FP, idx);
+        } else if ((idx = clo_seek(a, name->s)) >= 0) {
+                add_instr(a, instr, IARG_PTR_CP, idx);
+        } else if (!strcmp(name->s, "__gbl__")) {
+                add_instr(a, instr, IARG_PTR_GBL, 0);
+        } else if ((idx = maybe_closure(a, name->s)) >= 0) {
+                add_instr(a, instr, IARG_PTR_CP, idx);
         } else {
-                int namei = seek_or_add_const(a, &namesav);
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_SEEK, namei);
+                int namei = seek_or_add_const(a, name);
+                add_instr(a, instr, IARG_PTR_SEEK, namei);
         }
+}
+
+static void
+ainstr_push_symbol(struct assemble_t *a, struct token_t *name)
+{
+        struct token_t namesav;
+        as_savetok(&namesav, name);
+        ainstr_push_symbol_or_assign(a, &namesav, INSTR_PUSH_PTR);
 }
 
 static void
@@ -1208,19 +1211,21 @@ assemble_eval(struct assemble_t *a)
         as_unlex(a);
 }
 
+/* do not pass old a->oc as @name, save it before calling */
 static void
-assemble_assign(struct assemble_t *a)
+assemble_assign(struct assemble_t *a, struct token_t *name)
 {
         int t = a->oc->t;
+        int instr;
 
         /* first check the ones that don't call assemble_eval */
         switch (t) {
         case OC_PLUSPLUS:
-                add_instr(a, INSTR_INCR, 0, 0);
+                instr = INSTR_INCR;
                 break;
 
         case OC_MINUSMINUS:
-                add_instr(a, INSTR_DECR, 0, 0);
+                instr = INSTR_DECR;
                 break;
 
         default:
@@ -1228,42 +1233,44 @@ assemble_assign(struct assemble_t *a)
 
                 switch (t) {
                 case OC_EQ:
-                        add_instr(a, INSTR_ASSIGN, 0, 0);
+                        instr = INSTR_ASSIGN;
                         break;
                 case OC_PLUSEQ:
-                        add_instr(a, INSTR_ASSIGN_ADD, 0, 0);
+                        instr = INSTR_ASSIGN_ADD;
                         break;
                 case OC_MINUSEQ:
-                        add_instr(a, INSTR_ASSIGN_SUB, 0, 0);
+                        instr = INSTR_ASSIGN_SUB;
                         break;
                 case OC_MULEQ:
-                        add_instr(a, INSTR_ASSIGN_MUL, 0, 0);
+                        instr = INSTR_ASSIGN_MUL;
                         break;
                 case OC_DIVEQ:
-                        add_instr(a, INSTR_ASSIGN_DIV, 0, 0);
+                        instr = INSTR_ASSIGN_DIV;
                         break;
                 case OC_MODEQ:
-                        add_instr(a, INSTR_ASSIGN_MOD, 0, 0);
+                        instr = INSTR_ASSIGN_MOD;
                         break;
                 case OC_XOREQ:
-                        add_instr(a, INSTR_ASSIGN_XOR, 0, 0);
+                        instr = INSTR_ASSIGN_XOR;
                         break;
                 case OC_LSEQ:
-                        add_instr(a, INSTR_ASSIGN_LS, 0, 0);
+                        instr = INSTR_ASSIGN_LS;
                         break;
                 case OC_RSEQ:
-                        add_instr(a, INSTR_ASSIGN_RS, 0, 0);
+                        instr = INSTR_ASSIGN_RS;
                         break;
                 case OC_OREQ:
-                        add_instr(a, INSTR_ASSIGN_OR, 0, 0);
+                        instr = INSTR_ASSIGN_OR;
                         break;
                 case OC_ANDEQ:
-                        add_instr(a, INSTR_ASSIGN_AND, 0, 0);
+                        instr = INSTR_ASSIGN_AND;
                         break;
                 default:
+                        instr = 0;
                         bug();
                 }
         }
+        ainstr_push_symbol_or_assign(a, name, instr);
 }
 
 /* FIXME: huge DRY violation w/ eval8 */
@@ -1274,7 +1281,7 @@ assemble_assign(struct assemble_t *a)
  * "x".  But as-is, there is no 'value' for "x = y;"
  */
 static void
-assemble_ident_helper(struct assemble_t *a, unsigned int flags)
+assemble_ident_helper(struct assemble_t *a)
 {
         bool have_parent = false;
         int last_t = 0;
@@ -1290,20 +1297,7 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                 int namei;
                 struct token_t name;
 
-                if (!!(a->oc->t & TF_ASSIGN)) {
-                        /* If here, we should just have
-                         *      thing = stuff...
-                         * NOT
-                         *      thing.child = stuff...
-                         *      thing[1] = stuff...
-                         * Those should have been handled in a previous
-                         * instance of the switch below.
-                         */
-                        bug_on(have_parent);
-                        bug_on(inbal);
-                        assemble_assign(a);
-                        goto done;
-                }
+                /* FIXME: What about increment, decrement? */
 
                 /*
                  * FIXME: For the SETATTR cases below, I should permit
@@ -1419,7 +1413,18 @@ done:
         bug_on(inbal < 0);
         if (inbal)
                 add_instr(a, INSTR_UNWIND, 0, inbal);
+}
 
+static void
+assemble_this(struct assemble_t *a, unsigned int flags)
+{
+        /*
+         * Cf. assemble_identifier below.
+         * We do not allow
+         *      this = value...
+         */
+        add_instr(a, INSTR_PUSH_PTR, IARG_PTR_THIS, 0);
+        assemble_ident_helper(a);
         if (!!(flags & FE_FOR))
                 as_errlex(a, OC_RPAR);
         else
@@ -1427,29 +1432,54 @@ done:
 }
 
 static void
-assemble_this(struct assemble_t *a, unsigned int flags)
-{
-        add_instr(a, INSTR_PUSH_PTR, IARG_PTR_THIS, 0);
-        assemble_ident_helper(a, flags);
-}
-
-static void
 assemble_identifier(struct assemble_t *a, unsigned int flags)
 {
-        ainstr_push_symbol(a, a->oc);
-        assemble_ident_helper(a, flags);
+        struct token_t name;
+        as_savetok(&name, a->oc);
+
+        ainstr_push_symbol(a, &name);
+
+        /* need to peek */
+        as_lex(a);
+        if (!!(a->oc->t & TF_ASSIGN)) {
+                /*
+                 * x++;
+                 * x = value;
+                 * x += value;
+                 * ...
+                 */
+                assemble_assign(a, &name);
+        } else {
+                /*
+                 * x(args);
+                 * x[i] [= value];
+                 * x.big(damn)[mess].of.stuff...
+                 * ...
+                 * Here we are not modifying x directly.  We are either
+                 * calling a function or modifying one of x's descendants.
+                 */
+                as_unlex(a);
+                assemble_ident_helper(a);
+        }
+        if (!!(flags & FE_FOR))
+                as_errlex(a, OC_RPAR);
+        else
+                as_errlex(a, OC_SEMI);
 }
 
 static void
 assemble_let(struct assemble_t *a)
 {
         struct token_t name;
-        bool top, constflag = false;
+        bool top;
         int namei;
 
         as_lex(a);
         if (a->oc->t == OC_CONST) {
-                constflag = true;
+                /*
+                 * TODO: Warn that 'const' is no longer
+                 * supported or throw error?
+                 */
                 as_lex(a);
         }
         as_err_if(a, a->oc->t != 'u', AE_EXPECT);
@@ -1483,22 +1513,17 @@ assemble_let(struct assemble_t *a)
                  * TODO: removed warning(), either remove this
                  * or call something else
                  */
-#if 0
-                /* emtpy declaration */
-                if (constflag)
-                        warning("Assigning 'const' to an empty variable");
-#endif
                 return;
+
         case OC_EQ:
-                if (top)
-                        add_instr(a, INSTR_PUSH_PTR, IARG_PTR_SEEK, namei);
-                else
-                        add_instr(a, INSTR_PUSH_PTR, IARG_PTR_AP, namei);
+                /* for "let", only "=", not "+=" or such */
+                ainstr_push_symbol(a, &name);
                 assemble_eval(a);
-                if (constflag)
-                        add_instr(a, INSTR_ASSIGN, IARG_FLAG_CONST, 0);
-                else
-                        add_instr(a, INSTR_ASSIGN, 0, 0);
+                if (top)
+                        add_instr(a, INSTR_ASSIGN, IARG_PTR_SEEK, namei);
+                else {
+                        add_instr(a, INSTR_ASSIGN, IARG_PTR_AP, namei);
+                }
                 as_errlex(a, OC_SEMI);
                 break;
         default:

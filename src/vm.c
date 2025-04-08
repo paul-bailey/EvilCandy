@@ -136,6 +136,52 @@ symbol_seek(struct vmframe_t *fr, struct var_t *name)
         return ret;
 }
 
+static int
+symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
+{
+        /*
+         * FIXME: DRY violation with symbol_seek_,
+         * but I just wanna get this to at least work.
+         * It should all get torn out when I get rid of __gbl__
+         * and just have a single TYPE_DICT var for all the
+         * global variables.
+         */
+        static char *gbl = NULL;
+        const char *s = name->strptr;
+        struct var_t *parent, *child;
+
+        bug_on(name->magic != TYPE_STRPTR);
+        bug_on(!s);
+        if (!gbl)
+                gbl = literal_put("__gbl__");
+
+        if (s == gbl) {
+                err_setstr(RuntimeError, "You may not assign __gbl__");
+                return RES_ERROR;
+        }
+
+        /* XXX: Redundant searching: need something like hashtable_swap */
+        if ((child = hashtable_get(symbol_table, s)) != NULL) {
+                child = hashtable_remove(symbol_table, s);
+                bug_on(!child);
+                VAR_DECR_REF(child);
+                return hashtable_put(symbol_table, (void *)s, v);
+        }
+
+        parent = get_this(fr);
+        if (parent) {
+                struct var_t *child = var_getattr(parent, name);
+                if (child)
+                        return var_setattr(parent, name, v);
+        }
+
+        parent = GlobalObject;
+        child = var_getattr(parent, name);
+        if (child)
+                return var_setattr(parent, name, v);
+        return RES_ERROR;
+}
+
 /*
  * DOC: Frame allocation
  *
@@ -296,22 +342,58 @@ unary_op_common(struct vmframe_t *fr,
         return 0;
 }
 
+/* helper to assign_common and do_assign */
+static int
+assign_complete(struct vmframe_t *fr, instruction_t ii, struct var_t *from)
+{
+        struct var_t **ppto;
+        switch (ii.arg1) {
+        case IARG_PTR_AP:
+                ppto = fr->stack + fr->ap + ii.arg2;
+                break;
+        case IARG_PTR_FP:
+                ppto = fr->stack + ii.arg2;
+                break;
+        case IARG_PTR_CP:
+                ppto = fr->clo + ii.arg2;
+                break;
+        case IARG_PTR_SEEK:
+                /* Global variable or attribute in namespace */
+                return symbol_put(fr, RODATA(fr, ii), from);
+        case IARG_PTR_GBL:
+                /* bug? should have been caught be assembler */
+                err_setstr(RuntimeError, "You may not assign __gbl__");
+                return RES_ERROR;
+        case IARG_PTR_THIS:
+                err_setstr(RuntimeError, "You may not assign `this'");
+                return RES_ERROR;
+        default:
+                fprintf(stderr, "arg1=%d\n", ii.arg1);
+                bug();
+                return RES_ERROR;
+        }
+
+        bug_on(!ppto || !(*ppto));
+        VAR_DECR_REF(*ppto);
+        *ppto = from;
+        return RES_OK;
+}
+
+/* common to all the do_assign_XXX functions */
 static int
 assign_common(struct vmframe_t *fr,
-              struct var_t *(*op)(struct var_t *, struct var_t *))
+              struct var_t *(*op)(struct var_t *, struct var_t *),
+              instruction_t ii)
 {
         struct var_t *from, *to, *opres;
         int ret = 0;
-        from = pop(fr);
-        to = pop(fr);
+        from  = pop(fr);
+        to    = pop(fr);
         opres = op(to, from);
         if (!opres)
-                ret = -1;
-        else if (!qop_mov(to, opres))
-                ret = -1;
-
-        if (opres)
-                VAR_DECR_REF(opres);
+                ret = RES_ERROR;
+        else
+                ret = assign_complete(fr, ii, opres);
         VAR_DECR_REF(to);
         VAR_DECR_REF(from);
         return ret;
@@ -448,78 +530,86 @@ do_break(struct vmframe_t *fr, instruction_t ii)
 static int
 do_assign(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *from, *to;
-        int res = 0;
-        from = pop(fr);
-        to = pop(fr);
-        if (qop_mov(to, from) == NULL)
-                res = -1;
-        else if (!!(ii.arg1 & IARG_FLAG_CONST))
-                to->flags |= VF_CONST;
-
-        VAR_DECR_REF(to);
-        VAR_DECR_REF(from);
-        return res;
+        /*
+         * XXX: Here @to_unused is the 'x' of
+         *      x = thing...
+         * pushed onto the evaluation stack, since the do_assign_XXX()
+         * functions need to use it for things like
+         *      x += thing...
+         * where x is part of the evalutation.
+         *
+         * Our parser is currently too brain-dead to distinguish between
+         * these two cases in time to know not to insert the additional
+         * PUSH instructions, resulting in a superfluous push/pop combo.
+         */
+        struct var_t *from      = pop(fr);
+        struct var_t *to_unused = pop(fr);
+        int ret = assign_complete(fr, ii, from);
+        if (ret == RES_ERROR)
+                VAR_DECR_REF(from);
+        /* else, @from got assigned */
+        VAR_DECR_REF(to_unused);
+        return ret;
 }
 
 static int
 do_assign_add(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, qop_add);
+        return assign_common(fr, qop_add, ii);
 }
 
 static int
 do_assign_sub(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, qop_sub);
+        return assign_common(fr, qop_sub, ii);
 }
 
 static int
 do_assign_mul(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, qop_mul);
+        return assign_common(fr, qop_mul, ii);
 }
 
 static int
 do_assign_div(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, qop_div);
+        return assign_common(fr, qop_div, ii);
 }
 
 static int
 do_assign_mod(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, qop_mod);
+        return assign_common(fr, qop_mod, ii);
 }
 
 static int
 do_assign_xor(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, qop_xor);
+        return assign_common(fr, qop_xor, ii);
 }
 
 static int
 do_assign_ls(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, lshift);
+        return assign_common(fr, lshift, ii);
 }
 
 static int
 do_assign_rs(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, rshift);
+        return assign_common(fr, rshift, ii);
 }
 
 static int
 do_assign_or(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, qop_bit_or);
+        return assign_common(fr, qop_bit_or, ii);
 }
 
 static int
 do_assign_and(struct vmframe_t *fr, instruction_t ii)
 {
-        return assign_common(fr, qop_bit_and);
+        return assign_common(fr, qop_bit_and, ii);
 }
 
 static int

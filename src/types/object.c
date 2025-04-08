@@ -406,6 +406,7 @@ do_object_getattr(struct vmframe_t *fr)
         }
 
         ret = object_getattr(self, s);
+        /* XXX: VAR_INCR_REF? Who's taking this? */
         if (!ret)
                 ret = ErrorVar;
         return ret;

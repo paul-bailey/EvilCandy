@@ -1267,6 +1267,12 @@ assemble_assign(struct assemble_t *a)
 }
 
 /* FIXME: huge DRY violation w/ eval8 */
+/*
+ * TODO: mild lift, but this should be wrapped within the eval
+ * stage as well.  A line like "x = y;" should evaluate to the
+ * value of "y" while also having the side-effect of assigning
+ * "x".  But as-is, there is no 'value' for "x = y;"
+ */
 static void
 assemble_ident_helper(struct assemble_t *a, unsigned int flags)
 {
@@ -1285,6 +1291,16 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                 struct token_t name;
 
                 if (!!(a->oc->t & TF_ASSIGN)) {
+                        /* If here, we should just have
+                         *      thing = stuff...
+                         * NOT
+                         *      thing.child = stuff...
+                         *      thing[1] = stuff...
+                         * Those should have been handled in a previous
+                         * instance of the switch below.
+                         */
+                        bug_on(have_parent);
+                        bug_on(inbal);
                         assemble_assign(a);
                         goto done;
                 }
@@ -1321,11 +1337,21 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                         case 'q':
                         case 'i':
                                 /*
-                                 * this is inelegant, but it reduces the number of
-                                 * stack operations in the final assembly
+                                 * Try to optimize... "[" + LITERAL could be
+                                 * something weird like
+                                 *
+                                 *      thing[ "".join(bunch_of_stuff) ]
+                                 *
+                                 * but 99% of the time it's just going to be
+                                 *
+                                 *      thing["name"]
+                                 *
+                                 * So we'll see if we can avoid having to eval
+                                 * (the 'u' case below).
                                  */
                                 as_savetok(&name, a->oc);
                                 if (as_lex(a) == OC_RBRACK) {
+                                        /* ...the 99% scenario */
                                         namei = seek_or_add_const(a, &name);
                                         if (as_lex(a) == OC_EQ) {
                                                 assemble_eval(a);
@@ -1338,7 +1364,7 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                                         break;
                                 }
                                 as_unlex(a);
-                                /* fall through, we need to fully eval */
+                                /* ...the 1% scenario, fall through and eval */
 
                         case 'u':
                                 /* need to evaluate index */
@@ -1361,7 +1387,7 @@ assemble_ident_helper(struct assemble_t *a, unsigned int flags)
                         default:
                                 as_err(a, AE_BADTOK);
                         }
-                        as_errlex(a, OC_LBRACK);
+                        as_errlex(a, OC_RBRACK);
                         break;
 
                 case OC_LPAR:

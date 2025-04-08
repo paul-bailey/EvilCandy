@@ -63,19 +63,6 @@
 
 struct hashtable_t literal_htbl__;
 
-
-static hash_t
-literal_hash(const void *key)
-{
-        return (hash_t)fnv_hash((char *)key);
-}
-
-static bool
-literal_match(const void *key1, const void *key2)
-{
-        return strcmp((char *)key1, (char *)key2) == 0;
-}
-
 static void
 literal_delete_data(void *data)
 {
@@ -85,7 +72,7 @@ literal_delete_data(void *data)
 void
 moduleinit_literal(void)
 {
-        hashtable_init(&literal_htbl__, literal_hash,
-                       literal_match, literal_delete_data);
+        hashtable_init(&literal_htbl__, fnv_hash,
+                       str_key_match, literal_delete_data);
 }
 

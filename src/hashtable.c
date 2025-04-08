@@ -427,6 +427,25 @@ ptr_hash(const void *key)
 }
 
 /*
+ * fnv_hash - The FNV-1a hash algorithm
+ *
+ * See Wikipedia article on this.
+ * It could be made into 64-bit version with different consts.
+ * Users may want to make a case-less version of this, for
+ * things like case-insensitive databases.
+ */
+hash_t
+fnv_hash(const void *key)
+{
+        const unsigned char *s = key;
+        unsigned int c;
+        unsigned long hash = 0x811c9dc5;
+        while ((c = *s++) != '\0')
+                hash = (hash * 0x01000193) ^ c;
+        return (hash_t)hash;
+}
+
+/*
  * matching algo used when both keys are known to be return values
  * of literal(), forgoing need for a strcmp.
  */
@@ -435,4 +454,12 @@ ptr_key_match(const void *key1, const void *key2)
 {
         return key1 == key2;
 }
+
+bool
+str_key_match(const void *key1, const void *key2)
+{
+        /* fast-path "==", since these still sometimes are literal()'d */
+        return key1 == key2 || !strcmp((char *)key1, (char *)key2);
+}
+
 

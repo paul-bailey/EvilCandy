@@ -22,7 +22,6 @@ extern ssize_t index_translate(ssize_t i, size_t size);
 extern void print_escapestr(FILE *fp, const char *s, int quote);
 extern int assert_array_pos(int idx, void **arr,
                         size_t *alloc_bytes, size_t type_size);
-extern unsigned long fnv_hash(const char *s);
 extern const char *notdir(const char *path);
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \

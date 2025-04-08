@@ -313,24 +313,6 @@ done:
         return 0;
 }
 
-/*
- * fnv_hash - The FNV-1a hash algorithm
- *
- * See Wikipedia article on this.
- * It could be made into 64-bit version with different consts.
- * Users may want to make a case-less version of this, for
- * things like case-insensitive databases.
- */
-unsigned long
-fnv_hash(const char *s)
-{
-        unsigned int c;
-        unsigned long hash = 0x811c9dc5;
-        while ((c = (unsigned char)(*s++)) != '\0')
-                hash = (hash * 0x01000193) ^ c;
-        return hash;
-}
-
 /* true if @c is a valid UTF8 following (ie. not 1st) char */
 static inline bool isutf8(unsigned int c)
         { return ((c & 0xC0) == 0x80); }

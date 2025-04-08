@@ -232,8 +232,8 @@ moduleinit_var(void)
         int i;
 
         for (i = TYPE_EMPTY; i < NTYPES; i++) {
-                hashtable_init(&TYPEDEFS[i].methods, ptr_hash,
-                                ptr_key_match, var_bucket_delete);
+                hashtable_init(&TYPEDEFS[i].methods, fnv_hash,
+                                str_key_match, var_bucket_delete);
         }
         for (t = INIT_TBL; t->cb != NULL; t++)
                 t->cb();

@@ -37,8 +37,8 @@ objectvar_new(void)
         o->magic = TYPE_DICT;
 
         o->o = type_handle_new(sizeof(*o->o), object_handle_reset);
-        hashtable_init(&o->o->dict, ptr_hash,
-                       ptr_key_match, var_bucket_delete);
+        hashtable_init(&o->o->dict, fnv_hash,
+                       str_key_match, var_bucket_delete);
         return o;
 }
 

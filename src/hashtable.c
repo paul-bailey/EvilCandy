@@ -429,19 +429,27 @@ ptr_hash(const void *key)
 /*
  * fnv_hash - The FNV-1a hash algorithm
  *
- * See Wikipedia article on this.
- * It could be made into 64-bit version with different consts.
- * Users may want to make a case-less version of this, for
- * things like case-insensitive databases.
+ * See Wikipedia article "Fowler-Noll-Vo hash function"
  */
 hash_t
 fnv_hash(const void *key)
 {
+        /* 64-bit version */
+#define FNV_PRIME      0x00000100000001B3LL
+#define FNV_OFFSET     0xCBF29CE484222325LL
+
         const unsigned char *s = key;
         unsigned int c;
-        unsigned long hash = 0x811c9dc5;
+        unsigned long hash = FNV_PRIME;
+
+        bug_on(sizeof(hash_t) != 8);
+
+        /*
+         * since C string has no zeros in the part that gets
+         * hashed, don't worry about sticky state.
+         */
         while ((c = *s++) != '\0')
-                hash = (hash * 0x01000193) ^ c;
+                hash = (hash * FNV_OFFSET) ^ c;
         return (hash_t)hash;
 }
 

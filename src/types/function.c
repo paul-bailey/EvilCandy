@@ -112,7 +112,7 @@ function_of(struct var_t *fn, struct var_t **owner)
                                 callable = literal_put("__callable__");
 
                         new_owner = fn;
-                        fn = object_getattr_l(fn, callable);
+                        fn = object_getattr(fn, callable);
                 } else {
                         fn = NULL;
                 }

@@ -199,7 +199,7 @@ var_config_type(int magic, const char *name,
 }
 
 static struct var_t *
-builtin_method_l(struct var_t *v, const char *method_name)
+builtin_method(struct var_t *v, const char *method_name)
 {
         int magic = v->magic;
         if ((unsigned)magic >= NTYPES_USER || !method_name)
@@ -269,39 +269,20 @@ var_bucket_delete(void *data)
 }
 
 static struct var_t *
-attr_by_string_l(struct var_t *v, const char *s)
+attr_by_string(struct var_t *v, const char *s)
 {
         if (!s)
                 return NULL;
         if (v->magic == TYPE_DICT) {
                 struct var_t *res;
-                if ((res = object_getattr_l(v, s)) != NULL)
+                if ((res = object_getattr(v, s)) != NULL)
                         return res;
         }
-        return builtin_method_l(v, s);
-}
-
-static struct var_t *
-attr_by_string(struct var_t *v, const char *s)
-{
-        return attr_by_string_l(v, literal(s));
+        return builtin_method(v, s);
 }
 
 /**
- * var_get_attr_by_string_l - Get attribte by string literal
- * @v: Variable whose attribute we're seeking
- * @s: Name of attribute, which must have been a return value of literal
- *
- * Return: Attribute @s of @v or NULL if not found.
- */
-struct var_t *
-var_get_attr_by_string_l(struct var_t *v, const char *s)
-{
-        return attr_by_string_l(v, s);
-}
-
-/**
- * var_get_attr - Generalized get-attribute
+ * var_getattr - Generalized get-attribute
  * @v:  Variable whose attribute we're seeking
  * @deref: Variable storing the key, either the name or an index number
  *
@@ -309,12 +290,13 @@ var_get_attr_by_string_l(struct var_t *v, const char *s)
  * attribute, not a copy, so be careful what you do with it.
  */
 struct var_t *
-var_get_attr(struct var_t *v, struct var_t *deref)
+var_getattr(struct var_t *v, struct var_t *deref)
 {
         switch (deref->magic) {
         case TYPE_STRPTR:
-                return attr_by_string_l(v, deref->strptr);
+                return attr_by_string(v, deref->strptr);
         case TYPE_INT:
+                /* XXX: return ErrorVar if bound error? */
                 /* because idx stores long long, but ii.i is int */
                 if (deref->i < INT_MIN || deref->i > INT_MAX)
                         return NULL;
@@ -336,9 +318,9 @@ var_get_attr(struct var_t *v, struct var_t *deref)
  * @deref: Variable storing the name or subscript
  *
  * Return:
- * C string naming the attribute.  This may point to a buffer whose
- * contents could change later.  This function is just for error
- * reporting.
+ * C string naming the attribute.
+ * This may point to a buffer whose contents could change later.
+ * Used for error reporting.
  */
 const char *
 attr_str(struct var_t *deref)
@@ -374,7 +356,7 @@ attr_str(struct var_t *deref)
  * Return:      RES_OK if success, RES_ERROR if failure does not exist.
  */
 enum result_t
-var_set_attr(struct var_t *v, struct var_t *deref, struct var_t *attr)
+var_setattr(struct var_t *v, struct var_t *deref, struct var_t *attr)
 {
         switch (v->magic) {
         case TYPE_DICT:

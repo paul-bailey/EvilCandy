@@ -59,11 +59,15 @@ object_set_priv(struct var_t *o, void *priv,
 }
 
 /**
- * object_getattr_l - Like object_getattr, but @s is already known be a
- *                  return value of literal()
+ * object_getattr - Get object attribute
+ * @o:  Me
+ * @s:  Key
+ *
+ * Return: child matching @key, or NULL if not found.
+ *      Calling code must decide whether NULL is an error or not
  */
 struct var_t *
-object_getattr_l(struct var_t *o, const char *s)
+object_getattr(struct var_t *o, const char *s)
 {
         if (!s)
                 return NULL;
@@ -92,6 +96,7 @@ object_addattr(struct var_t *parent,
                 err_locked();
                 return RES_ERROR;
         }
+
         if (hashtable_put(&parent->o->dict, literal_put(name), child) < 0) {
                 err_setstr(RuntimeError,
                            "Object already has element named %s", name);
@@ -102,21 +107,13 @@ object_addattr(struct var_t *parent,
         return RES_OK;
 }
 
-/* if @child is known to be a direct child of @parent */
-static void
-object_remove_child_(struct var_t *parent, struct var_t *child)
-{
-        VAR_DECR_REF(child);
-        parent->o->nchildren--;
-}
-
 /**
- * object_remove_child_l - Like object_remove_child, but
+ * object_delattr - Like object_delattr, but
  *                      @name is either NULL or known to be a
  *                      possible return value of literal()
  */
 enum result_t
-object_remove_child_l(struct var_t *parent, const char *name)
+object_delattr(struct var_t *parent, const char *name)
 {
         struct var_t *child;
         if (!name)
@@ -130,8 +127,10 @@ object_remove_child_l(struct var_t *parent, const char *name)
          * XXX REVISIT: If !child, should I throw a doesn't-exist error,
          * or should I silently ignore it like I'm doing now?
          */
-        if (child)
-                object_remove_child_(parent, child);
+        if (child) {
+                VAR_DECR_REF(child);
+                parent->o->nchildren--;
+        }
         return RES_OK;
 }
 
@@ -335,7 +334,7 @@ object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
          * XXX: POLICY DECISION: qop_mov as below, or delte old
          * and replace it with new?
          */
-        child = object_getattr_l(dict, namestr);
+        child = object_getattr(dict, namestr);
         if (child) {
                 /* already exists */
                 if (!qop_mov(child, attr))
@@ -431,7 +430,7 @@ do_object_delattr(struct vmframe_t *fr)
                 return ErrorVar;
 
         s = string_get_cstring(name);
-        if (object_remove_child(self, s) != RES_OK)
+        if (object_delattr(self, s) != RES_OK)
                 return ErrorVar;
         return NULL;
 }

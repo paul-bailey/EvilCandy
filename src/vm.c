@@ -86,11 +86,11 @@ RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 #endif /* DEBUG */
 
 static struct var_t *
-symbol_seek_this_(struct vmframe_t *fr, const char *s)
+symbol_seek_this_(struct vmframe_t *fr, struct var_t *name)
 {
         struct var_t *o = get_this(fr);
         if (o)
-                return var_get_attr_by_string_l(o, s);
+                return var_getattr(o, name);
         return NULL;
 }
 
@@ -103,31 +103,36 @@ symbol_seek_this_(struct vmframe_t *fr, const char *s)
  *   4. attribute of __gbl__ with matching name
  */
 static struct var_t *
-symbol_seek_(struct vmframe_t *fr, const char *s)
+symbol_seek_(struct vmframe_t *fr, struct var_t *name)
 {
         static char *gbl = NULL;
         struct var_t *v;
+        const char *s = name->strptr;
 
+        bug_on(name->magic != TYPE_STRPTR);
         bug_on(!s);
 
         if (!gbl)
-                gbl = literal("__gbl__");
+                gbl = literal_put("__gbl__");
 
         if (s == gbl)
                 return GlobalObject;
         if ((v = hashtable_get(symbol_table, s)) != NULL)
                 return v;
-        if ((v = symbol_seek_this_(fr, s)) != NULL)
+        if ((v = symbol_seek_this_(fr, name)) != NULL)
                 return v;
-        return var_get_attr_by_string_l(GlobalObject, s);
+        return object_getattr(GlobalObject, s);
 }
 
 static struct var_t *
-symbol_seek(struct vmframe_t *fr, const char *s)
+symbol_seek(struct vmframe_t *fr, struct var_t *name)
 {
-        struct var_t *ret = symbol_seek_(fr, s);
-        if (!ret)
-                err_setstr(RuntimeError, "Symbol %s not found", s);
+        bug_on(name->magic != TYPE_STRPTR);
+        struct var_t *ret = symbol_seek_(fr, name);
+        if (!ret) {
+                err_setstr(RuntimeError,
+                           "Symbol %s not found", name->strptr);
+        }
         return ret;
 }
 
@@ -213,7 +218,7 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
         case IARG_PTR_CP:
                 return fr->clo[ii.arg2];
         case IARG_PTR_SEEK: {
-                char *name = RODATA_STR(fr, ii);
+                struct var_t *name = RODATA(fr, ii);
                 return symbol_seek(fr, name);
         }
         case IARG_PTR_GBL:
@@ -681,7 +686,7 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
 
         obj = pop(fr);
 
-        attr = var_get_attr(obj, deref);
+        attr = var_getattr(obj, deref);
         if (!attr) {
                 err_attribute("get", deref, obj);
                 ret = -1;
@@ -730,10 +735,10 @@ do_setattr(struct vmframe_t *fr, instruction_t ii)
 
         obj = pop(fr);
 
-        if (var_set_attr(obj, deref, val) != 0) {
+        if (var_setattr(obj, deref, val) != 0) {
                 /*
                  * XXX This could clobber a pending error message that
-                 * was set during var_set_attr
+                 * was set during var_setattr
                  */
                 err_attribute("set", deref, obj);
                 ret = -1;

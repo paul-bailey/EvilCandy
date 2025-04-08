@@ -400,13 +400,11 @@ extern struct var_t *var_new(void);
 extern void var_delete__(struct var_t *v);
 extern void var_reset(struct var_t *v);
 extern void moduleinit_var(void);
-extern struct var_t *var_get_attr(struct var_t *v,
-                                struct var_t *deref);
-extern struct var_t *var_get_attr_by_string_l(struct var_t *v,
-                                const char *s);
-extern enum result_t var_set_attr(struct var_t *v,
-                                  struct var_t *deref,
-                                  struct var_t *attr);
+extern struct var_t *var_getattr(struct var_t *v,
+                                 struct var_t *deref);
+extern enum result_t var_setattr(struct var_t *v,
+                                 struct var_t *deref,
+                                 struct var_t *attr);
 extern const char *typestr(struct var_t *v);
 extern const char *typestr_(int magic);
 extern const char *attr_str(struct var_t *deref);
@@ -441,21 +439,16 @@ extern struct var_t *strptrvar_new(char *cstr);
 
 /* types/object.c */
 extern struct var_t *objectvar_new(void);
-extern struct var_t *object_getattr_l(struct var_t *o, const char *s);
+extern struct var_t *object_getattr(struct var_t *o, const char *s);
 extern enum result_t object_addattr(struct var_t *o,
                                     struct var_t *v, const char *name);
 extern enum result_t object_setattr(struct var_t *o,
                                     struct var_t *name, struct var_t *attr);
-extern enum result_t object_remove_child_l(struct var_t *o, const char *s);
+extern enum result_t object_remove_child(struct var_t *o, const char *s);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
 static inline void *object_get_priv(struct var_t *o)
         { return o->o->priv; }
-/* obj..._l() can handle if literal(s) is NULL, so these are safe. */
-static inline struct var_t *object_getattr(struct var_t *o, const char *s)
-        { return object_getattr_l(o, literal(s)); }
-static inline int object_remove_child(struct var_t *o, const char *s)
-        { return object_remove_child_l(o, literal(s)); }
 
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);

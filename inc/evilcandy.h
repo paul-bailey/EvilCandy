@@ -408,8 +408,6 @@ extern enum result_t var_setattr(struct var_t *v,
 extern const char *typestr(struct var_t *v);
 extern const char *typestr_(int magic);
 extern const char *attr_str(struct var_t *deref);
-static inline struct var_t *var_copy(struct var_t *v)
-        { return qop_mov(var_new(), v); }
 
 /* common hashtable callback for var-storing hashtables */
 extern void var_bucket_delete(void *data);

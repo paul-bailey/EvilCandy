@@ -571,6 +571,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         /* Unwind stack in calling frame */
         while (argc-- != 0)
                 pop(fr); /* arg */
+
         pop(fr); /* func */
         VAR_DECR_REF(func);
         if (owner) {
@@ -1076,10 +1077,8 @@ vm_reenter(struct vmframe_t *fr_old, struct var_t *func,
 
         fr = vmframe_alloc();
         fr->ap = argc;
-        while (argc-- > 0) {
+        while (argc-- > 0)
                 fr->stack[argc] = argv[argc];
-                VAR_INCR_REF(argv[argc]);
-        }
 
         if (function_prep_frame(func, fr,
                                 owner ? owner : get_this(fr_old))

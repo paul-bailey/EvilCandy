@@ -29,6 +29,9 @@ struct string_handle_t {
 static inline struct buffer_t *string_buf__(struct var_t *str)
         { return &str->s->b; }
 
+static inline struct var_t *string_copy__(struct var_t *str)
+        { return stringvar_new(string_get_cstring(str)); }
+
 static void
 string_handle_reset(void *h)
 {
@@ -737,11 +740,8 @@ string_lstrip(struct vmframe_t *fr)
         if (arg && arg_type_check(arg, TYPE_STRING) != 0)
                 return ErrorVar;
 
-        ret = var_new();
-        if (!qop_mov(ret, self))
-                charset = NULL;
-        else
-                charset = arg ? string_get_cstring(arg) : NULL;
+        ret = string_copy__(self);
+        charset = arg ? string_get_cstring(arg) : NULL;
         buffer_lstrip(string_buf__(ret), charset);
         return ret;
 }
@@ -763,11 +763,8 @@ string_rstrip(struct vmframe_t *fr)
         if (arg && arg_type_check(arg, TYPE_STRING) != 0)
                 return ErrorVar;
 
-        ret = var_new();
-        if (!qop_mov(ret, self))
-                charset = NULL;
-        else
-                charset = arg ? string_get_cstring(arg) : NULL;
+        ret = string_copy__(self);
+        charset = arg ? string_get_cstring(arg) : NULL;
         buffer_rstrip(string_buf__(ret), charset);
         return ret;
 }
@@ -789,11 +786,8 @@ string_strip(struct vmframe_t *fr)
         if (arg && arg_type_check(arg, TYPE_STRING) != 0)
                 return ErrorVar;
 
-        ret = var_new();
-        if (!qop_mov(ret, self))
-                charset = NULL;
-        else
-                charset = arg ? string_get_cstring(arg) : NULL;
+        ret = string_copy__(self);
+        charset = arg ? string_get_cstring(arg) : NULL;
         buffer_rstrip(string_buf__(ret), charset);
         buffer_lstrip(string_buf__(ret), charset);
         return ret;
@@ -850,6 +844,7 @@ string_replace(struct vmframe_t *fr)
         return ret;
 }
 
+/* XXX Superfluous, the way we do things now, remove? */
 static struct var_t *
 string_copy(struct vmframe_t *fr)
 {

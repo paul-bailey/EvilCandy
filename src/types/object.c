@@ -125,8 +125,8 @@ object_addattr(struct var_t *parent,
                            "Object already has element named %s", name);
                 return RES_ERROR;
         }
-        VAR_INCR_REF(child);
         parent->o->nchildren++;
+        VAR_INCR_REF(child);
         return RES_OK;
 }
 
@@ -232,8 +232,11 @@ do_object_foreach(struct vmframe_t *fr)
 
                 argv[0] = val;
                 argv[1] = key;
+                VAR_INCR_REF(argv[0]);
+                VAR_INCR_REF(argv[1]);
 
                 cbret = vm_reenter(fr, func, NULL, 2, argv);
+
                 if (cbret == ErrorVar) {
                         status = RES_ERROR;
                         break;
@@ -314,15 +317,6 @@ do_object_hasattr(struct vmframe_t *fr)
  * This does not touch the type's built-in-method attributes.
  *
  * Return: res_ok or RES_ERROR.
- *
- * XXX REVISIT: When replacing old attribute, this performs a MOV operation.
- *       Good idea or bad idea?
- *       Consider the code
- *              let A = B.SomeAttr;
- *              B.SomeAttr = SomethingElseNow;
- *      What happens with handle A after changing B.SomeAttr?
- *      Isn't it better to VAR_DECR_REF(old B.SomeAttr), and let a's
- *      handle be independent of b when this happens?
  */
 enum result_t
 object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
@@ -345,20 +339,14 @@ object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
         }
 
         /*
-         * if exists, change it. Otherwise add it.
-         * XXX: POLICY DECISION: qop_mov as below, or delte old
-         * and replace it with new?
+         * XXX: Lots of high-level calls means lots of unnecessary
+         * overhead.  Make a function like hashtable_replace() which
+         * calls back to var_bucket_delete should entry already exist.
          */
         child = object_getattr(dict, namestr);
-        if (child) {
-                /* already exists */
-                if (!qop_mov(child, attr))
-                        return RES_ERROR;
-        } else {
-                if (object_addattr(dict, attr, namestr) != 0)
-                        return RES_ERROR;
-        }
-        return RES_OK;
+        if (child)
+                object_delattr(dict, namestr);
+        return object_addattr(dict, attr, namestr);
 }
 
 /* "obj.setattr('name', val)" is an alternative to "obj.name = val" */
@@ -404,7 +392,7 @@ do_object_getattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = frame_get_arg(fr, 0);
-        struct var_t *attr, *ret;
+        struct var_t *ret;
         char *s;
 
         bug_on(self->magic != TYPE_DICT);
@@ -417,19 +405,9 @@ do_object_getattr(struct vmframe_t *fr)
                 return ErrorVar;
         }
 
-        /*
-         * FIXME: better to just VAR_INCR_REF, and then have object_setattr
-         * replace this pointer in the table with new attr, thereby
-         * not clobbering this while it's being used by the caller.
-         */
-        ret = var_new();
-        if ((attr = object_getattr(self, s)) != NULL) {
-                if (qop_mov(ret, attr) < 0) {
-                        VAR_DECR_REF(ret);
-                        return ErrorVar;
-                }
-        }
-        /* if no child, return empty var */
+        ret = object_getattr(self, s);
+        if (!ret)
+                ret = ErrorVar;
         return ret;
 }
 

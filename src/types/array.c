@@ -89,7 +89,10 @@ array_child(struct var_t *array, int idx)
 enum result_t
 array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
 {
-        struct var_t *memb;
+        struct var_t **ppvar;
+        int i;
+
+        bug_on(array->magic != TYPE_LIST);
 
         if (idx->magic != TYPE_INT) {
                 err_setstr(RuntimeError, "Array subscript must be integer");
@@ -105,18 +108,16 @@ array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
                 return RES_ERROR;
         }
 
-        /*
-         * XXX REVISIT: Policy decision: Instead of this, better to...
-         *      VAR_DECR_REF(memb);
-         *      VAR_INCR_REF(child);
-         *      ppvar[idx] = child;
-         * See same insertion dilemma in object.c
-         */
-        memb = array_child(array, (int)idx->i);
-        if (!memb)
+        ppvar = (struct var_t **)array->a->children.s;
+        if ((i = index_translate(idx->i, array->a->nmemb)) < 0)
                 return RES_ERROR;
-        if (!qop_mov(memb, child))
-                return RES_ERROR;
+
+        /* delete old entry */
+        bug_on(ppvar[i] == NULL);
+        VAR_DECR_REF(ppvar[i]);
+
+        ppvar[i] = child;
+        VAR_INCR_REF(child);
         return RES_OK;
 }
 
@@ -141,9 +142,9 @@ array_append(struct var_t *array, struct var_t *child)
         }
 
         h->nmemb++;
-        VAR_INCR_REF(child);
         /* XXX: poor amortization, maybe assert_array_pos instead */
         buffer_putd(&h->children, &child, sizeof(void *));
+        VAR_INCR_REF(child);
         return RES_OK;
 }
 
@@ -235,12 +236,11 @@ do_array_foreach(struct vmframe_t *fr)
         h->lock = 1;
         for (idx = 0; idx < h->nmemb; idx++) {
                 struct var_t *retval;
-                var_reset(argv[0]);
-                if (!qop_mov(argv[0], ppvar[idx])) {
-                        status = RES_ERROR;
-                        break;
-                }
+
+                argv[0] = ppvar[idx];
                 argv[1]->i = idx;
+                VAR_INCR_REF(argv[0]);
+                VAR_INCR_REF(argv[1]);
 
                 retval = vm_reenter(fr, func, NULL, 2, argv);
                 if (retval == ErrorVar) {
@@ -253,7 +253,10 @@ do_array_foreach(struct vmframe_t *fr)
         }
         h->lock = lock;
 
+#warning Figure this one out!
+#if 0
         VAR_DECR_REF(argv[0]);
+#endif
         VAR_DECR_REF(argv[1]);
 out:
         return status == RES_OK ? NULL : ErrorVar;

@@ -1,8 +1,13 @@
 Bugs/Must-Do
 ------------
 
-* BUGs 2025 Apr 7: for-loop parses strangely in TTY mode, and
-  functions' default args might be getting overwritten.
+* BUGs 4/2025:
+        * TTY mode parses all-around unreliably, even though
+          script mode seems to work just fine.
+        * functions' default args might be getting overwritten,
+          see output of test_def.egq
+        * there's a VAR_INCR/DECR_REF imbalance somewhere, causing
+          number of allocated vars to grow.
 
 * Use autoconf, automake & cet., not just a hand-written Makefile
 

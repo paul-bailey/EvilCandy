@@ -39,11 +39,11 @@ print("\t{}\n\t{}".format(helloworld, helloagain));
     let d = o(c);
     print("A");
     printobj(a);
-    print("B (should != A)");
+    print("B (should be different from A)");
     printobj(b);
     print("D");
     printobj(d);
-    print("C (should == D)");
+    print("C (should be same as D)");
     printobj(c);
 })();
 

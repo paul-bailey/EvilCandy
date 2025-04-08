@@ -17,6 +17,29 @@ static inline size_t oh_nchildren(struct object_handle_t *oh)
  *                              API functions
  ***********************************************************************/
 
+static struct var_t *
+object_keys(struct var_t *obj)
+{
+        struct var_t *keys;
+        struct hashtable_t *d;
+        void *k, *v; /* v is unused dummy */
+        int res;
+        unsigned int i;
+
+        bug_on(obj->magic != TYPE_DICT);
+        d = &obj->o->dict;
+        keys = arrayvar_new();
+
+        for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
+             res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
+                struct var_t *ks = stringvar_new((char *)k);
+                array_append(keys, ks);
+                VAR_DECR_REF(ks);
+        }
+        /* XXX: probably ought to sort this list before returning */
+        return keys;
+}
+
 static void
 object_handle_reset(void *h)
 {
@@ -184,64 +207,42 @@ object_reset(struct var_t *o)
 struct var_t *
 do_object_foreach(struct vmframe_t *fr)
 {
-        struct var_t *self;
-        struct var_t *func;
-        unsigned int idx;
-        struct hashtable_t *htbl;
-        void *key, *val;
-        int res, lock;
-        int status = RES_OK;
-        struct var_t *argv[2];
+        struct var_t *keys, *func, *self = get_this(fr);
+        int i, len, status;
 
-        self = get_this(fr);
+        bug_on(self->magic != TYPE_DICT);
         func = frame_get_arg(fr, 0);
         if (!func) {
                 err_argtype("function");
                 return ErrorVar;
         }
-        argv[0] = var_new(); /* attribute */
-        argv[1] = stringvar_new(NULL); /* name of attribute */
 
-        bug_on(self->magic != TYPE_DICT);
-        htbl = &self->o->dict;
+        keys = object_keys(self);
+        len = array_length(keys);
 
-        /*
-         * TODO: Something like Python dict's .keys attribute, so
-         * I can iterate over a premade temporary list.  That makes
-         * it safe for a child's removal from @self in the middle
-         * of this foreach loop.  Precludes need for a lock.
-         */
-        lock = self->o->lock;
-        self->o->lock = 1;
-        for (idx = 0, res = hashtable_iterate(htbl, &key, &val, &idx);
-             res == 0; res = hashtable_iterate(htbl, &key, &val, &idx)) {
-                struct var_t *retval;
-                var_reset(argv[0]);
-                if (qop_mov(argv[0], (struct var_t *)val) < 0) {
+        status = RES_OK;
+        for (i = 0; i < len; i++) {
+                struct var_t *key, *val, *argv[2], *cbret;
+
+                key = array_child(keys, i);
+                bug_on(!key || key == ErrorVar);
+                val = object_getattr(self, string_get_cstring(key));
+                if (!val)
+                        continue;
+
+                argv[0] = val;
+                argv[1] = key;
+
+                cbret = vm_reenter(fr, func, NULL, 2, argv);
+                if (cbret == ErrorVar) {
                         status = RES_ERROR;
                         break;
                 }
-                string_assign_cstring(argv[1], (char *)key);
-                /*
-                 * XXX REVISIT: should ``this'' in a foreach callback
-                 * be the owner of the foreach method (us)?  Or should it
-                 * be the object owning the calling function?  This is a
-                 * philosophical conundrum, not a bug.
-                 */
-                retval = vm_reenter(fr, func, NULL, 2, argv);
-                if (retval == ErrorVar) {
-                        status = RES_ERROR;
-                        break;
-                }
-                /* foreach throws away retval */
-                if (retval)
-                        VAR_DECR_REF(retval);
+                if (cbret)
+                        VAR_DECR_REF(cbret);
         }
-        self->o->lock = lock;
-
-        VAR_DECR_REF(argv[0]);
-        VAR_DECR_REF(argv[1]);
-        return status == RES_OK ? NULL: ErrorVar;
+        VAR_DECR_REF(keys);
+        return status == RES_OK ? NULL : ErrorVar;
 }
 
 
@@ -452,22 +453,7 @@ do_object_delattr(struct vmframe_t *fr)
 static struct var_t *
 do_object_keys(struct vmframe_t *fr)
 {
-        struct var_t *keys, *self = get_this(fr);
-        struct hashtable_t *d;
-        void *k, *v; /* v is unused dummy */
-        int res;
-        unsigned int i;
-
-        bug_on(self->magic != TYPE_DICT);
-        d = &self->o->dict;
-        keys = arrayvar_new();
-
-        for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
-             res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
-                array_append(keys, stringvar_new((char *)k));
-        }
-        /* XXX: probably ought to sort this before returning */
-        return keys;
+        return object_keys(get_this(fr));
 }
 
 static const struct type_inittbl_t object_methods[] = {

@@ -30,16 +30,25 @@
 
 #ifndef NDEBUG
 static size_t var_nalloc = 0;
-# define REGISTER_ALLOC() do { \
+#if 1
+#  define REGISTER_ALLOC() do { \
+        var_nalloc++;           \
+   } while (0)
+#  define REGISTER_FREE() do { \
+        var_nalloc--;           \
+   } while (0)
+#else
+#  define REGISTER_ALLOC() do { \
         var_nalloc += sizeof(struct var_t); \
-} while (0)
-# define REGISTER_FREE() do { \
+   } while (0)
+#  define REGISTER_FREE() do { \
         var_nalloc -= sizeof(struct var_t); \
-} while (0)
+   } while (0)
+# endif
 static void
 var_alloc_tell(void)
 {
-        fprintf(stderr, "var_alloc_size = %lu\n", (long)var_nalloc);
+        fprintf(stderr, "#vars outstanding = %lu\n", (long)var_nalloc);
 }
 #else /* NDEBUG */
 # define REGISTER_ALLOC() do { (void)0; } while (0)

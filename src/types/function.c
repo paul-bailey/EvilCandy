@@ -173,8 +173,10 @@ function_prep_frame(struct var_t *fn,
         fr->func  = fn;
         fr->clo   = fh->f_clov;
 
+#if 1
         VAR_INCR_REF(owner);
         VAR_INCR_REF(fn);
+#endif
 
         if (fh->f_magic == FUNC_USER)
                 fr->ex = fh->f_ex;

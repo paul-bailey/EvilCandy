@@ -189,7 +189,7 @@ vmframe_free(struct vmframe_t *fr)
 
         /*
          * XXX REVISIT: if (fr->stackptr != &fr->stack[fr->ap]),
-         * there is a stack inbalance.  But how to tell if this
+         * there is a stack imbalance.  But how to tell if this
          * is due to an abrubt 'return' (which would cause this),
          * or a bug (which also cause this)?
          */
@@ -199,8 +199,14 @@ vmframe_free(struct vmframe_t *fr)
          * They're managed by their owning function object,
          * so we don't delete them here.
          */
+#if 1
         for (vpp = fr->stack; vpp < fr->stackptr; vpp++)
                 VAR_DECR_REF(*vpp);
+#else
+        while (fr->stackptr > fr->stack) {
+                VAR_DECR_REF(pop(fr));
+        }
+#endif
         if (fr->owner)
                 VAR_DECR_REF(fr->owner);
         if (fr->func)
@@ -1033,6 +1039,12 @@ execute_loop(struct vmframe_t *fr)
 
                 if (res == RES_RETURN) {
                         retval = pop(fr);
+                        /*
+                         * IMPORTANT FIXME!! What was retval?
+                         * If it was a stack variable, do I need to VAR_INCR_REF?
+                         * What if it was a closure?
+                         * This may be causing memory leaks or worse, vice-versa.
+                         */
                         goto out;
                 } else {
                         /*
@@ -1142,10 +1154,6 @@ vm_reenter(struct vmframe_t *fr_old, struct var_t *func,
                 return ErrorVar;
         }
 
-        /*
-         * can't push sooner, because function_prep_frame will
-         * call get_this() if @owner is NULL
-         */
         fr->stackptr = fr->stack + fr->ap;
 
         if (fr->ex)

@@ -2,6 +2,7 @@ Bugs/Must-Do
 ------------
 
 * BUGs 4/2025:
+
         * TTY mode parses all-around unreliably, even though
           script mode seems to work just fine.
         * there's a refcount error

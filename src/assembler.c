@@ -1000,9 +1000,9 @@ assemble_eval8(struct assemble_t *a)
                 case OC_PER:
                         as_errlex(a, 'u');
                         namei = seek_or_add_const(a, a->oc);
-                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
                         if (have_parent)
                                 add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
                         have_parent = true;
                         break;
 
@@ -1015,9 +1015,9 @@ assemble_eval8(struct assemble_t *a)
                                 if (as_lex(a) == OC_RBRACK) {
                                         namei = seek_or_add_const(a, &name);
                                         as_unlex(a);
-                                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
                                         if (have_parent)
                                                 add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
                                         have_parent = true;
                                         break;
                                 }
@@ -1027,9 +1027,9 @@ assemble_eval8(struct assemble_t *a)
                                 /* need to evaluate index */
                                 as_unlex(a);
                                 assemble_eval1(a);
-                                add_instr(a, INSTR_GETATTR, IARG_ATTR_STACK, -1);
                                 if (have_parent)
                                         add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                add_instr(a, INSTR_GETATTR, IARG_ATTR_STACK, -1);
                                 have_parent = true;
                                 break;
                         default:
@@ -1314,16 +1314,16 @@ assemble_ident_helper(struct assemble_t *a)
                         namei = seek_or_add_const(a, a->oc);
                         if (as_lex(a) == OC_EQ) {
                                 assemble_eval(a);
-                                add_instr(a, INSTR_SETATTR, IARG_ATTR_CONST, namei);
                                 if (have_parent)
                                         add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                add_instr(a, INSTR_SETATTR, IARG_ATTR_CONST, namei);
                                 goto done;
                         }
 
                         as_unlex(a);
-                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
                         if (have_parent)
                                 add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
                         have_parent = true;
                         break;
 
@@ -1351,15 +1351,15 @@ assemble_ident_helper(struct assemble_t *a)
                                         namei = seek_or_add_const(a, &name);
                                         if (as_lex(a) == OC_EQ) {
                                                 assemble_eval(a);
-                                                add_instr(a, INSTR_SETATTR, IARG_ATTR_CONST, namei);
                                                 if (have_parent)
                                                         add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                                add_instr(a, INSTR_SETATTR, IARG_ATTR_CONST, namei);
                                                 goto done;
                                         }
                                         as_unlex(a);
-                                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
                                         if (have_parent)
                                                 add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
                                         have_parent = true;
                                         break;
                                 }
@@ -1374,17 +1374,17 @@ assemble_ident_helper(struct assemble_t *a)
                                 if (as_lex(a) == OC_RBRACK) {
                                         if (as_lex(a) == OC_EQ) {
                                                 assemble_eval(a);
-                                                add_instr(a, INSTR_SETATTR, IARG_ATTR_STACK, -1);
                                                 if (have_parent)
                                                         add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                                add_instr(a, INSTR_SETATTR, IARG_ATTR_STACK, -1);
                                                 goto done;
                                         }
                                         as_unlex(a);
                                 }
                                 as_unlex(a);
-                                add_instr(a, INSTR_GETATTR, IARG_ATTR_STACK, -1);
                                 if (have_parent)
                                         add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                add_instr(a, INSTR_GETATTR, IARG_ATTR_STACK, -1);
                                 have_parent = true;
                                 break;
                         default:
@@ -1516,10 +1516,6 @@ assemble_let(struct assemble_t *a)
 
         switch (a->oc->t) {
         case OC_SEMI:
-                /*
-                 * TODO: removed warning(), either remove this
-                 * or call something else
-                 */
                 return;
 
         case OC_EQ:

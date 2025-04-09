@@ -1,8 +1,6 @@
 /*
  * op.c - built-in methods for operators like + and -
- *
- * FIXME: Most of these should be in var.c and be called
- * "var_"-something.
+ * FIXME: Half of this should be in var.c and half should be in vm.c
  */
 #include <evilcandy.h>
 #include <typedefs.h>
@@ -311,9 +309,10 @@ qop_lnot(struct var_t *v)
  *
  * Quirks:
  * - If @v is TYPE_STRPTR, the return value will be TYPE_STRING
- * - Dictionaries and lists are BY REFERENCE; they will have their
- *   handles copied (and the handles' reference counters increased),
- *   but these handles will still point to the same data.
+ * - Dictionaries, lists, and functions are BY REFERENCE; the copies
+ *   will be of pointers to the same resource.  Floats, integers, and
+ *   strings are BY VALUE; the copies will contain duplicates of the
+ *   originals' data.
  */
 struct var_t *
 qop_cp(struct var_t *v)

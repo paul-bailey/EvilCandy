@@ -234,6 +234,13 @@ struct global_t {
         struct list_t executables;
 };
 
+#ifndef NDEBUG
+# define DBUG(msg, args...) \
+        fprintf(stderr, "[EvilCandy DEBUG]: " msg "\n", ##args)
+#else
+# define DBUG(...) do { (void)0; } while (0)
+#endif
+
 #define RECURSION_INCR() do { \
         if (q_.recursion >= RECURSION_MAX) \
                 fail("Recursion overflow"); \
@@ -403,19 +410,15 @@ extern struct var_t *var_new(void);
 # define VAR_SANITY(v_) do {                            \
         struct var_t *v__ = (v_);                       \
         if (!v__) {                                     \
-                fprintf(stderr, "BUG! Null\n");         \
+                DBUG("unexpected NULL var");            \
                 bug();                                  \
         }                                               \
         if ((unsigned)v__->magic >= NTYPES) {           \
-                fprintf(stderr,                         \
-                        "magic=%d\n",                   \
-                        v__->magic);                    \
+                DBUG("magic=%d", v__->magic);           \
                 bug();                                  \
         }                                               \
         if (v__->refcount <= 0) {                       \
-                fprintf(stderr,                         \
-                        "refcount=%d\n",                \
-                        v__->refcount);                 \
+                DBUG("refcount=%d", v__->refcount);     \
                 bug();                                  \
         }                                               \
 } while (0)

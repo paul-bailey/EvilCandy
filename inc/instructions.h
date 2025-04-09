@@ -72,23 +72,31 @@ enum {
         IARG_LOOP,
 };
 
+/**
+ * DOC: Instructions
+ *
+ * Executable byte code is found in an array of 32-bit values of type
+ * instruction_t.  Its bitmap fields are:
+ *      @code:  An 8-bit INSTR_xxx enum, defined in instruction_defs.h,
+ *              which was auto-generated from the original source,
+ *              tools/instructions.  The VM uses this to jump into its
+ *              instruction-callback lookup table.
+ *      @arg1:  An 8-bit first argument, usually an IARG... enum
+ *      @arg2:  A 16-bit signed second argument, usually a data offset
+ *              from a starting point defined by @arg1
+ *
+ * XXX REVISIT: Many instructions do not use args.  We could compress
+ * this array by setting opcode values such that a macro can decide
+ * whether the next byte is an argument or it is another opcode.  The
+ * trade-off is the additional 'if', and unpacking a potentially
+ * unaligned 16-bit value.  The advantage is a smaller memory footprint,
+ * therefore fewer cache misses.
+ */
 typedef struct {
         uint8_t code;
-        uint8_t arg1;  /* usually an IARG... enum */
-        int16_t arg2;  /* usually a data offset, signed */
+        uint8_t arg1;
+        int16_t arg2;
 } instruction_t;
-
-/**
- * struct location_t - Location of opcodes within a script, used for
- *                     splashing error messages
- * @line:       Line number of the start of a single-line expression
- * @offs:       Start opcode of the instruction, an index number into
- *              struct executable's .instr[] array.
- */
-struct location_t {
-        unsigned int line;
-        unsigned int offs;
-};
 
 /**
  * struct executable_t - Handle to the actual execution code of a

@@ -275,12 +275,6 @@ do_object_foreach(struct vmframe_t *fr)
 
                 argv[0] = val;
                 argv[1] = key;
-#warning "clean this up"
-#if 0
-                VAR_INCR_REF(argv[0]);
-                VAR_INCR_REF(argv[1]);
-#endif
-
                 cbret = vm_reenter(fr, func, NULL, 2, argv);
 
                 if (cbret == ErrorVar) {

@@ -240,11 +240,6 @@ do_array_foreach(struct vmframe_t *fr)
 
                 argv[0] = ppvar[idx];
                 argv[1]->i = idx;
-#warning "clean this up"
-#if 0
-                VAR_INCR_REF(argv[0]);
-                VAR_INCR_REF(argv[1]);
-#endif
 
                 retval = vm_reenter(fr, func, NULL, 2, argv);
                 if (retval == ErrorVar) {
@@ -257,10 +252,6 @@ do_array_foreach(struct vmframe_t *fr)
         }
         h->lock = lock;
 
-#warning "clean this up"
-#if 0
-        VAR_DECR_REF(argv[0]);
-#endif
         VAR_DECR_REF(argv[1]);
 out:
         return status == RES_OK ? NULL : ErrorVar;

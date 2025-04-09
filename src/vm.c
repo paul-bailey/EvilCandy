@@ -85,37 +85,17 @@ RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 
 #endif /* DEBUG */
 
-/*
- * Search in the following order of precedence:
- *   1. __gbl__ (overrides any symbol-table variables also named __gbl__)
- *   2. symbol table, ie. variables declared with ``let'' outside of a
- *      function.
- *   3. attribute of owning object (``this'') with matching name
- *   4. attribute of __gbl__ with matching name
- */
 static struct var_t *
-symbol_seek_(struct vmframe_t *fr, struct var_t *name)
+symbol_seek(struct var_t *name)
 {
-        struct var_t *v;
+        struct var_t *ret;
         const char *s = name->strptr;
-
         bug_on(name->magic != TYPE_STRPTR);
         bug_on(!s);
 
-        if ((v = hashtable_get(symbol_table, s)) != NULL)
-                return v;
-        return NULL;
-}
-
-static struct var_t *
-symbol_seek(struct vmframe_t *fr, struct var_t *name)
-{
-        bug_on(name->magic != TYPE_STRPTR);
-        struct var_t *ret = symbol_seek_(fr, name);
-        if (!ret) {
-                err_setstr(RuntimeError,
-                           "Symbol %s not found", name->strptr);
-        }
+        ret = hashtable_get(symbol_table, s);
+        if (!ret)
+                err_setstr(RuntimeError, "Symbol %s not found", s);
         return ret;
 }
 
@@ -226,7 +206,7 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
                 return fr->clo[ii.arg2];
         case IARG_PTR_SEEK: {
                 struct var_t *name = RODATA(fr, ii);
-                return symbol_seek(fr, name);
+                return symbol_seek(name);
         }
         case IARG_PTR_GBL:
                 return GlobalObject;

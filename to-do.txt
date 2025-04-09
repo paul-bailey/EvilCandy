@@ -56,6 +56,11 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
+* vm.c and types/function.c, as well as the structs they manipulate
+  (vmframe_t, function_handle_t, executable_t) are very tangled up
+  and require awkward back-and-forth calls between the two source
+  files, esp. function_prep_frame and function_call.
+
 * change object .len method to just be length of the object,
   since object's methods are no longer visible as global variables.
 

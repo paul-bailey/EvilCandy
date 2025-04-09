@@ -2,6 +2,11 @@
  * FIXME: This whole file is a hacky duct-tape way to do things, because
  * I couldn't be bothered to research the topic of abstract syntax trees.
  *
+ * XXX  REVISIT: when using gcc with -O3, this file
+ *      takes forever and a day to compile.  Is it ME?
+ *      Do I need to rethink all the recursion, or should I trust
+ *      that gcc is taking its time to make things awesome?
+ *
  * I use a recursive descent parser.
  * For an expression like
  *              let a = (x + y.z() * 2.0);

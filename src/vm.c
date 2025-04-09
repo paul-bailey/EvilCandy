@@ -152,13 +152,6 @@ symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
 
         bug_on(name->magic != TYPE_STRPTR);
         bug_on(!s);
-        if (!gbl)
-                gbl = literal_put("__gbl__");
-
-        if (s == gbl) {
-                err_setstr(RuntimeError, "You may not assign __gbl__");
-                return RES_ERROR;
-        }
 
         if ((child = hashtable_swap(symbol_table, (void *)s, v)) != NULL) {
                 VAR_INCR_REF(v);

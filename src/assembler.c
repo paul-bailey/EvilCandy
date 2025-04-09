@@ -54,6 +54,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <errno.h>
+#include <time.h>
 
 /* TODO: define instr_t and use sizeof() here */
 #define INSTR_SIZE      sizeof(instruction_t)
@@ -250,6 +251,8 @@ as_frame_push(struct assemble_t *a, int funcno)
         else
                 fr->x->file_line = 1;
         fr->x->n_label = JMP_INIT;
+
+        fr->x->uuid = uuidstr();
 
         list_init(&fr->list);
         list_add_tail(&fr->list, &a->active_frames);

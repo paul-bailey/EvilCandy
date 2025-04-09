@@ -91,7 +91,8 @@ print_rodata_str(FILE *fp, struct executable_t *ex, unsigned int i)
                 print_escapestr(fp, v->strptr, '"');
                 break;
         case TYPE_XPTR:
-                fprintf(fp, "<function-pointer>");
+                fprintf(fp, "<function>%s",
+                        ((struct executable_t *)v->xptr)->uuid);
                 break;
         default:
                 fprintf(fp, "%s", undefstr);
@@ -196,7 +197,7 @@ disassemble(FILE *fp, struct executable_t *ex)
 {
         int i;
         const char *what = (ex->flags & FE_TOP) ? "script" : "function";
-        fprintf(fp, ".start \"%s\"\n", what);
+        fprintf(fp, ".start <%s>%s\n", what, ex->uuid);
         fprintf(fp, "# in file \"%s\"\n", ex->file_name);
         fprintf(fp, "# starting at line %d\n", ex->file_line);
 

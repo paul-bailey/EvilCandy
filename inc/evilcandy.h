@@ -487,6 +487,9 @@ extern struct var_t *string_from_file(FILE *fp,
                                       int delim, bool stuff_delim);
 extern struct var_t *stringvar_new(const char *cstr);
 
+/* uuid.c */
+extern char *uuidstr(void);
+
 /* vm.c */
 extern enum result_t vm_execute(struct executable_t *top_level);
 extern struct var_t *execute_loop(struct vmframe_t *fr);

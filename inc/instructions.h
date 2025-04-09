@@ -110,6 +110,9 @@ struct location_t {
  * @flags:      If FE_TOP is set, delete this after it has been executed
  *              once.  Do not delete anything it added to the symbol
  *              table, since later-executed code may use them.
+ * @uuid:       Identifier for the sake of serialization and disassembly.
+ *              (Internal pointers have no meaning except when executing.)
+ *              This is the text representation, not the binary bitstream.
  */
 struct executable_t {
         instruction_t *instr;
@@ -122,6 +125,12 @@ struct executable_t {
         int file_line;
         int nref;
         unsigned flags;
+        /*
+         * XXX: I'd rather this be uuid_t, but I want to limit the
+         * platform dependence and header namespace to the C modules
+         * as much as possible.
+         */
+        char *uuid;
 };
 
 /*

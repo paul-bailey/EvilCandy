@@ -229,7 +229,6 @@ do_array_foreach(struct vmframe_t *fr)
 
         ppvar = (struct var_t **)h->children.s;
 
-        argv[0] = var_new(); /* item */
         argv[1] = intvar_new(0); /* index of item */
 
         lock = h->lock;

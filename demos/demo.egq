@@ -80,8 +80,8 @@ print("~0 is {}".format(~0));
 
 print("");
 print("Now here's a test of foreach:");
-print("I'm gonna print the typeof(e) for each e in __gbl__");
-__gbl__.foreach(function (e, name) {
+print("I'm gonna print the typeof(e) for each e in __gbl__.builtins");
+__gbl__._builtins.foreach(function (e, name) {
     print("\tType={}, name={}".format(typeof(e), name));
 });
 

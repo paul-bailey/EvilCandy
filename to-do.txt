@@ -4,10 +4,10 @@ Bugs/Must-Do
 * BUGs 4/2025:
         * TTY mode parses all-around unreliably, even though
           script mode seems to work just fine.
-        * functions' default args might be getting overwritten,
-          see output of test_def.egq
+        * there are two stack imbalances detected which seem to be
+          unrelated.  See outputs of test_def.egq and demo.egq.
         * there's a VAR_INCR/DECR_REF imbalance somewhere, causing
-          number of allocated vars to grow.
+          number of allocated vars to grow over time.
 
 * Use autoconf, automake & cet., not just a hand-written Makefile
 
@@ -50,6 +50,9 @@ Library/Language Features
 
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* change object .len method to just be length of the object,
+  since object's methods are no longer visible as global variables.
 
 * Have all functions returning a var_t pointer never return
   NULL unless NULL is (at that stage) a non-error return value.

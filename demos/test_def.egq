@@ -46,4 +46,3 @@ print("\t{}\n\t{}".format(helloworld, helloagain));
     print("C (should be same as D)");
     printobj(c);
 })();
-

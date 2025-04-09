@@ -131,9 +131,10 @@ object_addattr(struct var_t *parent,
 }
 
 /**
- * object_delattr - Like object_delattr, but
- *                      @name is either NULL or known to be a
- *                      possible return value of literal()
+ * object_delattr - Delete an attribute from a dictionary.
+ *
+ * Return: RES_OK if item is deleted or didn't exist; RES_ERROR
+ *         if the dictionary is locked.
  */
 enum result_t
 object_delattr(struct var_t *parent, const char *name)

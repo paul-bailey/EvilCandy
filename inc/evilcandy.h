@@ -397,6 +397,32 @@ extern struct var_t *var_new(void);
         if (v_->refcount <= 0)    \
                 var_delete__(v_); \
 } while (0)
+
+#ifndef NDEBUG
+  /* keep this a macro so I can tell where the bug was trapped */
+# define VAR_SANITY(v_) do {                            \
+        struct var_t *v__ = (v_);                       \
+        if (!v__) {                                     \
+                fprintf(stderr, "BUG! Null\n");         \
+                bug();                                  \
+        }                                               \
+        if ((unsigned)v__->magic >= NTYPES) {           \
+                fprintf(stderr,                         \
+                        "magic=%d\n",                   \
+                        v__->magic);                    \
+                bug();                                  \
+        }                                               \
+        if (v__->refcount <= 0) {                       \
+                fprintf(stderr,                         \
+                        "refcount=%d\n",                \
+                        v__->refcount);                 \
+                bug();                                  \
+        }                                               \
+} while (0)
+#else
+# define VAR_SANITY(v_) do { (void)0; } while (0)
+#endif
+
 extern void var_delete__(struct var_t *v);
 extern void var_reset(struct var_t *v);
 extern void moduleinit_var(void);

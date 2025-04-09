@@ -440,20 +440,17 @@ do_pop(struct vmframe_t *fr, instruction_t ii)
         return 0;
 }
 
+/*
+ * See eval8 in assemble.c.  There's a buildup of the stack each
+ * time we iterate through a '.' or '[#]' dereference, unless we
+ * call this in between each indirection.
+ */
 static int
-do_unwind(struct vmframe_t *fr, instruction_t ii)
+do_shift_down(struct vmframe_t *fr, instruction_t ii)
 {
-        /*
-         * See eval8 in assemble.c.  There's a buildup of the stack each
-         * time we iterate through a '.' or '[#]' dereference.  It's
-         * ugly, but the best solution I could think of is to save the
-         * top value (the result), pop #arg2 times, then push the top
-         * value back
-         */
         struct var_t *sav = pop(fr);
-        int count = ii.arg2;
-        while (count-- > 0)
-                VAR_DECR_REF(pop(fr));
+        struct var_t *discard = pop(fr);
+        VAR_DECR_REF(discard);
         push(fr, sav);
         return 0;
 }
@@ -760,7 +757,8 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
          * see eval8 in assemble.c... we keep parent on GETATTR command.
          * Reason being, attr might be a function we're about to call,
          * in which case we need to know the parent.  We resolve the
-         * stack discrepancy with INSTR_UNWIND
+         * stack discrepancy with INSTR_SHIFT_DOWN, very likely to be
+         * our next opcode.
          */
         push(fr, obj);
         if (attr)

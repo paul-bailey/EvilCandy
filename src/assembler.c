@@ -977,19 +977,18 @@ assemble_eval9(struct assemble_t *a)
  * Third, to keep track of the most current parent (ie. "b", not "a" when
  * we are at the "c" of "a.b.c..."), INSTR_GETATTR pushes the parent back
  * on the stack under the new attribute, therefore the stack grows by one
- * for every generation we descend.  The solution I came up with is
- * INSTR_UNWIND, which pops and temporarily saves the last result from
- * the top of the stack, pops and deletes some number of additional
- * values off the stack (the "c", "b", "a"... of a.b.c...), and then
- * pushes the saved value back onto the stack.  This way it looks like
- * the whole process was a normal lval-rval operation, and the stack
- * remains balanced.
+ * for every generation we descend.
+ *
+ * The best solution I could think up is to add INSTR_SHIFT_DOWN, a
+ * pop-pop-push operation which effectively deletes the second-to-last
+ * stack item and moves the last one down by one.  Doing this for each
+ * descent ought to keep the stack properly balanced.  We use the
+ * have_parent boolean to keep track of things.
  */
 static void
 assemble_eval8(struct assemble_t *a)
 {
         bool have_parent = false;
-        int inbal = 0; /* 'inbal' indeed. I can spel */
 
         assemble_eval9(a);
 
@@ -999,16 +998,15 @@ assemble_eval8(struct assemble_t *a)
 
                 switch (a->oc->t) {
                 case OC_PER:
-                        have_parent = true;
-                        inbal++;
                         as_errlex(a, 'u');
                         namei = seek_or_add_const(a, a->oc);
                         add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
+                        if (have_parent)
+                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                        have_parent = true;
                         break;
 
                 case OC_LBRACK:
-                        have_parent = true;
-                        inbal++;
                         as_lex(a);
                         switch (a->oc->t) {
                         case 'q':
@@ -1018,6 +1016,9 @@ assemble_eval8(struct assemble_t *a)
                                         namei = seek_or_add_const(a, &name);
                                         as_unlex(a);
                                         add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
+                                        if (have_parent)
+                                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                        have_parent = true;
                                         break;
                                 }
                                 as_unlex(a);
@@ -1027,6 +1028,9 @@ assemble_eval8(struct assemble_t *a)
                                 as_unlex(a);
                                 assemble_eval1(a);
                                 add_instr(a, INSTR_GETATTR, IARG_ATTR_STACK, -1);
+                                if (have_parent)
+                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                have_parent = true;
                                 break;
                         default:
                                 as_err(a, AE_BADTOK);
@@ -1036,8 +1040,6 @@ assemble_eval8(struct assemble_t *a)
 
                 case OC_LPAR:
                         /* CALL_FUNC pops twice if have_parent */
-                        if (have_parent)
-                                --inbal;
                         as_unlex(a);
                         assemble_call_func(a, have_parent);
                         have_parent = false;
@@ -1045,10 +1047,8 @@ assemble_eval8(struct assemble_t *a)
                 }
                 as_lex(a);
         }
-
-        bug_on(inbal < 0);
-        if (inbal)
-                add_instr(a, INSTR_UNWIND, 0, inbal);
+        if (have_parent)
+                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
 }
 
 static void
@@ -1278,15 +1278,15 @@ assemble_assign(struct assemble_t *a, struct token_t *name)
  * TODO: mild lift, but this should be wrapped within the eval
  * stage as well.  A line like "x = y;" should evaluate to the
  * value of "y" while also having the side-effect of assigning
- * "x".  But as-is, there is no 'value' for "x = y;"
+ * "x".  But as-is, there is no 'value' for "x = y;", and we
+ * do not even 'evaluate' until after the '='.
  */
 static void
 assemble_ident_helper(struct assemble_t *a)
 {
+        /* See comment above eval8(). We're doing the same thing here. */
         bool have_parent = false;
         int last_t = 0;
-        /* see comment in assemble_eval8, same ish-- */
-        int inbal = 0;
 
         as_lex(a);
 
@@ -1310,22 +1310,24 @@ assemble_ident_helper(struct assemble_t *a)
 
                 switch (a->oc->t) {
                 case OC_PER:
-                        have_parent = true;
                         as_errlex(a, 'u');
                         namei = seek_or_add_const(a, a->oc);
                         if (as_lex(a) == OC_EQ) {
                                 assemble_eval(a);
                                 add_instr(a, INSTR_SETATTR, IARG_ATTR_CONST, namei);
+                                if (have_parent)
+                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
                                 goto done;
                         }
 
                         as_unlex(a);
-                        inbal++;
                         add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
+                        if (have_parent)
+                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                        have_parent = true;
                         break;
 
                 case OC_LBRACK:
-                        have_parent = true;
                         as_lex(a);
                         switch (a->oc->t) {
                         case 'q':
@@ -1350,11 +1352,15 @@ assemble_ident_helper(struct assemble_t *a)
                                         if (as_lex(a) == OC_EQ) {
                                                 assemble_eval(a);
                                                 add_instr(a, INSTR_SETATTR, IARG_ATTR_CONST, namei);
+                                                if (have_parent)
+                                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
                                                 goto done;
                                         }
                                         as_unlex(a);
-                                        inbal++;
                                         add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
+                                        if (have_parent)
+                                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                        have_parent = true;
                                         break;
                                 }
                                 as_unlex(a);
@@ -1369,14 +1375,17 @@ assemble_ident_helper(struct assemble_t *a)
                                         if (as_lex(a) == OC_EQ) {
                                                 assemble_eval(a);
                                                 add_instr(a, INSTR_SETATTR, IARG_ATTR_STACK, -1);
+                                                if (have_parent)
+                                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
                                                 goto done;
                                         }
                                         as_unlex(a);
                                 }
                                 as_unlex(a);
-
-                                inbal++;
                                 add_instr(a, INSTR_GETATTR, IARG_ATTR_STACK, -1);
+                                if (have_parent)
+                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                have_parent = true;
                                 break;
                         default:
                                 as_err(a, AE_BADTOK);
@@ -1385,8 +1394,6 @@ assemble_ident_helper(struct assemble_t *a)
                         break;
 
                 case OC_LPAR:
-                        if (have_parent)
-                                --inbal;
                         as_unlex(a);
                         assemble_call_func(a, have_parent);
                         /* we're not assigning anything */
@@ -1410,9 +1417,9 @@ assemble_ident_helper(struct assemble_t *a)
         }
 
 done:
-        bug_on(inbal < 0);
-        if (inbal)
-                add_instr(a, INSTR_UNWIND, 0, inbal);
+        if (have_parent)
+                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+        ;
 }
 
 static void

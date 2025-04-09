@@ -273,6 +273,7 @@ moduleinit_var(void)
 void
 var_bucket_delete(void *data)
 {
+        VAR_SANITY((struct var_t *)data);
         VAR_DECR_REF((struct var_t *)data);
 }
 

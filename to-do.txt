@@ -4,10 +4,14 @@ Bugs/Must-Do
 * BUGs 4/2025:
         * TTY mode parses all-around unreliably, even though
           script mode seems to work just fine.
-        * there are two stack imbalances detected which seem to be
+        * there's a refcount error
           unrelated.  See outputs of test_def.egq and demo.egq.
-        * there's a VAR_INCR/DECR_REF imbalance somewhere, causing
-          number of allocated vars to grow over time.
+        * there's a VAR_INCR/DECR_REF imbalance somewhere, preventing
+          some from getting deleted when they should.
+        * var_bucket_delete() is somehow causing refcount to shrink
+          below zero, meaning that variables are getting 'deleted'
+          while still being claimed by a hash table.  This is hard to
+          detect, since we're not calling free().
 
 * Use autoconf, automake & cet., not just a hand-written Makefile
 

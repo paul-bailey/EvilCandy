@@ -160,12 +160,10 @@ symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
                 return RES_ERROR;
         }
 
-        /* XXX: Redundant searching: need something like hashtable_swap */
-        if ((child = hashtable_get(symbol_table, s)) != NULL) {
-                child = hashtable_remove(symbol_table, s);
-                bug_on(!child);
+        if ((child = hashtable_swap(symbol_table, (void *)s, v)) != NULL) {
+                VAR_INCR_REF(v);
                 VAR_DECR_REF(child);
-                return hashtable_put(symbol_table, (void *)s, v);
+                return RES_OK;
         }
 
         parent = get_this(fr);

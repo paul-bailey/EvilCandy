@@ -202,6 +202,35 @@ hashtable_put(struct hashtable_t *htbl, void *key, void *data)
         return 0;
 }
 
+/**
+ * hashtable_swap - Swap an entry's data with new data
+ * @htbl: Hash table
+ * @key:  Key for data to swap
+ * @data: New data associated with @key
+ *
+ * Return:
+ *    - Former data if an entry for @key already exists.
+ *    - NULL if an entry for @key does not already exist.
+ *
+ * If the return value is NULL then @data was not inserted.
+ * For EvilCandy, this is used to change already-declared
+ * variables, but not to declare them.
+ */
+void *
+hashtable_swap(struct hashtable_t *htbl, void *key, void *data)
+{
+        unsigned int i;
+        hash_t hash = htbl->calc_hash(key);
+        struct bucket_t *b = seek_helper(htbl, key, hash, &i);
+        if (b) {
+                void *old = b->data;
+                b->data = data;
+                /* no need to resize */
+                return old;
+        }
+        return NULL;
+}
+
 /*
  *      Hack alert!!   Back door for literal.c code
  *

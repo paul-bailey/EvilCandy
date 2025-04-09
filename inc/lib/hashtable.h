@@ -39,6 +39,8 @@ extern int hashtable_iterate(struct hashtable_t *htbl, void **key,
                              void **val, unsigned int *idx);
 extern void *hashtable_swap(struct hashtable_t *htbl,
                             void *key, void *data);
+extern void *hashtable_put_or_swap(struct hashtable_t *htbl,
+                                   void *key, void *data);
 
 /* EGQ's hash algos */
 extern hash_t ptr_hash(const void *key);

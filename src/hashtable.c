@@ -231,6 +231,30 @@ hashtable_swap(struct hashtable_t *htbl, void *key, void *data)
         return NULL;
 }
 
+/**
+ * hashtable_put_or_swap - Like hashtable_swap, except that if the
+ *      return value is NULL, the @data was inserted anyway.
+ *
+ * For EvilCandy, this is for declaring an initialized variable.
+ */
+void *
+hashtable_put_or_swap(struct hashtable_t *htbl, void *key, void *data)
+{
+        unsigned int i;
+        hash_t hash = htbl->calc_hash(key);
+        struct bucket_t *b = seek_helper(htbl, key, hash, &i);
+        if (b) {
+                /* swap */
+                void *old = b->data;
+                b->data = data;
+                return old;
+        } else {
+                /* put */
+                insert_common(htbl, key, data, hash, i);
+                return NULL;
+        }
+}
+
 /*
  *      Hack alert!!   Back door for literal.c code
  *

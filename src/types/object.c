@@ -157,6 +157,48 @@ object_delattr(struct var_t *parent, const char *name)
         return RES_OK;
 }
 
+/**
+ * object_setattr - Insert an attribute to dictionary if it doesn't exist,
+ *                  or change the existing attribute if it does.
+ * @self:       Dictionary object
+ * @name:       Name of attribute key
+ * @attr:       Value to set
+ *
+ * This does not touch the type's built-in-method attributes.
+ *
+ * Return: res_ok or RES_ERROR.
+ */
+enum result_t
+object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
+{
+        char *namestr;
+        struct var_t *child;
+
+        bug_on(dict->magic != TYPE_DICT);
+
+        switch (name->magic) {
+        case TYPE_STRPTR:
+                namestr = name->strptr;
+                break;
+        case TYPE_STRING:
+                namestr = string_get_cstring(name);
+                break;
+        default:
+                err_argtype("name");
+                return RES_ERROR;
+        }
+
+        /* @child is either the former entry replaced by @attr or NULL */
+        child = hashtable_put_or_swap(&dict->o->dict, namestr, attr);
+        if (child) {
+                VAR_DECR_REF(child);
+        } else {
+                dict->o->nchildren++;
+                VAR_INCR_REF(attr);
+        }
+        return RES_OK;
+}
+
 
 /* **********************************************************************
  *              Built-in Operator Callbacks
@@ -305,48 +347,6 @@ do_object_hasattr(struct vmframe_t *fr)
                 child = object_getattr(self, s);
 
         return intvar_new((int)(child != NULL));
-}
-
-/**
- * object_setattr - Insert an attribute to dictionary if it doesn't exist,
- *                  or change the existing attribute if it does.
- * @self:       Dictionary object
- * @name:       Name of attribute key
- * @attr:       Value to set
- *
- * This does not touch the type's built-in-method attributes.
- *
- * Return: res_ok or RES_ERROR.
- */
-enum result_t
-object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
-{
-        char *namestr;
-        struct var_t *child;
-
-        bug_on(dict->magic != TYPE_DICT);
-
-        switch (name->magic) {
-        case TYPE_STRPTR:
-                namestr = name->strptr;
-                break;
-        case TYPE_STRING:
-                namestr = string_get_cstring(name);
-                break;
-        default:
-                err_argtype("name");
-                return RES_ERROR;
-        }
-
-        /*
-         * XXX: Lots of high-level calls means lots of unnecessary
-         * overhead.  Make a function like hashtable_replace() which
-         * calls back to var_bucket_delete should entry already exist.
-         */
-        child = object_getattr(dict, namestr);
-        if (child)
-                object_delattr(dict, namestr);
-        return object_addattr(dict, attr, namestr);
 }
 
 /* "obj.setattr('name', val)" is an alternative to "obj.name = val" */

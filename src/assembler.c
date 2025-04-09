@@ -1902,57 +1902,8 @@ assemble_second_pass(struct assemble_t *a)
                 resolve_jump_labels(a, list2frame(li));
 }
 
-/* no longer used, these aren't connected in a linked list anymore */
-static void
-assemble_third_pass(struct assemble_t *a)
-{
-        ;
-}
 
-#ifdef NDEBUG
 
-/* XXX REVISIT: What's wrong with disassembling in release mode? */
-static int
-assemble_fourth_pass(struct assemble_t *a)
-{
-        if (q_.opt.disassemble) {
-                /* warn just once */
-                bool once = false;
-                if (!once) {
-                        fprintf(stderr,
-                                "Disassembly unavailable in release mode");
-                        once = true;
-                }
-        }
-        return 0;
-}
-
-#else
-
-static int
-assemble_fourth_pass(struct assemble_t *a)
-{
-        FILE *fp;
-
-        if (!q_.opt.disassemble)
-                return 0;
-
-        fp = fopen(q_.opt.disassemble_outfile, "w");
-        if (!fp)
-                return -1;
-        /* If disassembly requested, run it */
-        disassemble_start(fp, a->file_name);
-        struct list_t *li;
-        list_foreach(li, &a->finished_frames) {
-                struct as_frame_t *fr = list2frame(li);
-                struct executable_t *x = fr->x;
-                disassemble(fp, x);
-        }
-        fclose(fp);
-        return 0;
-}
-
-#endif
 
 static struct executable_t *
 as_top_executable(struct assemble_t *a)
@@ -2149,13 +2100,6 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
         } else {
                 assemble_first_pass(a, toeof);
                 assemble_second_pass(a);
-                assemble_third_pass(a);
-                assemble_fourth_pass(a);
-                if (assemble_fourth_pass(a) < 0) {
-                        /* FIXME: sloppy way to warn user */
-                        fprintf(stderr, "Could not disassemble %s",
-                                a->file_name);
-                }
 
                 *status = RES_OK;
                 ex = as_top_executable(a);
@@ -2164,4 +2108,35 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
         return ex;
 }
 
+/**
+ * assemble_disassemble - Disassemble an assembled script
+ * @a: Result of new_assembler AFTER passing to assembler_next
+ *      but BEFORE calling trim_assembler or free_assembler
+ *
+ * FIXME: Awkward API.  Make struct as_frame_t and
+ * struct assembler_t definitions visible to disassemble.c,
+ * so something like disassemble_script() could do all this
+ * below.
+ *
+ * Return: RES_OK or RES_ERROR
+ */
+int
+assemble_disassemble(struct assemble_t *a)
+{
+        FILE *fp;
+
+        fp = fopen(q_.opt.disassemble_outfile, "w");
+        if (!fp)
+                return -1;
+
+        disassemble_start(fp, a->file_name);
+        struct list_t *li;
+        list_foreach(li, &a->finished_frames) {
+                struct as_frame_t *fr = list2frame(li);
+                struct executable_t *x = fr->x;
+                disassemble(fp, x);
+        }
+        fclose(fp);
+        return 0;
+}
 

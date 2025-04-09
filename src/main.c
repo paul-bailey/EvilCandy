@@ -105,9 +105,28 @@ run_script(const char *filename, FILE *fp)
         ex = assemble_next(a, true, &status);
         if (status != RES_OK)
                 goto er;
-        free_assembler(a, false);
-        if (ex && !q_.opt.disassemble_only) {
-                status = vm_execute(ex);
+        if (ex) {
+                if (q_.opt.disassemble_only) {
+                        /*
+                         * the first time we're here is the
+                         * file we're disassembling, don't
+                         * disassemble any of the imported
+                         * files.
+                         */
+                        static bool once = false;
+                        if (once)
+                                return;
+                        once = true;
+                        status = assemble_disassemble(a);
+                        free_assembler(a, false);
+                } else {
+                        /*
+                         * most likely program flow
+                         * ends up here.
+                         */
+                        free_assembler(a, false);
+                        status = vm_execute(ex);
+                }
                 EXECUTABLE_RELEASE(ex);
                 if (status != RES_OK)
                         goto er;

@@ -271,6 +271,7 @@ extern struct assemble_t *new_assembler(const char *source_file_name,
                                         FILE *fp);
 extern void free_assembler(struct assemble_t *a, int err);
 extern void trim_assembler(struct assemble_t *a);
+extern int assemble_disassemble(struct assemble_t *a);
 
 /* builtin/builtin.c */
 /*

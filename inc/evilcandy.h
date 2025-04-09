@@ -221,7 +221,6 @@ struct vmframe_t {
  *              to keep check on excess recursion with our eval()
  *              and expression() functions.
  * @opt:        Command-line options
- * @executables: Active executable functions
  */
 struct global_t {
         int recursion;
@@ -231,7 +230,6 @@ struct global_t {
                 char *disassemble_outfile;
                 char *infile;
         } opt;
-        struct list_t executables;
 };
 
 #ifndef NDEBUG

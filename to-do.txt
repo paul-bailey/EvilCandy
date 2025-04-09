@@ -5,21 +5,25 @@ Bugs/Must-Do
 
         * TTY mode parses all-around unreliably, even though
           script mode seems to work just fine.
-        * there's a refcount error
-          unrelated.  See outputs of test_def.egq and demo.egq.
+        * there's a refcount error somewhere, see output of
+          test_def.egq
         * there's a VAR_INCR/DECR_REF imbalance somewhere, preventing
-          some from getting deleted when they should.
+          some vars from getting deleted when they should.
         * var_bucket_delete() is somehow causing refcount to shrink
           below zero, meaning that variables are getting 'deleted'
           while still being claimed by a hash table.  This is hard to
           detect, since we're not calling free().
+        * Calling "let" multiple times for the same name in the same
+          namespace is failing throwing an error.
 
 * Use autoconf, automake & cet., not just a hand-written Makefile
 
 * Start adding in test scaffolding where possible.
 
-* Support serialization to byte-code files, so we don't have to parse
-  the same script every time.
+* Support serialization to byte-code files.  Is it possible to do this
+  for a language that supports anonymous functions and lambdas?  How
+  do the code arrays link up when there is no name for them?  Create a
+  UUID string or something?
 
 * Support the continue statement
 
@@ -32,11 +36,10 @@ Bugs/Must-Do
 * Add try/catch
 
 * MEMORY LEAK BUG:  When top-level expressions have been executed, their
-  executable code should be deleted.  Same for functions' executables
-  when they leave scope, ie when their references go to zero.  However,
-  current GC implementation is too naive for this, deleting IIFEs before
-  they can execute.  So for now, GC is turned off for all executable
-  code, letting it zombify.
+  code arrays should be deleted.  Same for functions' code arrays if
+  all references to them leave scope.  However, current GC implementation
+  is too naive for this, deleting IIFEs before they can execute.  So for
+  now, GC is turned off for all executable code, letting it zombify.
 
 Library/Language Features
 -------------------------

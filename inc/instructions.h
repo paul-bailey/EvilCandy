@@ -102,7 +102,6 @@ struct location_t {
  * @n_label:    Number of labels
  * @file_name:  Name of source file where this was defined
  * @file_line:  Starting line in source file where this was defined
- * @list:       Sibling list
  * @nref:       Reference count. Unlike other objects' reference count,
  *              this one starts at zero, since nothing has a handle to
  *              it.  Garbage collection will only occur if it is
@@ -121,7 +120,6 @@ struct executable_t {
         int n_label;
         const char *file_name;
         int file_line;
-        struct list_t list;
         int nref;
         unsigned flags;
 };

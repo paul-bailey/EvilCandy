@@ -231,7 +231,6 @@ executable_free__(struct executable_t *ex)
         }
         if (ex->label)
                 free(ex->label);
-        list_remove(&ex->list);
         free(ex);
 }
 
@@ -245,7 +244,6 @@ as_frame_push(struct assemble_t *a, int funcno)
 
         fr->funcno = funcno;
         fr->x = ecalloc(sizeof(*(fr->x)));
-        list_init(&fr->x->list);
         fr->x->file_name = a->file_name;
         if (a->oc)
                 fr->x->file_line = a->oc->line;
@@ -1904,23 +1902,11 @@ assemble_second_pass(struct assemble_t *a)
                 resolve_jump_labels(a, list2frame(li));
 }
 
-/*
- * Since data going into executable_t won't be resized anymore,
- * ie. the pointers won't change from further reallocs, it's safe to
- * move them into their permanent struct.
- *
- * XXX REVISIT: is  a struct executable_t's sibling list even necessary?
- */
+/* no longer used, these aren't connected in a linked list anymore */
 static void
 assemble_third_pass(struct assemble_t *a)
 {
-        struct list_t *li;
-        list_foreach(li, &a->finished_frames) {
-                struct as_frame_t *fr = list2frame(li);
-                struct executable_t *x = fr->x;
-                if (!(x->flags & FE_TOP))
-                        list_add_tail(&q_.executables, &x->list);
-        }
+        ;
 }
 
 #ifdef NDEBUG

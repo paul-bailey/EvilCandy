@@ -328,12 +328,14 @@ func_cmpz(struct var_t *func)
         return false;
 }
 
-static void
-func_mov(struct var_t *to, struct var_t *from)
+static struct var_t *
+func_cp(struct var_t *v)
 {
-        to->fn = from->fn;
-        TYPE_HANDLE_INCR_REF(to->fn);
-        to->magic = TYPE_FUNCTION;
+        struct var_t *ret = var_new();
+        ret->fn = v->fn;
+        TYPE_HANDLE_INCR_REF(ret->fn);
+        ret->magic = TYPE_FUNCTION;
+        return ret;
 }
 
 static void
@@ -346,8 +348,8 @@ func_reset(struct var_t *func)
 static const struct operator_methods_t function_primitives = {
         .cmp = func_cmp,
         .cmpz = func_cmpz,
-        .mov  = func_mov,
         .reset = func_reset,
+        .cp = func_cp,
 };
 
 void

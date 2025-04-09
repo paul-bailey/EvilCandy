@@ -2,11 +2,14 @@
 #include "var.h"
 #include <string.h>
 
-static void
-strptr_mov(struct var_t *to, struct var_t *from)
+static struct var_t *
+strptr_cp(struct var_t *v)
 {
-        extern struct var_t *string_init(struct var_t *var, const char *cstr);
-        string_init(to, from->strptr);
+        /*
+         * We aren't copying this data type unless it's to be
+         * used by user code, therefore make a TYEP_STRING var.
+         */
+        return stringvar_new(v->strptr);
 }
 
 static int
@@ -38,8 +41,8 @@ strptrvar_new(char *cstr)
 }
 
 static const struct operator_methods_t strptr_primitives = {
-        .mov = strptr_mov,
         .cmp = strptr_cmp,
+        .cp  = strptr_cp,
 };
 
 static const struct operator_methods_t no_primitives = { 0 };

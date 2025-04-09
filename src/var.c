@@ -102,6 +102,14 @@ var_free(struct var_t *v)
 {
         struct var_mem_t *vm;
         REGISTER_FREE();
+#ifndef NDEBUG
+        /* need more verbose info if this happens */
+        if (v->refcount != 0) {
+                fprintf(stderr,
+                        "BUG: expected refcount=0 but it's %d\n",
+                        v->refcount);
+        }
+#endif
         bug_on(v->refcount != 0);
         vm = var2memvar(v);
         vm->list = var_freelist;

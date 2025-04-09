@@ -175,20 +175,10 @@ int_negate(struct var_t *a)
         return intvar_new(-a->i);
 }
 
-static void
-int_mov(struct var_t *a, struct var_t *b)
+static struct var_t *
+int_cp(struct var_t *v)
 {
-        a->i = b->i;
-        a->magic = TYPE_INT;
-}
-
-static int
-int_mov_strict(struct var_t *a, struct var_t *b)
-{
-        if (!isnumvar(b))
-                return -1;
-        a->i = var2int(b);
-        return 0;
+        return intvar_new(v->i);
 }
 
 static struct var_t *
@@ -228,8 +218,7 @@ static const struct operator_methods_t int_primitives = {
         .decr           = int_decr,
         .bit_not        = int_bit_not,
         .negate         = int_negate,
-        .mov            = int_mov,
-        .mov_strict     = int_mov_strict,
+        .cp             = int_cp,
 };
 
 void

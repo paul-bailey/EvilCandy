@@ -458,7 +458,7 @@ do_push_local(struct vmframe_t *fr, instruction_t ii)
 static int
 do_push_const(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *v = qop_mov(var_new(), RODATA(fr, ii));
+        struct var_t *v = qop_cp(RODATA(fr, ii));
         if (!v)
                 return -1;
         push(fr, v);
@@ -656,9 +656,15 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         if (!retval)
                 retval = var_new();
 
-        /* Unwind stack in calling frame */
-        while (argc-- != 0)
-                pop(fr); /* arg */
+        /*
+         * Unwind stack in calling frame.
+         * vm_reenter doesn't consume args,
+         * so we have to do that instead.
+         */
+        while (argc-- != 0) {
+                struct var_t *arg = pop(fr);
+                VAR_DECR_REF(arg);
+        }
 
         pop(fr); /* func */
         VAR_DECR_REF(func);
@@ -1155,6 +1161,10 @@ vm_execute(struct executable_t *top_level)
  *         superfluous calls to var_new()/VAR_DECR_REF().  For callers
  *         who do use the return value, NULL can mean "call var_new() and
  *         use that."
+ *
+ * Note: This does not consume any reference counters for @argv, since
+ *       in order to enforce BY-VALUE policy when passing named
+ *       variables, each member of @argv[] is copied into a new variable.
  */
 struct var_t *
 vm_reenter(struct vmframe_t *fr_old, struct var_t *func,
@@ -1166,7 +1176,7 @@ vm_reenter(struct vmframe_t *fr_old, struct var_t *func,
         fr = vmframe_alloc();
         fr->ap = argc;
         while (argc-- > 0)
-                fr->stack[argc] = argv[argc];
+                fr->stack[argc] = qop_cp(argv[argc]);
 
         if (function_prep_frame(func, fr,
                                 owner ? owner : get_this(fr_old))

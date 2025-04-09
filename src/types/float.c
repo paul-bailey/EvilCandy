@@ -17,6 +17,12 @@ floatvar_new(double v)
 }
 
 static struct var_t *
+float_cp(struct var_t *f)
+{
+        return floatvar_new(f->f);
+}
+
+static struct var_t *
 float_mul(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
@@ -94,22 +100,6 @@ float_negate(struct var_t *a)
         return floatvar_new(-(a->f));
 }
 
-static void
-float_mov(struct var_t *to, struct var_t *from)
-{
-        to->f = from->f;
-        to->magic = TYPE_FLOAT;
-}
-
-static int
-float_mov_strict(struct var_t *to, struct var_t *from)
-{
-        if (!isnumvar(from))
-                return -1;
-        to->f = var2float(from);
-        return 0;
-}
-
 static struct var_t *
 float_tostr(struct vmframe_t *fr)
 {
@@ -141,8 +131,7 @@ static const struct operator_methods_t float_primitives = {
         .incr           = float_incr,
         .decr           = float_decr,
         .negate         = float_negate,
-        .mov            = float_mov,
-        .mov_strict     = float_mov_strict,
+        .cp             = float_cp,
 };
 
 void

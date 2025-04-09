@@ -377,7 +377,7 @@ extern enum result_t qop_decr(struct var_t *v);
 extern struct var_t *qop_bit_not(struct var_t *v);
 extern struct var_t *qop_negate(struct var_t *v);
 extern struct var_t *qop_lnot(struct var_t *v);
-extern struct var_t *qop_mov(struct var_t *to, struct var_t *from);
+extern struct var_t *qop_cp(struct var_t *v);
 
 /* find_import.c */
 extern FILE *find_import(const char *cur_path, const char *file_name,

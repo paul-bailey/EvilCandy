@@ -172,14 +172,6 @@ array_reset(struct var_t *a)
         a->a = NULL;
 }
 
-static void
-array_mov(struct var_t *to, struct var_t *from)
-{
-        to->a = from->a;
-        TYPE_HANDLE_INCR_REF(to->a);
-        to->magic = TYPE_LIST;
-}
-
 static int
 array_cmp(struct var_t *a, struct var_t *b)
 {
@@ -193,10 +185,20 @@ array_cmp(struct var_t *a, struct var_t *b)
         return 0;
 }
 
+static struct var_t *
+array_cp(struct var_t *a)
+{
+        struct var_t *ret = var_new();
+        ret->a = a->a;
+        TYPE_HANDLE_INCR_REF(ret->a);
+        ret->magic = TYPE_LIST;
+        return ret;
+}
+
 static const struct operator_methods_t array_primitives = {
         /* To do, I may want to support some of these */
         .cmp = array_cmp,
-        .mov = array_mov,
+        .cp  = array_cp,
         .reset = array_reset,
 };
 
@@ -238,8 +240,11 @@ do_array_foreach(struct vmframe_t *fr)
 
                 argv[0] = ppvar[idx];
                 argv[1]->i = idx;
+#warning "clean this up"
+#if 0
                 VAR_INCR_REF(argv[0]);
                 VAR_INCR_REF(argv[1]);
+#endif
 
                 retval = vm_reenter(fr, func, NULL, 2, argv);
                 if (retval == ErrorVar) {
@@ -252,7 +257,7 @@ do_array_foreach(struct vmframe_t *fr)
         }
         h->lock = lock;
 
-#warning Figure this one out!
+#warning "clean this up"
 #if 0
         VAR_DECR_REF(argv[0]);
 #endif

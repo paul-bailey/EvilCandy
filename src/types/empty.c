@@ -18,7 +18,14 @@ empty_bit_not(struct var_t *v)
         return intvar_new(-1LL);
 }
 
+static struct var_t *
+empty_cp(struct var_t *v)
+{
+        return var_new();
+}
+
 static const struct operator_methods_t empty_primitives = {
+        .cp             = empty_cp,
         .cmp            = empty_cmp,
         .cmpz           = empty_cmpz,
         .bit_not        = empty_bit_not,

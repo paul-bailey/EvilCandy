@@ -31,13 +31,17 @@ struct operator_methods_t {
         struct var_t *(*bit_not)(struct var_t *); /* new = ~a */
         struct var_t *(*negate)(struct var_t *);  /* new = -a */
 
-        /* lval is TYPE_EMPTY, rval is this type */
-        void (*mov)(struct var_t *, struct var_t *);    /* a = b */
         /*
-         * lval is this type, rval could be anything
-         * return 0 if success, -1 if not allowed or err
+         * Copy a variable
+         *      If it's a by-ref type, copy just the handle, magic #, etc.
+         *      If it's a by-val type, copy all the data except the refcount.
+         *
+         * Use var_new(), NOT just malloc/memcpy, which will break things.
+         *
+         * The only error would be out-of-memory which is always trapped,
+         * so this should ALWAYS return a successful copy.
          */
-        int (*mov_strict)(struct var_t *, struct var_t *);
+        struct var_t *(*cp)(struct var_t *);
 
         /*
          * hard reset, clobber var's type as well.

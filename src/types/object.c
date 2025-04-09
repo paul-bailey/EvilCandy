@@ -204,13 +204,14 @@ object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
  *              Built-in Operator Callbacks
  ***********************************************************************/
 
-/* qop_mov callback for object */
-static void
-object_mov(struct var_t *to, struct var_t *from)
+static struct var_t *
+object_cp(struct var_t *v)
 {
-        to->o = from->o;
-        TYPE_HANDLE_INCR_REF(to->o);
-        to->magic = TYPE_DICT;
+        struct var_t *ret = var_new();
+        ret->o = v->o;
+        TYPE_HANDLE_INCR_REF(ret->o);
+        ret->magic = TYPE_DICT;
+        return ret;
 }
 
 static int
@@ -274,8 +275,11 @@ do_object_foreach(struct vmframe_t *fr)
 
                 argv[0] = val;
                 argv[1] = key;
+#warning "clean this up"
+#if 0
                 VAR_INCR_REF(argv[0]);
                 VAR_INCR_REF(argv[1]);
+#endif
 
                 cbret = vm_reenter(fr, func, NULL, 2, argv);
 
@@ -453,8 +457,8 @@ static const struct type_inittbl_t object_methods[] = {
 static const struct operator_methods_t object_primitives = {
         .cmp            = object_cmp,
         .cmpz           = object_cmpz,
-        .mov            = object_mov,
         .reset          = object_reset,
+        .cp             = object_cp,
 };
 
 void

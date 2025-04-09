@@ -304,60 +304,24 @@ qop_lnot(struct var_t *v)
 }
 
 /**
- * qop_mov - Assign @to with the contents of @from
- * @to: var getting assigned
- * @from: var reference for assignation.  This will not be modified.
+ * qop_cp - Copy @v to a new variable
+ * @v: variable to copy.  Its reference counter will not be consumed.
  *
- * If @to isn't empty and its type is different from @from,
- * a syntax error will be thrown.
+ * Return: A duplicate of @v. This will have its own reference counter.
  *
- * If @to and @from are objects or arrays, they will end up both
- * containing the handle to the same object.
+ * Quirks:
+ * - If @v is TYPE_STRPTR, the return value will be TYPE_STRING
+ * - Dictionaries and lists are BY REFERENCE; they will have their
+ *   handles copied (and the handles' reference counters increased),
+ *   but these handles will still point to the same data.
  */
 struct var_t *
-qop_mov(struct var_t *to, struct var_t *from)
+qop_cp(struct var_t *v)
 {
-        /*
-         * TODO: Need to get rid of MOV altogether.  It's a relic
-         * of when the stack was an array of struct var_t's rather
-         * than an array of pointers, and I didn't have a good GC
-         * implementation.  That got confusing with
-         *      "a <= a OPERATOR b"
-         * when, with our new way of struct var_t allocation, it
-         * should have been
-         *      "new <= a OPERATOR b"
-         * all along.
-         */
-        const struct operator_methods_t *p;
-        if (from == to)
-                return to;
-
-        bug_on(!from || !to);
-        bug_on((unsigned)from->magic >= NTYPES);
-        bug_on((unsigned)to->magic >= NTYPES);
-
-        if (to->magic == TYPE_EMPTY) {
-                if (from->magic == TYPE_EMPTY)
-                        return to;
-                p = primitives_of(from);
-                bug_on(!p->mov);
-                p->mov(to, from);
-        } else {
-                bug_on(from->magic == TYPE_EMPTY);
-                if (isconst(to)) {
-                        econst();
-                        return NULL;
-                }
-                p = primitives_of(to);
-                if (p->mov_strict) {
-                        if (p->mov_strict(to, from) == 0)
-                                return to;
-                }
-                err_setstr(RuntimeError,
-                           "ASSIGN not permited from %s => %s",
-                           typestr(from), typestr(to));
-                return NULL;
-        }
-        return to;
+        const struct operator_methods_t *p = primitives_of(v);
+        bug_on(!p);
+        bug_on(!p->cp);
+        return p->cp(v);
 }
+
 

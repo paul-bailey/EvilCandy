@@ -87,12 +87,7 @@ string_puts(struct var_t *str, const char *s)
         buffer_puts(buf, s);
 }
 
-/* common to stringvar_new and string_mov */
-/*
- * FIXME: Get rid of extern linkage to this.
- *      4/2025 requires fixing the qop_mov routine...we're almost there
- */
-struct var_t *
+static struct var_t *
 string_init(struct var_t *var, const char *cstr)
 {
         bug_on(var->magic != TYPE_EMPTY);
@@ -1043,32 +1038,18 @@ string_cmpz(struct var_t *a)
         return s ? s[0] == '\0' : true;
 }
 
-static void
-string_mov(struct var_t *to, struct var_t *from)
+static struct var_t *
+string_cp(struct var_t *v)
 {
-        string_init(to, string_get_cstring(from));
-}
-
-static int
-string_mov_strict(struct var_t *to, struct var_t *from)
-{
-        if (from->magic == TYPE_STRPTR) {
-                string_assign_cstring(to, from->strptr);
-        } else if (from->magic == TYPE_STRING) {
-                string_assign_cstring(to, string_get_cstring(from));
-        } else {
-                return -1;
-        }
-        return 0;
+        return string_copy__(v);
 }
 
 static const struct operator_methods_t string_primitives = {
         .add            = string_add,
         .cmp            = string_cmp,
         .cmpz           = string_cmpz,
-        .mov            = string_mov,
-        .mov_strict     = string_mov_strict,
         .reset          = string_reset,
+        .cp             = string_cp,
 };
 
 

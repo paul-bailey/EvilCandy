@@ -448,6 +448,7 @@ extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct object_handle_t *, void *));
 static inline void *object_get_priv(struct var_t *o)
         { return o->o->priv; }
+extern void object_add_to_globals(struct var_t *obj);
 
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);
@@ -464,6 +465,7 @@ extern struct var_t *execute_loop(struct vmframe_t *fr);
 extern struct var_t *vm_reenter(struct vmframe_t *fr, struct var_t *func,
                                 struct var_t *owner, int argc,
                                 struct var_t **argv);
+extern void vm_add_global(const char *name, struct var_t *var);
 extern void moduleinit_vm(void);
 static inline struct var_t *vm_get_this(struct vmframe_t *fr)
         { return fr->owner; }

@@ -94,12 +94,17 @@ do_setnl(struct vmframe_t *fr)
         return NULL;
 }
 
-static const struct inittbl_t gblinit[] = {
+static const struct inittbl_t builtin_inittbl[] = {
         TOFTBL("print",  do_print,  1, -1),
         TOFTBL("setnl",  do_setnl,  1, 1),
         TOFTBL("typeof", do_typeof, 1, 1),
         /* XXX: maybe exit should be a method of __gbl__._sys */
         TOFTBL("exit",   do_exit,   0, -1),
+        { .name = NULL },
+};
+
+static const struct inittbl_t gblinit[] = {
+        TOOTBL("_builtins", builtin_inittbl),
         TOOTBL("_math",  bi_math_inittbl__),
         TOOTBL("_io",    bi_io_inittbl__),
         TOSTBL("ParserError", "Parser Error"),
@@ -175,6 +180,8 @@ struct var_t *SystemError;
 void
 moduleinit_builtin(void)
 {
+        struct var_t *o;
+
         /* Do this first.  bi_build_internal_object__ de-references it. */
         GlobalObject = objectvar_new();
         object_set_priv(GlobalObject, &gbl, NULL);
@@ -186,6 +193,10 @@ moduleinit_builtin(void)
         if (!ParserError || !RuntimeError || !SystemError) {
                 fail("Could not create error objects");
         }
+        o = object_getattr(GlobalObject, literal_put("_builtins"));
+        bug_on(!o);
+        object_add_to_globals(o);
+        vm_add_global(literal_put("__gbl__"), GlobalObject);
 
         /* Set up gbl private data */
         strcpy(gbl.nl, "\n");

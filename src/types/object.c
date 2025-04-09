@@ -199,6 +199,29 @@ object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
         return RES_OK;
 }
 
+/*
+ * early-initialization function called from moduleinit_builtin.
+ * Hacky way to not require loading an EvilCandy script every
+ * time that says something like
+ *      let print = __gbl__._builtins.print;
+ *      let len   = __gbl__._builtins.len;
+ *      ...
+ *  ...and so on.
+ */
+void
+object_add_to_globals(struct var_t *obj)
+{
+        bug_on(!obj);
+
+        struct hashtable_t *h = &obj->o->dict;
+        unsigned int i;
+        int res;
+        void *k, *v;
+        for (i = 0, res = hashtable_iterate(h, &k, &v, &i);
+             res == 0; res = hashtable_iterate(h, &k, &v, &i)) {
+                vm_add_global((char *)k, (struct var_t *)v);
+        }
+}
 
 /* **********************************************************************
  *              Built-in Operator Callbacks

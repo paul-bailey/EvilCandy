@@ -85,15 +85,6 @@ RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 
 #endif /* DEBUG */
 
-static struct var_t *
-symbol_seek_this_(struct vmframe_t *fr, struct var_t *name)
-{
-        struct var_t *o = get_this(fr);
-        if (o)
-                return var_getattr(o, name);
-        return NULL;
-}
-
 /*
  * Search in the following order of precedence:
  *   1. __gbl__ (overrides any symbol-table variables also named __gbl__)
@@ -105,23 +96,15 @@ symbol_seek_this_(struct vmframe_t *fr, struct var_t *name)
 static struct var_t *
 symbol_seek_(struct vmframe_t *fr, struct var_t *name)
 {
-        static char *gbl = NULL;
         struct var_t *v;
         const char *s = name->strptr;
 
         bug_on(name->magic != TYPE_STRPTR);
         bug_on(!s);
 
-        if (!gbl)
-                gbl = literal_put("__gbl__");
-
-        if (s == gbl)
-                return GlobalObject;
         if ((v = hashtable_get(symbol_table, s)) != NULL)
                 return v;
-        if ((v = symbol_seek_this_(fr, name)) != NULL)
-                return v;
-        return object_getattr(GlobalObject, s);
+        return NULL;
 }
 
 static struct var_t *
@@ -139,16 +122,8 @@ symbol_seek(struct vmframe_t *fr, struct var_t *name)
 static int
 symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
 {
-        /*
-         * FIXME: DRY violation with symbol_seek_,
-         * but I just wanna get this to at least work.
-         * It should all get torn out when I get rid of __gbl__
-         * and just have a single TYPE_DICT var for all the
-         * global variables.
-         */
-        static char *gbl = NULL;
         const char *s = name->strptr;
-        struct var_t *parent, *child;
+        struct var_t *child;
 
         bug_on(name->magic != TYPE_STRPTR);
         bug_on(!s);
@@ -159,17 +134,6 @@ symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
                 return RES_OK;
         }
 
-        parent = get_this(fr);
-        if (parent) {
-                struct var_t *child = var_getattr(parent, name);
-                if (child)
-                        return var_setattr(parent, name, v);
-        }
-
-        parent = GlobalObject;
-        child = var_getattr(parent, name);
-        if (child)
-                return var_setattr(parent, name, v);
         return RES_ERROR;
 }
 
@@ -1193,6 +1157,19 @@ vm_reenter(struct vmframe_t *fr_old, struct var_t *func,
         vmframe_free(fr);
 
         return res;
+}
+
+/*
+ * Used for adding built-in symbols during early init.
+ * @name should have been filtered through literal()
+ * or literal_put().
+ */
+void
+vm_add_global(const char *name, struct var_t *var)
+{
+        /* moduleinit_vm should have been called first */
+        bug_on(!symbol_table);
+        hashtable_put(symbol_table, (void *)name, var);
 }
 
 void

@@ -5,8 +5,6 @@ Bugs/Must-Do
 
         * TTY mode parses all-around unreliably, even though
           script mode seems to work just fine.
-        * there's a refcount error somewhere, see output of
-          test_def.egq
         * there's a VAR_INCR/DECR_REF imbalance somewhere, preventing
           some vars from getting deleted when they should.
         * var_bucket_delete() is somehow causing refcount to shrink

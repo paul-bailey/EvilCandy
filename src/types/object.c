@@ -202,8 +202,8 @@ object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
                 VAR_DECR_REF(child);
         } else {
                 dict->o->nchildren++;
-                VAR_INCR_REF(attr);
         }
+        VAR_INCR_REF(attr);
         return RES_OK;
 }
 

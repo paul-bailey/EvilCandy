@@ -338,11 +338,8 @@ func_cmpz(struct var_t *func)
 static struct var_t *
 func_cp(struct var_t *v)
 {
-        struct var_t *ret = var_new();
-        ret->fn = v->fn;
-        TYPE_HANDLE_INCR_REF(ret->fn);
-        ret->magic = TYPE_FUNCTION;
-        return ret;
+        VAR_INCR_REF(v);
+        return v;
 }
 
 static void

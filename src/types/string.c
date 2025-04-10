@@ -1,4 +1,30 @@
 /* string.c - Built-in methods for string data types */
+/*
+ * XXX REVISIT:
+ *              Thought 1:
+ *      This library needs to be looked over to make sure that a string
+ *      NEVER CHANGES after it becomes visible outside this library.
+ *      If that happens we can speed things up dramatically, such as
+ *      finalizing a string with a hash number in struct string_handle_t
+ *      (speeding up logical operations by returning early if hashes
+ *      don't match, eg.) or not doing all the utf-8 stuff until just
+ *      before the string becomes visible.
+ *              Thought 2:
+ *      Since strings should be immutable once they become visible, get
+ *      rid of the .b field in the handle, and just use it when
+ *      initializing the string.  I'm doing an awful lot of relying on
+ *      generalized libraries which is limiting and slow.
+ *              Thought 3:
+ *      Get rid of UTF-8 stuff entirely.  Consider Python: it stores each
+ *      of a string's character in a field as wide as its widest character,
+ *      and all characters have been decoded, so no fussing around with
+ *      those utf-8 bitfields.  I should do the same here.  It will make
+ *      things faster, especially for anything having to do with subscripts.
+ *              Thought 4:
+ *      Get my mind off of C strings.  This isn't 1977.  Allow nulchars
+ *      in the middle of the strings--I already know the string's
+ *      length--and stop relying so much on string.h functions.
+ */
 #include "var.h"
 #include <string.h>
 #include <ctype.h>

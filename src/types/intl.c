@@ -7,7 +7,7 @@ strptr_cp(struct var_t *v)
 {
         /*
          * We aren't copying this data type unless it's to be
-         * used by user code, therefore make a TYEP_STRING var.
+         * used by user code, therefore make a TYPE_STRING var.
          */
         return stringvar_new(v->strptr);
 }

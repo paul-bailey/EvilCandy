@@ -188,11 +188,8 @@ array_cmp(struct var_t *a, struct var_t *b)
 static struct var_t *
 array_cp(struct var_t *a)
 {
-        struct var_t *ret = var_new();
-        ret->a = a->a;
-        TYPE_HANDLE_INCR_REF(ret->a);
-        ret->magic = TYPE_LIST;
-        return ret;
+        VAR_INCR_REF(a);
+        return a;
 }
 
 static const struct operator_methods_t array_primitives = {

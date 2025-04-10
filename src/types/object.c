@@ -238,11 +238,9 @@ object_add_to_globals(struct var_t *obj)
 static struct var_t *
 object_cp(struct var_t *v)
 {
-        struct var_t *ret = var_new();
-        ret->o = v->o;
-        TYPE_HANDLE_INCR_REF(ret->o);
-        ret->magic = TYPE_DICT;
-        return ret;
+        /* dictionaries CP by-reference, so this is quite easy */
+        VAR_INCR_REF(v);
+        return v;
 }
 
 static int

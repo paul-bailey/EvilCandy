@@ -554,8 +554,10 @@ static int
 do_symtab(struct vmframe_t *fr, instruction_t ii)
 {
         char *s = RODATA_STR(fr, ii);
-        hashtable_put(symbol_table, s, var_new());
-        return 0;
+        int res = hashtable_put(symbol_table, s, var_new());
+        if (res != RES_OK)
+                err_setstr(RuntimeError, "Symbol %s already exists", s);
+        return res;
 }
 
 static int

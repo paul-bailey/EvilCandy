@@ -11,8 +11,8 @@ Bugs/Must-Do
           below zero, meaning that variables are getting 'deleted'
           while still being claimed by a hash table.  This is hard to
           detect, since we're not calling free().
-        * Calling "let" multiple times for the same name in the same
-          namespace is failing throwing an error.
+        * Broke static typing.  This was intentional to get rid of the
+          qop_mov way of assignment, but now it needs to be fixed.
 
 * Use autoconf, automake & cet., not just a hand-written Makefile
 
@@ -56,6 +56,17 @@ Library/Language Features
 
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* Have only one global TYPE_EMPTY var, call it something like
+  NullVar.  var_delete__() could ignore if v==NullVar.  Then we
+  wouldn't have to call var_new() every time we need a var to
+  represent 'null'.
+
+* Now that qop_mov is no longer a thing, we have to consider
+  embedding each type's private data struct into struct var_t,
+  perhaps using casting to differentiate between the two.  As it
+  currently stands, a program is constantly making two malloc()
+  calls instead of one, doing two de-references instead of one.
 
 * vm.c and types/function.c, as well as the structs they manipulate
   (vmframe_t, function_handle_t, executable_t) are very tangled up

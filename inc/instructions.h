@@ -110,23 +110,73 @@ typedef struct {
  * @n_label:    Number of labels
  * @file_name:  Name of source file where this was defined
  * @file_line:  Starting line in source file where this was defined
- * @nref:       Reference count. Unlike other objects' reference count,
- *              this one starts at zero, since nothing has a handle to
- *              it.  Garbage collection will only occur if it is
- *              decremented back to zero from one.  (FIXME: Too many ways
- *              to count how this could go wrong.)  Except...
- * @flags:      If FE_TOP is set, delete this after it has been executed
- *              once.  Do not delete anything it added to the symbol
- *              table, since later-executed code may use them.
+ * @nref:       Reference count, for garbage collection
+ * @flags:      May have FE_TOP set, meaning that this is the top-level
+ *              of a script.  (TODO: is this needed?)
  * @uuid:       Identifier for the sake of serialization and disassembly.
  *              (Internal pointers have no meaning except when executing.)
  *              This is the text representation, not the binary bitstream.
+ *
+ *      TODO: The following remarks mostly justify how to serialize.
+ *            When serializer is written, move these comments there.
+ *
+ * This is created for every script and every function definition or
+ * lambda within the script.  The top-level will have pointers in its
+ * .rodata field to the other struct executable_t's, creating a network
+ * of singly-linked struct executables.
+ *
+ * These .rodata entries are for _definitions_, not _calls_. eg.  any
+ * time the assembler encounters a "function" keyword or lambda "``"
+ * token it sets up a "create function var" bunch of instructions,
+ * DEFFUNC, ADD_CLOSURE, ADD_DEFAULT... where the DEFFUNC has an argument
+ * to its opcode meaning "the struct executable for it is at this address
+ * in .rodata".
+ *
+ * For _calls_ to code from outside the script, ie. a loaded module, the
+ * module would need to have made their functions in some way accessible
+ * in the global namespace, so the .rodata entries for each call is a
+ * string.  For calls within the script, they may refer to it by name
+ * if the function is global or by calling a function variable on the
+ * stack if the function is nested.
+ *
+ * This means that for every struct executable_t that exists,
+ *      * just one .rodata pointer to this struct exists anywhere
+ *        (except with the code for scripts outside of functions,
+ *        which have zero such pointers).
+ *      * any number of .rodata strings could exist refering to
+ *        TYPE_FUNCTION variables that use this struct
+ *      * any number of struct var_t's could also have a pointer
+ *        to the executable in runtime, which is not a concern for
+ *        serialization.
+ *
+ * So when serializing a struct executable_t as binary to a byte-code
+ * file, we can print it, all the descendants it refers to, all the
+ * descendants those descendants refer to, etc., to a file without
+ * worrying about redundantly duplicating anything.
+ *
+ *      Garbage Collection
+ *
+ * Even though these are all related by a pointer network as mentioned,
+ * they could be used by more than one instantiation of a function,
+ * either because a variable was copied the old fashioned way
+ * ("let x=y;"), or because a variable is a lambda which possibly
+ * contains its own set of closures.  So the "network" is only meaningful
+ * for the sake of serialization; we cannot garbage-collect this whole
+ * group just because a script has concluded, since a calling script may
+ * still have access to some of its functions via the global namespace.
+ * Function variables' destructor functions must use the
+ * EXECUTABLE_RELEASE macro rather than delete it directly.
+ *      (XXX 4/2025, GC does not work, because IIFEs will get deleted
+ *      before they are called.)
  */
 struct executable_t {
+        /* hot items used by VM */
         instruction_t *instr;
         struct var_t **rodata;
+        /* warm items */
         int n_instr;
         int n_rodata;
+        /* cold items used by disassembly and serializer */
         unsigned short *label;
         int n_label;
         const char *file_name;

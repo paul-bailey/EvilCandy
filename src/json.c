@@ -84,8 +84,7 @@ parseatomic(struct json_state_t *j)
                  * OC_LAMBDA?  We would simply need a hook in assembler.c,
                  * something that wraps its local assemble_function() call.
                  * These functions would have to be limited, as they
-                 * cannot reference closures, and 'this' would necessarily
-                 * be GlobalObject.
+                 * cannot take arguments or refer to closures.
                  */
 
                 child = ErrorVar; /* for the compiler */

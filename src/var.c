@@ -297,6 +297,8 @@ attr_by_string(struct var_t *v, const char *s)
  *
  * Return: Attribute of @v, or NULL if not found.  This is the actual
  * attribute, not a copy, so be careful what you do with it.
+ *
+ * This gets the equivalent to the EvilCandy expression: v[deref]
  */
 struct var_t *
 var_getattr(struct var_t *v, struct var_t *deref)
@@ -334,6 +336,7 @@ var_getattr(struct var_t *v, struct var_t *deref)
 const char *
 attr_str(struct var_t *deref)
 {
+        /* FIXME: No! Just no! */
         static char numbuf[64];
 
         memset(numbuf, 0, sizeof(numbuf));
@@ -363,6 +366,8 @@ attr_str(struct var_t *deref)
  * @attr:       Variable storing the attribute to set.  This will be
  *              copied, so calling function still must handle GC for this
  * Return:      RES_OK if success, RES_ERROR if failure does not exist.
+ *
+ * This implements x[deref] = attr;
  */
 enum result_t
 var_setattr(struct var_t *v, struct var_t *deref, struct var_t *attr)

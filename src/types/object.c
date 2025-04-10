@@ -109,10 +109,17 @@ object_getattr(struct var_t *o, const char *s)
  * Like object_setattr, except that it throws an error if the atttribute
  * already exists, and it takes into account that most callers have a
  * C string, not a TYPE_STRING var_t.
+ *
+ * Usu. called when BUILDING a dictionary, ie when the EvilCandy source
+ * code has an expression of the sort: x = { key1: val1, ... } or when
+ * reading a dictionary from a JSON file.
+ *
+ * When the source code uses the expression: x[key] = val, object_setattr
+ * is called (via var_setattr) instead.
  */
 enum result_t
 object_addattr(struct var_t *parent,
-                 struct var_t *child, const char *name)
+               struct var_t *child, const char *name)
 {
         bug_on(parent->magic != TYPE_DICT);
         if (parent->o->lock) {
@@ -457,6 +464,48 @@ do_object_keys(struct vmframe_t *fr)
         return object_keys(get_this(fr));
 }
 
+/*
+ * .copy()      Duplicate myself
+ *
+ * Difference between:
+ *      obj1 = obj2.copy()      # this function below
+ *      obj1 = obj2             # object's qop_cp callback
+ *
+ * The latter only passes a handle from obj2 to obj1, meaning that ALL
+ * of it is by-reference.
+ *
+ * The former makes an all new hash table and copies obj2's keys and
+ * values into it.  Later changes to obj1 will not affect obj2, but
+ * for one important...
+ *
+ * ...quirk: This is not recursive.  If any of obj2's items are lists
+ * or dictionaries, then they will still be copied by-reference.
+ */
+static struct var_t *
+do_object_copy(struct vmframe_t *fr)
+{
+        struct var_t *self = get_this(fr);
+        void *k, *v;
+        int res;
+        unsigned int i;
+        struct hashtable_t *d;
+        struct var_t *ret = objectvar_new();
+
+        bug_on(self->magic != TYPE_DICT);
+
+        d = &self->o->dict;
+        for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
+             res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
+                if (object_addattr(ret, qop_cp((struct var_t *)v),
+                                   (char *)k) != RES_OK) {
+                        VAR_DECR_REF(ret);
+                        return ErrorVar;
+                }
+                /* object_addattr already incremented ref */
+        }
+        return ret;
+}
+
 static const struct type_inittbl_t object_methods[] = {
         V_INITTBL("len",       do_object_len,       0, 0),
         V_INITTBL("foreach",   do_object_foreach,   1, 1),
@@ -465,6 +514,7 @@ static const struct type_inittbl_t object_methods[] = {
         V_INITTBL("getattr",   do_object_getattr,   1, 1),
         V_INITTBL("delattr",   do_object_delattr,   1, 1),
         V_INITTBL("keys",      do_object_keys,      0, 0),
+        V_INITTBL("copy",      do_object_copy,      0, 0),
         TBLEND,
 };
 

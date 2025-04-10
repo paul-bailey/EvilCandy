@@ -334,6 +334,9 @@ extern struct var_t *floatvar_new(double value);
 /* types/integer.c */
 extern struct var_t *intvar_new(long long value);
 
+/* json.c */
+struct var_t *dict_from_json(const char *filename);
+
 /* keyword.c */
 extern int keyword_seek(const char *s);
 extern void moduleinit_keyword(void);

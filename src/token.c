@@ -1077,11 +1077,11 @@ moduleinit_token(void)
         tok_charmap[0] |= QDELIM;
 
         /* permitted identifier chars */
-        for (i = 'a'; i < 'z'; i++)
+        for (i = 'a'; i <= 'z'; i++)
                 tok_charmap[i] |= QIDENT | QIDENT1;
-        for (i = 'A'; i < 'Z'; i++)
+        for (i = 'A'; i <= 'Z'; i++)
                 tok_charmap[i] |= QIDENT | QIDENT1;
-        for (i = '0'; i < '9'; i++)
+        for (i = '0'; i <= '9'; i++)
                 tok_charmap[i] |= QIDENT;
         tok_charmap['_'] |= QIDENT | QIDENT1;
 }

@@ -989,11 +989,18 @@ assemble_eval9(struct assemble_t *a)
  * pop-pop-push operation which effectively deletes the second-to-last
  * stack item and moves the last one down by one.  Doing this for each
  * descent ought to keep the stack properly balanced.  We use the
- * have_parent boolean to keep track of things.
+ * have_parent boolean to prevent us from doing this the first time.
  */
 static void
 assemble_eval8(struct assemble_t *a)
 {
+#define GETATTR_SHIFT(arg1, arg2) do {                  \
+        if (have_parent)                                \
+                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);   \
+        add_instr(a, INSTR_GETATTR, arg1, arg2);        \
+        have_parent = true;                             \
+} while (0)
+
         bool have_parent = false;
 
         assemble_eval9(a);
@@ -1006,10 +1013,7 @@ assemble_eval8(struct assemble_t *a)
                 case OC_PER:
                         as_errlex(a, 'u');
                         namei = seek_or_add_const(a, a->oc);
-                        if (have_parent)
-                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
-                        have_parent = true;
+                        GETATTR_SHIFT(IARG_ATTR_CONST, namei);
                         break;
 
                 case OC_LBRACK:
@@ -1017,26 +1021,25 @@ assemble_eval8(struct assemble_t *a)
                         switch (a->oc->t) {
                         case 'q':
                         case 'i':
+                                /*
+                                 * same optimization check as in
+                                 * assemble_ident_helper
+                                 */
                                 as_savetok(&name, a->oc);
                                 if (as_lex(a) == OC_RBRACK) {
                                         namei = seek_or_add_const(a, &name);
                                         as_unlex(a);
-                                        if (have_parent)
-                                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
-                                        have_parent = true;
+                                        GETATTR_SHIFT(IARG_ATTR_CONST, namei);
                                         break;
                                 }
                                 as_unlex(a);
                                 /* expression, fall through */
                         case 'u':
+                        case OC_LPAR:
                                 /* need to evaluate index */
                                 as_unlex(a);
-                                assemble_eval1(a);
-                                if (have_parent)
-                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                                add_instr(a, INSTR_GETATTR, IARG_ATTR_STACK, -1);
-                                have_parent = true;
+                                assemble_eval(a);
+                                GETATTR_SHIFT(IARG_ATTR_STACK, -1);
                                 break;
                         default:
                                 as_err(a, AE_BADTOK);
@@ -1050,11 +1053,15 @@ assemble_eval8(struct assemble_t *a)
                         assemble_call_func(a, have_parent);
                         have_parent = false;
                         break;
+                default:
+                        as_err(a, AE_BADTOK);
                 }
                 as_lex(a);
         }
         if (have_parent)
                 add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+
+#undef GETATTR_SHIFT
 }
 
 static void
@@ -1303,7 +1310,10 @@ assemble_ident_helper(struct assemble_t *a)
                 int namei;
                 struct token_t name;
 
-                /* FIXME: What about increment, decrement? */
+                /*
+                 * FIXME: What about increment, decrement?
+                 * like this, "foo.bar++" is not possible.
+                 */
 
                 /*
                  * FIXME: For the SETATTR cases below, I should permit
@@ -1314,23 +1324,49 @@ assemble_ident_helper(struct assemble_t *a)
                  * and so on..
                  */
 
+
+                /*
+                 * These macros sorta bury the program flow, but the code
+                 * is repetitive and barely readable anyway.  I could
+                 * probably simplify it greatly with some recursion, but
+                 * we've recursion enough.
+                 */
+#define GETATTR_SHIFT(arg1, arg2)                                       \
+                do {                                                    \
+                        as_unlex(a);                                    \
+                        if (have_parent)                                \
+                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);   \
+                        add_instr(a, INSTR_GETATTR, arg1, arg2);        \
+                        have_parent = true;                             \
+                } while (0)
+
+#define SETATTR_SHIFT(arg1, arg2)                                       \
+                do {                                                    \
+                        assemble_eval(a);                               \
+                        if (have_parent)                                \
+                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);   \
+                        add_instr(a, INSTR_SETATTR, arg1, arg2);        \
+                } while (0)
+
+#define SETATTR_SHIFT_IF_ASGN(arg1, arg2)                       \
+                do {                                            \
+                        if (as_lex(a) == OC_EQ) {               \
+                                SETATTR_SHIFT(arg1, arg2);      \
+                                goto done;                      \
+                        }                                       \
+                } while (0)
+
+#define GETSETATTR_SHIFT(arg1, arg2)                            \
+                do {                                            \
+                        SETATTR_SHIFT_IF_ASGN(arg1, arg2);      \
+                        GETATTR_SHIFT(arg1, arg2);              \
+                } while (0)
+
                 switch (a->oc->t) {
                 case OC_PER:
                         as_errlex(a, 'u');
                         namei = seek_or_add_const(a, a->oc);
-                        if (as_lex(a) == OC_EQ) {
-                                assemble_eval(a);
-                                if (have_parent)
-                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                                add_instr(a, INSTR_SETATTR, IARG_ATTR_CONST, namei);
-                                goto done;
-                        }
-
-                        as_unlex(a);
-                        if (have_parent)
-                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
-                        have_parent = true;
+                        GETSETATTR_SHIFT(IARG_ATTR_CONST, namei);
                         break;
 
                 case OC_LBRACK:
@@ -1339,61 +1375,53 @@ assemble_ident_helper(struct assemble_t *a)
                         case 'q':
                         case 'i':
                                 /*
-                                 * Try to optimize... "[" + LITERAL could be
-                                 * something weird like
+                                 * Try to optimize... "[" + LITERAL could
+                                 * hypothetically be something weird like
                                  *
-                                 *      thing[ "".join(bunch_of_stuff) ]
+                                 *      thing["name\n".strip()]
                                  *
                                  * but 99% of the time it's just going to be
                                  *
-                                 *      thing["name"]
+                                 *      thing["name"]...
                                  *
-                                 * So we'll see if we can avoid having to eval
-                                 * (the 'u' case below).
+                                 * So we'll see if we can avoid making the
+                                 * VM evaluate this.
                                  */
                                 as_savetok(&name, a->oc);
                                 if (as_lex(a) == OC_RBRACK) {
                                         /* ...the 99% scenario */
                                         namei = seek_or_add_const(a, &name);
-                                        if (as_lex(a) == OC_EQ) {
-                                                assemble_eval(a);
-                                                if (have_parent)
-                                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                                                add_instr(a, INSTR_SETATTR, IARG_ATTR_CONST, namei);
-                                                goto done;
-                                        }
-                                        as_unlex(a);
-                                        if (have_parent)
-                                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                                        add_instr(a, INSTR_GETATTR, IARG_ATTR_CONST, namei);
-                                        have_parent = true;
+                                        GETSETATTR_SHIFT(IARG_ATTR_CONST, namei);
                                         break;
                                 }
                                 as_unlex(a);
                                 /* ...the 1% scenario, fall through and eval */
 
                         case 'u':
+                        case OC_LPAR:
                                 /* need to evaluate index */
                                 as_unlex(a);
                                 assemble_eval(a);
 
                                 if (as_lex(a) == OC_RBRACK) {
-                                        if (as_lex(a) == OC_EQ) {
-                                                assemble_eval(a);
-                                                if (have_parent)
-                                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                                                add_instr(a, INSTR_SETATTR, IARG_ATTR_STACK, -1);
-                                                goto done;
-                                        }
+                                        SETATTR_SHIFT_IF_ASGN(IARG_ATTR_STACK, -1);
                                         as_unlex(a);
                                 }
-                                as_unlex(a);
-                                if (have_parent)
-                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                                add_instr(a, INSTR_GETATTR, IARG_ATTR_STACK, -1);
-                                have_parent = true;
+                                GETATTR_SHIFT(IARG_ATTR_STACK, -1);
                                 break;
                         default:
+                                /*
+                                 * XXX REVISIT:
+                                 *    - I don't allow 'f', because subscript must
+                                 *      be an integer (if array) or string (if a
+                                 *      dictionary).  A float's .toint method cannot
+                                 *      be accessed from the literal expression
+                                 *      itself, eg. "1.0.toint()", because the
+                                 *      parser perceives a double decimal and
+                                 *      throws an error.
+                                 *      But I may not be so strict in the future,
+                                 *      since I noticed that Python isn't.
+                                 */
                                 as_err(a, AE_BADTOK);
                         }
                         as_errlex(a, OC_RBRACK);
@@ -1426,6 +1454,9 @@ done:
         if (have_parent)
                 add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
         ;
+#undef GETATTR_SHIFT
+#undef SETATTR_SHIFT
+#undef SETATTR_SHIFT_IF_ASGN
 }
 
 static void
@@ -1732,6 +1763,9 @@ assemble_load(struct assemble_t *a)
  * #10  break:                  break
  * #11  load:                   load
  * #12  nothing:
+ *
+ * TODO: #13 exception          try '(' IDENTIFIER ',' VALUE* ')' EXPR
+ *              handling:                   catch '(' IDENTIFIER ')' EXPR
  *
  * See Documentation.rst for the details.
  */

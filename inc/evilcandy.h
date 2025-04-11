@@ -437,6 +437,11 @@ extern const char *attr_str(struct var_t *deref);
 /* common hashtable callback for var-storing hashtables */
 extern void var_bucket_delete(void *data);
 
+/* serializer.c */
+extern int serialize_write(FILE *fp, struct executable_t *ex);
+extern struct executable_t *serialize_read(FILE *fp,
+                                        const char *file_name);
+
 /* types/array.c */
 extern struct var_t *array_child(struct var_t *array, int idx);
 extern enum result_t array_append(struct var_t *array,

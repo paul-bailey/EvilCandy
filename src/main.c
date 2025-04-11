@@ -69,14 +69,14 @@ parse_args(int argc, char **argv)
                                         argi++;
                                         if (argi == argc)
                                                 goto er;
-                                        q_.opt.disassemble_outfile = s;
+                                        q_.opt.disassemble_outfile = argv[argi];
                                 } else if (!strcmp(s, "disassemble-only-to")) {
                                         q_.opt.disassemble = true;
                                         q_.opt.disassemble_only = true;
                                         argi++;
                                         if (argi == argc)
                                                 goto er;
-                                        q_.opt.disassemble_outfile = s;
+                                        q_.opt.disassemble_outfile = argv[argi];
                                 } else {
                                         goto er;
                                 }

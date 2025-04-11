@@ -310,6 +310,7 @@ extern void breakpoint__(const char *file, int line);
 /* disassemble.c */
 extern void disassemble(FILE *fp, struct executable_t *ex,
                         const char *sourcefile_name);
+extern void disassemble_lite(FILE *fp, struct executable_t *ex);
 
 /* ewrappers.c */
 extern char *estrdup(const char *s);

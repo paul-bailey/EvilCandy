@@ -98,7 +98,7 @@ print_rodata_str(FILE *fp, struct executable_t *ex, unsigned int i)
                 print_escapestr(fp, v->strptr, '"');
                 break;
         case TYPE_XPTR:
-                fprintf(fp, "<function>%s",
+                fprintf(fp, "<%s>",
                         ((struct executable_t *)v->xptr)->uuid);
                 break;
         default:
@@ -215,13 +215,14 @@ disinstr(FILE *fp, struct executable_t *ex, unsigned int i)
 }
 
 static void
-disassemble_recursive(FILE *fp, struct executable_t *ex)
+disassemble_recursive(FILE *fp, struct executable_t *ex, verbose)
 {
         int i;
-        const char *what = (ex->flags & FE_TOP) ? "script" : "function";
-        fprintf(fp, ".start <%s>%s\n", what, ex->uuid);
-        fprintf(fp, "# in file \"%s\"\n", ex->file_name);
-        fprintf(fp, "# starting at line %d\n", ex->file_line);
+        fprintf(fp, ".start <%s>\n", ex->uuid);
+        if (verbose) {
+                fprintf(fp, "# in file \"%s\"\n", ex->file_name);
+                fprintf(fp, "# starting at line %d\n", ex->file_line);
+        }
 
         for (i = 0; i < ex->n_instr; i++) {
                 disinstr(fp, ex, i);
@@ -229,14 +230,12 @@ disassemble_recursive(FILE *fp, struct executable_t *ex)
 
         putc('\n', fp);
         dump_rodata(fp, ex);
-        fprintf(fp, ".end \"%s\"\n\n\n", what);
+        fprintf(fp, ".end\n\n\n");
 
         for (i = 0; i < ex->n_rodata; i++) {
                 struct var_t *v = ex->rodata[i];
-                if (v->magic == TYPE_XPTR) {
-                        DBUG("XPTR=%p", v->xptr);
-                        disassemble_recursive(fp, v->xptr);
-                }
+                if (v->magic == TYPE_XPTR)
+                        disassemble_recursive(fp, v->xptr, verbose);
         }
 }
 
@@ -244,6 +243,16 @@ void
 disassemble(FILE *fp, struct executable_t *ex, const char *sourcefile_name)
 {
         disassemble_start(fp, sourcefile_name);
-        disassemble_recursive(fp, ex);
+        disassemble_recursive(fp, ex, true);
+}
+
+/**
+ * like disassemble, but without the verbose defines up top.
+ * Used for debugging in interactive TTY mode.
+ */
+void
+disassemble_lite(FILE *fp, struct executable_t *ex)
+{
+        disassemble_recursive(fp, ex, false);
 }
 

@@ -48,36 +48,40 @@ static int
 parse_args(int argc, char **argv)
 {
         int argi;
-        bool expect_disfile = false;
 
-        for (argi = 1; argi < argc; argi++) {
+        argi = 1;
+        while (argi < argc) {
                 char *s = argv[argi];
                 if (*s == '-') {
                         s++;
                         switch (*s++) {
                         case 'd':
                                 q_.opt.disassemble = true;
-                                expect_disfile = true;
                                 if (*s != '\0')
                                         goto er;
-                                continue;
-                        case 'D':
-                                q_.opt.disassemble = true;
-                                q_.opt.disassemble_only = true;
-                                expect_disfile = true;
-                                if (*s != '\0')
+                                break;
+                        case '-':
+                                if (!strcmp(s, "disassemble-only")) {
+                                        q_.opt.disassemble = true;
+                                        q_.opt.disassemble_only = true;
+                                } else if (!strcmp(s, "disassemble-to")) {
+                                        q_.opt.disassemble = true;
+                                        argi++;
+                                        if (argi == argc)
+                                                goto er;
+                                        q_.opt.disassemble_outfile = s;
+                                } else if (!strcmp(s, "disassemble-only-to")) {
+                                        q_.opt.disassemble = true;
+                                        q_.opt.disassemble_only = true;
+                                        argi++;
+                                        if (argi == argc)
+                                                goto er;
+                                        q_.opt.disassemble_outfile = s;
+                                } else {
                                         goto er;
-                                continue;
-                        default:
-                                goto er;
+                                }
+                                break;
                         }
-                } else if (expect_disfile) {
-                        expect_disfile = false;
-                        if (q_.opt.disassemble_outfile != NULL) {
-                                fprintf(stderr, "-D and -d options must be exclusive\n");
-                                goto er;
-                        }
-                        q_.opt.disassemble_outfile = s;
                 } else {
                         if (q_.opt.infile != NULL) {
                                 fprintf(stderr, "You may only specify one input file\n");
@@ -85,6 +89,7 @@ parse_args(int argc, char **argv)
                         }
                         q_.opt.infile = s;
                 }
+                argi++;
         }
         return 0;
 
@@ -107,12 +112,18 @@ run_script(const char *filename, FILE *fp)
                         if (once)
                                 return;
                         once = true;
-                        fp = fopen(q_.opt.disassemble_outfile, "w");
-                        if (!fp) {
-                                err_errno("Cannot output to %s",
-                                          q_.opt.disassemble_outfile);
-                                goto er;
+
+                        if (q_.opt.disassemble_outfile) {
+                                fp = fopen(q_.opt.disassemble_outfile, "w");
+                                if (!fp) {
+                                        err_errno("Cannot output to %s",
+                                                  q_.opt.disassemble_outfile);
+                                        goto er;
+                                }
+                        } else {
+                                fp = stdout;
                         }
+
                         disassemble(fp, ex, filename);
                         fclose(fp);
                 } else {
@@ -144,6 +155,17 @@ er:
 static void
 run_tty(void)
 {
+        FILE *dfp = NULL;
+        if (q_.opt.disassemble) {
+                if (q_.opt.disassemble_outfile) {
+                        dfp = fopen(q_.opt.disassemble_outfile, "w");
+                        if (!dfp)
+                                perror("Cannot disassemble, failed to open output file");
+                } else {
+                        dfp = stdout;
+                }
+        }
+
         for (;;) {
                 int status;
                 struct executable_t *ex;
@@ -157,10 +179,15 @@ run_tty(void)
                         err_print_last(stderr);
                 } else {
                         bug_on(status != RES_OK);
-                        status = vm_execute(ex);
+
+                        if (dfp)
+                                disassemble_lite(dfp, ex);
+                        if (!q_.opt.disassemble_only) {
+                                status = vm_execute(ex);
+                                if (status != RES_OK)
+                                        err_print_last(stderr);
+                        }
                         EXECUTABLE_RELEASE(ex);
-                        if (status != RES_OK)
-                                err_print_last(stderr);
                 }
         }
 }
@@ -190,11 +217,6 @@ main(int argc, char **argv)
                 load_file(q_.opt.infile);
         } else {
                 if (isatty(fileno(stdin))) {
-                        if (q_.opt.disassemble_only) {
-                                fprintf(stderr,
-                                        "Error: Disassembly not available in interactive mode\n");
-                                return 1;
-                        }
                         run_tty();
                 } else {
                         /*

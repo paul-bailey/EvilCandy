@@ -2,6 +2,8 @@
  * FIXME: This whole file is a hacky duct-tape way to do things, because
  * I couldn't be bothered to research the topic of abstract syntax trees.
  *
+ * The entry point is assemble()
+ *
  * XXX  REVISIT: when using gcc with -O3, this file
  *      takes forever and a day to compile.  Is it ME?
  *      Do I need to rethink all the recursion, or should I trust
@@ -18,31 +20,6 @@
  * documentation refers to as VALUE.  I mildly regret not treating full
  * expressions as returning a value, since it would make something like
  * Python's eval() statement much easier to do here.
- *
- * The API pseudocode is, for each input stream...
- *
- *      A) If it's a script file or pipe:
- *           1. call new_assembler()
- *           2. ex = assemble_next(toeof=true)
- *           3. free_assembler(err=false)
- *           4. pass ex to vm.c API for execution
- *
- *      B) If it's a TTY input:
- *           1. call new_assembler()
- *           2. repeat for each non-NULL ex
- *                   2a. ex = assemble_next(toeof=false)
- *               [*] 2b. pass ex to vm.c API for execution
- *                   2c. trim_assembler()
- *           3. free_assembler(err=false)
- *
- * [* Do 2b. before 2c. due to a temporary hack, see comment in
- *    trim_assembler() and to-do.txt re: memory leak bug. ]
- *
- * In the TTY case, assemble_next will return when an end of a top-level
- * statement is reached (along with a required newline, on most
- * terminals).  trim_assembler() adds a lot of per-statement overhead,
- * but it's fast enough compared to someone typing.  In the script case,
- * line-by-line parsing is not needed, so the overhead is only per-file.
  */
 #include "instructions.h"
 #include "token.h"
@@ -1956,7 +1933,7 @@ as_top_executable(struct assemble_t *a)
         return fr->x;
 }
 
-/**
+/*
  * new_assembler - Start an assembler state machine for a new input stream
  * @source_file_name: Name of input stream, for error reporting;
  *              must not be NULL
@@ -1965,7 +1942,7 @@ as_top_executable(struct assemble_t *a)
  * Return: Handle to the assembler state machine.  This is never NULL; an
  *      error would be thrown before returning if that's the case.
  */
-struct assemble_t *
+static struct assemble_t *
 new_assembler(const char *source_file_name, FILE *fp)
 {
         struct assemble_t *a;
@@ -1993,39 +1970,12 @@ new_assembler(const char *source_file_name, FILE *fp)
  * @err:        Zero to keep the executable opcodes in memory,
  *              non-zero to delete those also.
  */
-void
+static void
 free_assembler(struct assemble_t *a, int err)
 {
         as_delete_frames(a, err);
         token_state_free(a->prog);
         free(a);
-}
-
-/**
- * trim_assembler - Delete no-longer-needed info in @a, but hold on to
- *                  its current input parser state.
- *
- * Used when assemble_next() is getting called one expression at a time,
- * ie. during interactive mode.
- */
-void
-trim_assembler(struct assemble_t *a)
-{
-        /*
-         * Delete the (probably) just-run top-level executable code,
-         * but leave child executables zombified, since they may
-         * still be referenced somewhere.
-         *
-         * FIXME: for the descendant executables--function defs
-         * and whatnot--this is what EXECUTABLE_CLAIM and
-         * EXECUTABLE_RELEASE are supposed to handle.
-         */
-        executable_free__(as_top_executable(a));
-        as_delete_frames(a, false);
-
-        list_init(&a->active_frames);
-        list_init(&a->finished_frames);
-        as_frame_push(a, 0);
 }
 
 /**
@@ -2052,7 +2002,7 @@ trim_assembler(struct assemble_t *a)
  *         the program terminates.
  *      b) NULL if @a is already at end of input
  */
-struct executable_t *
+static struct executable_t *
 assemble_next(struct assemble_t *a, bool toeof, int *status)
 {
         struct executable_t *ex;
@@ -2132,7 +2082,6 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                  * TODO: probably more meticulous cleanup needed here,
                  * we don't know exactly where we failed.
                  */
-                trim_assembler(a);
                 *status = RES_ERROR;
                 ex = NULL;
         } else {
@@ -2144,5 +2093,50 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
         }
 
         return ex;
+}
+
+/**
+ * assemble - Parse input and convert into byte code
+ * @filename:   Name of file, for usage later by serializer and disassembler
+ * @fp:         Handle to the open source file, at its starting position.
+ * @toeof:      true to parse an entire input stream.
+ *              false to parse a single statement.
+ *              Use true for scripts and false for interactive TTY mode.
+ * @status:     stores RES_OK if all is well or RES_ERROR if an assembler
+ *              error occurred.
+ *
+ * Return: Either...
+ *      a) A struct executable_t which is ready for passing to the VM.
+ *      b) NULL if the input is already at EOF or if there was an error
+ *         (check status).
+ */
+struct executable_t *
+assemble(const char *filename, FILE *fp, bool toeof, int *status)
+{
+        int localstatus;
+        struct executable_t *ret;
+        struct assemble_t *a = new_assembler(filename, fp);
+        if (!a)
+                return NULL;
+        ret = assemble_next(a, toeof, &localstatus);
+
+        /* status cannot be OK if ret is NULL and toeof is true */
+        bug_on(toeof && ret == NULL && localstatus == RES_OK);
+
+        if (localstatus != RES_OK) {
+                if (!err_occurred()) {
+                        DBUG("Ghost error in assemble()");
+                        err_setstr(ParserError, "Failed to assemble");
+                }
+        }
+
+        bug_on(localstatus == RES_OK && err_occurred());
+
+        if (status)
+                *status = localstatus;
+
+        free_assembler(a, localstatus == RES_ERROR);
+
+        return ret;
 }
 

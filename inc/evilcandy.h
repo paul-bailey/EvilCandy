@@ -110,7 +110,6 @@ struct function_handle_t;
 struct executable_t;
 struct token_t;
 struct token_state_t;
-struct assemble_t;
 
 /**
  * struct object_handle_t - Descriptor for an object handle
@@ -265,12 +264,8 @@ static inline bool isnumvar(struct var_t *v)
         { return v->magic == TYPE_INT || v->magic == TYPE_FLOAT; }
 
 /* assembler.c */
-extern struct executable_t *assemble_next(struct assemble_t *a,
-                                bool toeof, int *status);
-extern struct assemble_t *new_assembler(const char *source_file_name,
-                                        FILE *fp);
-extern void free_assembler(struct assemble_t *a, int err);
-extern void trim_assembler(struct assemble_t *a);
+extern struct executable_t *assemble(const char *filename,
+                        FILE *fp, bool toeof, int *status);
 
 /* builtin/builtin.c */
 /*

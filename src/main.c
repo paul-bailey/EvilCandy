@@ -97,16 +97,10 @@ static void
 run_script(const char *filename, FILE *fp)
 {
         struct executable_t *ex;
-        struct assemble_t *a;
         int status;
-        a = new_assembler(filename, fp);
-        if (!a) /* likely due to empty file */
-                return;
-        ex = assemble_next(a, true, &status);
-        free_assembler(a, false);
-        if (status != RES_OK)
-                goto er;
-        if (ex) {
+
+        ex = assemble(filename, fp, true, &status);
+        if (ex != NULL && status == RES_OK) {
                 if (q_.opt.disassemble_only) {
                         static bool once = false;
                         FILE *fp;
@@ -153,13 +147,8 @@ run_tty(void)
         for (;;) {
                 int status;
                 struct executable_t *ex;
-                struct assemble_t *a;
 
-                a = new_assembler("(stdin)", stdin);
-                if (!a)
-                        break;
-
-                ex = assemble_next(a, false, &status);
+                ex = assemble("<stdin>", stdin, false, &status);
                 if (ex == NULL) {
                         if (status == RES_OK) {
                                 /* normal EOF, user typed ^d */
@@ -173,7 +162,6 @@ run_tty(void)
                         if (status != RES_OK)
                                 err_print_last(stderr);
                 }
-                free_assembler(a, 1);
         }
 }
 

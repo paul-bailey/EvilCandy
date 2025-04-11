@@ -215,7 +215,7 @@ disinstr(FILE *fp, struct executable_t *ex, unsigned int i)
 }
 
 static void
-disassemble_recursive(FILE *fp, struct executable_t *ex, verbose)
+disassemble_recursive(FILE *fp, struct executable_t *ex, int verbose)
 {
         int i;
         fprintf(fp, ".start <%s>\n", ex->uuid);

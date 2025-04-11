@@ -97,56 +97,6 @@ qop_sub(struct var_t *a, struct var_t *b)
 }
 
 /**
- * qop_cmp - compare @a to @b and store result in @a
- * @op: An delimiter token indicating a comparison, e.g. OC_LT
- *
- * WARNING!! this re-casts @a, deleting what it had before.
- */
-struct var_t *
-qop_cmp(struct var_t *a, struct var_t *b, int op)
-{
-        int ret, cmp;
-        const struct operator_methods_t *p;
-
-        p = primitives_of(a);
-        if (!p->cmp) {
-                err_permit("cmp", a);
-                return NULL;
-        }
-        cmp = p->cmp(a, b);
-
-        /* TODO: Move this part below into a call wrapper in
-         * vm.c, so the instruction-to-token translation doesn't
-         * have to take place.
-         */
-        switch (op) {
-        case OC_EQEQ:
-                ret = cmp == 0;
-                break;
-        case OC_LEQ:
-                ret = cmp <= 0;
-                break;
-        case OC_GEQ:
-                ret = cmp >= 0;
-                break;
-        case OC_NEQ:
-                ret = cmp != 0;
-                break;
-        case OC_LT:
-                ret = cmp < 0;
-                break;
-        case OC_GT:
-                ret = cmp > 0;
-                break;
-        default:
-                ret = 0;
-                bug();
-        }
-
-        return intvar_new(ret);
-}
-
-/**
  * qop_shift - left-shift value of @a by amount specified in @b
  *              and store result in @a
  * @op: Must be either OC_LSFHIT or OC_RSHIFT

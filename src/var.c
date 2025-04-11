@@ -382,6 +382,31 @@ var_setattr(struct var_t *v, struct var_t *deref, struct var_t *attr)
         }
 }
 
+/**
+ * var_compare - Compare two variables, used for sorting et al.
+ * @a: First variable to compare.
+ * @b: Second variable to compare.
+ *
+ * Return: -1 if "a < b", 1 if "a > b", and 0 if "a == b".
+ * This is not (necessarily) a pointer comparison.  Each typedef
+ * has their own method of comparison.
+ */
+int
+var_compare(struct var_t *a, struct var_t *b)
+{
+        if (a == b)
+                return 0;
+        if (a == NULL)
+                return -1;
+        if (b == NULL)
+                return 1;
+        if (a->magic != b->magic)
+                return strcmp(typestr(a), typestr(b));
+        if (TYPEDEFS[a->magic].opm->cmp == NULL)
+                return a < b ? -1 : 1;
+        return TYPEDEFS[a->magic].opm->cmp(a, b);
+}
+
 /* for debugging and builtin functions */
 const char *
 typestr_(int magic)

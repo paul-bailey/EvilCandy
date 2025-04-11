@@ -872,19 +872,38 @@ do_rshift(struct vmframe_t *fr, instruction_t ii)
 static int
 do_cmp(struct vmframe_t *fr, instruction_t ii)
 {
-        static const int OCMAP[] = {
-                OC_EQEQ, OC_LEQ, OC_GEQ, OC_NEQ, OC_LT, OC_GT
-        };
         struct var_t *rval, *lval, *res;
-
-        bug_on(ii.arg1 >= ARRAY_SIZE(OCMAP));
+        int cmp;
 
         rval = pop(fr);
         lval = pop(fr);
 
-        res = qop_cmp(lval, rval, OCMAP[ii.arg1]);
-        if (res)
-                push(fr, res);
+        cmp = var_compare(lval, rval);
+        switch (ii.arg1) {
+        case IARG_EQ:
+                cmp = cmp == 0;
+                break;
+        case IARG_LEQ:
+                cmp = cmp <= 0;
+                break;
+        case IARG_GEQ:
+                cmp = cmp >= 0;
+                break;
+        case IARG_NEQ:
+                cmp = cmp != 0;
+                break;
+        case IARG_LT:
+                cmp = cmp < 0;
+                break;
+        case IARG_GT:
+                cmp = cmp > 0;
+                break;
+        default:
+                bug();
+        }
+
+        res = intvar_new(cmp);
+        push(fr, res);
         VAR_DECR_REF(rval);
         VAR_DECR_REF(lval);
         return res ? 0 : -1;

@@ -127,6 +127,27 @@ object_addattr(struct var_t *parent,
                 return RES_ERROR;
         }
 
+        /*
+         * XXX REVISIT: literal_put immortalizes a key in an object that
+         * could later be destroyed.  More often than not @name is
+         * already immortal (it was most likely derived in some way from
+         * a literal in the source code), so this does nothing.  However,
+         * @name could have been constructed from something that the
+         * source never expresses literally.  Consider something weird
+         * like...
+         *
+         *      my_obj = (function(a, key_prefix) {
+         *              let o = {};
+         *              a.foreach(function(e, idx) {
+         *                      o[key_prefix + idx.tostr()] = e;
+         *              });
+         *              return o;
+         *      })(my_arr, 'my_key_');
+         *
+         * Here, 'my_key_' is a hard-coded literal, but 'my_key_0' is not.
+         * For a program with a long lifecycle, this could result in the
+         * build-up of a non-trivial amount of zombified strings.
+         */
         if (hashtable_put(&parent->o->dict, literal_put(name), child) < 0) {
                 err_setstr(RuntimeError,
                            "Object already has element named %s", name);
@@ -189,7 +210,8 @@ object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
                 namestr = name->strptr;
                 break;
         case TYPE_STRING:
-                namestr = string_get_cstring(name);
+                /* XXX REVISIT: same immortalization issue as in object_addattr */
+                namestr = literal_put(string_get_cstring(name));
                 break;
         default:
                 err_argtype("name");

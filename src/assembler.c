@@ -2146,35 +2146,3 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
         return ex;
 }
 
-/**
- * assemble_disassemble - Disassemble an assembled script
- * @a: Result of new_assembler AFTER passing to assembler_next
- *      but BEFORE calling trim_assembler or free_assembler
- *
- * FIXME: Awkward API.  Make struct as_frame_t and
- * struct assembler_t definitions visible to disassemble.c,
- * so something like disassemble_script() could do all this
- * below.
- *
- * Return: RES_OK or RES_ERROR
- */
-int
-assemble_disassemble(struct assemble_t *a)
-{
-        FILE *fp;
-
-        fp = fopen(q_.opt.disassemble_outfile, "w");
-        if (!fp)
-                return -1;
-
-        disassemble_start(fp, a->file_name);
-        struct list_t *li;
-        list_foreach(li, &a->finished_frames) {
-                struct as_frame_t *fr = list2frame(li);
-                struct executable_t *x = fr->x;
-                disassemble(fp, x);
-        }
-        fclose(fp);
-        return 0;
-}
-

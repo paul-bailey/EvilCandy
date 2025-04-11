@@ -76,8 +76,15 @@ static void
 print_rodata_str(FILE *fp, struct executable_t *ex, unsigned int i)
 {
         struct var_t *v;
-        if (i >= ex->n_rodata)
-                fprintf(fp, "%s", undefstr);
+
+        if (i >= ex->n_rodata) {
+                /*
+                 * XXX: Bug necessarily? Could be from a malformed
+                 * byte-code file
+                 */
+                DBUG("idx=%d >= n_rodata=%d", (int)i, ex->n_rodata);
+                bug();
+        }
         v = ex->rodata[i];
 
         switch (v->magic) {
@@ -110,7 +117,7 @@ dump_rodata(FILE *fp, struct executable_t *ex)
         }
 }
 
-void
+static void
 disassemble_start(FILE *fp, const char *sourcefile_name)
 {
         fprintf(fp, "# Disassembly for file %s\n\n", sourcefile_name);
@@ -149,8 +156,10 @@ disinstr(FILE *fp, struct executable_t *ex, unsigned int i)
                               SAFE_NAME(ATTR, ii->arg1), ii->arg2);
                 if (len < 16)
                         spaces(fp, 16 - len);
-                fprintf(fp, "# ");
-                print_rodata_str(fp, ex, ii->arg2);
+                if (ii->arg1 != IARG_ATTR_STACK) {
+                        fprintf(fp, "# ");
+                        print_rodata_str(fp, ex, ii->arg2);
+                }
                 putc('\n', fp);
                 break;
 
@@ -205,8 +214,8 @@ disinstr(FILE *fp, struct executable_t *ex, unsigned int i)
         }
 }
 
-void
-disassemble(FILE *fp, struct executable_t *ex)
+static void
+disassemble_recursive(FILE *fp, struct executable_t *ex)
 {
         int i;
         const char *what = (ex->flags & FE_TOP) ? "script" : "function";
@@ -214,11 +223,27 @@ disassemble(FILE *fp, struct executable_t *ex)
         fprintf(fp, "# in file \"%s\"\n", ex->file_name);
         fprintf(fp, "# starting at line %d\n", ex->file_line);
 
-        for (i = 0; i < ex->n_instr; i++)
+        for (i = 0; i < ex->n_instr; i++) {
                 disinstr(fp, ex, i);
+        }
 
         putc('\n', fp);
         dump_rodata(fp, ex);
         fprintf(fp, ".end \"%s\"\n\n\n", what);
+
+        for (i = 0; i < ex->n_rodata; i++) {
+                struct var_t *v = ex->rodata[i];
+                if (v->magic == TYPE_XPTR) {
+                        DBUG("XPTR=%p", v->xptr);
+                        disassemble_recursive(fp, v->xptr);
+                }
+        }
+}
+
+void
+disassemble(FILE *fp, struct executable_t *ex, const char *sourcefile_name)
+{
+        disassemble_start(fp, sourcefile_name);
+        disassemble_recursive(fp, ex);
 }
 

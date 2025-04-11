@@ -782,6 +782,7 @@ serialize_read(FILE *fp, const char *file_name)
                 struct executable_t *ex = emalloc(sizeof(*ex));
                 exarray[i] = ex;
 
+                memset(ex, 0, sizeof(*ex));
                 ex->file_name = notdir(file_name);
                 res = read_executable(&state, ex);
                 if (err_occurred() || res != RES_OK)
@@ -797,6 +798,8 @@ serialize_read(FILE *fp, const char *file_name)
                 goto err_have_ex;
 
         ret = exarray[0];
+
+        /* no longer need array, ret's .rodata can reference the rest */
         free(exarray);
         free(state.buf);
         return ret;
@@ -805,6 +808,16 @@ err_have_ex:
         for (i = 0; i < hdr.nexec; i++) {
                 if (exarray[i] == NULL)
                         break;
+                /*
+                 * exarray contains no partially-set-up structs,
+                 * so do the full cleanup.
+                 */
+                if (exarray[i]->rodata)
+                        free(exarray[i]->rodata);
+                if (exarray[i]->instr)
+                        free(exarray[i]->instr);
+                if (exarray[i]->label)
+                        free(exarray[i]->label);
                 free(exarray[i]);
         }
         free(exarray);
@@ -812,6 +825,7 @@ err_have_ex:
 err_have_buffer:
         free(state.buf);
         if (!err_occurred()) {
+                DBUG("Ghost error @%s, line %d", __FILE__, __LINE__);
                 err_setstr(RuntimeError,
                            "Failed to read byte code file %s", file_name);
         }

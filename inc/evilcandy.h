@@ -271,7 +271,6 @@ extern struct assemble_t *new_assembler(const char *source_file_name,
                                         FILE *fp);
 extern void free_assembler(struct assemble_t *a, int err);
 extern void trim_assembler(struct assemble_t *a);
-extern int assemble_disassemble(struct assemble_t *a);
 
 /* builtin/builtin.c */
 /*
@@ -314,8 +313,8 @@ extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
 
 /* disassemble.c */
-extern void disassemble_start(FILE *fp, const char *sourcefile_name);
-extern void disassemble(FILE *fp, struct executable_t *ex);
+extern void disassemble(FILE *fp, struct executable_t *ex,
+                        const char *sourcefile_name);
 
 /* ewrappers.c */
 extern char *estrdup(const char *s);

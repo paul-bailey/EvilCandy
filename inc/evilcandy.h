@@ -295,27 +295,20 @@ extern void moduleinit_builtin(void);
 #define breakpoint() breakpoint__(__FILE__, __LINE__)
 
 extern void fail(const char *msg, ...);
-#if 0
-extern void syntax(const char *msg, ...);
-extern void syntax_noexit(const char *msg, ...);
-extern void syntax_noexit_(const char *filename,
-                        unsigned int line, const char *msg, ...);
-extern void warning(const char *msg, ...);
-extern void warning_(const char *filename,
-                        unsigned int line, const char *msg, ...);
-#endif /* 0 */
-
 extern void err_setstr(struct var_t *exc, const char *msg, ...);
 extern void err_get(struct var_t **exc, char **msg);
 extern bool err_exists(void);
 extern void err_print(FILE *fp, struct var_t *exc, char *msg);
 extern void err_print_last(FILE *fp);
+extern bool err_occurred(void);
+
 extern void err_attribute(const char *getorset,
                           struct var_t *deref, struct var_t *obj);
 extern void err_argtype(const char *what);
 extern void err_locked(void);
 extern void err_mismatch(const char *op);
 extern void err_permit(const char *op, struct var_t *var);
+extern void err_errno(const char *msg, ...);
 
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
@@ -328,6 +321,7 @@ extern void disassemble(FILE *fp, struct executable_t *ex);
 extern char *estrdup(const char *s);
 extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
+extern void *erealloc(void *buf, size_t size);
 
 /* types/float.c */
 extern struct var_t *floatvar_new(double value);

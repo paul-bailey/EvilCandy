@@ -117,27 +117,51 @@ typedef struct {
  *              (Internal pointers have no meaning except when executing.)
  *              This is the text representation, not the binary bitstream.
  *
+ *      Instantiation:
+ *
+ * A struct excutable_t is created for every script and every function
+ * definition or lambda within the script.  These are different from
+ * TYPE_FUNCTION variables; TYPE_FUNCTION variables are instantiated
+ * during **runtime**, and may contain their own metadata such as
+ * closures and defaults.  struct executable_t's are instantiated during
+ * **assembly time**, since any instantiation of a function built from
+ * the same definition in the script will have the same instruction set.
+ * An example hierarchy of owning structs, names of variables, variables,
+ * and struct executable_t's might look like this:
+ *
+ *      owner_1 owner_2 owner_3 <-- owning objects, "this"
+ *        |       |       |
+ *      name1   name2   name3   <-- different names or dict keys with
+ *        \       |       |         references to same function var
+ *         \     /        |
+ *           var1       var2    <-- TYPE_FUNCTION variables using
+ *               \       /          the same executable code
+ *              struct executable_t
+ *
  *      TODO: The following remarks mostly justify how to serialize.
  *            When serializer is written, move these comments there.
  *
- * This is created for every script and every function definition or
- * lambda within the script.  The top-level will have pointers in its
- * .rodata field to the other struct executable_t's, creating a network
- * of singly-linked struct executables.
+ *      Referencing:
  *
- * These .rodata entries are for _definitions_, not _calls_. eg.  any
+ * The struct executable_t for the script will have pointers in its
+ * .rodata field to the other struct executable_t's (unless the script
+ * contains no functions), creating a network of singly-linked struct
+ * executables.
+ *
+ * These .rodata entries are for _definitions_, not _calls_. eg. any
  * time the assembler encounters a "function" keyword or lambda "``"
  * token it sets up a "create function var" bunch of instructions,
  * DEFFUNC, ADD_CLOSURE, ADD_DEFAULT... where the DEFFUNC has an argument
  * to its opcode meaning "the struct executable for it is at this address
  * in .rodata".
  *
- * For _calls_ to code from outside the script, ie. a loaded module, the
- * module would need to have made their functions in some way accessible
- * in the global namespace, so the .rodata entries for each call is a
- * string.  For calls within the script, they may refer to it by name
- * if the function is global or by calling a function variable on the
- * stack if the function is nested.
+ * For calls to code from *outside* the script, (such as when a script
+ * is a loaded module), the module would need to have made their
+ * functions in some way accessible in the global namespace, so the
+ * .rodata entries for each call is a string.  For calls *within* the
+ * script, they may refer to it by name if the function is global or
+ * by calling a function variable on the stack if the function is
+ * nested.
  *
  * This means that for every struct executable_t that exists,
  *      * just one .rodata pointer to this struct exists anywhere
@@ -149,12 +173,12 @@ typedef struct {
  *        to the executable in runtime, which is not a concern for
  *        serialization.
  *
- * So when serializing a struct executable_t as binary to a byte-code
+ * So when serializing a struct executable_t to a binary byte-code
  * file, we can print it, all the descendants it refers to, all the
  * descendants those descendants refer to, etc., to a file without
- * worrying about redundantly duplicating anything.
+ * worrying about duplicating the same code everywhere.
  *
- *      Garbage Collection
+ *      Garbage Collection:
  *
  * Even though these are all related by a pointer network as mentioned,
  * they could be used by more than one instantiation of a function,
@@ -187,6 +211,9 @@ struct executable_t {
          * XXX: I'd rather this be uuid_t, but I want to limit the
          * platform dependence and header namespace to the C modules
          * as much as possible.
+         *
+         * XXX: Overkill?  These only have to be unique **per file**
+         * Can it not just be an incrementing integer when serializing?
          */
         char *uuid;
 };

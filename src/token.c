@@ -810,6 +810,7 @@ tokenize_helper(struct token_state_t *state)
                 err_get(&exc, &emsg);
                 bug_on(exc == NULL || emsg == NULL);
                 err_print(stderr, exc, emsg);
+                free(emsg);
                 if (state->line != NULL) {
                         fprintf(stderr, "In file %s line %d:\n",
                                 state->filename, state->lineno);

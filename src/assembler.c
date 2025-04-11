@@ -2125,6 +2125,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                         err_get(&exc, &emsg);
                         bug_on(!exc || !emsg);
                         err_print(stderr, exc, emsg);
+                        free(emsg);
                 }
 
                 /*

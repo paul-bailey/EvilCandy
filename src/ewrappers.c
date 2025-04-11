@@ -42,4 +42,14 @@ ecalloc(size_t size)
         return res;
 }
 
-
+/**
+ * erealloc - error-handling wrapper to realloc
+ */
+void *
+erealloc(void *buf, size_t size)
+{
+        void *res = realloc(buf, size);
+        if (!res)
+                fail("realloc failed");
+        return res;
+}

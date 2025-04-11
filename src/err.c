@@ -19,8 +19,6 @@
  */
 #define COLOR(what, str)      COLOR_##what str COLOR_DEF
 
-static struct buffer_t msg_buf;
-static bool msg_buf_init = false;
 static char *msg_last = NULL;
 static struct var_t *exception_last = NULL;
 
@@ -77,26 +75,14 @@ fail(const char *msg, ...)
 static void
 err_vsetstr(struct var_t *exc, const char *msg, va_list ap)
 {
-        if (!msg_buf_init) {
-                buffer_init(&msg_buf);
-                /*
-                 * put a dummy in just to be sure its string pointer
-                 * is valid.
-                 */
-                buffer_putc(&msg_buf, '1');
-                msg_buf_init = true;
-        }
+        char msg_buf[100];
+        size_t len = sizeof(msg_buf);
+        memset(msg_buf, 0, len);
 
-        buffer_reset(&msg_buf);
-
-        /*
-         * buffer_vprintf calls s[n]printf twice.
-         * I assume that we're only here because we hit the slow path.
-         */
-
-        buffer_vprintf(&msg_buf, msg, ap);
-
-        msg_last = msg_buf.s;
+        vsnprintf(msg_buf, len - 1, msg, ap);
+        if (msg_last)
+                free(msg_last);
+        msg_last = estrdup(msg_buf);
         exception_last = exc;
 }
 
@@ -117,6 +103,9 @@ err_setstr(struct var_t *exc, const char *msg, ...)
         va_end(ap);
 }
 
+/*
+ * If *msg is non-NULL, calling code is responsible for calling free().
+ */
 void
 err_get(struct var_t **exc, char **msg)
 {
@@ -164,6 +153,8 @@ err_print_last(FILE *fp)
         struct var_t *exc;
         err_get(&exc, &emsg);
         err_print(fp, exc, emsg);
+        if (emsg)
+                free(emsg);
 }
 
 /*
@@ -208,6 +199,39 @@ err_permit(const char *op, struct var_t *var)
         err_setstr(RuntimeError,
                    "%s operation not permitted for type %s",
                    op, typestr(var));
+}
+
+void
+err_errno(const char *msg, ...)
+{
+        char msgbuf[100];
+        va_list ap;
+        ssize_t n;
+
+        memset(msgbuf, 0, sizeof(msgbuf));
+        va_start(ap, msg);
+        n = vsnprintf(msgbuf, sizeof(msgbuf), msg, ap);
+        va_end(ap);
+
+        if (n <= 0) {
+                if (errno)
+                        err_setstr(SystemError, "%s", strerror(errno));
+                else
+                        err_setstr(SystemError, "(possible bug)");
+        } else {
+                if (errno) {
+                        err_setstr(SystemError, "%s: %s",
+                                   msgbuf, strerror(errno));
+                } else {
+                        err_setstr(SystemError, "%s", msgbuf);
+                }
+        }
+}
+
+bool
+err_occurred(void)
+{
+        return exception_last != NULL;
 }
 
 /*

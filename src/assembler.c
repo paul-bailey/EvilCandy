@@ -2122,14 +2122,6 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
 
         /* status cannot be OK if ret is NULL and toeof is true */
         bug_on(toeof && ret == NULL && localstatus == RES_OK);
-
-        if (localstatus != RES_OK) {
-                if (!err_occurred()) {
-                        DBUG("Ghost error in assemble()");
-                        err_setstr(ParserError, "Failed to assemble");
-                }
-        }
-
         bug_on(localstatus == RES_OK && err_occurred());
 
         if (status)

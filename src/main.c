@@ -114,7 +114,7 @@ run_script(const char *filename, FILE *fp)
 
         ex = assemble(filename, fp, true, &status);
         if (ex != NULL && status == RES_OK) {
-                if (q_.opt.disassemble_only) {
+                if (q_.opt.disassemble) {
                         static bool once = false;
                         FILE *fp;
                         if (once)
@@ -134,9 +134,10 @@ run_script(const char *filename, FILE *fp)
 
                         disassemble(fp, ex, filename);
                         fclose(fp);
-                } else {
-                        status = vm_execute(ex);
                 }
+                if (!q_.opt.disassemble_only)
+                        status = vm_execute(ex);
+
                 EXECUTABLE_RELEASE(ex);
                 if (status != RES_OK)
                         goto er;

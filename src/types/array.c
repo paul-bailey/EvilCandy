@@ -193,14 +193,17 @@ array_reset(struct var_t *a)
 static int
 array_cmp(struct var_t *a, struct var_t *b)
 {
-        if (b->magic != TYPE_LIST || b->a != a->a)
-                return -1;
-        /*
-         * XXX REVISIT: Good policy choice?
-         *      if different handle but same length, same type,
-         *      check if all elements per index also match.
-         */
-        return 0;
+        int i, n = a->a->nmemb;
+        struct var_t **aitems = (struct var_t **)a->a->children.s;
+        struct var_t **bitems = (struct var_t **)b->a->children.s;
+        if (n > b->a->nmemb)
+                n = b->a->nmemb;
+        for (i = 0; i < n; i++) {
+                int x = var_compare(aitems[i], bitems[i]);
+                if (x)
+                        return x;
+        }
+        return a->a->nmemb - b->a->nmemb;
 }
 
 static struct var_t *

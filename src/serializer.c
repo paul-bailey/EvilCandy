@@ -78,6 +78,7 @@
  */
 
 #include <evilcandy.h>
+#include <typedefs.h>
 
 #include <errno.h>
 #include <limits.h>
@@ -561,7 +562,7 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
                          *   there called LYING!"
                          *                         --Technoblade
                          */
-                        v->magic = TYPE_XPTR;
+                        v->v_type = &XptrType;
                         break;
                 default:
                         break;
@@ -579,10 +580,10 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
                         if (!v)
                                 break;
 
-                        if (v->magic == TYPE_XPTR) {
+                        if (isvar_xptr(v)) {
                                 /* because we lied, lie again */
                                 free(v->strptr);
-                                v->magic = TYPE_EMPTY;
+                                v->v_type = &EmptyType;
                         }
 
                         VAR_DECR_REF(ex->rodata[i]);
@@ -673,7 +674,7 @@ resolve_uuid(struct executable_t *ex, struct executable_t **xa, int n)
                 struct var_t *v = ex->rodata[i];
                 struct executable_t *ref;
 
-                if (v->magic != TYPE_XPTR)
+                if (!isvar_xptr(v))
                         continue;
                 ref = seek_uuid(v->strptr, xa, n);
                 if (ref == ex) {
@@ -972,34 +973,33 @@ write_exec(struct serial_wstate_t *state, struct executable_t *ex)
         for (i = 0; i < ex->n_rodata; i++) {
                 struct var_t *v = ex->rodata[i];
 
-                wbyte(state, v->magic);
-
-                switch (v->magic) {
-                case TYPE_EMPTY: /* XXX: bug? */
+                if (isvar_empty(v))
+                        wbyte(state, TYPE_EMPTY);
                         continue;
-                case TYPE_FLOAT:
-                case TYPE_INT:
+                if (isvar_float(v) || isvar_int(v)) {
+                        if (isvar_float(v))
+                                wbyte(state, TYPE_FLOAT);
+                        else
+                                wbyte(state, TYPE_INT);
                         /*
                          * No implicit casting from float to int here,
                          * because these are taken from a union.
                          */
                         wllong(state, v->i);
-                        break;
-                case TYPE_STRPTR:
+                } else if (isvar_strptr(v)) {
+                        wbyte(state, TYPE_STRPTR);
                         wstring(state, v->strptr);
-                        break;
-                case TYPE_XPTR:
+                } else if (isvar_xptr(v)) {
                         /*
                          * Of course we don't serialize an internal
                          * pointer.  Instead we use the executable's UUID
                          */
+                        wbyte(state, TYPE_XPTR);
                         wstring(state, v->xptr->uuid);
-                        break;
-                case TYPE_DICT:
-                case TYPE_FUNCTION:
-                case TYPE_STRING: /* should only have strptr */
-                case TYPE_LIST:
-                default:
+                } else {
+                        /* note StringType falls here, because all strings
+                         * in .rodata are StrptrType
+                         */
                         bug();
                 }
 
@@ -1030,7 +1030,7 @@ write_exec(struct serial_wstate_t *state, struct executable_t *ex)
          */
         for (i = 0; i < ex->n_rodata; i++) {
                 struct var_t *v = ex->rodata[i];
-                if (v->magic == TYPE_XPTR) {
+                if (isvar_xptr(v)) {
                         int res = write_exec(state, v->xptr);
                         if (res != RES_OK)
                                 return res;
@@ -1048,7 +1048,7 @@ n_exec(struct executable_t *node)
 
         for (i = 0; i < node->n_rodata; i++) {
                 struct var_t *v = node->rodata[i];
-                if (v->magic == TYPE_XPTR)
+                if (isvar_xptr(v))
                         count += n_exec(v->xptr);
         }
         return count;

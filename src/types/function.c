@@ -27,7 +27,7 @@
  * @f_argc:     Highest argument number that has a default
  *
  * TODO: Some cleanup and simplification is in order:
- *      f_argv and f_clov could be TYPE_LIST vars now, since list
+ *      f_argv and f_clov could be ArrayType vars now, since list
  *      no longer requires its members to all be the same type.
  *      f_cb and f_ex could be in a union.
  *      f_minargs/f_maxargs/f_argc are all confusing, and I'm not
@@ -105,9 +105,9 @@ function_of(struct var_t *fn, struct var_t **owner)
          * Descend until we get to the function.
          */
         while (fn) {
-                if (fn->magic == TYPE_FUNCTION) {
+                if (isvar_function(fn)) {
                         goto done;
-                } else if (fn->magic == TYPE_DICT) {
+                } else if (isvar_object(fn)) {
                         if (!callable)
                                 callable = literal_put("__callable__");
 
@@ -206,7 +206,7 @@ call_function(struct vmframe_t *fr, struct var_t *fn)
 {
         struct function_handle_t *fh = fn->fn;
 
-        bug_on(fn->magic != TYPE_FUNCTION);
+        bug_on(!isvar_function(fn));
         bug_on(!fh);
         bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
 
@@ -223,7 +223,7 @@ void
 function_add_closure(struct var_t *func, struct var_t *clo)
 {
         struct function_handle_t *fh = func->fn;
-        bug_on(func->magic != TYPE_FUNCTION);
+        bug_on(!isvar_function(func));
         bug_on(!fh);
         bug_on(fh->f_magic != FUNC_USER);
 
@@ -239,7 +239,7 @@ function_add_default(struct var_t *func,
 {
         struct function_handle_t *fh = func->fn;
         size_t needsize;
-        bug_on(func->magic != TYPE_FUNCTION);
+        bug_on(!isvar_function(func));
         bug_on(!fh);
         bug_on(fh->f_magic != FUNC_USER);
         bug_on(argno < 0);
@@ -279,7 +279,7 @@ function_add_default(struct var_t *func,
  *      or some other struct var_t return value.  If there's nothing
  *      to return, return NULL; this saves us the double-task of
  *      creating and destroying a return value that won't be used;
- *      the wrapping function will convert it to a TYPE_EMPTY for
+ *      the wrapping function will change it to NullVar for
  *      callers that must receive a return value.
  * @minargs: Minimum number of args used by the function
  * @maxargs: Maximum number of args used by the function
@@ -297,7 +297,7 @@ funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
         fh->f_minargs = minargs;
         fh->f_maxargs = maxargs;
         func->fn = fh;
-        func->magic = TYPE_FUNCTION;
+        func->v_type = &FunctionType;
         return func;
 }
 
@@ -316,7 +316,7 @@ funcvar_new_user(struct executable_t *ex)
         fh->f_ex = ex;
         EXECUTABLE_CLAIM(ex);
 
-        func->magic = TYPE_FUNCTION;
+        func->v_type = &FunctionType;
         func->fn = fh;
         return func;
 }
@@ -324,7 +324,7 @@ funcvar_new_user(struct executable_t *ex)
 static int
 func_cmp(struct var_t *a, struct var_t *b)
 {
-        if (b->magic != TYPE_FUNCTION || b->fn != a->fn)
+        if (!isvar_function(b) || b->fn != a->fn)
                 return -1;
         return 0;
 }
@@ -356,17 +356,9 @@ static const struct operator_methods_t function_primitives = {
         .cp = func_cp,
 };
 
-void
-typedefinit_function(void)
-{
-        var_config_type(TYPE_FUNCTION,
-                        "function",
-                        &function_primitives,
-                        /*
-                         * TODO: function methods, like
-                         *      strbuf = myfunc.disassemble();
-                         */
-                        NULL);
-}
-
+struct type_t FunctionType = {
+        .name   = "function",
+        .opm    = &function_primitives,
+        .cbm    = NULL,
+};
 

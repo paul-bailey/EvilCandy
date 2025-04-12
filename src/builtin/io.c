@@ -23,6 +23,7 @@
  * TODO: Binary file operations, need better array class than list.
  */
 #include "builtin.h"
+#include <typedefs.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
@@ -48,7 +49,7 @@ getfh(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct file_handle_t *fh;
-        bug_on(self->magic != TYPE_DICT);
+        bug_on(!isvar_object(self));
         fh = object_get_priv(self);
         bug_on(fh->magic != FILE_HANDLE_MAGIC);
         return fh;
@@ -141,7 +142,7 @@ do_writeline(struct vmframe_t *fr)
 
         bug_on(vs == NULL);
 
-        if (arg_type_check(vs, TYPE_STRING) != 0)
+        if (arg_type_check(vs, &StringType) != 0)
                 return ErrorVar;
         s = string_get_cstring(vs);
         if (!s)
@@ -285,9 +286,9 @@ do_open(struct vmframe_t *fr)
         int errno_save = errno;
         struct var_t *ret;
 
-        if (arg_type_check(vname, TYPE_STRING) != 0)
+        if (arg_type_check(vname, &StringType) != 0)
                 return ErrorVar;
-        if (arg_type_check(vmode, TYPE_STRING) != 0)
+        if (arg_type_check(vmode, &StringType) != 0)
                 return ErrorVar;
         name = string_get_cstring(vname);
         mode = string_get_cstring(vmode);

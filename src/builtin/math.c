@@ -2,6 +2,7 @@
  * builtin/math.c - Implementation of the __gbl__.Math built-in object
  */
 #include "builtin.h"
+#include <typedefs.h>
 #include <math.h>
 
 /* XXX easier to just return NAN for bad? */
@@ -10,10 +11,10 @@ get_floatarg(struct vmframe_t *fr, int argno, int *status)
 {
         struct var_t *x = frame_get_arg(fr, argno);
         bug_on(!x);
-        if (x->magic == TYPE_INT) {
+        if (isvar_int(x)) {
                 *status = 0;
                 return (double)x->i;
-        } else if (x->magic == TYPE_FLOAT) {
+        } else if (isvar_float(x)) {
                 *status = 0;
                 return x->f;
         } else {

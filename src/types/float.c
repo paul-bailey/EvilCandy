@@ -4,7 +4,7 @@
 static inline double
 var2float(struct var_t *v)
 {
-        return v->magic == TYPE_INT ? (double)v->i : v->f;
+        return isvar_int(v) ? (double)v->i : v->f;
 }
 
 struct var_t *
@@ -12,7 +12,7 @@ floatvar_new(double v)
 {
         struct var_t *ret = var_new();
         ret->f = v;
-        ret->magic = TYPE_FLOAT;
+        ret->v_type = &FloatType;
         return ret;
 }
 
@@ -106,7 +106,7 @@ float_tostr(struct vmframe_t *fr)
         char buf[64];
         ssize_t len;
         struct var_t *self = get_this(fr);
-        bug_on(self->magic != TYPE_FLOAT);
+        bug_on(!isvar_float(self));
 
         len = snprintf(buf, sizeof(buf), "%.8g", self->f);
         /* this should be impossible */
@@ -134,9 +134,9 @@ static const struct operator_methods_t float_primitives = {
         .cp             = float_cp,
 };
 
-void
-typedefinit_float(void)
-{
-        var_config_type(TYPE_FLOAT, "float",
-                        &float_primitives, float_methods);
-}
+struct type_t FloatType = {
+        .name   = "float",
+        .opm    = &float_primitives,
+        .cbm    = float_methods,
+};
+

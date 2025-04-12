@@ -24,6 +24,7 @@
 #include "instructions.h"
 #include "token.h"
 #include <evilcandy.h>
+#include <typedefs.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <string.h>
@@ -495,7 +496,7 @@ seek_or_add_const_xptr(struct assemble_t *a, void *p)
         struct executable_t *x = fr->x;
         for (i = 0; i < x->n_rodata; i++) {
                 v = x->rodata[i];
-                if (v->magic == TYPE_XPTR && v->xptr == p)
+                if (isvar_xptr(v) && v->xptr == p)
                         break;
         }
 
@@ -513,7 +514,7 @@ seek_const_int(struct assemble_t *a, struct executable_t *x, long long vi)
         int i;
         for (i = 0; i < x->n_rodata; i++) {
                 struct var_t *v = x->rodata[i];
-                if (v->magic == TYPE_INT && v->i == vi)
+                if (isvar_int(v) && v->i == vi)
                         break;
         }
         return i;
@@ -534,7 +535,7 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
         case 'f':
                 for (i = 0; i < x->n_rodata; i++) {
                         v = x->rodata[i];
-                        if (v->magic == TYPE_FLOAT && v->f == oc->f)
+                        if (isvar_float(v) && v->f == oc->f)
                                 break;
                 }
                 break;
@@ -542,10 +543,8 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
         case 'q':
                 for (i = 0; i < x->n_rodata; i++) {
                         v = x->rodata[i];
-                        if (v->magic == TYPE_STRPTR
-                            && v->strptr == oc->s) {
+                        if (isvar_strptr(v) && v->strptr == oc->s)
                                 break;
-                        }
                 }
                 break;
         case OC_TRUE:

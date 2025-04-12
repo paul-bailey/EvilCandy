@@ -35,35 +35,6 @@ struct type_handle_preheader_t_ {
         int nref;
 };
 
-/* array.c */
-extern void typedefinit_array(void);
-
-/* empty.c */
-extern void typedefinit_empty(void);
-
-/* float.c */
-extern void typedefinit_float(void);
-
-/* function.c */
-extern void typedefinit_function(void);
-
-/* integer.c */
-extern void typedefinit_integer(void);
-
-/* intl.c */
-extern void typedefinit_intl(void);
-
-/* object.c */
-extern void typedefinit_object(void);
-
-/* string.c */
-extern void typedefinit_string(void);
-
-/* ../var.c */
-extern void var_config_type(int magic, const char *name,
-                            const struct operator_methods_t *opm,
-                            const struct type_inittbl_t *tbl);
-
 /* typehandle.c */
 extern void *type_handle_new(size_t size, void (*destructor)(void *));
 

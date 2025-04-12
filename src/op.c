@@ -10,8 +10,7 @@
 static inline const struct operator_methods_t *
 primitives_of(struct var_t *v)
 {
-        bug_on(v->magic >= NTYPES);
-        return TYPEDEFS[v->magic].opm;
+        return v->v_type->opm;
 }
 
 /**

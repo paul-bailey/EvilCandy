@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <typedefs.h>
 #include "token.h"
 #include <stdarg.h>
 #include <stdlib.h>
@@ -239,18 +240,18 @@ err_occurred(void)
  * figure out what error message to print and return an error value
  */
 int
-arg_type_check_failed(struct var_t *v, int want)
+arg_type_check_failed(struct var_t *v, struct type_t *want)
 {
         if (!v) {
                 /* XXX trapped at function_prepare_frame() time? */
                 err_setstr(RuntimeError,
                            "%s argument missing",
-                           typestr_(want));
+                           want->name);
         } else {
-                bug_on(v->magic == want);
+                bug_on(v->v_type == want);
                 err_setstr(RuntimeError,
                            "Expected argument %s but got %s",
-                           typestr_(want), typestr(v));
+                           want->name, typestr(v));
         }
         return -1;
 }

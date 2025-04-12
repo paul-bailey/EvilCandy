@@ -80,7 +80,7 @@ static inline char *
 RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *vs = RODATA(fr, ii);
-        bug_on(vs->magic != TYPE_STRPTR);
+        bug_on(!isvar_strptr(vs));
         return vs->strptr;
 }
 
@@ -91,7 +91,7 @@ symbol_seek(struct var_t *name)
 {
         struct var_t *ret;
         const char *s = name->strptr;
-        bug_on(name->magic != TYPE_STRPTR);
+        bug_on(!isvar_strptr(name));
         bug_on(!s);
 
         ret = hashtable_get(symbol_table, s);
@@ -106,7 +106,7 @@ symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
         const char *s = name->strptr;
         struct var_t *child;
 
-        bug_on(name->magic != TYPE_STRPTR);
+        bug_on(!isvar_strptr(name));
         bug_on(!s);
 
         if ((child = hashtable_swap(symbol_table, (void *)s, v)) != NULL) {
@@ -370,23 +370,21 @@ logical_and(struct var_t *a, struct var_t *b)
 static struct var_t *
 rshift(struct var_t *a, struct var_t *b)
 {
-        const struct operator_methods_t *p = TYPEDEFS[a->magic].opm;
-        if (!p->rshift) {
+        if (!a->v_type->opm->rshift) {
                 err_permit(">>", a);
                 return NULL;
         }
-        return p->rshift(a, b);
+        return a->v_type->opm->rshift(a, b);
 }
 
 static struct var_t *
 lshift(struct var_t *a, struct var_t *b)
 {
-        const struct operator_methods_t *p = TYPEDEFS[a->magic].opm;
-        if (!p->lshift) {
+        if (!a->v_type->opm->lshift) {
                 err_permit("<<", a);
                 return NULL;
         }
-        return p->lshift(a, b);
+        return a->v_type->opm->lshift(a, b);
 }
 
 static int
@@ -643,7 +641,7 @@ do_deffunc(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *func;
         struct var_t *loc = RODATA(fr, ii);
-        bug_on(loc->magic != TYPE_XPTR);
+        bug_on(!isvar_xptr(loc));
         func = funcvar_new_user(loc->xptr);
         push(fr, func);
         return 0;
@@ -741,7 +739,7 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
         if (!attr) {
                 err_attribute("get", deref, obj);
                 ret = -1;
-        } else if (obj->magic != TYPE_STRING || deref->magic != TYPE_INT) {
+        } else if (!isvar_string(obj) || !isvar_int(deref)) {
                 /*
                  * FIXME: This is hacky, but string_nth_child creates a
                  * new var, the others return an existing var, and I need to

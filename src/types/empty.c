@@ -9,7 +9,7 @@ empty_cmpz(struct var_t *v)
 static int
 empty_cmp(struct var_t *a, struct var_t *b)
 {
-        return b->magic == TYPE_EMPTY ? 0 : -1;
+        return isvar_empty(b) ? 0 : -1;
 }
 
 static struct var_t *
@@ -33,9 +33,9 @@ static const struct operator_methods_t empty_primitives = {
         .bit_not        = empty_bit_not,
 };
 
-void
-typedefinit_empty(void)
-{
-        var_config_type(TYPE_EMPTY, "empty", &empty_primitives, NULL);
-}
+struct type_t EmptyType = {
+        .name   = "empty",
+        .opm    = &empty_primitives,
+        .cbm    = NULL,
+};
 

@@ -5,6 +5,7 @@
 #include "instructions.h"
 #include "token.h"
 #include <evilcandy.h>
+#include <typedefs.h>
 #include <stdio.h>
 
 #define IARG(x)   [IARG_##x]  = #x
@@ -87,21 +88,16 @@ print_rodata_str(FILE *fp, struct executable_t *ex, unsigned int i)
         }
         v = ex->rodata[i];
 
-        switch (v->magic) {
-        case TYPE_INT:
+        if (isvar_int(v)) {
                 fprintf(fp, "0x%016llx", v->i);
-                break;
-        case TYPE_FLOAT:
+        } else if (isvar_float(v)) {
                 fprintf(fp, "%.8le", v->f);
-                break;
-        case TYPE_STRPTR:
+        } else if (isvar_strptr(v)) {
                 print_escapestr(fp, v->strptr, '"');
-                break;
-        case TYPE_XPTR:
+        } else if (isvar_xptr(v)) {
                 fprintf(fp, "<%s>",
                         ((struct executable_t *)v->xptr)->uuid);
-                break;
-        default:
+        } else {
                 fprintf(fp, "%s", undefstr);
         }
 }
@@ -234,7 +230,7 @@ disassemble_recursive(FILE *fp, struct executable_t *ex, int verbose)
 
         for (i = 0; i < ex->n_rodata; i++) {
                 struct var_t *v = ex->rodata[i];
-                if (v->magic == TYPE_XPTR)
+                if (isvar_xptr(v))
                         disassemble_recursive(fp, v->xptr, verbose);
         }
 }

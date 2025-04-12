@@ -116,8 +116,7 @@ string_puts(struct var_t *str, const char *s)
 static struct var_t *
 string_init(struct var_t *var, const char *cstr)
 {
-        bug_on(var->magic != TYPE_EMPTY);
-        var->magic = TYPE_STRING;
+        var->v_type = &StringType;
         var->s = new_string_handle();
         /*
          * Too many occasions of NULL-buffer crashes to trust
@@ -208,8 +207,7 @@ format2_i(struct buffer_t *buf, struct var_t *arg,
         int base;
         size_t count;
         int xchar = 'A' - 10;
-        long long ival = arg->magic == TYPE_INT
-                         ? arg->i : (long long)arg->f;
+        long long ival = isvar_int(arg) ? arg->i : (long long)arg->f;
 
         /* overrule '0' if left-justified */
         if (!rjust)
@@ -282,7 +280,7 @@ format2_e(struct buffer_t *buf, struct var_t *arg,
         int sigfig = 0;
         double ival;
         /* checked before this call */
-        double v = arg->magic == TYPE_FLOAT ? arg->f : (double)arg->i;
+        double v = isvar_float(arg) ? arg->f : (double)arg->i;
         double dv = v;
 
         size_t count = buf->p;
@@ -363,7 +361,7 @@ static void
 format2_f(struct buffer_t *buf, struct var_t *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
-        double v = arg->magic == TYPE_FLOAT ? arg->f : (double)arg->i;
+        double v = isvar_float(arg) ? arg->f : (double)arg->i;
         bool have_dot = false;
         size_t count = buf->p;
 
@@ -420,7 +418,7 @@ format2_s(struct buffer_t *buf, struct var_t *arg,
         const char *src;
         size_t count, count_bytes;
 
-        if (arg->magic == TYPE_STRING)
+        if (isvar_string(arg))
                 src = string_get_cstring(arg);
         else    /* TYPE_STRPTR */
                 src = arg->strptr;
@@ -521,7 +519,7 @@ format2_helper(struct vmframe_t *fr, struct buffer_t *buf, const char *s, int ar
                 format2_e(buf, v, conv, rjust, padc, padlen, precision);
                 break;
         case 's':
-                if (v->magic != TYPE_STRING && v->magic != TYPE_STRPTR)
+                if (!isvar_string(v) && !isvar_strptr(v))
                         return 0;
                 format2_s(buf, v, conv, rjust, padc, padlen, precision);
                 break;
@@ -570,7 +568,7 @@ string_format2(struct vmframe_t *fr)
         struct buffer_t *buf;
         int argi = 0;
 
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
         s = string_get_cstring(self);
 
         ret = stringvar_new("");
@@ -612,7 +610,7 @@ static struct var_t *
 string_length_method(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
         return intvar_new(STRING_LENGTH(self));
 }
 
@@ -639,22 +637,17 @@ string_format_helper(struct vmframe_t *fr, char **src,
         if (!q)
                 return false;
 
-        switch (q->magic) {
-        case TYPE_INT:
+        if (isvar_int(q)) {
                 sprintf(vbuf, "%lld", q->i);
                 buffer_puts(t, vbuf);
-                break;
-        case TYPE_FLOAT:
+        } else if (isvar_float(q)) {
                 sprintf(vbuf, "%g", q->f);
                 buffer_puts(t, vbuf);
-                break;
-        case TYPE_EMPTY:
+        } else if (isvar_empty(q)) {
                 buffer_puts(t, "(null)");
-                break;
-        case TYPE_STRING:
+        } else if (isvar_string(q)) {
                 buffer_puts(t, string_get_cstring(q));
-                break;
-        default:
+        } else {
                 return false;
         }
         *lastarg = la;
@@ -674,7 +667,7 @@ string_format(struct vmframe_t *fr)
         struct var_t *self = get_this(fr);
         int lastarg = 0;
         char *s, *self_s;
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
 
         buffer_reset(&t);
         self_s = string_get_cstring(self);
@@ -707,7 +700,7 @@ string_toint(struct vmframe_t *fr)
         long long i = 0LL;
         char *s;
 
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
         s = string_get_cstring(self);
         /* XXX Revisit: throw exception if not numerical? */
         if (s) {
@@ -731,7 +724,7 @@ string_tofloat(struct vmframe_t *fr)
         struct var_t *self = get_this(fr);
         double f = 0.;
         char *s;
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
         s = string_get_cstring(self);
         if (s) {
                 int errno_save = errno;
@@ -755,10 +748,10 @@ string_lstrip(struct vmframe_t *fr)
         struct var_t *ret;
         struct var_t *arg = frame_get_arg(fr, 0);
         struct var_t *self = get_this(fr);
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
 
         /* arg may be NULL, else it must be string */
-        if (arg && arg_type_check(arg, TYPE_STRING) != 0)
+        if (arg && arg_type_check(arg, &StringType) != 0)
                 return ErrorVar;
 
         ret = string_copy__(self);
@@ -778,10 +771,10 @@ string_rstrip(struct vmframe_t *fr)
         struct var_t *ret;
         struct var_t *arg = frame_get_arg(fr, 0);
         struct var_t *self = get_this(fr);
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
 
         /* arg may be NULL, else it must be string */
-        if (arg && arg_type_check(arg, TYPE_STRING) != 0)
+        if (arg && arg_type_check(arg, &StringType) != 0)
                 return ErrorVar;
 
         ret = string_copy__(self);
@@ -801,10 +794,10 @@ string_strip(struct vmframe_t *fr)
         struct var_t *ret;
         struct var_t *arg = frame_get_arg(fr, 0);
         struct var_t *self = get_this(fr);
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
 
         /* arg may be NULL, else it must be string */
-        if (arg && arg_type_check(arg, TYPE_STRING) != 0)
+        if (arg && arg_type_check(arg, &StringType) != 0)
                 return ErrorVar;
 
         ret = string_copy__(self);
@@ -824,12 +817,12 @@ string_replace(struct vmframe_t *fr)
         char *haystack, *needle, *end;
         size_t needle_len;
 
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
         bug_on(!vneedle || !vrepl);
 
-        if (arg_type_check(vneedle, TYPE_STRING) != 0)
+        if (arg_type_check(vneedle, &StringType) != 0)
                 return ErrorVar;
-        if (arg_type_check(vrepl, TYPE_STRING) != 0)
+        if (arg_type_check(vrepl, &StringType) != 0)
                 return ErrorVar;
 
         ret = stringvar_new("");
@@ -870,7 +863,7 @@ static struct var_t *
 string_copy(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
-        bug_on(self->magic != TYPE_STRING);
+        bug_on(!isvar_string(self));
         return stringvar_new(string_get_cstring(self));
 }
 
@@ -883,7 +876,7 @@ string_rjust(struct vmframe_t *fr)
         size_t len;
         long long just;
 
-        if (arg_type_check(arg, TYPE_INT) != 0)
+        if (arg_type_check(arg, &IntType) != 0)
                 return ErrorVar;
 
         just = arg->i;
@@ -921,7 +914,7 @@ string_ljust(struct vmframe_t *fr)
         size_t len;
         long long just;
 
-        if (arg_type_check(arg, TYPE_INT) != 0)
+        if (arg_type_check(arg, &IntType) != 0)
                 return ErrorVar;
 
         just = arg->i;
@@ -953,7 +946,7 @@ string_join(struct vmframe_t *fr)
         if ((joinstr = string_get_cstring(self)) == NULL)
                 joinstr = "";
 
-        if (arg_type_check(arg, TYPE_LIST) != 0)
+        if (arg_type_check(arg, &ArrayType) != 0)
                 return ErrorVar;
 
         idx = 0;
@@ -961,7 +954,7 @@ string_join(struct vmframe_t *fr)
         if (!elem)
                 return stringvar_new(joinstr);
 
-        if (elem->magic != TYPE_STRING) {
+        if (!isvar_string(elem)) {
                 err_setstr(RuntimeError,
                            "string.join method may only join lists of strings");
                 return ErrorVar;
@@ -1013,10 +1006,10 @@ string_add(struct var_t *a, struct var_t *b)
         struct var_t *ret;
         char *rval;
         char *lval = string_get_cstring(a);
-        if (b->magic == TYPE_STRPTR)
+        if (isvar_strptr(b)) {
                 rval = b->strptr;
-        else {
-                if (b->magic != TYPE_STRING) {
+        } else {
+                if (!isvar_string(b)) {
                         err_setstr(RuntimeError,
                                    "Mismatched types for + operation");
                         NULL;
@@ -1040,18 +1033,17 @@ compare_strings(const char *a, const char *b)
 static int
 string_cmp(struct var_t *a, struct var_t *b)
 {
-        switch (b->magic) {
-        case TYPE_STRING:
+        if (isvar_string(b)) {
                 if (a->s == b->s)
                         return 0;
                 if (a->s->s_info.ascii_len != b->s->s_info.ascii_len)
                         return 1;
                 return compare_strings(string_get_cstring(a),
                                        string_get_cstring(b));
-        case TYPE_STRPTR:
+        } else if (isvar_strptr(b)) {
                 return compare_strings(string_get_cstring(a),
                                        b->strptr);
-        default:
+        } else {
                 return 1;
         }
 }
@@ -1107,7 +1099,7 @@ stringvar_new(const char *cstr)
 void
 string_assign_cstring(struct var_t *str, const char *s)
 {
-        bug_on(str->magic != TYPE_STRING);
+        bug_on(!isvar_string(str));
 
         string_clear(str);
         if (!s)
@@ -1130,7 +1122,7 @@ string_nth_child(struct var_t *str, int idx)
         char cbuf[5];
         char *src;
 
-        bug_on(str->magic != TYPE_STRING);
+        bug_on(!isvar_string(str));
         src = string_get_cstring(str);
         if (!src || src[0] == '\0')
                 return NULL;
@@ -1162,7 +1154,7 @@ string_nth_child(struct var_t *str, int idx)
 char *
 string_get_cstring(struct var_t *str)
 {
-        bug_on(str->magic != TYPE_STRING);
+        bug_on(!isvar_string(str));
         return str->s->b.s;
 }
 
@@ -1207,10 +1199,10 @@ string_length(struct var_t *str)
         return STRING_LENGTH(str);
 }
 
-void
-typedefinit_string(void)
-{
-        var_config_type(TYPE_STRING, "string",
-                        &string_primitives, string_methods);
-}
+struct type_t StringType = {
+        .name   = "string",
+        .opm    = &string_primitives,
+        .cbm    = string_methods,
+};
+
 

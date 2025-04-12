@@ -1,6 +1,7 @@
 /* q-builtin.c - Built-in callbacks for script */
 #include "builtin.h"
 #include <evilcandy.h>
+#include <typedefs.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -22,22 +23,16 @@ do_typeof(struct vmframe_t *fr)
 static bool
 do_print_helper(struct var_t *v)
 {
-        switch (v->magic) {
-        case TYPE_INT:
+        if (isvar_int(v))
                 printf("%lld", v->i);
-                break;
-        case TYPE_FLOAT:
+        else if (isvar_float(v))
                 printf("%.8g", v->f);
-                break;
-        case TYPE_EMPTY:
+        else if (isvar_empty(v))
                 printf("(null)");
-                break;
-        case TYPE_STRING:
+        else if (isvar_string(v))
                 printf("%s", string_get_cstring(v));
-                break;
-        default:
+        else
                 return false;
-        }
         return true;
 }
 
@@ -53,7 +48,7 @@ static struct var_t *
 do_print(struct vmframe_t *fr)
 {
         struct var_t *p = frame_get_arg(fr, 0);
-        if (p->magic == TYPE_STRING) {
+        if (isvar_string(p)) {
                 char *s = string_get_cstring(p);
                 while (*s)
                         putchar((int)*s++);
@@ -68,7 +63,7 @@ static struct var_t *
 do_exit(struct vmframe_t *fr)
 {
         struct var_t *p = frame_get_arg(fr, 0);
-        if (p && p->magic == TYPE_STRING)
+        if (p && isvar_string(p))
                 printf("%s\n", string_get_cstring(p));
         exit(0);
 
@@ -84,7 +79,7 @@ do_setnl(struct vmframe_t *fr)
 {
         struct var_t *nl = frame_get_arg(fr, 0);
         char *s;
-        if (nl->magic != TYPE_STRING) {
+        if (!isvar_string(nl)) {
                 err_argtype("string");
                 return ErrorVar;
         }
@@ -156,7 +151,6 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                         child = NULL;
                         bug();
                 }
-                bug_on(child->magic == TYPE_EMPTY);
                 if (object_addattr(parent, child, t->name) != 0) {
                         /*
                          * Whether this is a "bug" or not is philosophical.

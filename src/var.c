@@ -79,7 +79,7 @@ var_new(void)
 {
         struct var_t *v = var_alloc();
         /* var_alloc took care of refcount already */
-        v->magic = TYPE_EMPTY;
+        v->v_type = &EmptyType;
         return v;
 }
 
@@ -105,17 +105,16 @@ void
 var_reset(struct var_t *v)
 {
         bug_on(v == NullVar);
-        if ((unsigned)v->magic < NTYPES_USER) {
-                void (*rst)(struct var_t *) = TYPEDEFS[v->magic].opm->reset;
-                if (rst)
-                        rst(v);
-        }
+        if (v->v_type->opm->reset)
+                v->v_type->opm->reset(v);
 
-        v->magic = TYPE_EMPTY;
+        v->v_type = &EmptyType;
         /* don't touch refcount here */
 }
 
+#if 0
 struct type_t TYPEDEFS[NTYPES];
+#endif
 
 static void
 config_builtin_methods(const struct type_inittbl_t *tbl,
@@ -131,42 +130,13 @@ config_builtin_methods(const struct type_inittbl_t *tbl,
         }
 }
 
-/**
- * var_config_type - Initialization-time function to set up a
- *                   built-in type's metadata
- * @magic:      A TYPE_* enum
- * @name:       Name of the type, useful for things like error reporting
- * @opm:        Operator methods, ie. what to do when encountering things
- *              like '+', '-', '%'...
- * @tbl:        Table of additional built-in methods that can be called
- *              by name from a user script.
- *
- * This is called once for each built-in type, see the typedefinit_*()
- * functions in types/...c
- *
- * tbl may be NULL, the other arguments may not
- */
-void
-var_config_type(int magic, const char *name,
-                const struct operator_methods_t *opm,
-                const struct type_inittbl_t *tbl)
-{
-        bug_on(magic >= NTYPES);
-        bug_on(TYPEDEFS[magic].opm || TYPEDEFS[magic].name);
-        TYPEDEFS[magic].opm = opm;
-        TYPEDEFS[magic].name = name;
-        if (tbl)
-                config_builtin_methods(tbl, &TYPEDEFS[magic].methods);
-}
-
 static struct var_t *
 builtin_method(struct var_t *v, const char *method_name)
 {
-        int magic = v->magic;
-        if ((unsigned)magic >= NTYPES_USER || !method_name)
+        if (!method_name)
                 return NULL;
 
-        return hashtable_get(&TYPEDEFS[magic].methods, method_name);
+        return hashtable_get(&v->v_type->methods, method_name);
 }
 
 /*
@@ -176,44 +146,28 @@ builtin_method(struct var_t *v, const char *method_name)
 void
 moduleinit_var(void)
 {
-        static const struct initfn_tbl_t {
-                void (*cb)(void);
-        } INIT_TBL[] = {
-                { typedefinit_array },
-                { typedefinit_empty },
-                { typedefinit_float },
-                { typedefinit_function },
-                { typedefinit_integer },
-                { typedefinit_object },
-                { typedefinit_string },
-                { typedefinit_intl },
-                { NULL },
+        static struct type_t *const init_tbl[] = {
+                &ArrayType,
+                &EmptyType,
+                &FloatType,
+                &FunctionType,
+                &IntType,
+                &StrptrType,
+                &XptrType,
+                &ObjectType,
+                &StringType,
+                NULL,
         };
-        const struct initfn_tbl_t *t;
+
         int i;
-
-        for (i = TYPE_EMPTY; i < NTYPES; i++) {
-                hashtable_init(&TYPEDEFS[i].methods, fnv_hash,
-                                str_key_match, var_bucket_delete);
+        for (i = 0; init_tbl[i] != NULL; i++) {
+                struct type_t *tp = init_tbl[i];
+                hashtable_init(&tp->methods, fnv_hash,
+                               str_key_match, var_bucket_delete);
+                if (tp->cbm)
+                        config_builtin_methods(tp->cbm, &tp->methods);
         }
-        for (t = INIT_TBL; t->cb != NULL; t++)
-                t->cb();
 
-        /*
-         * Make sure we didn't miss anything, we don't want
-         * blanks in TYPEDEFS[]
-         */
-        for (i = 0; i < NTYPES; i++) {
-                if (TYPEDEFS[i].name == NULL)
-                        bug();
-
-                /* All user-visible types should have a cmp method */
-                if (i < NTYPES_USER &&
-                    (TYPEDEFS[i].opm == NULL ||
-                     TYPEDEFS[i].opm->cmp == NULL)) {
-                        bug();
-                }
-        }
 #ifndef NDEBUG
         atexit(var_alloc_tell);
 #endif
@@ -235,7 +189,7 @@ attr_by_string(struct var_t *v, const char *s)
 {
         if (!s)
                 return NULL;
-        if (v->magic == TYPE_DICT) {
+        if (isvar_dict(v)) {
                 struct var_t *res;
                 if ((res = object_getattr(v, s)) != NULL)
                         return res;
@@ -246,32 +200,30 @@ attr_by_string(struct var_t *v, const char *s)
 /**
  * var_getattr - Generalized get-attribute
  * @v:  Variable whose attribute we're seeking
- * @deref: Variable storing the key, either the name or an index number
+ * @key: Variable storing the key, either the name or an index number
  *
  * Return: Attribute of @v, or NULL if not found.  This is the actual
  * attribute, not a copy, so be careful what you do with it.
  *
- * This gets the equivalent to the EvilCandy expression: v[deref]
+ * This gets the equivalent to the EvilCandy expression: v[key]
  */
 struct var_t *
-var_getattr(struct var_t *v, struct var_t *deref)
+var_getattr(struct var_t *v, struct var_t *key)
 {
-        switch (deref->magic) {
-        case TYPE_STRPTR:
-                return attr_by_string(v, deref->strptr);
-        case TYPE_INT:
+        if (isvar_strptr(key)) {
+                return attr_by_string(v, key->strptr);
+        } else if (isvar_int(key)) {
                 /* XXX: return ErrorVar if bound error? */
-                /* because idx stores long long, but ii.i is int */
-                if (deref->i < INT_MIN || deref->i > INT_MAX)
+                /* idx stores long long, but ii.i is int */
+                if (key->i < INT_MIN || key->i > INT_MAX)
                         return NULL;
-                switch (v->magic) {
-                case TYPE_LIST:
-                        return array_child(v, deref->i);
-                case TYPE_STRING:
-                        return string_nth_child(v, deref->i);
-                }
-        case TYPE_STRING:
-                return attr_by_string(v, string_get_cstring(deref));
+
+                if (isvar_array(v))
+                        return array_child(v, key->i);
+                else if (isvar_string(v))
+                        return string_nth_child(v, key->i);
+        } else if (isvar_string(key)) {
+                return attr_by_string(v, string_get_cstring(key));
         }
 
         return NULL;
@@ -279,7 +231,7 @@ var_getattr(struct var_t *v, struct var_t *deref)
 
 /**
  * Get the name or subscript (as text) of an attribute.
- * @deref: Variable storing the name or subscript
+ * @key: Variable storing the name or subscript
  *
  * Return:
  * C string naming the attribute.
@@ -287,27 +239,22 @@ var_getattr(struct var_t *v, struct var_t *deref)
  * Used for error reporting.
  */
 const char *
-attr_str(struct var_t *deref)
+attr_str(struct var_t *key)
 {
         /* FIXME: No! Just no! */
         static char numbuf[64];
 
         memset(numbuf, 0, sizeof(numbuf));
 
-        switch (deref->magic) {
-        case TYPE_STRPTR:
-                strncpy(numbuf, deref->strptr, sizeof(numbuf)-1);
-                break;
-        case TYPE_STRING:
-                strncpy(numbuf, string_get_cstring(deref),
+        if (isvar_strptr(key)) {
+                strncpy(numbuf, key->strptr, sizeof(numbuf)-1);
+        } else if (isvar_string(key)) {
+                strncpy(numbuf, string_get_cstring(key),
                         sizeof(numbuf)-1);
-                break;
-        case TYPE_INT:
-                sprintf(numbuf, "%lld", deref->i);
-                break;
-        default:
+        } else if (isvar_int(key)) {
+                sprintf(numbuf, "%lld", key->i);
+        } else {
                 strcpy(numbuf, "<!bug>");
-                break;
         }
         return numbuf;
 }
@@ -315,24 +262,22 @@ attr_str(struct var_t *deref)
 /**
  * var_set_attr - Generalized set-attribute
  * @v:          Variable whose attribute we're setting
- * @deref:      Variable storing the index number or name
+ * @key:      Variable storing the index number or name
  * @attr:       Variable storing the attribute to set.  This will be
  *              copied, so calling function still must handle GC for this
  * Return:      RES_OK if success, RES_ERROR if failure does not exist.
  *
- * This implements x[deref] = attr;
+ * This implements x[key] = attr;
  */
 enum result_t
-var_setattr(struct var_t *v, struct var_t *deref, struct var_t *attr)
+var_setattr(struct var_t *v, struct var_t *key, struct var_t *attr)
 {
-        switch (v->magic) {
-        case TYPE_DICT:
-                return object_setattr(v, deref, attr);
-        case TYPE_LIST:
-                return array_insert(v, deref, attr);
-        default:
+        if (isvar_dict(v))
+                return object_setattr(v, key, attr);
+        else if (isvar_array(v))
+                return array_insert(v, key, attr);
+        else
                 return RES_ERROR;
-        }
 }
 
 /**
@@ -353,26 +298,16 @@ var_compare(struct var_t *a, struct var_t *b)
                 return -1;
         if (b == NULL)
                 return 1;
-        if (a->magic != b->magic)
+        if (a->v_type != b->v_type)
                 return strcmp(typestr(a), typestr(b));
-        if (TYPEDEFS[a->magic].opm->cmp == NULL)
+        if (a->v_type->opm->cmp == NULL)
                 return a < b ? -1 : 1;
-        return TYPEDEFS[a->magic].opm->cmp(a, b);
-}
-
-/* for debugging and builtin functions */
-const char *
-typestr_(int magic)
-{
-        if (magic < 0 || magic >= NTYPES)
-                return "[bug]";
-        return TYPEDEFS[magic].name;
+        return a->v_type->opm->cmp(a, b);
 }
 
 const char *
 typestr(struct var_t *v)
 {
-        return typestr_(v->magic);
+        return v->v_type->name;
 }
-
 

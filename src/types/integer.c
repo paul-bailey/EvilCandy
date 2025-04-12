@@ -3,7 +3,7 @@
 static inline long long
 var2int(struct var_t *v)
 {
-        return v->magic == TYPE_INT ? v->i : (long long)v->f;
+        return isvar_int(v) ? v->i : (long long)v->f;
 }
 
 struct var_t *
@@ -11,7 +11,7 @@ intvar_new(long long initval)
 {
         struct var_t *ret = var_new();
         ret->i = initval;
-        ret->magic = TYPE_INT;
+        ret->v_type = &IntType;
         return ret;
 }
 
@@ -187,7 +187,7 @@ int_tostr(struct vmframe_t *fr)
         char buf[64];
         ssize_t len;
         struct var_t *self = get_this(fr);
-        bug_on(self->magic != TYPE_INT);
+        bug_on(!isvar_int(self));
 
         len = snprintf(buf, sizeof(buf), "%lld", self->i);
         bug_on(len >= sizeof(buf));
@@ -221,8 +221,9 @@ static const struct operator_methods_t int_primitives = {
         .cp             = int_cp,
 };
 
-void
-typedefinit_integer(void)
-{
-        var_config_type(TYPE_INT, "integer", &int_primitives, int_methods);
-}
+struct type_t IntType = {
+        .name   = "integer",
+        .opm    = &int_primitives,
+        .cbm    = int_methods,
+};
+

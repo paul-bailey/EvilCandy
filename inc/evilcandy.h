@@ -36,6 +36,10 @@ enum {
  * @TYPE_STRING:        C-string and some useful metadata
  * @TYPE_LIST:          Numerical array, ie. [ a, b, c...]-type array
  * @NTYPES_USER:        Boundary to check a magic number against
+ *
+ * These are used for serializing and some text representations,
+ * but not for the normal type operations, which use the struct type_t's
+ * defined in typedefs.h
  */
 enum type_magic_t {
         TYPE_EMPTY = 0,
@@ -160,7 +164,7 @@ struct object_handle_t {
  * memory management methods.
  */
 struct var_t {
-        unsigned int magic;
+        struct type_t *v_type;
         short refcount; /* signed for easier bug trapping */
         union {
                 struct object_handle_t *o;
@@ -239,10 +243,6 @@ extern struct global_t q_;
 extern void load_file(const char *filename);
 extern struct var_t *ErrorVar;
 extern struct var_t *NullVar;
-
-/* true if v is float or int */
-static inline bool isnumvar(struct var_t *v)
-        { return v->magic == TYPE_INT || v->magic == TYPE_FLOAT; }
 
 /* assembler.c */
 extern struct executable_t *assemble(const char *filename,
@@ -376,15 +376,15 @@ extern struct var_t *var_new(void);
 } while (0)
 
 #ifndef NDEBUG
-  /* keep this a macro so I can tell where the bug was trapped */
+  /*
+   * keep this a macro so I can tell where the bug was trapped
+   * I'd like to also sanity-check v_->v_type, but that's probably
+   * too many checks for even debug mode.
+   */
 # define VAR_SANITY(v_) do {                            \
         struct var_t *v__ = (v_);                       \
         if (!v__) {                                     \
                 DBUG("unexpected NULL var");            \
-                bug();                                  \
-        }                                               \
-        if ((unsigned)v__->magic >= NTYPES) {           \
-                DBUG("magic=%d", v__->magic);           \
                 bug();                                  \
         }                                               \
         if (v__->refcount <= 0) {                       \

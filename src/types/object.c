@@ -26,7 +26,7 @@ object_keys(struct var_t *obj)
         int res;
         unsigned int i;
 
-        bug_on(obj->magic != TYPE_DICT);
+        bug_on(!isvar_object(obj));
         d = &obj->o->dict;
         keys = arrayvar_new();
 
@@ -57,7 +57,7 @@ struct var_t *
 objectvar_new(void)
 {
         struct var_t *o = var_new();
-        o->magic = TYPE_DICT;
+        o->v_type = &ObjectType;
 
         o->o = type_handle_new(sizeof(*o->o), object_handle_reset);
         hashtable_init(&o->o->dict, fnv_hash,
@@ -76,7 +76,7 @@ void
 object_set_priv(struct var_t *o, void *priv,
                 void (*cleanup)(struct object_handle_t *, void *))
 {
-        bug_on(o->magic != TYPE_DICT);
+        bug_on(!isvar_object(o));
         o->o->priv = priv;
         o->o->priv_cleanup = cleanup;
 }
@@ -94,7 +94,7 @@ object_getattr(struct var_t *o, const char *s)
 {
         if (!s)
                 return NULL;
-        bug_on(o->magic != TYPE_DICT);
+        bug_on(!isvar_object(o));
         bug_on(!o->o);
 
         return hashtable_get(&o->o->dict, s);
@@ -121,7 +121,7 @@ enum result_t
 object_addattr(struct var_t *parent,
                struct var_t *child, const char *name)
 {
-        bug_on(parent->magic != TYPE_DICT);
+        bug_on(!isvar_object(parent));
         if (parent->o->lock) {
                 err_locked();
                 return RES_ERROR;
@@ -203,17 +203,14 @@ object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
         char *namestr;
         struct var_t *child;
 
-        bug_on(dict->magic != TYPE_DICT);
+        bug_on(!isvar_object(dict));
 
-        switch (name->magic) {
-        case TYPE_STRPTR:
+        if (isvar_strptr(name)) {
                 namestr = name->strptr;
-                break;
-        case TYPE_STRING:
+        } else if (isvar_string(name)) {
                 /* XXX REVISIT: same immortalization issue as in object_addattr */
                 namestr = literal_put(string_get_cstring(name));
-                break;
-        default:
+        } else {
                 err_argtype("name");
                 return RES_ERROR;
         }
@@ -268,8 +265,9 @@ object_cp(struct var_t *v)
 static int
 object_cmp(struct var_t *a, struct var_t *b)
 {
-        if (b->magic == TYPE_DICT && b->o == a->o)
+        if (isvar_object(b) && b->o == a->o)
                 return 0;
+        /* FIXME: need to recurse here */
         return 1;
 }
 
@@ -282,7 +280,7 @@ object_cmpz(struct var_t *obj)
 static void
 object_reset(struct var_t *o)
 {
-        bug_on(o->magic != TYPE_DICT);
+        bug_on(!isvar_object(o));
         TYPE_HANDLE_DECR_REF(o->o);
         o->o = NULL;
 }
@@ -305,7 +303,7 @@ do_object_foreach(struct vmframe_t *fr)
         int i, len, status;
 
         self = get_this(fr);
-        bug_on(self->magic != TYPE_DICT);
+        bug_on(!isvar_object(self));
         func = frame_get_arg(fr, 0);
         if (!func) {
                 err_argtype("function");
@@ -361,23 +359,17 @@ do_object_len(struct vmframe_t *fr)
         v = frame_get_arg(fr, 0);
         if (!v) {
                 v = get_this(fr);
-                bug_on(v->magic != TYPE_DICT);
+                bug_on(!isvar_object(v));
         }
         /* XXX REVISIT: should be in var.c as var_length */
-        switch (v->magic) {
-        case TYPE_DICT:
+        if (isvar_object(v))
                 i = oh_nchildren(v->o);
-                break;
-        case TYPE_STRING:
+        else if (isvar_string(v))
                 i = string_length(v);
-                break;
-        case TYPE_LIST:
+        else if (isvar_array(v))
                 i = array_length(v);
-                break;
-        default:
-                /* XXX does it make sense to return 0 for EMPTY? */
+        else /* XXX does it make sense to return 0 for EMPTY? */
                 i = 1;
-        }
 
         return intvar_new(i);
 }
@@ -390,9 +382,9 @@ do_object_hasattr(struct vmframe_t *fr)
         struct var_t *child = NULL;
         char *s;
 
-        bug_on(self->magic != TYPE_DICT);
+        bug_on(!isvar_object(self));
 
-        if (!name || name->magic != TYPE_STRING) {
+        if (!name || !isvar_string(name)) {
                 err_argtype("string");
                 return ErrorVar;
         }
@@ -411,7 +403,7 @@ do_object_setattr(struct vmframe_t *fr)
         struct var_t *name = frame_get_arg(fr, 0);
         struct var_t *value = frame_get_arg(fr, 1);
 
-        bug_on(self->magic != TYPE_DICT);
+        bug_on(!isvar_object(self));
 
         if (!name) {
                 err_argtype("name");
@@ -449,8 +441,8 @@ do_object_getattr(struct vmframe_t *fr)
         struct var_t *ret;
         char *s;
 
-        bug_on(self->magic != TYPE_DICT);
-        if (arg_type_check(name, TYPE_STRING) != 0)
+        bug_on(!isvar_object(self));
+        if (arg_type_check(name, &StringType) != 0)
                 return ErrorVar;
 
         s = string_get_cstring(name);
@@ -473,8 +465,8 @@ do_object_delattr(struct vmframe_t *fr)
         struct var_t *name = vm_get_arg(fr, 0);
         char *s;
 
-        bug_on(self->magic != TYPE_DICT);
-        if (arg_type_check(name, TYPE_STRING) != 0)
+        bug_on(!isvar_object(self));
+        if (arg_type_check(name, &StringType) != 0)
                 return ErrorVar;
 
         s = string_get_cstring(name);
@@ -516,7 +508,7 @@ do_object_copy(struct vmframe_t *fr)
         struct hashtable_t *d;
         struct var_t *ret = objectvar_new();
 
-        bug_on(self->magic != TYPE_DICT);
+        bug_on(!isvar_object(self));
 
         d = &self->o->dict;
         for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
@@ -554,10 +546,9 @@ static const struct operator_methods_t object_primitives = {
         .cp             = object_cp,
 };
 
-void
-typedefinit_object(void)
-{
-        var_config_type(TYPE_DICT, "dictionary",
-                        &object_primitives, object_methods);
-}
+struct type_t ObjectType = {
+        .name = "dictionary",
+        .opm    = &object_primitives,
+        .cbm    = object_methods,
+};
 

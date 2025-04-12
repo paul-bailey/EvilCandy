@@ -54,20 +54,56 @@ struct operator_methods_t {
 /**
  * struct type_t - Used to get info about a typedef
  * @name:       Name of the type
- * @methods:    Linked list of built-in methods for the type; these are
- *              things scripts call as functions. var_config_type() fills
+ * @methods:    Hash table of built-in methods for the type; these are
+ *              things scripts call as functions. moduleinit_var() fills
  *              in this hashtable during initialization time.
  * @opm:        Callbacks for performing primitive operations like
- *              + or - on type
+ *              + or - on type.  This may not be NULL, however any of its
+ *              fields may be NULL.
+ * @cbm:        Array of built-in methods that var_config_type will
+ *              put into @methods, or NULL if no such methods exist.
  */
 struct type_t {
         const char *name;
         struct hashtable_t methods;
         const struct operator_methods_t *opm;
+        const struct type_inittbl_t *cbm;
 };
 
-/* Indexed by TYPE_* (max NTYPES_USER-1), located in var.c */
-extern struct type_t TYPEDEFS[];
+/* Declared in type C modules in types/xxx.c */
+extern struct type_t ArrayType;
+extern struct type_t EmptyType; /* XXX should be NullType */
+extern struct type_t FloatType;
+extern struct type_t FunctionType;
+extern struct type_t IntType;
+extern struct type_t StrptrType;
+extern struct type_t XptrType;
+extern struct type_t ObjectType;
+extern struct type_t StringType;
+
+static inline bool isvar_array(struct var_t *v)
+        { return v->v_type == &ArrayType; }
+static inline bool isvar_empty(struct var_t *v)
+        { return v->v_type == &EmptyType; }
+static inline bool isvar_float(struct var_t *v)
+        { return v->v_type == &FloatType; }
+static inline bool isvar_function(struct var_t *v)
+        { return v->v_type == &FunctionType; }
+static inline bool isvar_int(struct var_t *v)
+        { return v->v_type == &IntType; }
+static inline bool isvar_strptr(struct var_t *v)
+        { return v->v_type == &StrptrType; }
+static inline bool isvar_xptr(struct var_t *v)
+        { return v->v_type == &XptrType; }
+static inline bool isvar_object(struct var_t *v)
+        { return v->v_type == &ObjectType; }
+#define isvar_dict isvar_object
+static inline bool isvar_string(struct var_t *v)
+        { return v->v_type == &StringType; }
+
+static inline bool isnumvar(struct var_t *v)
+        { return isvar_int(v) || isvar_float(v); }
+
 
 #endif /* EVILCANDY_TYPEDEFS_H */
 

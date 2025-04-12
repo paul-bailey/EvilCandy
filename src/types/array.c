@@ -53,8 +53,6 @@ array_handle_new(void)
  * array_child - Get nth member of an array
  * @array: Array to seek
  * @idx:   Index into the array
- * @child: Variable to store the result, which must be permitted
- *         to receive it (ie. it ought to be TYPE_EMPTY)
  *
  * Return: child member, or NULL if idx out of bounds.
  *         This does not return ErrorVar because the call could just
@@ -110,9 +108,9 @@ array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
         struct var_t **ppvar;
         int i;
 
-        bug_on(array->magic != TYPE_LIST);
+        bug_on(!isvar_array(array));
 
-        if (idx->magic != TYPE_INT) {
+        if (!isvar_int(idx)) {
                 err_setstr(RuntimeError, "Array subscript must be integer");
                 return RES_ERROR;
         }
@@ -153,11 +151,6 @@ array_append(struct var_t *array, struct var_t *child)
                 err_locked();
                 return RES_ERROR;
         }
-        if (child->magic == TYPE_EMPTY) {
-                /* XXX bug? */
-                err_setstr(RuntimeError, "You may not add an empty var to array");
-                return RES_ERROR;
-        }
 
         h->nmemb++;
         /* XXX: poor amortization, maybe assert_array_pos instead */
@@ -169,7 +162,7 @@ array_append(struct var_t *array, struct var_t *child)
 int
 array_length(struct var_t *array)
 {
-        bug_on(array->magic != TYPE_LIST);
+        bug_on(!isvar_array(array));
         return array->a->nmemb;
 }
 
@@ -177,8 +170,7 @@ struct var_t *
 arrayvar_new(void)
 {
         struct var_t *array = var_new();
-        array->magic = TYPE_LIST;
-
+        array->v_type = &ArrayType;
         array->a = array_handle_new();
         return array;
 }
@@ -224,7 +216,7 @@ static struct var_t *
 do_array_len(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
-        bug_on(self->magic != TYPE_LIST);
+        bug_on(!isvar_array(self));
         return intvar_new(self->a->nmemb);
 }
 
@@ -238,7 +230,7 @@ do_array_foreach(struct vmframe_t *fr)
 
         self = get_this(fr);
         func = frame_get_arg(fr, 0);
-        bug_on(self->magic != TYPE_LIST);
+        bug_on(!isvar_array(self));
         if (!func) {
                 err_argtype("function");
                 return ErrorVar;
@@ -285,7 +277,7 @@ do_array_append(struct vmframe_t *fr)
         struct var_t *self, *arg;
         self = get_this(fr);
         arg = vm_get_arg(fr, 0);
-        bug_on(self->magic != TYPE_LIST);
+        bug_on(!isvar_array(self));
 
         if (!arg) {
                 /* ugh, I know what it means */
@@ -303,9 +295,9 @@ static const struct type_inittbl_t array_methods[] = {
         TBLEND,
 };
 
-void
-typedefinit_array(void)
-{
-        var_config_type(TYPE_LIST, "list",
-                        &array_primitives, array_methods);
-}
+struct type_t ArrayType = {
+        .name = "list",
+        .opm = &array_primitives,
+        .cbm = array_methods,
+};
+

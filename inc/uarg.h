@@ -8,12 +8,13 @@
 #include <evilcandy.h>
 
 /* err.c */
-extern int arg_type_check_failed(struct var_t *v, int want);
+extern int arg_type_check_failed(struct var_t *v,
+                                 struct type_t *want);
 
 static inline int
-arg_type_check(struct var_t *v, int want)
+arg_type_check(struct var_t *v, struct type_t *want)
 {
-        if (v && v->magic == want)
+        if (v && v->v_type == want)
                 return 0;
         else
                 return arg_type_check_failed(v, want);

@@ -1082,7 +1082,8 @@ string_nth_child(struct var_t *str, int idx)
         if (idx < 0)
                 return NULL;
 
-        if (str->s->s_info.enc == STRING_ENC_ASCII) {
+        if (str->s->s_info.enc != STRING_ENC_UTF8) {
+                /* ASCII, Latin1, or some undecoded binary */
                 cbuf[0] = src[idx];
                 cbuf[1] = '\0';
         } else {

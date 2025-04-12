@@ -40,26 +40,13 @@ object_keys(struct var_t *obj)
         return keys;
 }
 
-static void
-object_handle_reset(void *h)
-{
-        struct object_handle_t *oh = h;
-        if (oh->priv) {
-                if (oh->priv_cleanup)
-                        oh->priv_cleanup(oh, oh->priv);
-                else
-                        free(oh->priv);
-        }
-        hashtable_destroy(&oh->dict);
-}
-
 struct var_t *
 objectvar_new(void)
 {
         struct var_t *o = var_new();
         o->v_type = &ObjectType;
 
-        o->o = type_handle_new(sizeof(*o->o), object_handle_reset);
+        o->o = ecalloc(sizeof(*o->o));
         hashtable_init(&o->o->dict, fnv_hash,
                        str_key_match, var_bucket_delete);
         return o;
@@ -280,9 +267,17 @@ object_cmpz(struct var_t *obj)
 static void
 object_reset(struct var_t *o)
 {
+        struct object_handle_t *oh;
+
         bug_on(!isvar_object(o));
-        TYPE_HANDLE_DECR_REF(o->o);
-        o->o = NULL;
+        oh = o->o;
+        if (oh->priv) {
+                if (oh->priv_cleanup)
+                        oh->priv_cleanup(oh, oh->priv);
+                else
+                        free(oh->priv);
+        }
+        hashtable_destroy(&oh->dict);
 }
 
 /* **********************************************************************

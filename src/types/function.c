@@ -62,28 +62,11 @@ remove_args(struct var_t **arr, int count)
 {
         int i;
         for (i = 0; i < count; i++) {
-                /* these arrays could be sparse */
+                /* these arrays may have unset fields */
                 if (arr[i])
                         VAR_DECR_REF(arr[i]);
         }
         free(arr);
-}
-
-static void
-function_handle_reset(void *h)
-{
-        struct function_handle_t *fh = h;
-        remove_args(fh->f_argv, fh->f_argc);
-        remove_args(fh->f_clov, fh->f_cloc);
-        if (fh->f_magic == FUNC_USER && fh->f_ex)
-                EXECUTABLE_RELEASE(fh->f_ex);
-}
-
-static struct function_handle_t *
-function_handle_new(void)
-{
-        return type_handle_new(sizeof(struct function_handle_t),
-                               function_handle_reset);
 }
 
 /*
@@ -284,7 +267,7 @@ funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
         struct var_t *func = var_new();
         struct function_handle_t *fh;
 
-        fh = function_handle_new();
+        fh = ecalloc(sizeof(struct function_handle_t));
         fh->f_magic = FUNC_INTERNAL;
         fh->f_cb = cb;
         fh->f_minargs = minargs;
@@ -304,7 +287,7 @@ funcvar_new_user(struct executable_t *ex)
         struct var_t *func = var_new();
         struct function_handle_t *fh;
 
-        fh = function_handle_new();
+        fh = ecalloc(sizeof(struct function_handle_t));
         fh->f_magic = FUNC_USER;
         fh->f_ex = ex;
         EXECUTABLE_CLAIM(ex);
@@ -338,8 +321,11 @@ func_cp(struct var_t *v)
 static void
 func_reset(struct var_t *func)
 {
-        TYPE_HANDLE_DECR_REF(func->fn);
-        func->fn = NULL;
+        remove_args(func->fn->f_argv, func->fn->f_argc);
+        remove_args(func->fn->f_clov, func->fn->f_cloc);
+        if (func->fn->f_magic == FUNC_USER && func->fn->f_ex)
+                EXECUTABLE_RELEASE(fh->f_ex);
+        free(func->fn);
 }
 
 static const struct operator_methods_t function_primitives = {

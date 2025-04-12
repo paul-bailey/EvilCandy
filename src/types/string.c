@@ -34,14 +34,6 @@ struct string_handle_t {
  *                      Common Helpers
  ***********************************************************************/
 
-static void
-string_handle_reset(void *h)
-{
-        struct string_handle_t *sh = h;
-        if (!sh->immortal)
-                free(sh->s);
-}
-
 enum {
         SF_COPY = 1,    /* copy @cstr */
         SF_IMMORTAL = 2,        /* do not delete @cstr with string_handle_reset */
@@ -71,7 +63,7 @@ stringvar_newf(char *cstr, unsigned int flags)
 
         ret = var_new();
         ret->v_type = &StringType;
-        ret->s = type_handle_new(sizeof(*ret->s), string_handle_reset);
+        ret->s = ecalloc(sizeof(*ret->s));
         if (!!(flags & SF_COPY))
                 ret->s->s = estrdup(cstr);
         else
@@ -962,7 +954,8 @@ static struct type_inittbl_t string_methods[] = {
 static void
 string_reset(struct var_t *str)
 {
-        TYPE_HANDLE_DECR_REF(str->s);
+        if (!str->s->immortal)
+                free(str->s->s);
 }
 
 static struct var_t *

@@ -33,22 +33,6 @@ struct array_handle_t {
         struct buffer_t children;
 };
 
-static void
-array_handle_reset(void *arr)
-{
-        struct array_handle_t *ah = (struct array_handle_t *)arr;
-        buffer_free(&ah->children);
-}
-
-static struct array_handle_t *
-array_handle_new(void)
-{
-        struct array_handle_t *ret = type_handle_new(sizeof(*ret),
-                                                     array_handle_reset);
-        buffer_init(&ret->children);
-        return ret;
-}
-
 /**
  * array_child - Get nth member of an array
  * @array: Array to seek
@@ -171,15 +155,16 @@ arrayvar_new(void)
 {
         struct var_t *array = var_new();
         array->v_type = &ArrayType;
-        array->a = array_handle_new();
+        array->a = emalloc(sizeof(*(array->a)));
+        buffer_init(&array->a->children);
         return array;
 }
 
 static void
 array_reset(struct var_t *a)
 {
-        TYPE_HANDLE_DECR_REF(a->a);
-        a->a = NULL;
+        buffer_free(&a->a->children);
+        free(a->a);
 }
 
 static int

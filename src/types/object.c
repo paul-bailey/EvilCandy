@@ -301,22 +301,26 @@ object_reset(struct var_t *o)
 struct var_t *
 do_object_foreach(struct vmframe_t *fr)
 {
-        struct var_t *keys, *func, *self = get_this(fr);
+        struct var_t *keys, *func, *self, *priv;
         int i, len, status;
 
+        self = get_this(fr);
         bug_on(self->magic != TYPE_DICT);
         func = frame_get_arg(fr, 0);
         if (!func) {
                 err_argtype("function");
                 return ErrorVar;
         }
+        priv = frame_get_arg(fr, 1);
+        if (!priv)
+                priv = NullVar;
 
         keys = object_keys(self);
         len = array_length(keys);
 
         status = RES_OK;
         for (i = 0; i < len; i++) {
-                struct var_t *key, *val, *argv[2], *cbret;
+                struct var_t *key, *val, *argv[3], *cbret;
 
                 key = array_child(keys, i);
                 bug_on(!key || key == ErrorVar);
@@ -326,7 +330,8 @@ do_object_foreach(struct vmframe_t *fr)
 
                 argv[0] = val;
                 argv[1] = key;
-                cbret = vm_reenter(fr, func, NULL, 2, argv);
+                argv[2] = priv;
+                cbret = vm_reenter(fr, func, NULL, 3, argv);
 
                 if (cbret == ErrorVar) {
                         status = RES_ERROR;

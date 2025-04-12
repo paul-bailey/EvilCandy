@@ -231,7 +231,7 @@ do_array_len(struct vmframe_t *fr)
 static struct var_t *
 do_array_foreach(struct vmframe_t *fr)
 {
-        struct var_t *self, *func, *argv[2], **ppvar;
+        struct var_t *self, *func, *priv, *argv[3], **ppvar;
         unsigned int idx, lock;
         struct array_handle_t *h;
         int status = RES_OK;
@@ -243,6 +243,9 @@ do_array_foreach(struct vmframe_t *fr)
                 err_argtype("function");
                 return ErrorVar;
         }
+        priv = frame_get_arg(fr, 1);
+        if (!priv)
+                priv = NullVar;
         h = self->a;
         if (!h->nmemb) /* nothing to iterate over */
                 goto out;
@@ -258,8 +261,9 @@ do_array_foreach(struct vmframe_t *fr)
 
                 argv[0] = ppvar[idx];
                 argv[1]->i = idx;
+                argv[2] = priv;
 
-                retval = vm_reenter(fr, func, NULL, 2, argv);
+                retval = vm_reenter(fr, func, NULL, 3, argv);
                 if (retval == ErrorVar) {
                         status = RES_ERROR;
                         break;

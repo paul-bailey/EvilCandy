@@ -127,7 +127,6 @@ var_new(void)
         struct var_t *v = var_alloc();
         /* var_alloc took care of refcount already */
         v->magic = TYPE_EMPTY;
-        v->flags = 0;
         return v;
 }
 
@@ -160,7 +159,6 @@ var_reset(struct var_t *v)
         }
 
         v->magic = TYPE_EMPTY;
-        v->flags = 0;
         /* don't touch refcount here */
 }
 

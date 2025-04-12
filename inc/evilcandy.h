@@ -175,7 +175,6 @@ enum {
  */
 struct var_t {
         unsigned int magic;
-        unsigned short flags;
         short refcount; /* signed for easier bug trapping */
         union {
                 struct object_handle_t *o;
@@ -255,11 +254,6 @@ extern void load_file(const char *filename);
 extern struct var_t *ErrorVar;
 extern struct var_t *NullVar;
 
-/* helpers to classify a variable */
-static inline bool isconst(struct var_t *v)
-        { return !!(v->flags & VF_CONST); }
-static inline bool isprivate(struct var_t *v)
-        { return !!(v->flags & VF_PRIV); }
 /* true if v is float or int */
 static inline bool isnumvar(struct var_t *v)
         { return v->magic == TYPE_INT || v->magic == TYPE_FLOAT; }

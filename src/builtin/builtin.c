@@ -145,15 +145,12 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                         break;
                 case TYPE_STRING:
                         child = stringvar_new(t->s);
-                        child->flags = VF_CONST;
                         break;
                 case TYPE_INT:
                         child = intvar_new(t->i);
-                        child->flags = VF_CONST;
                         break;
                 case TYPE_FLOAT:
                         child = floatvar_new(t->f);
-                        child->flags = VF_CONST;
                         break;
                 default:
                         child = NULL;

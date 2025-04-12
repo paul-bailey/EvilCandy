@@ -14,12 +14,6 @@
  */
 #include "token.h"
 
-static void
-econst(void)
-{
-        err_setstr(RuntimeError, "You may not assign a declared const");
-}
-
 static inline const struct operator_methods_t *
 primitives_of(struct var_t *v)
 {
@@ -192,10 +186,6 @@ qop_incr(struct var_t *v)
                 err_permit("++", v);
                 return RES_ERROR;
         }
-        if (isconst(v)) {
-                econst();
-                return RES_ERROR;
-        }
         p->incr(v);
         return RES_OK;
 }
@@ -207,10 +197,6 @@ qop_decr(struct var_t *v)
         const struct operator_methods_t *p = primitives_of(v);
         if (!p->decr) {
                 err_permit("--", v);
-                return RES_ERROR;
-        }
-        if (isconst(v)) {
-                econst();
                 return RES_ERROR;
         }
         p->decr(v);

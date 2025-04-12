@@ -23,8 +23,9 @@
  * since they also have legions of developers to check each other.
  * I'll play it safe and accept being like 5% slower.
  */
-#include <instructions.h>
 #include <evilcandy.h>
+#include <instructions.h>
+#include <typedefs.h>
 #include "token.h"
 #include <limits.h>
 #include <stdlib.h>
@@ -340,7 +341,7 @@ assign_common(struct vmframe_t *fr,
         return ret;
 }
 
-static inline struct var_t *
+static struct var_t *
 logical_or(struct var_t *a, struct var_t *b)
 {
         int status;
@@ -353,7 +354,7 @@ logical_or(struct var_t *a, struct var_t *b)
         return intvar_new((int)res);
 }
 
-static inline struct var_t *
+static struct var_t *
 logical_and(struct var_t *a, struct var_t *b)
 {
         int status;
@@ -366,16 +367,26 @@ logical_and(struct var_t *a, struct var_t *b)
         return intvar_new((int)res);
 }
 
-static inline struct var_t *
+static struct var_t *
 rshift(struct var_t *a, struct var_t *b)
 {
-        return qop_shift(a, b, OC_RSHIFT);
+        const struct operator_methods_t *p = TYPEDEFS[a->magic].opm;
+        if (!p->rshift) {
+                err_permit(">>", a);
+                return NULL;
+        }
+        return p->rshift(a, b);
 }
 
-static inline struct var_t *
+static struct var_t *
 lshift(struct var_t *a, struct var_t *b)
 {
-        return qop_shift(a, b, OC_LSHIFT);
+        const struct operator_methods_t *p = TYPEDEFS[a->magic].opm;
+        if (!p->lshift) {
+                err_permit("<<", a);
+                return NULL;
+        }
+        return p->lshift(a, b);
 }
 
 static int

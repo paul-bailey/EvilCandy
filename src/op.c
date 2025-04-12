@@ -7,13 +7,6 @@
 #include <math.h>
 #include <string.h>
 
-/*
- * TODO: this for OC_* in qop_cmp, but should use IARG instead
- * (likely a faster switch statement because they're
- * sequential).
- */
-#include "token.h"
-
 static inline const struct operator_methods_t *
 primitives_of(struct var_t *v)
 {
@@ -88,31 +81,6 @@ qop_sub(struct var_t *a, struct var_t *b)
                 return NULL;
         }
         return p->sub(a, b);
-}
-
-/**
- * qop_shift - left-shift value of @a by amount specified in @b
- *              and store result in @a
- * @op: Must be either OC_LSFHIT or OC_RSHIFT
- */
-struct var_t *
-qop_shift(struct var_t *a, struct var_t *b, int op)
-{
-        const struct operator_methods_t *p = primitives_of(a);
-        if (op == OC_LSHIFT) {
-                if (!p->lshift) {
-                        err_permit("<<", a);
-                        return NULL;
-                }
-                return p->lshift(a, b);
-        } else {
-                bug_on(op != OC_RSHIFT);
-                if (!p->rshift) {
-                        err_permit(">>", a);
-                        return NULL;
-                }
-                return p->rshift(a, b);
-        }
 }
 
 /* set a = a & b */

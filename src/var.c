@@ -6,62 +6,20 @@
 #include <string.h>
 #include <limits.h>
 
-/*
- * Variable allocation:
- *
- * SIMPLE_ALLOC = 1
- *      Use stdlib's malloc() and free().
- *
- * SIMPLE_ALLOC = 0
- *      Whenever I run out of stock, allocate a block of them (don't keep
- *      track of the base pointers, I'll just keep them forever), and put
- *      them in a singly-linked list of available variable structs.
- *
- *      Corner case: If a dictionary allocates a gazillion of these and
- *      then frees them all when it goes out of scope, and then no one
- *      else claims so many...
- *              good:   we'd never have to malloc again
- *              bad:    we'd probably be wasting RAM and swapping a lot.
- *
- * Don't use the memblk.c lib for this.  When the number of variables
- * required got super high, the library got cripplingly slow.
- */
-#define SIMPLE_ALLOC 0
-
 #ifndef NDEBUG
-static size_t var_nalloc = 0;
-# define REGISTER_ALLOC() do {  \
-        var_nalloc++;           \
-  } while (0)
-# define REGISTER_FREE() do {   \
-        var_nalloc--;           \
-  } while (0)
-static void
-var_alloc_tell(void)
-{
-        DBUG("#vars outstanding: %lu", (long)var_nalloc);
-}
+   static size_t var_nalloc = 0;
+#  define REGISTER_ALLOC() do { var_nalloc++; } while (0)
+#  define REGISTER_FREE()  do { var_nalloc--; } while (0)
+   static void
+   var_alloc_tell(void)
+   {
+           DBUG("#vars outstanding: %lu", (long)var_nalloc);
+   }
 #else /* NDEBUG */
-# define REGISTER_ALLOC() do { (void)0; } while (0)
-# define REGISTER_FREE() do { (void)0; } while (0)
+#  define REGISTER_ALLOC() do { (void)0; } while (0)
+#  define REGISTER_FREE()  do { (void)0; } while (0)
 #endif /* NDEBUG */
 
-#if SIMPLE_ALLOC
-static struct var_t *
-var_alloc(void)
-{
-        struct var_t *ret = emalloc(sizeof(struct var_t));
-        REGISTER_ALLOC();
-        return ret;
-}
-
-static void
-var_free(struct var_t *v)
-{
-        REGISTER_FREE();
-        free(v);
-}
-#else
 static struct var_mem_t *var_freelist = NULL;
 struct var_mem_t {
         struct var_mem_t *list;
@@ -103,20 +61,15 @@ var_free(struct var_t *v)
         struct var_mem_t *vm;
         REGISTER_FREE();
 #ifndef NDEBUG
-        /* need more verbose info if this happens */
         if (v->refcount != 0) {
-                fprintf(stderr,
-                        "BUG: expected refcount=0 but it's %d\n",
-                        v->refcount);
+                DBUG("expected refcount=0 but it's %d\n", v->refcount);
+                bug();
         }
 #endif
-        bug_on(v->refcount != 0);
         vm = var2memvar(v);
         vm->list = var_freelist;
         var_freelist = vm;
 }
-
-#endif /* !SIMPLE_ALLOC */
 
 /**
  * var_new - Get a new empty variable

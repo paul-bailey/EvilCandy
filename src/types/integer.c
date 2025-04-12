@@ -1,4 +1,4 @@
-#include "var.h"
+#include "types_priv.h"
 
 static inline long long
 var2int(struct var_t *v)

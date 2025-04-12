@@ -14,7 +14,7 @@
  *      doesn't do that.  Neither does Python.  There are some
  *      actual advantages to NOT enforcing it.
  */
-#include "var.h"
+#include "types_priv.h"
 #include <stdlib.h>
 #include <limits.h>
 

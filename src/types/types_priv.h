@@ -1,5 +1,5 @@
-#ifndef EGQ_VAR_H
-#define EGQ_VAR_H
+#ifndef TYPES_PRIV_H
+#define TYPES_PRIV_H
 
 #include <evilcandy.h>
 #include <typedefs.h>
@@ -27,4 +27,4 @@ struct type_inittbl_t {
 
 
 
-#endif /* EGQ_VAR_H */
+#endif /* TYPES_PRIV_H */

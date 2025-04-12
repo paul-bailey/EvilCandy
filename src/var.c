@@ -1,6 +1,6 @@
 #include <evilcandy.h>
 #include <typedefs.h>
-#include "types/var.h"
+#include "types/types_priv.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

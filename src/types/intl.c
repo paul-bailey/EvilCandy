@@ -1,5 +1,5 @@
 /* Internal types: TYPE_STRPTR, TYPE_XPTR */
-#include "var.h"
+#include "types_priv.h"
 #include <string.h>
 
 static struct var_t *

@@ -76,6 +76,24 @@ array_child(struct var_t *array, int idx)
         return ppvar[idx];
 }
 
+static int
+array_sort_cmp(const void *a, const void *b)
+{
+        return var_compare(*(struct var_t **)a, *(struct var_t **)b);
+}
+
+/**
+ * array_sort - Sort the items in an array
+ */
+void
+array_sort(struct var_t *array)
+{
+        if (array->a->nmemb < 2)
+                return;
+        qsort(array->a->children.s, array->a->nmemb,
+                     sizeof(struct var_t *), array_sort_cmp);
+}
+
 /**
  * array_insert - Insert @child into @idx and throw error if
  *                array out of bounds.

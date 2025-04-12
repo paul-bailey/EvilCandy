@@ -36,7 +36,7 @@ object_keys(struct var_t *obj)
                 array_append(keys, ks);
                 VAR_DECR_REF(ks);
         }
-        /* XXX: probably ought to sort this list before returning */
+        array_sort(keys);
         return keys;
 }
 

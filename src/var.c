@@ -138,6 +138,7 @@ var_new(void)
 void
 var_delete__(struct var_t *v)
 {
+        bug_on(v == NullVar);
         var_reset(v);
         var_free(v);
 }
@@ -151,6 +152,7 @@ var_delete__(struct var_t *v)
 void
 var_reset(struct var_t *v)
 {
+        bug_on(v == NullVar);
         if ((unsigned)v->magic < NTYPES_USER) {
                 void (*rst)(struct var_t *) = TYPEDEFS[v->magic].opm->reset;
                 if (rst)

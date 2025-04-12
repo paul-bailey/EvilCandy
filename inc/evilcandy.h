@@ -253,6 +253,7 @@ struct global_t {
 extern struct global_t q_;
 extern void load_file(const char *filename);
 extern struct var_t *ErrorVar;
+extern struct var_t *NullVar;
 
 /* helpers to classify a variable */
 static inline bool isconst(struct var_t *v)

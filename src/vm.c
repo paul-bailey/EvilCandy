@@ -394,7 +394,8 @@ do_load(struct vmframe_t *fr, instruction_t ii)
 static int
 do_push_local(struct vmframe_t *fr, instruction_t ii)
 {
-        push(fr, var_new());
+        VAR_INCR_REF(NullVar);
+        push(fr, NullVar);
         return 0;
 }
 
@@ -554,9 +555,11 @@ static int
 do_symtab(struct vmframe_t *fr, instruction_t ii)
 {
         char *s = RODATA_STR(fr, ii);
-        int res = hashtable_put(symbol_table, s, var_new());
+        int res = hashtable_put(symbol_table, s, NullVar);
         if (res != RES_OK)
                 err_setstr(RuntimeError, "Symbol %s already exists", s);
+        else
+                VAR_INCR_REF(NullVar);
         return res;
 }
 
@@ -595,8 +598,10 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
 
         /* see comments to vm_reenter: this may be NULL */
         retval = vm_reenter(fr, func, owner, argc, argv);
-        if (!retval)
-                retval = var_new();
+        if (!retval) {
+                VAR_INCR_REF(NullVar);
+                retval = NullVar;
+        }
 
         /*
          * Unwind stack in calling frame.

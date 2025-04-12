@@ -14,6 +14,13 @@ struct global_t q_;
  * is not considered an error.
  */
 struct var_t *ErrorVar;
+/*
+ * Dummy variable, prevents excessive var_new() for declaring
+ * uninitialized variables (see do_push_local in vm.c).  They'll just
+ * get replaced as soon as they are 'set', and we don't want a sea of
+ * malloc() and free() calls.
+ */
+struct var_t *NullVar;
 
 static void
 init_lib(void)
@@ -42,6 +49,7 @@ init_lib(void)
                 t->initfn();
 
         ErrorVar = stringvar_new("If you can see this from the console, this is a BUG!!!\n");
+        NullVar  = var_new();
 }
 
 static int

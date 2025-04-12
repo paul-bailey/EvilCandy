@@ -180,14 +180,13 @@ vmframe_free(struct vmframe_t *fr)
          * They're managed by their owning function object,
          * so we don't delete them here.
          */
-#if 1
         for (vpp = fr->stack; vpp < fr->stackptr; vpp++)
                 VAR_DECR_REF(*vpp);
-#else
-        while (fr->stackptr > fr->stack) {
-                VAR_DECR_REF(pop(fr));
-        }
-#endif
+
+        /*
+         * XXX REVISIT: Not at all obvious that these DECR's are parallel
+         * with INCR's in function_prep_frame.
+         */
         if (fr->owner)
                 VAR_DECR_REF(fr->owner);
         if (fr->func)

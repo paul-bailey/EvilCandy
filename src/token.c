@@ -306,13 +306,7 @@ retry:
                                         break;
                                 if (bksl_hex(&pc, &c))
                                         break;
-                                /* TODO: warning() removed, replace this with
-                                 * something else
-                                 */
-#if 0
-                                warning_(state->filename, state->lineno,
-                                         "Unsupported escape `%c'", *pc);
-#endif
+                                /* still here, unsupported escape, oh well */
                         } while (0);
                         if (!c)
                                 continue;

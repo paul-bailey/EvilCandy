@@ -112,10 +112,6 @@ var_reset(struct var_t *v)
         /* don't touch refcount here */
 }
 
-#if 0
-struct type_t TYPEDEFS[NTYPES];
-#endif
-
 static void
 config_builtin_methods(const struct type_inittbl_t *tbl,
                        struct hashtable_t *htbl)

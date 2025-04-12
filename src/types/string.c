@@ -13,6 +13,7 @@
 #include <math.h>
 
 #define STRING_LENGTH(str)      ((str)->s->s_info.enc_len)
+#define STRING_NBYTES(str)      ((str)->s->s_info.ascii_len)
 
 /* user argument limits */
 enum {
@@ -971,7 +972,7 @@ string_add(struct var_t *a, struct var_t *b)
         char *rval;
         size_t rlen, llen;
         char *lval = string_get_cstring(a);
-        llen = a->s->s_info.ascii_len;
+        llen = STRING_NBYTES(a);
         if (isvar_strptr(b)) {
                 rval = b->strptr;
                 rlen = strlen(rval);
@@ -982,7 +983,7 @@ string_add(struct var_t *a, struct var_t *b)
                         return NULL;
                 }
                 rval = string_get_cstring(b);
-                rlen = b->s->s_info.ascii_len;
+                rlen = STRING_NBYTES(b);
         }
 
         catstr = emalloc(llen + rlen + 1);
@@ -1006,7 +1007,7 @@ string_cmp(struct var_t *a, struct var_t *b)
         if (isvar_string(b)) {
                 if (a->s == b->s)
                         return 0;
-                if (a->s->s_info.ascii_len != b->s->s_info.ascii_len)
+                if (STRING_NBYTES(a) != STRING_NBYTES(b))
                         return 1;
                 return compare_strings(string_get_cstring(a),
                                        string_get_cstring(b));

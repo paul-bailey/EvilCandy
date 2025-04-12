@@ -161,22 +161,15 @@ function_prep_frame(struct var_t *fn,
                 if (!v)
                         goto er;
 
-#warning "figure this out and clean it up"
-#if 0
-                fr->stack[fr->ap++] = qop_cp(v);
-#else
                 fr->stack[fr->ap++] = v;
                 VAR_INCR_REF(v);
-#endif
         }
         fr->owner = owner;
         fr->func  = fn;
         fr->clo   = fh->f_clov;
 
-#if 1
         VAR_INCR_REF(owner);
         VAR_INCR_REF(fn);
-#endif
 
         if (fh->f_magic == FUNC_USER)
                 fr->ex = fh->f_ex;

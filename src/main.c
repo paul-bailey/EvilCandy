@@ -133,7 +133,8 @@ run_script(const char *filename, FILE *fp)
                         }
 
                         disassemble(fp, ex, filename);
-                        fclose(fp);
+                        if (fp != stdout)
+                                fclose(fp);
                 }
                 if (!q_.opt.disassemble_only)
                         status = vm_execute(ex);

@@ -7,10 +7,6 @@ Bugs/Must-Do
           script mode seems to work just fine.
         * there's a VAR_INCR/DECR_REF imbalance somewhere, preventing
           some vars from getting deleted when they should.
-        * var_bucket_delete() is somehow causing refcount to shrink
-          below zero, meaning that variables are getting 'deleted'
-          while still being claimed by a hash table.  This is hard to
-          detect, since we're not calling free().
         * Broke static typing.  This was intentional to get rid of the
           qop_mov way of assignment, but now it needs to be fixed.
 
@@ -54,13 +50,15 @@ Library/Language Features
 
 * Add stdin and shell environment to Io module
 
+* Add something like Python's ``range`` object, try to get rid of need
+  for verbose ``for`` loops
+
+* Add a binary version of string type.  It reads literals but does
+  not 'interpret' utf-8 encoding or get confused by nulchars in the
+  middle of the string.
+
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
-
-* Have only one global TYPE_EMPTY var, call it something like
-  NullVar.  var_delete__() could ignore if v==NullVar.  Then we
-  wouldn't have to call var_new() every time we need a var to
-  represent 'null'.
 
 * Now that qop_mov is no longer a thing, we have to consider
   embedding each type's private data struct into struct var_t,
@@ -76,35 +74,17 @@ Mebbe/Wishlist/Low-prio bugs
 * change object .len method to just be length of the object,
   since object's methods are no longer visible as global variables.
 
-* Have all functions returning a var_t pointer never return
-  NULL unless NULL is (at that stage) a non-error return value.
-  An error return should be a pointer to RuntimeError.
-
-* Clean up the mess w/r/t "recursion" in vm.c.  Esp. vm_reenter
-  and do_call_func are soooo dirty.
-
 * Consider using a (per-thread) global stack instead of a
   per-frame stack.  See comment in vm.c, do_call_func(), for
   a rationale.
 
-* Support backslash-zero escape in string literals (moderate lift,
-  most standard-library C-string functions cannot be used).
-
 * Replace jmp_buf in token.c with either fussier management of helper
   functions' return values, or with a big damn get_tok function.
-
-* If in interactive mode, do not automatically quit for detectable
-  user errors in runtime.  Instead, do like at assemble time: throw
-  an error message and then prompt user for the next input.
 
 * At assemble_eval() time, determine if certain expressions can be
   reduced to single consts known at assemble time.  Currently something
   like "1 + 2" will result in an operation at execution time instead
   of being compiled to just "3".
-
-* Make better distinction between syntax errors and other user errors
-  (eg. array out of bounds, symbol not found...).  Currently syntax()
-  is used for both.
 
 * Preserve token buffer in interactive mode so that the UP arrow will
   recall previous expressions.
@@ -112,14 +92,8 @@ Mebbe/Wishlist/Low-prio bugs
 * Add "foreach" loop that resembles Python's "for" loop; this would be
   an alternative to the .foreach built-in method.
 
-* Support use of newline to substitute for semicolon (BIG LIFT).
-
 * Assembler.c is the "we have an AST at home" version of an abstract
   syntax tree.  Rewrite it from the ground up.
-
-* Support a switch statement.  Even though it'll be no faster than
-  an if-else-if block, switch statements are easier to read and
-  therefore less buggy.
 
 * Figure out how to de-chaos-ify and elegantize multiple inheritance
   without having to add a 'class' syntax.

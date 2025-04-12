@@ -40,6 +40,15 @@ strptrvar_new(char *cstr)
         return v;
 }
 
+struct var_t *
+xptrvar_new(struct executable_t *x)
+{
+        struct var_t *v = var_new();
+        v->magic = TYPE_XPTR;
+        v->xptr = x;
+        return v;
+}
+
 static const struct operator_methods_t strptr_primitives = {
         .cmp = strptr_cmp,
         .cp  = strptr_cp,

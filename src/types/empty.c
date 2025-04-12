@@ -21,7 +21,9 @@ empty_bit_not(struct var_t *v)
 static struct var_t *
 empty_cp(struct var_t *v)
 {
-        return var_new();
+        bug_on(v != NullVar);
+        VAR_INCR_REF(v);
+        return v;
 }
 
 static const struct operator_methods_t empty_primitives = {

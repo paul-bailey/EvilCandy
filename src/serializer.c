@@ -518,7 +518,8 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
                 struct var_t *v = NULL;
                 switch (magic) {
                 case TYPE_EMPTY:
-                        v = var_new();
+                        VAR_INCR_REF(NullVar);
+                        v = NullVar;
                         break;
                 case TYPE_FLOAT: {
                         v = floatvar_new(rdouble(state));
@@ -531,18 +532,21 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
                         s = rstring(state, &len);
                         if (!s)
                                 break;
-                        v = var_new();
-                        v->magic = magic;
                         /*
                          * XXX literal_put() adds this string permanently
                          * to the running program.  Is there no way to
                          * put this off as long as possible, so we aren't
                          * stuck with it in case this fails later?
                          */
-                        v->strptr = literal_put(s);
+                        v = strptrvar_new(literal_put(s));
                         free(s);
                         break;
                 case TYPE_XPTR:
+                        s = rstring(state, &len);
+                        if (!s)
+                                break;
+                        v = strptrvar_new(s);
+
                         /*
                          * Dirty alert!!
                          *
@@ -557,12 +561,7 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
                          *   there called LYING!"
                          *                         --Technoblade
                          */
-                        s = rstring(state, &len);
-                        if (!s)
-                                break;
-                        v = var_new();
-                        v->magic = magic;
-                        v->strptr = s;
+                        v->magic = TYPE_XPTR;
                         break;
                 default:
                         break;

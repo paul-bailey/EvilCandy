@@ -462,6 +462,7 @@ extern void function_add_default(struct var_t *func,
 
 /* types/intl.c */
 extern struct var_t *strptrvar_new(char *cstr);
+extern struct var_t *xptrvar_new(struct executable_t *x);
 
 /* types/object.c */
 extern struct var_t *objectvar_new(void);

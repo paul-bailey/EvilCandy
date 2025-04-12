@@ -212,7 +212,7 @@ do_rewind(struct vmframe_t *fr)
                 fh->err = errno;
                 ret = ErrorVar;
         } else {
-                ret = var_new();
+                ret = NULL;
         }
         errno = errno_save;
         return ret;

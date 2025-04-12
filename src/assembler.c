@@ -502,10 +502,7 @@ seek_or_add_const_xptr(struct assemble_t *a, void *p)
         if (i == x->n_rodata) {
                 as_assert_array_pos(a, x->n_rodata + 1,
                                     &x->rodata, &fr->const_alloc);
-                v = var_new();
-                v->magic = TYPE_XPTR;
-                v->xptr = p;
-                x->rodata[x->n_rodata++] = v;
+                x->rodata[x->n_rodata++] = xptrvar_new(p);
         }
         return i;
 }

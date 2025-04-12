@@ -33,7 +33,8 @@ struct operator_methods_t {
 
         /*
          * Copy a variable
-         *      If it's a by-ref type, copy just the handle, magic #, etc.
+         *      If it's a by-ref type, just produce a reference
+                        and return yourself.
          *      If it's a by-val type, copy all the data except the refcount.
          *
          * Use var_new(), NOT just malloc/memcpy, which will break things.
@@ -44,10 +45,8 @@ struct operator_methods_t {
         struct var_t *(*cp)(struct var_t *);
 
         /*
-         * hard reset, clobber var's type as well.
-         * Used for removing temporary vars from stack or freeing heap
-         * vars; if any type-specific garbage collection needs to be
-         * done, declare it here, or leave NULL for the generic cleanup.
+         * "You're about to be deleted, so delete your private
+         * data before it gets zombified."
          */
         void (*reset)(struct var_t *);
 };
@@ -58,15 +57,12 @@ struct operator_methods_t {
  * @methods:    Linked list of built-in methods for the type; these are
  *              things scripts call as functions. var_config_type() fills
  *              in this hashtable during initialization time.
- * @reset:      Callback to reset the variable, or NULL if no special
- *              action is needed.
  * @opm:        Callbacks for performing primitive operations like
  *              + or - on type
  */
 struct type_t {
         const char *name;
         struct hashtable_t methods;
-        void (*reset)(struct var_t *);
         const struct operator_methods_t *opm;
 };
 

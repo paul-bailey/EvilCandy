@@ -1913,9 +1913,6 @@ assemble_second_pass(struct assemble_t *a)
                 resolve_jump_labels(a, list2frame(li));
 }
 
-
-
-
 static struct executable_t *
 as_top_executable(struct assemble_t *a)
 {

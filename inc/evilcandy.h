@@ -133,20 +133,6 @@ struct object_handle_t {
 };
 
 /**
- * DOC: Variable flags
- * @VF_PRIV:    Private variable, only applies to object members
- * @VF_CONST:   Constant variable, variable can be destroyed, but before
- *              then, it cannot be changed.
- *
- * These are the .flags field of a struct var_t
- */
-enum {
-        VF_PRIV = 0x1,
-        VF_CONST = 0x2,
-};
-
-
-/**
  * struct var_t - User variable type
  * @magic: Magic number to determine which builtin type
  * @flags: a VF_* enum

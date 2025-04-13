@@ -496,7 +496,7 @@ seek_or_add_const_xptr(struct assemble_t *a, void *p)
         struct executable_t *x = fr->x;
         for (i = 0; i < x->n_rodata; i++) {
                 v = x->rodata[i];
-                if (isvar_xptr(v) && v->xptr == p)
+                if (isvar_xptr(v) && xptrvar_tox(v) == p)
                         break;
         }
 
@@ -514,7 +514,7 @@ seek_const_int(struct assemble_t *a, struct executable_t *x, long long vi)
         int i;
         for (i = 0; i < x->n_rodata; i++) {
                 struct var_t *v = x->rodata[i];
-                if (isvar_int(v) && v->i == vi)
+                if (isvar_int(v) && intvar_toll(v) == vi)
                         break;
         }
         return i;
@@ -535,7 +535,8 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
         case 'f':
                 for (i = 0; i < x->n_rodata; i++) {
                         v = x->rodata[i];
-                        if (isvar_float(v) && v->f == oc->f)
+                        /* "float1 == float2" ...is this reliable? */
+                        if (isvar_float(v) && floatvar_tod(v) == oc->f)
                                 break;
                 }
                 break;
@@ -543,7 +544,7 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
         case 'q':
                 for (i = 0; i < x->n_rodata; i++) {
                         v = x->rodata[i];
-                        if (isvar_strptr(v) && v->strptr == oc->s)
+                        if (isvar_string(v) && string_get_cstring(v) == oc->s)
                                 break;
                 }
                 break;
@@ -577,7 +578,7 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
                         break;
                 case 'u':
                 case 'q':
-                        v = strptrvar_new(oc->s);
+                        v = stringvar_from_immortal(oc->s);
                         break;
                 default:
                         bug();

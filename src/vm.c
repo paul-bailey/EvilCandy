@@ -51,7 +51,7 @@ static inline struct var_t *pop(struct vmframe_t *fr)
 static inline struct var_t *RODATA(struct vmframe_t *fr, instruction_t ii)
         { return fr->ex->rodata[ii.arg2]; }
 static inline char *RODATA_STR(struct vmframe_t *fr, instruction_t ii)
-        { return RODATA(fr, ii)->strptr; }
+        { return string_get_cstring(RODATA(fr, ii)); }
 
 #else /* DEBUG */
 
@@ -79,9 +79,12 @@ RODATA(struct vmframe_t *fr, instruction_t ii)
 static inline char *
 RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 {
+        char *ret;
         struct var_t *vs = RODATA(fr, ii);
-        bug_on(!isvar_strptr(vs));
-        return vs->strptr;
+        bug_on(!isvar_string(vs));
+        ret = string_get_cstring(vs);
+        bug_on(!ret);
+        return ret;
 }
 
 #endif /* DEBUG */
@@ -90,8 +93,11 @@ static struct var_t *
 symbol_seek(struct var_t *name)
 {
         struct var_t *ret;
-        const char *s = name->strptr;
-        bug_on(!isvar_strptr(name));
+        const char *s;
+
+        bug_on(!isvar_string(name));
+
+        s = string_get_cstring(name);
         bug_on(!s);
 
         ret = hashtable_get(symbol_table, s);
@@ -103,10 +109,12 @@ symbol_seek(struct var_t *name)
 static int
 symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
 {
-        const char *s = name->strptr;
+        const char *s;
         struct var_t *child;
 
-        bug_on(!isvar_strptr(name));
+        bug_on(!isvar_string(name));
+
+        s = string_get_cstring(name);
         bug_on(!s);
 
         if ((child = hashtable_swap(symbol_table, (void *)s, v)) != NULL) {
@@ -641,7 +649,7 @@ do_deffunc(struct vmframe_t *fr, instruction_t ii)
         struct var_t *func;
         struct var_t *loc = RODATA(fr, ii);
         bug_on(!isvar_xptr(loc));
-        func = funcvar_new_user(loc->xptr);
+        func = funcvar_new_user(xptrvar_tox(loc));
         push(fr, func);
         return 0;
 }

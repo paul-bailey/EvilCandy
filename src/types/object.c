@@ -10,7 +10,29 @@
 #include <string.h>
 #include <stdlib.h>
 
-static inline size_t oh_nchildren(struct object_handle_t *oh)
+/**
+ * struct dictvar_t - Descriptor for an object handle
+ * @priv:       Internal private data, used by some built-in object types
+ * @priv_cleanup: Way to clean up @priv if destroying this object handle.
+ *              If this is NULL and @priv is not NULL, @priv will be
+ *              simply freed.  Used by C accelerator modules, not scripts.
+ * @nchildren:  Number of attributes
+ * @dict:       Hash table of attributes
+ * @lock:       Prevent SETATTR, GETATTR during an iterable cycle, such as
+ *              foreach.
+ */
+struct dictvar_t {
+        struct var_t base;
+        void *priv;
+        void (*priv_cleanup)(struct var_t *, void *);
+        int nchildren;
+        struct hashtable_t dict;
+        unsigned int lock;
+};
+
+#define V2D(v)  ((struct dictvar_t *)(v))
+
+static inline size_t oh_nchildren(struct dictvar_t *oh)
         { return oh->nchildren; }
 
 /* **********************************************************************
@@ -27,7 +49,7 @@ object_keys(struct var_t *obj)
         unsigned int i;
 
         bug_on(!isvar_object(obj));
-        d = &obj->o->dict;
+        d = &V2D(obj)->dict;
         keys = arrayvar_new();
 
         for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
@@ -43,14 +65,21 @@ object_keys(struct var_t *obj)
 struct var_t *
 objectvar_new(void)
 {
-        struct var_t *o = var_new();
-        o->v_type = &ObjectType;
-
-        o->o = ecalloc(sizeof(*o->o));
-        hashtable_init(&o->o->dict, fnv_hash,
+        struct var_t *o = var_new(&ObjectType);
+        V2D(o)->priv = NULL;
+        V2D(o)->priv_cleanup = NULL;
+        hashtable_init(&V2D(o)->dict, fnv_hash,
                        str_key_match, var_bucket_delete);
         return o;
 }
+
+/*
+ * XXX REVISIT: Consider removing object_set/get_priv.
+ * The private data is unused for user-defined dictionaries, and there's
+ * no reason built-in modules need to be dictionaries at all, as opposed
+ * to their own types.  True for IO module, which so far is the only
+ * module which uses this.
+ */
 
 /**
  * object_set_priv - Set an object's private data
@@ -61,12 +90,23 @@ objectvar_new(void)
  */
 void
 object_set_priv(struct var_t *o, void *priv,
-                void (*cleanup)(struct object_handle_t *, void *))
+                void (*cleanup)(struct var_t *, void *))
 {
         bug_on(!isvar_object(o));
-        o->o->priv = priv;
-        o->o->priv_cleanup = cleanup;
+        V2D(o)->priv = priv;
+        V2D(o)->priv_cleanup = cleanup;
 }
+
+/**
+ * object_get_priv - Get the object's private data,
+ *                      or NULL if none exists.
+ */
+void *
+object_get_priv(struct var_t *o)
+{
+        return V2D(o)->priv;
+}
+
 
 /**
  * object_getattr - Get object attribute
@@ -82,9 +122,8 @@ object_getattr(struct var_t *o, const char *s)
         if (!s)
                 return NULL;
         bug_on(!isvar_object(o));
-        bug_on(!o->o);
 
-        return hashtable_get(&o->o->dict, s);
+        return hashtable_get(&V2D(o)->dict, s);
 }
 
 /**
@@ -108,8 +147,9 @@ enum result_t
 object_addattr(struct var_t *parent,
                struct var_t *child, const char *name)
 {
+        struct dictvar_t *d = V2D(parent);
         bug_on(!isvar_object(parent));
-        if (parent->o->lock) {
+        if (d->lock) {
                 err_locked();
                 return RES_ERROR;
         }
@@ -135,12 +175,12 @@ object_addattr(struct var_t *parent,
          * For a program with a long lifecycle, this could result in the
          * build-up of a non-trivial amount of zombified strings.
          */
-        if (hashtable_put(&parent->o->dict, literal_put(name), child) < 0) {
+        if (hashtable_put(&d->dict, literal_put(name), child) < 0) {
                 err_setstr(RuntimeError,
                            "Object already has element named %s", name);
                 return RES_ERROR;
         }
-        parent->o->nchildren++;
+        d->nchildren++;
         VAR_INCR_REF(child);
         return RES_OK;
 }
@@ -154,21 +194,22 @@ object_addattr(struct var_t *parent,
 enum result_t
 object_delattr(struct var_t *parent, const char *name)
 {
+        struct dictvar_t *d = V2D(parent);
         struct var_t *child;
         if (!name)
                 return RES_OK;
-        if (parent->o->lock) {
+        if (d->lock) {
                 err_locked();
                 return RES_ERROR;
         }
-        child = hashtable_remove(&parent->o->dict, name);
+        child = hashtable_remove(&d->dict, name);
         /*
          * XXX REVISIT: If !child, should I throw a doesn't-exist error,
          * or should I silently ignore it like I'm doing now?
          */
         if (child) {
                 VAR_DECR_REF(child);
-                parent->o->nchildren--;
+                d->nchildren--;
         }
         return RES_OK;
 }
@@ -189,12 +230,11 @@ object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
 {
         char *namestr;
         struct var_t *child;
+        struct dictvar_t *d = V2D(dict);
 
         bug_on(!isvar_object(dict));
 
-        if (isvar_strptr(name)) {
-                namestr = name->strptr;
-        } else if (isvar_string(name)) {
+        if (isvar_string(name)) {
                 /* XXX REVISIT: same immortalization issue as in object_addattr */
                 namestr = literal_put(string_get_cstring(name));
         } else {
@@ -203,11 +243,11 @@ object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
         }
 
         /* @child is either the former entry replaced by @attr or NULL */
-        child = hashtable_put_or_swap(&dict->o->dict, namestr, attr);
+        child = hashtable_put_or_swap(&d->dict, namestr, attr);
         if (child) {
                 VAR_DECR_REF(child);
         } else {
-                dict->o->nchildren++;
+                d->nchildren++;
         }
         VAR_INCR_REF(attr);
         return RES_OK;
@@ -227,10 +267,10 @@ object_add_to_globals(struct var_t *obj)
 {
         bug_on(!obj);
 
-        struct hashtable_t *h = &obj->o->dict;
         unsigned int i;
         int res;
         void *k, *v;
+        struct hashtable_t *h = &V2D(obj)->dict;
         for (i = 0, res = hashtable_iterate(h, &k, &v, &i);
              res == 0; res = hashtable_iterate(h, &k, &v, &i)) {
                 vm_add_global((char *)k, (struct var_t *)v);
@@ -252,7 +292,7 @@ object_cp(struct var_t *v)
 static int
 object_cmp(struct var_t *a, struct var_t *b)
 {
-        if (isvar_object(b) && b->o == a->o)
+        if (isvar_object(b))
                 return 0;
         /* FIXME: need to recurse here */
         return 1;
@@ -267,13 +307,13 @@ object_cmpz(struct var_t *obj)
 static void
 object_reset(struct var_t *o)
 {
-        struct object_handle_t *oh;
+        struct dictvar_t *oh;
 
         bug_on(!isvar_object(o));
-        oh = o->o;
+        oh = V2D(o);
         if (oh->priv) {
                 if (oh->priv_cleanup)
-                        oh->priv_cleanup(oh, oh->priv);
+                        oh->priv_cleanup(o, oh->priv);
                 else
                         free(oh->priv);
         }
@@ -358,7 +398,7 @@ do_object_len(struct vmframe_t *fr)
         }
         /* XXX REVISIT: should be in var.c as var_length */
         if (isvar_object(v))
-                i = oh_nchildren(v->o);
+                i = oh_nchildren(V2D(v));
         else if (isvar_string(v))
                 i = string_length(v);
         else if (isvar_array(v))
@@ -505,7 +545,7 @@ do_object_copy(struct vmframe_t *fr)
 
         bug_on(!isvar_object(self));
 
-        d = &self->o->dict;
+        d = &V2D(self)->dict;
         for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
              res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
                 if (object_addattr(ret, qop_cp((struct var_t *)v),
@@ -545,5 +585,6 @@ struct type_t ObjectType = {
         .name = "dictionary",
         .opm    = &object_primitives,
         .cbm    = object_methods,
+        .size   = sizeof(struct dictvar_t),
 };
 

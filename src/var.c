@@ -9,7 +9,10 @@
 #ifndef NDEBUG
    static size_t var_nalloc = 0;
 #  define REGISTER_ALLOC() do { var_nalloc++; } while (0)
-#  define REGISTER_FREE()  do { var_nalloc--; } while (0)
+#  define REGISTER_FREE()  do { \
+        bug_on((int)var_nalloc <= 0); \
+        var_nalloc--;  \
+} while (0)
    static void
    var_alloc_tell(void)
    {
@@ -23,63 +26,74 @@
 static struct var_mem_t *var_freelist = NULL;
 struct var_mem_t {
         struct var_mem_t *list;
-        struct var_t var;
+        union {
+                struct var_t var;
+                unsigned char sizeassert[24];
+        };
 };
 
-#define list2memvar(li) container_of(li, struct var_mem_t, list)
 #define var2memvar(v) container_of(v, struct var_mem_t, var)
 
-static void
-var_more_(void)
-{
-        enum { NPERBLK = 64 };
-        int i;
-        struct var_mem_t *blk = emalloc(sizeof(*blk) * NPERBLK);
-        for (i = 0; i < NPERBLK; i++) {
-                blk[i].list = var_freelist;
-                var_freelist = &blk[i];
-        }
-}
+/*
+ * TODO: this only speeds things up for integers and floats,
+ * but not strings and functions, which are the other most
+ * commonly alloc'd and freed variables.
+ */
+#define SMALL_VAR_SIZE 24
 
 static struct var_t *
-var_alloc(void)
+var_alloc(size_t size)
 {
-        struct var_mem_t *vm;
+        struct var_t *ret;
         REGISTER_ALLOC();
-        if (!var_freelist)
-                var_more_();
 
-        vm = list2memvar(var_freelist);
-        var_freelist = vm->list;
-        vm->var.refcount = 1;
-        return &vm->var;
+        if (size <= SMALL_VAR_SIZE) {
+                /* empty, int, float */
+                struct var_mem_t *vm = var_freelist;
+                if (!vm) {
+                        vm = ecalloc(sizeof(*vm));
+                } else {
+                        var_freelist = vm->list;
+                        vm->list = NULL;
+                        memset(&vm->var, 0, sizeof(vm->var));
+                }
+                ret = &vm->var;
+        } else {
+                /* strings, dictionaries, functions... */
+                ret = ecalloc(size);
+        }
+        return ret;
 }
 
 static void
-var_free(struct var_t *v)
+var_free(struct var_t *v, size_t size)
 {
-        struct var_mem_t *vm;
         REGISTER_FREE();
-#ifndef NDEBUG
-        if (v->refcount != 0) {
-                DBUG("expected refcount=0 but it's %d\n", v->refcount);
-                bug();
+        if (size <= SMALL_VAR_SIZE) {
+                struct var_mem_t *vm = container_of(v, struct var_mem_t, var);
+                vm->list = var_freelist;
+                var_freelist = vm;
+        } else {
+                free(v);
         }
-#endif
-        vm = var2memvar(v);
-        vm->list = var_freelist;
-        var_freelist = vm;
 }
 
+/*
+ * TODO: var_new and var_delete__: when v->v_type->size <= 24
+ *       use a linked-list allocation method.
+ */
 /**
  * var_new - Get a new empty variable
  */
 struct var_t *
-var_new(void)
+var_new(struct type_t *type)
 {
-        struct var_t *v = var_alloc();
-        /* var_alloc took care of refcount already */
-        v->v_type = &EmptyType;
+        struct var_t *v;
+        bug_on(type->size == 0);
+
+        v = var_alloc(type->size);
+        v->v_refcnt = 1;
+        v->v_type = type;
         return v;
 }
 
@@ -90,26 +104,15 @@ var_new(void)
 void
 var_delete__(struct var_t *v)
 {
+        bug_on(!v);
         bug_on(v == NullVar);
-        var_reset(v);
-        var_free(v);
-}
-
-/**
- * var_reset - Empty a variable
- * @v: variable to empty.
- *
- * This does not delete the variable.
- */
-void
-var_reset(struct var_t *v)
-{
-        bug_on(v == NullVar);
+        bug_on(v->v_refcnt != 0);
+        bug_on(!v->v_type);
+        bug_on(!v->v_type->opm);
         if (v->v_type->opm->reset)
                 v->v_type->opm->reset(v);
 
-        v->v_type = &EmptyType;
-        /* don't touch refcount here */
+        var_free(v, v->v_type->size);
 }
 
 static void
@@ -136,6 +139,22 @@ builtin_method(struct var_t *v, const char *method_name)
 }
 
 /*
+ * Given extern linkage so it can be called for modules that have
+ * data types which don't need to be visible outside their little
+ * corner of the interpreter.
+ * The major players are forward-declared in typedefs.h and added
+ * to init_tbl[] below in moduleinit_var.
+ */
+void
+var_initialize_type(struct type_t *tp)
+{
+        hashtable_init(&tp->methods, fnv_hash,
+                       str_key_match, var_bucket_delete);
+        if (tp->cbm)
+                config_builtin_methods(tp->cbm, &tp->methods);
+}
+
+/*
  * see main.c - this must be after all the typedef code
  * has had their moduleinit functions called, or it will fail.
  */
@@ -148,21 +167,16 @@ moduleinit_var(void)
                 &FloatType,
                 &FunctionType,
                 &IntType,
-                &StrptrType,
                 &XptrType,
                 &ObjectType,
                 &StringType,
+                &UuidptrType,
                 NULL,
         };
 
         int i;
-        for (i = 0; init_tbl[i] != NULL; i++) {
-                struct type_t *tp = init_tbl[i];
-                hashtable_init(&tp->methods, fnv_hash,
-                               str_key_match, var_bucket_delete);
-                if (tp->cbm)
-                        config_builtin_methods(tp->cbm, &tp->methods);
-        }
+        for (i = 0; init_tbl[i] != NULL; i++)
+                var_initialize_type(init_tbl[i]);
 
 #ifndef NDEBUG
         atexit(var_alloc_tell);
@@ -206,18 +220,19 @@ attr_by_string(struct var_t *v, const char *s)
 struct var_t *
 var_getattr(struct var_t *v, struct var_t *key)
 {
-        if (isvar_strptr(key)) {
-                return attr_by_string(v, key->strptr);
-        } else if (isvar_int(key)) {
+        if (isvar_int(key)) {
                 /* XXX: return ErrorVar if bound error? */
                 /* idx stores long long, but ii.i is int */
-                if (key->i < INT_MIN || key->i > INT_MAX)
+                long long ill = intvar_toll(key);
+                int i;
+                if (ill < INT_MIN || ill > INT_MAX)
                         return NULL;
 
+                i = (int)ill;
                 if (isvar_array(v))
-                        return array_child(v, key->i);
+                        return array_child(v, i);
                 else if (isvar_string(v))
-                        return string_nth_child(v, key->i);
+                        return string_nth_child(v, i);
         } else if (isvar_string(key)) {
                 return attr_by_string(v, string_get_cstring(key));
         }
@@ -242,13 +257,11 @@ attr_str(struct var_t *key)
 
         memset(numbuf, 0, sizeof(numbuf));
 
-        if (isvar_strptr(key)) {
-                strncpy(numbuf, key->strptr, sizeof(numbuf)-1);
-        } else if (isvar_string(key)) {
+        if (isvar_string(key)) {
                 strncpy(numbuf, string_get_cstring(key),
                         sizeof(numbuf)-1);
         } else if (isvar_int(key)) {
-                sprintf(numbuf, "%lld", key->i);
+                sprintf(numbuf, "%lld", intvar_toll(key));
         } else {
                 strcpy(numbuf, "<!bug>");
         }

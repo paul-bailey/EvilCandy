@@ -88,18 +88,16 @@ print_rodata_str(FILE *fp, struct executable_t *ex, unsigned int i)
         }
         v = ex->rodata[i];
 
-        if (isvar_int(v)) {
-                fprintf(fp, "0x%016llx", v->i);
-        } else if (isvar_float(v)) {
-                fprintf(fp, "%.8le", v->f);
-        } else if (isvar_strptr(v)) {
-                print_escapestr(fp, v->strptr, '"');
-        } else if (isvar_xptr(v)) {
-                fprintf(fp, "<%s>",
-                        ((struct executable_t *)v->xptr)->uuid);
-        } else {
+        if (isvar_int(v))
+                fprintf(fp, "0x%016llx", intvar_toll(v));
+        else if (isvar_float(v))
+                fprintf(fp, "%.8le", floatvar_tod(v));
+        else if (isvar_string(v))
+                print_escapestr(fp, string_get_cstring(v), '"');
+        else if (isvar_xptr(v))
+                fprintf(fp, "<%s>", xptrvar_tox(v)->uuid);
+        else
                 fprintf(fp, "%s", undefstr);
-        }
 }
 
 static void
@@ -231,7 +229,7 @@ disassemble_recursive(FILE *fp, struct executable_t *ex, int verbose)
         for (i = 0; i < ex->n_rodata; i++) {
                 struct var_t *v = ex->rodata[i];
                 if (isvar_xptr(v))
-                        disassemble_recursive(fp, v->xptr, verbose);
+                        disassemble_recursive(fp, xptrvar_tox(v), verbose);
         }
 }
 

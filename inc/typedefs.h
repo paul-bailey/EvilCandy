@@ -51,6 +51,21 @@ struct operator_methods_t {
         void (*reset)(struct var_t *);
 };
 
+/*
+ * struct type_inittbl_t - Used for initializing a typedef.
+ *      TBLEND declares an end to the table.
+ */
+#define V_INITTBL(n, cb, m, M) \
+        { .name = n, .fn = cb, .minargs = m, .maxargs = M }
+#define TBLEND { .name = NULL }
+/* XXX: should be called type_methods_t or something */
+struct type_inittbl_t {
+        const char *name;
+        struct var_t *(*fn)(struct vmframe_t *);
+        int minargs;
+        int maxargs;
+};
+
 /**
  * struct type_t - Used to get info about a typedef
  * @name:       Name of the type
@@ -68,18 +83,24 @@ struct type_t {
         struct hashtable_t methods;
         const struct operator_methods_t *opm;
         const struct type_inittbl_t *cbm;
+        size_t size;
 };
 
-/* Declared in type C modules in types/xxx.c */
+/*
+ * Declared in type C modules in types/xxx.c
+ * Only put these here and give them extern linkage if they are meaningful
+ * outside of whatever module that uses them.  Otherwise, keep them local
+ * to the module so the namespace doesn't get cluttered up.
+ */
 extern struct type_t ArrayType;
 extern struct type_t EmptyType; /* XXX should be NullType */
 extern struct type_t FloatType;
 extern struct type_t FunctionType;
 extern struct type_t IntType;
-extern struct type_t StrptrType;
 extern struct type_t XptrType;
 extern struct type_t ObjectType;
 extern struct type_t StringType;
+extern struct type_t UuidptrType;
 
 static inline bool isvar_array(struct var_t *v)
         { return v->v_type == &ArrayType; }
@@ -91,8 +112,6 @@ static inline bool isvar_function(struct var_t *v)
         { return v->v_type == &FunctionType; }
 static inline bool isvar_int(struct var_t *v)
         { return v->v_type == &IntType; }
-static inline bool isvar_strptr(struct var_t *v)
-        { return v->v_type == &StrptrType; }
 static inline bool isvar_xptr(struct var_t *v)
         { return v->v_type == &XptrType; }
 static inline bool isvar_object(struct var_t *v)
@@ -100,10 +119,41 @@ static inline bool isvar_object(struct var_t *v)
 #define isvar_dict isvar_object
 static inline bool isvar_string(struct var_t *v)
         { return v->v_type == &StringType; }
+static inline bool isvar_uuidptr(struct var_t *v)
+        { return v->v_type == &UuidptrType; }
 
 static inline bool isnumvar(struct var_t *v)
         { return isvar_int(v) || isvar_float(v); }
 
+/*
+ * Made public so intvar_toll and floatvar_tod can be inline.
+ * These are otherwise used privately in integer.c and float.c
+ */
+struct intvar_t {
+        struct var_t base;
+        long long i;
+};
+struct floatvar_t {
+        struct var_t base;
+        double f;
+};
+struct xptrvar_t {
+        struct var_t base;
+        struct executable_t *xptr;
+};
+
+
+/* Warning!! Only call these if you already type-checked @v */
+static inline double floatvar_tod(struct var_t *v)
+        { return ((struct floatvar_t *)v)->f; }
+static inline long long intvar_toll(struct var_t *v)
+        { return ((struct intvar_t *)v)->i; }
+static inline long long numvar_toint(struct var_t *v)
+        { return isvar_int(v) ? intvar_toll(v) : (long long)floatvar_tod(v); }
+static inline double numvar_tod(struct var_t *v)
+        { return isvar_float(v) ? floatvar_tod(v) : (double)intvar_toll(v); }
+static inline struct executable_t *xptrvar_tox(struct var_t *v)
+        { return ((struct xptrvar_t *)v)->xptr; }
 
 #endif /* EVILCANDY_TYPEDEFS_H */
 

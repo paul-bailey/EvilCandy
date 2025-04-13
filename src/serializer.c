@@ -539,30 +539,15 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
                          * put this off as long as possible, so we aren't
                          * stuck with it in case this fails later?
                          */
-                        v = strptrvar_new(literal_put(s));
+                        v = stringvar_from_immortal(literal_put(s));
                         free(s);
                         break;
                 case TYPE_XPTR:
                         s = rstring(state, &len);
                         if (!s)
                                 break;
-                        v = strptrvar_new(s);
-
-                        /*
-                         * Dirty alert!!
-                         *
-                         * This is the only time we intentionally lie about
-                         * TYPE_XXX magic.  We save the string (a UUID) for
-                         * now, and when we finished reading the file, we
-                         * redirect these pointers from the string to the
-                         * struct executable with a matching uuid, and then
-                         * free() this string.
-                         *
-                         *   "I was actually using an advanced technique
-                         *   there called LYING!"
-                         *                         --Technoblade
-                         */
-                        v->v_type = &XptrType;
+                        v = uuidptrvar_new(s);
+                        /* don't free s, it's now in @v */
                         break;
                 default:
                         break;
@@ -579,12 +564,6 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
                         struct var_t *v = ex->rodata[i];
                         if (!v)
                                 break;
-
-                        if (isvar_xptr(v)) {
-                                /* because we lied, lie again */
-                                free(v->strptr);
-                                v->v_type = &EmptyType;
-                        }
 
                         VAR_DECR_REF(ex->rodata[i]);
                 }
@@ -674,9 +653,9 @@ resolve_uuid(struct executable_t *ex, struct executable_t **xa, int n)
                 struct var_t *v = ex->rodata[i];
                 struct executable_t *ref;
 
-                if (!isvar_xptr(v))
+                if (!isvar_uuidptr(v))
                         continue;
-                ref = seek_uuid(v->strptr, xa, n);
+                ref = seek_uuid(uuidptr_get_cstring(v), xa, n);
                 if (ref == ex) {
                         /*
                          * probably a bug, but hypothetically it could be
@@ -691,13 +670,8 @@ resolve_uuid(struct executable_t *ex, struct executable_t **xa, int n)
                         return RES_ERROR;
                 }
 
-                /*
-                 * Unlike with TYPE_STRPTR, this .strptr is not a
-                 * literal() value; it was just a (malloc'd) return
-                 * value of rstring()
-                 */
-                free(v->strptr);
-                v->xptr = ref;
+                VAR_DECR_REF(v);
+                ex->rodata[i] = xptrvar_new(ref);
 
                 /* do recursively for each child found */
                 if (resolve_uuid(ref, xa, n) != RES_OK)
@@ -903,6 +877,16 @@ wllong(struct serial_wstate_t *state, unsigned long long v)
 }
 
 static void
+wdouble(struct serial_wstate_t *state, double d)
+{
+        union {
+                unsigned long long i;
+                double f;
+        } x = { .f = d };
+        wllong(state, x.i);
+}
+
+static void
 wstring(struct serial_wstate_t *state, const char *s)
 {
         size_t len = strlen(s) + 1;
@@ -976,26 +960,22 @@ write_exec(struct serial_wstate_t *state, struct executable_t *ex)
                 if (isvar_empty(v))
                         wbyte(state, TYPE_EMPTY);
                         continue;
-                if (isvar_float(v) || isvar_int(v)) {
-                        if (isvar_float(v))
-                                wbyte(state, TYPE_FLOAT);
-                        else
-                                wbyte(state, TYPE_INT);
-                        /*
-                         * No implicit casting from float to int here,
-                         * because these are taken from a union.
-                         */
-                        wllong(state, v->i);
-                } else if (isvar_strptr(v)) {
+                if (isvar_float(v)) {
+                        wbyte(state, TYPE_FLOAT);
+                        wdouble(state, floatvar_tod(v));
+                } else if (isvar_int(v)) {
+                        wbyte(state, TYPE_INT);
+                        wllong(state, intvar_toll(v));
+                } else if (isvar_string(v)) {
                         wbyte(state, TYPE_STRPTR);
-                        wstring(state, v->strptr);
+                        wstring(state, string_get_cstring(v));
                 } else if (isvar_xptr(v)) {
                         /*
                          * Of course we don't serialize an internal
                          * pointer.  Instead we use the executable's UUID
                          */
                         wbyte(state, TYPE_XPTR);
-                        wstring(state, v->xptr->uuid);
+                        wstring(state, xptrvar_tox(v)->uuid);
                 } else {
                         /* note StringType falls here, because all strings
                          * in .rodata are StrptrType
@@ -1031,7 +1011,7 @@ write_exec(struct serial_wstate_t *state, struct executable_t *ex)
         for (i = 0; i < ex->n_rodata; i++) {
                 struct var_t *v = ex->rodata[i];
                 if (isvar_xptr(v)) {
-                        int res = write_exec(state, v->xptr);
+                        int res = write_exec(state, xptrvar_tox(v));
                         if (res != RES_OK)
                                 return res;
                 }
@@ -1049,7 +1029,7 @@ n_exec(struct executable_t *node)
         for (i = 0; i < node->n_rodata; i++) {
                 struct var_t *v = node->rodata[i];
                 if (isvar_xptr(v))
-                        count += n_exec(v->xptr);
+                        count += n_exec(xptrvar_tox(v));
         }
         return count;
 }

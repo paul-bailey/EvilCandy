@@ -19,19 +19,19 @@
 #include <limits.h>
 
 /**
- * struct array_handle_t - Handle to a numerical array
+ * struct arrayvar_t - Handle to a numerical array
  * @lock:       lock to prevent add/remove during foreach
  * @nmemb:      Size of the array, in number of elements
- * @allocsize:  Size of the array, in number of bytes currently allocated
- *              for it
- * @datasize:   Size of each member of the array (so we don't have to
- *              keep figuring it out from @type all the time)
+ * @children:   struct buffer_t containing the actual arrray
  */
-struct array_handle_t {
+struct arrayvar_t {
+        struct var_t base;
         int lock;
         unsigned int nmemb;
         struct buffer_t children;
 };
+
+#define V2ARR(v_)       ((struct arrayvar_t *)(v_))
 
 /**
  * array_child - Get nth member of an array
@@ -48,7 +48,7 @@ struct array_handle_t {
 struct var_t *
 array_child(struct var_t *array, int idx)
 {
-        struct array_handle_t *h = array->a;
+        struct arrayvar_t *h = V2ARR(array);
         struct var_t **ppvar = (struct var_t **)h->children.s;
 
         idx = index_translate(idx, h->nmemb);
@@ -70,10 +70,12 @@ array_sort_cmp(const void *a, const void *b)
 void
 array_sort(struct var_t *array)
 {
-        if (array->a->nmemb < 2)
+        struct arrayvar_t *a = V2ARR(array);
+        if (a->nmemb < 2)
                 return;
-        qsort(array->a->children.s, array->a->nmemb,
-                     sizeof(struct var_t *), array_sort_cmp);
+        bug_on(!a->children.s);
+        qsort(a->children.s, a->nmemb,
+              sizeof(struct var_t *), array_sort_cmp);
 }
 
 /**
@@ -90,6 +92,7 @@ enum result_t
 array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
 {
         struct var_t **ppvar;
+        long long ill;
         int i;
 
         bug_on(!isvar_array(array));
@@ -98,18 +101,19 @@ array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
                 err_setstr(RuntimeError, "Array subscript must be integer");
                 return RES_ERROR;
         }
-        if (idx->i < INT_MIN || idx->i > INT_MAX) {
+        ill = intvar_toll(idx);
+        if (ill < INT_MIN || ill > INT_MAX) {
                 err_setstr(RuntimeError, "Array index out of bounds");
                 return RES_ERROR;
         }
 
-        if (array->a->lock) {
+        if (V2ARR(array)->lock) {
                 err_locked();
                 return RES_ERROR;
         }
 
-        ppvar = (struct var_t **)array->a->children.s;
-        if ((i = index_translate(idx->i, array->a->nmemb)) < 0)
+        ppvar = (struct var_t **)(V2ARR(array)->children.s);
+        if ((i = index_translate((int)ill, V2ARR(array)->nmemb)) < 0)
                 return RES_ERROR;
 
         /* delete old entry */
@@ -129,7 +133,7 @@ array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
 enum result_t
 array_append(struct var_t *array, struct var_t *child)
 {
-        struct array_handle_t *h = array->a;
+        struct arrayvar_t *h = V2ARR(array);
 
         if (h->lock) {
                 err_locked();
@@ -147,40 +151,37 @@ int
 array_length(struct var_t *array)
 {
         bug_on(!isvar_array(array));
-        return array->a->nmemb;
+        return V2ARR(array)->nmemb;
 }
 
 struct var_t *
 arrayvar_new(void)
 {
-        struct var_t *array = var_new();
-        array->v_type = &ArrayType;
-        array->a = emalloc(sizeof(*(array->a)));
-        buffer_init(&array->a->children);
+        struct var_t *array = var_new(&ArrayType);
+        buffer_init(&V2ARR(array)->children);
         return array;
 }
 
 static void
 array_reset(struct var_t *a)
 {
-        buffer_free(&a->a->children);
-        free(a->a);
+        buffer_free(&(V2ARR(a)->children));
 }
 
 static int
 array_cmp(struct var_t *a, struct var_t *b)
 {
-        int i, n = a->a->nmemb;
-        struct var_t **aitems = (struct var_t **)a->a->children.s;
-        struct var_t **bitems = (struct var_t **)b->a->children.s;
-        if (n > b->a->nmemb)
-                n = b->a->nmemb;
+        int i, n = V2ARR(a)->nmemb;
+        struct var_t **aitems = (struct var_t **)V2ARR(a)->children.s;
+        struct var_t **bitems = (struct var_t **)V2ARR(b)->children.s;
+        if (n > V2ARR(b)->nmemb)
+                n = V2ARR(b)->nmemb;
         for (i = 0; i < n; i++) {
                 int x = var_compare(aitems[i], bitems[i]);
                 if (x)
                         return x;
         }
-        return a->a->nmemb - b->a->nmemb;
+        return V2ARR(a)->nmemb - V2ARR(b)->nmemb;
 }
 
 static struct var_t *
@@ -202,7 +203,7 @@ do_array_len(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         bug_on(!isvar_array(self));
-        return intvar_new(self->a->nmemb);
+        return intvar_new(V2ARR(self)->nmemb);
 }
 
 static struct var_t *
@@ -210,7 +211,7 @@ do_array_foreach(struct vmframe_t *fr)
 {
         struct var_t *self, *func, *priv, *argv[3], **ppvar;
         unsigned int idx, lock;
-        struct array_handle_t *h;
+        struct arrayvar_t *h;
         int status = RES_OK;
 
         self = get_this(fr);
@@ -223,21 +224,24 @@ do_array_foreach(struct vmframe_t *fr)
         priv = frame_get_arg(fr, 1);
         if (!priv)
                 priv = NullVar;
-        h = self->a;
+        h = V2ARR(self);
         if (!h->nmemb) /* nothing to iterate over */
                 goto out;
 
         ppvar = (struct var_t **)h->children.s;
 
-        argv[1] = intvar_new(0); /* index of item */
-
         lock = h->lock;
         h->lock = 1;
         for (idx = 0; idx < h->nmemb; idx++) {
+                /*
+                 * XXX creating a new intvar every time, maybe some
+                 * back-door hacks to intvar should be allowed for
+                 * just the files in this directory.
+                 */
                 struct var_t *retval;
 
                 argv[0] = ppvar[idx];
-                argv[1]->i = idx;
+                argv[1] = intvar_new(idx);
                 argv[2] = priv;
 
                 retval = vm_reenter(fr, func, NULL, 3, argv);
@@ -248,6 +252,7 @@ do_array_foreach(struct vmframe_t *fr)
                 /* foreach throws away retval */
                 if (retval)
                         VAR_DECR_REF(retval);
+                VAR_DECR_REF(argv[1]);
         }
         h->lock = lock;
 
@@ -284,5 +289,6 @@ struct type_t ArrayType = {
         .name = "list",
         .opm = &array_primitives,
         .cbm = array_methods,
+        .size = sizeof(struct arrayvar_t),
 };
 

@@ -9,7 +9,7 @@
 #include <string.h>
 
 /**
- * struct function_handle_t - Handle to a callable function
+ * struct funcvar_t - Handle to a callable function
  * @f_magic:    If FUNC_INTERNAL, function is an internal function
  *              If FUNC_USER, function is in the user's script
  * @f_minargs:  Minimum number of args that may be passed to the
@@ -33,7 +33,8 @@
  *      f_minargs/f_maxargs/f_argc are all confusing, and I'm not
  *      sure I'm even still using maxargs
  */
-struct function_handle_t {
+struct funcvar_t {
+        struct var_t base;
         enum {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
@@ -49,6 +50,8 @@ struct function_handle_t {
         size_t f_arg_alloc;
         size_t f_clo_alloc;
 };
+
+#define V2FUNC(v)       ((struct funcvar_t *)(v))
 
 /* @arr is either 'arg' or 'clo' */
 #define GROW_ARG_ARRAY(fh, arr) \
@@ -117,14 +120,13 @@ struct var_t *
 function_prep_frame(struct var_t *fn,
                     struct vmframe_t *fr, struct var_t *owner)
 {
-        struct function_handle_t *fh;
+        struct funcvar_t *fh;
         int i, argc;
 
         fn = function_of(fn, &owner);
         if (!fn)
                 return ErrorVar;
-        fh = fn->fn;
-        bug_on(!fh);
+        fh = V2FUNC(fn);
 
         argc = (fh->f_magic == FUNC_INTERNAL)
                ? fh->f_minargs : fh->f_argc;
@@ -180,10 +182,9 @@ er:
 struct var_t *
 call_function(struct vmframe_t *fr, struct var_t *fn)
 {
-        struct function_handle_t *fh = fn->fn;
+        struct funcvar_t *fh = V2FUNC(fn);
 
         bug_on(!isvar_function(fn));
-        bug_on(!fh);
         bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
 
         if (fh->f_magic == FUNC_INTERNAL) {
@@ -198,9 +199,8 @@ call_function(struct vmframe_t *fr, struct var_t *fn)
 void
 function_add_closure(struct var_t *func, struct var_t *clo)
 {
-        struct function_handle_t *fh = func->fn;
+        struct funcvar_t *fh = V2FUNC(func);
         bug_on(!isvar_function(func));
-        bug_on(!fh);
         bug_on(fh->f_magic != FUNC_USER);
 
         if (GROW_ARG_ARRAY(fh, clo) < 0)
@@ -213,7 +213,7 @@ void
 function_add_default(struct var_t *func,
                         struct var_t *deflt, int argno)
 {
-        struct function_handle_t *fh = func->fn;
+        struct funcvar_t *fh = V2FUNC(func);
         size_t needsize;
         bug_on(!isvar_function(func));
         bug_on(!fh);
@@ -264,16 +264,12 @@ struct var_t *
 funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
                  int minargs, int maxargs)
 {
-        struct var_t *func = var_new();
-        struct function_handle_t *fh;
-
-        fh = ecalloc(sizeof(struct function_handle_t));
+        struct var_t *func = var_new(&FunctionType);
+        struct funcvar_t *fh = V2FUNC(func);
         fh->f_magic = FUNC_INTERNAL;
         fh->f_cb = cb;
         fh->f_minargs = minargs;
         fh->f_maxargs = maxargs;
-        func->fn = fh;
-        func->v_type = &FunctionType;
         return func;
 }
 
@@ -284,25 +280,21 @@ funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
 struct var_t *
 funcvar_new_user(struct executable_t *ex)
 {
-        struct var_t *func = var_new();
-        struct function_handle_t *fh;
-
-        fh = ecalloc(sizeof(struct function_handle_t));
+        struct var_t *func = var_new(&FunctionType);
+        struct funcvar_t *fh = V2FUNC(func);
         fh->f_magic = FUNC_USER;
         fh->f_ex = ex;
         EXECUTABLE_CLAIM(ex);
-
-        func->v_type = &FunctionType;
-        func->fn = fh;
         return func;
 }
 
 static int
 func_cmp(struct var_t *a, struct var_t *b)
 {
-        if (!isvar_function(b) || b->fn != a->fn)
+        if (!isvar_function(b))
                 return -1;
-        return 0;
+        /* wrapper function already checked b == a */
+        return 1;
 }
 
 static bool
@@ -321,11 +313,11 @@ func_cp(struct var_t *v)
 static void
 func_reset(struct var_t *func)
 {
-        remove_args(func->fn->f_argv, func->fn->f_argc);
-        remove_args(func->fn->f_clov, func->fn->f_cloc);
-        if (func->fn->f_magic == FUNC_USER && func->fn->f_ex)
+        struct funcvar_t *fh = V2FUNC(func);
+        remove_args(fh->f_argv, fh->f_argc);
+        remove_args(fh->f_clov, fh->f_cloc);
+        if (fh->f_magic == FUNC_USER && fh->f_ex)
                 EXECUTABLE_RELEASE(fh->f_ex);
-        free(func->fn);
 }
 
 static const struct operator_methods_t function_primitives = {
@@ -339,5 +331,6 @@ struct type_t FunctionType = {
         .name   = "function",
         .opm    = &function_primitives,
         .cbm    = NULL,
+        .size   = sizeof(struct funcvar_t),
 };
 

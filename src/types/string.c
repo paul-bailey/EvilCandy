@@ -12,9 +12,6 @@
 #include <errno.h>
 #include <math.h>
 
-#define STRING_LENGTH(str)      ((str)->s->s_info.enc_len)
-#define STRING_NBYTES(str)      ((str)->s->s_info.ascii_len)
-
 /* user argument limits */
 enum {
         JUST_MAX = 10000,
@@ -22,12 +19,17 @@ enum {
         PAD_MAX = JUST_MAX,
 };
 
-struct string_handle_t {
-        char *s;
-        size_t len;
-        bool immortal;
+struct stringvar_t {
+        struct var_t base;
+        char *s;        /* the actual C string */
+        bool s_imm;     /* true if immortal */
         struct utf8_info_t s_info;
 };
+
+#define V2STR(v)                ((struct stringvar_t *)(v))
+#define V2CSTR(v)               (V2STR(v)->s)
+#define STRING_LENGTH(str)      (V2STR(str)->s_info.enc_len)
+#define STRING_NBYTES(str)      (V2STR(str)->s_info.ascii_len)
 
 
 /* **********************************************************************
@@ -35,8 +37,9 @@ struct string_handle_t {
  ***********************************************************************/
 
 enum {
-        SF_COPY = 1,    /* copy @cstr */
-        SF_IMMORTAL = 2,        /* do not delete @cstr with string_handle_reset */
+        /* flags arg to stringvar_newf, see comments there */
+        SF_COPY         = 1,
+        SF_IMMORTAL     = 2,
 };
 
 /*
@@ -48,35 +51,40 @@ enum {
 static struct var_t *
 stringvar_newf(char *cstr, unsigned int flags)
 {
+        struct stringvar_t *vs;
         struct var_t *ret;
 
         if (!cstr) {
+                bug_on(!!(flags & SF_IMMORTAL));
                 cstr = "";
-                if (!!(flags & SF_IMMORTAL))
-                        cstr = literal(cstr);
-                else
-                        flags |= SF_COPY;
+                flags |= SF_COPY;
         }
 
         /* These cannot both be set */
         bug_on((flags & (SF_COPY|SF_IMMORTAL)) == (SF_COPY|SF_IMMORTAL));
 
-        ret = var_new();
-        ret->v_type = &StringType;
-        ret->s = ecalloc(sizeof(*ret->s));
-        if (!!(flags & SF_COPY))
-                ret->s->s = estrdup(cstr);
-        else
-                ret->s->s = cstr;
-        ret->s->immortal = !!(flags & SF_IMMORTAL);
-        utf8_scan(cstr, &ret->s->s_info);
+        ret = var_new(&StringType);
+        vs = V2STR(ret);
+        if (!!(flags & SF_COPY)) {
+                if (cstr[0] == '\0') {
+                        cstr = emalloc(1);
+                        cstr[0] = '\0';
+                        vs->s = cstr;
+                } else {
+                        vs->s = estrdup(cstr);
+                }
+        } else {
+                vs->s = cstr;
+        }
+        vs->s_imm = !!(flags & SF_IMMORTAL);
+        utf8_scan(cstr, &vs->s_info);
         return ret;
 }
 
 static inline struct var_t *
 string_copy__(struct var_t *str)
 {
-        return stringvar_newf(string_get_cstring(str), SF_COPY);
+        return stringvar_newf(V2CSTR(str), SF_COPY);
 }
 
 
@@ -158,7 +166,7 @@ format2_i(struct buffer_t *buf, struct var_t *arg,
         int base;
         size_t count;
         int xchar = 'A' - 10;
-        long long ival = isvar_int(arg) ? arg->i : (long long)arg->f;
+        long long ival = numvar_toint(arg);
 
         /* overrule '0' if left-justified */
         if (!rjust)
@@ -231,7 +239,7 @@ format2_e(struct buffer_t *buf, struct var_t *arg,
         int sigfig = 0;
         double ival;
         /* checked before this call */
-        double v = isvar_float(arg) ? arg->f : (double)arg->i;
+        double v = numvar_tod(arg);
         double dv = v;
 
         size_t count = buf->p;
@@ -312,7 +320,7 @@ static void
 format2_f(struct buffer_t *buf, struct var_t *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
-        double v = isvar_float(arg) ? arg->f : (double)arg->i;
+        double v = numvar_tod(arg);
         bool have_dot = false;
         size_t count = buf->p;
 
@@ -369,11 +377,7 @@ format2_s(struct buffer_t *buf, struct var_t *arg,
         const char *src;
         size_t count, count_bytes;
 
-        if (isvar_string(arg))
-                src = string_get_cstring(arg);
-        else    /* TYPE_STRPTR */
-                src = arg->strptr;
-
+        src = V2CSTR(arg);
         if (!src) {
                 count = count_bytes = 6;
                 buffer_puts(buf, "(null)");
@@ -470,7 +474,7 @@ format2_helper(struct vmframe_t *fr, struct buffer_t *buf, const char *s, int ar
                 format2_e(buf, v, conv, rjust, padc, padlen, precision);
                 break;
         case 's':
-                if (!isvar_string(v) && !isvar_strptr(v))
+                if (!isvar_string(v))
                         return 0;
                 format2_s(buf, v, conv, rjust, padc, padlen, precision);
                 break;
@@ -520,7 +524,7 @@ string_format2(struct vmframe_t *fr)
         int argi = 0;
 
         bug_on(!isvar_string(self));
-        s = string_get_cstring(self);
+        s = V2CSTR(self);
 
         if (!s || *s == '\0') {
                 VAR_INCR_REF(self);
@@ -546,7 +550,6 @@ string_format2(struct vmframe_t *fr)
         }
 
         ret = stringvar_newf(b.s, 0);
-        utf8_scan(string_get_cstring(ret), &ret->s->s_info);
         return ret;
 }
 
@@ -591,15 +594,15 @@ string_format_helper(struct vmframe_t *fr, char **src,
                 return false;
 
         if (isvar_int(q)) {
-                sprintf(vbuf, "%lld", q->i);
+                sprintf(vbuf, "%lld", intvar_toll(q));
                 buffer_puts(t, vbuf);
         } else if (isvar_float(q)) {
-                sprintf(vbuf, "%g", q->f);
+                sprintf(vbuf, "%g", floatvar_tod(q));
                 buffer_puts(t, vbuf);
         } else if (isvar_empty(q)) {
                 buffer_puts(t, "(null)");
         } else if (isvar_string(q)) {
-                buffer_puts(t, string_get_cstring(q));
+                buffer_puts(t, V2CSTR(q));
         } else {
                 return false;
         }
@@ -621,7 +624,7 @@ string_format(struct vmframe_t *fr)
         char *s, *self_s;
         bug_on(!isvar_string(self));
 
-        self_s = string_get_cstring(self);
+        self_s = V2CSTR(self);
         if (!self_s)
                 return stringvar_newf("", 0);
 
@@ -648,7 +651,7 @@ string_toint(struct vmframe_t *fr)
         char *s;
 
         bug_on(!isvar_string(self));
-        s = string_get_cstring(self);
+        s = V2CSTR(self);
         /* XXX Revisit: throw exception if not numerical? */
         if (s) {
                 int errno_save = errno;
@@ -672,7 +675,7 @@ string_tofloat(struct vmframe_t *fr)
         double f = 0.;
         char *s;
         bug_on(!isvar_string(self));
-        s = string_get_cstring(self);
+        s = V2CSTR(self);
         if (s) {
                 int errno_save = errno;
                 char *endptr;
@@ -702,8 +705,8 @@ string_lstrip(struct vmframe_t *fr)
                 return ErrorVar;
 
         buffer_init(&b);
-        buffer_puts(&b, string_get_cstring(self));
-        charset = arg ? string_get_cstring(arg) : NULL;
+        buffer_puts(&b, V2CSTR(self));
+        charset = arg ? V2CSTR(arg) : NULL;
         buffer_lstrip(&b, charset);
 
         return stringvar_newf(b.s, 0);
@@ -727,8 +730,8 @@ string_rstrip(struct vmframe_t *fr)
                 return ErrorVar;
 
         buffer_init(&b);
-        buffer_puts(&b, string_get_cstring(self));
-        charset = arg ? string_get_cstring(arg) : NULL;
+        buffer_puts(&b, V2CSTR(self));
+        charset = arg ? V2CSTR(arg) : NULL;
         buffer_rstrip(&b, charset);
         return stringvar_newf(b.s, 0);
 }
@@ -751,8 +754,8 @@ string_strip(struct vmframe_t *fr)
                 return ErrorVar;
 
         buffer_init(&b);
-        buffer_puts(&b, string_get_cstring(self));
-        charset = arg ? string_get_cstring(arg) : NULL;
+        buffer_puts(&b, V2CSTR(self));
+        charset = arg ? V2CSTR(arg) : NULL;
         buffer_rstrip(&b, charset);
         buffer_lstrip(&b, charset);
         return stringvar_newf(b.s, 0);
@@ -779,9 +782,9 @@ string_replace(struct vmframe_t *fr)
         buffer_init(&b);
 
         /* end not technically needed, but in case of match() bugs */
-        haystack = string_get_cstring(self);
+        haystack = V2CSTR(self);
         end = haystack + STRING_LENGTH(self);
-        needle = string_get_cstring(vneedle);
+        needle = V2CSTR(vneedle);
         needle_len = STRING_LENGTH(vneedle);
 
         if (!haystack || end == haystack) {
@@ -790,7 +793,7 @@ string_replace(struct vmframe_t *fr)
         }
 
         if (!needle || !needle_len) {
-                buffer_puts(&b, string_get_cstring(self));
+                buffer_puts(&b, V2CSTR(self));
                 goto done;
         }
 
@@ -799,7 +802,7 @@ string_replace(struct vmframe_t *fr)
                 if (size == -1)
                          break;
                 buffer_nputs(&b, haystack, size);
-                buffer_puts(&b, string_get_cstring(vrepl));
+                buffer_puts(&b, V2CSTR(vrepl));
                 haystack += size + needle_len;
         }
         bug_on(haystack > end);
@@ -830,7 +833,7 @@ string_rjust(struct vmframe_t *fr)
         if (arg_type_check(arg, &IntType) != 0)
                 return ErrorVar;
 
-        just = arg->i;
+        just = intvar_toll(arg);
         if (just < 0 || just >= JUST_MAX) {
                 err_setstr(RuntimeError, "Range limit error");
                 return ErrorVar;
@@ -849,7 +852,7 @@ string_rjust(struct vmframe_t *fr)
                 just -= len;
                 while (just--)
                         buffer_putc(&b, ' ');
-                buffer_puts(&b, string_get_cstring(self));
+                buffer_puts(&b, V2CSTR(self));
                 return stringvar_newf(b.s, 0);
         } else {
                 return string_copy__(self);
@@ -868,7 +871,7 @@ string_ljust(struct vmframe_t *fr)
         if (arg_type_check(arg, &IntType) != 0)
                 return ErrorVar;
 
-        just = arg->i;
+        just = intvar_toll(arg);
         if (just < 0 || just >= JUST_MAX) {
                 err_setstr(RuntimeError, "Range limit error");
                 return ErrorVar;
@@ -878,7 +881,7 @@ string_ljust(struct vmframe_t *fr)
         if (len < just) {
                 struct buffer_t b;
                 buffer_init(&b);
-                buffer_puts(&b, string_get_cstring(self));
+                buffer_puts(&b, V2CSTR(self));
                 just -= len;
                 while (just--)
                         buffer_putc(&b, ' ');
@@ -898,7 +901,7 @@ string_join(struct vmframe_t *fr)
         struct var_t *elem;
         int idx;
 
-        if ((joinstr = string_get_cstring(self)) == NULL)
+        if ((joinstr = V2CSTR(self)) == NULL)
                 joinstr = "";
 
         if (arg_type_check(arg, &ArrayType) != 0)
@@ -916,7 +919,7 @@ string_join(struct vmframe_t *fr)
         }
 
         buffer_init(&b);
-        buffer_puts(&b, string_get_cstring(elem));
+        buffer_puts(&b, V2CSTR(elem));
         for (;;) {
                 idx++;
                 elem = array_child(arg, idx);
@@ -924,7 +927,7 @@ string_join(struct vmframe_t *fr)
                         break;
                 if (joinstr[0] != '\0')
                         buffer_puts(&b, joinstr);
-                buffer_puts(&b, string_get_cstring(elem));
+                buffer_puts(&b, V2CSTR(elem));
         }
         return stringvar_newf(b.s, 0);
 }
@@ -954,30 +957,29 @@ static struct type_inittbl_t string_methods[] = {
 static void
 string_reset(struct var_t *str)
 {
-        if (!str->s->immortal)
-                free(str->s->s);
+        struct stringvar_t *vs = V2STR(str);
+        if (!vs->s_imm)
+                free(vs->s);
 }
 
 static struct var_t *
 string_add(struct var_t *a, struct var_t *b)
 {
         char *catstr;
-        char *rval;
+        char *lval, *rval;
         size_t rlen, llen;
-        char *lval = string_get_cstring(a);
-        llen = STRING_NBYTES(a);
-        if (isvar_strptr(b)) {
-                rval = b->strptr;
-                rlen = strlen(rval);
-        } else {
-                if (!isvar_string(b)) {
-                        err_setstr(RuntimeError,
-                                   "Mismatched types for + operation");
-                        return NULL;
-                }
-                rval = string_get_cstring(b);
-                rlen = STRING_NBYTES(b);
+
+        if (!isvar_string(b)) {
+                err_setstr(RuntimeError,
+                           "Mismatched types for + operation");
+                return NULL;
         }
+
+        lval = V2CSTR(a);
+        llen = STRING_NBYTES(a);
+
+        rval = V2CSTR(b);
+        rlen = STRING_NBYTES(b);
 
         catstr = emalloc(llen + rlen + 1);
         memcpy(catstr, lval, llen);
@@ -998,15 +1000,11 @@ static int
 string_cmp(struct var_t *a, struct var_t *b)
 {
         if (isvar_string(b)) {
-                if (a->s == b->s)
+                if (V2CSTR(a) == V2CSTR(b))
                         return 0;
                 if (STRING_NBYTES(a) != STRING_NBYTES(b))
                         return 1;
-                return compare_strings(string_get_cstring(a),
-                                       string_get_cstring(b));
-        } else if (isvar_strptr(b)) {
-                return compare_strings(string_get_cstring(a),
-                                       b->strptr);
+                return compare_strings(V2CSTR(a), V2CSTR(b));
         } else {
                 return 1;
         }
@@ -1015,7 +1013,7 @@ string_cmp(struct var_t *a, struct var_t *b)
 static bool
 string_cmpz(struct var_t *a)
 {
-        char *s = string_get_cstring(a);
+        char *s = V2CSTR(a);
         /* treat "" same as NULL in comparisons */
         return s ? s[0] == '\0' : true;
 }
@@ -1041,14 +1039,28 @@ static const struct operator_methods_t string_primitives = {
 
 /**
  * stringvar_new - Get a string var
- * @cstr: Initial C-string to set string to, or NULL to do that later
+ * @cstr: C-string to set string to, or NULL to do that later
  *
- * Return: new string var
+ * Return: new string var containing a copy of @cstr.
  */
 struct var_t *
 stringvar_new(const char *cstr)
 {
         return stringvar_newf((char *)cstr, SF_COPY);
+}
+
+/**
+ * stringvar_from_immortal - Get a string that contains an immortal string
+ * @immstr: C-string already returned from literal().
+ *
+ * Return: new string var containing @immstr exactly.  @immstr will be
+ *      protected from free() when the return value's destructor function
+ *      is called.
+ */
+struct var_t *
+stringvar_from_immortal(const char *immstr)
+{
+        return stringvar_newf((char *)immstr, SF_IMMORTAL);
 }
 
 /**
@@ -1067,7 +1079,7 @@ string_nth_child(struct var_t *str, int idx)
         char *src;
 
         bug_on(!isvar_string(str));
-        src = string_get_cstring(str);
+        src = V2CSTR(str);
         if (!src || src[0] == '\0')
                 return NULL;
 
@@ -1075,13 +1087,13 @@ string_nth_child(struct var_t *str, int idx)
         if (idx < 0)
                 return NULL;
 
-        if (str->s->s_info.enc != STRING_ENC_UTF8) {
+        if (V2STR(str)->s_info.enc != STRING_ENC_UTF8) {
                 /* ASCII, Latin1, or some undecoded binary */
                 cbuf[0] = src[idx];
                 cbuf[1] = '\0';
         } else {
                 if (utf8_subscr_str(src, idx, cbuf) < 0) {
-                        /* code managing str->s->s_info has bug */
+                        /* code managing .s_info has bug */
                         bug();
                         return NULL;
                 }
@@ -1091,7 +1103,7 @@ string_nth_child(struct var_t *str, int idx)
 
 /*
  * WARNING!! This does not produce a reference! Whatever you are doing
- * with the return value, do it now.
+ * with the return value, do it now.  DO NOT CHANGE IT OR FREE IT.
  *
  * FIXME: This is not thread safe, and "do it quick" is not a good enough
  * solution.
@@ -1100,7 +1112,7 @@ char *
 string_get_cstring(struct var_t *str)
 {
         bug_on(!isvar_string(str));
-        return str->s->s;
+        return V2CSTR(str);
 }
 
 /**
@@ -1144,6 +1156,7 @@ struct type_t StringType = {
         .name   = "string",
         .opm    = &string_primitives,
         .cbm    = string_methods,
+        .size   = sizeof(struct stringvar_t),
 };
 
 

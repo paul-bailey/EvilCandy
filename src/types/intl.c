@@ -1,70 +1,67 @@
 /* Internal types: TYPE_STRPTR, TYPE_XPTR */
 #include "types_priv.h"
 #include <string.h>
+#include <stdlib.h>
 
-static struct var_t *
-strptr_cp(struct var_t *v)
-{
-        /*
-         * We aren't copying this data type unless it's to be
-         * used by user code, therefore make a StringType var.
-         */
-        return stringvar_new(v->strptr);
-}
+struct uuidptrvar_t {
+        struct var_t base;
+        char *uuid;
+};
 
-static int
-strptr_cmp(struct var_t *to, struct var_t *from)
-{
-        char *s2, *s1 = to->strptr;
-        if (isvar_string(from))
-                s2 = string_get_cstring(from);
-        else if (isvar_strptr(from))
-                s2 = from->strptr;
-        else
-                return 1;
+/* struct (uuid/x)ptrvar_t forward-defined in typedefs.h */
 
-        if (!s1 || !s2)
-                return s1 != s2;
-        if (s1 == s2)
-                return 0;
-
-        return !!strcmp(s1, s2);
-}
-
-struct var_t *
-strptrvar_new(char *cstr)
-{
-        struct var_t *v = var_new();
-        v->v_type = &StrptrType;
-        v->strptr = cstr;
-        return v;
-}
+#define V2XP(v) ((struct xptrvar_t *)(v))
 
 struct var_t *
 xptrvar_new(struct executable_t *x)
 {
-        struct var_t *v = var_new();
-        v->v_type = &XptrType;
-        v->xptr = x;
+        struct var_t *v = var_new(&XptrType);
+        V2XP(v)->xptr = x;
         return v;
 }
 
-static const struct operator_methods_t strptr_primitives = {
-        .cmp = strptr_cmp,
-        .cp  = strptr_cp,
+char *
+uuidptr_get_cstring(struct var_t *v)
+{
+        bug_on(v->v_type != &UuidptrType);
+        return ((struct uuidptrvar_t *)v)->uuid;
+}
+
+struct var_t *
+uuidptrvar_new(char *uuid)
+{
+        struct var_t *v = var_new(&UuidptrType);
+        ((struct uuidptrvar_t *)v)->uuid = uuid;
+        return v;
+}
+
+static void
+uuidptr_reset(struct var_t *v)
+{
+        /*
+         * low-level alert -- we happen to know that @uuid arg to
+         * uuidptrvar_new is a malloc'd value which caller will not throw
+         * away.  Copy pointer directly and call free in our destructor.
+         */
+        free(((struct uuidptrvar_t *)v)->uuid);
+}
+
+static const struct operator_methods_t uuidptr_primitives = {
+        .reset = uuidptr_reset,
 };
 
 static const struct operator_methods_t no_primitives = { 0 };
-
-struct type_t StrptrType = {
-        .name   = "[internal-use string]",
-        .opm    = &strptr_primitives,
-        .cbm    = NULL,
-};
 
 struct type_t XptrType = {
         .name   = "[internal-use executable]",
         .opm    = &no_primitives,
         .cbm    = NULL,
+        .size   = sizeof(struct xptrvar_t),
 };
 
+struct type_t UuidptrType = {
+        .name   = "[internal-use UUID]",
+        .opm    = &uuidptr_primitives,
+        .cbm    = NULL,
+        .size   = sizeof(struct uuidptrvar_t),
+};

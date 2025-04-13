@@ -15,7 +15,7 @@ struct global_t q_;
  */
 struct var_t *ErrorVar;
 /*
- * Dummy variable, prevents excessive var_new() for declaring
+ * Dummy variable, prevents excessive XXXvar_new() calls for declaring
  * uninitialized variables (see do_push_local in vm.c).  They'll just
  * get replaced as soon as they are 'set', and we don't want a sea of
  * malloc() and free() calls.
@@ -49,7 +49,7 @@ init_lib(void)
                 t->initfn();
 
         ErrorVar = stringvar_new("If you can see this from the console, this is a BUG!!!\n");
-        NullVar  = var_new();
+        NullVar  = emptyvar_new();
 }
 
 static int

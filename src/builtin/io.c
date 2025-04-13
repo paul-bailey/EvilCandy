@@ -31,7 +31,7 @@
 
 /**
  * struct file_handle_t - Handle to a file, private data to an
- *                        object_handle_t struct in the case of files
+ *                        dictionary in the case of files
  * @magic:      Way to guarantee
  * @nref:       Number of variables with access to this same open file
  * @fp:         File pointer
@@ -231,7 +231,7 @@ static const struct inittbl_t file_methods[] = {
 };
 
 static void
-file_reset(struct object_handle_t *oh, void *data)
+file_reset(struct var_t *oh, void *data)
 {
         struct file_handle_t *fh = data;
         bug_on(!fh);

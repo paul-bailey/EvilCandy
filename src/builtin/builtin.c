@@ -24,9 +24,9 @@ static bool
 do_print_helper(struct var_t *v)
 {
         if (isvar_int(v))
-                printf("%lld", v->i);
+                printf("%lld", intvar_toll(v));
         else if (isvar_float(v))
-                printf("%.8g", v->f);
+                printf("%.8g", floatvar_tod(v));
         else if (isvar_empty(v))
                 printf("(null)");
         else if (isvar_string(v))

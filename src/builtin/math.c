@@ -11,16 +11,13 @@ get_floatarg(struct vmframe_t *fr, int argno, int *status)
 {
         struct var_t *x = frame_get_arg(fr, argno);
         bug_on(!x);
-        if (isvar_int(x)) {
-                *status = 0;
-                return (double)x->i;
-        } else if (isvar_float(x)) {
-                *status = 0;
-                return x->f;
-        } else {
+        if (!isnumvar(x)) {
                 *status = -1;
+                return 0.;
+        } else {
+                *status = 0;
+                return numvar_tod(x);
         }
-        return 0.;
 }
 
 static struct var_t *

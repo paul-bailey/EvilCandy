@@ -107,7 +107,6 @@ enum result_t {
 };
 
 struct var_t;
-struct object_handle_t;
 struct array_handle_t;
 struct string_handle_t;
 struct function_handle_t;
@@ -116,68 +115,21 @@ struct token_t;
 struct token_state_t;
 
 /**
- * struct object_handle_t - Descriptor for an object handle
- * @priv:       Internal private data, used by some built-in object types
- * @priv_cleanup: Way to clean up @priv if destroying this object handle.
- *              If this is NULL and @priv is not NULL, @priv will be
- *              simply freed.  Used by C accelerator modules, not scripts.
- * @nchildren:  Number of attributes
- * @dict:       Hash table of attributes
- * @lock:       Prevent SETATTR, GETATTR during an iterable cycle, such as
- *              foreach.
- *
- * PRIVATE STRUCT, placed here so I can inline some things
- */
-struct object_handle_t {
-        void *priv;
-        void (*priv_cleanup)(struct object_handle_t *, void *);
-        int nchildren;
-        struct hashtable_t dict;
-        unsigned int lock;
-};
-
-/**
  * struct var_t - User variable type
  * @magic: Magic number to determine which builtin type
- * @flags: a VF_* enum
- * @refcount: DON'T TOUCH THIS! Use VAR_INCR_REF and VAR_DECR_REF instead
+ * @v_refcnt: DON'T TOUCH THIS! Use VAR_INCR_REF and VAR_DECR_REF instead
  *
- * The remaining fields are specific to the type, determined by @magic,
- * and are handled privately by the type-specific sources in types/xxx.c
+ * built-in types have their own XXXXvar_t struct, which embeds this at
+ * the very top, so they can be de-referenced with a simple cast.
  *
- * floats and integers are pass-by-value, so their values are stored in
- * this struct directly.  The remainder are pass-by-reference; this
- * struct only stores the pointers to their more meaningful data.
- *
- * Even though these are small, their object structs might be large,
- * so they can't be carelessly declared on the stack and then discarded.
- * Nor may they be allocated with a simple malloc() or freed with a simple
- * free() call.  Instead, call var_new() to allocate one, and then
- * var_delete() to destroy it (which handles the garbage collection,
- * destructor callbacks, etc.).  Do not memset() it to zero or manually
- * change it, either.  Use things like var_reset(), qop_assign...(), etc.
- * access functions.
- *
- * XXX REVISIT (probably big lift): Simplify this with the *_handle_t
- * structs being embedded, something like var_string_t, var_object_t,
- * & cet.  Way less allocating, even if it means tearing apart var.c's
- * memory management methods.
+ * These are allocated with var_new.  After that, VAR_INCR/DECR_REF
+ * is used to produce or consume a reference.
  */
 struct var_t {
         struct type_t *v_type;
-        short refcount; /* signed for easier bug trapping */
         union {
-                struct object_handle_t *o;
-                struct function_handle_t *fn;
-                struct array_handle_t *a;
-                double f;
-                long long i;
-                struct string_handle_t *s;
-
-                /* non-user types, only visible in the C code */
-                char *strptr;
-                struct executable_t *xptr;
-                struct var_t *vptr;
+                void *v_dummy; /* keep v_refcnt same size as v_type */
+                int v_refcnt;  /* signed for easier bug trapping */
         };
 };
 
@@ -223,8 +175,11 @@ struct global_t {
 #ifndef NDEBUG
 # define DBUG(msg, args...) \
         fprintf(stderr, "[EvilCandy DEBUG]: " msg "\n", ##args)
+# define DBUG_FN(msg)   \
+        DBUG("function %s line %d: %s", __FUNCTION__, __LINE__, msg)
 #else
-# define DBUG(...) do { (void)0; } while (0)
+# define DBUG(...)      do { (void)0; } while (0)
+# define DBUG_FN(msg)   do { (void)0; } while (0)
 #endif
 
 #define RECURSION_INCR() do { \
@@ -365,16 +320,27 @@ extern void pop_path(FILE *fp);
 extern FILE *push_path(const char *filename);
 
 /* var.c */
-extern struct var_t *var_new(void);
+extern struct var_t *var_new(struct type_t *type);
+extern void var_initialize_type(struct type_t *tp);
+extern struct var_t *var_getattr(struct var_t *v,
+                                 struct var_t *deref);
+extern enum result_t var_setattr(struct var_t *v,
+                                 struct var_t *deref,
+                                 struct var_t *attr);
+extern int var_compare(struct var_t *a, struct var_t *b);
+extern const char *typestr(struct var_t *v);
+extern const char *typestr_(int magic);
+extern const char *attr_str(struct var_t *deref);
+/* common hashtable callback for var-storing hashtables */
+extern void var_bucket_delete(void *data);
 /* note: v only evaluated once in VAR_*_REF() */
-#define VAR_INCR_REF(v) do { (v)->refcount++; } while (0)
+#define VAR_INCR_REF(v) do { (v)->v_refcnt++; } while (0)
 #define VAR_DECR_REF(v) do {      \
         struct var_t *v_ = (v);   \
-        v_->refcount--;           \
-        if (v_->refcount <= 0)    \
+        v_->v_refcnt--;           \
+        if (v_->v_refcnt <= 0)    \
                 var_delete__(v_); \
 } while (0)
-
 #ifndef NDEBUG
   /*
    * keep this a macro so I can tell where the bug was trapped
@@ -387,30 +353,16 @@ extern struct var_t *var_new(void);
                 DBUG("unexpected NULL var");            \
                 bug();                                  \
         }                                               \
-        if (v__->refcount <= 0) {                       \
-                DBUG("refcount=%d", v__->refcount);     \
+        if (v__->v_refcnt <= 0) {                       \
+                DBUG("v_refcnt=%d", v__->v_refcnt);     \
                 bug();                                  \
         }                                               \
 } while (0)
 #else
 # define VAR_SANITY(v_) do { (void)0; } while (0)
 #endif
-
 extern void var_delete__(struct var_t *v);
-extern void var_reset(struct var_t *v);
 extern void moduleinit_var(void);
-extern struct var_t *var_getattr(struct var_t *v,
-                                 struct var_t *deref);
-extern enum result_t var_setattr(struct var_t *v,
-                                 struct var_t *deref,
-                                 struct var_t *attr);
-extern int var_compare(struct var_t *a, struct var_t *b);
-extern const char *typestr(struct var_t *v);
-extern const char *typestr_(int magic);
-extern const char *attr_str(struct var_t *deref);
-
-/* common hashtable callback for var-storing hashtables */
-extern void var_bucket_delete(void *data);
 
 /* serializer.c */
 extern int serialize_write(FILE *fp, struct executable_t *ex);
@@ -428,6 +380,9 @@ extern int array_get_type(struct var_t *array);
 extern int array_length(struct var_t *array);
 extern void array_sort(struct var_t *array);
 
+/* types/empty.c */
+extern struct var_t *emptyvar_new(void);
+
 /* types/function.c */
 extern struct var_t *funcvar_new_user(struct executable_t *ex);
 struct var_t *funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
@@ -440,8 +395,9 @@ extern void function_add_default(struct var_t *func,
                         struct var_t *deflt, int argno);
 
 /* types/intl.c */
-extern struct var_t *strptrvar_new(char *cstr);
 extern struct var_t *xptrvar_new(struct executable_t *x);
+extern struct var_t *uuidptrvar_new(char *uuid);
+extern char *uuidptr_get_cstring(struct var_t *v);
 
 /* types/object.c */
 extern struct var_t *objectvar_new(void);
@@ -452,9 +408,8 @@ extern enum result_t object_setattr(struct var_t *o,
                                     struct var_t *name, struct var_t *attr);
 extern enum result_t object_remove_child(struct var_t *o, const char *s);
 extern void object_set_priv(struct var_t *o, void *priv,
-                      void (*cleanup)(struct object_handle_t *, void *));
-static inline void *object_get_priv(struct var_t *o)
-        { return o->o->priv; }
+                      void (*cleanup)(struct var_t *, void *));
+extern void *object_get_priv(struct var_t *o);
 extern void object_add_to_globals(struct var_t *obj);
 
 /* types/string.c */
@@ -465,6 +420,7 @@ extern char *string_get_cstring(struct var_t *str);
 extern struct var_t *string_from_file(FILE *fp,
                                       int delim, bool stuff_delim);
 extern struct var_t *stringvar_new(const char *cstr);
+struct var_t *stringvar_from_immortal(const char *immstr);
 
 /* uuid.c */
 extern char *uuidstr(void);

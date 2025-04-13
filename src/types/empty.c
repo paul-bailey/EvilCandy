@@ -26,6 +26,12 @@ empty_cp(struct var_t *v)
         return v;
 }
 
+struct var_t *
+emptyvar_new(void)
+{
+        return var_new(&EmptyType);
+}
+
 static const struct operator_methods_t empty_primitives = {
         .cp             = empty_cp,
         .cmp            = empty_cmp,
@@ -37,5 +43,6 @@ struct type_t EmptyType = {
         .name   = "empty",
         .opm    = &empty_primitives,
         .cbm    = NULL,
+        .size   = sizeof(struct var_t),
 };
 

@@ -144,32 +144,6 @@ qop_cmpz(struct var_t *v, enum result_t *status)
         return p->cmpz(v);
 }
 
-/* v++ */
-enum result_t
-qop_incr(struct var_t *v)
-{
-        const struct operator_methods_t *p = primitives_of(v);
-        if (!p->incr) {
-                err_permit("++", v);
-                return RES_ERROR;
-        }
-        p->incr(v);
-        return RES_OK;
-}
-
-/* v-- */
-enum result_t
-qop_decr(struct var_t *v)
-{
-        const struct operator_methods_t *p = primitives_of(v);
-        if (!p->decr) {
-                err_permit("--", v);
-                return RES_ERROR;
-        }
-        p->decr(v);
-        return RES_OK;
-}
-
 /* ~v */
 struct var_t *
 qop_bit_not(struct var_t *v)

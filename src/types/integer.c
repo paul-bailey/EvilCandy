@@ -144,19 +144,6 @@ int_cmpz(struct var_t *a)
         return V2I(a)->i == 0LL;
 }
 
-/* FIXME: (here and in float.c) This violates immutability */
-static void
-int_incr(struct var_t *a)
-{
-        V2I(a)->i++;
-}
-
-static void
-int_decr(struct var_t *a)
-{
-        V2I(a)->i--;
-}
-
 static struct var_t *
 int_bit_not(struct var_t *a)
 {
@@ -216,8 +203,6 @@ static const struct operator_methods_t int_primitives = {
         .bit_or         = int_bit_or,
         .xor            = int_xor,
         .cmpz           = int_cmpz,
-        .incr           = int_incr,
-        .decr           = int_decr,
         .bit_not        = int_bit_not,
         .negate         = int_negate,
         .cp             = int_cp,

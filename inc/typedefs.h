@@ -26,8 +26,6 @@ struct operator_methods_t {
         binary_operator_t bit_or;  /* new = a | b */
         binary_operator_t xor;     /* new = a ^ b */
         bool (*cmpz)(struct var_t *);    /* a == 0 ? */
-        void (*incr)(struct var_t *);    /* a++ (in place) */
-        void (*decr)(struct var_t *);    /* a-- (in place) */
         struct var_t *(*bit_not)(struct var_t *); /* new = ~a */
         struct var_t *(*negate)(struct var_t *);  /* new = -a */
 

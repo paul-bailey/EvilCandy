@@ -961,19 +961,33 @@ do_logical_and(struct vmframe_t *fr, instruction_t ii)
 static int
 do_incr(struct vmframe_t *fr, instruction_t ii)
 {
+        int ret;
         struct var_t *v = pop(fr);
-        int res = qop_incr(v);
+        struct var_t *one = intvar_new(1);
+        struct var_t *opres = qop_add(v, one);
+        if (!opres)
+                ret = RES_ERROR;
+        else
+                ret = assign_complete(fr, ii, opres);
         VAR_DECR_REF(v);
-        return res;
+        VAR_DECR_REF(one);
+        return ret;
 }
 
 static int
 do_decr(struct vmframe_t *fr, instruction_t ii)
 {
+        int ret;
         struct var_t *v = pop(fr);
-        int res = qop_decr(v);
+        struct var_t *one = intvar_new(1);
+        struct var_t *opres = qop_sub(v, one);
+        if (!opres)
+                ret = RES_ERROR;
+        else
+                ret = assign_complete(fr, ii, opres);
         VAR_DECR_REF(v);
-        return res;
+        VAR_DECR_REF(one);
+        return ret;
 }
 
 static int

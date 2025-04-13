@@ -304,8 +304,6 @@ extern struct var_t *qop_bit_and(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_bit_or(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_xor(struct var_t *a, struct var_t *b);
 extern bool qop_cmpz(struct var_t *v, enum result_t *status);
-extern enum result_t qop_incr(struct var_t *v);
-extern enum result_t qop_decr(struct var_t *v);
 extern struct var_t *qop_bit_not(struct var_t *v);
 extern struct var_t *qop_negate(struct var_t *v);
 extern struct var_t *qop_lnot(struct var_t *v);

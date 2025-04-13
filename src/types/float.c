@@ -83,18 +83,6 @@ float_cmpz(struct var_t *a)
         return fpclassify(V2F(a)->f) == FP_ZERO;
 }
 
-static void
-float_incr(struct var_t *a)
-{
-        V2F(a)->f += 1.0;
-}
-
-static void
-float_decr(struct var_t *a)
-{
-        V2F(a)->f -= 1.0;
-}
-
 static struct var_t *
 float_negate(struct var_t *a)
 {
@@ -129,8 +117,6 @@ static const struct operator_methods_t float_primitives = {
         .sub            = float_sub,
         .cmp            = float_cmp,
         .cmpz           = float_cmpz,
-        .incr           = float_incr,
-        .decr           = float_decr,
         .negate         = float_negate,
         .cp             = float_cp,
 };

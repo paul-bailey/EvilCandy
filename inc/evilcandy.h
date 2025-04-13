@@ -374,7 +374,9 @@ extern enum result_t array_append(struct var_t *array,
                                   struct var_t *child);
 extern enum result_t array_insert(struct var_t *array,
                                   struct var_t *idx, struct var_t *child);
-extern struct var_t *arrayvar_new(void);
+extern enum result_t array_insert_byidx(struct var_t *array,
+                                  int i, struct var_t *child);
+extern struct var_t *arrayvar_new(int n_items);
 extern int array_get_type(struct var_t *array);
 extern int array_length(struct var_t *array);
 extern void array_sort(struct var_t *array);

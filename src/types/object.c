@@ -47,16 +47,19 @@ object_keys(struct var_t *obj)
         void *k, *v; /* v is unused dummy */
         int res;
         unsigned int i;
+        int array_i;
 
         bug_on(!isvar_object(obj));
         d = &V2D(obj)->dict;
-        keys = arrayvar_new();
+        keys = arrayvar_new(V2D(obj)->nchildren);
 
+        array_i = 0;
         for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
              res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
                 struct var_t *ks = stringvar_new((char *)k);
-                array_append(keys, ks);
+                array_insert_byidx(keys, array_i, ks);
                 VAR_DECR_REF(ks);
+                array_i++;
         }
         array_sort(keys);
         return keys;

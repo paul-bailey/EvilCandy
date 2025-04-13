@@ -708,19 +708,22 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
 static void
 assemble_arraydef(struct assemble_t *a)
 {
-        add_instr(a, INSTR_DEFLIST, 0, 0);
+        int n_items = 0;
+
         as_lex(a);
         if (a->oc->t == OC_RBRACK) /* empty array */
-                return;
+                goto done;
         as_unlex(a);
 
         do {
                 assemble_eval(a);
                 as_lex(a);
-                /* pop attr, pop array, addattr, push array */
-                add_instr(a, INSTR_LIST_APPEND, 0, 0);
+                n_items++;
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACK, AE_BRACK);
+
+done:
+        add_instr(a, INSTR_DEFLIST, 0, n_items);
 }
 
 static void

@@ -69,7 +69,7 @@ parseatomic(struct json_state_t *j)
                 child = NullVar;
                 break;
         case OC_LBRACK:
-                child = arrayvar_new();
+                child = arrayvar_new(0);
                 parsearray(j, child);
                 break;
         case OC_LBRACE:

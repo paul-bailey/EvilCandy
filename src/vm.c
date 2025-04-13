@@ -687,19 +687,14 @@ do_add_default(struct vmframe_t *fr, instruction_t ii)
 static int
 do_deflist(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *arr = arrayvar_new();
+        int n = ii.arg2;
+        struct var_t *arr = arrayvar_new(n);
+        while (n--) {
+                struct var_t *item = pop(fr);
+                array_insert_byidx(arr, n, item);
+                VAR_DECR_REF(item);
+        }
         push(fr, arr);
-        return 0;
-}
-
-static int
-do_list_append(struct vmframe_t *fr, instruction_t ii)
-{
-        struct var_t *child = pop(fr);
-        struct var_t *parent = pop(fr);
-        array_append(parent, child);
-        VAR_DECR_REF(child);
-        push(fr, parent);
         return 0;
 }
 

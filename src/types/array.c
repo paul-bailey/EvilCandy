@@ -92,9 +92,7 @@ array_sort(struct var_t *array)
 enum result_t
 array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
 {
-        struct var_t **ppvar;
         long long ill;
-        int i;
 
         bug_on(!isvar_array(array));
 
@@ -108,13 +106,17 @@ array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
                 return RES_ERROR;
         }
 
-        if (V2ARR(array)->lock) {
-                err_locked();
-                return RES_ERROR;
-        }
+       return array_insert_byidx(array, (int)ill, child);
+}
+
+enum result_t
+array_insert_byidx(struct var_t *array, int i, struct var_t *child)
+{
+        struct var_t **ppvar;
+        bug_on(!isvar_array(array));
 
         ppvar = (struct var_t **)(V2ARR(array)->children.s);
-        if ((i = index_translate((int)ill, V2ARR(array)->nmemb)) < 0)
+        if ((i = index_translate(i, V2ARR(array)->nmemb)) < 0)
                 return RES_ERROR;
 
         /* delete old entry */
@@ -156,10 +158,15 @@ array_length(struct var_t *array)
 }
 
 struct var_t *
-arrayvar_new(void)
+arrayvar_new(int n_items)
 {
         struct var_t *array = var_new(&ArrayType);
         buffer_init(&V2ARR(array)->children);
+        /* TODO: Replace buffer operations with more efficient method */
+        while (n_items-- > 0) {
+                VAR_INCR_REF(NullVar);
+                array_append(array, NullVar);
+        }
         return array;
 }
 
@@ -211,7 +218,7 @@ static struct var_t *
 do_array_foreach(struct vmframe_t *fr)
 {
         struct var_t *self, *func, *priv, *argv[3], **ppvar;
-        unsigned int idx, lock;
+        unsigned int idx, lock, nmemb;
         struct arrayvar_t *h;
         int status = RES_OK;
 
@@ -231,9 +238,15 @@ do_array_foreach(struct vmframe_t *fr)
 
         ppvar = (struct var_t **)h->children.s;
 
+        /*
+         * appends in the middle of a loop can cause spinlock or moved
+         * arrays, so don't allow it.
+         */
         lock = h->lock;
         h->lock = 1;
-        for (idx = 0; idx < h->nmemb; idx++) {
+
+        nmemb = h->nmemb;
+        for (idx = 0; idx < nmemb; idx++) {
                 /*
                  * XXX creating a new intvar every time, maybe some
                  * back-door hacks to intvar should be allowed for

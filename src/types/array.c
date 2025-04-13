@@ -55,6 +55,7 @@ array_child(struct var_t *array, int idx)
         if (idx < 0)
                 return NULL;
 
+        VAR_INCR_REF(ppvar[idx]);
         return ppvar[idx];
 }
 
@@ -245,6 +246,8 @@ do_array_foreach(struct vmframe_t *fr)
                 argv[2] = priv;
 
                 retval = vm_reenter(fr, func, NULL, 3, argv);
+                VAR_DECR_REF(argv[1]);
+
                 if (retval == ErrorVar) {
                         status = RES_ERROR;
                         break;
@@ -252,11 +255,9 @@ do_array_foreach(struct vmframe_t *fr)
                 /* foreach throws away retval */
                 if (retval)
                         VAR_DECR_REF(retval);
-                VAR_DECR_REF(argv[1]);
         }
         h->lock = lock;
 
-        VAR_DECR_REF(argv[1]);
 out:
         return status == RES_OK ? NULL : ErrorVar;
 }

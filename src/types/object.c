@@ -119,11 +119,15 @@ object_get_priv(struct var_t *o)
 struct var_t *
 object_getattr(struct var_t *o, const char *s)
 {
+        struct var_t *ret;
         if (!s)
                 return NULL;
         bug_on(!isvar_object(o));
 
-        return hashtable_get(&V2D(o)->dict, s);
+        ret = hashtable_get(&V2D(o)->dict, s);
+        if (ret)
+                VAR_INCR_REF(ret);
+        return ret;
 }
 
 /**
@@ -358,13 +362,16 @@ do_object_foreach(struct vmframe_t *fr)
                 key = array_child(keys, i);
                 bug_on(!key || key == ErrorVar);
                 val = object_getattr(self, string_get_cstring(key));
-                if (!val)
+                if (!val) /* user shenanigans in foreach loop */
                         continue;
 
                 argv[0] = val;
                 argv[1] = key;
                 argv[2] = priv;
                 cbret = vm_reenter(fr, func, NULL, 3, argv);
+
+                VAR_DECR_REF(key);
+                VAR_DECR_REF(val);
 
                 if (cbret == ErrorVar) {
                         status = RES_ERROR;

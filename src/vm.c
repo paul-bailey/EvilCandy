@@ -746,15 +746,6 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
         if (!attr) {
                 err_attribute("get", deref, obj);
                 ret = -1;
-        } else if (!isvar_string(obj) || !isvar_int(deref)) {
-                /*
-                 * FIXME: This is hacky, but string_nth_child creates a
-                 * new var, the others return an existing var, and I need to
-                 * know that.  Alternative is to make the getattr callbacks
-                 * themselves decide whether or not to VAR_INCR_REF, but that
-                 * increases the opportunity for mistakes.
-                 */
-                VAR_INCR_REF(attr);
         }
 
         if (del)

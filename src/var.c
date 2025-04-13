@@ -197,6 +197,7 @@ var_bucket_delete(void *data)
 static struct var_t *
 attr_by_string(struct var_t *v, const char *s)
 {
+        struct var_t *ret;
         if (!s)
                 return NULL;
         if (isvar_dict(v)) {
@@ -204,7 +205,11 @@ attr_by_string(struct var_t *v, const char *s)
                 if ((res = object_getattr(v, s)) != NULL)
                         return res;
         }
-        return builtin_method(v, s);
+
+        ret = builtin_method(v, s);
+        if (ret)
+                VAR_INCR_REF(ret);
+        return ret;
 }
 
 /**

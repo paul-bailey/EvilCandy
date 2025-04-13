@@ -915,11 +915,13 @@ string_join(struct vmframe_t *fr)
         if (!isvar_string(elem)) {
                 err_setstr(RuntimeError,
                            "string.join method may only join lists of strings");
+                VAR_DECR_REF(elem);
                 return ErrorVar;
         }
 
         buffer_init(&b);
         buffer_puts(&b, V2CSTR(elem));
+        VAR_DECR_REF(elem);
         for (;;) {
                 idx++;
                 elem = array_child(arg, idx);
@@ -928,6 +930,7 @@ string_join(struct vmframe_t *fr)
                 if (joinstr[0] != '\0')
                         buffer_puts(&b, joinstr);
                 buffer_puts(&b, V2CSTR(elem));
+                VAR_DECR_REF(elem);
         }
         return stringvar_newf(b.s, 0);
 }

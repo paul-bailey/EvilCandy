@@ -134,6 +134,24 @@ struct var_t {
         };
 };
 
+/**
+ * struct seqvar_t - User variable type for sequential types
+ * @v_size:  Number of sequential elements.
+ *              (Do not confuse this with @base.v_type->size,
+ *              which is the typedef's fixed allocation size in bytes.)
+ *
+ * IMPORTANT!
+ *      See typedef.h - If a type's struct type_t has either of its
+ *      .sqm or .mpm fields set, then:
+ *        1. it MUST embed this struct at the top of its internal-use
+ *           struct instead of just struct var_t.
+ *        2. it must maintain this v_size field and keep it updated
+ */
+struct seqvar_t {
+        struct var_t base;
+        size_t v_size;
+};
+
 struct block_t {
         struct var_t **stack_level;
         unsigned char type;

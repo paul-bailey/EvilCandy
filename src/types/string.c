@@ -20,15 +20,16 @@ enum {
 };
 
 struct stringvar_t {
-        struct var_t base;
+        struct seqvar_t base;
         char *s;        /* the actual C string */
         bool s_imm;     /* true if immortal */
         struct utf8_info_t s_info;
 };
 
 #define V2STR(v)                ((struct stringvar_t *)(v))
+#define V2SQ(v)                 ((struct seqvar_t *)(v))
 #define V2CSTR(v)               (V2STR(v)->s)
-#define STRING_LENGTH(str)      (V2STR(str)->s_info.enc_len)
+#define STRING_LENGTH(str)      (V2SQ(str)->v_size)
 #define STRING_NBYTES(str)      (V2STR(str)->s_info.ascii_len)
 
 
@@ -78,6 +79,7 @@ stringvar_newf(char *cstr, unsigned int flags)
         }
         vs->s_imm = !!(flags & SF_IMMORTAL);
         utf8_scan(cstr, &vs->s_info);
+        V2SQ(ret)->v_size = vs->s_info.enc_len;
         return ret;
 }
 
@@ -891,6 +893,22 @@ string_ljust(struct vmframe_t *fr)
         }
 }
 
+/* helper to string_join below */
+static struct var_t *
+join_next_str(struct var_t *arr, int i)
+{
+        struct var_t *ret = array_getitem(arr, i);
+        /* see string_join below, we already checked that i is ok */
+        bug_on(!ret);
+        if (!isvar_string(ret)) {
+                err_setstr(RuntimeError,
+                           "string.join method may only join lists of strings");
+                VAR_DECR_REF(ret);
+                return NULL;
+        }
+        return ret;
+}
+
 static struct var_t *
 string_join(struct vmframe_t *fr)
 {
@@ -899,7 +917,8 @@ string_join(struct vmframe_t *fr)
         struct var_t *arg = vm_get_arg(fr, 0);
         char *joinstr;
         struct var_t *elem;
-        int idx;
+        int i;
+        size_t n;
 
         if ((joinstr = V2CSTR(self)) == NULL)
                 joinstr = "";
@@ -907,26 +926,22 @@ string_join(struct vmframe_t *fr)
         if (arg_type_check(arg, &ArrayType) != 0)
                 return ErrorVar;
 
-        idx = 0;
-        elem = array_getitem(arg, idx);
-        if (!elem)
-                return stringvar_newf(joinstr, SF_COPY);
+        if ((n = var_len(arg)) == 0)
+                return stringvar_newf("", 0);
 
-        if (!isvar_string(elem)) {
-                err_setstr(RuntimeError,
-                           "string.join method may only join lists of strings");
-                VAR_DECR_REF(elem);
+        elem = join_next_str(arg, 0);
+        if (!elem)
                 return ErrorVar;
-        }
 
         buffer_init(&b);
         buffer_puts(&b, V2CSTR(elem));
         VAR_DECR_REF(elem);
-        for (;;) {
-                idx++;
-                elem = array_getitem(arg, idx);
-                if (!elem)
-                        break;
+        for (i = 1; i < n; i++) {
+                elem = join_next_str(arg, i);
+                if (!elem) {
+                        buffer_free(&b);
+                        return ErrorVar;
+                }
                 if (joinstr[0] != '\0')
                         buffer_puts(&b, joinstr);
                 buffer_puts(&b, V2CSTR(elem));
@@ -1039,9 +1054,7 @@ string_getitem(struct var_t *str, int idx)
         if (!src || src[0] == '\0')
                 return NULL;
 
-        idx = index_translate(idx, STRING_LENGTH(str));
-        if (idx < 0)
-                return NULL;
+        bug_on(idx >= STRING_LENGTH(str));
 
         if (V2STR(str)->s_info.enc != STRING_ENC_UTF8) {
                 /* ASCII, Latin1, or some undecoded binary */

@@ -16,21 +16,21 @@
  * @priv_cleanup: Way to clean up @priv if destroying this object handle.
  *              If this is NULL and @priv is not NULL, @priv will be
  *              simply freed.  Used by C accelerator modules, not scripts.
- * @nchildren:  Number of attributes
  * @dict:       Hash table of attributes
  * @lock:       Prevent SETATTR, GETATTR during an iterable cycle, such as
  *              foreach.
  */
 struct dictvar_t {
-        struct var_t base;
+        struct seqvar_t base;
         void *priv;
         void (*priv_cleanup)(struct var_t *, void *);
-        int nchildren;
         struct hashtable_t dict;
         unsigned int lock;
 };
 
-#define V2D(v)  ((struct dictvar_t *)(v))
+#define V2D(v)          ((struct dictvar_t *)(v))
+#define V2SQ(v)         ((struct seqvar_t *)(v))
+#define OBJ_SIZE(v)     (V2SQ(v)->v_size)
 
 
 /* **********************************************************************
@@ -53,7 +53,7 @@ object_keys(struct var_t *obj)
 
         bug_on(!isvar_object(obj));
         d = &V2D(obj)->dict;
-        keys = arrayvar_new(V2D(obj)->nchildren);
+        keys = arrayvar_new(OBJ_SIZE(obj));
 
         array_i = 0;
         for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
@@ -76,6 +76,7 @@ objectvar_new(void)
         struct var_t *o = var_new(&ObjectType);
         V2D(o)->priv = NULL;
         V2D(o)->priv_cleanup = NULL;
+        V2SQ(o)->v_size = 0;
         hashtable_init(&V2D(o)->dict, fnv_hash,
                        str_key_match, var_bucket_delete);
         return o;
@@ -186,7 +187,7 @@ object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
                 if (child) {
                         VAR_DECR_REF(child);
                 } else {
-                        d->nchildren++;
+                        V2SQ(dict)->v_size++;
                 }
                 VAR_INCR_REF(attr);
         } else {
@@ -194,7 +195,7 @@ object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
                 child = hashtable_remove(&d->dict, key);
                 if (child) {
                         VAR_DECR_REF(child);
-                        d->nchildren--;
+                        V2SQ(dict)->v_size--;
                 }
         }
         return RES_OK;
@@ -352,7 +353,7 @@ do_object_len(struct vmframe_t *fr)
 
         v = vm_get_this(fr);
         bug_on(!v || !isvar_object(v));
-        i = V2D(v)->nchildren;
+        i = OBJ_SIZE(v);
         return intvar_new(i);
 }
 

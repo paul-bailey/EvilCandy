@@ -21,17 +21,16 @@
 /**
  * struct arrayvar_t - Handle to a numerical array
  * @lock:       lock to prevent add/remove during foreach
- * @nmemb:      Size of the array, in number of elements
  * @children:   struct buffer_t containing the actual arrray
  */
 struct arrayvar_t {
-        struct var_t base;
+        struct seqvar_t base;
         int lock;
-        unsigned int nmemb;
         struct buffer_t children;
 };
 
 #define V2ARR(v_)       ((struct arrayvar_t *)(v_))
+#define V2SQ(v_)        ((struct seqvar_t *)(v_))
 
 /**
  * array_getitem - seq_methods_t .getitem callback
@@ -44,10 +43,7 @@ array_getitem(struct var_t *array, int idx)
         struct arrayvar_t *h = V2ARR(array);
         struct var_t **ppvar = (struct var_t **)h->children.s;
 
-        idx = index_translate(idx, h->nmemb);
-        if (idx < 0)
-                return NULL;
-
+        bug_on(idx >= V2SQ(array)->v_size);
         VAR_INCR_REF(ppvar[idx]);
         return ppvar[idx];
 }
@@ -64,10 +60,10 @@ static void
 array_sort(struct var_t *array)
 {
         struct arrayvar_t *a = V2ARR(array);
-        if (a->nmemb < 2)
+        if (V2SQ(array)->v_size < 2)
                 return;
         bug_on(!a->children.s);
-        qsort(a->children.s, a->nmemb,
+        qsort(a->children.s, V2SQ(array)->v_size,
               sizeof(struct var_t *), array_sort_cmp);
 }
 
@@ -86,8 +82,7 @@ array_setitem(struct var_t *array, int i, struct var_t *child)
         bug_on(!isvar_array(array));
 
         ppvar = (struct var_t **)(V2ARR(array)->children.s);
-        if ((i = index_translate(i, V2ARR(array)->nmemb)) < 0)
-                return RES_ERROR;
+        bug_on(i >= V2SQ(array)->v_size);
 
         /* delete old entry */
         bug_on(ppvar[i] == NULL);
@@ -115,7 +110,7 @@ array_append(struct var_t *array, struct var_t *child)
                 return RES_ERROR;
         }
 
-        h->nmemb++;
+        V2SQ(array)->v_size++;
         /* XXX: poor amortization, maybe assert_array_pos instead */
         buffer_putd(&h->children, &child, sizeof(void *));
         VAR_INCR_REF(child);
@@ -129,7 +124,7 @@ static size_t
 array_len(struct var_t *array)
 {
         bug_on(!isvar_array(array));
-        return V2ARR(array)->nmemb;
+        return V2SQ(array)->v_size;
 }
 
 /**
@@ -141,6 +136,7 @@ struct var_t *
 arrayvar_new(int n_items)
 {
         struct var_t *array = var_new(&ArrayType);
+        V2SQ(array)->v_size = 0;
         buffer_init(&V2ARR(array)->children);
         /* TODO: Replace buffer operations with more efficient method */
         while (n_items-- > 0) {
@@ -161,17 +157,17 @@ array_reset(struct var_t *a)
 static int
 array_cmp(struct var_t *a, struct var_t *b)
 {
-        int i, n = V2ARR(a)->nmemb;
+        int i, n = V2SQ(a)->v_size;
         struct var_t **aitems = (struct var_t **)V2ARR(a)->children.s;
         struct var_t **bitems = (struct var_t **)V2ARR(b)->children.s;
-        if (n > V2ARR(b)->nmemb)
-                n = V2ARR(b)->nmemb;
+        if (n > V2SQ(b)->v_size)
+                n = V2SQ(b)->v_size;
         for (i = 0; i < n; i++) {
                 int x = var_compare(aitems[i], bitems[i]);
                 if (x)
                         return x;
         }
-        return V2ARR(a)->nmemb - V2ARR(b)->nmemb;
+        return V2SQ(a)->v_size - V2SQ(b)->v_size;
 }
 
 /* type_t .cp callback */
@@ -188,7 +184,7 @@ do_array_len(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         bug_on(!isvar_array(self));
-        return intvar_new(V2ARR(self)->nmemb);
+        return intvar_new(V2SQ(self)->v_size);
 }
 
 /* implement 'x.foreach(myfunc, mypriv)' */
@@ -211,7 +207,7 @@ do_array_foreach(struct vmframe_t *fr)
         if (!priv)
                 priv = NullVar;
         h = V2ARR(self);
-        if (!h->nmemb) /* nothing to iterate over */
+        if (!V2SQ(self)->v_size) /* nothing to iterate over */
                 goto out;
 
         ppvar = (struct var_t **)h->children.s;
@@ -223,7 +219,7 @@ do_array_foreach(struct vmframe_t *fr)
         lock = h->lock;
         h->lock = 1;
 
-        nmemb = h->nmemb;
+        nmemb = V2SQ(self)->v_size;
         for (idx = 0; idx < nmemb; idx++) {
                 /*
                  * XXX creating a new intvar every time, maybe some

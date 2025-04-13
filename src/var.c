@@ -184,6 +184,35 @@ var_bucket_delete(void *data)
         VAR_DECR_REF((struct var_t *)data);
 }
 
+/*
+ * Helper to var_setattr/var_getattr
+ *
+ * Convert @idx, where something like '[-3]' means '[size-3]',
+ * and make sure the result is within range for @v.
+ *
+ * Return: converted index or -1 if out of range.
+ */
+static int
+var_realindex(struct var_t *v, long long idx)
+{
+        int i;
+        size_t n;
+
+        bug_on(!hasvar_len(v));
+
+        /* idx stores long long, but ii.i is int */
+        if (idx < INT_MIN || idx > INT_MAX)
+                return -1;
+
+        i = (int)idx;
+        n = ((struct seqvar_t *)v)->v_size;
+
+        /* convert '[-i]' to '[size-i]' */
+        if (i < 0)
+                i += n;
+        return i < n ? i : -1;
+}
+
 /**
  * var_getattr - Generalized get-attribute
  * @v:  Variable whose attribute we're seeking
@@ -198,20 +227,15 @@ struct var_t *
 var_getattr(struct var_t *v, struct var_t *key)
 {
         if (isvar_int(key)) {
-                const struct seq_methods_t *sqm = v->v_type->sqm;
-                long long ill = intvar_toll(key);
                 int i;
+                const struct seq_methods_t *sqm = v->v_type->sqm;
                 if (!sqm || !sqm->getitem) {
                         /* not a sequential type */
                         return NULL;
                 }
-
-                /* idx stores long long, but ii.i is int */
-                if (ill < INT_MIN || ill > INT_MAX)
+                i = var_realindex(v, intvar_toll(key));
+                if (i < 0)
                         return NULL;
-
-                /* TODO: move the index_translate calls to this single point */
-                i = (int)ill;
                 return sqm->getitem(v, i);
         } else if (isvar_string(key)) {
                 /*
@@ -236,6 +260,43 @@ var_getattr(struct var_t *v, struct var_t *key)
         }
 
         return NULL;
+}
+
+/**
+ * var_set_attr - Generalized set-attribute
+ * @v:          Variable whose attribute we're setting
+ * @key:      Variable storing the index number or name
+ * @attr:       Variable storing the attribute to set.  This will be
+ *              copied, so calling function still must handle GC for this
+ * Return:      RES_OK if success, RES_ERROR if failure does not exist.
+ *
+ * This implements x[key] = attr;
+ */
+enum result_t
+var_setattr(struct var_t *v, struct var_t *key, struct var_t *attr)
+{
+        if (isvar_string(key)) {
+                const char *ks = string_get_cstring(key);
+                const struct map_methods_t *map = v->v_type->mpm;
+                if (!map || !map->setitem)
+                        return RES_ERROR;
+                if (!ks || ks[0] == '\0')
+                        return RES_ERROR;
+                return map->setitem(v, ks, attr);
+        } else if (isvar_int(key)) {
+                int i;
+                const struct seq_methods_t *seq = v->v_type->sqm;
+                if (!seq || !seq->setitem)
+                        return RES_ERROR;
+
+                i = var_realindex(v, intvar_toll(key));
+                if (i < 0)
+                        return RES_ERROR;
+
+                return seq->setitem(v, i, attr);
+        } else {
+                return RES_ERROR;
+        }
 }
 
 /**
@@ -264,42 +325,6 @@ attr_str(struct var_t *key)
                 strcpy(numbuf, "<!bug>");
         }
         return numbuf;
-}
-
-/**
- * var_set_attr - Generalized set-attribute
- * @v:          Variable whose attribute we're setting
- * @key:      Variable storing the index number or name
- * @attr:       Variable storing the attribute to set.  This will be
- *              copied, so calling function still must handle GC for this
- * Return:      RES_OK if success, RES_ERROR if failure does not exist.
- *
- * This implements x[key] = attr;
- */
-enum result_t
-var_setattr(struct var_t *v, struct var_t *key, struct var_t *attr)
-{
-        if (isvar_string(key)) {
-                const char *ks = string_get_cstring(key);
-                const struct map_methods_t *map = v->v_type->mpm;
-                if (!map || !map->setitem)
-                        return RES_ERROR;
-                if (!ks || ks[0] == '\0')
-                        return RES_ERROR;
-                return map->setitem(v, ks, attr);
-        } else if (isvar_int(key)) {
-                long long ill = intvar_toll(key);
-                const struct seq_methods_t *seq = v->v_type->sqm;
-                if (!seq || !seq->setitem)
-                        return RES_ERROR;
-                /* idx stores long long, but ii.i is int */
-                if (ill < INT_MIN || ill > INT_MAX)
-                        return RES_ERROR;
-
-                return seq->setitem(v, (int)ill, attr);
-        } else {
-                return RES_ERROR;
-        }
 }
 
 /**
@@ -339,9 +364,9 @@ var_sort(struct var_t *v)
 ssize_t
 var_len(struct var_t *v)
 {
-        if (!v->v_type->sqm || !v->v_type->sqm->len)
+        if (!hasvar_len(v))
                 return -1;
-        return v->v_type->sqm->len(v);
+        return ((struct seqvar_t *)v)->v_size;
 }
 
 const char *

@@ -18,7 +18,6 @@ extern int bit_count32(uint32_t v);
 extern int bit_count16(uint16_t v);
 extern int ctz32(uint32_t x);
 extern int ctz64(uint64_t x);
-extern ssize_t index_translate(ssize_t i, size_t size);
 extern void print_escapestr(FILE *fp, const char *s, int quote);
 extern int assert_array_pos(int idx, void **arr,
                         size_t *alloc_bytes, size_t type_size);

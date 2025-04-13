@@ -194,25 +194,6 @@ match(const char *needle, const char *haystack)
 }
 
 /**
- * index_translate - Convert user index (or offset) to C index
- * @i:          Index from user
- * @size:       Size of the array being indexed
- *
- * Return: Transformed @i, or -1 if it is out of the range determined
- *         by @size
- *
- * To user, "i<0" means "index from end."  This function converts that
- * into an index from the start.
- */
-ssize_t
-index_translate(ssize_t i, size_t size)
-{
-        if (i < 0)
-                i += size;
-        return (size_t)i >= size ? -1 : i;
-}
-
-/**
  * print_escapestr - Print a string escaping newlines and control
  *                      characters.
  * @fp: File to print to
@@ -438,9 +419,17 @@ utf8_scan(const char *s, struct utf8_info_t *info)
         }
         s--;
 
-        info->enc_len = s - start - skip;
         info->ascii_len = s - start;
         info->enc = enc;
+
+        /*
+         * If not utf-8 or ASCII, treat as Latin1 or some binary,
+         * where #chars == #bytes
+         */
+        if (enc == STRING_ENC_UTF8)
+                info->enc_len = s - start - skip;
+        else
+                info->enc_len = info->ascii_len;
 }
 
 /**

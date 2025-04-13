@@ -131,12 +131,15 @@ static inline bool isvar_string(struct var_t *v)
 static inline bool isvar_uuidptr(struct var_t *v)
         { return v->v_type == &UuidptrType; }
 
-/*
- * 'isvar_int(v) || isvar_float(v)' is faster for now, but I
- * may want to add other numerical types in the future.
- */
+/* not 'isvar_num'... there always has to be an odd one out */
 static inline bool isnumvar(struct var_t *v)
         { return v->v_type->opm != NULL; }
+static inline bool isvar_seq(struct var_t *v)
+        { return v->v_type->sqm != NULL; }
+static inline bool isvar_map(struct var_t *v)
+        { return v->v_type->mpm != NULL; }
+static inline bool hasvar_len(struct var_t *v)
+        { return isvar_seq(v) || isvar_map(v); }
 
 /*
  * Made public so intvar_toll and floatvar_tod can be inline.

@@ -107,7 +107,7 @@ er:
 }
 
 static void
-run_script(const char *filename, FILE *fp)
+run_script(const char *filename, FILE *fp, struct vmframe_t *fr)
 {
         struct executable_t *ex;
         int status;
@@ -137,7 +137,7 @@ run_script(const char *filename, FILE *fp)
                                 fclose(fp);
                 }
                 if (!q_.opt.disassemble_only)
-                        status = vm_execute(ex);
+                        status = vm_execute(ex, fr);
 
                 EXECUTABLE_RELEASE(ex);
                 if (status != RES_OK)
@@ -193,7 +193,7 @@ run_tty(void)
                         if (dfp)
                                 disassemble_lite(dfp, ex);
                         if (!q_.opt.disassemble_only) {
-                                status = vm_execute(ex);
+                                status = vm_execute(ex, NULL);
                                 if (status != RES_OK)
                                         err_print_last(stderr);
                         }
@@ -208,10 +208,10 @@ run_tty(void)
  *              the command line.
  */
 void
-load_file(const char *filename)
+load_file(const char *filename, struct vmframe_t *fr)
 {
         FILE *fp = push_path(filename);
-        run_script(filename, fp);
+        run_script(filename, fp, fr);
         pop_path(fp);
 }
 
@@ -224,7 +224,7 @@ main(int argc, char **argv)
                 return -1;
 
         if (q_.opt.infile) {
-                load_file(q_.opt.infile);
+                load_file(q_.opt.infile, NULL);
         } else {
                 if (isatty(fileno(stdin))) {
                         run_tty();
@@ -233,7 +233,7 @@ main(int argc, char **argv)
                          * in a pipe; parse entire file
                          * but don't push file path.
                          */
-                        run_script("(stdin)", stdin);
+                        run_script("<stdin>", stdin, NULL);
                 }
         }
 

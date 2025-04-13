@@ -31,8 +31,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* XXX arbitrary */
 static struct hashtable_t *symbol_table;
+
+/* XXX: Need to be made per-thread */
+static struct var_t **vm_stack;
+static struct var_t **vm_stack_end;
 
 #define list2vmf(li) container_of(li, struct vmframe_t, list)
 
@@ -58,7 +61,7 @@ static inline char *RODATA_STR(struct vmframe_t *fr, instruction_t ii)
 static void
 push(struct vmframe_t *fr, struct var_t *v)
 {
-        bug_on(fr->stackptr - fr->stack >= FRAME_STACK_MAX);
+        bug_on(fr->stackptr >= vm_stack_end);
         PUSH_(fr, v);
 }
 
@@ -403,7 +406,7 @@ do_nop(struct vmframe_t *fr, instruction_t ii)
 static int
 do_load(struct vmframe_t *fr, instruction_t ii)
 {
-        load_file(RODATA_STR(fr, ii));
+        load_file(RODATA_STR(fr, ii), fr);
         return 0;
 }
 
@@ -1110,11 +1113,13 @@ out:
 /**
  * vm_execute - Execute from the top level of a script.
  * @top_level: Result of assemble()
+ * @fr_old:    Frame of the script calling 'load', or NULL if this is
+ *             the entry point.
  *
  * Return: RES_OK or an error
  */
 enum result_t
-vm_execute(struct executable_t *top_level)
+vm_execute(struct executable_t *top_level, struct vmframe_t *fr_old)
 {
         struct var_t *res;
         enum result_t ret;
@@ -1123,6 +1128,7 @@ vm_execute(struct executable_t *top_level)
         bug_on(!(top_level->flags & FE_TOP));
 
         fr = vmframe_alloc();
+        fr->stack = fr_old ? fr_old->stackptr : vm_stack;
         fr->ex = top_level;
         fr->ppii = top_level->instr;
         fr->stackptr = fr->stack;
@@ -1176,6 +1182,7 @@ vm_reenter(struct vmframe_t *fr_old, struct var_t *func,
         struct var_t *res;
 
         fr = vmframe_alloc();
+        fr->stack = fr_old->stackptr;
         fr->ap = argc;
         while (argc-- > 0)
                 fr->stack[argc] = qop_cp(argv[argc]);
@@ -1219,5 +1226,8 @@ moduleinit_vm(void)
         symbol_table = malloc(sizeof(*symbol_table));
         hashtable_init(symbol_table, ptr_hash, ptr_key_match,
                        var_bucket_delete);
+
+        vm_stack = emalloc(sizeof(struct var_t *) * VM_STACK_SIZE);
+        vm_stack_end = vm_stack + VM_STACK_SIZE - 1;
 }
 

@@ -19,6 +19,7 @@ enum {
         RECURSION_MAX   = 256,
 
         /* for vm.c and assembler.c */
+        VM_STACK_SIZE   = 1024 * 16,
         FRAME_ARG_MAX   = 24,
         FRAME_STACK_MAX = 128,
         FRAME_NEST_MAX  = 32,
@@ -142,7 +143,7 @@ struct block_t {
 struct vmframe_t {
         struct var_t *owner, *func;
         struct var_t **stackptr;
-        struct var_t *stack[FRAME_STACK_MAX];
+        struct var_t **stack;
         struct executable_t *ex;
         int ap;
         int n_blocks;
@@ -195,7 +196,7 @@ struct global_t {
 
 /* main.c */
 extern struct global_t q_;
-extern void load_file(const char *filename);
+extern void load_file(const char *filename, struct vmframe_t *fr);
 extern struct var_t *ErrorVar;
 extern struct var_t *NullVar;
 
@@ -424,7 +425,8 @@ struct var_t *stringvar_from_immortal(const char *immstr);
 extern char *uuidstr(void);
 
 /* vm.c */
-extern enum result_t vm_execute(struct executable_t *top_level);
+extern enum result_t vm_execute(struct executable_t *top_level,
+                                struct vmframe_t *fr);
 extern struct var_t *execute_loop(struct vmframe_t *fr);
 extern struct var_t *vm_reenter(struct vmframe_t *fr, struct var_t *func,
                                 struct var_t *owner, int argc,

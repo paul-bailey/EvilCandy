@@ -958,12 +958,22 @@ do_logical_and(struct vmframe_t *fr, instruction_t ii)
         return binary_op_common(fr, logical_and);
 }
 
+static struct var_t *
+get_one(void)
+{
+        static struct var_t *one = NULL;
+        if (!one)
+                one = intvar_new(1LL);
+        VAR_INCR_REF(one);
+        return one;
+}
+
 static int
 do_incr(struct vmframe_t *fr, instruction_t ii)
 {
         int ret;
+        struct var_t *one = get_one();
         struct var_t *v = pop(fr);
-        struct var_t *one = intvar_new(1);
         struct var_t *opres = qop_add(v, one);
         if (!opres)
                 ret = RES_ERROR;
@@ -978,8 +988,8 @@ static int
 do_decr(struct vmframe_t *fr, instruction_t ii)
 {
         int ret;
+        struct var_t *one = get_one();
         struct var_t *v = pop(fr);
-        struct var_t *one = intvar_new(1);
         struct var_t *opres = qop_sub(v, one);
         if (!opres)
                 ret = RES_ERROR;

@@ -108,9 +108,8 @@ var_delete__(struct var_t *v)
         bug_on(v == NullVar);
         bug_on(v->v_refcnt != 0);
         bug_on(!v->v_type);
-        bug_on(!v->v_type->opm);
-        if (v->v_type->opm->reset)
-                v->v_type->opm->reset(v);
+        if (v->v_type->reset)
+                v->v_type->reset(v);
 
         var_free(v, v->v_type->size);
 }
@@ -127,15 +126,6 @@ config_builtin_methods(const struct type_inittbl_t *tbl,
                 hashtable_put(htbl, literal_put(t->name), v);
                 t++;
         }
-}
-
-static struct var_t *
-builtin_method(struct var_t *v, const char *method_name)
-{
-        if (!method_name)
-                return NULL;
-
-        return hashtable_get(&v->v_type->methods, method_name);
 }
 
 /*
@@ -194,24 +184,6 @@ var_bucket_delete(void *data)
         VAR_DECR_REF((struct var_t *)data);
 }
 
-static struct var_t *
-attr_by_string(struct var_t *v, const char *s)
-{
-        struct var_t *ret;
-        if (!s)
-                return NULL;
-        if (isvar_dict(v)) {
-                struct var_t *res;
-                if ((res = object_getattr(v, s)) != NULL)
-                        return res;
-        }
-
-        ret = builtin_method(v, s);
-        if (ret)
-                VAR_INCR_REF(ret);
-        return ret;
-}
-
 /**
  * var_getattr - Generalized get-attribute
  * @v:  Variable whose attribute we're seeking
@@ -226,20 +198,41 @@ struct var_t *
 var_getattr(struct var_t *v, struct var_t *key)
 {
         if (isvar_int(key)) {
-                /* XXX: return ErrorVar if bound error? */
-                /* idx stores long long, but ii.i is int */
+                const struct seq_methods_t *sqm = v->v_type->sqm;
                 long long ill = intvar_toll(key);
                 int i;
+                if (!sqm || !sqm->getitem) {
+                        /* not a sequential type */
+                        return NULL;
+                }
+
+                /* idx stores long long, but ii.i is int */
                 if (ill < INT_MIN || ill > INT_MAX)
                         return NULL;
 
+                /* TODO: move the index_translate calls to this single point */
                 i = (int)ill;
-                if (isvar_array(v))
-                        return array_child(v, i);
-                else if (isvar_string(v))
-                        return string_nth_child(v, i);
+                return sqm->getitem(v, i);
         } else if (isvar_string(key)) {
-                return attr_by_string(v, string_get_cstring(key));
+                /*
+                 * first check if v maps it. If failed, check the
+                 * built-in methods.
+                 */
+                const char *ks = string_get_cstring(key);
+                struct var_t *ret;
+                const struct map_methods_t *mpm = v->v_type->mpm;
+                if (!ks || ks[0] == '\0')
+                        return NULL;
+                if (mpm && mpm->getitem) {
+                        ret = mpm->getitem(v, ks);
+                        if (ret)
+                                return ret;
+                }
+
+                ret = hashtable_get(&v->v_type->methods, ks);
+                if (ret)
+                        VAR_INCR_REF(ret);
+                return ret;
         }
 
         return NULL;
@@ -286,12 +279,27 @@ attr_str(struct var_t *key)
 enum result_t
 var_setattr(struct var_t *v, struct var_t *key, struct var_t *attr)
 {
-        if (isvar_dict(v))
-                return object_setattr(v, key, attr);
-        else if (isvar_array(v))
-                return array_insert(v, key, attr);
-        else
+        if (isvar_string(key)) {
+                const char *ks = string_get_cstring(key);
+                const struct map_methods_t *map = v->v_type->mpm;
+                if (!map || !map->setitem)
+                        return RES_ERROR;
+                if (!ks || ks[0] == '\0')
+                        return RES_ERROR;
+                return map->setitem(v, ks, attr);
+        } else if (isvar_int(key)) {
+                long long ill = intvar_toll(key);
+                const struct seq_methods_t *seq = v->v_type->sqm;
+                if (!seq || !seq->setitem)
+                        return RES_ERROR;
+                /* idx stores long long, but ii.i is int */
+                if (ill < INT_MIN || ill > INT_MAX)
+                        return RES_ERROR;
+
+                return seq->setitem(v, (int)ill, attr);
+        } else {
                 return RES_ERROR;
+        }
 }
 
 /**
@@ -314,9 +322,26 @@ var_compare(struct var_t *a, struct var_t *b)
                 return 1;
         if (a->v_type != b->v_type)
                 return strcmp(typestr(a), typestr(b));
-        if (a->v_type->opm->cmp == NULL)
+        if (!a->v_type->cmp)
                 return a < b ? -1 : 1;
-        return a->v_type->opm->cmp(a, b);
+        return a->v_type->cmp(a, b);
+}
+
+int
+var_sort(struct var_t *v)
+{
+        if (!v->v_type->sqm || !v->v_type->sqm->sort)
+                return -1;
+        v->v_type->sqm->sort(v);
+        return 0;
+}
+
+ssize_t
+var_len(struct var_t *v)
+{
+        if (!v->v_type->sqm || !v->v_type->sqm->len)
+                return -1;
+        return v->v_type->sqm->len(v);
 }
 
 const char *

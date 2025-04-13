@@ -327,6 +327,8 @@ extern enum result_t var_setattr(struct var_t *v,
                                  struct var_t *deref,
                                  struct var_t *attr);
 extern int var_compare(struct var_t *a, struct var_t *b);
+extern int var_sort(struct var_t *v);
+extern ssize_t var_len(struct var_t *v);
 extern const char *typestr(struct var_t *v);
 extern const char *typestr_(int magic);
 extern const char *attr_str(struct var_t *deref);
@@ -369,17 +371,12 @@ extern struct executable_t *serialize_read(FILE *fp,
                                         const char *file_name);
 
 /* types/array.c */
-extern struct var_t *array_child(struct var_t *array, int idx);
+extern struct var_t *arrayvar_new(int n_items);
+extern enum result_t array_setitem(struct var_t *array,
+                                   int i, struct var_t *child);
+extern struct var_t *array_getitem(struct var_t *array, int idx);
 extern enum result_t array_append(struct var_t *array,
                                   struct var_t *child);
-extern enum result_t array_insert(struct var_t *array,
-                                  struct var_t *idx, struct var_t *child);
-extern enum result_t array_insert_byidx(struct var_t *array,
-                                  int i, struct var_t *child);
-extern struct var_t *arrayvar_new(int n_items);
-extern int array_get_type(struct var_t *array);
-extern int array_length(struct var_t *array);
-extern void array_sort(struct var_t *array);
 
 /* types/empty.c */
 extern struct var_t *emptyvar_new(void);
@@ -402,12 +399,9 @@ extern char *uuidptr_get_cstring(struct var_t *v);
 
 /* types/object.c */
 extern struct var_t *objectvar_new(void);
-extern struct var_t *object_getattr(struct var_t *o, const char *s);
-extern enum result_t object_addattr(struct var_t *o,
-                                    struct var_t *v, const char *name);
+extern struct var_t *object_getattr(struct var_t *o, const char *key);
 extern enum result_t object_setattr(struct var_t *o,
-                                    struct var_t *name, struct var_t *attr);
-extern enum result_t object_remove_child(struct var_t *o, const char *s);
+                                    const char *key, struct var_t *attr);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct var_t *, void *));
 extern void *object_get_priv(struct var_t *o);
@@ -415,8 +409,6 @@ extern void object_add_to_globals(struct var_t *obj);
 
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);
-extern struct var_t *string_nth_child(struct var_t *str, int idx);
-extern size_t string_length(struct var_t *str);
 extern char *string_get_cstring(struct var_t *str);
 extern struct var_t *string_from_file(FILE *fp,
                                       int delim, bool stuff_delim);

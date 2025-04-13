@@ -20,7 +20,7 @@ struct var_t *
 qop_mul(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
-        if (!p->mul) {
+        if (!p || !p->mul) {
                 err_permit("*", a);
                 return NULL;
         }
@@ -34,7 +34,7 @@ struct var_t *
 qop_div(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
-        if (!p->div) {
+        if (!p || !p->div) {
                 err_permit("/", a);
         }
         return p->div(a, b);
@@ -47,7 +47,7 @@ struct var_t *
 qop_mod(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
-        if (!p->mod) {
+        if (!p || !p->mod) {
                 err_permit("%", a);
                 return NULL;
         }
@@ -60,12 +60,22 @@ qop_mod(struct var_t *a, struct var_t *b)
 struct var_t *
 qop_add(struct var_t *a, struct var_t *b)
 {
-        const struct operator_methods_t *p = primitives_of(a);
-        if (!p->add) {
-                err_permit("+", a);
-                return NULL;
+        if (isnumvar(a)) {
+                const struct operator_methods_t *op = a->v_type->opm;
+                if (!op->add)
+                        goto cant;
+                return op->add(a, b);
+        } else if (a->v_type->sqm) {
+                const struct seq_methods_t *sq = a->v_type->sqm;
+                if (!sq->cat)
+                        goto cant;
+                return sq->cat(a, b);
         }
-        return p->add(a, b);
+        /* else, not '+'-ible */
+
+cant:
+        err_permit("+", a);
+        return NULL;
 }
 
 /**
@@ -75,7 +85,7 @@ struct var_t *
 qop_sub(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
-        if (!p->sub) {
+        if (!p || !p->sub) {
                 err_permit("-", a);
                 return NULL;
         }
@@ -87,7 +97,7 @@ struct var_t *
 qop_bit_and(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
-        if (!p->bit_and) {
+        if (!p || !p->bit_and) {
                 err_permit("&", a);
                 return NULL;
         }
@@ -99,7 +109,7 @@ struct var_t *
 qop_bit_or(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
-        if (!p->bit_or) {
+        if (!p || !p->bit_or) {
                 err_permit("|", a);
                 return NULL;
         }
@@ -111,11 +121,35 @@ struct var_t *
 qop_xor(struct var_t *a, struct var_t *b)
 {
         const struct operator_methods_t *p = primitives_of(a);
-        if (!p->xor) {
+        if (!p || !p->xor) {
                 err_permit("^", a);
                 return NULL;
         }
         return p->xor(a, b);
+}
+
+/* ~v */
+struct var_t *
+qop_bit_not(struct var_t *v)
+{
+        const struct operator_methods_t *p = primitives_of(v);
+        if (!p || !p->bit_not) {
+                err_permit("~", v);
+                return NULL;
+        }
+        return p->bit_not(v);
+}
+
+/* -v */
+struct var_t *
+qop_negate(struct var_t *v)
+{
+        const struct operator_methods_t *p = primitives_of(v);
+        if (!p || !p->negate) {
+                err_permit("-", v);
+                return NULL;
+        }
+        return p->negate(v);
 }
 
 /**
@@ -134,38 +168,13 @@ qop_xor(struct var_t *a, struct var_t *b)
 bool
 qop_cmpz(struct var_t *v, enum result_t *status)
 {
-        const struct operator_methods_t *p = primitives_of(v);
-        if (!p->cmpz) {
+        if (!v->v_type->cmpz) {
                 err_permit("cmpz", v);
                 *status = RES_ERROR;
                 return true;
         }
         *status = RES_OK;
-        return p->cmpz(v);
-}
-
-/* ~v */
-struct var_t *
-qop_bit_not(struct var_t *v)
-{
-        const struct operator_methods_t *p = primitives_of(v);
-        if (!p->bit_not) {
-                err_permit("~", v);
-                return NULL;
-        }
-        return p->bit_not(v);
-}
-
-/* -v */
-struct var_t *
-qop_negate(struct var_t *v)
-{
-        const struct operator_methods_t *p = primitives_of(v);
-        if (!p->negate) {
-                err_permit("-", v);
-                return NULL;
-        }
-        return p->negate(v);
+        return v->v_type->cmpz(v);
 }
 
 struct var_t *
@@ -194,10 +203,8 @@ qop_lnot(struct var_t *v)
 struct var_t *
 qop_cp(struct var_t *v)
 {
-        const struct operator_methods_t *p = primitives_of(v);
-        bug_on(!p);
-        bug_on(!p->cp);
-        return p->cp(v);
+        bug_on(!v->v_type->cp);
+        return v->v_type->cp(v);
 }
 
 

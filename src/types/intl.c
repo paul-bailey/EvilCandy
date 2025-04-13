@@ -46,22 +46,28 @@ uuidptr_reset(struct var_t *v)
         free(((struct uuidptrvar_t *)v)->uuid);
 }
 
-static const struct operator_methods_t uuidptr_primitives = {
-        .reset = uuidptr_reset,
-};
-
-static const struct operator_methods_t no_primitives = { 0 };
-
 struct type_t XptrType = {
         .name   = "[internal-use executable]",
-        .opm    = &no_primitives,
+        .opm    = NULL,
         .cbm    = NULL,
+        .mpm    = NULL,
+        .sqm    = NULL,
         .size   = sizeof(struct xptrvar_t),
+        .cmp    = NULL,
+        .cmpz   = NULL,
+        .cp     = NULL,
+        .reset  = NULL,
 };
 
 struct type_t UuidptrType = {
         .name   = "[internal-use UUID]",
-        .opm    = &uuidptr_primitives,
+        .opm    = NULL,
         .cbm    = NULL,
+        .mpm    = NULL,
+        .sqm    = NULL,
         .size   = sizeof(struct uuidptrvar_t),
+        .cmp    = NULL,
+        .cmpz   = NULL,
+        .cp     = NULL,
+        .reset = uuidptr_reset,
 };

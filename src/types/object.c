@@ -32,13 +32,15 @@ struct dictvar_t {
 
 #define V2D(v)  ((struct dictvar_t *)(v))
 
-static inline size_t oh_nchildren(struct dictvar_t *oh)
-        { return oh->nchildren; }
 
 /* **********************************************************************
  *                              API functions
  ***********************************************************************/
 
+/*
+ * Get an alphabetically sorted list of all the keys currenlyt in
+ * the dictionary.
+ */
 static struct var_t *
 object_keys(struct var_t *obj)
 {
@@ -57,14 +59,17 @@ object_keys(struct var_t *obj)
         for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
              res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
                 struct var_t *ks = stringvar_new((char *)k);
-                array_insert_byidx(keys, array_i, ks);
+                array_setitem(keys, array_i, ks);
                 VAR_DECR_REF(ks);
                 array_i++;
         }
-        array_sort(keys);
+        var_sort(keys);
         return keys;
 }
 
+/**
+ * objectvar_new - Create a new empty dictionary
+ */
 struct var_t *
 objectvar_new(void)
 {
@@ -134,130 +139,76 @@ object_getattr(struct var_t *o, const char *s)
 }
 
 /**
- * object_addattr - Append a child to an object
- * @parent: object to append a child to
- * @child: child to append to @parent
- * @name: Name of the child.
- *
- * Like object_setattr, except that it throws an error if the atttribute
- * already exists, and it takes into account that most callers have a
- * C string, not a TYPE_STRING var_t.
- *
- * Usu. called when BUILDING a dictionary, ie when the EvilCandy source
- * code has an expression of the sort: x = { key1: val1, ... } or when
- * reading a dictionary from a JSON file.
- *
- * When the source code uses the expression: x[key] = val, object_setattr
- * is called (via var_setattr) instead.
- */
-enum result_t
-object_addattr(struct var_t *parent,
-               struct var_t *child, const char *name)
-{
-        struct dictvar_t *d = V2D(parent);
-        bug_on(!isvar_object(parent));
-        if (d->lock) {
-                err_locked();
-                return RES_ERROR;
-        }
-
-        /*
-         * XXX REVISIT: literal_put immortalizes a key in an object that
-         * could later be destroyed.  More often than not @name is
-         * already immortal (it was most likely derived in some way from
-         * a literal in the source code), so this does nothing.  However,
-         * @name could have been constructed from something that the
-         * source never expresses literally.  Consider something weird
-         * like...
-         *
-         *      my_obj = (function(a, key_prefix) {
-         *              let o = {};
-         *              a.foreach(function(e, idx) {
-         *                      o[key_prefix + idx.tostr()] = e;
-         *              });
-         *              return o;
-         *      })(my_arr, 'my_key_');
-         *
-         * Here, 'my_key_' is a hard-coded literal, but 'my_key_0' is not.
-         * For a program with a long lifecycle, this could result in the
-         * build-up of a non-trivial amount of zombified strings.
-         */
-        if (hashtable_put(&d->dict, literal_put(name), child) < 0) {
-                err_setstr(RuntimeError,
-                           "Object already has element named %s", name);
-                return RES_ERROR;
-        }
-        d->nchildren++;
-        VAR_INCR_REF(child);
-        return RES_OK;
-}
-
-/**
- * object_delattr - Delete an attribute from a dictionary.
- *
- * Return: RES_OK if item is deleted or didn't exist; RES_ERROR
- *         if the dictionary is locked.
- */
-enum result_t
-object_delattr(struct var_t *parent, const char *name)
-{
-        struct dictvar_t *d = V2D(parent);
-        struct var_t *child;
-        if (!name)
-                return RES_OK;
-        if (d->lock) {
-                err_locked();
-                return RES_ERROR;
-        }
-        child = hashtable_remove(&d->dict, name);
-        /*
-         * XXX REVISIT: If !child, should I throw a doesn't-exist error,
-         * or should I silently ignore it like I'm doing now?
-         */
-        if (child) {
-                VAR_DECR_REF(child);
-                d->nchildren--;
-        }
-        return RES_OK;
-}
-
-/**
  * object_setattr - Insert an attribute to dictionary if it doesn't exist,
  *                  or change the existing attribute if it does.
  * @self:       Dictionary object
  * @name:       Name of attribute key
- * @attr:       Value to set
+ * @attr:       Value to set.  NULL means 'delete the entry'
  *
  * This does not touch the type's built-in-method attributes.
  *
  * Return: res_ok or RES_ERROR.
  */
 enum result_t
-object_setattr(struct var_t *dict, struct var_t *name, struct var_t *attr)
+object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
 {
-        char *namestr;
         struct var_t *child;
         struct dictvar_t *d = V2D(dict);
 
         bug_on(!isvar_object(dict));
 
-        if (isvar_string(name)) {
-                /* XXX REVISIT: same immortalization issue as in object_addattr */
-                namestr = literal_put(string_get_cstring(name));
-        } else {
-                err_argtype("name");
-                return RES_ERROR;
-        }
-
         /* @child is either the former entry replaced by @attr or NULL */
-        child = hashtable_put_or_swap(&d->dict, namestr, attr);
-        if (child) {
-                VAR_DECR_REF(child);
+        if (attr) {
+                /*
+                 * XXX REVISIT: literal_put immortalizes a key in an object that
+                 * could later be destroyed.  More often than not @name is
+                 * already immortal (it was most likely derived in some way from
+                 * a literal in the source code), so this does nothing.  However,
+                 * @name could have been constructed from something that the
+                 * source never expresses literally.  Consider something weird
+                 * like...
+                 *
+                 *      my_obj = (function(a, key_prefix) {
+                 *              let o = {};
+                 *              a.foreach(function(e, idx) {
+                 *                      o[key_prefix + idx.tostr()] = e;
+                 *              });
+                 *              return o;
+                 *      })(my_arr, 'my_key_');
+                 *
+                 * Here, 'my_key_' is a hard-coded literal, but 'my_key_0' is not.
+                 * For a program with a long lifecycle, this could result in the
+                 * build-up of a non-trivial amount of zombified strings.
+                 */
+                key = literal_put(key);
+
+                child = hashtable_put_or_swap(&d->dict, (void *)key, attr);
+                if (child) {
+                        VAR_DECR_REF(child);
+                } else {
+                        d->nchildren++;
+                }
+                VAR_INCR_REF(attr);
         } else {
-                d->nchildren++;
+                /* XXX REVISIT: If !child, maybe throw error and print msg */
+                child = hashtable_remove(&d->dict, key);
+                if (child) {
+                        VAR_DECR_REF(child);
+                        d->nchildren--;
+                }
         }
-        VAR_INCR_REF(attr);
         return RES_OK;
+}
+
+static int
+object_hasattr(struct var_t *o, const char *key)
+{
+        struct var_t *child;
+
+        bug_on(!isvar_object(o));
+
+        child = hashtable_get(&V2D(o)->dict, key);
+        return child != NULL;
 }
 
 /*
@@ -356,13 +307,14 @@ do_object_foreach(struct vmframe_t *fr)
                 priv = NullVar;
 
         keys = object_keys(self);
-        len = array_length(keys);
+        len = var_len(keys);
+        bug_on(var_len < 0);
 
         status = RES_OK;
         for (i = 0; i < len; i++) {
                 struct var_t *key, *val, *argv[3], *cbret;
 
-                key = array_child(keys, i);
+                key = array_getitem(keys, i);
                 bug_on(!key || key == ErrorVar);
                 val = object_getattr(self, string_get_cstring(key));
                 if (!val) /* user shenanigans in foreach loop */
@@ -391,31 +343,16 @@ do_object_foreach(struct vmframe_t *fr)
 /*
  * len()  (no args)
  * returns number of elements in object
- *
- * len(x)
- * returns length of x
  */
 static struct var_t *
 do_object_len(struct vmframe_t *fr)
 {
         struct var_t *v;
-        int i = 0;
+        int i;
 
-        v = frame_get_arg(fr, 0);
-        if (!v) {
-                v = get_this(fr);
-                bug_on(!isvar_object(v));
-        }
-        /* XXX REVISIT: should be in var.c as var_length */
-        if (isvar_object(v))
-                i = oh_nchildren(V2D(v));
-        else if (isvar_string(v))
-                i = string_length(v);
-        else if (isvar_array(v))
-                i = array_length(v);
-        else /* XXX does it make sense to return 0 for EMPTY? */
-                i = 1;
-
+        v = vm_get_this(fr);
+        bug_on(!v || !isvar_object(v));
+        i = V2D(v)->nchildren;
         return intvar_new(i);
 }
 
@@ -437,6 +374,8 @@ do_object_hasattr(struct vmframe_t *fr)
         if ((s = string_get_cstring(name)) != NULL)
                 child = object_getattr(self, s);
 
+        /* TODO: if child == NULL, check built-in methods */
+
         return intvar_new((int)(child != NULL));
 }
 
@@ -450,7 +389,7 @@ do_object_setattr(struct vmframe_t *fr)
 
         bug_on(!isvar_object(self));
 
-        if (!name) {
+        if (!name || !isvar_string(name)) {
                 err_argtype("name");
                 return ErrorVar;
         }
@@ -458,7 +397,7 @@ do_object_setattr(struct vmframe_t *fr)
                 err_argtype("value");
                 return ErrorVar;
         }
-        if (object_setattr(self, name, value) != RES_OK)
+        if (object_setattr(self, string_get_cstring(name), value) != RES_OK)
                 return ErrorVar;
 
         return NULL;
@@ -497,6 +436,7 @@ do_object_getattr(struct vmframe_t *fr)
         }
 
         ret = object_getattr(self, s);
+        /* XXX: If NULL, check built-in methods */
         /* XXX: VAR_INCR_REF? Who's taking this? */
         if (!ret)
                 ret = ErrorVar;
@@ -515,7 +455,7 @@ do_object_delattr(struct vmframe_t *fr)
                 return ErrorVar;
 
         s = string_get_cstring(name);
-        if (object_delattr(self, s) != RES_OK)
+        if (object_setattr(self, s, NULL) != RES_OK)
                 return ErrorVar;
         return NULL;
 }
@@ -558,8 +498,8 @@ do_object_copy(struct vmframe_t *fr)
         d = &V2D(self)->dict;
         for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
              res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
-                if (object_addattr(ret, qop_cp((struct var_t *)v),
-                                   (char *)k) != RES_OK) {
+                if (object_setattr(ret, (char *)k,
+                                qop_cp((struct var_t *)v)) != RES_OK) {
                         VAR_DECR_REF(ret);
                         return ErrorVar;
                 }
@@ -568,7 +508,7 @@ do_object_copy(struct vmframe_t *fr)
         return ret;
 }
 
-static const struct type_inittbl_t object_methods[] = {
+static const struct type_inittbl_t object_cb_methods[] = {
         V_INITTBL("len",       do_object_len,       0, 0),
         V_INITTBL("foreach",   do_object_foreach,   1, 1),
         V_INITTBL("hasattr",   do_object_hasattr,   1, 1),
@@ -580,21 +520,22 @@ static const struct type_inittbl_t object_methods[] = {
         TBLEND,
 };
 
-/*
- * XXX: Would be nice if we could do like Python and let objects have
- * user-defined operator callbacks
- */
-static const struct operator_methods_t object_primitives = {
-        .cmp            = object_cmp,
-        .cmpz           = object_cmpz,
-        .reset          = object_reset,
-        .cp             = object_cp,
+static const struct map_methods_t object_map_methods = {
+        .getitem = object_getattr,
+        .setitem = object_setattr,
+        .hasitem = object_hasattr,
 };
 
 struct type_t ObjectType = {
         .name = "dictionary",
-        .opm    = &object_primitives,
-        .cbm    = object_methods,
+        .opm    = NULL,
+        .cbm    = object_cb_methods,
+        .mpm    = &object_map_methods,
+        .sqm    = NULL,
         .size   = sizeof(struct dictvar_t),
+        .cmp    = object_cmp,
+        .cmpz   = object_cmpz,
+        .reset  = object_reset,
+        .cp     = object_cp,
 };
 

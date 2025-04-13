@@ -151,7 +151,7 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                         child = NULL;
                         bug();
                 }
-                if (object_addattr(parent, child, t->name) != 0) {
+                if (object_setattr(parent, t->name, child) != 0) {
                         /*
                          * Whether this is a "bug" or not is philosophical.
                          * Anyway, it can't be user error, so something

@@ -380,7 +380,7 @@ logical_and(struct var_t *a, struct var_t *b)
 static struct var_t *
 rshift(struct var_t *a, struct var_t *b)
 {
-        if (!a->v_type->opm->rshift) {
+        if (!a->v_type->opm || !a->v_type->opm->rshift) {
                 err_permit(">>", a);
                 return NULL;
         }
@@ -390,7 +390,7 @@ rshift(struct var_t *a, struct var_t *b)
 static struct var_t *
 lshift(struct var_t *a, struct var_t *b)
 {
-        if (!a->v_type->opm->lshift) {
+        if (!a->v_type->opm || !a->v_type->opm->lshift) {
                 err_permit("<<", a);
                 return NULL;
         }
@@ -691,7 +691,7 @@ do_deflist(struct vmframe_t *fr, instruction_t ii)
         struct var_t *arr = arrayvar_new(n);
         while (n--) {
                 struct var_t *item = pop(fr);
-                array_insert_byidx(arr, n, item);
+                array_setitem(arr, n, item);
                 VAR_DECR_REF(item);
         }
         push(fr, arr);
@@ -718,7 +718,7 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
          * support it.  (Lists have a separate opcode, see
          * do_list_append below.)
          */
-        res = object_addattr(obj, attr, name);
+        res = object_setattr(obj, name, attr);
         VAR_DECR_REF(attr);
         push(fr, obj);
         return res;

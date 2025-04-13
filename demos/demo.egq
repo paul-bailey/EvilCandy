@@ -64,14 +64,10 @@ load "math.evc";
 
 (function(s) {
     print("length '{}' for '{}'".format(s.len(), s));
-    print("length {} should equal {}".format(s.len(), {}.len(s)));
     print("Replace 'is' with 'at':");
     print("\tOld text: '{}'\n\tNew text: '{}'"
           .format(s, s.replace("is", "at")));
 })('This is a string');
-
-print("Length of __gbl__ is {} (ie. func len() without arg)"
-      .format({}.len()));
 
 print("");
 print("~0xfffffffffffffffa is {}".format(~0xfffffffffffffffa));

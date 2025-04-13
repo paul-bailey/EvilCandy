@@ -196,22 +196,24 @@ static const struct operator_methods_t int_primitives = {
         .mod            = int_mod,
         .add            = int_add,
         .sub            = int_sub,
-        .cmp            = int_cmp,
         .lshift         = int_lshift,
         .rshift         = int_rshift,
         .bit_and        = int_bit_and,
         .bit_or         = int_bit_or,
         .xor            = int_xor,
-        .cmpz           = int_cmpz,
         .bit_not        = int_bit_not,
         .negate         = int_negate,
-        .cp             = int_cp,
 };
 
 struct type_t IntType = {
         .name   = "integer",
         .opm    = &int_primitives,
         .cbm    = int_methods,
+        .mpm    = NULL,
+        .sqm    = NULL,
         .size   = sizeof(struct intvar_t),
+        .cp     = int_cp,
+        .cmpz   = int_cmpz,
+        .cmp    = int_cmp,
 };
 

@@ -115,10 +115,7 @@ static const struct operator_methods_t float_primitives = {
         .div            = float_div,
         .add            = float_add,
         .sub            = float_sub,
-        .cmp            = float_cmp,
-        .cmpz           = float_cmpz,
         .negate         = float_negate,
-        .cp             = float_cp,
 };
 
 struct type_t FloatType = {
@@ -126,5 +123,8 @@ struct type_t FloatType = {
         .opm    = &float_primitives,
         .cbm    = float_methods,
         .size   = sizeof(struct floatvar_t),
+        .cp     = float_cp,
+        .cmp    = float_cmp,
+        .cmpz   = float_cmpz,
 };
 

@@ -34,19 +34,12 @@ struct arrayvar_t {
 #define V2ARR(v_)       ((struct arrayvar_t *)(v_))
 
 /**
- * array_child - Get nth member of an array
- * @array: Array to seek
- * @idx:   Index into the array
+ * array_getitem - seq_methods_t .getitem callback
  *
- * Return: child member, or NULL if idx out of bounds.
- *         This does not return ErrorVar because the call could just
- *         be a probe.
- *
- * Calling code needs to call VAR_INCR_REF if it uses it.
- * That's not done here.
+ * Given extern linkage since some internal code needs it
  */
-struct var_t *
-array_child(struct var_t *array, int idx)
+extern struct var_t *
+array_getitem(struct var_t *array, int idx)
 {
         struct arrayvar_t *h = V2ARR(array);
         struct var_t **ppvar = (struct var_t **)h->children.s;
@@ -59,16 +52,15 @@ array_child(struct var_t *array, int idx)
         return ppvar[idx];
 }
 
+/* helper to array_sort */
 static int
 array_sort_cmp(const void *a, const void *b)
 {
         return var_compare(*(struct var_t **)a, *(struct var_t **)b);
 }
 
-/**
- * array_sort - Sort the items in an array
- */
-void
+/* seq_methods_t .sort callback */
+static void
 array_sort(struct var_t *array)
 {
         struct arrayvar_t *a = V2ARR(array);
@@ -80,37 +72,15 @@ array_sort(struct var_t *array)
 }
 
 /**
- * array_insert - Insert @child into @idx and throw error if
- *                array out of bounds.
- * @array:      Array to operate on
- * @idx:        Index into the array
- * @child:      Variable storing the data to set in array
+ * array_setitem - Callback for sequence .setitem method
+ * @array: Array to set an item in.
+ * @i:     Index into the array to set the item
+ * @child: New item to set into @array
  *
- * Data is moved from @child to the array member, @child must still be
- * dealt with w/r/t garbage collection by calling code.
+ * Has extern linkage since some internal code needs it.
  */
 enum result_t
-array_insert(struct var_t *array, struct var_t *idx, struct var_t *child)
-{
-        long long ill;
-
-        bug_on(!isvar_array(array));
-
-        if (!isvar_int(idx)) {
-                err_setstr(RuntimeError, "Array subscript must be integer");
-                return RES_ERROR;
-        }
-        ill = intvar_toll(idx);
-        if (ill < INT_MIN || ill > INT_MAX) {
-                err_setstr(RuntimeError, "Array index out of bounds");
-                return RES_ERROR;
-        }
-
-       return array_insert_byidx(array, (int)ill, child);
-}
-
-enum result_t
-array_insert_byidx(struct var_t *array, int i, struct var_t *child)
+array_setitem(struct var_t *array, int i, struct var_t *child)
 {
         struct var_t **ppvar;
         bug_on(!isvar_array(array));
@@ -129,9 +99,11 @@ array_insert_byidx(struct var_t *array, int i, struct var_t *child)
 }
 
 /**
- * array_append - Append a new element to an array
- * @array:  Array to add to
- * @child:  New element to put in array
+ * array_append - Append an item to the tail of an array
+ * @array: Array to append to
+ * @child: Item to append to array
+ *
+ * Has extern linkage since some internal code needs it.
  */
 enum result_t
 array_append(struct var_t *array, struct var_t *child)
@@ -150,13 +122,21 @@ array_append(struct var_t *array, struct var_t *child)
         return RES_OK;
 }
 
-int
-array_length(struct var_t *array)
+/**
+ * type_t .len callback
+ */
+static size_t
+array_len(struct var_t *array)
 {
         bug_on(!isvar_array(array));
         return V2ARR(array)->nmemb;
 }
 
+/**
+ * arrayvar_new - Create a new array of size @n_items
+ *
+ * Return: new array.  Each slot is filled with NullVar.
+ */
 struct var_t *
 arrayvar_new(int n_items)
 {
@@ -170,12 +150,14 @@ arrayvar_new(int n_items)
         return array;
 }
 
+/* type_t .reset callback */
 static void
 array_reset(struct var_t *a)
 {
         buffer_free(&(V2ARR(a)->children));
 }
 
+/* type_t .cmp callback */
 static int
 array_cmp(struct var_t *a, struct var_t *b)
 {
@@ -192,6 +174,7 @@ array_cmp(struct var_t *a, struct var_t *b)
         return V2ARR(a)->nmemb - V2ARR(b)->nmemb;
 }
 
+/* type_t .cp callback */
 static struct var_t *
 array_cp(struct var_t *a)
 {
@@ -199,13 +182,7 @@ array_cp(struct var_t *a)
         return a;
 }
 
-static const struct operator_methods_t array_primitives = {
-        /* To do, I may want to support some of these */
-        .cmp = array_cmp,
-        .cp  = array_cp,
-        .reset = array_reset,
-};
-
+/* implement 'x.len()' */
 static struct var_t *
 do_array_len(struct vmframe_t *fr)
 {
@@ -214,6 +191,7 @@ do_array_len(struct vmframe_t *fr)
         return intvar_new(V2ARR(self)->nmemb);
 }
 
+/* implement 'x.foreach(myfunc, mypriv)' */
 static struct var_t *
 do_array_foreach(struct vmframe_t *fr)
 {
@@ -275,6 +253,7 @@ out:
         return status == RES_OK ? NULL : ErrorVar;
 }
 
+/* implement 'x.append(y)' */
 static struct var_t *
 do_array_append(struct vmframe_t *fr)
 {
@@ -292,17 +271,30 @@ do_array_append(struct vmframe_t *fr)
         return NULL;
 }
 
-static const struct type_inittbl_t array_methods[] = {
+static const struct type_inittbl_t array_cb_methods[] = {
         V_INITTBL("append",     do_array_append,   0, 0),
         V_INITTBL("len",        do_array_len,      0, 0),
         V_INITTBL("foreach",    do_array_foreach,  0, 0),
         TBLEND,
 };
 
+static const struct seq_methods_t array_seq_methods = {
+        .getitem        = array_getitem,
+        .setitem        = array_setitem,
+        .cat            = NULL, /* TODO: this */
+        .sort           = array_sort,
+        .len            = array_len,
+};
+
 struct type_t ArrayType = {
         .name = "list",
-        .opm = &array_primitives,
-        .cbm = array_methods,
+        .opm = NULL,
+        .cbm = array_cb_methods,
+        .mpm = NULL,
+        .sqm = &array_seq_methods,
         .size = sizeof(struct arrayvar_t),
+        .cmp = array_cmp,
+        .cp  = array_cp,
+        .reset = array_reset,
 };
 

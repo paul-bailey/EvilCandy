@@ -145,7 +145,7 @@ parsedict(struct json_state_t *j, struct var_t *parent)
 
                 json_get_tok(j);
                 child = parseatomic(j);
-                if (object_addattr(parent, child, name) != RES_OK)
+                if (object_setattr(parent, name, child) != RES_OK)
                         json_err(j, JE_ADDATTR);
 
                 json_get_tok(j);

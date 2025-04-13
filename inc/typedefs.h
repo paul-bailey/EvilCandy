@@ -6,6 +6,7 @@
 
 typedef struct var_t *(*binary_operator_t)(struct var_t *,
                                            struct var_t *);
+typedef struct var_t *(*unary_operator_t)(struct var_t *);
 
 /*
  * Per-type callbacks for mathematical operators, like + or -
@@ -16,37 +17,27 @@ struct operator_methods_t {
         binary_operator_t mod;    /* new = a % b */
         binary_operator_t add;    /* new = a + b */
         binary_operator_t sub;    /* new = a - b */
-
-        /* <0 if a<b, 0 if a==b, >0 if a>b, doesn't set a or b */
-        int (*cmp)(struct var_t *, struct var_t *);
-
         binary_operator_t lshift;  /* new = a << b */
         binary_operator_t rshift;  /* new = a >> b */
         binary_operator_t bit_and; /* new = a & b */
         binary_operator_t bit_or;  /* new = a | b */
-        binary_operator_t xor;     /* new = a ^ b */
-        bool (*cmpz)(struct var_t *);    /* a == 0 ? */
-        struct var_t *(*bit_not)(struct var_t *); /* new = ~a */
-        struct var_t *(*negate)(struct var_t *);  /* new = -a */
+        binary_operator_t xor;     /* new = a ^ b (binary not logical) */
+        unary_operator_t bit_not;  /* new = ~a */
+        unary_operator_t negate;   /* new = -a */
+};
 
-        /*
-         * Copy a variable
-         *      If it's a by-ref type, just produce a reference
-                        and return yourself.
-         *      If it's a by-val type, copy all the data except the refcount.
-         *
-         * Use var_new(), NOT just malloc/memcpy, which will break things.
-         *
-         * The only error would be out-of-memory which is always trapped,
-         * so this should ALWAYS return a successful copy.
-         */
-        struct var_t *(*cp)(struct var_t *);
+struct map_methods_t {
+        struct var_t *(*getitem)(struct var_t *, const char *);
+        int (*setitem)(struct var_t *, const char *, struct var_t *);
+        int (*hasitem)(struct var_t *, const char *);
+};
 
-        /*
-         * "You're about to be deleted, so delete your private
-         * data before it gets zombified."
-         */
-        void (*reset)(struct var_t *);
+struct seq_methods_t {
+        struct var_t *(*getitem)(struct var_t *, int);
+        enum result_t (*setitem)(struct var_t *, int, struct var_t *);
+        binary_operator_t cat; /* new = a + b */
+        void (*sort)(struct var_t *);
+        size_t (*len)(struct var_t *); /* in items, not bytes */
 };
 
 /*
@@ -71,17 +62,37 @@ struct type_inittbl_t {
  *              things scripts call as functions. moduleinit_var() fills
  *              in this hashtable during initialization time.
  * @opm:        Callbacks for performing primitive operations like
- *              + or - on type.  This may not be NULL, however any of its
- *              fields may be NULL.
+ *              + or - on type.  This is for numerical operations only.
+ *              ('+' for 'cat' is in @sqm.)
  * @cbm:        Array of built-in methods that var_config_type will
  *              put into @methods, or NULL if no such methods exist.
+ *              In-language, this looks something like like 'x.method()'.
+ * @mpm:        Methods for accessing hash-mapped data, or NULL if none
+ *              exist
+ * @sqm:        Methods for accessing sequential data, or NULL if none
+ *              exist
+ * @size:       Size of the type-specific struct to allocate with var_new,
+ *              in bytes.
+ * @cmp:        Returns -1 if a<b, 0 if a==b, >0 if a>b
+ * @cmpz:       Returns 1 if some kind of zero.
+ * @cp:         Copy self.  By-ref types should just produce a reference
+ *              and return self.  By-val types should create a new var and
+ *              set it to the same value.
+ * reset:       May be NULL.  Destructor for a variable's private data.
  */
 struct type_t {
         const char *name;
         struct hashtable_t methods;
         const struct operator_methods_t *opm;
         const struct type_inittbl_t *cbm;
+        const struct map_methods_t *mpm;
+        const struct seq_methods_t *sqm;
         size_t size;
+        int (*cmp)(struct var_t *, struct var_t *);
+        bool (*cmpz)(struct var_t *);    /* a == 0 ? */
+        unary_operator_t cp;
+        void (*reset)(struct var_t *);
+
 };
 
 /*
@@ -120,8 +131,12 @@ static inline bool isvar_string(struct var_t *v)
 static inline bool isvar_uuidptr(struct var_t *v)
         { return v->v_type == &UuidptrType; }
 
+/*
+ * 'isvar_int(v) || isvar_float(v)' is faster for now, but I
+ * may want to add other numerical types in the future.
+ */
 static inline bool isnumvar(struct var_t *v)
-        { return isvar_int(v) || isvar_float(v); }
+        { return v->v_type->opm != NULL; }
 
 /*
  * Made public so intvar_toll and floatvar_tod can be inline.

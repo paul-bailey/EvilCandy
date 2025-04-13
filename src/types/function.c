@@ -320,17 +320,16 @@ func_reset(struct var_t *func)
                 EXECUTABLE_RELEASE(fh->f_ex);
 }
 
-static const struct operator_methods_t function_primitives = {
-        .cmp = func_cmp,
-        .cmpz = func_cmpz,
-        .reset = func_reset,
-        .cp = func_cp,
-};
-
 struct type_t FunctionType = {
         .name   = "function",
-        .opm    = &function_primitives,
+        .opm    = NULL,
         .cbm    = NULL,
+        .mpm    = NULL,
+        .sqm    = NULL,
         .size   = sizeof(struct funcvar_t),
+        .cmp    = func_cmp,
+        .cmpz   = func_cmpz,
+        .reset  = func_reset,
+        .cp     = func_cp,
 };
 

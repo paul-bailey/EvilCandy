@@ -908,7 +908,7 @@ string_join(struct vmframe_t *fr)
                 return ErrorVar;
 
         idx = 0;
-        elem = array_child(arg, idx);
+        elem = array_getitem(arg, idx);
         if (!elem)
                 return stringvar_newf(joinstr, SF_COPY);
 
@@ -924,7 +924,7 @@ string_join(struct vmframe_t *fr)
         VAR_DECR_REF(elem);
         for (;;) {
                 idx++;
-                elem = array_child(arg, idx);
+                elem = array_getitem(arg, idx);
                 if (!elem)
                         break;
                 if (joinstr[0] != '\0')
@@ -966,7 +966,7 @@ string_reset(struct var_t *str)
 }
 
 static struct var_t *
-string_add(struct var_t *a, struct var_t *b)
+string_cat(struct var_t *a, struct var_t *b)
 {
         char *catstr;
         char *lval, *rval;
@@ -1027,13 +1027,35 @@ string_cp(struct var_t *v)
         return string_copy__(v);
 }
 
-static const struct operator_methods_t string_primitives = {
-        .add            = string_add,
-        .cmp            = string_cmp,
-        .cmpz           = string_cmpz,
-        .reset          = string_reset,
-        .cp             = string_cp,
-};
+/* .getitem sequence method for string  */
+static struct var_t *
+string_getitem(struct var_t *str, int idx)
+{
+        char cbuf[5];
+        char *src;
+
+        bug_on(!isvar_string(str));
+        src = V2CSTR(str);
+        if (!src || src[0] == '\0')
+                return NULL;
+
+        idx = index_translate(idx, STRING_LENGTH(str));
+        if (idx < 0)
+                return NULL;
+
+        if (V2STR(str)->s_info.enc != STRING_ENC_UTF8) {
+                /* ASCII, Latin1, or some undecoded binary */
+                cbuf[0] = src[idx];
+                cbuf[1] = '\0';
+        } else {
+                if (utf8_subscr_str(src, idx, cbuf) < 0) {
+                        /* code managing .s_info has bug */
+                        bug();
+                        return NULL;
+                }
+        }
+        return stringvar_newf(cbuf, SF_COPY);
+}
 
 
 /* **********************************************************************
@@ -1066,47 +1088,9 @@ stringvar_from_immortal(const char *immstr)
         return stringvar_newf((char *)immstr, SF_IMMORTAL);
 }
 
-/**
- * string_nth_child - Get nth char in string
- * @str:        String var to get char from
- * @idx:        Index into @str to look
- *
- * Return:
- * Char, as a TYPE_STRING struct var_t.  The calling code must be
- * responsible for the GC for this.
- */
-struct var_t *
-string_nth_child(struct var_t *str, int idx)
-{
-        char cbuf[5];
-        char *src;
-
-        bug_on(!isvar_string(str));
-        src = V2CSTR(str);
-        if (!src || src[0] == '\0')
-                return NULL;
-
-        idx = index_translate(idx, STRING_LENGTH(str));
-        if (idx < 0)
-                return NULL;
-
-        if (V2STR(str)->s_info.enc != STRING_ENC_UTF8) {
-                /* ASCII, Latin1, or some undecoded binary */
-                cbuf[0] = src[idx];
-                cbuf[1] = '\0';
-        } else {
-                if (utf8_subscr_str(src, idx, cbuf) < 0) {
-                        /* code managing .s_info has bug */
-                        bug();
-                        return NULL;
-                }
-        }
-        return stringvar_newf(cbuf, SF_COPY);
-}
-
 /*
  * WARNING!! This does not produce a reference! Whatever you are doing
- * with the return value, do it now.  DO NOT CHANGE IT OR FREE IT.
+ * with the return value, do it now.  Treat it as READ-ONLY.
  *
  * FIXME: This is not thread safe, and "do it quick" is not a good enough
  * solution.
@@ -1149,17 +1133,31 @@ string_from_file(FILE *fp, int delim, bool stuff_delim)
  * length, in number of CHARACTERS, not bytes.  @str might be UTF-8-
  * encoded.
  */
-size_t
+static size_t
 string_length(struct var_t *str)
 {
         return STRING_LENGTH(str);
 }
 
+struct seq_methods_t string_seq_methods = {
+        .getitem        = string_getitem,
+        .setitem        = NULL,
+        .cat            = string_cat,
+        .sort           = NULL,
+        .len            = string_length,
+};
+
 struct type_t StringType = {
         .name   = "string",
-        .opm    = &string_primitives,
+        .opm    = NULL,
         .cbm    = string_methods,
+        .mpm    = NULL,
+        .sqm    = &string_seq_methods,
         .size   = sizeof(struct stringvar_t),
+        .cmp    = string_cmp,
+        .cmpz   = string_cmpz,
+        .reset  = string_reset,
+        .cp     = string_cp,
 };
 
 

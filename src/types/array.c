@@ -37,7 +37,7 @@ struct arrayvar_t {
  *
  * Given extern linkage since some internal code needs it
  */
-extern struct var_t *
+struct var_t *
 array_getitem(struct var_t *array, int idx)
 {
         struct arrayvar_t *h = V2ARR(array);

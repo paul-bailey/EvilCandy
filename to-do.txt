@@ -3,6 +3,7 @@ Bugs/Must-Do
 
 * BUGs 4/2025:
 
+        * Closures do not work inside of .foreach callbacks.
         * TTY mode parses all-around unreliably, even though
           script mode seems to work just fine.
         * there's a VAR_INCR/DECR_REF imbalance somewhere, preventing
@@ -27,8 +28,6 @@ Bugs/Must-Do
 
 * Fix the cyclic-reference problem in GC.
 
-* Add try/catch
-
 * MEMORY LEAK BUG:  When top-level expressions have been executed, their
   code arrays should be deleted.  Same for functions' code arrays if
   all references to them leave scope.  However, current GC implementation
@@ -37,6 +36,10 @@ Bugs/Must-Do
 
 Library/Language Features
 -------------------------
+
+* Add sets, tuples, and an iterator like Python's 'range'
+
+* Add try/catch
 
 * Add a Matrix/DSP module, something like NumPy for Python
 

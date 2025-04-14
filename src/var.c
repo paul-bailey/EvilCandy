@@ -160,6 +160,7 @@ moduleinit_var(void)
                 &XptrType,
                 &ObjectType,
                 &StringType,
+                &RangeType,
                 &UuidptrType,
                 NULL,
         };

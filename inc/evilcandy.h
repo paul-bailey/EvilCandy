@@ -336,6 +336,10 @@ extern FILE *find_import(const char *cur_path, const char *file_name,
 extern void pop_path(FILE *fp);
 extern FILE *push_path(const char *filename);
 
+/* range.c */
+extern struct var_t *rangevar_new(long long start,
+                        long long stop, long long step);
+
 /* var.c */
 extern struct var_t *var_new(struct type_t *type);
 extern void var_initialize_type(struct type_t *tp);
@@ -449,6 +453,8 @@ static inline struct var_t *vm_get_this(struct vmframe_t *fr)
         { return fr->owner; }
 static inline struct var_t *vm_get_arg(struct vmframe_t *fr, unsigned int idx)
         { return idx >= fr->ap ? NULL : fr->stack[idx]; }
+static inline int vm_get_argc(struct vmframe_t *fr)
+        { return fr->ap; }
 
 /* TODO: Get rid of references to frame_get_arg */
 # define frame_get_arg(fr, i)   vm_get_arg(fr, i)

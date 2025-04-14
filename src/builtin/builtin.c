@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <limits.h>
 
 #define NLMAX 8
 
@@ -89,10 +90,63 @@ do_setnl(struct vmframe_t *fr)
         return NULL;
 }
 
+static struct var_t *
+do_range(struct vmframe_t *fr)
+{
+        int argc = vm_get_argc(fr);
+        long long start, stop, step;
+        struct var_t *arg;
+        if (argc < 1 || argc > 3) {
+                err_setstr(RuntimeError, "Expected: 1 to 3 args");
+                return ErrorVar;
+        }
+        /* defaults */
+        start = 0LL;
+        step  = 1LL;
+        switch (argc) {
+        case 1:
+                arg = vm_get_arg(fr, 0);
+                if (!isvar_int(arg))
+                        goto needint;
+                stop  = intvar_toll(arg);
+                break;
+        case 3:
+        case 2:
+                arg = vm_get_arg(fr, 0);
+                if (!isvar_int(arg))
+                        goto needint;
+                start = intvar_toll(arg);
+                arg = vm_get_arg(fr, 1);
+                if (!isvar_int(arg))
+                        goto needint;
+                stop = intvar_toll(arg);
+                if (argc == 2)
+                        break;
+                /* case 3, fall through */
+                arg = vm_get_arg(fr, 2);
+                if (!isvar_int(arg))
+                        goto needint;
+                step = intvar_toll(arg);
+        }
+        if (start < INT_MIN || start > INT_MAX
+                || stop < INT_MIN || stop > INT_MAX
+                || step < INT_MIN || step > INT_MAX) {
+                err_setstr(RuntimeError,
+                           "Range values currently must fit in type 'int'");
+                return ErrorVar;
+        }
+        return rangevar_new(start, stop, step);
+
+needint:
+        err_argtype("integer");
+        return ErrorVar;
+}
+
 static const struct inittbl_t builtin_inittbl[] = {
         TOFTBL("print",  do_print,  1, -1),
         TOFTBL("setnl",  do_setnl,  1, 1),
         TOFTBL("typeof", do_typeof, 1, 1),
+        TOFTBL("range",  do_range,  1, 3),
         /* XXX: maybe exit should be a method of __gbl__._sys */
         TOFTBL("exit",   do_exit,   0, -1),
         { .name = NULL },

@@ -109,6 +109,7 @@ extern struct type_t IntType;
 extern struct type_t XptrType;
 extern struct type_t ObjectType;
 extern struct type_t StringType;
+extern struct type_t RangeType;
 extern struct type_t UuidptrType;
 
 static inline bool isvar_array(struct var_t *v)
@@ -128,6 +129,8 @@ static inline bool isvar_object(struct var_t *v)
 #define isvar_dict isvar_object
 static inline bool isvar_string(struct var_t *v)
         { return v->v_type == &StringType; }
+static inline bool isvar_range(struct var_t *v)
+        { return v->v_type == &RangeType; }
 static inline bool isvar_uuidptr(struct var_t *v)
         { return v->v_type == &UuidptrType; }
 

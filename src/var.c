@@ -256,6 +256,7 @@ var_getattr(struct var_t *v, struct var_t *key)
                                 return ret;
                 }
 
+                /* still here? try built-ins */
                 ret = hashtable_get(&v->v_type->methods, ks);
                 if (ret)
                         VAR_INCR_REF(ret);

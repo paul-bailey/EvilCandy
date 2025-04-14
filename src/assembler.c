@@ -595,8 +595,17 @@ ainstr_push_const(struct assemble_t *a, struct token_t *oc)
         add_instr(a, INSTR_PUSH_CONST, 0, seek_or_add_const(a, oc));
 }
 
+/*
+ * Make sure our assembler SP matches what the VM will see,
+ * so instruction args that de-reference stack variables will
+ * be correct.
+ *
+ * @name is name of variable being declared, or NULL if you are
+ * declaring a 'ghost' variable which the user will not see,
+ * eg. see assemble_foreach().
+ */
 static int
-assemble_push_noinstr(struct assemble_t *a, char *name)
+fakestack_declare(struct assemble_t *a, char *name)
 {
         if (a->fr->sp >= FRAME_STACK_MAX)
                 as_err(a, AE_OVERFLOW);
@@ -1480,6 +1489,30 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                 as_errlex(a, OC_SEMI);
 }
 
+/*
+ * @top may be NULL if unused, name==NULL means
+ * 'declare an unnamed invisible variable, don't worry, the VM instruction
+ * will know what to do with it.'
+ */
+static int
+assemble_declare(struct assemble_t *a, struct token_t *name, bool *top)
+{
+        int namei;
+        bool ttop;
+        if (frame_is_top(a) && name != NULL) {
+                ttop = true;
+                namei = seek_or_add_const(a, name);
+                add_instr(a, INSTR_SYMTAB, 0, namei);
+        } else {
+                ttop = false;
+                namei = fakestack_declare(a, name ? name->s : NULL);
+                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+        }
+        if (top)
+                *top = ttop;
+        return namei;
+}
+
 static void
 assemble_let(struct assemble_t *a)
 {
@@ -1500,25 +1533,7 @@ assemble_let(struct assemble_t *a)
         as_savetok(&name, a->oc);
         as_lex(a);
 
-        top = frame_is_top(a);
-        if (top) {
-                /*
-                 * For global scope, stack is for temporary evaluation
-                 * only; we store 'let' variables in a symbol table.
-                 */
-                namei = seek_or_add_const(a, &name);
-                add_instr(a, INSTR_SYMTAB, 0, namei);
-        } else {
-                /*
-                 * Function scope: we declare these by merely pushing
-                 * them onto the stack.  We keep a symbol table during
-                 * assembly only; we know where they lie in the stack,
-                 * so we can remove the names from the instruction-set
-                 * altogether, and refer to them relative to AP.
-                 */
-                namei = assemble_push_noinstr(a, name.s);
-                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
-        }
+        namei = assemble_declare(a, &name, &top);
 
         switch (a->oc->t) {
         case OC_SEMI:
@@ -1528,11 +1543,8 @@ assemble_let(struct assemble_t *a)
                 /* for "let", only "=", not "+=" or such */
                 ainstr_push_symbol(a, &name);
                 assemble_eval(a);
-                if (top)
-                        add_instr(a, INSTR_ASSIGN, IARG_PTR_SEEK, namei);
-                else {
-                        add_instr(a, INSTR_ASSIGN, IARG_PTR_AP, namei);
-                }
+                add_instr(a, INSTR_ASSIGN,
+                          top ? IARG_PTR_SEEK : IARG_PTR_AP, namei);
                 as_errlex(a, OC_SEMI);
                 break;
         default:
@@ -1640,16 +1652,13 @@ assemble_do(struct assemble_t *a)
         as_set_label(a, skip);
 }
 
-#if 0
+#if 1
 static void
 assemble_foreach(struct assemble_t *a, int skip_else)
 {
-        char *needle_name;
+        struct token_t needlet;
         int skip    = as_next_label(a);
         int iter    = as_next_label(a);
-#if 0
-        int forelse = as_next_label(a);
-#endif
 
         add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
         apush_scope(a);
@@ -1657,50 +1666,30 @@ assemble_foreach(struct assemble_t *a, int skip_else)
         /* save name of the 'needle' in 'foreach(needle, haystack)' */
         as_errlex(a, OC_LPAR);
         as_errlex(a, 'u');
-        needle_name = a->oc->s;
+        as_savetok(&needlet, a->oc);
+
         as_errlex(a, OC_COMMA);
 
         /* push dummy first 'needle' onto the stack */
-        assemble_push_noinstr(a, needle_name);
-        add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+        assemble_declare(a, &needlet, NULL);
 
         /* push 'haystack' onto the stack and assign it. */
-        assemble_push_noinstr(a, NULL);
         assemble_eval(a);
         as_errlex(a, OC_RPAR);
+        fakestack_declare(a, NULL);
 
-        /* push 'i' iterator onto the stack */
-        assemble_push_noinstr(a, NULL);
-        add_instr(a, INSTR_PUSH_ZERO, 0, 0);
-
+        /* maybe replace 'haystack' with its keys */
         add_instr(a, INSTR_FOREACH_SETUP, 0, 0);
 
+        /* push 'i' iterator onto the stack beginning at zero */
+        add_instr(a, INSTR_PUSH_ZERO, 0, 0);
+        fakestack_declare(a, NULL);
+
         as_set_label(a, iter);
-
         add_instr(a, INSTR_FOREACH_ITER, 0, skip);
-
-        /* parse the for loop */
         assemble_expression(a, 0, skip);
         add_instr(a, INSTR_B, 0, iter);
 
-#if 0
-        as_set_label(a, forelse);
-        /*
-         * FIXME: This peek causes problems with interactive mode,
-         * because if no 'else' here, then user is done with the
-         * expression.  So while the user is waiting for us to execute,
-         * we're waiting for the user's next token.
-         *
-         * Ditto if-else... and for...else
-         */
-        as_lex(a);
-        if (a->oc->t == OC_ELSE)
-                assemble_expression(a, 0, skip_else);
-        else
-                as_unlex(a);
-#endif
-
-        /* XXX: just pop block? no need to pop needle, i, haystack? */
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
         apop_scope(a);
 
@@ -1879,7 +1868,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                 case OC_FOR:
                         assemble_for(a, skip);
                         break;
-#if 0
+#if 1
                 case OC_FOREACH:
                         assemble_foreach(a, skip);
                         break;

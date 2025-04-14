@@ -808,78 +808,82 @@ do_foreach_setup(struct vmframe_t *fr, instruction_t ii)
          * If no error, SP should be in same place as where
          * we started.
          */
-        struct var_t *idx = pop(fr);
         struct var_t *v   = pop(fr); /* haystack */
         if (!v->v_type->sqm) {
-                if (!isvar_dict(v))
+                struct var_t *w;
+                if (!isvar_dict(v)) {
+                        err_setstr(RuntimeError,
+                                   "'%s' is not iterable", typestr(v));
                         goto cant;
-                push(fr, object_keys(v));
-                push(fr, idx);
+                }
+
+                /* Dictionary, use its keys instead */
+                w = object_keys(v);
                 VAR_DECR_REF(v);
-        } else if (!v->v_type->sqm->getitem) {
-                /* Sequential but not iterable */
-                goto cant;
-        } else {
-                /* Iterable list. Return to stack */
-                push(fr, v);
-                push(fr, idx);
+                v = w;
         }
+
+        /* now it's sequential, check if iterable too */
+        if (!v->v_type->sqm->getitem)
+                goto cant;
+
+        push(fr, v);
         return RES_OK;
 
 cant:
-        err_setstr(RuntimeError, "Object is not iterable");
+        err_setstr(RuntimeError, "'%s' is not iterable");
         VAR_DECR_REF(v);
-        VAR_DECR_REF(idx);
         return RES_ERROR;
 }
 
 static int
 do_foreach_iter(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *haystack, *iter, *needle, *new_needle;
+        struct var_t *haystack, *iter, *needle;
         long long i, n;
         int res = RES_OK;
 
         iter      = pop(fr);
         haystack  = pop(fr);
-        needle    = pop(fr);
-        bug_on(!isvar_seq(haystack) || !haystack->v_type->sqm->getitem);
+
+        bug_on(!isvar_seq(haystack));
+        bug_on(!haystack->v_type->sqm->getitem);
         bug_on(!isvar_int(iter));
 
         n = ((struct seqvar_t *)haystack)->v_size;
         i = intvar_toll(iter);
         bug_on(i > INT_MAX || n > INT_MAX || i < 0 || n < 0);
-        if (i >= n)
-                goto endloop;
-
-        new_needle = var_getattr(haystack, iter);
-        if (!new_needle || new_needle == ErrorVar) {
-                /* Can happen if item removed in middle of loop */
-#warning "bad input, not a 'bug', remove and handle properly"
-                bug();
-                res = RES_ERROR;
+        if (i >= n) {
+                /* leave stack the way we found it */
+                push(fr, haystack);
+                push(fr, iter);
                 goto endloop;
         }
-        VAR_DECR_REF(needle);
 
-        /* replace old needle and iter in stack with new ones */
+        needle = var_getattr(haystack, iter);
+        if (!needle) {
+                /* Can happen if item removed in middle of loop */
+                res = RES_ERROR;
+                VAR_DECR_REF(haystack);
+                VAR_DECR_REF(iter);
+                goto endloop;
+        }
+
+        /* clear old 'needle' */
+        VAR_DECR_REF(pop(fr));
+
+        /* replace old iter */
         VAR_DECR_REF(iter);
         iter = intvar_new(i + 1LL);
 
-        push(fr, new_needle);
+        push(fr, needle);
         push(fr, haystack);
         push(fr, iter);
         return RES_OK;
 
 endloop:
-        /* end of loop */
+        /* end of loop or error */
         bug_on(i != 0 && needle == NullVar);
-        VAR_DECR_REF(haystack);
-        VAR_DECR_REF(needle);
-        VAR_DECR_REF(iter);
-        pop(fr);
-        pop(fr);
-        pop(fr);
         fr->ppii += ii.arg2;
         return res;
 }

@@ -37,30 +37,32 @@
 
 load "math.evc";
 
-if (false) {
-    // let sqrt = function(x) {
-    //     let y = 10.;
-    //     let min = 0.;
-    //     let max = 1000000.0;
-    //     if (x <= 0.0)
-    //         return 0.0;
+if (true) {
+    let sqrt = function(x) {
+        let y = 10.;
+        let min = 0.;
+        let max = 1000000.0;
+        // we should raise exception if x<0,
+        // but for this demo just return 0
+        if (x <= 0.0)
+            return 0.0;
 
-    //     for_each(i, range(0, 20)) {
-    //         let result = y * y;
-    //         if (result > x) {
-    //             max = y;
-    //         } else if (result < x) {
-    //             min = y;
-    //             if (max < y)
-    //                 max *= 2.0;
-    //         } else if (result == x) {
-    //             return y;
-    //         }
-    //         y = min + ((max - min) / 2.0);
-    //         // print('{}: {}'.format(i, result));
-    //     }
-    //     return y;
-    // };
+        for_each(i, range(0, 20)) {
+            let result = y * y;
+            if (result > x) {
+                max = y;
+            } else if (result < x) {
+                min = y;
+                if (max < y)
+                    max *= 2.0;
+            } else if (result == x) {
+                return y;
+            }
+            y = min + ((max - min) / 2.0);
+            // print('{}: {}'.format(i, result));
+        }
+        return y;
+    };
 } else {
     let sqrt = function(x) {
         let y = 10.;

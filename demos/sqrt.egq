@@ -38,52 +38,34 @@
 load "math.evc";
 
 if (false) {
-    let sqrt = function(x) {
-        let y = 10.;
-        let min = 0.;
-        let max = 1000000.0;
-        if (x <= 0.0)
-            return 0.0;
+    // let sqrt = function(x) {
+    //     let y = 10.;
+    //     let min = 0.;
+    //     let max = 1000000.0;
+    //     if (x <= 0.0)
+    //         return 0.0;
 
-        let p = [x, y, min, max];
-
-        // debuggery needed: closures do not seem to work
-        // in the case of 'foreach' callbacks.
-        (range(0, 20)).foreach(function(v, k, p) {
-            let x = p[0];
-            let y = p[1];
-            let min = p[2];
-            let max = p[3];
-
-            let result = y * y;
-            if (result > x) {
-                max = y;
-            } else if (result < x) {
-                min = y;
-                if (max < y)
-                    max *= 2.0;
-            } else if (result == x) {
-                return y;
-            }
-            y = min + ((max - min) / 2.0);
-
-            p[0] = x;
-            p[1] = y;
-            p[2] = min;
-            p[3] = max;
-        }, p);
-        y = p[1];
-        return y;
-    };
+    //     for_each(i, range(0, 20)) {
+    //         let result = y * y;
+    //         if (result > x) {
+    //             max = y;
+    //         } else if (result < x) {
+    //             min = y;
+    //             if (max < y)
+    //                 max *= 2.0;
+    //         } else if (result == x) {
+    //             return y;
+    //         }
+    //         y = min + ((max - min) / 2.0);
+    //         // print('{}: {}'.format(i, result));
+    //     }
+    //     return y;
+    // };
 } else {
     let sqrt = function(x) {
         let y = 10.;
         let min = 0.;
         let max = 1000000.0;
-        if (false && typeof(x) != "float") {
-            print("wrong typeof(x) = {}".format(typeof(x)));
-            exit();
-        }
         if (x <= 0.0)
             return 0.0;
 
@@ -110,14 +92,17 @@ if (false) {
         for (let i = 0.; i < 1000000.0; i++)
             x = sqrt(i);
     })(sqrt);
-} else if (true) {
+} else if (false) {
     (function(sqrt) {
         (range(1000000)).foreach(function(v) {
             let x = sqrt(v);
         });
     })(sqrt);
-} else for (let i = 0.0; i < 50.0; i++)
-    print("{} vs {}".format(sqrt(i), Math.sqrt(i)));
+} else {
+    let i;
+    for (i = 0.0; i < 50.0; i++)
+        print("{} vs {}".format(sqrt(i), Math.sqrt(i)));
+}
 
 
 // : vim: set syntax=javascript :

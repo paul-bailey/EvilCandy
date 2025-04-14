@@ -3,6 +3,9 @@ Bugs/Must-Do
 
 * BUGs 4/2025:
 
+        * keyword for_each loop breaks if a new var is declared inside.
+        * ``(range(x)).foreach(y);`` works but ``range(x).foreach(y);``
+          does not, though both should behave the same.
         * Closures do not work inside of .foreach callbacks.
         * TTY mode parses all-around unreliably, even though
           script mode seems to work just fine.
@@ -20,8 +23,6 @@ Bugs/Must-Do
   do the code arrays link up when there is no name for them?  Create a
   UUID string or something?
 
-* Support the continue statement
-
 * Figure out how to deal with duplicate or cyclic loads.  It can't just
   be a cache of path names, because the same path can be expressed in
   different ways.
@@ -37,7 +38,9 @@ Bugs/Must-Do
 Library/Language Features
 -------------------------
 
-* Add sets, tuples, and an iterator like Python's 'range'
+* Support the continue statement
+
+* Add sets and tuples
 
 * Add try/catch
 
@@ -52,9 +55,6 @@ Library/Language Features
 * Add ability to disassemble during execution time
 
 * Add stdin and shell environment to Io module
-
-* Add something like Python's ``range`` object, try to get rid of need
-  for verbose ``for`` loops
 
 * Add a binary version of string type.  It reads literals but does
   not 'interpret' utf-8 encoding or get confused by nulchars in the

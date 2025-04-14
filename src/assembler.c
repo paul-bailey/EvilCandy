@@ -378,7 +378,7 @@ symtab_seek(struct assemble_t *a, const char *s)
         int i;
         struct as_frame_t *fr = a->fr;
         for (i = 0; i < fr->sp; i++) {
-                if (s == (char *)fr->symtab[i])
+                if (s && s == (char *)fr->symtab[i])
                         return i;
         }
         return -1;
@@ -390,7 +390,7 @@ arg_seek(struct assemble_t *a, const char *s)
         int i;
         struct as_frame_t *fr = a->fr;
         for (i = 0; i < fr->argc; i++) {
-                if (s == (char *)fr->argv[i])
+                if (s && s == (char *)fr->argv[i])
                         return i;
         }
         return -1;
@@ -402,7 +402,7 @@ clo_seek(struct assemble_t *a, const char *s)
         int i;
         struct as_frame_t *fr = a->fr;
         for (i = 0; i < fr->cp; i++) {
-                if (s == (char *)fr->clo[i])
+                if (s && s == (char *)fr->clo[i])
                         return i;
         }
         return -1;
@@ -1648,6 +1648,74 @@ assemble_do(struct assemble_t *a)
         as_set_label(a, skip);
 }
 
+#if 0
+static void
+assemble_foreach(struct assemble_t *a, int skip_else)
+{
+        char *needle_name;
+        int skip    = as_next_label(a);
+        int iter    = as_next_label(a);
+#if 0
+        int forelse = as_next_label(a);
+#endif
+
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
+        apush_scope(a);
+
+        /* save name of the 'needle' in 'foreach(needle, haystack)' */
+        as_errlex(a, OC_LPAR);
+        as_errlex(a, 'u');
+        needle_name = a->oc->s;
+        as_errlex(a, OC_COMMA);
+
+        /* push dummy first 'needle' onto the stack */
+        assemble_push_noinstr(a, needle_name);
+        add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+
+        /* push 'haystack' onto the stack and assign it. */
+        assemble_push_noinstr(a, NULL);
+        assemble_eval(a);
+        as_errlex(a, OC_RPAR);
+
+        /* push 'i' iterator onto the stack */
+        assemble_push_noinstr(a, NULL);
+        add_instr(a, INSTR_PUSH_ZERO, 0, 0);
+
+        add_instr(a, INSTR_FOREACH_SETUP, 0, 0);
+
+        as_set_label(a, iter);
+
+        add_instr(a, INSTR_FOREACH_ITER, 0, skip);
+
+        /* parse the for loop */
+        assemble_expression(a, 0, skip);
+        add_instr(a, INSTR_B, 0, iter);
+
+#if 0
+        as_set_label(a, forelse);
+        /*
+         * FIXME: This peek causes problems with interactive mode,
+         * because if no 'else' here, then user is done with the
+         * expression.  So while the user is waiting for us to execute,
+         * we're waiting for the user's next token.
+         *
+         * Ditto if-else... and for...else
+         */
+        as_lex(a);
+        if (a->oc->t == OC_ELSE)
+                assemble_expression(a, 0, skip_else);
+        else
+                as_unlex(a);
+#endif
+
+        /* XXX: just pop block? no need to pop needle, i, haystack? */
+        add_instr(a, INSTR_POP_BLOCK, 0, 0);
+        apop_scope(a);
+
+        as_set_label(a, skip);
+}
+#endif
+
 /*
  * skip_else here is for the unusual case if break is encountered inside
  * in the `else' of a `for...else' block, otherwise it isn't used.
@@ -1819,6 +1887,11 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                 case OC_FOR:
                         assemble_for(a, skip);
                         break;
+#if 0
+                case OC_FOREACH:
+                        assemble_foreach(a, skip);
+                        break;
+#endif
                 case OC_DO:
                         assemble_do(a);
                         break;

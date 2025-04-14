@@ -37,11 +37,11 @@ struct dictvar_t {
  *                              API functions
  ***********************************************************************/
 
-/*
- * Get an alphabetically sorted list of all the keys currenlyt in
- * the dictionary.
+/**
+ * object_keys - Get an alphabetically sorted list of all the keys
+ *               currently in the dictionary.
  */
-static struct var_t *
+struct var_t *
 object_keys(struct var_t *obj)
 {
         struct var_t *keys;

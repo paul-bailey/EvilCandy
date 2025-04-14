@@ -724,6 +724,7 @@ tok_kw_seek(const char *key)
                 { "else",       OC_ELSE },
                 { "false",      OC_FALSE },
                 { "for",        OC_FOR },
+                { "for_each",   OC_FOREACH },
                 { "if",         OC_IF },
                 { "let",        OC_LET },
                 { "load",       OC_LOAD },

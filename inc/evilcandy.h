@@ -421,6 +421,7 @@ extern char *uuidptr_get_cstring(struct var_t *v);
 
 /* types/object.c */
 extern struct var_t *objectvar_new(void);
+extern struct var_t *object_keys(struct var_t *obj);
 extern struct var_t *object_getattr(struct var_t *o, const char *key);
 extern enum result_t object_setattr(struct var_t *o,
                                     const char *key, struct var_t *attr);

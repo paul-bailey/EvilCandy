@@ -898,6 +898,11 @@ assemble_eval_atomic(struct assemble_t *a)
         case OC_FALSE:
                 ainstr_push_const(a, a->oc);
                 break;
+        case OC_LPAR:
+                assemble_eval(a);
+                as_lex(a);
+                as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
+                break;
 
         case OC_NULL:
                 /*
@@ -927,19 +932,6 @@ assemble_eval_atomic(struct assemble_t *a)
         }
 
         as_lex(a);
-}
-
-static void
-assemble_eval9(struct assemble_t *a)
-{
-        if (a->oc->t == OC_LPAR) {
-                as_lex(a);
-                assemble_eval1(a);
-                as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
-                as_lex(a);
-        } else {
-                assemble_eval_atomic(a);
-        }
 }
 
 /*
@@ -980,7 +972,7 @@ assemble_eval8(struct assemble_t *a)
 
         bool have_parent = false;
 
-        assemble_eval9(a);
+        assemble_eval_atomic(a);
 
         while (!!(a->oc->t & TF_INDIRECT)) {
                 int namei;

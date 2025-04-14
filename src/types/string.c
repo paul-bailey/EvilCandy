@@ -1139,25 +1139,11 @@ string_from_file(FILE *fp, int delim, bool stuff_delim)
         return stringvar_newf(b.s, 0);
 }
 
-/**
- * string_length - Get the length of @str
- *
- * Return:
- * length, in number of CHARACTERS, not bytes.  @str might be UTF-8-
- * encoded.
- */
-static size_t
-string_length(struct var_t *str)
-{
-        return STRING_LENGTH(str);
-}
-
 struct seq_methods_t string_seq_methods = {
         .getitem        = string_getitem,
         .setitem        = NULL,
         .cat            = string_cat,
         .sort           = NULL,
-        .len            = string_length,
 };
 
 struct type_t StringType = {

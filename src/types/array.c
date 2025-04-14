@@ -118,16 +118,6 @@ array_append(struct var_t *array, struct var_t *child)
 }
 
 /**
- * type_t .len callback
- */
-static size_t
-array_len(struct var_t *array)
-{
-        bug_on(!isvar_array(array));
-        return V2SQ(array)->v_size;
-}
-
-/**
  * arrayvar_new - Create a new array of size @n_items
  *
  * Return: new array.  Each slot is filled with NullVar.
@@ -279,7 +269,6 @@ static const struct seq_methods_t array_seq_methods = {
         .setitem        = array_setitem,
         .cat            = NULL, /* TODO: this */
         .sort           = array_sort,
-        .len            = array_len,
 };
 
 struct type_t ArrayType = {

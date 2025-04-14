@@ -37,7 +37,6 @@ struct seq_methods_t {
         enum result_t (*setitem)(struct var_t *, int, struct var_t *);
         binary_operator_t cat; /* new = a + b */
         void (*sort)(struct var_t *);
-        size_t (*len)(struct var_t *); /* in items, not bytes */
 };
 
 /*

@@ -143,7 +143,6 @@ static const struct seq_methods_t range_seq_methods = {
         .setitem        = NULL,
         .cat            = NULL,
         .sort           = NULL,
-        .len            = NULL,
 };
 
 static const struct type_inittbl_t range_cb_methods[] = {

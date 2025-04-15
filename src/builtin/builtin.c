@@ -103,7 +103,8 @@ do_import(struct vmframe_t *fr)
 
         if (!ex || status == RES_ERROR) {
                 /* FIXME: can't free @ex if non-NULL, so it'll zombify */
-                err_setstr("Failed to import module '%s'", fnamestr);
+                err_setstr(RuntimeError,
+                           "Failed to import module '%s'", fnamestr);
                 return ErrorVar;
         }
 

@@ -142,6 +142,9 @@ function_prep_frame(struct var_t *fn,
                  */
                 if (i > fh->f_argc)
                         goto er;
+                /* see wrapping call. This is never set if no args provided */
+                if (!fh->f_argv)
+                        goto er;
                 v = fh->f_argv[i];
                 if (!v)
                         goto er;

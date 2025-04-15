@@ -1690,7 +1690,6 @@ assemble_foreach(struct assemble_t *a)
         apush_scope(a);
 
         /* save name of the 'needle' in 'foreach(needle, haystack)' */
-        as_errlex(a, OC_LPAR);
         as_errlex(a, 'u');
         as_savetok(&needletok, a->oc);
 
@@ -1729,15 +1728,13 @@ assemble_foreach(struct assemble_t *a)
  * in the `else' of a `for...else' block, otherwise it isn't used.
  */
 static void
-assemble_for(struct assemble_t *a, int skip_else)
+assemble_for_cstyle(struct assemble_t *a, int skip_else)
 {
         int start   = as_next_label(a);
         int then    = as_next_label(a);
         int skip    = as_next_label(a);
         int iter    = as_next_label(a);
         int forelse = as_next_label(a);
-
-        as_errlex(a, OC_LPAR);
 
         add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
         apush_scope(a);
@@ -1791,6 +1788,37 @@ assemble_for(struct assemble_t *a, int skip_else)
         apop_scope(a);
 
         as_set_label(a, skip);
+}
+
+static void
+assemble_for(struct assemble_t *a, int skip_else)
+{
+        /* do some peeking to see which kind of 'for'
+         * statement this is.
+         */
+        as_errlex(a, OC_LPAR);
+        as_lex(a);
+        if (a->oc->t == 'u') {
+                as_lex(a);
+                if (a->oc->t == OC_COMMA) {
+                        /*
+                         * for ( identifier , ...
+                         *      it's the Python-like for loop
+                         */
+                        as_unlex(a);
+                        as_unlex(a);
+                        assemble_foreach(a);
+                        return;
+                }
+                as_unlex(a);
+        }
+        as_unlex(a);
+
+        /*
+         * for ( ???...
+         *      it's the C-style for loop
+         */
+        assemble_for_cstyle(a, skip_else);
 }
 
 static void
@@ -1866,9 +1894,6 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
                 return 0;
         case OC_FOR:
                 assemble_for(a, skip);
-                return 0;
-        case OC_FOREACH:
-                assemble_foreach(a);
                 return 0;
         case OC_LBRACE:
                 as_unlex(a);

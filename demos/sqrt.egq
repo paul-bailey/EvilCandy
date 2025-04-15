@@ -47,7 +47,7 @@ let sqrt = function(x_i_or_f) {
     if (x <= 0.0)
         return 0.0;
 
-    for_each(i, range(0, 20)) {
+    for (i, range(0, 20)) {
         let result = y * y;
         if (result > x) {
             max = y;
@@ -64,10 +64,23 @@ let sqrt = function(x_i_or_f) {
 };
 
 
-(function(sqrt) {
-    let x = 0.;
-    for_each(i, range(1000000))
-        x = sqrt(i);
-})(sqrt);
+if (false) {
+    // used to get a vague idea of program speed
+    (function(sqrt) {
+        let x = 0.;
+        for(i, range(1000000))
+            x = sqrt(i);
+    })(sqrt);
+} else {
+    // used to sanity-check variables' numerical operations.
+    // The above square-root algorithm isn't perfect, but it
+    // should be accurate to four or five decimal places, so
+    // if we're way off, something is amiss in the interpreter.
+    (function() {
+        for (i, range(50)) {
+            print("{} vs {}".format(sqrt(i), Math.sqrt(i)));
+        }
+    })();
+}
 
 // : vim: set syntax=javascript :

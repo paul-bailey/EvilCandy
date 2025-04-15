@@ -976,6 +976,20 @@ unget_tok(struct token_state_t *state, struct token_t **tok)
         *tok = TOKBUF(state) + state->nexttok - 1;
 }
 
+token_pos_t
+token_swap_pos(struct token_state_t *state, token_pos_t pos)
+{
+        token_pos_t ret = state->nexttok;
+        state->nexttok = pos;
+        return ret;
+}
+
+token_pos_t
+token_get_pos(struct token_state_t *state)
+{
+        return (token_pos_t)state->nexttok;
+}
+
 /*
  * Use when you still need what's been parsed from @state,
  * but you don't need the current-token bits.

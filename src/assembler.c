@@ -182,10 +182,11 @@ static inline bool frame_is_top(struct assemble_t *a)
  *
  * @src is assumed to be a->oc, but we'll keep it general.
  */
-static inline void
-as_savetok(struct token_t *dst, const struct token_t *src)
+static inline token_pos_t
+as_savetok(struct assemble_t *a, struct token_t *dst)
 {
-        memcpy(dst, src, sizeof(*dst));
+        memcpy(dst, a->oc, sizeof(*dst));
+        return token_get_pos(a->prog);
 }
 
 /*
@@ -380,6 +381,15 @@ as_errlex(struct assemble_t *a, int exp)
                 as_err(a, AE_EXPECT);
         }
         return a->oc->t;
+}
+
+static inline token_pos_t
+as_swap_pos(struct assemble_t *a, token_pos_t pos)
+{
+        token_pos_t ret = token_swap_pos(a->prog, pos);
+        as_unlex(a);
+        as_lex(a);
+        return ret;
 }
 
 /* check if next token is semicolon but do not take it. */
@@ -866,7 +876,7 @@ static void assemble_eval_atomic(struct assemble_t *a);
  * check enclosing function before resorting to IARG_PTR_SEEK
  */
 static int
-maybe_closure(struct assemble_t *a, const char *name)
+maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
 {
         /*
          * Check for closure.  When we started parsing this (child)
@@ -894,9 +904,12 @@ maybe_closure(struct assemble_t *a, const char *name)
                 if (symtab_seek(a, name) >= 0 ||
                     arg_seek(a, name) >= 0 ||
                     clo_seek(a, name) >= 0)  {
+
+                        pos = as_swap_pos(a, pos);
                         assemble_eval_atomic(a);
+                        as_swap_pos(a, pos);
+
                         /* back to identifier */
-                        as_unlex(a);
                         add_instr(a, INSTR_ADD_CLOSURE, 0, 0);
                         success = true;
                 }
@@ -919,7 +932,7 @@ maybe_closure(struct assemble_t *a, const char *name)
  * @name:  name of symbol, token assumed to be saved from a->oc already.
  */
 static void
-ainstr_load_or_assign(struct assemble_t *a, struct token_t *name, int instr)
+ainstr_load_or_assign(struct assemble_t *a, struct token_t *name, int instr, token_pos_t pos)
 {
         int idx;
         /*
@@ -937,7 +950,7 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name, int instr)
                 add_instr(a, instr, IARG_PTR_CP, idx);
         } else if (!strcmp(name->s, "__gbl__")) {
                 add_instr(a, instr, IARG_PTR_GBL, 0);
-        } else if ((idx = maybe_closure(a, name->s)) >= 0) {
+        } else if ((idx = maybe_closure(a, name->s, pos)) >= 0) {
                 add_instr(a, instr, IARG_PTR_CP, idx);
         } else {
                 int namei = seek_or_add_const(a, name);
@@ -946,11 +959,9 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name, int instr)
 }
 
 static void
-ainstr_load_symbol(struct assemble_t *a, struct token_t *name)
+ainstr_load_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
 {
-        struct token_t namesav;
-        as_savetok(&namesav, name);
-        ainstr_load_or_assign(a, &namesav, INSTR_LOAD);
+        ainstr_load_or_assign(a, name, INSTR_LOAD, pos);
 }
 
 static void
@@ -986,9 +997,12 @@ static void
 assemble_eval_atomic(struct assemble_t *a)
 {
         switch (a->oc->t) {
-        case 'u':
-                ainstr_load_symbol(a, a->oc);
+        case 'u': {
+                struct token_t namesav;
+                token_pos_t pos = as_savetok(a, &namesav);
+                ainstr_load_symbol(a, &namesav, pos);
                 break;
+        }
 
         case 'i':
         case 'f':
@@ -1093,7 +1107,7 @@ assemble_eval8(struct assemble_t *a)
                                  * same optimization check as in
                                  * assemble_ident_helper
                                  */
-                                as_savetok(&name, a->oc);
+                                as_savetok(a, &name);
                                 if (as_lex(a) == OC_RBRACK) {
                                         namei = seek_or_add_const(a, &name);
                                         as_unlex(a);
@@ -1294,7 +1308,7 @@ assemble_eval(struct assemble_t *a)
 
 /* do not pass old a->oc as @name, save it before calling */
 static void
-assemble_assign(struct assemble_t *a, struct token_t *name)
+assemble_assign(struct assemble_t *a, struct token_t *name, token_pos_t pos)
 {
         int t = a->oc->t;
         int instr;
@@ -1351,7 +1365,7 @@ assemble_assign(struct assemble_t *a, struct token_t *name)
                 }
                 add_instr(a, instr, 0, 0);
         }
-        ainstr_load_or_assign(a, name, INSTR_ASSIGN);
+        ainstr_load_or_assign(a, name, INSTR_ASSIGN, pos);
 }
 
 /* FIXME: huge DRY violation w/ eval8 */
@@ -1454,7 +1468,7 @@ assemble_ident_helper(struct assemble_t *a)
                                  * So we'll see if we can avoid making the
                                  * VM evaluate this.
                                  */
-                                as_savetok(&name, a->oc);
+                                as_savetok(a, &name);
                                 if (as_lex(a) == OC_RBRACK) {
                                         /* ...the 99% scenario */
                                         namei = seek_or_add_const(a, &name);
@@ -1548,7 +1562,7 @@ static void
 assemble_identifier(struct assemble_t *a, unsigned int flags)
 {
         struct token_t name;
-        as_savetok(&name, a->oc);
+        token_pos_t pos = as_savetok(a, &name);
 
         /* need to peek */
         as_lex(a);
@@ -1559,15 +1573,15 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * pointer to store 'value'
                  */
                 assemble_eval(a);
-                ainstr_load_or_assign(a, &name, INSTR_ASSIGN);
+                ainstr_load_or_assign(a, &name, INSTR_ASSIGN, pos);
         } else if (!!(a->oc->t & TF_ASSIGN)) {
                 /*
                  * x++;
                  * x += value;
                  * ...
                  */
-                ainstr_load_symbol(a, &name);
-                assemble_assign(a, &name);
+                ainstr_load_symbol(a, &name, pos);
+                assemble_assign(a, &name, pos);
         } else {
                 /*
                  * x(args);
@@ -1578,7 +1592,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * calling a function or modifying one of x's descendants.
                  */
                 as_unlex(a);
-                ainstr_load_symbol(a, &name);
+                ainstr_load_symbol(a, &name, pos);
                 assemble_ident_helper(a);
         }
 }
@@ -1602,6 +1616,7 @@ static void
 assemble_gbl(struct assemble_t *a)
 {
         struct token_t name;
+        token_pos_t pos;
         int namei;
 
         as_lex(a);
@@ -1610,7 +1625,7 @@ assemble_gbl(struct assemble_t *a)
                            "'global' must be followed by an identifier");
                 as_err(a, AE_EXPECT);
         }
-        as_savetok(&name, a->oc);
+        pos = as_savetok(a, &name);
         namei = assemble_declare(a, &name, true);
 
         /* if no assign, return early */
@@ -1620,7 +1635,7 @@ assemble_gbl(struct assemble_t *a)
         as_errlex(a, OC_EQ);
 
         /* for 'global', only '=', not '+=' or such */
-        ainstr_load_symbol(a, &name);
+        ainstr_load_symbol(a, &name, pos);
         assemble_eval(a);
         add_instr(a, INSTR_ASSIGN, IARG_PTR_SEEK, namei);
 }
@@ -1629,6 +1644,7 @@ static void
 assemble_let(struct assemble_t *a)
 {
         struct token_t name;
+        token_pos_t pos;
         int namei;
 
         as_lex(a);
@@ -1638,7 +1654,7 @@ assemble_let(struct assemble_t *a)
                 as_err(a, AE_EXPECT);
         }
 
-        as_savetok(&name, a->oc);
+        pos = as_savetok(a, &name);
 
         namei = assemble_declare(a, &name, false);
 
@@ -1649,7 +1665,7 @@ assemble_let(struct assemble_t *a)
         as_errlex(a, OC_EQ);
 
         /* for "let", only "=", not "+=" or such */
-        ainstr_load_symbol(a, &name);
+        ainstr_load_symbol(a, &name, pos);
         assemble_eval(a);
         add_instr(a, INSTR_ASSIGN, IARG_PTR_AP, namei);
 }
@@ -1762,7 +1778,7 @@ assemble_foreach(struct assemble_t *a)
 
         /* save name of the 'needle' in 'foreach(needle, haystack)' */
         as_errlex(a, 'u');
-        as_savetok(&needletok, a->oc);
+        as_savetok(a, &needletok);
 
         as_errlex(a, OC_COMMA);
 

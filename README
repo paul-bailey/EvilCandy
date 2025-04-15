@@ -37,18 +37,29 @@ In a nutshell, the resemblance between EvilCandy and JavaScript is mostly
 cosmetic.  The biggest similarity is in the way functions can be pretty
 much declared and defined anywhere.
 
-Documentation.rst details the syntax and functionality of the language.
+Tutorial.rst details the syntax and functionality of the language.
 But here are some major differences...
 
 * All functions are anonymous.  They must be assigned to some variable
-  to have a "name".
+  to be accessed by a "name," otherwise they will go out of scope and
+  disappear.  (Like with JS, this is useful for IIFEs.)
 
 * There is no ``var`` keyword.  There is only ``let``.
 
-* There is no ``try`` and ``catch``.
+* So far, there is no ``try`` and ``catch``.  However, I intend to add
+  this in the future.
 
-* EvilCandy is (mostly) statically typed.  You cannot change a string
-  into an integer, for example.
+* The ``for`` loop may either be like JS's verbose C-like for-loop,
+  or it may be like Python's eye-friendly for-loop. Depends on how it's
+  expressed.  See documentation for details.  This also means that where
+  speed is a concern, you can avoid the frame-swapping overhead that
+  comes with an array's or dictionary's ``.foreach`` built-in method.
+
+* EvilCandy has a ``range`` data-type like Python, to facilitate using
+  the Python-like for-loop for general-purpose do-this-a-million-times
+  iterating.
+
+* EvilCandy is very dynamically typed.
 
 * Most of EvilCandy's built-in methods were modeled after Python rather
   than JavaScript.  While writing this interpreter I was thinking about
@@ -69,7 +80,11 @@ But here are some major differences...
 
   * I really like the ``else`` clause to Python's ``for`` loop, so I
     implemented a JavaScript/C-looking ``for`` loop that has an
-    optional ``else`` statement.
+    optional ``else`` statement.  (**But I might change it** because I
+    have found that this feature is not as well-suited to JS-like syntax
+    as it is to Python, considering how easy it is for a statement with
+    no braces and misleading tabs to confuse a programmer where the
+    program flow is actually going.)
 
   * There's an alternative way to declare closures.
 
@@ -117,10 +132,7 @@ nor the implementation is at all stable.
   worth anyone's salt!**  I still get the occasional segfault when I hard
   test it with code.
 
-* None of this is thread-proof, and very little of it is reentrant-proof.
-
-* Lots of recursion on the IRL stack is going on during the prescan and
-  assembly stages, since I'm using a recursive-descent parser for it.
+* EvilCandy is still single-threaded.
 
 * The current implementation of closures is hacky and unsatisfying.
 
@@ -150,9 +162,16 @@ Portability
 *As of 12/2023:*
 I currently have been developing this on one computer, an iMac Pro with
 Intel and macOS 12.5.1.  Nothing else.  When the code is more stable I
-intend to port it to GNU/Linux.
+intend to port it to GNU/Linux.  I'm trying where possible to avoid
+gcc-specific extensions, but since clang seems to call itself gcc, it's
+hard to tell if I'm succeeding.
 
-I don't do the Windows thing.
+Computers built in Obscuresylvania or the 1970s probably will not execute
+this program correctly. I make assumptions like 'ints are at least 32 bits'
+and 'char is 8 bits' and 'floats and doubles match IEEE-754 singles and
+doubles' and 'unions between long long and double will work for packing'...
+
+I don't do the Windows thing and I never heard of a wchar_t.
 
 Some Rules
 ==========
@@ -161,6 +180,9 @@ Since this is a challenge, not a commercial product, here are some
 rules to keep it interesting:
 
 1. Implement it by hand--no yacc or bison.
+2. In fact, no code generation at all unless I write the generator
+   myself and it actually clarifies what's going on rather than
+   obscures it.  Or at least if it reduces human error.
 2. Keep it as simple and clean as possible.  No cute preprocessor
    tricks or outsmart-the-compiler optimizations that try to take
    advantage of cosmic paradoxes or glitches in the Matrix or such.

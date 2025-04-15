@@ -1,5 +1,5 @@
-Bugs/Must-Do
-------------
+Bugs
+----
 
 * BUGs 4/2025:
 
@@ -14,14 +14,45 @@ Bugs/Must-Do
         * Broke static typing.  This was intentional to get rid of the
           qop_mov way of assignment, but now it needs to be fixed.
 
+Must Do
+-------
+
+* ``this`` keyword barely tested; it will probably break a lot of
+  stuff that seems to work without it.
+
+* Change ``load`` so that instead of executing a script, it will just
+  compile it and return a function handle:
+
+  .. code::
+
+        x = load('myscript.evc');
+
+  To execute it, call ``x()``.  To execute immediately:
+
+  .. code::
+
+        result = (load('myscript.evc'))();
+
+  where ``result`` gets the return value of the executed script, either
+  ``null`` or perhaps a handle to an object or object constructor.
+
+  Corrollaries of this change:
+
+  * Need all variables to be on the stack, as if they were in a function,
+    rather than be in the global symbol table.
+
+  * Need a ``global`` keyword as a clean way to tell whether we're
+    pushing a scope-level variable on the stack or inserting it in
+    the global symbol table.  This should be cleaner anyway.
+
+  * ergo need another overhaul of assembler.c
+
+* add something like Python's repr() sooner rather than later,
+  it helps with debugging.
+
 * Use autoconf, automake & cet., not just a hand-written Makefile
 
 * Start adding in test scaffolding where possible.
-
-* Support serialization to byte-code files.  Is it possible to do this
-  for a language that supports anonymous functions and lambdas?  How
-  do the code arrays link up when there is no name for them?  Create a
-  UUID string or something?
 
 * Figure out how to deal with duplicate or cyclic loads.  It can't just
   be a cache of path names, because the same path can be expressed in
@@ -52,8 +83,6 @@ Library/Language Features
 
 * Add debug module, make frames/code objects visible to user
 
-* Add ability to disassemble during execution time
-
 * Add stdin and shell environment to Io module
 
 * Add a binary version of string type.  It reads literals but does
@@ -63,23 +92,10 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
-* Now that qop_mov is no longer a thing, we have to consider
-  embedding each type's private data struct into struct var_t,
-  perhaps using casting to differentiate between the two.  As it
-  currently stands, a program is constantly making two malloc()
-  calls instead of one, doing two de-references instead of one.
-
 * vm.c and types/function.c, as well as the structs they manipulate
   (vmframe_t, function_handle_t, executable_t) are very tangled up
   and require awkward back-and-forth calls between the two source
   files, esp. function_prep_frame and function_call.
-
-* change object .len method to just be length of the object,
-  since object's methods are no longer visible as global variables.
-
-* Consider using a (per-thread) global stack instead of a
-  per-frame stack.  See comment in vm.c, do_call_func(), for
-  a rationale.
 
 * Replace jmp_buf in token.c with either fussier management of helper
   functions' return values, or with a big damn get_tok function.
@@ -87,16 +103,12 @@ Mebbe/Wishlist/Low-prio bugs
 * At assemble_eval() time, determine if certain expressions can be
   reduced to single consts known at assemble time.  Currently something
   like "1 + 2" will result in an operation at execution time instead
-  of being compiled to just "3".
+  of being compiled to just "3".  Big lift, basically means creating
+  a parse tree BEFORE generating code.  We're currently doing these
+  two tasks simultaneously.
 
 * Preserve token buffer in interactive mode so that the UP arrow will
   recall previous expressions.
-
-* Add "foreach" loop that resembles Python's "for" loop; this would be
-  an alternative to the .foreach built-in method.
-
-* Assembler.c is the "we have an AST at home" version of an abstract
-  syntax tree.  Rewrite it from the ground up.
 
 * Figure out how to de-chaos-ify and elegantize multiple inheritance
   without having to add a 'class' syntax.

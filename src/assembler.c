@@ -51,26 +51,23 @@
 #define as_err(a, e) longjmp((a)->env, e)
 #define as_err_if(a, cond, e) \
         do { if (cond) as_err(a, e); } while (0)
+#define as_badeof(a) do { \
+        err_setstr(ParserError, "Unexpected termination"); \
+        as_err(a, AE_GEN); \
+} while (0)
 
 #define list2frame(li) container_of(li, struct as_frame_t, list)
 
 enum {
         AE_GEN = 1,
-        AE_BADEOF,
         AE_BADTOK,
         AE_EXPECT,
-        AE_REDEF,
         AE_OVERFLOW,
 
         AE_PAR,
         AE_LAMBDA,
         AE_BRACK,
         AE_BRACE,
-
-        AE_BREAK,
-        AE_NOTIMPL,
-        AE_ARGNAME,
-        AE_BADINSTR,
 
         AE_PARSER,
 };
@@ -149,6 +146,7 @@ struct as_frame_t {
  */
 struct assemble_t {
         char *file_name;
+        FILE *fp;
         struct token_state_t *prog;
         struct token_t *oc;
         int func;
@@ -160,6 +158,8 @@ struct assemble_t {
 
 static void assemble_eval(struct assemble_t *a);
 static void assemble_expression(struct assemble_t *a,
+                                unsigned int flags, int skip);
+static int assemble_expression_simple(struct assemble_t *a,
                                 unsigned int flags, int skip);
 
 static inline bool frame_is_top(struct assemble_t *a)
@@ -368,8 +368,32 @@ static int
 as_errlex(struct assemble_t *a, int exp)
 {
         as_lex(a);
-        as_err_if(a, a->oc->t != exp, AE_EXPECT);
+        if (a->oc->t != exp) {
+                /* TODO: replace 'exp' with a string representation */
+                err_setstr(ParserError,
+                           "file '%s' line '%d': expected %X-class token but got '%s'",
+                           a->file_name, a->oc->line, exp, a->oc->s);
+                as_err(a, AE_EXPECT);
+        }
         return a->oc->t;
+}
+
+/* check if next token is semicolon but do not take it. */
+static int
+peek_semi(struct assemble_t *a)
+{
+        int res;
+        as_lex(a);
+        res = a->oc->t == OC_SEMI;
+        /*
+         * Prevent unlex from doubling back on older token in case of
+         * EOF.  Since no one calls peek_semi() unless they expect either
+         * a semicolon or more input, this is an error.
+         */
+        if (a->oc->t == EOF)
+                as_badeof(a);
+        as_unlex(a);
+        return res;
 }
 
 static int
@@ -452,10 +476,8 @@ apop_scope(struct assemble_t *a)
 
 /*
  * The assumption here is:
- *      1. @label is a return value from a prev. call to
- *         as_next_label
- *      2. You are inserting this BEFORE you add the next
- *         opcode.
+ *      1. @jmp is a return value from a prev. call to as_next_label
+ *      2. You are inserting this BEFORE you add the next opcode.
  * If either are untrue, all hell will break loose when the disassembly
  * begins to execute.
  */
@@ -612,15 +634,20 @@ fakestack_declare(struct assemble_t *a, char *name)
 
         if (name) {
                 if (symtab_seek(a, name) >= 0)
-                        as_err(a, AE_REDEF);
+                        goto redef;
                 if (arg_seek(a, name) >= 0)
-                        as_err(a, AE_REDEF);
+                        goto redef;
                 if (clo_seek(a, name) >= 0)
-                        as_err(a, AE_REDEF);
+                        goto redef;
         }
 
         a->fr->symtab[a->fr->sp++] = name;
         return a->fr->sp - 1;
+
+redef:
+        err_setstr(ParserError, "Redefining variable ('%s')", name);
+        as_err(a, AE_GEN);
+        return 0;
 }
 
 static void
@@ -675,7 +702,11 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                         closure = true;
                         as_lex(a);
                 }
-                as_err_if(a, a->oc->t != 'u', AE_ARGNAME);
+                if (a->oc->t != 'u') {
+                        err_setstr(ParserError,
+                                "Function argument is not an identifier");
+                        as_err(a, AE_GEN);
+                }
                 name = a->oc->s;
                 as_lex(a);
                 if (a->oc->t == OC_EQ) {
@@ -688,7 +719,10 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                         as_lex(a);
                 }
                 if (closure) {
-                        as_err_if(a, !deflt, AE_ARGNAME);
+                        if (!deflt) {
+                                err_setstr(ParserError, "Malformed argument name");
+                                as_err(a, AE_GEN);
+                        }
 
                         /* pop-pop-push, need to balance here */
                         as_frame_swap(a);
@@ -753,12 +787,17 @@ assemble_objdef(struct assemble_t *a)
                         as_lex(a);
                         attrarg = IARG_FLAG_CONST;
                 }
-                as_err_if(a,
-                          a->oc->t != 'u' && a->oc->t != 'q',
-                          AE_EXPECT);
+                if (a->oc->t != 'u' && a->oc->t != 'q') {
+                        err_setstr(ParserError,
+                                "Dictionary key must be either an identifier or string");
+                        as_err(a, AE_EXPECT);
+                }
                 namei = seek_or_add_const(a, a->oc);
                 as_lex(a);
-                as_err_if(a, a->oc->t != OC_COLON, AE_EXPECT);
+                if (a->oc->t != OC_COLON) {
+                        err_setstr(ParserError, "Expected: ':'");
+                        as_err(a, AE_EXPECT);
+                }
                 assemble_eval(a);
                 /* REVISIT: why not just SETATTR?  */
                 add_instr(a, INSTR_ADDATTR, attrarg, namei);
@@ -1279,11 +1318,10 @@ assemble_ident_helper(struct assemble_t *a)
         bool have_parent = false;
         int last_t = 0;
 
+        if (peek_semi(a))
+                return;
+
         as_lex(a);
-
-        if (a->oc->t == OC_SEMI)
-                return; /* empty statement? are we ok with this? */
-
         for (;;) {
                 int namei;
                 struct token_t name;
@@ -1413,18 +1451,18 @@ assemble_ident_helper(struct assemble_t *a)
                         have_parent = false;
                         break;
 
-                case OC_SEMI:
-                        /* should end in a function or an assignment */
-                        if (last_t != OC_RPAR)
-                                as_err(a, AE_BADTOK);
-                        as_unlex(a);
-                        goto done;
-
                 default:
                         as_err(a, AE_BADTOK);
                 }
 
                 last_t = a->oc->t;
+
+                if (peek_semi(a)) {
+                        if (last_t != OC_RPAR)
+                                as_err(a, AE_BADTOK);
+                        goto done;
+                }
+
                 as_lex(a);
         }
 
@@ -1447,10 +1485,6 @@ assemble_this(struct assemble_t *a, unsigned int flags)
          */
         add_instr(a, INSTR_PUSH_PTR, IARG_PTR_THIS, 0);
         assemble_ident_helper(a);
-        if (!!(flags & FE_FOR))
-                as_errlex(a, OC_RPAR);
-        else
-                as_errlex(a, OC_SEMI);
 }
 
 static void
@@ -1483,10 +1517,6 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                 as_unlex(a);
                 assemble_ident_helper(a);
         }
-        if (!!(flags & FE_FOR))
-                as_errlex(a, OC_RPAR);
-        else
-                as_errlex(a, OC_SEMI);
 }
 
 /*
@@ -1528,42 +1558,38 @@ assemble_let(struct assemble_t *a)
                  */
                 as_lex(a);
         }
-        as_err_if(a, a->oc->t != 'u', AE_EXPECT);
+        if (a->oc->t != 'u') {
+                err_setstr(ParserError,
+                          "'let' must be followed by an identifier");
+                as_err(a, AE_EXPECT);
+        }
 
         as_savetok(&name, a->oc);
-        as_lex(a);
 
         namei = assemble_declare(a, &name, &top);
 
-        switch (a->oc->t) {
-        case OC_SEMI:
+        /* if no assign, return early */
+        if (peek_semi(a))
                 return;
 
-        case OC_EQ:
-                /* for "let", only "=", not "+=" or such */
-                ainstr_push_symbol(a, &name);
-                assemble_eval(a);
-                add_instr(a, INSTR_ASSIGN,
-                          top ? IARG_PTR_SEEK : IARG_PTR_AP, namei);
-                as_errlex(a, OC_SEMI);
-                break;
-        default:
-                as_err(a, AE_BADTOK);
-        }
+        as_errlex(a, OC_EQ);
+
+        /* for "let", only "=", not "+=" or such */
+        ainstr_push_symbol(a, &name);
+        assemble_eval(a);
+        add_instr(a, INSTR_ASSIGN,
+                  top ? IARG_PTR_SEEK : IARG_PTR_AP, namei);
 }
 
 static void
 assemble_return(struct assemble_t *a)
 {
-        as_lex(a);
-        if (a->oc->t == OC_SEMI) {
+        if (peek_semi(a)) {
                 add_instr(a, INSTR_PUSH_ZERO, 0, 0);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
         } else {
-                as_unlex(a);
                 assemble_eval(a);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
-                as_errlex(a, OC_SEMI);
         }
 }
 
@@ -1587,7 +1613,9 @@ assemble_if(struct assemble_t *a, int skip)
                 as_set_label(a, jmpelse);
 
                 as_lex(a);
-                if (a->oc->t == OC_ELSE) {
+                if (a->oc->t == EOF) {
+                        as_badeof(a);
+                } else if (a->oc->t == OC_ELSE) {
                         jmpelse = jmpend;
                         as_lex(a);
                 } else {
@@ -1652,28 +1680,26 @@ assemble_do(struct assemble_t *a)
         as_set_label(a, skip);
 }
 
-#if 1
 static void
-assemble_foreach(struct assemble_t *a, int skip_else)
+assemble_foreach(struct assemble_t *a)
 {
-        struct token_t needlet;
+        struct token_t needletok;
         int skip    = as_next_label(a);
         int iter    = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
         apush_scope(a);
 
         /* save name of the 'needle' in 'foreach(needle, haystack)' */
         as_errlex(a, OC_LPAR);
         as_errlex(a, 'u');
-        as_savetok(&needlet, a->oc);
+        as_savetok(&needletok, a->oc);
 
         as_errlex(a, OC_COMMA);
 
         /* push dummy first 'needle' onto the stack */
-        assemble_declare(a, &needlet, NULL);
+        assemble_declare(a, &needletok, NULL);
 
-        /* push 'haystack' onto the stack and assign it. */
+        /* push 'haystack' onto the stack */
         assemble_eval(a);
         as_errlex(a, OC_RPAR);
         fakestack_declare(a, NULL);
@@ -1685,6 +1711,8 @@ assemble_foreach(struct assemble_t *a, int skip_else)
         add_instr(a, INSTR_PUSH_ZERO, 0, 0);
         fakestack_declare(a, NULL);
 
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
+
         as_set_label(a, iter);
         add_instr(a, INSTR_FOREACH_ITER, 0, skip);
         assemble_expression(a, 0, skip);
@@ -1695,7 +1723,6 @@ assemble_foreach(struct assemble_t *a, int skip_else)
 
         as_set_label(a, skip);
 }
-#endif
 
 /*
  * skip_else here is for the unusual case if break is encountered inside
@@ -1720,7 +1747,9 @@ assemble_for(struct assemble_t *a, int skip_else)
 
         as_set_label(a, start);
         as_lex(a);
-        if (a->oc->t == OC_SEMI) {
+        if (a->oc->t == EOF) {
+                as_badeof(a);
+        } else if (a->oc->t == OC_SEMI) {
                 /* empty condition, always true */
                 add_instr(a, INSTR_B, 0, then);
         } else {
@@ -1731,7 +1760,17 @@ assemble_for(struct assemble_t *a, int skip_else)
                 add_instr(a, INSTR_B, 0, then);
         }
         as_set_label(a, iter);
-        assemble_expression(a, FE_FOR, -1);
+        if (!assemble_expression_simple(a, FE_FOR, -1)) {
+                /*
+                 * user tried to make a {...} compound statement
+                 * instead of something simple like 'i++'.  I'm not
+                 * sure if we should allow this or not, but I'm also
+                 * not sure if I can parse that properly.
+                 */
+                as_err(a, AE_BADTOK);
+        }
+        as_errlex(a, OC_RPAR);
+
         add_instr(a, INSTR_B, 0, start);
         as_set_label(a, then);
         assemble_expression(a, 0, skip);
@@ -1740,10 +1779,13 @@ assemble_for(struct assemble_t *a, int skip_else)
         as_set_label(a, forelse);
 
         as_lex(a);
-        if (a->oc->t == OC_ELSE)
+        if (a->oc->t == EOF) {
+                as_badeof(a);
+        } else if (a->oc->t == OC_ELSE) {
                 assemble_expression(a, 0, skip_else);
-        else
+        } else {
                 as_unlex(a);
+        }
 
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
         apop_scope(a);
@@ -1757,7 +1799,100 @@ assemble_load(struct assemble_t *a)
         as_errlex(a, 'q');
         add_instr(a, INSTR_LOAD, 0,
                   seek_or_add_const(a, a->oc));
-        as_errlex(a, OC_SEMI);
+}
+
+/*
+ * parse the stmt of 'stmt' + ';'
+ * return true if semicolon expected, false if not (because
+ * we recursed into a '{...}' statement which requires no semicolon).
+ */
+static int
+assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
+{
+        as_lex(a);
+        switch (a->oc->t) {
+        case EOF:
+                if (skip >= 0)
+                        as_badeof(a);
+                return 0;
+        case 'u':
+                assemble_identifier(a, flags);
+                break;
+        case OC_THIS:
+                /* not a saucy challenge */
+                assemble_this(a, flags);
+                break;
+        case OC_SEMI:
+                /* empty statement */
+                as_unlex(a);
+                break;
+        case OC_LPAR:
+                as_unlex(a);
+                assemble_eval(a);
+                /* throw result away */
+                add_instr(a, INSTR_POP, 0, 0);
+                /* semi-colon not expected */
+                break;
+        case OC_RPAR:
+                if (!(flags & FE_FOR)) {
+                        as_err(a, AE_PAR);
+                }
+                as_unlex(a);
+                break;
+        case OC_LET:
+                if (!!(flags & FE_FOR)) {
+                        err_setstr(ParserError,
+                                "'let' not allowed in iterator part of 'for' statement");
+                        as_err(a, AE_BADTOK);
+                }
+                assemble_let(a);
+                break;
+        case OC_RETURN:
+                assemble_return(a);
+                break;
+        case OC_BREAK:
+                if (skip < 0) {
+                        err_setstr(ParserError, "Unexpected break");
+                        as_err(a, AE_GEN);
+                }
+                add_instr(a, INSTR_BREAK, 0, 0);
+                add_instr(a, INSTR_B, 0, skip);
+                break;
+        case OC_IF:
+                assemble_if(a, skip);
+                return 0;
+        case OC_WHILE:
+                assemble_while(a);
+                return 0;
+        case OC_FOR:
+                assemble_for(a, skip);
+                return 0;
+        case OC_FOREACH:
+                assemble_foreach(a);
+                return 0;
+        case OC_LBRACE:
+                as_unlex(a);
+                assemble_expression(a, flags, skip);
+                return 0;
+        case OC_DO:
+                assemble_do(a);
+                return 0;
+        case OC_LOAD:
+                /*
+                 * TODO: If we are in a function or loop statement,
+                 * we can't do this.  But I do want to do this if we
+                 * are in an if statement, so we can conditionally
+                 * load, eg.
+                 *      if (!__gbl__.haschild("thing"))
+                 *              load "thing";
+                 */
+                assemble_load(a);
+                break;
+        default:
+                DBUG("Got token %X ('%s')\n", a->oc->t, a->oc->s);
+                as_err(a, AE_BADTOK);
+        }
+        return 1;
 }
 
 /*
@@ -1798,106 +1933,50 @@ assemble_load(struct assemble_t *a)
 static void
 assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
 {
-        int brace = 0;
-        bool pop = false;
-
         RECURSION_INCR();
 
         as_lex(a);
         if (a->oc->t == OC_LBRACE) {
-                brace++;
-                pop = true;
+                /* compound statement */
                 apush_scope(a);
                 add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
-        } else {
-                /* single line statement */
-                as_unlex(a);
-        }
 
-        do {
-                as_lex(a);
-                if (a->oc->t == EOF) {
-                        as_err_if(a, skip >= 0, AE_BADEOF);
-                        break;
-                }
+                for (;;) {
+                        int exp;
 
-                switch (a->oc->t) {
-                case 'u':
-                        assemble_identifier(a, flags);
-                        break;
-                case OC_THIS:
-                        /* not a saucy challenge */
-                        assemble_this(a, flags);
-                        break;
-                case OC_SEMI:
-                        /* empty statement */
-                        break;
-                case OC_RBRACE:
-                        as_err_if(a, !brace, AE_BRACE);
-                        brace--;
-                        break;
-                case OC_RPAR:
-                        as_err_if(a, !(flags & FE_FOR), AE_BADTOK);
-                        as_err_if(a, brace, AE_BRACE);
+                        /* peek for end of compound statement */
+                        as_lex(a);
+                        if (a->oc->t == OC_RBRACE)
+                                break;
                         as_unlex(a);
-                        break;
-                case OC_LPAR:
-                        as_unlex(a);
-                        assemble_eval(a);
-                        as_errlex(a, OC_SEMI);
-                        add_instr(a, INSTR_POP, 0, 0);
-                        break;
-                case OC_LET:
-                        as_err_if(a, !!(flags & FE_FOR), AE_BADTOK);
-                        assemble_let(a);
-                        break;
-                case OC_RETURN:
-                        assemble_return(a);
-                        break;
-                case OC_BREAK:
-                        as_err_if(a, skip < 0, AE_BREAK);
-                        add_instr(a, INSTR_BREAK, 0, 0);
-                        add_instr(a, INSTR_B, 0, skip);
-                        break;
-                case OC_IF:
-                        assemble_if(a, skip);
-                        break;
-                case OC_WHILE:
-                        assemble_while(a);
-                        break;
-                case OC_FOR:
-                        assemble_for(a, skip);
-                        break;
-#if 1
-                case OC_FOREACH:
-                        assemble_foreach(a, skip);
-                        break;
-#endif
-                case OC_DO:
-                        assemble_do(a);
-                        break;
-                case OC_LOAD:
-                        /*
-                         * TODO: If we are in a function or loop statement,
-                         * we can't do this.  But I do want to do this if we
-                         * are in an if statement, so we can conditionally
-                         * load, eg.
-                         *      if (!__gbl__.haschild("thing"))
-                         *              load "thing";
-                         */
-                        assemble_load(a);
-                        break;
-                default:
-                        as_err(a, AE_BADTOK);
+
+                        exp = assemble_expression_simple(a, flags, skip);
+                        if (!exp) {
+                                if (a->oc->t == EOF)
+                                        as_badeof(a);
+                                continue;
+                        }
+
+                        as_lex(a);
+                        if (a->oc->t != OC_SEMI) {
+                                err_setstr(ParserError,
+                                           "Expected ';' but got '%s'", a->oc->s);
+                                as_err(a, AE_BADTOK);
+                        }
                 }
-        } while (brace);
-
-        RECURSION_DECR();
-
-        if (pop) {
                 add_instr(a, INSTR_POP_BLOCK, 0, 0);
                 apop_scope(a);
+        } else if (a->oc->t != EOF) {
+                /* single line statement */
+                int exp;
+
+                as_unlex(a);
+                exp = assemble_expression_simple(a, flags, skip);
+                if (exp)
+                        as_errlex(a, OC_SEMI);
         }
+
+        RECURSION_DECR();
 }
 
 static void
@@ -1927,7 +2006,9 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
         a->fr = fr;
         for (i = 0; i < n; i++) {
                 instruction_t *ii = &fr->x->instr[i];
-                if (ii->code == INSTR_B || ii->code == INSTR_B_IF) {
+                if (ii->code == INSTR_B
+                    || ii->code == INSTR_B_IF
+                    || ii->code == INSTR_FOREACH_ITER) {
                         int arg2 = ii->arg2 - JMP_INIT;
 
                         bug_on(ii->arg1 != 0 && ii->arg1 != 1);
@@ -2005,6 +2086,7 @@ new_assembler(const char *source_file_name, FILE *fp)
 
         a = ecalloc(sizeof(*a));
         a->file_name = (char *)source_file_name;
+        a->fp = fp;
         a->prog = prog;
         a->oc = NULL;
         /* don't let the first ones be zero, that looks bad */
@@ -2069,19 +2151,13 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                 switch (res) {
                 default:
                 case AE_GEN:
-                        msg = "Undefined error";
-                        break;
-                case AE_BADEOF:
-                        msg = "Unexpected termination";
+                        msg = "Assembly error";
                         break;
                 case AE_BADTOK:
                         msg = "Invalid token";
                         break;
                 case AE_EXPECT:
                         msg = "Expected token missing";
-                        break;
-                case AE_REDEF:
-                        msg = "Redefinition of local variable";
                         break;
                 case AE_OVERFLOW:
                         msg = "Frame overflow";
@@ -2098,25 +2174,15 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                 case AE_BRACE:
                         msg = "Unbalanced brace";
                         break;
-                case AE_BREAK:
-                        msg = "Unexpected break";
-                        break;
-                case AE_NOTIMPL:
-                        msg = "Not implemented yet";
-                        break;
-                case AE_ARGNAME:
-                        msg = "Malformed argument name";
-                        break;
-                case AE_BADINSTR:
-                        msg = "Bad instruction";
-                        break;
                 case AE_PARSER:
                         /* Parser already set error message */
                         msg = NULL;
                         break;
                 }
                 if (msg) {
-                        err_setstr(ParserError, "%s", msg);
+                        if (!err_occurred())
+                                err_setstr(ParserError, "%s", msg);
+
                         /*
                          * FIXME: more hax, need to put this in main.c
                          * also, we know the file name and line
@@ -2127,6 +2193,8 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                         bug_on(!exc || !emsg);
                         err_print(stderr, exc, emsg);
                         free(emsg);
+                        fprintf(stderr, "in file '%s' near line '%d'\n",
+                                a->file_name, a->oc->line);
                 }
 
                 /*
@@ -2166,7 +2234,9 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
 {
         int localstatus;
         struct executable_t *ret;
-        struct assemble_t *a = new_assembler(filename, fp);
+        struct assemble_t *a;
+
+        a = new_assembler(filename, fp);
         if (!a)
                 return NULL;
         ret = assemble_next(a, toeof, &localstatus);

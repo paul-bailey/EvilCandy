@@ -824,14 +824,16 @@ do_foreach_setup(struct vmframe_t *fr, instruction_t ii)
         }
 
         /* now it's sequential, check if iterable too */
-        if (!v->v_type->sqm->getitem)
+        if (!v->v_type->sqm->getitem) {
+                err_setstr(RuntimeError,
+                           "'%s' is not iterable", typestr(v));
                 goto cant;
+        }
 
         push(fr, v);
         return RES_OK;
 
 cant:
-        err_setstr(RuntimeError, "'%s' is not iterable");
         VAR_DECR_REF(v);
         return RES_ERROR;
 }

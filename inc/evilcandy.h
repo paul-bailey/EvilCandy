@@ -241,7 +241,12 @@ extern void moduleinit_builtin(void);
 # define bug()          do { (void)0; } while (0)
 # define bug_on(...)    do { (void)0; } while (0)
 #endif
+/*
+ * these should never be in C code for more than a few seconds
+ * while testing something.
+ */
 #define breakpoint() breakpoint__(__FILE__, __LINE__)
+#define breakpoint_if(cond)     do { if (cond) breakpoint(); } while (0)
 
 extern void fail(const char *msg, ...);
 extern void err_setstr(struct var_t *exc, const char *msg, ...);

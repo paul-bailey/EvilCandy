@@ -37,74 +37,37 @@
 
 load "math.evc";
 
-if (true) {
-    let sqrt = function(x) {
-        let y = 10.;
-        let min = 0.;
-        let max = 1000000.0;
-        // we should raise exception if x<0,
-        // but for this demo just return 0
-        if (x <= 0.0)
-            return 0.0;
+let sqrt = function(x_i_or_f) {
+    let x = 1.0 * x_i_or_f;
+    let y = 10.;
+    let min = 0.;
+    let max = 1000000.0;
+    // we should raise exception if x<0,
+    // but for this demo just return 0
+    if (x <= 0.0)
+        return 0.0;
 
-        for_each(i, range(0, 20)) {
-            let result = y * y;
-            if (result > x) {
-                max = y;
-            } else if (result < x) {
-                min = y;
-                if (max < y)
-                    max *= 2.0;
-            } else if (result == x) {
-                return y;
-            }
-            y = min + ((max - min) / 2.0);
-            // print('{}: {}'.format(i, result));
+    for_each(i, range(0, 20)) {
+        let result = y * y;
+        if (result > x) {
+            max = y;
+        } else if (result < x) {
+            min = y;
+            if (max < y)
+                max *= 2.0;
+        } else if (result == x) {
+            return y;
         }
-        return y;
-    };
-} else {
-    let sqrt = function(x) {
-        let y = 10.;
-        let min = 0.;
-        let max = 1000000.0;
-        if (x <= 0.0)
-            return 0.0;
+        y = min + ((max - min) / 2.0);
+    }
+    return y;
+};
 
-        for (let i = 0; i < 20; i++) {
-            let result = y * y;
-            if (result > x) {
-                max = y;
-            } else if (result < x) {
-                min = y;
-                if (max < y)
-                    max *= 2.0;
-            } else if (result == x) {
-                return y;
-            }
-            y = min + ((max - min) / 2.0);
-        }
-        return y;
-    };
-}
 
-if (false) {
-    (function(sqrt) {
-        let x = 0.;
-        for (let i = 0.; i < 1000000.0; i++)
-            x = sqrt(i);
-    })(sqrt);
-} else if (false) {
-    (function(sqrt) {
-        (range(1000000)).foreach(function(v) {
-            let x = sqrt(v);
-        });
-    })(sqrt);
-} else {
-    let i;
-    for (i = 0.0; i < 50.0; i++)
-        print("{} vs {}".format(sqrt(i), Math.sqrt(i)));
-}
-
+(function(sqrt) {
+    let x = 0.;
+    for_each(i, range(1000000))
+        x = sqrt(i);
+})(sqrt);
 
 // : vim: set syntax=javascript :

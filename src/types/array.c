@@ -1,18 +1,13 @@
 /*
- * array.c - Code for managing numerical arrays
+ * array.c - Code for managing numerical arrays and tuples
  *
- * These are called "lists" in the documentation, since
+ * Arrays are called "lists" in the documentation, since
  *      1) that's what Python calls them, so why not, and
- *      2) calling them "arrays" could mislead users into thinking
- *         these are fast in the way that C arrays are fast.
+ *      2) calling them "arrays" is misleading because it makes you think
+ *         they are fast like C arrays.  They are not.
  *
  * But here I call them "arrays" because I started writing this
  * file before I thought things through. (LOL, cf. object.c)
- *
- * XXX REVISIT: Policy decision... Should I continue to enforce
- *      lists having all the same type of items?  JavaScript
- *      doesn't do that.  Neither does Python.  There are some
- *      actual advantages to NOT enforcing it.
  */
 #include "types_priv.h"
 #include <stdlib.h>
@@ -20,13 +15,13 @@
 
 /**
  * struct arrayvar_t - Handle to a numerical array
- * @lock:       lock to prevent add/remove during foreach
- * @children:   struct buffer_t containing the actual arrray
+ * @lock:    Lock to prevent add/remove during foreach
+ * @items:   Array of pointers to variables stored in it
  */
 struct arrayvar_t {
         struct seqvar_t base;
         int lock;
-        struct buffer_t children;
+        struct var_t **items;
 };
 
 #define V2ARR(v_)       ((struct arrayvar_t *)(v_))
@@ -40,12 +35,11 @@ struct arrayvar_t {
 struct var_t *
 array_getitem(struct var_t *array, int idx)
 {
-        struct arrayvar_t *h = V2ARR(array);
-        struct var_t **ppvar = (struct var_t **)h->children.s;
+        struct arrayvar_t *va = V2ARR(array);
 
         bug_on(idx >= V2SQ(array)->v_size);
-        VAR_INCR_REF(ppvar[idx]);
-        return ppvar[idx];
+        VAR_INCR_REF(va->items[idx]);
+        return va->items[idx];
 }
 
 /* helper to array_sort */
@@ -62,8 +56,8 @@ array_sort(struct var_t *array)
         struct arrayvar_t *a = V2ARR(array);
         if (V2SQ(array)->v_size < 2)
                 return;
-        bug_on(!a->children.s);
-        qsort(a->children.s, V2SQ(array)->v_size,
+        bug_on(!a->items);
+        qsort(a->items, V2SQ(array)->v_size,
               sizeof(struct var_t *), array_sort_cmp);
 }
 
@@ -78,17 +72,16 @@ array_sort(struct var_t *array)
 enum result_t
 array_setitem(struct var_t *array, int i, struct var_t *child)
 {
-        struct var_t **ppvar;
+        struct arrayvar_t *va = V2ARR(array);
         bug_on(!isvar_array(array));
 
-        ppvar = (struct var_t **)(V2ARR(array)->children.s);
         bug_on(i >= V2SQ(array)->v_size);
 
         /* delete old entry */
-        bug_on(ppvar[i] == NULL);
-        VAR_DECR_REF(ppvar[i]);
+        bug_on(va->items[i] == NULL);
+        VAR_DECR_REF(va->items[i]);
 
-        ppvar[i] = child;
+        va->items[i] = child;
         VAR_INCR_REF(child);
         return RES_OK;
 }
@@ -104,17 +97,38 @@ enum result_t
 array_append(struct var_t *array, struct var_t *child)
 {
         struct arrayvar_t *h = V2ARR(array);
+        size_t size = V2SQ(array)->v_size;
 
         if (h->lock) {
                 err_locked();
                 return RES_ERROR;
         }
 
-        V2SQ(array)->v_size++;
-        /* XXX: poor amortization, maybe assert_array_pos instead */
-        buffer_putd(&h->children, &child, sizeof(void *));
+        h->items = erealloc(h->items, (size + 1) * sizeof(struct var_t *));
+        h->items[size] = child;
+
+        V2SQ(array)->v_size = size + 1;
         VAR_INCR_REF(child);
         return RES_OK;
+}
+
+static struct var_t *
+arrayvar_new_common(int n_items, struct type_t *type)
+{
+        int i;
+        struct var_t *array = var_new(type);
+        struct arrayvar_t *va = V2ARR(array);
+        size_t alloc_size = sizeof(struct var_t *) * n_items;
+        if (!alloc_size)
+                alloc_size = 1;
+
+        V2SQ(array)->v_size = n_items;
+        va->items = emalloc(alloc_size);
+        for (i = 0; i < n_items; i++) {
+                VAR_INCR_REF(NullVar);
+                va->items[i] = NullVar;
+        }
+        return array;
 }
 
 /**
@@ -125,22 +139,24 @@ array_append(struct var_t *array, struct var_t *child)
 struct var_t *
 arrayvar_new(int n_items)
 {
-        struct var_t *array = var_new(&ArrayType);
-        V2SQ(array)->v_size = 0;
-        buffer_init(&V2ARR(array)->children);
-        /* TODO: Replace buffer operations with more efficient method */
-        while (n_items-- > 0) {
-                VAR_INCR_REF(NullVar);
-                array_append(array, NullVar);
-        }
-        return array;
+        return arrayvar_new_common(n_items, &ArrayType);
+}
+
+/**
+ * tuplevar_new - Create a new tuple of size @n_items
+ * Return: new tuple.  Each slot is filled with NullVar.
+ */
+struct var_t *
+tuplevar_new(int n_items)
+{
+        return arrayvar_new_common(n_items, &TupleType);
 }
 
 /* type_t .reset callback */
 static void
 array_reset(struct var_t *a)
 {
-        buffer_free(&(V2ARR(a)->children));
+        free(V2ARR(a)->items);
 }
 
 /* type_t .cmp callback */
@@ -148,8 +164,8 @@ static int
 array_cmp(struct var_t *a, struct var_t *b)
 {
         int i, n = V2SQ(a)->v_size;
-        struct var_t **aitems = (struct var_t **)V2ARR(a)->children.s;
-        struct var_t **bitems = (struct var_t **)V2ARR(b)->children.s;
+        struct var_t **aitems = V2ARR(a)->items;
+        struct var_t **bitems = V2ARR(b)->items;
         if (n > V2SQ(b)->v_size)
                 n = V2SQ(b)->v_size;
         for (i = 0; i < n; i++) {
@@ -181,8 +197,8 @@ do_array_len(struct vmframe_t *fr)
 static struct var_t *
 do_array_foreach(struct vmframe_t *fr)
 {
-        struct var_t *self, *func, *priv, *argv[3], **ppvar;
-        unsigned int idx, lock, nmemb;
+        struct var_t *self, *func, *priv, *argv[3];
+        unsigned int idx, lock;
         struct arrayvar_t *h;
         int status = RES_OK;
 
@@ -200,8 +216,6 @@ do_array_foreach(struct vmframe_t *fr)
         if (!V2SQ(self)->v_size) /* nothing to iterate over */
                 goto out;
 
-        ppvar = (struct var_t **)h->children.s;
-
         /*
          * appends in the middle of a loop can cause spinlock or moved
          * arrays, so don't allow it.
@@ -209,8 +223,7 @@ do_array_foreach(struct vmframe_t *fr)
         lock = h->lock;
         h->lock = 1;
 
-        nmemb = V2SQ(self)->v_size;
-        for (idx = 0; idx < nmemb; idx++) {
+        for (idx = 0; idx < V2SQ(self)->v_size; idx++) {
                 /*
                  * XXX creating a new intvar every time, maybe some
                  * back-door hacks to intvar should be allowed for
@@ -218,7 +231,7 @@ do_array_foreach(struct vmframe_t *fr)
                  */
                 struct var_t *retval;
 
-                argv[0] = ppvar[idx];
+                argv[0] = h->items[idx];
                 argv[1] = intvar_new(idx);
                 argv[2] = priv;
 
@@ -283,3 +296,27 @@ struct type_t ArrayType = {
         .reset = array_reset,
 };
 
+static const struct type_inittbl_t tuple_cb_methods[] = {
+        V_INITTBL("len",        do_array_len,           0, 0),
+        V_INITTBL("foreach",    do_array_foreach,       0, 0),
+        TBLEND,
+};
+
+static const struct seq_methods_t tuple_seq_methods = {
+        .getitem        = array_getitem,
+        .setitem        = NULL,
+        .cat            = NULL, /* TODO: this */
+        .sort           = NULL,
+};
+
+struct type_t TupleType = {
+        .name = "tuple",
+        .opm = NULL,
+        .cbm = tuple_cb_methods,
+        .mpm = NULL,
+        .sqm = &tuple_seq_methods,
+        .size = sizeof(struct arrayvar_t),
+        .cmp = array_cmp,
+        .cp  = array_cp,
+        .reset = array_reset,
+};

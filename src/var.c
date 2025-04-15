@@ -106,8 +106,6 @@ var_delete__(struct var_t *v)
 {
         bug_on(!v);
         bug_on(v == NullVar);
-#warning "remove DBUG splash"
-if (v->v_refcnt!=0)DBUG("type %s ref=%d", typestr(v), v->v_refcnt);
         bug_on(v->v_refcnt != 0);
         bug_on(!v->v_type);
         if (v->v_type->reset)

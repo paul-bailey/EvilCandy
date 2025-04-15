@@ -101,6 +101,7 @@ struct type_t {
  * to the module so the namespace doesn't get cluttered up.
  */
 extern struct type_t ArrayType;
+extern struct type_t TupleType;
 extern struct type_t EmptyType; /* XXX should be NullType */
 extern struct type_t FloatType;
 extern struct type_t FunctionType;
@@ -113,6 +114,8 @@ extern struct type_t UuidptrType;
 
 static inline bool isvar_array(struct var_t *v)
         { return v->v_type == &ArrayType; }
+static inline bool isvar_tuple(struct var_t *v)
+        { return v->v_type == &TupleType; }
 static inline bool isvar_empty(struct var_t *v)
         { return v->v_type == &EmptyType; }
 static inline bool isvar_float(struct var_t *v)

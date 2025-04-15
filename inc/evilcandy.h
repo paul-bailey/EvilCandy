@@ -399,8 +399,11 @@ extern struct executable_t *serialize_read(FILE *fp,
 
 /* types/array.c */
 extern struct var_t *arrayvar_new(int n_items);
+extern struct var_t *tuplevar_new(int n_items);
 extern enum result_t array_setitem(struct var_t *array,
                                    int i, struct var_t *child);
+/* user doesn't have access to this but internal code needs it */
+#define tuple_setitem   array_setitem
 extern struct var_t *array_getitem(struct var_t *array, int idx);
 extern enum result_t array_append(struct var_t *array,
                                   struct var_t *child);

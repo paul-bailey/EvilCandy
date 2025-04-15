@@ -176,7 +176,7 @@ run_tty(void)
                 }
         }
 
-        for (;;) {
+        while (!feof(stdin)) {
                 int status;
                 struct executable_t *ex;
 

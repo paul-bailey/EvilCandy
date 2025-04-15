@@ -2,7 +2,7 @@
 
 // only needed in one wrapper spot, but it's bad practice
 // to use 'load' in a function.
-load "math.evc";
+import("math.evc", "x");
 
 (function(iterator) {
     iterator['whoami'] = function() {

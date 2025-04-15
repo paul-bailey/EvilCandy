@@ -1,6 +1,6 @@
 #!./evilcandy
 
-load "io.evc";
+import("io.evc", "x");
 
 // Print myself
 (function(name) {

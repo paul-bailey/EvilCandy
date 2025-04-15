@@ -1908,13 +1908,6 @@ assemble_for(struct assemble_t *a, int skip_else)
         assemble_for_cstyle(a, skip_else);
 }
 
-static void
-assemble_load_module(struct assemble_t *a)
-{
-        as_errlex(a, 'q');
-        add_instr(a, INSTR_IMPORT, 0, seek_or_add_const(a, a->oc));
-}
-
 /*
  * parse the stmt of 'stmt' + ';'
  * return true if semicolon expected, false if not (because
@@ -1996,17 +1989,6 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
         case OC_DO:
                 assemble_do(a);
                 return 0;
-        case OC_LOAD:
-                /*
-                 * TODO: If we are in a function or loop statement,
-                 * we can't do this.  But I do want to do this if we
-                 * are in an if statement, so we can conditionally
-                 * load, eg.
-                 *      if (!__gbl__.haschild("thing"))
-                 *              load "thing";
-                 */
-                assemble_load_module(a);
-                break;
         default:
                 DBUG("Got token %X ('%s')\n", a->oc->t, a->oc->s);
                 as_err(a, AE_BADTOK);

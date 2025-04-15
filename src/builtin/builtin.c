@@ -61,6 +61,60 @@ do_print(struct vmframe_t *fr)
 }
 
 static struct var_t *
+do_import(struct vmframe_t *fr)
+{
+        struct var_t *file_name = frame_get_arg(fr, 0);
+        struct var_t *mode      = frame_get_arg(fr, 1);
+        struct var_t *res;
+        struct executable_t *ex;
+        const char *modestr, *fnamestr;
+        enum { R, X } how;
+        FILE *fp;
+        int status;
+
+        if (!file_name || !mode) {
+                err_setstr(RuntimeError, "Expected: import(MODULE, MODE)");
+                return ErrorVar;
+        }
+        if (!isvar_string(file_name) || !isvar_string(mode)) {
+                err_setstr(RuntimeError, "import: file name and mode should be strings");
+                return ErrorVar;
+        }
+
+        modestr = string_get_cstring(mode);
+        if (!strcmp(modestr, "r")) {
+                how = R; /* read script and return it as a function */
+        } else if (!strcmp(modestr, "x")) {
+                how = X; /* execute script and return its results */
+        } else {
+                err_setstr(RuntimeError, "import: incorrect MODE argument");
+                return ErrorVar;
+        }
+
+        fnamestr = string_get_cstring(file_name);
+
+        fp = push_path(fnamestr);
+        if (!fp) {
+                err_errno("Cannot access '%s' properly", fnamestr);
+                return ErrorVar;
+        }
+        ex = assemble(fnamestr, fp, true, &status);
+        pop_path(fp);
+
+        if (!ex || status == RES_ERROR) {
+                /* FIXME: can't free @ex if non-NULL, so it'll zombify */
+                err_setstr("Failed to import module '%s'", fnamestr);
+                return ErrorVar;
+        }
+
+        res = funcvar_new_user(ex);
+        if (how == R)
+                return res;
+        /* else, how == EXEC */
+        return vm_exec_func(fr, res, NULL, 0, NULL);
+}
+
+static struct var_t *
 do_exit(struct vmframe_t *fr)
 {
         struct var_t *p = frame_get_arg(fr, 0);
@@ -149,6 +203,7 @@ static const struct inittbl_t builtin_inittbl[] = {
         TOFTBL("range",  do_range,  1, 3),
         /* XXX: maybe exit should be a method of __gbl__._sys */
         TOFTBL("exit",   do_exit,   0, -1),
+        TOFTBL("import", do_import, 0, 2),
         { .name = NULL },
 };
 

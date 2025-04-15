@@ -384,13 +384,6 @@ do_nop(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_import(struct vmframe_t *fr, instruction_t ii)
-{
-        load_file(RODATA_STR(fr, ii), fr);
-        return 0;
-}
-
-static int
 do_push_local(struct vmframe_t *fr, instruction_t ii)
 {
         VAR_INCR_REF(NullVar);

@@ -117,25 +117,25 @@ run_script(const char *filename, FILE *fp, struct vmframe_t *fr)
                 struct var_t *retval;
                 if (q_.opt.disassemble) {
                         static bool once = false;
-                        FILE *fp;
+                        FILE *dfp;
                         if (once)
                                 return;
                         once = true;
 
                         if (q_.opt.disassemble_outfile) {
-                                fp = fopen(q_.opt.disassemble_outfile, "w");
-                                if (!fp) {
+                                dfp = fopen(q_.opt.disassemble_outfile, "w");
+                                if (!dfp) {
                                         err_errno("Cannot output to %s",
                                                   q_.opt.disassemble_outfile);
                                         goto er;
                                 }
                         } else {
-                                fp = stdout;
+                                dfp = stdout;
                         }
 
-                        disassemble(fp, ex, filename);
-                        if (fp != stdout)
-                                fclose(fp);
+                        disassemble(dfp, ex, filename);
+                        if (dfp != stdout)
+                                fclose(dfp);
                 }
                 if (!q_.opt.disassemble_only) {
                         retval = vm_exec_script(ex, fr);

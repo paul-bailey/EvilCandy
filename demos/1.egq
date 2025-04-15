@@ -1,4 +1,4 @@
-load "2.egq";
+import("2.egq", "x");
 let s = "This is"  // while we're here, see how well
         " demo 1"; // well string lits are concatenated.
 print(s);

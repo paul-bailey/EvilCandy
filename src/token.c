@@ -727,7 +727,6 @@ tok_kw_seek(const char *key)
                 { "global",     OC_GBL },
                 { "if",         OC_IF },
                 { "let",        OC_LET },
-                { "load",       OC_LOAD },
                 { "function",   OC_FUNC },
                 { "null",       OC_NULL },
                 { "private",    OC_PRIV },

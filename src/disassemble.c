@@ -124,7 +124,7 @@ disassemble_start(FILE *fp, const char *sourcefile_name)
         fprintf(fp, "# enumerations for CMP arg1\n");
         ADD_DEFINES(CMP_NAMES);
         putc('\n', fp);
-        fprintf(fp, "# enumerations for PUSH_PTR/ASSIGN_xxx arg1\n");
+        fprintf(fp, "# enumerations for LOAD/ASSIGN_xxx arg1\n");
         ADD_DEFINES(PTR_NAMES);
         putc('\n', fp);
         putc('\n', fp);
@@ -158,19 +158,7 @@ disinstr(FILE *fp, struct executable_t *ex, unsigned int i)
                 break;
 
         case INSTR_ASSIGN:
-        case INSTR_ASSIGN_ADD:
-        case INSTR_ASSIGN_SUB:
-        case INSTR_ASSIGN_MUL:
-        case INSTR_ASSIGN_DIV:
-        case INSTR_ASSIGN_MOD:
-        case INSTR_ASSIGN_XOR:
-        case INSTR_ASSIGN_LS:
-        case INSTR_ASSIGN_RS:
-        case INSTR_ASSIGN_OR:
-        case INSTR_ASSIGN_AND:
-        case INSTR_INCR:
-        case INSTR_DECR:
-        case INSTR_PUSH_PTR:
+        case INSTR_LOAD:
                 fprintf(fp, "%s, %hd\n",
                         SAFE_NAME(PTR, ii->arg1), ii->arg2);
                 break;

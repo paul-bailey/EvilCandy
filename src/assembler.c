@@ -1,6 +1,8 @@
 /*
- * FIXME: This whole file is a hacky duct-tape way to do things, because
- * I couldn't be bothered to research the topic of abstract syntax trees.
+ * FIXME: This whole file!  Because it doesn't separate the parsing phase
+ * from the code-generation phase, not a single optimization can be made.
+ * No loop invariants, no reduction of computations when constants are
+ * used, none of that.
  *
  * The entry point is assemble()
  *
@@ -543,6 +545,8 @@ seek_const_int(struct assemble_t *a, struct executable_t *x, long long vi)
         return i;
 }
 
+/* completes seek_or_add_const/seek_or..._int */
+
 /* const from a token literal in the script */
 static int
 seek_or_add_const(struct assemble_t *a, struct token_t *oc)
@@ -613,9 +617,28 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
 }
 
 static void
-ainstr_push_const(struct assemble_t *a, struct token_t *oc)
+ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 {
-        add_instr(a, INSTR_PUSH_CONST, 0, seek_or_add_const(a, oc));
+        add_instr(a, INSTR_LOAD_CONST, 0, seek_or_add_const(a, oc));
+}
+
+/*
+ * like ainstr_load_const but from an integer, not token, since
+ * loading zero is common enough.
+ */
+static void
+ainstr_load_const_int(struct assemble_t *a, long long ival)
+{
+        struct executable_t *x = a->fr->x;
+        int idx = seek_const_int(a, x, ival);
+        bug_on(idx > x->n_rodata);
+        if (idx == x->n_rodata) {
+                struct var_t *v = intvar_new(ival);
+                as_assert_array_pos(a, x->n_rodata + 1,
+                                    &x->rodata, &a->fr->const_alloc);
+                x->rodata[x->n_rodata++] = v;
+        }
+        add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
 /*
@@ -677,7 +700,7 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
          * but in case expression reached end
          * without hitting "return", we need a BL.
          */
-        add_instr(a, INSTR_PUSH_ZERO, 0, 0);
+        ainstr_load_const_int(a, 0LL);
         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
 }
 
@@ -838,7 +861,7 @@ static void assemble_eval1(struct assemble_t *a);
 static void assemble_eval_atomic(struct assemble_t *a);
 
 /*
- * helper to ainstr_push_symbol, @name is not in local namespace,
+ * helper to ainstr_load_symbol, @name is not in local namespace,
  * check enclosing function before resorting to IARG_PTR_SEEK
  */
 static int
@@ -890,12 +913,12 @@ maybe_closure(struct assemble_t *a, const char *name)
 }
 
 /*
- * ainstr_push_symbol_or_assign - common to ainstr_push_symbol and ainstr_assign
- * @instr: either INSTR_PUSH_PTR, INSTR_INCR, INSTR_DECR, or INSTR_ASSIGN(_XXX)
+ * ainstr_load_or_assign - common to ainstr_load_symbol and ainstr_assign
+ * @instr: either INSTR_LOAD, INSTR_INCR, INSTR_DECR, or INSTR_ASSIGN(_XXX)
  * @name:  name of symbol, token assumed to be saved from a->oc already.
  */
 static void
-ainstr_push_symbol_or_assign(struct assemble_t *a, struct token_t *name, int instr)
+ainstr_load_or_assign(struct assemble_t *a, struct token_t *name, int instr)
 {
         int idx;
         /*
@@ -922,11 +945,11 @@ ainstr_push_symbol_or_assign(struct assemble_t *a, struct token_t *name, int ins
 }
 
 static void
-ainstr_push_symbol(struct assemble_t *a, struct token_t *name)
+ainstr_load_symbol(struct assemble_t *a, struct token_t *name)
 {
         struct token_t namesav;
         as_savetok(&namesav, name);
-        ainstr_push_symbol_or_assign(a, &namesav, INSTR_PUSH_PTR);
+        ainstr_load_or_assign(a, &namesav, INSTR_LOAD);
 }
 
 static void
@@ -963,7 +986,7 @@ assemble_eval_atomic(struct assemble_t *a)
 {
         switch (a->oc->t) {
         case 'u':
-                ainstr_push_symbol(a, a->oc);
+                ainstr_load_symbol(a, a->oc);
                 break;
 
         case 'i':
@@ -971,7 +994,7 @@ assemble_eval_atomic(struct assemble_t *a)
         case 'q':
         case OC_TRUE:
         case OC_FALSE:
-                ainstr_push_const(a, a->oc);
+                ainstr_load_const(a, a->oc);
                 break;
         case OC_LPAR:
                 assemble_tupledef(a);
@@ -998,7 +1021,7 @@ assemble_eval_atomic(struct assemble_t *a)
                 assemble_funcdef(a, true);
                 break;
         case OC_THIS:
-                add_instr(a, INSTR_PUSH_PTR, IARG_PTR_THIS, 0);
+                add_instr(a, INSTR_LOAD, IARG_PTR_THIS, 0);
                 break;
         default:
                 as_err(a, AE_BADTOK);
@@ -1276,56 +1299,56 @@ assemble_assign(struct assemble_t *a, struct token_t *name)
         /* first check the ones that don't call assemble_eval */
         switch (t) {
         case OC_PLUSPLUS:
-                instr = INSTR_INCR;
+                ainstr_load_const_int(a, 1);
+                add_instr(a, INSTR_ADD, 0, 0);
                 break;
 
         case OC_MINUSMINUS:
-                instr = INSTR_DECR;
+                ainstr_load_const_int(a, 1);
+                add_instr(a, INSTR_SUB, 0, 0);
                 break;
 
         default:
                 assemble_eval(a);
 
                 switch (t) {
-                case OC_EQ:
-                        instr = INSTR_ASSIGN;
-                        break;
                 case OC_PLUSEQ:
-                        instr = INSTR_ASSIGN_ADD;
+                        instr = INSTR_ADD;
                         break;
                 case OC_MINUSEQ:
-                        instr = INSTR_ASSIGN_SUB;
+                        instr = INSTR_SUB;
                         break;
                 case OC_MULEQ:
-                        instr = INSTR_ASSIGN_MUL;
+                        instr = INSTR_MUL;
                         break;
                 case OC_DIVEQ:
-                        instr = INSTR_ASSIGN_DIV;
+                        instr = INSTR_DIV;
                         break;
                 case OC_MODEQ:
-                        instr = INSTR_ASSIGN_MOD;
+                        instr = INSTR_MOD;
                         break;
                 case OC_XOREQ:
-                        instr = INSTR_ASSIGN_XOR;
+                        instr = INSTR_BINARY_XOR;
                         break;
                 case OC_LSEQ:
-                        instr = INSTR_ASSIGN_LS;
+                        instr = INSTR_LSHIFT;
                         break;
                 case OC_RSEQ:
-                        instr = INSTR_ASSIGN_RS;
+                        instr = INSTR_RSHIFT;
                         break;
                 case OC_OREQ:
-                        instr = INSTR_ASSIGN_OR;
+                        instr = INSTR_BINARY_OR;
                         break;
                 case OC_ANDEQ:
-                        instr = INSTR_ASSIGN_AND;
+                        instr = INSTR_BINARY_AND;
                         break;
                 default:
                         instr = 0;
                         bug();
                 }
+                add_instr(a, instr, 0, 0);
         }
-        ainstr_push_symbol_or_assign(a, name, instr);
+        ainstr_load_or_assign(a, name, INSTR_ASSIGN);
 }
 
 /* FIXME: huge DRY violation w/ eval8 */
@@ -1508,7 +1531,7 @@ assemble_this(struct assemble_t *a, unsigned int flags)
          * We do not allow
          *      this = value...
          */
-        add_instr(a, INSTR_PUSH_PTR, IARG_PTR_THIS, 0);
+        add_instr(a, INSTR_LOAD, IARG_PTR_THIS, 0);
         assemble_ident_helper(a);
 }
 
@@ -1518,17 +1541,20 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         struct token_t name;
         as_savetok(&name, a->oc);
 
-        ainstr_push_symbol(a, &name);
 
         /* need to peek */
         as_lex(a);
-        if (!!(a->oc->t & TF_ASSIGN)) {
+        if (a->oc->t == OC_EQ) {
+                /* x = value; */
+                assemble_eval(a);
+                ainstr_load_or_assign(a, &name, INSTR_ASSIGN);
+        } else if (!!(a->oc->t & TF_ASSIGN)) {
                 /*
                  * x++;
-                 * x = value;
                  * x += value;
                  * ...
                  */
+                ainstr_load_symbol(a, &name);
                 assemble_assign(a, &name);
         } else {
                 /*
@@ -1540,6 +1566,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * calling a function or modifying one of x's descendants.
                  */
                 as_unlex(a);
+                ainstr_load_symbol(a, &name);
                 assemble_ident_helper(a);
         }
 }
@@ -1600,7 +1627,7 @@ assemble_let(struct assemble_t *a)
         as_errlex(a, OC_EQ);
 
         /* for "let", only "=", not "+=" or such */
-        ainstr_push_symbol(a, &name);
+        ainstr_load_symbol(a, &name);
         assemble_eval(a);
         add_instr(a, INSTR_ASSIGN,
                   top ? IARG_PTR_SEEK : IARG_PTR_AP, namei);
@@ -1610,7 +1637,7 @@ static void
 assemble_return(struct assemble_t *a)
 {
         if (peek_semi(a)) {
-                add_instr(a, INSTR_PUSH_ZERO, 0, 0);
+                ainstr_load_const_int(a, 0);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
         } else {
                 assemble_eval(a);
@@ -1730,7 +1757,7 @@ assemble_foreach(struct assemble_t *a)
         add_instr(a, INSTR_FOREACH_SETUP, 0, 0);
 
         /* push 'i' iterator onto the stack beginning at zero */
-        add_instr(a, INSTR_PUSH_ZERO, 0, 0);
+        ainstr_load_const_int(a, 0LL);
         fakestack_declare(a, NULL);
 
         add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
@@ -1845,11 +1872,10 @@ assemble_for(struct assemble_t *a, int skip_else)
 }
 
 static void
-assemble_load(struct assemble_t *a)
+assemble_load_module(struct assemble_t *a)
 {
         as_errlex(a, 'q');
-        add_instr(a, INSTR_LOAD, 0,
-                  seek_or_add_const(a, a->oc));
+        add_instr(a, INSTR_IMPORT, 0, seek_or_add_const(a, a->oc));
 }
 
 /*
@@ -1934,7 +1960,7 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
                  *      if (!__gbl__.haschild("thing"))
                  *              load "thing";
                  */
-                assemble_load(a);
+                assemble_load_module(a);
                 break;
         default:
                 DBUG("Got token %X ('%s')\n", a->oc->t, a->oc->s);

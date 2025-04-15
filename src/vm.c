@@ -331,26 +331,6 @@ assign_complete(struct vmframe_t *fr, instruction_t ii, struct var_t *from)
         return RES_OK;
 }
 
-/* common to all the do_assign_XXX functions */
-static int
-assign_common(struct vmframe_t *fr,
-              struct var_t *(*op)(struct var_t *, struct var_t *),
-              instruction_t ii)
-{
-        struct var_t *from, *to, *opres;
-        int ret = 0;
-        from  = pop(fr);
-        to    = pop(fr);
-        opres = op(to, from);
-        if (!opres)
-                ret = RES_ERROR;
-        else
-                ret = assign_complete(fr, ii, opres);
-        VAR_DECR_REF(to);
-        VAR_DECR_REF(from);
-        return ret;
-}
-
 static struct var_t *
 logical_or(struct var_t *a, struct var_t *b)
 {
@@ -404,7 +384,7 @@ do_nop(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_load(struct vmframe_t *fr, instruction_t ii)
+do_import(struct vmframe_t *fr, instruction_t ii)
 {
         load_file(RODATA_STR(fr, ii), fr);
         return 0;
@@ -419,7 +399,7 @@ do_push_local(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_push_const(struct vmframe_t *fr, instruction_t ii)
+do_load_const(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *v = qop_cp(RODATA(fr, ii));
         if (!v)
@@ -428,8 +408,9 @@ do_push_const(struct vmframe_t *fr, instruction_t ii)
         return 0;
 }
 
+/* ie. 'load variable', not the 'load' keyword */
 static int
-do_push_ptr(struct vmframe_t *fr, instruction_t ii)
+do_load(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *p = VARPTR(fr, ii);
         if (!p)
@@ -488,86 +469,12 @@ do_break(struct vmframe_t *fr, instruction_t ii)
 static int
 do_assign(struct vmframe_t *fr, instruction_t ii)
 {
-        /*
-         * XXX: Here @to_unused is the 'x' of
-         *      x = thing...
-         * pushed onto the evaluation stack, since the do_assign_XXX()
-         * functions need to use it for things like
-         *      x += thing...
-         * where x is part of the evalutation.
-         *
-         * Our parser is currently too brain-dead to distinguish between
-         * these two cases in time to know not to insert the additional
-         * PUSH instructions, resulting in a superfluous push/pop combo.
-         */
-        struct var_t *from      = pop(fr);
-        struct var_t *to_unused = pop(fr);
+        struct var_t *from = pop(fr);
         int ret = assign_complete(fr, ii, from);
         if (ret == RES_ERROR)
                 VAR_DECR_REF(from);
         /* else, @from got assigned */
-        VAR_DECR_REF(to_unused);
         return ret;
-}
-
-static int
-do_assign_add(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, qop_add, ii);
-}
-
-static int
-do_assign_sub(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, qop_sub, ii);
-}
-
-static int
-do_assign_mul(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, qop_mul, ii);
-}
-
-static int
-do_assign_div(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, qop_div, ii);
-}
-
-static int
-do_assign_mod(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, qop_mod, ii);
-}
-
-static int
-do_assign_xor(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, qop_xor, ii);
-}
-
-static int
-do_assign_ls(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, lshift, ii);
-}
-
-static int
-do_assign_rs(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, rshift, ii);
-}
-
-static int
-do_assign_or(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, qop_bit_or, ii);
-}
-
-static int
-do_assign_and(struct vmframe_t *fr, instruction_t ii)
-{
-        return assign_common(fr, qop_bit_and, ii);
 }
 
 static int
@@ -580,14 +487,6 @@ do_symtab(struct vmframe_t *fr, instruction_t ii)
         else
                 VAR_INCR_REF(NullVar);
         return res;
-}
-
-static int
-do_push_zero(struct vmframe_t *fr, instruction_t ii)
-{
-        struct var_t *v = intvar_new(0LL);
-        push(fr, v);
-        return 0;
 }
 
 static int
@@ -1053,55 +952,12 @@ do_logical_and(struct vmframe_t *fr, instruction_t ii)
         return binary_op_common(fr, logical_and);
 }
 
-static struct var_t *
-get_one(void)
-{
-        static struct var_t *one = NULL;
-        if (!one)
-                one = intvar_new(1LL);
-        VAR_INCR_REF(one);
-        return one;
-}
-
-static int
-do_incr(struct vmframe_t *fr, instruction_t ii)
-{
-        int ret;
-        struct var_t *one = get_one();
-        struct var_t *v = pop(fr);
-        struct var_t *opres = qop_add(v, one);
-        if (!opres)
-                ret = RES_ERROR;
-        else
-                ret = assign_complete(fr, ii, opres);
-        VAR_DECR_REF(v);
-        VAR_DECR_REF(one);
-        return ret;
-}
-
-static int
-do_decr(struct vmframe_t *fr, instruction_t ii)
-{
-        int ret;
-        struct var_t *one = get_one();
-        struct var_t *v = pop(fr);
-        struct var_t *opres = qop_sub(v, one);
-        if (!opres)
-                ret = RES_ERROR;
-        else
-                ret = assign_complete(fr, ii, opres);
-        VAR_DECR_REF(v);
-        VAR_DECR_REF(one);
-        return ret;
-}
-
 static int
 do_end(struct vmframe_t *fr, instruction_t ii)
 {
         /* dummy func, INSTR_END is handled in calling function */
         return 0;
 }
-
 
 /* return value is 0 or OPRES_* enum */
 typedef int (*callfunc_t)(struct vmframe_t *fr, instruction_t ii);

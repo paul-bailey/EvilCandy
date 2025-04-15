@@ -52,6 +52,7 @@
 #define as_err_if(a, cond, e) \
         do { if (cond) as_err(a, e); } while (0)
 #define as_badeof(a) do { \
+        DBUG("Bad EOF, trapped in assembly.c line %d", __LINE__); \
         err_setstr(ParserError, "Unexpected termination"); \
         as_err(a, AE_GEN); \
 } while (0)
@@ -1613,9 +1614,7 @@ assemble_if(struct assemble_t *a, int skip)
                 as_set_label(a, jmpelse);
 
                 as_lex(a);
-                if (a->oc->t == EOF) {
-                        as_badeof(a);
-                } else if (a->oc->t == OC_ELSE) {
+                if (a->oc->t == OC_ELSE) {
                         jmpelse = jmpend;
                         as_lex(a);
                 } else {

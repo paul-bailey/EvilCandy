@@ -38,6 +38,8 @@ rangevar_new(long long start, long long stop, long long step)
         } else {
                 len = 0;
         }
+        if (len < 0)
+                len = -len;
         RANGE_SETLEN(ret, len);
         return ret;
 }

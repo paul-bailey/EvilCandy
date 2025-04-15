@@ -22,33 +22,6 @@ Must Do
 * ``this`` keyword barely tested; it will probably break a lot of
   stuff that seems to work without it.
 
-* Change ``load`` so that instead of executing a script, it will just
-  compile it and return a function handle:
-
-  .. code::
-
-        x = load('myscript.evc');
-
-  To execute it, call ``x()``.  To execute immediately:
-
-  .. code::
-
-        result = (load('myscript.evc'))();
-
-  where ``result`` gets the return value of the executed script, either
-  ``null`` or perhaps a handle to an object or object constructor.
-
-  Corrollaries of this change:
-
-  * Need all variables to be on the stack, as if they were in a function,
-    rather than be in the global symbol table.
-
-  * Need a ``global`` keyword as a clean way to tell whether we're
-    pushing a scope-level variable on the stack or inserting it in
-    the global symbol table.  This should be cleaner anyway.
-
-  * ergo need another overhaul of assembler.c
-
 * add something like Python's repr() sooner rather than later,
   it helps with debugging.
 

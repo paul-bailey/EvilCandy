@@ -771,6 +771,32 @@ done:
 }
 
 static void
+assemble_tupledef(struct assemble_t *a)
+{
+        int n_items = 0;
+        as_lex(a);
+        if (a->oc->t == OC_RPAR) {
+                /* empty tuple */
+                goto done;
+        }
+        as_unlex(a);
+
+        do {
+                assemble_eval(a);
+                as_lex(a);
+                n_items++;
+        } while (a->oc->t == OC_COMMA);
+        as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
+
+        if (n_items == 1) {
+                /* not a tuple, just something wrapped in parentheses */
+                return;
+        }
+done:
+        add_instr(a, INSTR_DEFTUPLE, 0, n_items);
+}
+
+static void
 assemble_objdef(struct assemble_t *a)
 {
         /* TODO: not too hard to support `set' notation here */
@@ -948,9 +974,7 @@ assemble_eval_atomic(struct assemble_t *a)
                 ainstr_push_const(a, a->oc);
                 break;
         case OC_LPAR:
-                assemble_eval(a);
-                as_lex(a);
-                as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
+                assemble_tupledef(a);
                 break;
 
         case OC_NULL:

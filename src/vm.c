@@ -685,6 +685,20 @@ do_add_default(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
+do_deftuple(struct vmframe_t *fr, instruction_t ii)
+{
+        int n = ii.arg2;
+        struct var_t *tup = tuplevar_new(n);
+        while (n--) {
+                struct var_t *item = pop(fr);
+                tuple_setitem(tup, n, item);
+                VAR_DECR_REF(item);
+        }
+        push(fr, tup);
+        return 0;
+}
+
+static int
 do_deflist(struct vmframe_t *fr, instruction_t ii)
 {
         int n = ii.arg2;

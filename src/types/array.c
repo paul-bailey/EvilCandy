@@ -73,7 +73,7 @@ enum result_t
 array_setitem(struct var_t *array, int i, struct var_t *child)
 {
         struct arrayvar_t *va = V2ARR(array);
-        bug_on(!isvar_array(array));
+        bug_on(!isvar_array(array) && !isvar_tuple(array));
 
         bug_on(i >= V2SQ(array)->v_size);
 
@@ -189,7 +189,7 @@ static struct var_t *
 do_array_len(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
-        bug_on(!isvar_array(self));
+        bug_on(!isvar_array(self) && !isvar_tuple(self));
         return intvar_new(V2SQ(self)->v_size);
 }
 
@@ -204,7 +204,7 @@ do_array_foreach(struct vmframe_t *fr)
 
         self = get_this(fr);
         func = frame_get_arg(fr, 0);
-        bug_on(!isvar_array(self));
+        bug_on(!isvar_array(self) && !isvar_tuple(self));
         if (!func) {
                 err_argtype("function");
                 return ErrorVar;
@@ -259,6 +259,7 @@ do_array_append(struct vmframe_t *fr)
         struct var_t *self, *arg;
         self = get_this(fr);
         arg = vm_get_arg(fr, 0);
+        /* array only, tuples are read-only... */
         bug_on(!isvar_array(self));
 
         if (!arg) {

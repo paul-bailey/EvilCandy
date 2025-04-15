@@ -56,10 +56,6 @@ print("1 + 2 is {}".format(a));
 
 if (false) {
     (function() {
-        // egad, this is fine for integers, but since strings are
-        // byref, say if n is "hello" and catworld adds " world",
-        // then variable n, two, and three will all be the same
-        // ("hello world world") at print time below.
         let n = 1;
         let catworld = function() {
             n++;

@@ -1,6 +1,6 @@
 // Io - hook to __gbl__._io
 
-let Io = (function(io){
+global Io = (function(io){
     // TODO: any post-inheritance embellishments here.
     return io;
 })(__gbl__._io);

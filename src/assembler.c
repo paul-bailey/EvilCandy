@@ -1,4 +1,7 @@
 /*
+ * 2025 update... I've been reading Aho/Ullman and now I see just how
+ * hillbilly this file is.  Please don't look at it, it's embarrassing.
+ *
  * FIXME: This whole file!  Because it doesn't separate the parsing phase
  * from the code-generation phase, not a single optimization can be made.
  * No loop invariants, no reduction of computations when constants are
@@ -19,9 +22,7 @@
  *              (x + y.z() * 2.0)
  * is evaluated starting at assemble_eval().  Since this is what can be
  * evaluated and reduced to a single datum during runtime, it's what the
- * documentation refers to as VALUE.  I mildly regret not treating full
- * expressions as returning a value, since it would make something like
- * Python's eval() statement much easier to do here.
+ * documentation refers to as VALUE.
  */
 #include "instructions.h"
 #include "token.h"
@@ -1004,6 +1005,8 @@ assemble_eval_atomic(struct assemble_t *a)
                 /*
                  * we don't need to save empty var in rodata,
                  * regular push operation pushes empty by default.
+                 * This is still part of the evaluation, so no need
+                 * for fakestack_declare().
                  */
                 add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
                 break;
@@ -1495,6 +1498,12 @@ assemble_ident_helper(struct assemble_t *a)
                         as_unlex(a);
                         assemble_call_func(a, have_parent);
                         /* we're not assigning anything */
+                        /*
+                         * FIXME: pop & no 'have parent' should be only
+                         * if peek_semi()==true.  Else, SHIFT_DOWN but in
+                         * reverse (ugh, another new instruction), then
+                         * continue iterating through this loop.
+                         */
                         add_instr(a, INSTR_POP, 0, 0);
                         have_parent = false;
                         break;
@@ -1541,11 +1550,14 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         struct token_t name;
         as_savetok(&name, a->oc);
 
-
         /* need to peek */
         as_lex(a);
         if (a->oc->t == OC_EQ) {
-                /* x = value; */
+                /*
+                 * x = value;
+                 * Don't load, INSTR_ASSIGN knows where from frame
+                 * pointer to store 'value'
+                 */
                 assemble_eval(a);
                 ainstr_load_or_assign(a, &name, INSTR_ASSIGN);
         } else if (!!(a->oc->t & TF_ASSIGN)) {
@@ -1571,45 +1583,55 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         }
 }
 
-/*
- * @top may be NULL if unused, name==NULL means
- * 'declare an unnamed invisible variable, don't worry, the VM instruction
- * will know what to do with it.'
- */
 static int
-assemble_declare(struct assemble_t *a, struct token_t *name, bool *top)
+assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
 {
         int namei;
-        bool ttop;
-        if (frame_is_top(a) && name != NULL) {
-                ttop = true;
+        bug_on(global && name == NULL);
+        if (global) {
                 namei = seek_or_add_const(a, name);
                 add_instr(a, INSTR_SYMTAB, 0, namei);
         } else {
-                ttop = false;
                 namei = fakestack_declare(a, name ? name->s : NULL);
                 add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
         }
-        if (top)
-                *top = ttop;
         return namei;
+}
+
+static void
+assemble_gbl(struct assemble_t *a)
+{
+        struct token_t name;
+        int namei;
+
+        as_lex(a);
+        if (a->oc->t != 'u') {
+                err_setstr(ParserError,
+                           "'global' must be followed by an identifier");
+                as_err(a, AE_EXPECT);
+        }
+        as_savetok(&name, a->oc);
+        namei = assemble_declare(a, &name, true);
+
+        /* if no assign, return early */
+        if (peek_semi(a))
+                return;
+
+        as_errlex(a, OC_EQ);
+
+        /* for 'global', only '=', not '+=' or such */
+        ainstr_load_symbol(a, &name);
+        assemble_eval(a);
+        add_instr(a, INSTR_ASSIGN, IARG_PTR_SEEK, namei);
 }
 
 static void
 assemble_let(struct assemble_t *a)
 {
         struct token_t name;
-        bool top;
         int namei;
 
         as_lex(a);
-        if (a->oc->t == OC_CONST) {
-                /*
-                 * TODO: Warn that 'const' is no longer
-                 * supported or throw error?
-                 */
-                as_lex(a);
-        }
         if (a->oc->t != 'u') {
                 err_setstr(ParserError,
                           "'let' must be followed by an identifier");
@@ -1618,7 +1640,7 @@ assemble_let(struct assemble_t *a)
 
         as_savetok(&name, a->oc);
 
-        namei = assemble_declare(a, &name, &top);
+        namei = assemble_declare(a, &name, false);
 
         /* if no assign, return early */
         if (peek_semi(a))
@@ -1629,8 +1651,7 @@ assemble_let(struct assemble_t *a)
         /* for "let", only "=", not "+=" or such */
         ainstr_load_symbol(a, &name);
         assemble_eval(a);
-        add_instr(a, INSTR_ASSIGN,
-                  top ? IARG_PTR_SEEK : IARG_PTR_AP, namei);
+        add_instr(a, INSTR_ASSIGN, IARG_PTR_AP, namei);
 }
 
 static void
@@ -1746,7 +1767,7 @@ assemble_foreach(struct assemble_t *a)
         as_errlex(a, OC_COMMA);
 
         /* push dummy first 'needle' onto the stack */
-        assemble_declare(a, &needletok, NULL);
+        assemble_declare(a, &needletok, false);
 
         /* push 'haystack' onto the stack */
         assemble_eval(a);
@@ -1923,6 +1944,14 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
                         as_err(a, AE_BADTOK);
                 }
                 assemble_let(a);
+                break;
+        case OC_GBL:
+                if (!!(flags & FE_FOR)) {
+                        err_setstr(ParserError,
+                                "'let' not allowed in iterator part of 'for' statement");
+                        as_err(a, AE_BADTOK);
+                }
+                assemble_gbl(a);
                 break;
         case OC_RETURN:
                 assemble_return(a);
@@ -2203,10 +2232,7 @@ free_assembler(struct assemble_t *a, int err)
  *         functions defined in the script exist out there in RAM
  *         somewhere, but they will be reached eventually, since they are
  *         referenced by top-level instructions.  GC will happen when the
- *         last variable referencing them is destroyed.  Note to users:
- *         Don't assign an insignificant function to a global-, therefore
- *         immortal-, scope variable, or it will remain in memory until
- *         the program terminates.
+ *         last variable referencing them is destroyed.
  *      b) NULL if @a is already at end of input
  */
 static struct executable_t *
@@ -2257,10 +2283,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                         if (!err_occurred())
                                 err_setstr(ParserError, "%s", msg);
 
-                        /*
-                         * FIXME: more hax, need to put this in main.c
-                         * also, we know the file name and line
-                         */
+                        /* FIXME: more hax, need to put this in main.c */
                         char *emsg;
                         struct var_t *exc;
                         err_get(&exc, &emsg);

@@ -3,6 +3,7 @@ Bugs
 
 * BUGs 4/2025:
 
+        * 'range()' (no args) causes segmentation fault instead of error.
         * keyword for_each loop breaks if a new var is declared inside.
         * ``(range(x)).foreach(y);`` works but ``range(x).foreach(y);``
           does not, though both should behave the same.

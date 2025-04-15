@@ -1,6 +1,6 @@
 // Math - hook to __gbl__._math
 
-let Math = (function(m){
+global Math = (function(m){
     /*
      * Inherit @m, which ought to be only some built-in C accelerator
      * functions, and add some consts to it.

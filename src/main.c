@@ -114,6 +114,7 @@ run_script(const char *filename, FILE *fp, struct vmframe_t *fr)
 
         ex = assemble(filename, fp, true, &status);
         if (ex != NULL && status == RES_OK) {
+                struct var_t *retval;
                 if (q_.opt.disassemble) {
                         static bool once = false;
                         FILE *fp;
@@ -136,12 +137,20 @@ run_script(const char *filename, FILE *fp, struct vmframe_t *fr)
                         if (fp != stdout)
                                 fclose(fp);
                 }
-                if (!q_.opt.disassemble_only)
-                        status = vm_execute(ex, fr);
+                if (!q_.opt.disassemble_only) {
+                        retval = vm_exec_script(ex, fr);
+                } else {
+                        VAR_INCR_REF(NullVar);
+                        retval = NullVar;
+                }
 
                 EXECUTABLE_RELEASE(ex);
-                if (status != RES_OK)
+
+                if (retval == ErrorVar)
                         goto er;
+
+                if (retval)
+                        VAR_DECR_REF(retval);
         }
         return;
 
@@ -193,9 +202,12 @@ run_tty(void)
                         if (dfp)
                                 disassemble_lite(dfp, ex);
                         if (!q_.opt.disassemble_only) {
-                                status = vm_execute(ex, NULL);
-                                if (status != RES_OK)
+                                struct var_t *res;
+                                res = vm_exec_script(ex, NULL);
+                                if (res == ErrorVar)
                                         err_print_last(stderr);
+                                else
+                                        VAR_DECR_REF(res);
                         }
                         EXECUTABLE_RELEASE(ex);
                 }

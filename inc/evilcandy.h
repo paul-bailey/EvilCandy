@@ -453,10 +453,9 @@ struct var_t *stringvar_from_immortal(const char *immstr);
 extern char *uuidstr(void);
 
 /* vm.c */
-extern enum result_t vm_execute(struct executable_t *top_level,
+extern struct var_t *vm_exec_script(struct executable_t *top_level,
                                 struct vmframe_t *fr);
-extern struct var_t *execute_loop(struct vmframe_t *fr);
-extern struct var_t *vm_reenter(struct vmframe_t *fr, struct var_t *func,
+extern struct var_t *vm_exec_func(struct vmframe_t *fr, struct var_t *func,
                                 struct var_t *owner, int argc,
                                 struct var_t **argv);
 extern void vm_add_global(const char *name, struct var_t *var);
@@ -467,6 +466,8 @@ static inline struct var_t *vm_get_arg(struct vmframe_t *fr, unsigned int idx)
         { return idx >= fr->ap ? NULL : fr->stack[idx]; }
 static inline int vm_get_argc(struct vmframe_t *fr)
         { return fr->ap; }
+/* execute_loop shared between vm.c and function.c, else private */
+extern struct var_t *execute_loop(struct vmframe_t *fr);
 
 /* TODO: Get rid of references to frame_get_arg */
 # define frame_get_arg(fr, i)   vm_get_arg(fr, i)

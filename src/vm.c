@@ -3,8 +3,8 @@
  *
  * This executes the byte code assembled in assembler.c
  *
- * When loading a file, vm_execute is called.  When calling a function
- * from internal code (eg. in a foreach loop), vm_reenter is called.
+ * When loading a file, vm_exec_script is called.  When calling a function
+ * from internal code (eg. in a foreach loop), vm_exec_func is called.
  *
  * EvilCandy uses a jump table of function pointers.  Most of this file
  * consists of the callbacks; the table itself is auto-generated as
@@ -514,8 +514,8 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
         else
                 owner = NULL;
 
-        /* see comments to vm_reenter: this may be NULL */
-        retval = vm_reenter(fr, func, owner, argc, argv);
+        /* see comments to vm_exec_func: this may be NULL */
+        retval = vm_exec_func(fr, func, owner, argc, argv);
         if (!retval) {
                 VAR_INCR_REF(NullVar);
                 retval = NullVar;
@@ -523,7 +523,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
 
         /*
          * Unwind stack in calling frame.
-         * vm_reenter doesn't consume args,
+         * vm_exec_func doesn't consume args,
          * so we have to do that instead.
          */
         while (argc-- != 0) {
@@ -994,7 +994,7 @@ check_ghost_errors(int res)
  *      1) a script being executed (ergo execute_loop is running) loads
  *         another script, thus recursion occurs on execute_loop.
  *      2) a built-in C function calls a user-define script function
- *         (vm_reenter), also causing recursion of execute_loop.
+ *         (vm_exec_func), also causing recursion of execute_loop.
  *      3) ANY call to a user function causes recursion of execute_loop.
  *         I previously tried to limit these calls to the same instance,
  *         no matter how deeply nested the CALL_FUNC instructions got,
@@ -1057,9 +1057,10 @@ execute_loop(struct vmframe_t *fr)
         }
         /*
          * We hit INSTR_END without any RETURN.
-         * Return zero by default.
+         * Return null by default.
          */
-        retval = intvar_new(0LL);
+        VAR_INCR_REF(NullVar);
+        retval = NullVar;
 
 out:
         bug_on(recursion_count < 0);
@@ -1068,51 +1069,22 @@ out:
 }
 
 /**
- * vm_execute - Execute from the top level of a script.
+ * vm_exec_script - syntactic sugar wrapper to vm_exec_func
  * @top_level: Result of assemble()
  * @fr_old:    Frame of the script calling 'load', or NULL if this is
  *             the entry point.
  *
- * Return: RES_OK or an error
+ * Return: result returned from script or ErrorVar if there was an error.
  */
-enum result_t
-vm_execute(struct executable_t *top_level, struct vmframe_t *fr_old)
+struct var_t *
+vm_exec_script(struct executable_t *top_level, struct vmframe_t *fr_old)
 {
-        struct var_t *res;
-        enum result_t ret;
-        struct vmframe_t *fr;
-
-        bug_on(!(top_level->flags & FE_TOP));
-
-        fr = vmframe_alloc();
-        fr->stack = fr_old ? fr_old->stackptr : vm_stack;
-        fr->ex = top_level;
-        fr->ppii = top_level->instr;
-        fr->stackptr = fr->stack;
-        fr->owner = GlobalObject;
-
-        res = execute_loop(fr);
-        if (res == ErrorVar) {
-                ret = RES_ERROR;
-        } else {
-                /*
-                 * Top level of script does not return a value.  This is
-                 * probably the defaault zero value.  Throw it away.
-                 */
-                ret = RES_OK;
-                VAR_DECR_REF(res);
-        }
-
-        /* Don't let vmframe_free try to VAR_DECR_REF these */
-        fr->func = NULL;
-        fr->owner = NULL;
-
-        vmframe_free(fr);
-        return ret;
+        return vm_exec_func(fr_old, funcvar_new_user(top_level),
+                            NULL, 0, NULL);
 }
 
 /**
- * vm_reenter - Call a function--user-defined or internal--from a builtin
+ * vm_exec_func - Call a function--user-defined or internal--from a builtin
  *              callback
  * @fr_old:     Frame we're currently in
  * @func:       Function to call
@@ -1121,32 +1093,30 @@ vm_execute(struct executable_t *top_level, struct vmframe_t *fr_old)
  * @argv:       Array of arguments
  *
  * Return: Return value of function being called or ErrorVar if execution
- *         failed.  NULL means "nothing to return." Not all functions
- *         calling vm_reenter() use the return value, so let's not make
- *         superfluous calls to var_new()/VAR_DECR_REF().  For callers
- *         who do use the return value, NULL can mean "call var_new() and
- *         use that."
+ *         failed.
  *
  * Note: This does not consume any reference counters for @argv, since
  *       in order to enforce BY-VALUE policy when passing named
  *       variables, each member of @argv[] is copied into a new variable.
  */
 struct var_t *
-vm_reenter(struct vmframe_t *fr_old, struct var_t *func,
+vm_exec_func(struct vmframe_t *fr_old, struct var_t *func,
            struct var_t *owner, int argc, struct var_t **argv)
 {
         struct vmframe_t *fr;
         struct var_t *res;
 
         fr = vmframe_alloc();
-        fr->stack = fr_old->stackptr;
+        fr->stack = fr_old ? fr_old->stackptr : vm_stack;
         fr->ap = argc;
+        bug_on(argc > 0 && !argv);
         while (argc-- > 0)
                 fr->stack[argc] = qop_cp(argv[argc]);
 
-        if (function_prep_frame(func, fr,
-                                owner ? owner : get_this(fr_old))
-            == ErrorVar) {
+        if (!owner)
+                owner = fr_old ? vm_get_this(fr_old) : GlobalObject;
+
+        if (function_prep_frame(func, fr, owner) == ErrorVar) {
                 /* frame only partly set up, we need to set this */
                 fr->stackptr = fr->stack + fr->ap;
                 vmframe_free(fr);
@@ -1160,6 +1130,11 @@ vm_reenter(struct vmframe_t *fr_old, struct var_t *func,
 
         res = call_function(fr, fr->func);
         vmframe_free(fr);
+
+        if (!res) {
+                VAR_INCR_REF(NullVar);
+                res = NullVar;
+        }
 
         return res;
 }

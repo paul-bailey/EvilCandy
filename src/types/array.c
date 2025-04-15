@@ -235,7 +235,7 @@ do_array_foreach(struct vmframe_t *fr)
                 argv[1] = intvar_new(idx);
                 argv[2] = priv;
 
-                retval = vm_reenter(fr, func, NULL, 3, argv);
+                retval = vm_exec_func(fr, func, NULL, 3, argv);
                 VAR_DECR_REF(argv[1]);
 
                 if (retval == ErrorVar) {

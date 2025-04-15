@@ -116,7 +116,7 @@ range_foreach(struct vmframe_t *fr)
                 argv[1] = range_getitem(self, i);
                 argv[2] = priv;
 
-                retval = vm_reenter(fr, func, NULL, 3, argv);
+                retval = vm_exec_func(fr, func, NULL, 3, argv);
                 VAR_DECR_REF(argv[0]);
                 VAR_DECR_REF(argv[1]);
                 if (retval == ErrorVar) {

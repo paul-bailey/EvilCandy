@@ -112,8 +112,6 @@ struct array_handle_t;
 struct string_handle_t;
 struct function_handle_t;
 struct executable_t;
-struct token_t;
-struct token_state_t;
 
 /**
  * struct var_t - User variable type
@@ -290,18 +288,6 @@ struct var_t *dict_from_json(const char *filename);
 extern int keyword_seek(const char *s);
 extern void moduleinit_keyword(void);
 
-/* token.c */
-typedef int token_pos_t;
-extern void token_state_trim(struct token_state_t *state);
-extern void token_state_free(struct token_state_t *state);
-extern struct token_state_t *token_state_new(FILE *fp,
-                                        const char *filename);
-extern int get_tok(struct token_state_t *state, struct token_t **tok);
-extern void unget_tok(struct token_state_t *state, struct token_t **tok);
-extern token_pos_t token_get_pos(struct token_state_t *state);
-extern token_pos_t token_swap_pos(struct token_state_t *state, token_pos_t pos);
-extern void moduleinit_token(void);
-
 /* literal.c */
 extern struct hashtable_t literal_htbl__;
 /* see comments above literal.c for usage */
@@ -400,6 +386,9 @@ extern void moduleinit_var(void);
 extern int serialize_write(FILE *fp, struct executable_t *ex);
 extern struct executable_t *serialize_read(FILE *fp,
                                         const char *file_name);
+
+/* token.c */
+extern void moduleinit_token(void);
 
 /* types/array.c */
 extern struct var_t *arrayvar_new(int n_items);

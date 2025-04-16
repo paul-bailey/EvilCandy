@@ -1,6 +1,8 @@
 #ifndef EGQ_OPCODES_H
 #define EGQ_OPCODES_H
 
+#include <stdio.h> /* for FILE */
+
 #define TO_TOK(c1_, c2_)        ((c1_) | ((c2_) << 8))
 #define TO_DTOK(c_)             TO_TOK('d', c_)
 #define TO_KTOK(c_)             TO_TOK('k', c_)
@@ -187,9 +189,24 @@ struct token_t {
         };
 };
 
+/* opaque struct, used only in token.c */
+struct token_state_t;
+
+typedef int token_pos_t;
+
+/* token.c */
 static inline int tok_delim(int t) { return (t >> 8) & 0x7fu; }
 static inline int tok_type(int t) { return t & 0x7fu; }
 static inline int tok_keyword(int t) { return (t >> 8) & 0x7fu; }
+
+extern void token_state_trim(struct token_state_t *state);
+extern void token_state_free(struct token_state_t *state);
+extern struct token_state_t *token_state_new(FILE *fp,
+                                        const char *filename);
+extern int get_tok(struct token_state_t *state, struct token_t **tok);
+extern void unget_tok(struct token_state_t *state, struct token_t **tok);
+extern token_pos_t token_get_pos(struct token_state_t *state);
+extern token_pos_t token_swap_pos(struct token_state_t *state, token_pos_t pos);
 
 #endif /* EGQ_OPCODES_H */
 

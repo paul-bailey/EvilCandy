@@ -9,8 +9,12 @@ Bugs
           and unpredictable behavior occurs in these cases.
         * ``(range(x)).foreach(y);`` works but ``range(x).foreach(y);``
           does not, though both should behave the same.
-        * TTY mode parses all-around unreliably, even though
-          script mode seems to work just fine.
+        * More of a flaw than a bug, but in TTY mode, 'if' and 'for'
+          statements do not execute when the closing brace is received,
+          because the parser needs to peek and check if there's an
+          'else' statement.  So to execute the statement, a user would
+          have to type an additional semicolon or else add the 'else'
+          portion.
         * there's a VAR_INCR/DECR_REF imbalance somewhere, preventing
           some vars from getting deleted when they should.
         * Broke static typing.  This was intentional to get rid of the
@@ -63,6 +67,11 @@ Library/Language Features
 
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* To cast an int to a float, user has to do something like
+  ``x = 1.0 * x``.  Add something like ``float(x)`` and ``int(x)``
+  instead.  Make these be keywords/instructions instead of built-in
+  functions, to keep it fast.
 
 * vm.c and types/function.c, as well as the structs they manipulate
   (vmframe_t, function_handle_t, executable_t) are very tangled up

@@ -1,32 +1,166 @@
+##
+# tools/instructions
+#
+# These is the instruction set for EvilCandy.  gen.c parses
+# this file and generates certain tables and other C definitions
+# in order to prevent human error in the source files.
+#
+# Only one instruction per line.  Instructions have the same
+# rules as C variable names, except that letters should be all
+# upper-case.
+#
+# These get put into the .code field of instruction_t (see
+# inc/instruction.h).  Each instruction also takes two arguments,
+# making the total instruction word 32 bits.
+
+# No operations, honestly I don't know why I have this
 NOP
+
+# Push NullVar onto stack ('null' in the script language).  In most
+# cases, this stack position is the home of a new declared variable.
 PUSH_LOCAL
+
+# Load a variable or const and push it onto the stack.
 LOAD_CONST
 LOAD
+
+# pop last item off the stack and consume its reference.
 POP
+
+# remove second-to-last item on the stack and move the top
+# item down.  See assemble_eval8 and assemble_ident_helper
+# in assemble.c.  Used for parsing 'a.b.c[e](f).g' monsters.
 SHIFT_DOWN
+
+# Save stack position and descend into a program flow loop.
+# This is needed because the stack position is uncertain if
+# a 'break' occurs.
 PUSH_BLOCK
 POP_BLOCK
+
 BREAK
+
+# Pop top of stack and store its value in a declared variable.
+#     - arg2 is an offset index
+#     - arg1 tells what arg2 is an offset of: frame pointer,
+#       .rodata, etc.
 ASSIGN
+
+# Like assign, but specifically for the global symbol table.
+# arg2 is an offset from base of .rodata telling where
+# the string name of the symbol is.
 SYMTAB
+
+# pop top of stack and return its value
 RETURN_VALUE
+
+# call function, of course.
+# arg1 tells whether or not a 'this' owner exists on the stack
+# for the function or not.
+# arg2 is the number arguments that have been passed.
+# The stack is, from top:
+#
+#       arg_n
+#       ...
+#       arg_0
+#       function var
+#       owner*          <- may not be there, check arg1
+#
 CALL_FUNC
+
+# create a user-function variable and push it on the stack
+# arg2 tells where in .rodata the struct executable_t is
+# to use for this function.
 DEFFUNC
+
+# usually exists shortly after DEFFUNC.  Some evaluation has
+# occured and placed an item on the stack, and now this
+# instruction follows, meaning 'pop item off the stack,
+# pop function off the stack', and add this closure to
+# the function.  The assembler has sorted out the proper
+# order to place such instructions as well as how the function
+# when called can de-reference them
 ADD_CLOSURE
+
+# like 'add closure', but for default-value args
 ADD_DEFAULT
+
+# Pop arg2 # of args off the stack and make a list out of them
+# (the top stack item is the (arg2-1)-th item in the list),
+# then push the list back onto the stack.
 DEFLIST
+
+# Create a new empty dictionary and push it onto the stack
 DEFDICT
+
+# like DEFLIST... but in tuple form!
 DEFTUPLE
+
+##
+#   ADD/GET/SETATTR
+#
+# 'Attribute' is a little misleading, I know, but it keeps the
+# instruction set small.
+#
+# ADDATTR is used only when building a dictionary from an expressed
+# literal. arg2 is an .rodata offset pointing to the name to use.
+# pop item to add, then pop dictionary to store item in, insert the
+# item into the dictionary, then push dictionary back onto the stack.
+#
+# GETATTR either pops the key off the stack or gets it from .rodata
+# (depending on arg1), then pops the containing object off the stack,
+# gets the subscript or mapped item out of the containing object.
+# Unlike with a typical stack machine, here it pushes both items
+# back onto the stack, actually growing it by one.  SHIFT_DOWN will
+# fix that later.  See comments in assemble.c why this is needed.
+#
+# SETATTR pops the item (the 'attribute') off the stack, then either
+# pops the key off the stack or gets it from .rodata (depending on arg1),
+# then pops the soon-to-be-containing object off the stack, and inserts
+# the item into the containing object, and leaves all three off the
+# stack, consuming a reference for all but the .rodata.
 ADDATTR
 GETATTR
 SETATTR
+
+##
+#   'for' loop stuff
+#
+# These are used for the Python-like for loop.  The C/JavaScript-like
+# for loops are built with more primitive instructions.
+#
+# FOREACH_SETUP checks if the top item on the stack contains a sequential
+# object.  If it is, do nothing.  If not and it's a dictionary, replace
+# it on the stack with the dictionary's key list.  If neither, raise an
+# error.
+#
+# FOREACH_ITER is the iterative step.  The stack is...
+#    i           <- internal-use, invisible to user
+#    haystack    <- the 'o' of 'for (k, o) {...}'
+#    needle      <- the 'k' of ^^^
+# If i matches or exceeds haystack's size, jump to the offset in arg2.
+# If not, replace needle with ith haystack item, increment i, and
+# carry on to the next instruction.
 FOREACH_SETUP
 FOREACH_ITER
+
+# The usu. branching instructions.  arg2. is (signed) how far to branch.
+# since arg2 is 16 bits, instruction may only jump forward 32767
+# instructions and backward -32768 instructions.  If that's not enough,
+# users should learn how to write functions.
 B_IF
 B
+
+# The usu. unary operators.  None of these are in-place.  Replace
+# variable on stack with a new variable that is the result of the
+# operation.
 BITWISE_NOT
 NEGATE
 LOGICAL_NOT
+
+# The usu. stack-machine binary operators.  Pop 'a' off the stack,
+# then pop 'b' off the stack, perform 'c = a OPERATOR b' and push
+# c onto the stack.
 MUL
 DIV
 MOD
@@ -40,4 +174,8 @@ BINARY_OR
 BINARY_XOR
 LOGICAL_OR
 LOGICAL_AND
+
+# Scripts don't always return a value, so END means 'quit this code
+# block.'  It's an artifact, since assembler should be inserting
+# PUSH and RETURN_VALUE in place of this
 END

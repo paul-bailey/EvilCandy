@@ -1597,6 +1597,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         }
 }
 
+/* commont to assemble_declarator_stmt and assemble_foreach */
 static int
 assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
 {
@@ -1613,61 +1614,39 @@ assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
 }
 
 static void
-assemble_gbl(struct assemble_t *a)
+assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 {
         struct token_t name;
         token_pos_t pos;
         int namei;
 
+        if (!!(flags & FE_FOR)) {
+                char *what = tok == OC_LET ? "let" : "global";
+                err_setstr(ParserError,
+                        "'%s' not allowed as third part of 'for' statement");
+                as_err(a, AE_BADTOK);
+        }
+
         as_lex(a);
         if (a->oc->t != 'u') {
+                char *what = tok == OC_LET ? "let" : "global";
                 err_setstr(ParserError,
-                           "'global' must be followed by an identifier");
+                           "'%s' must be followed by an identifier", what);
                 as_err(a, AE_EXPECT);
         }
         pos = as_savetok(a, &name);
-        namei = assemble_declare(a, &name, true);
+        namei = assemble_declare(a, &name, tok == OC_GBL);
 
         /* if no assign, return early */
         if (peek_semi(a))
                 return;
 
+        /* for initializers, only '=', not '+=' or such */
         as_errlex(a, OC_EQ);
 
-        /* for 'global', only '=', not '+=' or such */
         ainstr_load_symbol(a, &name, pos);
         assemble_eval(a);
         add_instr(a, INSTR_ASSIGN, IARG_PTR_SEEK, namei);
-}
-
-static void
-assemble_let(struct assemble_t *a)
-{
-        struct token_t name;
-        token_pos_t pos;
-        int namei;
-
-        as_lex(a);
-        if (a->oc->t != 'u') {
-                err_setstr(ParserError,
-                          "'let' must be followed by an identifier");
-                as_err(a, AE_EXPECT);
-        }
-
-        pos = as_savetok(a, &name);
-
-        namei = assemble_declare(a, &name, false);
-
-        /* if no assign, return early */
-        if (peek_semi(a))
-                return;
-
-        as_errlex(a, OC_EQ);
-
-        /* for "let", only "=", not "+=" or such */
-        ainstr_load_symbol(a, &name, pos);
-        assemble_eval(a);
-        add_instr(a, INSTR_ASSIGN, IARG_PTR_AP, namei);
 }
 
 static void
@@ -1776,13 +1755,13 @@ assemble_foreach(struct assemble_t *a)
 
         apush_scope(a);
 
-        /* save name of the 'needle' in 'foreach(needle, haystack)' */
+        /* save name of the 'needle' in 'for(needle, haystack)' */
         as_errlex(a, 'u');
         as_savetok(a, &needletok);
 
         as_errlex(a, OC_COMMA);
 
-        /* push dummy first 'needle' onto the stack */
+        /* declare 'needle', push placeholder onto the stack */
         assemble_declare(a, &needletok, false);
 
         /* push 'haystack' onto the stack */
@@ -1947,20 +1926,8 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
                 as_unlex(a);
                 break;
         case OC_LET:
-                if (!!(flags & FE_FOR)) {
-                        err_setstr(ParserError,
-                                "'let' not allowed in iterator part of 'for' statement");
-                        as_err(a, AE_BADTOK);
-                }
-                assemble_let(a);
-                break;
         case OC_GBL:
-                if (!!(flags & FE_FOR)) {
-                        err_setstr(ParserError,
-                                "'let' not allowed in iterator part of 'for' statement");
-                        as_err(a, AE_BADTOK);
-                }
-                assemble_gbl(a);
+                assemble_declarator_stmt(a, a->oc->t, flags);
                 break;
         case OC_RETURN:
                 assemble_return(a);

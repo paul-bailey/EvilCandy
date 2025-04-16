@@ -150,6 +150,12 @@ struct seqvar_t {
         size_t v_size;
 };
 
+/* only call these if you already know @v's type */
+static inline size_t seqvar_size(struct var_t *v)
+        { return ((struct seqvar_t *)v)->v_size; }
+static inline void seqvar_set_size(struct var_t *v, size_t size)
+        { ((struct seqvar_t *)v)->v_size = size; }
+
 struct block_t {
         struct var_t **stack_level;
         unsigned char type;
@@ -275,11 +281,7 @@ extern char *estrdup(const char *s);
 extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
 extern void *erealloc(void *buf, size_t size);
-
-/* types/float.c */
-extern struct var_t *floatvar_new(double value);
-/* types/integer.c */
-extern struct var_t *intvar_new(long long value);
+extern void *ememdup(void *buf, size_t size);
 
 /* json.c */
 struct var_t *dict_from_json(const char *filename);
@@ -401,8 +403,14 @@ extern struct var_t *array_getitem(struct var_t *array, int idx);
 extern enum result_t array_append(struct var_t *array,
                                   struct var_t *child);
 
+/* types/bytes.c */
+struct var_t *bytesvar_new(unsigned char *buf, size_t len);
+
 /* types/empty.c */
 extern struct var_t *emptyvar_new(void);
+
+/* types/float.c */
+extern struct var_t *floatvar_new(double value);
 
 /* types/function.c */
 extern struct var_t *funcvar_new_user(struct executable_t *ex);
@@ -414,6 +422,9 @@ extern struct var_t *call_function(struct vmframe_t *fr, struct var_t *fn);
 extern void function_add_closure(struct var_t *func, struct var_t *clo);
 extern void function_add_default(struct var_t *func,
                         struct var_t *deflt, int argno);
+
+/* types/integer.c */
+extern struct var_t *intvar_new(long long value);
 
 /* types/intl.c */
 extern struct var_t *xptrvar_new(struct executable_t *x);

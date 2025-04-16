@@ -53,3 +53,11 @@ erealloc(void *buf, size_t size)
                 fail("realloc failed");
         return res;
 }
+
+void *
+ememdup(void *buf, size_t size)
+{
+        void *ret = emalloc(size);
+        memcpy(ret, buf, size);
+        return ret;
+}

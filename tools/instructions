@@ -3,7 +3,7 @@
 #
 # These is the instruction set for EvilCandy.  gen.c parses
 # this file and generates certain tables and other C definitions
-# in order to prevent human error in the source files.
+# in order to prevent mistakes in the source files.
 #
 # Only one instruction per line.  Instructions have the same
 # rules as C variable names, except that letters should be all
@@ -16,7 +16,7 @@
 # No operations, honestly I don't know why I have this
 NOP
 
-# Push NullVar onto stack ('null' in the script language).  In most
+# Push NullVar onto stack ('null' as seen by the user).  In most
 # cases, this stack position is the home of a new declared variable.
 PUSH_LOCAL
 

@@ -67,7 +67,7 @@ qop_add(struct var_t *a, struct var_t *b)
                 return op->add(a, b);
         } else if (a->v_type->sqm) {
                 const struct seq_methods_t *sq = a->v_type->sqm;
-                if (!sq->cat)
+                if (!sq->cat || a->v_type != b->v_type)
                         goto cant;
                 return sq->cat(a, b);
         }

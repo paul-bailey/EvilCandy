@@ -576,7 +576,6 @@ static bool
 string_format_helper(struct vmframe_t *fr, char **src,
                      struct buffer_t *t, int *lastarg)
 {
-        char vbuf[64];
         char *s = *src;
         int la = *lastarg;
         struct var_t *q = NULL;
@@ -595,19 +594,15 @@ string_format_helper(struct vmframe_t *fr, char **src,
         if (!q)
                 return false;
 
-        if (isvar_int(q)) {
-                sprintf(vbuf, "%lld", intvar_toll(q));
-                buffer_puts(t, vbuf);
-        } else if (isvar_float(q)) {
-                sprintf(vbuf, "%g", floatvar_tod(q));
-                buffer_puts(t, vbuf);
-        } else if (isvar_empty(q)) {
-                buffer_puts(t, "(null)");
-        } else if (isvar_string(q)) {
-                buffer_puts(t, V2CSTR(q));
+        if (isvar_string(q)) {
+                buffer_puts(t, string_get_cstring(q));
         } else {
-                return false;
+                /* not a string, so we'll just use q's .str method. */
+                struct var_t *xpr = var_str(q);
+                buffer_puts(t, string_get_cstring(xpr));
+                VAR_DECR_REF(xpr);
         }
+
         *lastarg = la;
         *src = s;
         return true;
@@ -972,6 +967,69 @@ static struct type_inittbl_t string_methods[] = {
  *                      Operator Methods
  * *********************************************************************/
 
+/*
+ * FIXME: crud, this is a DRY violation with print_escapestr in helpers.c,
+ * but we could only use that one if we use mktemp or something crazy
+ * like that.
+ */
+static struct var_t *
+string_str(struct var_t *v)
+{
+        struct buffer_t b;
+        struct var_t *ret;
+        const char *s;
+        int c;
+        enum { Q = '\'', BKSL = '\\' };
+
+        bug_on(!isvar_string(v));
+
+        s = string_get_cstring(v);
+        buffer_init(&b);
+
+        buffer_putc(&b, Q);
+        while ((c = *s++) != '\0') {
+                if (c == Q) {
+                        buffer_putc(&b, BKSL);
+                        buffer_putc(&b, Q);
+                } else if (isspace(c)) {
+                        switch (c) {
+                        case ' ': /* this one's ok */
+                                buffer_putc(&b, c);
+                                continue;
+                        case '\n':
+                                c = 'n';
+                                break;
+                        case '\t':
+                                c = 't';
+                                break;
+                        case '\v':
+                                c = 'v';
+                                break;
+                        case '\f':
+                                c = 'f';
+                                break;
+                        case '\r':
+                                c = 'r';
+                                break;
+                        }
+                        buffer_putc(&b, BKSL);
+                        buffer_putc(&b, c);
+                } else if (!isgraph(c)) {
+                        buffer_putc(&b, BKSL);
+                        buffer_putc(&b, ((c >> 6) & 0x07) + '0');
+                        buffer_putc(&b, ((c >> 3) & 0x07) + '0');
+                        buffer_putc(&b, (c & 0x07) + '0');
+                } else {
+                        buffer_putc(&b, c);
+                }
+        }
+        buffer_putc(&b, Q);
+
+        ret = stringvar_new(b.s);
+        buffer_free(&b);
+        return ret;
+}
+
 static void
 string_reset(struct var_t *str)
 {
@@ -1153,6 +1211,7 @@ struct type_t StringType = {
         .mpm    = NULL,
         .sqm    = &string_seq_methods,
         .size   = sizeof(struct stringvar_t),
+        .str    = string_str,
         .cmp    = string_cmp,
         .cmpz   = string_cmpz,
         .reset  = string_reset,

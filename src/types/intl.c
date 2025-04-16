@@ -20,6 +20,16 @@ xptrvar_new(struct executable_t *x)
         return v;
 }
 
+static struct var_t *
+xptrvar_str(struct var_t *x)
+{
+        char buf[64];
+        memset(buf, 0, sizeof(buf));
+        snprintf(buf, sizeof(buf) - 1, "<code-block at '%s'>",
+                 V2XP(x)->xptr->uuid);
+        return stringvar_new(buf);
+}
+
 char *
 uuidptr_get_cstring(struct var_t *v)
 {
@@ -46,6 +56,16 @@ uuidptr_reset(struct var_t *v)
         free(((struct uuidptrvar_t *)v)->uuid);
 }
 
+static struct var_t *
+uuidptr_str(struct var_t *v)
+{
+        char buf[64];
+        memset(buf, 0, sizeof(buf));
+        snprintf(buf, sizeof(buf) - 1, "<uuid '%s'>",
+                 (((struct uuidptrvar_t *)v)->uuid));
+        return stringvar_new(buf);
+}
+
 struct type_t XptrType = {
         .name   = "[internal-use executable]",
         .opm    = NULL,
@@ -53,6 +73,7 @@ struct type_t XptrType = {
         .mpm    = NULL,
         .sqm    = NULL,
         .size   = sizeof(struct xptrvar_t),
+        .str    = xptrvar_str,
         .cmp    = NULL,
         .cmpz   = NULL,
         .cp     = NULL,
@@ -66,6 +87,7 @@ struct type_t UuidptrType = {
         .mpm    = NULL,
         .sqm    = NULL,
         .size   = sizeof(struct uuidptrvar_t),
+        .str    = uuidptr_str,
         .cmp    = NULL,
         .cmpz   = NULL,
         .cp     = NULL,

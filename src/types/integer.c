@@ -1,4 +1,5 @@
 #include "types_priv.h"
+#include <string.h>
 
 #define V2I(v)  ((struct intvar_t *)v)
 
@@ -163,18 +164,20 @@ int_cp(struct var_t *v)
 }
 
 static struct var_t *
-int_tostr(struct vmframe_t *fr)
+int_str(struct var_t *v)
 {
         char buf[64];
-        ssize_t len;
+        memset(buf, 0, sizeof(buf));
+        snprintf(buf, sizeof(buf)-1, "%lld", V2I(v)->i);
+        return stringvar_new(buf);
+}
+
+static struct var_t *
+int_tostr(struct vmframe_t *fr)
+{
         struct var_t *self = get_this(fr);
         bug_on(!isvar_int(self));
-
-        len = snprintf(buf, sizeof(buf), "%lld", V2I(self)->i);
-        bug_on(len >= sizeof(buf));
-        (void)len; /* in case NDEBUG */
-
-        return stringvar_new(buf);
+        return int_str(self);
 }
 
 struct var_t *
@@ -212,6 +215,7 @@ struct type_t IntType = {
         .mpm    = NULL,
         .sqm    = NULL,
         .size   = sizeof(struct intvar_t),
+        .str    = int_str,
         .cp     = int_cp,
         .cmpz   = int_cmpz,
         .cmp    = int_cmp,

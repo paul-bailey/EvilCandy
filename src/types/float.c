@@ -1,5 +1,6 @@
 #include "types_priv.h"
 #include <math.h>
+#include <string.h>
 
 #define V2F(v)  ((struct floatvar_t *)(v))
 
@@ -90,19 +91,49 @@ float_negate(struct var_t *a)
 }
 
 static struct var_t *
-float_tostr(struct vmframe_t *fr)
+float_str(struct var_t *a)
 {
-        char buf[64];
-        ssize_t len;
-        struct var_t *self = get_this(fr);
-        bug_on(!isvar_float(self));
+        char buf[25 + 17];
+        double d = V2F(a)->f;
+        int i, len;
 
-        len = snprintf(buf, sizeof(buf), "%.8g", V2F(self)->f);
-        /* this should be impossible */
+        memset(buf, 0, sizeof(buf));
+        len = snprintf(buf, sizeof(buf)-1, "%.17g", d);
         bug_on(len >= sizeof(buf));
-        (void)len; /* in case NDEBUG */
+
+        /*
+         * We want '%g' instead of '%f' because for very large or very
+         * small numbers, true precision will be lost in the expression.
+         * We want '%g' instead of '%e' because guaranteeing scientific
+         * notation is harder to read intuitively for small, say two- or
+         * thee-digit numbers.
+         *
+         * The only pitfall of '%g' is that if nothing is beyond the
+         * decimal, the result could be interpreted back as an integer.
+         * So check if that's the case and add '.0' to the end if needed.
+         */
+        for (i = 0; i < len; i++) {
+                if (buf[i] == '.' || buf[i] == 'e' || buf[i] == 'E')
+                        break;
+        }
+
+        if (i == len) {
+                bug_on(i >= sizeof(buf) - 2);
+                buf[i++] = '.';
+                buf[i++] = '0';
+                buf[i++] = '\0';
+                bug_on(i > sizeof(buf));
+        }
 
         return stringvar_new(buf);
+}
+
+static struct var_t *
+float_tostr(struct vmframe_t *fr)
+{
+        struct var_t *self = get_this(fr);
+        bug_on(!isvar_float(self));
+        return float_str(self);
 }
 
 static const struct type_inittbl_t float_methods[] = {
@@ -123,6 +154,7 @@ struct type_t FloatType = {
         .opm    = &float_primitives,
         .cbm    = float_methods,
         .size   = sizeof(struct floatvar_t),
+        .str    = float_str,
         .cp     = float_cp,
         .cmp    = float_cmp,
         .cmpz   = float_cmpz,

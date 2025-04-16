@@ -363,6 +363,15 @@ var_sort(struct var_t *v)
         return 0;
 }
 
+/* Used for built-in print function to express a variable */
+struct var_t *
+var_str(struct var_t *v)
+{
+        /* every data type should have this */
+        bug_on(!v->v_type->str);
+        return v->v_type->str(v);
+}
+
 ssize_t
 var_len(struct var_t *v)
 {

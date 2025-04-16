@@ -300,6 +300,23 @@ func_cmp(struct var_t *a, struct var_t *b)
         return 1;
 }
 
+static struct var_t *
+func_str(struct var_t *a)
+{
+        char buf[72];
+        struct funcvar_t *f = V2FUNC(a);
+
+        memset(buf, 0, sizeof(buf));
+        if (f->f_magic == FUNC_USER) {
+                snprintf(buf, sizeof(buf)-1,
+                         "<function (user) at '%s'>", f->f_ex->uuid);
+        } else {
+                snprintf(buf, sizeof(buf)-1,
+                         "<function (intl) at %p>", f->f_cb);
+        }
+        return stringvar_new(buf);
+}
+
 static bool
 func_cmpz(struct var_t *func)
 {
@@ -330,6 +347,7 @@ struct type_t FunctionType = {
         .mpm    = NULL,
         .sqm    = NULL,
         .size   = sizeof(struct funcvar_t),
+        .str    = func_str,
         .cmp    = func_cmp,
         .cmpz   = func_cmpz,
         .reset  = func_reset,

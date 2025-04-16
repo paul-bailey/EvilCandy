@@ -17,6 +17,9 @@
  * struct arrayvar_t - Handle to a numerical array
  * @lock:    Lock to prevent add/remove during foreach
  * @items:   Array of pointers to variables stored in it
+ *
+ * Arrays and tuples share the same data struct.  Tuples do not need @lock,
+ * but four bytes is not reason enough to invent a whole new data struct.
  */
 struct arrayvar_t {
         struct seqvar_t base;
@@ -176,6 +179,42 @@ array_cmp(struct var_t *a, struct var_t *b)
         return V2SQ(a)->v_size - V2SQ(b)->v_size;
 }
 
+/* type_t .str callbacks for array and tuple */
+static struct var_t *
+array_or_tuple_str(struct var_t *t, int startchar)
+{
+        struct buffer_t b;
+        struct var_t *ret;
+        size_t i, n = V2SQ(t)->v_size;
+        buffer_init(&b);
+        buffer_putc(&b, startchar);
+
+        for (i = 0; i < n; i++) {
+                struct var_t *item;
+                if (i > 0)
+                        buffer_puts(&b, ", ");
+                item = var_str(V2ARR(t)->items[i]);
+                buffer_puts(&b, string_get_cstring(item));
+                VAR_DECR_REF(item);
+        }
+        buffer_putc(&b, startchar == '(' ? ')' : ']');
+        ret = stringvar_new(b.s);
+        buffer_free(&b);
+        return ret;
+}
+
+static struct var_t *
+array_str(struct var_t *a)
+{
+        return array_or_tuple_str(a, '[');
+}
+
+static struct var_t *
+tuple_str(struct var_t *t)
+{
+        return array_or_tuple_str(t, '(');
+}
+
 /* type_t .cp callback */
 static struct var_t *
 array_cp(struct var_t *a)
@@ -292,6 +331,7 @@ struct type_t ArrayType = {
         .mpm = NULL,
         .sqm = &array_seq_methods,
         .size = sizeof(struct arrayvar_t),
+        .str = array_str,
         .cmp = array_cmp,
         .cp  = array_cp,
         .reset = array_reset,
@@ -317,6 +357,7 @@ struct type_t TupleType = {
         .mpm = NULL,
         .sqm = &tuple_seq_methods,
         .size = sizeof(struct arrayvar_t),
+        .str = tuple_str,
         .cmp = array_cmp,
         .cp  = array_cp,
         .reset = array_reset,

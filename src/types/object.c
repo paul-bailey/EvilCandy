@@ -279,6 +279,43 @@ object_reset(struct var_t *o)
         hashtable_destroy(&oh->dict);
 }
 
+static struct var_t *
+object_str(struct var_t *o)
+{
+        struct dictvar_t *oh;
+        struct buffer_t b;
+        void *k, *v;
+        unsigned int i;
+        int res, count;
+        struct hashtable_t *h;
+        struct var_t *ret;
+
+        bug_on(!isvar_object(o));
+
+        oh = V2D(o);
+        h = &oh->dict;
+        buffer_init(&b);
+        buffer_putc(&b, '{');
+        for (i = 0, count = 0, res = hashtable_iterate(h, &k, &v, &i);
+             res == 0; res = hashtable_iterate(h, &k, &v, &i), count++) {
+                struct var_t *item;
+                if (count > 0)
+                        buffer_puts(&b, ", ");
+
+                buffer_putc(&b, '\'');
+                buffer_puts(&b, (char *)k);
+                buffer_puts(&b, "': ");
+
+                item = var_str((struct var_t *)v);
+                buffer_puts(&b, string_get_cstring(item));
+                VAR_DECR_REF(item);
+        }
+        buffer_putc(&b, '}');
+        ret = stringvar_new(b.s);
+        buffer_free(&b);
+        return ret;
+}
+
 /* **********************************************************************
  *                      Built-in Methods
  ***********************************************************************/
@@ -534,6 +571,7 @@ struct type_t ObjectType = {
         .mpm    = &object_map_methods,
         .sqm    = NULL,
         .size   = sizeof(struct dictvar_t),
+        .str    = object_str,
         .cmp    = object_cmp,
         .cmpz   = object_cmpz,
         .reset  = object_reset,

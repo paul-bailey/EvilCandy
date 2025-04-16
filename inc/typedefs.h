@@ -72,6 +72,10 @@ struct type_inittbl_t {
  *              exist
  * @size:       Size of the type-specific struct to allocate with var_new,
  *              in bytes.
+ * @str:        Method that returns a string representation of itself,
+ *              in a way that (for most data types) can be re-interpreted
+ *              back.  Exceptions are things like functions, where angle
+ *              brackets bookend the expression.
  * @cmp:        Returns -1 if a<b, 0 if a==b, >0 if a>b
  * @cmpz:       Returns 1 if some kind of zero.
  * @cp:         Copy self.  By-ref types should just produce a reference
@@ -87,6 +91,7 @@ struct type_t {
         const struct map_methods_t *mpm;
         const struct seq_methods_t *sqm;
         size_t size;
+        struct var_t *(*str)(struct var_t *);
         int (*cmp)(struct var_t *, struct var_t *);
         bool (*cmpz)(struct var_t *);    /* a == 0 ? */
         unary_operator_t cp;

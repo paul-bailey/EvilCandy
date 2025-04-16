@@ -22,9 +22,6 @@ Must Do
 * ``this`` keyword barely tested; it will probably break a lot of
   stuff that seems to work without it.
 
-* add something like Python's repr() sooner rather than later,
-  it helps with debugging.
-
 * Use autoconf, automake & cet., not just a hand-written Makefile
 
 * Start adding in test scaffolding where possible.
@@ -46,7 +43,7 @@ Library/Language Features
 
 * Support the continue statement
 
-* Add sets and tuples
+* Add sets
 
 * Add try/catch
 

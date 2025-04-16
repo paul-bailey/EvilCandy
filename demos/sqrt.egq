@@ -37,11 +37,14 @@
 
 import("math.evc", "x");
 
-let sqrt = function(x_i_or_f) {
-    let x = 1.0 * x_i_or_f;
+let sqrt = function(x) {
     let y = 10.;
     let min = 0.;
     let max = 1000000.0;
+
+    // caveman way to convert in case x is int
+    x = 1.0 * x;
+
     // we should raise exception if x<0,
     // but for this demo just return 0
     if (x <= 0.0)
@@ -76,11 +79,11 @@ if (false) {
     // The above square-root algorithm isn't perfect, but it
     // should be accurate to four or five decimal places, so
     // if we're way off, something is amiss in the interpreter.
-    (function() {
+    (function(sqrt) {
         for (i, range(50)) {
             print("{} vs {}".format(sqrt(i), Math.sqrt(i)));
         }
-    })();
+    })(sqrt);
 }
 
 // : vim: set syntax=javascript :

@@ -21,22 +21,6 @@ do_typeof(struct vmframe_t *fr)
         return stringvar_new(typestr(p));
 }
 
-static bool
-do_print_helper(struct var_t *v)
-{
-        if (isvar_int(v))
-                printf("%lld", intvar_toll(v));
-        else if (isvar_float(v))
-                printf("%.8g", floatvar_tod(v));
-        else if (isvar_empty(v))
-                printf("(null)");
-        else if (isvar_string(v))
-                printf("%s", string_get_cstring(v));
-        else
-                return false;
-        return true;
-}
-
 static void
 print_nl(void)
 {
@@ -49,12 +33,19 @@ static struct var_t *
 do_print(struct vmframe_t *fr)
 {
         struct var_t *p = frame_get_arg(fr, 0);
+        if (!p) {
+                err_setstr(RuntimeError,
+                           "Expected: at least one argument to print");
+                return ErrorVar;
+        }
         if (isvar_string(p)) {
                 char *s = string_get_cstring(p);
                 while (*s)
                         putchar((int)*s++);
         } else {
-                do_print_helper(p);
+                struct var_t *xpr = var_str(p);
+                printf("%s", string_get_cstring(xpr));
+                VAR_DECR_REF(xpr);
         }
         print_nl();
         return NULL;

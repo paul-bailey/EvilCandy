@@ -4,6 +4,7 @@
 
 #include "types_priv.h"
 #include <limits.h>
+#include <string.h>
 
 struct rangevar_t {
         struct seqvar_t base;
@@ -86,6 +87,17 @@ range_cmp(struct var_t *a, struct var_t *b)
 }
 
 static struct var_t *
+range_str(struct var_t *v)
+{
+        char buf[128];
+        struct rangevar_t *r = V2R(v);
+        memset(buf, 0, sizeof(buf));
+        snprintf(buf, sizeof(buf)-1, "range(%lld, %lld, %lld)",
+                 r->start, r->stop, r->step);
+        return stringvar_new(buf);
+}
+
+static struct var_t *
 range_foreach(struct vmframe_t *fr)
 {
         struct var_t *self, *func, *priv;
@@ -160,6 +172,7 @@ struct type_t RangeType = {
         .mpm    = NULL,
         .sqm    = &range_seq_methods,
         .size   = sizeof(struct rangevar_t),
+        .str    = range_str,
         .cmp    = range_cmp,
         .cp     = range_cp,
         .reset  = NULL,

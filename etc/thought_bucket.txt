@@ -1,0 +1,63 @@
+Thought Bucket
+==============
+
+These are not bugs, though they may address design flaws.
+Instead they are a more verbose version of to-do.txt.
+
+
+String Interning
+----------------
+
+:date: 2025-4-16
+
+The Problem
+~~~~~~~~~~~
+
+Currently, all tokens are filtered through a de-duplicator function
+``literal_put()``, something sort of like this.
+
+.. code::
+
+        // either returns a strdup or an already-existing copy
+        token_buffer = literal_put(token_buffer);
+
+``token_buffer`` here could be someting like ``"{"`` or ``"for"``.
+There aren't a lot of these kinds of tokens to pile up in the immortalized
+Literal table, ditto for lots frequently-chosen variable names like ``x``
+or ``i``.  The only real pile-up is of string literals, which the tokenizer
+adds interpreted versions of to the Literal table.
+
+At assembly time, I want a debug message reporting something like
+``received token '\012\033'`` -- ie how the script literally writes it --
+instead of ``received token '`` followed by some non-printable
+terminal-breaking garbage.  But I don't want to immortalize both the
+interpreted *and* uninterpretd versions.
+
+Solution
+~~~~~~~~
+
+1. Do not interpret string literals at the tokenize stage.  Only check
+   backslashes to make sure that the end of the literal is truly the end
+   of it and not an escaped quotation mark.
+
+2. Have the assembler's creation of .rodata (see ``assemble_eval_atomic``)
+   no longer call ``stringvar_new(this_token)`` but instead some new
+   function like ``stringvar_from_token(this_token, true)``, where ``true``
+   means "make immortal".
+
+3. Have the immortalization of strings in ``stringvar_from_token`` use
+   a different hashtable than ``literal``.
+
+4. Have ``token_state_free`` then delete *its* literal table. (Maybe
+   get rid of literal()'s global hash table, instead embed it in
+   ``struct token_state_t``.
+
+This will result in even fewer strings immortalized in memory, since
+the majority of variable names are stack variables and are not needed
+after assembly time.  Dictionary insertions should still immortalize
+their keys (I'm not quite sure how to perfect that, since there's like
+a 5% chance the key was constructed in runtime rather than expressed
+literally in a source file).  But besides that, the only immortal strings
+are those pointed at in a ``struct executable_t``'s ``.rodata`` array.
+
+.. : vim: set syntax=rst :

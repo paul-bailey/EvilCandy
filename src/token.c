@@ -823,11 +823,11 @@ tokenize_helper(struct token_state_t *state)
                 }
 
         } else {
-                /* repurpose ret to be a token-type result */
                 struct buffer_t *tok = &state->tok;
 
                 buffer_reset(tok);
 
+                /* repurpose ret to be a token-type result */
                 if ((ret = skip_whitespace(state)) == EOF)
                         return ret;
 

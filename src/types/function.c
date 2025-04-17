@@ -37,16 +37,22 @@ struct funcvar_t {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
         } f_magic;
-        int f_minargs;
-        int f_maxargs;
-        struct var_t *(*f_cb)(struct vmframe_t *);
-        struct executable_t *f_ex;
-        struct var_t **f_argv;
-        struct var_t **f_clov;
-        int f_argc;
-        int f_cloc;
-        size_t f_arg_alloc;
-        size_t f_clo_alloc;
+        union {
+                struct {
+                        int f_minargs;
+                        int f_maxargs;
+                        struct var_t *(*f_cb)(struct vmframe_t *);
+                };
+                struct {
+                        struct executable_t *f_ex;
+                        struct var_t **f_argv;
+                        struct var_t **f_clov;
+                        int f_argc;
+                        int f_cloc;
+                        size_t f_arg_alloc;
+                        size_t f_clo_alloc;
+                };
+        };
 };
 
 #define V2FUNC(v)       ((struct funcvar_t *)(v))

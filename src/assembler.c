@@ -24,9 +24,9 @@
  * evaluated and reduced to a single datum during runtime, it's what the
  * documentation refers to as VALUE.
  */
-#include "instructions.h"
-#include "token.h"
 #include <evilcandy.h>
+#include <token.h>
+#include <xptr.h>
 #include <typedefs.h>
 #include <setjmp.h>
 

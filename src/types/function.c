@@ -5,6 +5,7 @@
  *         function-like magic number
  */
 #include <evilcandy.h>
+#include <xptr.h>
 
 /**
  * struct funcvar_t - Handle to a callable function

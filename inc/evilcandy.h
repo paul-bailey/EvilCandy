@@ -190,9 +190,8 @@ extern struct var_t *rangevar_new(long long start,
 #include "var.h"
 
 /* serializer.c */
-extern int serialize_write(FILE *fp, struct xptrvar_t *ex);
-extern struct xptrvar_t *serialize_read(FILE *fp,
-                                        const char *file_name);
+extern int serialize_write(FILE *fp, struct var_t *ex);
+extern struct var_t *serialize_read(FILE *fp, const char *file_name);
 
 /* types/array.c */
 extern struct var_t *arrayvar_new(int n_items);

@@ -78,6 +78,7 @@
  */
 
 #include <evilcandy.h>
+#include <xptr.h>
 
 #include <errno.h>
 #include <sys/stat.h>
@@ -679,9 +680,9 @@ resolve_uuid(struct xptrvar_t *ex, struct xptrvar_t **xa, int n)
  * @file_name: Name of the file, needed only for error messages etc.
  *
  * Return: entry-point struct executable, which is ready to run,
- *         or NULL if there was an error.
+ *         or ErrorVar if there was an error.
  */
-struct xptrvar_t *
+struct var_t *
 serialize_read(FILE *fp, const char *file_name)
 {
         enum {
@@ -775,7 +776,7 @@ serialize_read(FILE *fp, const char *file_name)
         /* no longer need array, ret's .rodata can reference the rest */
         efree(exarray);
         efree(state.buf);
-        return ret;
+        return (struct var_t *)ret;
 
 err_have_ex:
         for (i = 0; i < hdr.nexec; i++) {
@@ -792,7 +793,7 @@ err_have_buffer:
                 err_setstr(RuntimeError,
                            "Failed to read byte code file %s", file_name);
         }
-        return NULL;
+        return ErrorVar;
 }
 
 
@@ -1032,11 +1033,16 @@ n_exec(struct xptrvar_t *node)
  * Return RES_OK if successful, RES_ERROR if not.
  */
 int
-serialize_write(FILE *fp, struct xptrvar_t *ex)
+serialize_write(FILE *fp, struct var_t *v)
 {
+        struct xptrvar_t *ex = (struct xptrvar_t *)v;
         struct serial_wstate_t state;
-        int n = n_exec(ex);
+        int n;
         int res = 0;
+
+        bug_on(!isvar_xptr(v));
+
+        n = n_exec(ex);
 
         state.fp = fp;
         state.csum = 0;

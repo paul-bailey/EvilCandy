@@ -123,7 +123,7 @@ er:
 static void
 run_script(const char *filename, FILE *fp, struct vmframe_t *fr)
 {
-        struct executable_t *ex;
+        struct var_t *ex;
         int status;
 
         ex = assemble(filename, fp, true, &status);
@@ -158,7 +158,7 @@ run_script(const char *filename, FILE *fp, struct vmframe_t *fr)
                         retval = NullVar;
                 }
 
-                EXECUTABLE_RELEASE(ex);
+                VAR_DECR_REF(ex);
 
                 if (retval == ErrorVar)
                         goto er;
@@ -201,7 +201,7 @@ run_tty(void)
 
         while (!feof(stdin)) {
                 int status;
-                struct executable_t *ex;
+                struct var_t *ex;
 
                 ex = assemble("<stdin>", stdin, false, &status);
                 if (ex == NULL) {
@@ -223,7 +223,7 @@ run_tty(void)
                                 else
                                         VAR_DECR_REF(res);
                         }
-                        EXECUTABLE_RELEASE(ex);
+                        VAR_DECR_REF(ex);
                 }
         }
 }

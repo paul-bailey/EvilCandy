@@ -11,7 +11,7 @@
  *         footer       32 bits
  *
  * ...all in network byte order.  execX is the serialized version of a
- * struct executable_t.  exec0 is the entry point, and exec1..N are
+ * struct xptrvar_t.  exec0 is the entry point, and exec1..N are
  * functions, if the script has any.
  *
  * Header format
@@ -22,7 +22,7 @@
  *         version              16 bits <- for ABI backwards-compatibility
  *         file name            string, variable length
  *
- * Serialized struct executable_t format
+ * Serialized struct xptrvar_t format
  * -------------------------------------
  *
  *      Header:
@@ -91,7 +91,7 @@ enum {
         FOOTER_MAGIC    =       'F',
         EXEC_MAGIC      =       'X',
 
-        /* magic numbers for field in struct executable_t */
+        /* magic numbers for field in struct xptrvar_t */
         INSTR_MAGIC     = 'I',
         RODATA_MAGIC    = 'R',
         LABEL_MAGIC     = 'L'
@@ -449,7 +449,7 @@ read_footer(struct serial_rstate_t *state)
 }
 
 static int
-read_xinstructions(struct serial_rstate_t *state, struct executable_t *ex)
+read_xinstructions(struct serial_rstate_t *state, struct xptrvar_t *ex)
 {
         int i;
         bug_on(sizeof(instruction_t) != 4);
@@ -486,7 +486,7 @@ err:
 }
 
 static int
-read_labels(struct serial_rstate_t *state, struct executable_t *ex)
+read_labels(struct serial_rstate_t *state, struct xptrvar_t *ex)
 {
         int i;
         bug_on(sizeof(*ex->label) != 2);
@@ -503,7 +503,7 @@ err:
 }
 
 static int
-read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
+read_rodata(struct serial_rstate_t *state, struct xptrvar_t *ex)
 {
         int i;
         ex->rodata = emalloc(sizeof(void *) * ex->n_rodata);
@@ -569,7 +569,7 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
 }
 
 static int
-read_executable(struct serial_rstate_t *state, struct executable_t *ex)
+read_executable(struct serial_rstate_t *state, struct xptrvar_t *ex)
 {
         size_t len; /* dummy */
         unsigned char v8;
@@ -610,7 +610,6 @@ read_executable(struct serial_rstate_t *state, struct executable_t *ex)
                 goto err_have_rodata;
 
         /* finish up */
-        ex->nref = 1;
         return RES_OK;
 
 err_have_rodata:
@@ -623,8 +622,8 @@ err_have_instr:
         return RES_ERROR;
 }
 
-static struct executable_t *
-seek_uuid(const char *uuid, struct executable_t **xa, int n)
+static struct xptrvar_t *
+seek_uuid(const char *uuid, struct xptrvar_t **xa, int n)
 {
         int i;
         for (i = 0; i < n; i++) {
@@ -640,12 +639,12 @@ seek_uuid(const char *uuid, struct executable_t **xa, int n)
  * that UUID.
  */
 static int
-resolve_uuid(struct executable_t *ex, struct executable_t **xa, int n)
+resolve_uuid(struct xptrvar_t *ex, struct xptrvar_t **xa, int n)
 {
         int i;
         for (i = 0; i < ex->n_rodata; i++) {
                 struct var_t *v = ex->rodata[i];
-                struct executable_t *ref;
+                struct xptrvar_t *ref;
 
                 if (!isvar_uuidptr(v))
                         continue;
@@ -665,7 +664,7 @@ resolve_uuid(struct executable_t *ex, struct executable_t **xa, int n)
                 }
 
                 VAR_DECR_REF(v);
-                ex->rodata[i] = xptrvar_new(ref);
+                ex->rodata[i] = (struct var_t *)ref;
 
                 /* do recursively for each child found */
                 if (resolve_uuid(ref, xa, n) != RES_OK)
@@ -682,7 +681,7 @@ resolve_uuid(struct executable_t *ex, struct executable_t **xa, int n)
  * Return: entry-point struct executable, which is ready to run,
  *         or NULL if there was an error.
  */
-struct executable_t *
+struct xptrvar_t *
 serialize_read(FILE *fp, const char *file_name)
 {
         enum {
@@ -694,8 +693,8 @@ serialize_read(FILE *fp, const char *file_name)
         };
         struct serial_rstate_t state;
         struct serial_header_t hdr;
-        struct executable_t **exarray;
-        struct executable_t *ret;
+        struct xptrvar_t **exarray;
+        struct xptrvar_t *ret;
         off_t size;
         int i, res;
 
@@ -747,11 +746,17 @@ serialize_read(FILE *fp, const char *file_name)
         memset(exarray, 0, sizeof(void *) * hdr.nexec);
 
         for (i = 0; i < hdr.nexec; i++) {
-                struct executable_t *ex = emalloc(sizeof(*ex));
+                struct xptrvar_t *ex;
+
+                /*
+                 * We don't know line number yet, we'll fill that in later
+                 *
+                 * XXX: we also have to clobber an unnecessary uuid call,
+                 * so maybe re-think args to xptrvar_new()
+                 */
+                ex = (struct xptrvar_t *)xptrvar_new(notdir(file_name), 0);
                 exarray[i] = ex;
 
-                memset(ex, 0, sizeof(*ex));
-                ex->file_name = notdir(file_name);
                 res = read_executable(&state, ex);
                 if (err_occurred() || res != RES_OK)
                         goto err_have_ex;
@@ -776,17 +781,7 @@ err_have_ex:
         for (i = 0; i < hdr.nexec; i++) {
                 if (exarray[i] == NULL)
                         break;
-                /*
-                 * exarray contains no partially-set-up structs,
-                 * so do the full cleanup.
-                 */
-                if (exarray[i]->rodata)
-                        efree(exarray[i]->rodata);
-                if (exarray[i]->instr)
-                        efree(exarray[i]->instr);
-                if (exarray[i]->label)
-                        efree(exarray[i]->label);
-                efree(exarray[i]);
+                VAR_DECR_REF((struct var_t *)exarray[i]);
         }
         efree(exarray);
 
@@ -912,7 +907,7 @@ write_footer(struct serial_wstate_t *state)
 }
 
 static int
-write_exec(struct serial_wstate_t *state, struct executable_t *ex)
+write_exec(struct serial_wstate_t *state, struct xptrvar_t *ex)
 {
         int i;
         wbyte(state, EXEC_MAGIC);
@@ -969,7 +964,7 @@ write_exec(struct serial_wstate_t *state, struct executable_t *ex)
                          * pointer.  Instead we use the executable's UUID
                          */
                         wbyte(state, TYPE_XPTR);
-                        wstring(state, xptrvar_tox(v)->uuid);
+                        wstring(state, ((struct xptrvar_t *)v)->uuid);
                 } else {
                         /* note StringType falls here, because all strings
                          * in .rodata are StrptrType
@@ -997,15 +992,15 @@ write_exec(struct serial_wstate_t *state, struct executable_t *ex)
          * Now that we've written this one out, recursively write out any
          * others that are referenced in .rodata.  Remember, there is
          * globally at most one .rodata pointer for any unique struct
-         * executable_t, so we're not duplicating anything or doubling
-         * back on ourselves.  A struct executable_t can technically be
+         * xptrvar_t, so we're not duplicating anything or doubling
+         * back on ourselves.  A struct xptrvar_t can technically be
          * thought of as a node in a tree structure, even though that's
          * not at all how it is used.
          */
         for (i = 0; i < ex->n_rodata; i++) {
                 struct var_t *v = ex->rodata[i];
                 if (isvar_xptr(v)) {
-                        int res = write_exec(state, xptrvar_tox(v));
+                        int res = write_exec(state, (struct xptrvar_t *)v);
                         if (res != RES_OK)
                                 return res;
                 }
@@ -1015,7 +1010,7 @@ write_exec(struct serial_wstate_t *state, struct executable_t *ex)
 
 /* Count the number of execs, including @node */
 static int
-n_exec(struct executable_t *node)
+n_exec(struct xptrvar_t *node)
 {
         int i;
         int count = 1; /* start with me */
@@ -1023,7 +1018,7 @@ n_exec(struct executable_t *node)
         for (i = 0; i < node->n_rodata; i++) {
                 struct var_t *v = node->rodata[i];
                 if (isvar_xptr(v))
-                        count += n_exec(xptrvar_tox(v));
+                        count += n_exec((struct xptrvar_t *)(v));
         }
         return count;
 }
@@ -1037,7 +1032,7 @@ n_exec(struct executable_t *node)
  * Return RES_OK if successful, RES_ERROR if not.
  */
 int
-serialize_write(FILE *fp, struct executable_t *ex)
+serialize_write(FILE *fp, struct xptrvar_t *ex)
 {
         struct serial_wstate_t state;
         int n = n_exec(ex);
@@ -1060,4 +1055,3 @@ done:
         buffer_free(&state.b);
         return res;
 }
-

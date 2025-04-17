@@ -88,7 +88,6 @@ struct var_t;
 struct array_handle_t;
 struct string_handle_t;
 struct function_handle_t;
-struct executable_t;
 struct vmframe_t;
 
 #include "typedefs.h"
@@ -121,8 +120,8 @@ extern struct var_t *RuntimeError;
 extern struct var_t *SystemError;
 
 /* assembler.c */
-extern struct executable_t *assemble(const char *filename,
-                        FILE *fp, bool toeof, int *status);
+extern struct var_t *assemble(const char *filename,
+                              FILE *fp, bool toeof, int *status);
 
 #include "debug.h"
 
@@ -143,9 +142,9 @@ extern void err_permit(const char *op, struct var_t *var);
 extern void err_errno(const char *msg, ...);
 
 /* disassemble.c */
-extern void disassemble(FILE *fp, struct executable_t *ex,
+extern void disassemble(FILE *fp, struct var_t *ex,
                         const char *sourcefile_name);
-extern void disassemble_lite(FILE *fp, struct executable_t *ex);
+extern void disassemble_lite(FILE *fp, struct var_t *ex);
 
 /* ewrappers.c */
 extern char *estrdup(const char *s);
@@ -194,8 +193,8 @@ extern struct var_t *rangevar_new(long long start,
 #include "var.h"
 
 /* serializer.c */
-extern int serialize_write(FILE *fp, struct executable_t *ex);
-extern struct executable_t *serialize_read(FILE *fp,
+extern int serialize_write(FILE *fp, struct xptrvar_t *ex);
+extern struct xptrvar_t *serialize_read(FILE *fp,
                                         const char *file_name);
 
 /* types/array.c */
@@ -220,7 +219,7 @@ extern struct var_t *emptyvar_new(void);
 extern struct var_t *floatvar_new(double value);
 
 /* types/function.c */
-extern struct var_t *funcvar_new_user(struct executable_t *ex);
+extern struct var_t *funcvar_new_user(struct var_t *ex);
 struct var_t *funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
                                int minargs, int maxargs);
 extern struct var_t *function_prep_frame(struct var_t *fn,
@@ -234,7 +233,6 @@ extern void function_add_default(struct var_t *func,
 extern struct var_t *intvar_new(long long value);
 
 /* types/intl.c */
-extern struct var_t *xptrvar_new(struct executable_t *x);
 extern struct var_t *uuidptrvar_new(char *uuid);
 extern char *uuidptr_get_cstring(struct var_t *v);
 

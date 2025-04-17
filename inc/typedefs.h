@@ -201,11 +201,8 @@ struct floatvar_t {
         struct var_t base;
         double f;
 };
-struct xptrvar_t {
-        struct var_t base;
-        struct executable_t *xptr;
-};
 
+#include "xptr.h"
 
 /* Warning!! Only call these if you already type-checked @v */
 static inline double floatvar_tod(struct var_t *v)
@@ -216,8 +213,6 @@ static inline long long numvar_toint(struct var_t *v)
         { return isvar_int(v) ? intvar_toll(v) : (long long)floatvar_tod(v); }
 static inline double numvar_tod(struct var_t *v)
         { return isvar_float(v) ? floatvar_tod(v) : (double)intvar_toll(v); }
-static inline struct executable_t *xptrvar_tox(struct var_t *v)
-        { return ((struct xptrvar_t *)v)->xptr; }
 
 #endif /* EVILCANDY_TYPEDEFS_H */
 

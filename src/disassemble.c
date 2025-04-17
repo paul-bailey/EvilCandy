@@ -48,7 +48,7 @@ static const char *CMP_NAMES[] = {
 static const char *undefstr = "<!undefined>";
 
 static int
-line_to_label(unsigned int line, struct executable_t *ex)
+line_to_label(unsigned int line, struct xptrvar_t *ex)
 {
         int i;
         for (i = 0; i < ex->n_label; i++) {
@@ -72,7 +72,7 @@ spaces(FILE *fp, int n)
 } while (0)
 
 static void
-print_rodata_str(FILE *fp, struct executable_t *ex, unsigned int i)
+print_rodata_str(FILE *fp, struct xptrvar_t *ex, unsigned int i)
 {
         struct var_t *v;
 
@@ -93,13 +93,13 @@ print_rodata_str(FILE *fp, struct executable_t *ex, unsigned int i)
         else if (isvar_string(v))
                 print_escapestr(fp, string_get_cstring(v), '"');
         else if (isvar_xptr(v))
-                fprintf(fp, "<%s>", xptrvar_tox(v)->uuid);
+                fprintf(fp, "<%s>", ((struct xptrvar_t *)(v))->uuid);
         else
                 fprintf(fp, "%s", undefstr);
 }
 
 static void
-dump_rodata(FILE *fp, struct executable_t *ex)
+dump_rodata(FILE *fp, struct xptrvar_t *ex)
 {
         int i;
         for (i = 0; i < ex->n_rodata; i++) {
@@ -129,7 +129,7 @@ disassemble_start(FILE *fp, const char *sourcefile_name)
 }
 
 static void
-disinstr(FILE *fp, struct executable_t *ex, unsigned int i)
+disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
 {
         int label = line_to_label(i, ex);
         size_t len = 0;
@@ -195,7 +195,7 @@ disinstr(FILE *fp, struct executable_t *ex, unsigned int i)
 }
 
 static void
-disassemble_recursive(FILE *fp, struct executable_t *ex, int verbose)
+disassemble_recursive(FILE *fp, struct xptrvar_t *ex, int verbose)
 {
         int i;
         fprintf(fp, ".start <%s>\n", ex->uuid);
@@ -214,16 +214,19 @@ disassemble_recursive(FILE *fp, struct executable_t *ex, int verbose)
 
         for (i = 0; i < ex->n_rodata; i++) {
                 struct var_t *v = ex->rodata[i];
-                if (isvar_xptr(v))
-                        disassemble_recursive(fp, xptrvar_tox(v), verbose);
+                if (isvar_xptr(v)) {
+                        disassemble_recursive(fp,
+                                        (struct xptrvar_t *)v, verbose);
+                }
         }
 }
 
 void
-disassemble(FILE *fp, struct executable_t *ex, const char *sourcefile_name)
+disassemble(FILE *fp, struct var_t *ex, const char *sourcefile_name)
 {
+        bug_on(!isvar_xptr(ex));
         disassemble_start(fp, sourcefile_name);
-        disassemble_recursive(fp, ex, true);
+        disassemble_recursive(fp, (struct xptrvar_t *)ex, true);
 }
 
 /**
@@ -231,8 +234,9 @@ disassemble(FILE *fp, struct executable_t *ex, const char *sourcefile_name)
  * Used for debugging in interactive TTY mode.
  */
 void
-disassemble_lite(FILE *fp, struct executable_t *ex)
+disassemble_lite(FILE *fp, struct var_t *ex)
 {
-        disassemble_recursive(fp, ex, false);
+        bug_on(!isvar_xptr(ex));
+        disassemble_recursive(fp, (struct xptrvar_t *)ex, false);
 }
 

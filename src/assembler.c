@@ -102,9 +102,6 @@ enum {
  * @scope:      Current {...} scope within the function
  * @nest:       Pointer to current top of @scope
  * @list:       Link to sibling frames
- * @const_alloc: Bytes currently allocated for @x->rodata
- * @label_alloc: Bytes currently allocated for @x->label
- * @instr_alloc: Bytes currently allocated for @x->instr
  * @x:          Executable code being built up by this assembler.
  *
  * This wraps @x (the true intended result of this assembly, and will
@@ -126,10 +123,7 @@ struct as_frame_t {
         int scope[FRAME_NEST_MAX];
         int nest;
         struct list_t list;
-        size_t const_alloc;
-        size_t label_alloc;
-        size_t instr_alloc;
-        struct executable_t *x;
+        struct xptrvar_t *x;
 };
 
 /**
@@ -190,35 +184,6 @@ as_savetok(struct assemble_t *a, struct token_t *dst)
         return token_get_pos(a->prog);
 }
 
-/*
- * This function wrapped by public macros
- * EXECUTABLE_CLAIM and EXECUTABLE_RELEASE
- *
- * XXX REVISIT: here only because assembler.c is the only
- * file that does much with this struct's internals,
- * but it doesn't otherwise belong here.
- * It's different from the freeing going on below in
- * delete_frames.
- */
-void
-executable_free__(struct executable_t *ex)
-{
-        /* happens if we're cleaning up after an error */
-        if (!ex)
-                return;
-
-        if (ex->instr)
-                efree(ex->instr);
-        if (ex->rodata) {
-                int i;
-                for (i = 0; i < ex->n_rodata; i++)
-                        VAR_DECR_REF(ex->rodata[i]);
-        }
-        if (ex->label)
-                efree(ex->label);
-        efree(ex);
-}
-
 static void
 as_frame_push(struct assemble_t *a, int funcno)
 {
@@ -228,15 +193,8 @@ as_frame_push(struct assemble_t *a, int funcno)
         memset(fr, 0, sizeof(*fr));
 
         fr->funcno = funcno;
-        fr->x = ecalloc(sizeof(*(fr->x)));
-        fr->x->file_name = a->file_name;
-        if (a->oc)
-                fr->x->file_line = a->oc->line;
-        else
-                fr->x->file_line = 1;
-        fr->x->n_label = JMP_INIT;
-
-        fr->x->uuid = uuidstr();
+        fr->x = (struct xptrvar_t *)xptrvar_new(a->file_name,
+                                                a->oc ? a->oc->line : 1);
 
         list_init(&fr->list);
         list_add_tail(&fr->list, &a->active_frames);
@@ -340,7 +298,7 @@ as_delete_frame_list(struct list_t *parent_list, int err)
                 struct as_frame_t *fr = list2frame(li);
                 list_remove(&fr->list);
                 if (err && fr->x)
-                        executable_free__(fr->x);
+                        VAR_DECR_REF((struct var_t *)fr->x);
                 efree(fr);
         }
 }
@@ -447,22 +405,17 @@ clo_seek(struct assemble_t *a, const char *s)
 static void
 add_instr(struct assemble_t *a, int code, int arg1, int arg2)
 {
-        int idx;
-        struct as_frame_t *fr = a->fr;
-        struct executable_t *x = fr->x;
-
-        as_assert_array_pos(a, x->n_instr, &x->instr, &fr->instr_alloc);
-
-        idx = x->n_instr++;
-        instruction_t *ii = &x->instr[idx];
+        instruction_t ii;
 
         bug_on((unsigned)code > 255);
         bug_on((unsigned)arg1 > 255);
         bug_on(arg2 >= 32768 || arg2 < -32768);
 
-        ii->code = code;
-        ii->arg1 = arg1;
-        ii->arg2 = arg2;
+        ii.code = code;
+        ii.arg1 = arg1;
+        ii.arg2 = arg2;
+
+        xptr_add_instr((struct var_t *)a->fr->x, ii);
 }
 
 static void
@@ -496,22 +449,13 @@ apop_scope(struct assemble_t *a)
 static void
 as_set_label(struct assemble_t *a, int jmp)
 {
-        struct executable_t *x = a->fr->x;
-
-        bug_on(jmp < JMP_INIT);
-        bug_on(!x->label || x->n_label <= jmp);
-
-        x->label[jmp - JMP_INIT] = x->n_instr;
+        xptr_set_label((struct var_t *)a->fr->x, jmp);
 }
 
 static int
 as_next_label(struct assemble_t *a)
 {
-        struct as_frame_t *fr = a->fr;
-        struct executable_t *x = fr->x;
-        as_assert_array_pos(a, x->n_label - JMP_INIT,
-                            &fr->x->label, &fr->label_alloc);
-        return x->n_label++;
+        return xptr_next_label((struct var_t *)a->fr->x);
 }
 
 /*
@@ -522,36 +466,10 @@ as_next_label(struct assemble_t *a)
  * point to this.
  */
 static int
-seek_or_add_const_xptr(struct assemble_t *a, void *p)
+seek_or_add_const_xptr(struct assemble_t *a, struct xptrvar_t *p)
 {
-        int i;
-        struct var_t *v;
-        struct as_frame_t *fr = a->fr;
-        struct executable_t *x = fr->x;
-        for (i = 0; i < x->n_rodata; i++) {
-                v = x->rodata[i];
-                if (isvar_xptr(v) && xptrvar_tox(v) == p)
-                        break;
-        }
-
-        if (i == x->n_rodata) {
-                as_assert_array_pos(a, x->n_rodata + 1,
-                                    &x->rodata, &fr->const_alloc);
-                x->rodata[x->n_rodata++] = xptrvar_new(p);
-        }
-        return i;
-}
-
-static int
-seek_const_int(struct assemble_t *a, struct executable_t *x, long long vi)
-{
-        int i;
-        for (i = 0; i < x->n_rodata; i++) {
-                struct var_t *v = x->rodata[i];
-                if (isvar_int(v) && intvar_toll(v) == vi)
-                        break;
-        }
-        return i;
+        return xptr_add_rodata((struct var_t *)a->fr->x,
+                               (struct var_t *)p);
 }
 
 /* completes seek_or_add_const/seek_or..._int */
@@ -561,9 +479,8 @@ static int
 seek_or_add_const(struct assemble_t *a, struct token_t *oc)
 {
         struct as_frame_t *fr = a->fr;
-        struct executable_t *x = fr->x;
+        struct xptrvar_t *x = fr->x;
         struct var_t *v;
-        int i;
 
         switch (oc->t) {
         case OC_TRUE:
@@ -601,21 +518,11 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
                 }
                 break;
         default:
+                v = NULL;
                 bug();
         }
-        for (i = 0; i < x->n_rodata; i++) {
-                bug_on(x->rodata[i] == NULL);
-                if (var_compare(v, x->rodata[i]) == 0) {
-                        VAR_DECR_REF(v);
-                        break;
-                }
-        }
-        if (i == x->n_rodata) {
-                as_assert_array_pos(a, x->n_rodata + 1,
-                                    &x->rodata, &fr->const_alloc);
-                x->rodata[x->n_rodata++] = v;
-        }
-        return i;
+
+        return xptr_add_rodata((struct var_t *)x, (struct var_t *)v);
 }
 
 static void
@@ -631,15 +538,8 @@ ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 static void
 ainstr_load_const_int(struct assemble_t *a, long long ival)
 {
-        struct executable_t *x = a->fr->x;
-        int idx = seek_const_int(a, x, ival);
-        bug_on(idx > x->n_rodata);
-        if (idx == x->n_rodata) {
-                struct var_t *v = intvar_new(ival);
-                as_assert_array_pos(a, x->n_rodata + 1,
-                                    &x->rodata, &a->fr->const_alloc);
-                x->rodata[x->n_rodata++] = v;
-        }
+        int idx = xptr_add_rodata((struct var_t *)a->fr->x,
+                                  intvar_new(ival));
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
@@ -2055,6 +1955,10 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
         AS_RECURSION_DECR();
 }
 
+/*
+ * FIXME: This and resolve_jump_labels are all
+ * tangled up with xptr.c code.
+ */
 static void
 resolve_func_label(struct assemble_t *a,
                    struct as_frame_t *fr,
@@ -2088,7 +1992,7 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
                         int arg2 = ii->arg2 - JMP_INIT;
 
                         bug_on(ii->arg1 != 0 && ii->arg1 != 1);
-                        bug_on(arg2 >= fr->label_alloc);
+                        bug_on(arg2 >= fr->x->n_label);
                         /*
                          * minus one because pc will have already
                          * been incremented.
@@ -2127,7 +2031,7 @@ assemble_second_pass(struct assemble_t *a)
                 resolve_jump_labels(a, list2frame(li));
 }
 
-static struct executable_t *
+static struct xptrvar_t *
 as_top_executable(struct assemble_t *a)
 {
         struct as_frame_t *fr = list2frame(a->finished_frames.next);
@@ -2207,10 +2111,10 @@ free_assembler(struct assemble_t *a, int err)
  *         last variable referencing them is destroyed.
  *      b) NULL if @a is already at end of input
  */
-static struct executable_t *
+static struct xptrvar_t *
 assemble_next(struct assemble_t *a, bool toeof, int *status)
 {
-        struct executable_t *ex;
+        struct xptrvar_t *ex;
         int res;
 
         if (a->oc && a->oc->t == EOF) {
@@ -2294,15 +2198,15 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
  *              error occurred.
  *
  * Return: Either...
- *      a) A struct executable_t which is ready for passing to the VM.
+ *      a) A struct xptrvar_t which is ready for passing to the VM.
  *      b) NULL if the input is already at EOF or if there was an error
  *         (check status).
  */
-struct executable_t *
+struct var_t *
 assemble(const char *filename, FILE *fp, bool toeof, int *status)
 {
         int localstatus;
-        struct executable_t *ret;
+        struct xptrvar_t *ret;
         struct assemble_t *a;
 
         a = new_assembler(filename, fp);
@@ -2319,6 +2223,6 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
 
         free_assembler(a, localstatus == RES_ERROR);
 
-        return ret;
+        return (struct var_t *)ret;
 }
 

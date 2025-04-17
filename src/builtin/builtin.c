@@ -53,7 +53,7 @@ do_import(struct vmframe_t *fr)
         struct var_t *file_name = frame_get_arg(fr, 0);
         struct var_t *mode      = frame_get_arg(fr, 1);
         struct var_t *res;
-        struct executable_t *ex;
+        struct var_t *ex;
         const char *modestr, *fnamestr;
         enum { R, X } how;
         FILE *fp;
@@ -88,18 +88,23 @@ do_import(struct vmframe_t *fr)
         ex = assemble(fnamestr, fp, true, &status);
         pop_path(fp);
 
-        if (!ex || status == RES_ERROR) {
-                /* FIXME: can't free @ex if non-NULL, so it'll zombify */
+        /* we're assembling top, so ex should be NULL if error */
+        bug_on(status != RES_OK && ex != NULL);
+
+        if (!ex) {
                 err_setstr(RuntimeError,
                            "Failed to import module '%s'", fnamestr);
                 return ErrorVar;
         }
 
         res = funcvar_new_user(ex);
-        if (how == R)
-                return res;
-        /* else, how == EXEC */
-        return vm_exec_func(fr, res, NULL, 0, NULL);
+        if (how == X) {
+                struct var_t *func = res;
+                res = vm_exec_func(fr, func, NULL, 0, NULL);
+                VAR_DECR_REF(func);
+        }
+        /* else, how == R */
+        return res;
 }
 
 static struct var_t *

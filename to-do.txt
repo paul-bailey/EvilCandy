@@ -23,11 +23,6 @@ Bugs
 Must Do
 -------
 
-* Move all direct ``free`` calls into a wrapper function ``efree`` in
-  ewrappers.c.  This isn't needed for error wrapping per se, but it
-  makes it easier (if I want to debug memory leaks) to have all the
-  malloc/free calls come from a single C file.
-
 * ``this`` keyword barely tested; it will probably break a lot of
   stuff that seems to work without it.
 
@@ -66,12 +61,13 @@ Library/Language Features
 
 * Add stdin and shell environment to Io module
 
-* Add a binary version of string type.  It reads literals but does
-  not 'interpret' utf-8 encoding or get confused by nulchars in the
-  middle of the string.
-
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* Add way to mark current location while parsing, so that token.c and
+  main.c aren't making their own separate and different error splashes.
+
+* Add locations into struct executable_t.
 
 * To cast an int to a float, user has to do something like
   ``x = 1.0 * x``.  Add something like ``float(x)`` and ``int(x)``

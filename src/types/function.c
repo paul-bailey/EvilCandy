@@ -27,7 +27,6 @@
  * TODO: Some cleanup and simplification is in order:
  *      f_argv and f_clov could be ArrayType vars now, since list
  *      no longer requires its members to all be the same type.
- *      f_cb and f_ex could be in a union.
  *      f_minargs/f_maxargs/f_argc are all confusing, and I'm not
  *      sure I'm even still using maxargs
  */
@@ -39,12 +38,14 @@ struct funcvar_t {
         } f_magic;
         union {
                 struct {
+                        /* FUNC_INTERNAL exclusives */
                         int f_minargs;
                         int f_maxargs;
                         struct var_t *(*f_cb)(struct vmframe_t *);
                 };
                 struct {
-                        struct executable_t *f_ex;
+                        /* FUNC_USER exclusives */
+                        struct xptrvar_t *f_ex;
                         struct var_t **f_argv;
                         struct var_t **f_clov;
                         int f_argc;
@@ -285,13 +286,14 @@ funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
  * @ex:         Executable code to assign to function
  */
 struct var_t *
-funcvar_new_user(struct executable_t *ex)
+funcvar_new_user(struct var_t *ex)
 {
         struct var_t *func = var_new(&FunctionType);
         struct funcvar_t *fh = V2FUNC(func);
+        bug_on(!isvar_xptr(ex));
         fh->f_magic = FUNC_USER;
-        fh->f_ex = ex;
-        EXECUTABLE_CLAIM(ex);
+        fh->f_ex = (struct xptrvar_t *)ex;
+        VAR_INCR_REF((struct var_t *)ex);
         return func;
 }
 
@@ -341,7 +343,7 @@ func_reset(struct var_t *func)
         remove_args(fh->f_argv, fh->f_argc);
         remove_args(fh->f_clov, fh->f_cloc);
         if (fh->f_magic == FUNC_USER && fh->f_ex)
-                EXECUTABLE_RELEASE(fh->f_ex);
+                VAR_DECR_REF((struct var_t *)fh->f_ex);
 }
 
 struct type_t FunctionType = {

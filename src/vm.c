@@ -537,9 +537,9 @@ static int
 do_deffunc(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *func;
-        struct var_t *loc = RODATA(fr, ii);
-        bug_on(!isvar_xptr(loc));
-        func = funcvar_new_user(xptrvar_tox(loc));
+        struct var_t *x = RODATA(fr, ii);
+        bug_on(!isvar_xptr(x));
+        func = funcvar_new_user(x);
         push(fr, func);
         return 0;
 }
@@ -1061,10 +1061,15 @@ out:
  * Return: result returned from script or ErrorVar if there was an error.
  */
 struct var_t *
-vm_exec_script(struct executable_t *top_level, struct vmframe_t *fr_old)
+vm_exec_script(struct var_t *top_level, struct vmframe_t *fr_old)
 {
-        return vm_exec_func(fr_old, funcvar_new_user(top_level),
-                            NULL, 0, NULL);
+        struct var_t *func, *ret;
+
+        bug_on(!isvar_xptr(top_level));
+        func = funcvar_new_user(top_level);
+        ret = vm_exec_func(fr_old, func, NULL, 0, NULL);
+        VAR_DECR_REF(func);
+        return ret;
 }
 
 /**

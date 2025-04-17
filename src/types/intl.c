@@ -8,26 +8,6 @@ struct uuidptrvar_t {
 
 /* struct (uuid/x)ptrvar_t forward-defined in typedefs.h */
 
-#define V2XP(v) ((struct xptrvar_t *)(v))
-
-struct var_t *
-xptrvar_new(struct executable_t *x)
-{
-        struct var_t *v = var_new(&XptrType);
-        V2XP(v)->xptr = x;
-        return v;
-}
-
-static struct var_t *
-xptrvar_str(struct var_t *x)
-{
-        char buf[64];
-        memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf) - 1, "<code-block at '%s'>",
-                 V2XP(x)->xptr->uuid);
-        return stringvar_new(buf);
-}
-
 char *
 uuidptr_get_cstring(struct var_t *v)
 {
@@ -63,20 +43,6 @@ uuidptr_str(struct var_t *v)
                  (((struct uuidptrvar_t *)v)->uuid));
         return stringvar_new(buf);
 }
-
-struct type_t XptrType = {
-        .name   = "[internal-use executable]",
-        .opm    = NULL,
-        .cbm    = NULL,
-        .mpm    = NULL,
-        .sqm    = NULL,
-        .size   = sizeof(struct xptrvar_t),
-        .str    = xptrvar_str,
-        .cmp    = NULL,
-        .cmpz   = NULL,
-        .cp     = NULL,
-        .reset  = NULL,
-};
 
 struct type_t UuidptrType = {
         .name   = "[internal-use UUID]",

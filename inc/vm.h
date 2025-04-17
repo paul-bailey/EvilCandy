@@ -18,7 +18,7 @@ struct vmframe_t {
         struct var_t *owner, *func;
         struct var_t **stackptr;
         struct var_t **stack;
-        struct executable_t *ex;
+        struct xptrvar_t *ex;
         int ap;
         int n_blocks;
         struct block_t blocks[FRAME_NEST_MAX];
@@ -31,7 +31,7 @@ struct vmframe_t {
 };
 
 /* vm.c */
-extern struct var_t *vm_exec_script(struct executable_t *top_level,
+extern struct var_t *vm_exec_script(struct var_t *top_level,
                                 struct vmframe_t *fr);
 extern struct var_t *vm_exec_func(struct vmframe_t *fr, struct var_t *func,
                                 struct var_t *owner, int argc,

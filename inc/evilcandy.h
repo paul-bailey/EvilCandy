@@ -85,9 +85,6 @@ enum result_t {
 };
 
 struct var_t;
-struct array_handle_t;
-struct string_handle_t;
-struct function_handle_t;
 struct vmframe_t;
 
 #include "typedefs.h"

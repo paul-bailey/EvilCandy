@@ -12,20 +12,16 @@
  */
 enum { INIT_SIZE = 16 };
 
-static struct mempool_t *bucket_mempool = NULL;
-
 static struct bucket_t *
 bucket_alloc(void)
 {
-        if (!bucket_mempool)
-                bucket_mempool = mempool_new(sizeof(struct bucket_t));
-        return mempool_alloc(bucket_mempool);
+        return emalloc(sizeof(struct bucket_t));
 }
 
 static void
 bucket_free(struct bucket_t *b)
 {
-        mempool_free(bucket_mempool, b);
+        free(b);
 }
 
 static inline int

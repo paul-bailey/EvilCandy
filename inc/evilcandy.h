@@ -156,12 +156,6 @@ static inline char *literal(const char *key)
         { return hashtable_get(&literal_htbl__, key); }
 extern void moduleinit_literal(void);
 
-/* mempool.c */
-struct mempool_t; /* opaque data type to user */
-extern struct mempool_t *mempool_new(size_t datalen);
-extern void *mempool_alloc(struct mempool_t *pool);
-extern void mempool_free(struct mempool_t *pool, void *data);
-
 /* op.c */
 extern struct var_t *qop_mul(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_div(struct var_t *a, struct var_t *b);

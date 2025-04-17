@@ -4,6 +4,59 @@ Thought Bucket
 These are not bugs, though they may address design flaws.
 Instead they are a more verbose version of to-do.txt.
 
+struct executable_t as a variable
+---------------------------------
+
+:date: 2025-4-16
+
+The Problem
+~~~~~~~~~~~
+
+There are three data types which ought to be only two: a
+``FunctionType`` variable, a ``XptrType`` variable, and
+``struct executable_t``, which ought to be embedded in the ``XptrType``
+variable.  I was averse to doing this, because ``VAR_DECR_REF`` on
+executable code could destroy it during a program that may call it
+again.  Function variables are re-created dynamically during runtime,
+but the executable code is generated only during parse/assembly time.
+
+Why not have owning struct executable_t produce a reference for it?
+```````````````````````````````````````````````````````````````````
+
+Because the owning struct could go out of scope while the child
+struct is still needed.  For example, an imported script could add a
+function to the global symbol table, or return that function to the
+calling script.  Its script-level executable code is out of scope,
+but the wrapper script still needs the function's.
+
+Why not have FunctionType variable produce a reference for it?
+``````````````````````````````````````````````````````````````
+
+IIFEs will be destroyed as soon as they're executed, and nested functions
+will be destroyed as soon as their parent functions return.  Those parent
+functions could be called again.
+
+Why not have FunctionType variables **and** owning struct produce a reference for it?
+`````````````````````````````````````````````````````````````````````````````````````
+
+Took me long enough to figure that one out.  99% of the time, executable
+code is immortal this way.  But it *will* clean up in the case of, for
+example, the import call with mode set to 'x'.  If the imported script
+added any function to the global symbol table, that function will still
+have a reference to the code, and that code will have references to any
+more code pointed at in its .rodata, so all good.
+
+The Solution
+~~~~~~~~~~~~
+
+Big lift unfortunately, but embed ``struct executable_t`` into the
+``XptrType`` struct (maybe change its name to ``XType`` since it's
+not a 'pointer' in any sense to the user), and make sure that it
+produces a reference for any other ``XptrType``'s in its .rodata.
+(If there's a nested IIFE or such, that code will be pointed at
+in its .rodata.)  Also produce a reference every time a
+``FunctionType`` variable gets a handle to the code.
+
 
 String Interning
 ----------------

@@ -615,8 +615,17 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
                         v = floatvar_new(oc->f);
                         break;
                 case 'u':
-                case 'q':
+                        /* FIXME: will need to immortalize this */
                         v = stringvar_from_immortal(oc->s);
+                        break;
+                case 'q':
+                        v = stringvar_from_source(oc->s, true);
+                        if (v == ErrorVar) {
+                                err_setstr(ParserError,
+                                        "Error in string literal %s",
+                                        a->oc->s);
+                                as_err(a, AE_GEN);
+                        }
                         break;
                 default:
                         bug();
@@ -1623,7 +1632,8 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         if (!!(flags & FE_FOR)) {
                 char *what = tok == OC_LET ? "let" : "global";
                 err_setstr(ParserError,
-                        "'%s' not allowed as third part of 'for' statement");
+                        "'%s' not allowed as third part of 'for' statement",
+                        what);
                 as_err(a, AE_BADTOK);
         }
 
@@ -1646,7 +1656,8 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         ainstr_load_symbol(a, &name, pos);
         assemble_eval(a);
-        add_instr(a, INSTR_ASSIGN, IARG_PTR_SEEK, namei);
+        add_instr(a, INSTR_ASSIGN,
+                  tok == OC_LET ? IARG_PTR_AP : IARG_PTR_SEEK, namei);
 }
 
 static void

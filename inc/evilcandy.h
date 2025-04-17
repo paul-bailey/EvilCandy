@@ -448,7 +448,8 @@ extern char *string_get_cstring(struct var_t *str);
 extern struct var_t *string_from_file(FILE *fp,
                                       int delim, bool stuff_delim);
 extern struct var_t *stringvar_new(const char *cstr);
-struct var_t *stringvar_from_immortal(const char *immstr);
+extern struct var_t *stringvar_from_immortal(const char *immstr);
+extern struct var_t *stringvar_from_source(const char *tokenstr, bool imm);
 
 /* uuid.c */
 extern char *uuidstr(void);

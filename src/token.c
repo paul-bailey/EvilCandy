@@ -99,175 +99,6 @@ tok_next_line(struct token_state_t *state)
         return res;
 }
 
-/* parse the usual backslash suspects */
-static bool
-bksl_char(char **src, int *c, int q)
-{
-        char *p = *src;
-        switch (*p) {
-        case '\'':
-                *c = '\'';
-                break;
-        case '"':
-                *c = '"';
-                break;
-        case 'a':
-                /* BELL - apparently it's still 1978 */
-                *c = '\a';
-                break;
-        case 'b':
-                *c = '\b';
-                break;
-        case 'e':
-                *c = '\033';
-                break;
-        case 'f':
-                *c = '\f';
-                break;
-        case 'v':
-                *c = '\v';
-                break;
-        case 'n':
-                *c = '\n';
-                break;
-        case 'r':
-                *c = '\r';
-                break;
-        case 't':
-                *c = '\t';
-                break;
-        case '\\':
-                *c = '\\';
-                break;
-        case '\r':
-                *c = 0;
-                if (p[1] == '\n')
-                        *src += 1;
-                break;
-        case '\n':
-                /*
-                 * \<eol> means "string is wrapped for readability
-                 * but <eol> not part of this string literal."
-                 * Otherwise the <eol> will be recorded with the
-                 * literal.
-                 */
-                *c = 0;
-                break;
-        default:
-                return false;
-        }
-        *src += 1;
-        return true;
-}
-
-/* parse \NNN, 1 to 3 digits */
-static bool
-bksl_octal(char **src, int *c)
-{
-        char *p = *src;
-        int v = 0, i;
-        for (i = 0; i < 3; i++) {
-                if (!isodigit(*p)) {
-                        if (p == *src)
-                                return false;
-                        break;
-                }
-                v <<= 3;
-                /* '0' & 7 happens to be 0 */
-                v += (*p++) & 7;
-        }
-        if (v == 0)
-                return false;
-        *c = v;
-        *src = p;
-        return true;
-}
-
-/* parse \xHH, 1 to 2 digits */
-static bool
-bksl_hex(char **src, int *c)
-{
-        char *p = *src;
-        int v, nybble;
-        if (*p++ != 'x')
-                return false;
-        v = nybble = x2bin(*p++);
-        if (nybble < 0)
-                return false;
-        nybble = x2bin(*p);
-        if (nybble >= 0) {
-                ++p;
-                v = (v << 4) | nybble;
-        }
-        if (v == 0)
-                return false;
-        *c = v;
-        *src = p;
-        return true;
-}
-
-static bool
-isunihex(char *s, int amt)
-{
-        while (amt--) {
-                if (!isxdigit((int)*s))
-                        return false;
-                s++;
-        }
-        return true;
-}
-
-/*
- * This is for our UTF-8 encoding.
- * can't use strtoul, because @len'th char might be a number,
- * but it's not a part of the escape
- */
-static uint32_t
-hex_str2val(char *s, int len)
-{
-        uint32_t v = 0;
-        while (len--) {
-                v <<= 4;
-                v |= x2bin(*s++);
-        }
-        return v;
-}
-
-/*
- * If input is something like "\u1234",
- * stuff the utf-8-encoded equivalent string into @tok.
- */
-static bool
-bksl_utf8(char **src, int *c, struct buffer_t *tok)
-{
-        char *s = *src;
-        int amt;
-        uint32_t point;
-        char buf[5];
-        size_t bufsize;
-
-        if (s[0] == 'u') {
-                amt = 4;
-        } else if (s[0] == 'U') {
-                amt = 8;
-        } else {
-                return false;
-        }
-        s++;
-        if (!isunihex(s, amt))
-                return false;
-
-        point = hex_str2val(s, amt);
-        bufsize = utf8_encode(point, buf);
-        if (bufsize == 0)
-                return false;
-        buffer_nputs(tok, buf, bufsize);
-
-        *src = s + amt;
-        *c = 0;
-        return true;
-}
-
 /*
  * Get string literal, or return false if token is something different.
  * state->s points at first quote
@@ -281,50 +112,20 @@ get_tok_string(struct token_state_t *state)
         if (!isquote(q))
                 return false;
 
-retry:
-        while ((c = *pc++) != q && c != '\0') {
-                if (c == '\\') {
-                        /*
-                         * If these return true, they changed c.
-                         * - bksl_utf8 sets c=0 because it fills tok itself.
-                         * - Other bksl_* set c to a value to put into tok, or
-                         *   to zero, which means "include neither the backslash
-                         *   nor the following char," such as escaped actual
-                         *   newlines in string literals.  (They could just make
-                         *   adjacent literals on two lines, but I'm a sucker
-                         *   for giving them alternatives, I guess, LOL.)
-                         * If all return false (unsupported escape), then
-                         * c is still '\'.  Throw warning, stuff without
-                         * interpreting.
-                         */
-                        do {
-                                if (bksl_utf8(&pc, &c, tok))
-                                        break;
-                                if (bksl_char(&pc, &c, q))
-                                        break;
-                                if (bksl_octal(&pc, &c))
-                                        break;
-                                if (bksl_hex(&pc, &c))
-                                        break;
-                                /* still here, unsupported escape, oh well */
-                        } while (0);
-                        if (!c)
-                                continue;
-                }
-                buffer_putc(tok, c);
-        }
-
-        if (c == '\0') {
-                /*
-                 * Got multi-line string such as
-                 *      "This is a string that
-                 *      spans more than one line"
-                 */
-                if (tok_next_line(state) == -1)
+        buffer_putc(tok, q);
+        while ((c = *pc++) != q) {
+                if (c == '\0')
                         token_errset(state, TE_UNTERM_QUOTE);
-                goto retry;
-        }
 
+                buffer_putc(tok, c);
+
+                /* make sure we don't misinterpret q */
+                if (c == '\\' && *pc == q) {
+                        buffer_putc(tok, q);
+                        pc++;
+                }
+        }
+        buffer_putc(tok, q);
         state->s = pc;
         return true;
 }

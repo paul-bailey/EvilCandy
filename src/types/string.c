@@ -90,6 +90,162 @@ string_copy__(struct var_t *str)
 }
 
 
+/*
+ * helper to stringvar_from_source -
+ *      interpolate a string's backslash escapes
+ */
+static char *
+string_parse(const char *src)
+{
+        int c, q;
+        struct buffer_t b;
+        const char *s = src;
+        enum { BKSL = '\\', SQ = '\'', DQ = '"' };
+
+        buffer_init(&b);
+
+        q = *s++;
+        bug_on(q != SQ && q != DQ);
+
+again:
+        while ((c = *s++) != q && c != '\0') {
+                if (c == BKSL) {
+                        c = *s++;
+                        if (c == q) {
+                                buffer_putc(&b, c);
+                                continue;
+                        } else if (c == 'n') {
+                                /*
+                                 * could be in switch,
+                                 * but it's our 99% scenario.
+                                 */
+                                buffer_putc(&b, '\n');
+                                continue;
+                        }
+
+                        switch (c) {
+                        case '0':
+                                /* don't sneak in nullchar */
+                                goto err;
+                        case 'a': /* bell - but why? */
+                                buffer_putc(&b, '\a');
+                                continue;
+                        case 'b':
+                                buffer_putc(&b, '\b');
+                                continue;
+                        case 'e':
+                                buffer_putc(&b, '\033');
+                                continue;
+                        case 'f':
+                                buffer_putc(&b, '\f');
+                                continue;
+                        case 'v':
+                                buffer_putc(&b, '\v');
+                                continue;
+                        case 'r':
+                                buffer_putc(&b, '\r');
+                                continue;
+                        case 't':
+                                buffer_putc(&b, '\t');
+                                continue;
+                        case BKSL:
+                                buffer_putc(&b, BKSL);
+                                continue;
+                        default:
+                                break;
+                        }
+
+                        if (isodigit(c)) {
+                                --s;
+                                int i, v;
+                                for (i = 0, v = 0; i < 3; i++, s++) {
+                                        c = *s++;
+                                        if (!isodigit(c))
+                                                break;
+                                        /* '0' & 7 happens to be 0 */
+                                        v = (v << 3) + c & 7;
+                                }
+                                if (v == 0 || v > 256)
+                                        goto err;
+                                buffer_putc(&b, v);
+                                continue;
+                        }
+
+                        if (c == 'x' || c == 'X') {
+                                int v;
+                                if (!isxdigit(s[0]) || !isxdigit(s[1]))
+                                        goto err;
+                                v = x2bin(s[0]) * 16 + x2bin(s[1]);
+                                if (v == 0)
+                                        goto err;
+
+                                s += 2;
+                                buffer_putc(&b, v);
+                                continue;
+                        }
+
+                        if (c == 'u' || c == 'U') {
+                                char ubuf[5];
+                                uint32_t point = 0;
+                                int i, amt = c == 'u' ? 4 : 8;
+                                size_t ubuf_size;
+                                for (i = 0; i < amt; i++) {
+                                        if (!isxdigit((int)(s[i])))
+                                                goto err;
+                                        point <<= 4;
+                                        point |= x2bin(s[i]);
+                                }
+
+                                if (point == 0)
+                                        goto err;
+                                /* out-of-range for Unicode */
+                                if (point > 0x10ffff)
+                                        goto err;
+
+                                ubuf_size = utf8_encode(point, ubuf);
+                                bug_on(ubuf_size == 0);
+
+                                s += amt;
+                                buffer_puts(&b, ubuf);
+                                continue;
+                        }
+
+                        /* wrapping code would have caught this */
+                        bug_on(c == '\0');
+
+                        /* unsupported escape */
+                        goto err;
+                } else {
+                        buffer_putc(&b, c);
+                }
+        }
+
+        if (c != '\0') {
+                /* wrapping code should have caught this earlier */
+                bug_on(!isquote(c));
+
+                /* in case a weirdo wrote "string1" 'string2' */
+                q = c;
+                goto again;
+        }
+
+        if (buffer_size(&b) == 0) {
+                /* empty string, should we allow it? */
+                buffer_free(&b);
+                char *ret = emalloc(1);
+                ret[0] = '\0';
+                return ret;
+        }
+
+        bug_on(!b.s);
+        return b.s;
+
+err:
+        buffer_free(&b);
+        return NULL;
+}
+
+
 /* **********************************************************************
  *                      format2 and helpers
  ***********************************************************************/
@@ -1157,6 +1313,51 @@ struct var_t *
 stringvar_from_immortal(const char *immstr)
 {
         return stringvar_newf((char *)immstr, SF_IMMORTAL);
+}
+
+/**
+ * stringvar_from_source - Get a stringvar from an unparsed token.
+ * @tokenstr: C-string as written in a source file, possibly containing
+ *              backslash escape sequences which still need interpreting.
+ *              Contains wrapping quotes.  If it was concatenated from
+ *              two adjacent string tokens, the end quote of one token
+ *              should be followed immediately by the starting quote of
+ *              the next token; the different tokens need all not be
+ *              wrapped by the same type of quote, though only jerk
+ *              programmers mix and match these.
+ *@imm: True to immortalize the string in the return value, false to
+ *      allocate a copy to delete when the variable leaves scope.
+ *
+ * Return: Variable from interpreted @tokenstr or ErrorVar.  Unicode
+ *      escape sequences (ie. '\uNNNN') will be encoded into utf-8, even
+ *      if the resulting string contains characters that do not all
+ *      encode into utf-8.
+ *
+ * An error may be one of two kinds:
+ *      1. A unicode escape sequence is out of bounds, ie > 0x10FFFF
+ *      2. A null-char was inserted with a backslash-zero escape, not
+ *         permitted for string data types.  (Users should use bytes
+ *         instead.)
+ */
+struct var_t *
+stringvar_from_source(const char *tokenstr, bool imm)
+{
+        char *s = string_parse(tokenstr);
+        if (!s)
+                return ErrorVar;
+        /*
+         * TODO: I need a second Literal table, one for immortals and one
+         * for mortals.  Then @s will be filtered through an immortal-table
+         * de-duplicator, similar to literal_put().
+         * see etc/thought_bucket.txt
+         */
+        if (imm) {
+                char *ls = literal_put(s);
+                free(s);
+                s = ls;
+        }
+
+        return stringvar_newf(s, imm ? SF_IMMORTAL : 0);
 }
 
 /*

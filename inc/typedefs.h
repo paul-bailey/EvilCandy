@@ -92,6 +92,10 @@ struct type_inittbl_t {
 /**
  * struct type_t - Used to get info about a typedef
  * @name:       Name of the type
+ * @freelist:   Used by var.c for memory management. Statically initialize
+ *              this to NULL.
+ * @n_freelist: Used by var.c for memory management. Statically initialize
+ *              this to zero.
  * @methods:    Hash table of built-in methods for the type; these are
  *              things scripts call as functions. moduleinit_var() fills
  *              in this hashtable during initialization time.
@@ -120,6 +124,8 @@ struct type_inittbl_t {
  */
 struct type_t {
         const char *name;
+        struct var_mem_t *freelist;
+        size_t n_freelist;
         struct hashtable_t methods;
         const struct operator_methods_t *opm;
         const struct type_inittbl_t *cbm;

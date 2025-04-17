@@ -1,82 +1,118 @@
 #include <evilcandy.h>
 #include <stdlib.h> /* for atexit */
 
-#ifndef NDEBUG
-   static size_t var_nalloc = 0;
-#  define REGISTER_ALLOC() do { var_nalloc++; } while (0)
-#  define REGISTER_FREE()  do { \
-        bug_on((int)var_nalloc <= 0); \
-        var_nalloc--;  \
-} while (0)
-   static void
-   var_alloc_tell(void)
-   {
-           DBUG("#vars outstanding: %lu", (long)var_nalloc);
-   }
-#else /* NDEBUG */
-#  define REGISTER_ALLOC() do { (void)0; } while (0)
-#  define REGISTER_FREE()  do { (void)0; } while (0)
+/*
+ * If 1 and !NDEBUG, splash some debug data about var allocation
+ * to stderr upon exit.
+ */
+#define REPORT_VARS_ON_EXIT 1
+
+#ifdef NDEBUG
+# undef REPORT_VARS_ON_EXIT
+# define REPORT_VARS_ON_EXIT 0
 #endif /* NDEBUG */
 
-static struct var_mem_t *var_freelist = NULL;
+/**
+ * DOC: Variable malloc/free wrappers.
+ *
+ * Calling malloc and free can be slow, but attempts to avoid calling
+ * them can be slower, especially if not every data type is the same
+ * size.  The best compromise I could think of is to have a per-type
+ * singly linked list of freed variables in the type_t struct, since
+ * each type has its own fixed size.  (The variable-length data, such
+ * as for arrays and strings, is allocated separately.)
+ *
+ * We don't want our freelist to build up a million fake-freed
+ * variables, either.  The idea behind it is to deal with a frequent
+ * scenario where a function is called repetitively, and therefore
+ * allocating, deallocating, reallocating, etc., the same variables
+ * off the user stack.  It's handy to have a small pool of recently-
+ * freed variables of the same type which can be quickly repurposed.
+ * A few dozen is enough.
+ *
+ * MAX_FREELIST_SIZE is the maximum size that each type's freelist
+ * may grow before we start calling efree().  Struct var_mem_t is the
+ * preheader on top of each allocated object; it's the actual pointer
+ * getting allocated each time.  It contains only a pointer to the
+ * next var_mem_t struct, possibly padded due to a union with an
+ * alignment variable.
+ */
+#define MAX_FREELIST_SIZE       64
+
 struct var_mem_t {
-        struct var_mem_t *list;
         union {
-                struct var_t var;
-                unsigned char sizeassert[24];
+                max_align_t dummy_align;
+                struct var_mem_t *list;
         };
 };
 
-#define var2memvar(v) container_of(v, struct var_mem_t, var)
-
-/*
- * TODO: this only speeds things up for integers and floats,
- * but not strings and functions, which are the other most
- * commonly alloc'd and freed variables.
- */
-#define SMALL_VAR_SIZE 24
+#ifndef NDEBUG
+static size_t var_alloc_size = 0;
+static size_t var_nalloc = 0;
+# define REGISTER_ALLOC(n_) do {        \
+        var_nalloc++;                   \
+        var_alloc_size += (n_);         \
+} while (0)
+# define REGISTER_FREE(n_)  do {        \
+        bug_on((int)var_nalloc <= 0);   \
+        var_alloc_size -= (n_);         \
+        var_nalloc--;                   \
+} while (0)
+# if REPORT_VARS_ON_EXIT
+static void
+var_alloc_tell(void)
+{
+        DBUG("%s: __gbl__ refcnt:     %d",  __FILE__, GlobalObject->v_refcnt);
+        DBUG("%s: 'null' refcnt:      %d",  __FILE__, NullVar->v_refcnt);
+        DBUG("%s: ErrorVar refcnt:    %d",  __FILE__, NullVar->v_refcnt);
+        DBUG("%s: #bytes outstanding: %lu", __FILE__, (long)var_alloc_size);
+        DBUG("%s: #vars outstanding:  %lu", __FILE__, (long)var_nalloc);
+}
+# endif /* REPORT_VARS_ON_EXIT */
+#else /* NDEBUG */
+# define REGISTER_ALLOC() do { (void)0; } while (0)
+# define REGISTER_FREE()  do { (void)0; } while (0)
+#endif /* NDEBUG */
 
 static struct var_t *
-var_alloc(size_t size)
+var_alloc(struct type_t *type)
 {
         struct var_t *ret;
-        REGISTER_ALLOC();
+        struct var_mem_t *vm;
 
-        if (size <= SMALL_VAR_SIZE) {
-                /* empty, int, float */
-                struct var_mem_t *vm = var_freelist;
-                if (!vm) {
-                        vm = ecalloc(sizeof(*vm));
-                } else {
-                        var_freelist = vm->list;
-                        vm->list = NULL;
-                        memset(&vm->var, 0, sizeof(vm->var));
-                }
-                ret = &vm->var;
+        REGISTER_ALLOC(type->size);
+
+        vm = type->freelist;
+        if (!vm) {
+                vm = emalloc(sizeof(*vm) + type->size);
         } else {
-                /* strings, dictionaries, functions... */
-                ret = ecalloc(size);
+                type->n_freelist--;
+                type->freelist = vm->list;
         }
+        vm->list = NULL;
+        ret = (struct var_t *)(vm + 1);
+        memset(ret, 0, type->size);
         return ret;
 }
 
 static void
-var_free(struct var_t *v, size_t size)
+var_free(struct var_t *v)
 {
-        REGISTER_FREE();
-        if (size <= SMALL_VAR_SIZE) {
-                struct var_mem_t *vm = container_of(v, struct var_mem_t, var);
-                vm->list = var_freelist;
-                var_freelist = vm;
+        struct var_mem_t *vm;
+        struct type_t *type = v->v_type;
+
+        REGISTER_FREE(type->size);
+
+        vm = ((struct var_mem_t *)v) - 1;
+        if (type->n_freelist < MAX_FREELIST_SIZE) {
+                type->n_freelist++;
+                vm->list = type->freelist;
+                type->freelist = vm;
         } else {
-                efree(v);
+                efree(vm);
         }
 }
 
-/*
- * TODO: var_new and var_delete__: when v->v_type->size <= 24
- *       use a linked-list allocation method.
- */
 /**
  * var_new - Get a new empty variable
  */
@@ -86,7 +122,7 @@ var_new(struct type_t *type)
         struct var_t *v;
         bug_on(type->size == 0);
 
-        v = var_alloc(type->size);
+        v = var_alloc(type);
         v->v_refcnt = 1;
         v->v_type = type;
         return v;
@@ -106,7 +142,7 @@ var_delete__(struct var_t *v)
         if (v->v_type->reset)
                 v->v_type->reset(v);
 
-        var_free(v, v->v_type->size);
+        var_free(v);
 }
 
 static void
@@ -165,7 +201,7 @@ moduleinit_var(void)
         for (i = 0; init_tbl[i] != NULL; i++)
                 var_initialize_type(init_tbl[i]);
 
-#ifndef NDEBUG
+#if REPORT_VARS_ON_EXIT
         atexit(var_alloc_tell);
 #endif
 }

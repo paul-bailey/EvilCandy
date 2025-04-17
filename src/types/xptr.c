@@ -3,7 +3,6 @@
 
 #define V2XP(v_)        ((struct xptrvar_t *)(v_))
 
-
 static void
 xptr_reset(struct var_t *v)
 {

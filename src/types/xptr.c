@@ -18,7 +18,6 @@ xptr_reset(struct var_t *v)
         }
         if (ex->label)
                 efree(ex->label);
-        efree(ex);
 }
 
 static int

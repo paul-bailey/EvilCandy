@@ -47,98 +47,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#if 0
-struct bufblk_t {
-        struct list_t list;
-        struct buffer_t bufs[64];
-        uint64_t b;
-};
-
-/*
- * Graveyard of discarded struct buffer_t's, so we don't have to keep
- * malloc'ing and free'ing whenever we push and pop strings on and off
- * the stack.
- *
- * FIXME: This looks like a DRY violation with the memory management
- * in var.c (because it sort of is), but I cannot combine the two,
- * because they are fundamentally different from each other.
- *
- * XXX REVISIT: The way we push and pop strings on the stack has
- * fundamentally changed since I wrote this.  Has this become more
- * overhead than it's worth?
- */
-struct list_t bufblk_list = {
-        .next = &bufblk_list,
-        .prev = &bufblk_list
-};
-
-#define list2blk(li)    container_of(li, struct bufblk_t, list)
-
-static struct buffer_t *
-buffer_from_graveyard(void)
-{
-        struct list_t *list;
-        struct bufblk_t *blk = NULL;
-        uint64_t x;
-        unsigned int i;
-        list_foreach(list, &bufblk_list) {
-                struct bufblk_t *tblk = list2blk(list);
-                if (tblk->b) {
-                        blk = tblk;
-                        break;
-                }
-        }
-        if (!blk)
-                return NULL;
-        i = __builtin_ctz(blk->b);
-        bug_on(i >= 64);
-        x = 1ull << i;
-        blk->b &= ~x;
-        return &blk->bufs[i];
-}
-
-static void
-buffer_to_graveyard(struct buffer_t *b)
-{
-        struct list_t *list;
-        struct bufblk_t *blk = NULL;
-        uint64_t x;
-        unsigned int i;
-
-        list_foreach(list, &bufblk_list) {
-                struct bufblk_t *tblk = list2blk(list);
-                if (~tblk->b) {
-                        blk = tblk;
-                        break;
-                }
-        }
-        if (!blk) {
-                blk = emalloc(sizeof(*blk));
-                list_init(&blk->list);
-                blk->b = 0LL;
-                list_add_tail(&blk->list, &bufblk_list);
-        }
-        i = __builtin_ctz(~blk->b);
-        bug_on(i >= 64);
-        x = 1ull << i;
-        blk->b |= x;
-
-        blk->bufs[i].s    = b->s;
-        blk->bufs[i].size = b->size;
-        blk->bufs[i].p    = 0;
-}
-
-#else
-# define buffer_from_graveyard() NULL
-
-# define buffer_to_graveyard(b_) do {   \
-        char *s_ = (b_)->s;             \
-        if (s_)                         \
-                free(s_);               \
-} while (0)
-
-#endif
-
 static void
 buffer_init_(struct buffer_t *b)
 {
@@ -165,15 +73,7 @@ buffer_init_from(struct buffer_t *buf, char *line, size_t size)
 void
 buffer_init(struct buffer_t *buf)
 {
-        struct buffer_t *old = buffer_from_graveyard();
-        if (old) {
-                buf->s    = old->s;
-                buf->size = old->size;
-                buf->p = 0;
-                buffer_init_(old);
-        } else {
-                buffer_init_(buf);
-        }
+        buffer_init_(buf);
 }
 
 /**
@@ -185,7 +85,8 @@ buffer_init(struct buffer_t *buf)
 void
 buffer_free(struct buffer_t *buf)
 {
-        buffer_to_graveyard(buf);
+        if (buf->s)
+                free(buf->s);
         buffer_init_(buf);
 }
 

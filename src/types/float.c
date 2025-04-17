@@ -1,6 +1,5 @@
 #include <evilcandy.h>
 #include <math.h>
-#include <string.h>
 
 #define V2F(v)  ((struct floatvar_t *)(v))
 

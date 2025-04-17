@@ -1,9 +1,7 @@
 /* bytes.c - Built-in methods for bytes data types */
 
 #include <evilcandy.h>
-#include <string.h>
 #include <stdlib.h>
-#include <ctype.h>
 
 struct bytesvar_t {
         struct seqvar_t base;

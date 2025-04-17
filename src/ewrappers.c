@@ -5,7 +5,6 @@
  */
 #include <evilcandy.h>
 #include <stdlib.h>
-#include <string.h>
 
 /**
  * estrdup - error-handling wrapper to strdup

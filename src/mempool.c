@@ -1,6 +1,9 @@
 /*
  * mempool.c - Alloc and free wrappers for certain cases.
  *
+ * FIXME: hashtable.c is the only source that uses this.  Get rid of
+ * this and just use emalloc & co.
+ *
  * This is specifically for cases where the following are met:
  * 1. You will need lots and lots of small data chunks
  * 2. It's for chunks of the same type or size
@@ -10,7 +13,6 @@
  */
 #include <evilcandy.h>
 #include <stdlib.h>
-#include <string.h>
 
 #define NDATA_PER_BLK  64
 

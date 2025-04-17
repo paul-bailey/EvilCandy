@@ -44,11 +44,10 @@
  */
 #include <lib/buffer.h>
 #include <evilcandy.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
+#if 0
 struct bufblk_t {
         struct list_t list;
         struct buffer_t bufs[64];
@@ -129,6 +128,17 @@ buffer_to_graveyard(struct buffer_t *b)
         blk->bufs[i].p    = 0;
 }
 
+#else
+# define buffer_from_graveyard() NULL
+
+# define buffer_to_graveyard(b_) do {   \
+        char *s_ = (b_)->s;             \
+        if (s_)                         \
+                free(s_);               \
+} while (0)
+
+#endif
+
 static void
 buffer_init_(struct buffer_t *b)
 {
@@ -185,11 +195,7 @@ buffer_maybe_realloc(struct buffer_t *buf, size_t amt)
         enum { BLKLEN = 128 };
         size_t needsize = buf->p + amt;
         while (needsize >= buf->size) {
-                char *tmp = realloc(buf->s, buf->size + BLKLEN);
-                if (!tmp)
-                        fail("realloc failed");
-
-                buf->s = tmp;
+                buf->s = erealloc(buf->s, buf->size + BLKLEN);
                 buf->size += BLKLEN;
         }
 }

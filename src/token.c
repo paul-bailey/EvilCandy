@@ -1,13 +1,9 @@
 /* token.c - Tokenizer code */
 #include <evilcandy.h>
 #include "token.h"
-#include <ctype.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 #include <setjmp.h>
-#include <unistd.h>
-#include <sys/stat.h>
+#include <unistd.h> /* TODO: for isatty, get rid of this */
 
 enum {
         QDELIM = 0x01,

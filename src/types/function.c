@@ -6,7 +6,6 @@
  */
 #include <evilcandy.h>
 #include <stdlib.h>
-#include <string.h>
 
 /**
  * struct funcvar_t - Handle to a callable function

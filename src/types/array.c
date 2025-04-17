@@ -11,7 +11,6 @@
  */
 #include <evilcandy.h>
 #include <stdlib.h>
-#include <limits.h>
 
 /**
  * struct arrayvar_t - Handle to a numerical array

@@ -55,9 +55,6 @@
  *              return s1 == s2;
  */
 #include <evilcandy.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 /* literal() and literal_put() are now inline functions in evilcandy.h */
 

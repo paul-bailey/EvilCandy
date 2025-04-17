@@ -24,12 +24,8 @@
  * I'll play it safe and accept being like 5% slower.
  */
 #include <evilcandy.h>
-#include <instructions.h>
-#include <typedefs.h>
 #include "token.h"
-#include <limits.h>
 #include <stdlib.h>
-#include <string.h>
 
 static struct hashtable_t *symbol_table;
 

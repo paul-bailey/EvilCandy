@@ -7,7 +7,6 @@
  * too.  Too late...
  */
 #include <evilcandy.h>
-#include <string.h>
 #include <stdlib.h>
 
 /**

@@ -23,11 +23,8 @@
  * TODO: Binary file operations, need better array class than list.
  */
 #include "builtin.h"
-#include <typedefs.h>
 #include <errno.h>
-#include <string.h>
 #include <stdlib.h>
-#include <errno.h>
 
 /**
  * struct file_handle_t - Handle to a file, private data to an

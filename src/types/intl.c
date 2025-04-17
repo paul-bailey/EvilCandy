@@ -1,6 +1,5 @@
 /* Internal types: TYPE_STRPTR, TYPE_XPTR */
 #include <evilcandy.h>
-#include <string.h>
 #include <stdlib.h>
 
 struct uuidptrvar_t {

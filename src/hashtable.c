@@ -2,7 +2,6 @@
 #include <lib/hashtable.h>
 #include <evilcandy.h>
 #include <stdlib.h>
-#include <string.h>
 
 #define GROW_SIZE(x)    (((x) * 2) / 3)
 #define BUCKET_DEAD ((void *)-1)

@@ -3,8 +3,6 @@
  */
 
 #include <evilcandy.h>
-#include <limits.h>
-#include <string.h>
 
 struct rangevar_t {
         struct seqvar_t base;

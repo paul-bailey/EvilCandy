@@ -5,8 +5,6 @@
  */
 #include <evilcandy.h>
 #include <stdlib.h>
-#include <string.h>
-#include <limits.h>
 
 #define MAX_LOADS RECURSION_MAX
 

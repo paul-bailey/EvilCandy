@@ -29,13 +29,7 @@
 #include <evilcandy.h>
 #include <typedefs.h>
 #include <setjmp.h>
-#include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include <stdarg.h>
-#include <unistd.h>
-#include <errno.h>
-#include <time.h>
 
 /*
  * The @flags arg used in some of the functions below.

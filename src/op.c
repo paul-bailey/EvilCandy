@@ -3,9 +3,6 @@
  * FIXME: Half of this should be in var.c and half should be in vm.c
  */
 #include <evilcandy.h>
-#include <typedefs.h>
-#include <math.h>
-#include <string.h>
 
 static inline const struct operator_methods_t *
 primitives_of(struct var_t *v)

@@ -1,8 +1,5 @@
 #include <evilcandy.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <limits.h>
 
 #ifndef NDEBUG
    static size_t var_nalloc = 0;

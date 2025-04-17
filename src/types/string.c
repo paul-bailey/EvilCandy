@@ -1,14 +1,6 @@
 /* string.c - Built-in methods for string data types */
-/*
- * XXX REVISIT: Get my mind off of C strings.  This isn't 1977.
- * Allow nulchars in the middle of the strings--I already know
- * the string's length--and stop relying so much on string.h functions.
- */
 #include <evilcandy.h>
-#include <string.h>
-#include <ctype.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <errno.h>
 #include <math.h>
 

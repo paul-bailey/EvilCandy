@@ -4,29 +4,45 @@
 #ifndef EVILCANDY_H
 #define EVILCANDY_H
 
-/* headers for stuff I may want to port to other projects */
+/*
+ * headers for stuff I wish was standard
+ * so I wouldn't have to write myself.
+ */
 #include <lib/hashtable.h>
 #include <lib/helpers.h>
 #include <lib/buffer.h>
 #include <lib/list.h>
 
+/* Standard C headers */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
+#include <limits.h>
+#include <ctype.h>
 #include <sys/types.h>
+/* REVISIT: include unistd and stdlib at this level? math.h? */
 
 /* Tunable parameters */
 enum {
         /*
-         * XXX: Make RECURSION_MAX configurable by the command-line.
-         * Arbitrary choice for value, do some research and find out if
-         * there's a known reason for a specific pick/method for stack
+         * XXX: Arbitrary choice for value, do some research and find out
+         * if there's a known reason for a specific pick/method for stack
          * overrun protection.
          */
         RECURSION_MAX   = 256,
 
         /* for vm.c and assembler.c */
+        /* TODO: Make VM_STACK_SIZE configurable by the command-line. */
         VM_STACK_SIZE   = 1024 * 16,
+
+        /*
+         * These are static definitions of array sizes in struct
+         * asframe_t, a temporary struct used by the parser.  I could
+         * replace these limits with something more dynamic, though I'm
+         * getting sick of calling malloc everywhere.  The heap doesn't
+         * grow on trees.
+         */
         FRAME_ARG_MAX   = 24,
         FRAME_STACK_MAX = 128,
         FRAME_NEST_MAX  = 32,

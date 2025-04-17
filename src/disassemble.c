@@ -5,8 +5,6 @@
 #include "instructions.h"
 #include "token.h"
 #include <evilcandy.h>
-#include <typedefs.h>
-#include <stdio.h>
 
 #define IARG(x)   [IARG_##x]  = #x
 #define IARGP(x)  [IARG_PTR_##x]  = #x

@@ -1,8 +1,6 @@
 /* helpers.c - Wrappers to standard library functions that I find useful */
 #include <evilcandy.h>
 #include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
 
 /**
  * x2bin - interpret a hex char

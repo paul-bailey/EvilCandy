@@ -2,7 +2,6 @@
  * builtin/math.c - Implementation of the __gbl__.Math built-in object
  */
 #include "builtin.h"
-#include <typedefs.h>
 #include <math.h>
 
 /* XXX easier to just return NAN for bad? */

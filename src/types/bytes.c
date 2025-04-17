@@ -3,6 +3,7 @@
 #include "types_priv.h"
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 struct bytesvar_t {
         struct seqvar_t base;
@@ -60,14 +61,60 @@ bytes_cat(struct var_t *a, struct var_t *b)
 static struct var_t *
 bytes_str(struct var_t *v)
 {
-        /*
-         * XXX REVISIT: temporary, until we decide on a syntax for
-         * expressing this as a literal.
-         */
-        char buf[32];
-        memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf)-1, "<bytes at %p>", V2B(v)->b_buf);
-        return stringvar_new(buf);
+        struct var_t *ret;
+        struct buffer_t b;
+        unsigned char *s = V2B(v)->b_buf;
+        size_t i, n = seqvar_size(v);
+        enum { SQ = '\'', BKSL = '\\'};
+
+        buffer_init(&b);
+        buffer_putc(&b, 'b');
+        buffer_putc(&b, SQ);
+
+        for (i = 0; i < n; i++) {
+                unsigned int c = s[i] & 0xffu;
+                if (c == SQ) {
+                        buffer_putc(&b, BKSL);
+                        buffer_putc(&b, SQ);
+                } else if (c == BKSL) {
+                        buffer_putc(&b, BKSL);
+                        buffer_putc(&b, BKSL);
+                } else if (isspace(c)) {
+                        switch (c) {
+                        case ' ':
+                                buffer_putc(&b, c);
+                                continue;
+                        case '\n':
+                                c = 'n';
+                                break;
+                        case '\t':
+                                c = 't';
+                                break;
+                        case '\v':
+                                c = 'v';
+                                break;
+                        case '\f':
+                                c = 'f';
+                                break;
+                        case '\r':
+                                c = 'r';
+                                break;
+                        }
+                        buffer_putc(&b, BKSL);
+                        buffer_putc(&b, c);
+                } else if (c > 127 || !isgraph(c)) {
+                        buffer_putc(&b, BKSL);
+                        buffer_putc(&b, ((c >> 6) & 0x07) + '0');
+                        buffer_putc(&b, ((c >> 3) & 0x07) + '0');
+                        buffer_putc(&b, (c & 0x07) + '0');
+                } else {
+                        buffer_putc(&b, c);
+                }
+        }
+        buffer_putc(&b, SQ);
+        ret = stringvar_new(b.s);
+        buffer_free(&b);
+        return ret;
 }
 
 static int
@@ -112,6 +159,23 @@ bytes_cp(struct var_t *v)
         return v;
 }
 
+enum {
+        BF_COPY = 1,
+};
+
+static struct var_t *
+bytesvar_newf(unsigned char *buf, size_t len, unsigned int flags)
+{
+        struct var_t *v = var_new(&BytesType);
+        /* REVISIT: allow immortal bytes vars? */
+        if (!!(flags & BF_COPY))
+                V2B(v)->b_buf = ememdup(buf, len);
+        else
+                V2B(v)->b_buf = buf;
+        seqvar_set_size(v, len);
+        return v;
+}
+
 /**
  * bytesvar_new - Get a new bytes var
  * @buf: Array of bytes to copy into new var
@@ -122,11 +186,129 @@ bytes_cp(struct var_t *v)
 struct var_t *
 bytesvar_new(unsigned char *buf, size_t len)
 {
-        struct var_t *v = var_new(&BytesType);
-        /* REVISIT: allow immortal bytes vars? */
-        V2B(v)->b_buf = ememdup(buf, len);
-        seqvar_set_size(v, len);
-        return v;
+        return bytesvar_newf(buf, len, BF_COPY);
+}
+
+/**
+ * bytesvar_from_source - Like bytesvar_new, except input has not been
+ *                        parsed yet
+ * @src: C string as written from source.  Contains leading 'b' or 'B'
+ *       as well as the quote character.  Concatentated tokens may
+ *       exist, eg. "b'\x12x34'b'\x56\x78'".  No characters may exist
+ *       between these concatenated tokens.
+ */
+struct var_t *
+bytesvar_from_source(char *src)
+{
+        unsigned char c;
+        size_t size;
+        int q;
+        struct buffer_t b;
+        enum { BKSL = '\\' };
+
+        buffer_init(&b);
+        /* calling code should have trapped this */
+        bug_on(src[0] != 'b' && src[0] != 'B');
+        q = src[1];
+        bug_on(!isquote(q));
+
+        src += 2;
+
+again:
+        while ((c = *src++) != q && c != '\0') {
+                if (c == BKSL) {
+                        c = *src++;
+                        if (c == q) {
+                                buffer_putd(&b, &c, 1);
+                                continue;
+                        }
+                        if (c == 'x' || c == 'X') {
+                                if (!isxdigit(src[0]) || !isxdigit(src[1]))
+                                        goto err;
+                                c = x2bin(src[0]) * 16 + x2bin(src[1]);
+
+                                src += 2;
+                                buffer_putd(&b, &c, 1);
+                                continue;
+                        }
+                        if (isodigit(c)) {
+                                int i, v;
+                                --src;
+                                for (i = 0, v = 0; i < 3; i++, src++) {
+                                        if (!isodigit(*src))
+                                                break;
+                                        /* '0' & 7 happens to be 0 */
+                                        v = (v << 3) + c & 7;
+                                }
+                                if (v >= 256)
+                                        goto err;
+                                c = v;
+                                buffer_putd(&b, &c, 1);
+                                continue;
+                        }
+                        switch (c) {
+                        case '0':
+                                c = 0;
+                                break;
+                        case 'a':
+                                c = '\a';
+                                break;
+                        case 'b':
+                                c = '\b';
+                                break;
+                        case 'e':
+                                c = '\033';
+                                break;
+                        case 'f':
+                                c = '\f';
+                                break;
+                        case 'n':
+                                c = '\n';
+                                break;
+                        case 'r':
+                                c = '\r';
+                                break;
+                        case 't':
+                                c = '\t';
+                                break;
+                        case 'v':
+                                c = '\v';
+                                break;
+                        case BKSL:
+                                break;
+                        default:
+                                goto err;
+                        }
+                        buffer_putd(&b, &c, 1);
+                } else {
+                        buffer_putd(&b, &c, 1);
+                }
+        }
+
+        bug_on(c != q);
+        c = *src++;
+
+        if (c != '\0') {
+                /* wrapping code should have caught this earlier */
+                bug_on(c != 'b' && c != 'B');
+                q = *src++;
+                bug_on(!isquote(q));
+                goto again;
+        }
+
+        size = buffer_size(&b);
+        if (size == 0) {
+                /* empty buffer, best not to accidentally de-reference NULL */
+                unsigned char dummy = 0;
+                buffer_putd(&b, &dummy, 1);
+        }
+
+        /* TODO: Any need to make immortal? */
+        return bytesvar_newf((unsigned char *)b.s, size, 0);
+
+err:
+        buffer_free(&b);
+        return ErrorVar;
 }
 
 static const struct type_inittbl_t bytes_cb_methods[] = {

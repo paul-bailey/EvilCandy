@@ -108,7 +108,9 @@ string_parse(const char *src)
         bug_on(q != SQ && q != DQ);
 
 again:
-        while ((c = *s++) != q && c != '\0') {
+        while ((c = *s++) != q) {
+                /* should have been trapped already */
+                bug_on(c == 0);
                 if (c == BKSL) {
                         c = *s++;
                         if (c == q) {
@@ -156,11 +158,10 @@ again:
                         }
 
                         if (isodigit(c)) {
-                                --s;
                                 int i, v;
+                                --s;
                                 for (i = 0, v = 0; i < 3; i++, s++) {
-                                        c = *s++;
-                                        if (!isodigit(c))
+                                        if (!isodigit(*s))
                                                 break;
                                         /* '0' & 7 happens to be 0 */
                                         v = (v << 3) + c & 7;
@@ -220,8 +221,11 @@ again:
                 }
         }
 
+        /* wrapping code should have caught this earlier */
+        bug_on(c != q);
+        c = *s++;
         if (c != '\0') {
-                /* wrapping code should have caught this earlier */
+                /* also should have been checked */
                 bug_on(!isquote(c));
 
                 /* in case a weirdo wrote "string1" 'string2' */

@@ -404,7 +404,8 @@ extern enum result_t array_append(struct var_t *array,
                                   struct var_t *child);
 
 /* types/bytes.c */
-struct var_t *bytesvar_new(unsigned char *buf, size_t len);
+extern struct var_t *bytesvar_new(unsigned char *buf, size_t len);
+extern struct var_t *bytesvar_from_source(char *src);
 
 /* types/empty.c */
 extern struct var_t *emptyvar_new(void);

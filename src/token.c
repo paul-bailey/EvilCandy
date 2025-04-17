@@ -99,20 +99,11 @@ tok_next_line(struct token_state_t *state)
         return res;
 }
 
-/*
- * Get string literal, or return false if token is something different.
- * state->s points at first quote
- */
 static bool
-get_tok_string(struct token_state_t *state)
+str_or_bytes_finish(struct token_state_t *state, char *pc, int q)
 {
         struct buffer_t *tok = &state->tok;
-        char *pc = state->s;
-        int c, q = *pc++;
-        if (!isquote(q))
-                return false;
-
-        buffer_putc(tok, q);
+        int c;
         while ((c = *pc++) != q) {
                 if (c == '\0')
                         token_errset(state, TE_UNTERM_QUOTE);
@@ -128,6 +119,47 @@ get_tok_string(struct token_state_t *state)
         buffer_putc(tok, q);
         state->s = pc;
         return true;
+}
+
+/*
+ * Get string literal, or return false if token is something different.
+ * state->s points at first quote
+ */
+static bool
+get_tok_string(struct token_state_t *state)
+{
+        struct buffer_t *tok = &state->tok;
+        int q = *state->s;
+        if (!isquote(q))
+                return false;
+
+        buffer_putc(tok, q);
+        return str_or_bytes_finish(state, state->s + 1, q);
+}
+
+/*
+ * Bytes version of string literal. Processed the same but check for
+ * b before the quote.  Type handler will error-check the values in
+ * the string.
+ */
+static bool
+get_tok_bytes(struct token_state_t *state)
+{
+        struct buffer_t *tok = &state->tok;
+        char *pc = state->s;
+        int q, b;
+
+        b = *pc++;
+        if (b != 'b' && b != 'B')
+                return false;
+
+        q = *pc++;
+        if (!isquote(q))
+                return false;
+
+        buffer_putc(tok, b);
+        buffer_putc(tok, q);
+        return str_or_bytes_finish(state, pc, q);
 }
 
 static bool
@@ -550,6 +582,7 @@ tok_kw_seek(const char *key)
  * 'd' OR'd with ((delim<<8)|flags) if token was a delimiter
  * 'k' OR'd with code<<8 for keyword if token was a keyword
  * 'q' if quoted string.
+ * 'b' if bytes
  * 'i' if integer
  * 'f' if float
  * 'u' if identifier
@@ -644,6 +677,10 @@ tokenize_helper(struct token_state_t *state)
                                 ret = skip_whitespace(state);
                         } while (ret != EOF && get_tok_string(state));
                         return 'q';
+                } else if (get_tok_bytes(state)) {
+                        do {
+                        } while (ret != EOF && get_tok_bytes(state));
+                        return 'b';
                 } else if (get_tok_identifier(state)) {
                         if ((ret = tok_kw_seek(tok->s)) >= 0)
                                 return ret;

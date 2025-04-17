@@ -574,6 +574,15 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
         case OC_FALSE:
                 v = intvar_new(0);
                 break;
+        case 'b':
+                v = bytesvar_from_source(oc->s);
+                if (v == ErrorVar) {
+                        err_setstr(ParserError,
+                                "Error in bytes literal %s",
+                                a->oc->s);
+                        as_err(a, AE_GEN);
+                }
+                break;
         case 'i':
                 v = intvar_new(oc->i);
                 break;
@@ -989,6 +998,7 @@ assemble_eval_atomic(struct assemble_t *a)
         }
 
         case 'i':
+        case 'b':
         case 'f':
         case 'q':
         case OC_TRUE:

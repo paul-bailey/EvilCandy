@@ -24,6 +24,8 @@ struct var_t *SystemError;
 static void
 init_lib(void)
 {
+        /* ewrappers.c */
+        extern void moduleinit_ewrappers(void);
         /* literal.c */
         extern void moduleinit_literal(void);
         /* var.c */
@@ -46,6 +48,7 @@ init_lib(void)
                 void (*initfn)(void);
         } INITFNS[] = {
                 /* Note: the order of this table matters */
+                { .initfn = moduleinit_ewrappers },
                 { .initfn = moduleinit_literal },
                 { .initfn = moduleinit_var },
                 { .initfn = moduleinit_vm },

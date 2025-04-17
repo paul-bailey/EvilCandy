@@ -6,6 +6,35 @@
 #include <evilcandy.h>
 #include <stdlib.h>
 
+#ifndef NDEBUG
+
+static long n_alloc_calls = 0;
+static long n_free_calls = 0;
+
+static inline void DBUG_LOG_MALLOC(void *p, size_t size)
+        { n_alloc_calls++; }
+
+static inline void DBUG_LOG_FREE(void *p)
+        { n_free_calls++; }
+
+#define DBUG_LOG_MALLOC_IF(cond, p, size) do { \
+        if (cond)                         \
+                DBUG_LOG_MALLOC(p, size);      \
+} while (0)
+
+static void
+report_alloc_stats(void)
+{
+        DBUG("n_alloc_calls=%ld", n_alloc_calls);
+        DBUG("n_free_calls=%ld", n_free_calls);
+}
+
+#else
+# define DBUG_LOG_MALLOC(...)        do { (void)0; } while (0)
+# define DBUG_LOG_MALLOC_IF(...)     do { (void)0; } while (0)
+# define DBUG_LOG_FREE(...)          do { (void)0; } while (0)
+#endif /* !NDEBUG */
+
 /**
  * estrdup - error-handling wrapper to strdup
  */
@@ -13,6 +42,7 @@ char *
 estrdup(const char *s)
 {
         char *res = strdup(s);
+        DBUG_LOG_MALLOC(res, strlen(s));
         if (!res)
                 fail("strdup failed");
         return res;
@@ -25,6 +55,7 @@ void *
 emalloc(size_t size)
 {
         void *res = malloc(size);
+        DBUG_LOG_MALLOC(res, size);
         if (!res)
                 fail("malloc failed");
         return res;
@@ -37,6 +68,7 @@ void *
 ecalloc(size_t size)
 {
         void *res = emalloc(size);
+        DBUG_LOG_MALLOC(res, size);
         memset(res, 0, size);
         return res;
 }
@@ -48,6 +80,7 @@ void *
 erealloc(void *buf, size_t size)
 {
         void *res = realloc(buf, size);
+        DBUG_LOG_MALLOC_IF(buf == NULL, res, size);
         if (!res)
                 fail("realloc failed");
         return res;
@@ -57,6 +90,7 @@ void *
 ememdup(void *buf, size_t size)
 {
         void *ret = emalloc(size);
+        DBUG_LOG_MALLOC(buf, size);
         memcpy(ret, buf, size);
         return ret;
 }
@@ -72,6 +106,14 @@ ememdup(void *buf, size_t size)
 void
 efree(void *ptr)
 {
+        DBUG_LOG_FREE(ptr);
         free(ptr);
 }
 
+void
+moduleinit_ewrappers(void)
+{
+#ifndef NDEBUG
+        atexit(report_alloc_stats);
+#endif
+}

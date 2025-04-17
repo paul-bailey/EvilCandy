@@ -202,8 +202,6 @@ struct floatvar_t {
         double f;
 };
 
-// #include "xptr.h"
-
 /* Warning!! Only call these if you already type-checked @v */
 static inline double floatvar_tod(struct var_t *v)
         { return ((struct floatvar_t *)v)->f; }

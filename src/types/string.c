@@ -165,7 +165,7 @@ again:
                                         /* '0' & 7 happens to be 0 */
                                         v = (v << 3) + c & 7;
                                 }
-                                if (v == 0 || v > 256)
+                                if (v == 0 || v >= 256)
                                         goto err;
                                 buffer_putc(&b, v);
                                 continue;

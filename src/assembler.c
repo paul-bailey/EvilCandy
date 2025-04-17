@@ -562,75 +562,50 @@ seek_const_int(struct assemble_t *a, struct executable_t *x, long long vi)
 static int
 seek_or_add_const(struct assemble_t *a, struct token_t *oc)
 {
-        int i;
         struct as_frame_t *fr = a->fr;
         struct executable_t *x = fr->x;
         struct var_t *v;
+        int i;
+
         switch (oc->t) {
-        case 'i':
-                i = seek_const_int(a, x, oc->i);
-                break;
-        case 'f':
-                for (i = 0; i < x->n_rodata; i++) {
-                        v = x->rodata[i];
-                        /* "float1 == float2" ...is this reliable? */
-                        if (isvar_float(v) && floatvar_tod(v) == oc->f)
-                                break;
-                }
-                break;
-        case 'u':
-        case 'q':
-                for (i = 0; i < x->n_rodata; i++) {
-                        v = x->rodata[i];
-                        if (isvar_string(v) && string_get_cstring(v) == oc->s)
-                                break;
-                }
-                break;
         case OC_TRUE:
-                i = seek_const_int(a, x, 1LL);
+                v = intvar_new(1);
                 break;
         case OC_FALSE:
-                i = seek_const_int(a, x, 0LL);
+                v = intvar_new(0);
+                break;
+        case 'i':
+                v = intvar_new(oc->i);
+                break;
+        case 'f':
+                v = floatvar_new(oc->f);
+                break;
+        case 'u':
+                /* FIXME: will need to immortalize this */
+                v = stringvar_from_immortal(oc->s);
+                break;
+        case 'q':
+                v = stringvar_from_source(oc->s, true);
+                if (v == ErrorVar) {
+                        err_setstr(ParserError,
+                                "Error in string literal %s",
+                                a->oc->s);
+                        as_err(a, AE_GEN);
+                }
                 break;
         default:
-                i = 0; /* satisfied, compiler? */
                 bug();
         }
-
+        for (i = 0; i < x->n_rodata; i++) {
+                bug_on(x->rodata[i] == NULL);
+                if (var_compare(v, x->rodata[i]) == 0) {
+                        VAR_DECR_REF(v);
+                        break;
+                }
+        }
         if (i == x->n_rodata) {
                 as_assert_array_pos(a, x->n_rodata + 1,
                                     &x->rodata, &fr->const_alloc);
-
-                switch (oc->t) {
-                case OC_TRUE:
-                        v = intvar_new(1);
-                        break;
-                case OC_FALSE:
-                        v = intvar_new(0);
-                        break;
-                case 'i':
-                        v = intvar_new(oc->i);
-                        break;
-                case 'f':
-                        v = floatvar_new(oc->f);
-                        break;
-                case 'u':
-                        /* FIXME: will need to immortalize this */
-                        v = stringvar_from_immortal(oc->s);
-                        break;
-                case 'q':
-                        v = stringvar_from_source(oc->s, true);
-                        if (v == ErrorVar) {
-                                err_setstr(ParserError,
-                                        "Error in string literal %s",
-                                        a->oc->s);
-                                as_err(a, AE_GEN);
-                        }
-                        break;
-                default:
-                        bug();
-                }
-
                 x->rodata[x->n_rodata++] = v;
         }
         return i;

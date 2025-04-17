@@ -10,7 +10,6 @@
  * file before I thought things through. (LOL, cf. object.c)
  */
 #include <evilcandy.h>
-#include <stdlib.h>
 
 /**
  * struct arrayvar_t - Handle to a numerical array
@@ -158,7 +157,7 @@ tuplevar_new(int n_items)
 static void
 array_reset(struct var_t *a)
 {
-        free(V2ARR(a)->items);
+        efree(V2ARR(a)->items);
 }
 
 /* type_t .cmp callback */

@@ -1,8 +1,8 @@
 /* token.c - Tokenizer code */
 #include <evilcandy.h>
 #include "token.h"
-#include <stdlib.h>
 #include <setjmp.h>
+#include <stdlib.h>
 #include <unistd.h> /* TODO: for isatty, get rid of this */
 
 enum {
@@ -634,7 +634,7 @@ tokenize_helper(struct token_state_t *state)
                 err_get(&exc, &emsg);
                 bug_on(exc == NULL || emsg == NULL);
                 err_print(stderr, exc, emsg);
-                free(emsg);
+                efree(emsg);
                 if (state->line != NULL) {
                         fprintf(stderr, "In file %s line %d:\n",
                                 state->filename, state->lineno);
@@ -832,7 +832,7 @@ token_state_trim(struct token_state_t *state)
 {
         buffer_free(&state->tok);
         if (state->line)
-                free(state->line);
+                efree(state->line);
 }
 
 /**
@@ -846,7 +846,7 @@ token_state_free(struct token_state_t *state)
 {
         token_state_trim(state);
         buffer_free(&state->pgm);
-        free(state);
+        efree(state);
 }
 
 /**

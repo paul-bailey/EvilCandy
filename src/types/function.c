@@ -5,7 +5,6 @@
  *         function-like magic number
  */
 #include <evilcandy.h>
-#include <stdlib.h>
 
 /**
  * struct funcvar_t - Handle to a callable function
@@ -68,7 +67,7 @@ remove_args(struct var_t **arr, int count)
                 if (arr[i])
                         VAR_DECR_REF(arr[i]);
         }
-        free(arr);
+        efree(arr);
 }
 
 /*
@@ -241,7 +240,7 @@ function_add_default(struct var_t *func,
                 new_arr = ecalloc(new_alloc);
                 memcpy(new_arr, fh->f_argv,
                        fh->f_argc * sizeof(void *));
-                free(fh->f_argv);
+                efree(fh->f_argv);
                 fh->f_argv = new_arr;
                 fh->f_arg_alloc = new_alloc;
         }

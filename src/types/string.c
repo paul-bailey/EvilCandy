@@ -1,8 +1,8 @@
 /* string.c - Built-in methods for string data types */
 #include <evilcandy.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <math.h>
+#include <stdlib.h> /* strtol and friends */
 
 /* user argument limits */
 enum {
@@ -1187,7 +1187,7 @@ string_reset(struct var_t *str)
 {
         struct stringvar_t *vs = V2STR(str);
         if (!vs->s_imm)
-                free(vs->s);
+                efree(vs->s);
 }
 
 static struct var_t *
@@ -1349,7 +1349,7 @@ stringvar_from_source(const char *tokenstr, bool imm)
          */
         if (imm) {
                 char *ls = literal_put(s);
-                free(s);
+                efree(s);
                 s = ls;
         }
 

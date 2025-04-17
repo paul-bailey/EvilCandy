@@ -7,7 +7,6 @@
  * too.  Too late...
  */
 #include <evilcandy.h>
-#include <stdlib.h>
 
 /**
  * struct dictvar_t - Descriptor for an object handle
@@ -273,7 +272,7 @@ object_reset(struct var_t *o)
                 if (oh->priv_cleanup)
                         oh->priv_cleanup(o, oh->priv);
                 else
-                        free(oh->priv);
+                        efree(oh->priv);
         }
         hashtable_destroy(&oh->dict);
 }

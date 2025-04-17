@@ -60,3 +60,18 @@ ememdup(void *buf, size_t size)
         memcpy(ret, buf, size);
         return ret;
 }
+
+/**
+ * efree - Free memory allocated with emalloc or one of his friends
+ *
+ * This isn't so much an error wrapper as it is a way to funnel all
+ * the malloc/free calls through the same place.  Makes adding debug
+ * hooks to track memory leaks a lot easier, and fewer <stdlib.h>
+ * includes are needed.
+ */
+void
+efree(void *ptr)
+{
+        free(ptr);
+}
+

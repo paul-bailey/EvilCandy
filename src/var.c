@@ -1,5 +1,5 @@
 #include <evilcandy.h>
-#include <stdlib.h>
+#include <stdlib.h> /* for atexit */
 
 #ifndef NDEBUG
    static size_t var_nalloc = 0;
@@ -69,7 +69,7 @@ var_free(struct var_t *v, size_t size)
                 vm->list = var_freelist;
                 var_freelist = vm;
         } else {
-                free(v);
+                efree(v);
         }
 }
 

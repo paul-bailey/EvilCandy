@@ -25,7 +25,6 @@
  */
 #include <evilcandy.h>
 #include "token.h"
-#include <stdlib.h>
 
 static struct hashtable_t *symbol_table;
 
@@ -1140,7 +1139,7 @@ vm_add_global(const char *name, struct var_t *var)
 void
 moduleinit_vm(void)
 {
-        symbol_table = malloc(sizeof(*symbol_table));
+        symbol_table = emalloc(sizeof(*symbol_table));
         hashtable_init(symbol_table, ptr_hash, ptr_key_match,
                        var_bucket_delete);
 

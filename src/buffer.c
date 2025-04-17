@@ -45,7 +45,6 @@
 #include <lib/buffer.h>
 #include <evilcandy.h>
 #include <stdarg.h>
-#include <stdlib.h>
 
 static void
 buffer_init_(struct buffer_t *b)
@@ -86,7 +85,7 @@ void
 buffer_free(struct buffer_t *buf)
 {
         if (buf->s)
-                free(buf->s);
+                efree(buf->s);
         buffer_init_(buf);
 }
 

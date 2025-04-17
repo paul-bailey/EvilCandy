@@ -1,6 +1,5 @@
 /* helpers.c - Wrappers to standard library functions that I find useful */
 #include <evilcandy.h>
-#include <stdlib.h>
 
 /**
  * x2bin - interpret a hex char
@@ -267,9 +266,7 @@ assert_array_pos(int idx, void **arr,
                 new_alloc = need_size;
                 if (new_alloc < 8)
                         new_alloc = 8;
-                a = malloc(new_alloc);
-                if (!a)
-                        return -1;
+                a = emalloc(new_alloc);
                 goto done;
         }
 
@@ -282,9 +279,7 @@ assert_array_pos(int idx, void **arr,
         if (new_alloc == *alloc_bytes)
                 return 0; /* didn't need to do anything */
 
-        a = realloc(*arr, new_alloc);
-        if (!a)
-                return -1;
+        a = erealloc(*arr, new_alloc);
 
 done:
         *arr = a;

@@ -80,7 +80,6 @@
 #include <evilcandy.h>
 
 #include <errno.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 
 /* Early debug version, this is kind of meaningless right now */
@@ -482,7 +481,7 @@ read_xinstructions(struct serial_rstate_t *state, struct executable_t *ex)
 
         return RES_OK;
 err:
-        free(ex->instr);
+        efree(ex->instr);
         return RES_ERROR;
 }
 
@@ -499,7 +498,7 @@ read_labels(struct serial_rstate_t *state, struct executable_t *ex)
         return RES_OK;
 
 err:
-        free(ex->label);
+        efree(ex->label);
         return RES_ERROR;
 }
 
@@ -536,7 +535,7 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
                          * stuck with it in case this fails later?
                          */
                         v = stringvar_from_immortal(literal_put(s));
-                        free(s);
+                        efree(s);
                         break;
                 case TYPE_XPTR:
                         s = rstring(state, &len);
@@ -563,7 +562,7 @@ read_rodata(struct serial_rstate_t *state, struct executable_t *ex)
 
                         VAR_DECR_REF(ex->rodata[i]);
                 }
-                free(ex->rodata);
+                efree(ex->rodata);
                 return RES_ERROR;
         }
         return RES_OK;
@@ -615,11 +614,11 @@ read_executable(struct serial_rstate_t *state, struct executable_t *ex)
         return RES_OK;
 
 err_have_rodata:
-        free(ex->rodata);
+        efree(ex->rodata);
         ex->n_rodata = 0;
 
 err_have_instr:
-        free(ex->instr);
+        efree(ex->instr);
         ex->n_instr = 0;
         return RES_ERROR;
 }
@@ -769,8 +768,8 @@ serialize_read(FILE *fp, const char *file_name)
         ret = exarray[0];
 
         /* no longer need array, ret's .rodata can reference the rest */
-        free(exarray);
-        free(state.buf);
+        efree(exarray);
+        efree(state.buf);
         return ret;
 
 err_have_ex:
@@ -782,17 +781,17 @@ err_have_ex:
                  * so do the full cleanup.
                  */
                 if (exarray[i]->rodata)
-                        free(exarray[i]->rodata);
+                        efree(exarray[i]->rodata);
                 if (exarray[i]->instr)
-                        free(exarray[i]->instr);
+                        efree(exarray[i]->instr);
                 if (exarray[i]->label)
-                        free(exarray[i]->label);
-                free(exarray[i]);
+                        efree(exarray[i]->label);
+                efree(exarray[i]);
         }
-        free(exarray);
+        efree(exarray);
 
 err_have_buffer:
-        free(state.buf);
+        efree(state.buf);
         if (!err_occurred()) {
                 DBUG("Ghost error @%s, line %d", __FILE__, __LINE__);
                 err_setstr(RuntimeError,

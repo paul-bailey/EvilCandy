@@ -1,7 +1,7 @@
 /* q-builtin.c - Built-in callbacks for script */
 #include "builtin.h"
 #include <evilcandy.h>
-#include <stdlib.h>
+#include <stdlib.h> /* exit */
 
 #define NLMAX 8
 

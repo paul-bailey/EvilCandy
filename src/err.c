@@ -80,7 +80,7 @@ err_vsetstr(struct var_t *exc, const char *msg, va_list ap)
 
         vsnprintf(msg_buf, len - 1, msg, ap);
         if (msg_last)
-                free(msg_last);
+                efree(msg_last);
         msg_last = estrdup(msg_buf);
         exception_last = exc;
 }
@@ -153,7 +153,7 @@ err_print_last(FILE *fp)
         err_get(&exc, &emsg);
         err_print(fp, exc, emsg);
         if (emsg)
-                free(emsg);
+                efree(emsg);
 }
 
 /*

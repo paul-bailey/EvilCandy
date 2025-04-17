@@ -29,7 +29,6 @@
 #include <evilcandy.h>
 #include <typedefs.h>
 #include <setjmp.h>
-#include <stdlib.h>
 
 /*
  * The @flags arg used in some of the functions below.
@@ -209,15 +208,15 @@ executable_free__(struct executable_t *ex)
                 return;
 
         if (ex->instr)
-                free(ex->instr);
+                efree(ex->instr);
         if (ex->rodata) {
                 int i;
                 for (i = 0; i < ex->n_rodata; i++)
                         VAR_DECR_REF(ex->rodata[i]);
         }
         if (ex->label)
-                free(ex->label);
-        free(ex);
+                efree(ex->label);
+        efree(ex);
 }
 
 static void
@@ -342,7 +341,7 @@ as_delete_frame_list(struct list_t *parent_list, int err)
                 list_remove(&fr->list);
                 if (err && fr->x)
                         executable_free__(fr->x);
-                free(fr);
+                efree(fr);
         }
 }
 
@@ -2184,7 +2183,7 @@ free_assembler(struct assemble_t *a, int err)
 {
         as_delete_frames(a, err);
         token_state_free(a->prog);
-        free(a);
+        efree(a);
 }
 
 /**
@@ -2262,7 +2261,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                         err_get(&exc, &emsg);
                         bug_on(!exc || !emsg);
                         err_print(stderr, exc, emsg);
-                        free(emsg);
+                        efree(emsg);
                         fprintf(stderr, "in file '%s' near line '%d'\n",
                                 a->file_name, a->oc->line);
                 }

@@ -1,7 +1,6 @@
 /* Implementation of an EvilCandy-specific hash table. */
 #include <lib/hashtable.h>
 #include <evilcandy.h>
-#include <stdlib.h>
 
 #define GROW_SIZE(x)    (((x) * 2) / 3)
 #define BUCKET_DEAD ((void *)-1)
@@ -21,7 +20,7 @@ bucket_alloc(void)
 static void
 bucket_free(struct bucket_t *b)
 {
-        free(b);
+        efree(b);
 }
 
 static inline int
@@ -100,7 +99,7 @@ transfer_table(struct hashtable_t *htbl, size_t old_size)
                 count++;
         }
         htbl->count = htbl->used = count;
-        free(old);
+        efree(old);
 }
 
 static void
@@ -384,7 +383,7 @@ void
 hashtable_destroy(struct hashtable_t *htbl)
 {
         hashtable_clear_entries_(htbl);
-        free(htbl->bucket);
+        efree(htbl->bucket);
 }
 
 /**

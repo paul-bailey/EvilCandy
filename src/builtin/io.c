@@ -24,7 +24,6 @@
  */
 #include "builtin.h"
 #include <errno.h>
-#include <stdlib.h>
 
 /**
  * struct file_handle_t - Handle to a file, private data to an
@@ -234,7 +233,7 @@ file_reset(struct var_t *oh, void *data)
         bug_on(!fh);
         bug_on(fh->magic != FILE_HANDLE_MAGIC);
         fclose(fh->fp);
-        free(fh);
+        efree(fh);
 }
 
 /**

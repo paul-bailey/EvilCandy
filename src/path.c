@@ -4,7 +4,6 @@
  * forth.
  */
 #include <evilcandy.h>
-#include <stdlib.h>
 
 #define MAX_LOADS RECURSION_MAX
 
@@ -36,7 +35,7 @@ pop_path(FILE *fp)
         fclose(fp);
         bug_on(path_sp <= 0);
         --path_sp;
-        free((char *)paths[path_sp]);
+        efree((char *)paths[path_sp]);
 }
 
 /**

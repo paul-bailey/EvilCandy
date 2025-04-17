@@ -1,7 +1,6 @@
 /* bytes.c - Built-in methods for bytes data types */
 
 #include <evilcandy.h>
-#include <stdlib.h>
 
 struct bytesvar_t {
         struct seqvar_t base;
@@ -146,7 +145,7 @@ bytes_reset(struct var_t *v)
 {
         unsigned char *b = V2B(v)->b_buf;
         if (b)
-                free(b);
+                efree(b);
 }
 
 static struct var_t *

@@ -45,7 +45,6 @@
  */
 #include <evilcandy.h> /* for prog wrappers like emalloc */
 #include "trie.h"
-#include <stdlib.h>
 
 static struct trie_t *
 insert_helper(struct trie_t *trie, unsigned char c)
@@ -84,7 +83,7 @@ insert_helper(struct trie_t *trie, unsigned char c)
                 for (i = thisidx + 1; i < n; i++)
                         newarr[i] = trie->ptrs[i - 1];
 
-                free(trie->ptrs);
+                efree(trie->ptrs);
                 trie->ptrs = newarr;
                 trie = trie->ptrs[thisidx];
         } else {

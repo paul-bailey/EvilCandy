@@ -1,6 +1,5 @@
 /* Internal types: TYPE_STRPTR, TYPE_XPTR */
 #include <evilcandy.h>
-#include <stdlib.h>
 
 struct uuidptrvar_t {
         struct var_t base;
@@ -52,7 +51,7 @@ uuidptr_reset(struct var_t *v)
          * uuidptrvar_new is a malloc'd value which caller will not throw
          * away.  Copy pointer directly and call free in our destructor.
          */
-        free(((struct uuidptrvar_t *)v)->uuid);
+        efree(((struct uuidptrvar_t *)v)->uuid);
 }
 
 static struct var_t *

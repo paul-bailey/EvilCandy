@@ -139,6 +139,7 @@ extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
 extern void *erealloc(void *buf, size_t size);
 extern void *ememdup(void *buf, size_t size);
+extern void efree(void *ptr);
 
 /* json.c */
 struct var_t *dict_from_json(const char *filename);

@@ -7,7 +7,15 @@
 #include <unistd.h>
 #include <errno.h>
 
-struct global_t q_;
+/* configuration stuff */
+static struct {
+        struct {
+                bool disassemble;
+                bool disassemble_only;
+                char *disassemble_outfile;
+                char *infile;
+        } opt;
+} q_;
 
 /*
  * Dummy variable, since for some functions a return value of NULL

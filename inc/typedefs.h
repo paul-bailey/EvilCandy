@@ -2,7 +2,42 @@
 #ifndef EVILCANDY_TYPEDEFS_H
 #define EVILCANDY_TYPEDEFS_H
 
-#include <evilcandy.h>
+#include "var.h"
+
+/**
+ * DOC: Magic numbers for built-in typedefs
+ * @TYPE_EMPTY:         Uninitialized variable
+ * @TYPE_DICT:          Object, or to be egg-headed and more precise, an
+ *                      associative array
+ * @TYPE_FUNCTION:      Function callable by script.
+ * @TYPE_FLOAT:         Floating point number
+ * @TYPE_INT:           Integer number
+ * @TYPE_STRING:        C-string and some useful metadata
+ * @TYPE_LIST:          Numerical array, ie. [ a, b, c...]-type array
+ * @NTYPES_USER:        Boundary to check a magic number against
+ *
+ * These are used for serializing and some text representations,
+ * but not for the normal type operations, which use the struct type_t's
+ * defined in typedefs.h
+ */
+enum type_magic_t {
+        TYPE_EMPTY = 0,
+        TYPE_DICT,
+        TYPE_FUNCTION,
+        TYPE_FLOAT,
+        TYPE_INT,
+        TYPE_STRING,
+        TYPE_LIST,
+        NTYPES_USER,
+
+        /*
+         * internal use, user should never be able to access these below
+         */
+
+        TYPE_STRPTR = NTYPES_USER,
+        TYPE_XPTR,
+        NTYPES,
+};
 
 typedef struct var_t *(*binary_operator_t)(struct var_t *,
                                            struct var_t *);

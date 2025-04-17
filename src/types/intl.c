@@ -1,5 +1,5 @@
 /* Internal types: TYPE_STRPTR, TYPE_XPTR */
-#include "types_priv.h"
+#include <evilcandy.h>
 #include <string.h>
 #include <stdlib.h>
 

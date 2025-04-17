@@ -2,10 +2,10 @@
  * common to types/ and builtin/ folders, else they'd
  * be in a header in one of those
  */
-#ifndef EGQ_UARG_H
-#define EGQ_UARG_H
+#ifndef EVILCANDY_UARG_H
+#define EVILCANDY_UARG_H
 
-#include <evilcandy.h>
+#include "var.h"
 
 /* err.c */
 extern int arg_type_check_failed(struct var_t *v,

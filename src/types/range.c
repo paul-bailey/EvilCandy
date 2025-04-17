@@ -2,7 +2,7 @@
  * range.c - Iterable data type
  */
 
-#include "types_priv.h"
+#include <evilcandy.h>
 #include <limits.h>
 #include <string.h>
 

@@ -6,7 +6,7 @@
  * tecnhically objects, and the documentation calls them dictionaries,
  * too.  Too late...
  */
-#include "types_priv.h"
+#include <evilcandy.h>
 #include <string.h>
 #include <stdlib.h>
 

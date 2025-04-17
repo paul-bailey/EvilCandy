@@ -1,6 +1,6 @@
 /* bytes.c - Built-in methods for bytes data types */
 
-#include "types_priv.h"
+#include <evilcandy.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>

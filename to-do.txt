@@ -23,6 +23,11 @@ Bugs
 Must Do
 -------
 
+* Move all direct ``free`` calls into a wrapper function ``efree`` in
+  ewrappers.c.  This isn't needed for error wrapping per se, but it
+  makes it easier (if I want to debug memory leaks) to have all the
+  malloc/free calls come from a single C file.
+
 * ``this`` keyword barely tested; it will probably break a lot of
   stuff that seems to work without it.
 

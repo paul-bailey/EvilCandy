@@ -29,6 +29,14 @@ extern const char *notdir(const char *path);
 # define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #endif
 
+/*
+ * can't just be a-b, because if they're floats, a non-zero result
+ * might cast to 0.
+ * Warning, evaluates args twice each.
+ */
+#define OP_CMP(a_, b_) (a_ == b_ ? 0 : (a_ < b_ ? -1 : 1))
+
+
 /**
  * utf8_info_t - Output of utf8_scan
  * @enc:        If STRING_ENC_ASCII, string is ASCII only.

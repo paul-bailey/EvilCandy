@@ -616,7 +616,6 @@ read_executable(struct serial_rstate_t *state, struct executable_t *ex)
 
         /* finish up */
         ex->nref = 1;
-        ex->flags = 0;
         return RES_OK;
 
 err_have_rodata:

@@ -997,12 +997,8 @@ check_ghost_errors(int res)
  * Recursion means stack stress (the irl stack, not the user-data stack).
  * Users shouldn't write absurdly deep recursive functions.  In case they
  * do, VM_RECURSION_MAX is the limit at which this can happen.
- *
- * XXX: Make this configurable by the command-line.  Arbitrary choice for
- * value, do some research and find out if there's a known reason for a
- * specific pick/method for stack overrun protection.
  */
-#define VM_RECURSION_MAX 128
+#define VM_RECURSION_MAX RECURSION_MAX
 
 struct var_t *
 execute_loop(struct vmframe_t *fr)

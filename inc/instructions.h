@@ -111,8 +111,6 @@ typedef struct {
  * @file_name:  Name of source file where this was defined
  * @file_line:  Starting line in source file where this was defined
  * @nref:       Reference count, for garbage collection
- * @flags:      May have FE_TOP set, meaning that this is the top-level
- *              of a script.  (TODO: is this needed?)
  * @uuid:       Identifier for the sake of serialization and disassembly.
  *              (Internal pointers have no meaning except when executing.)
  *              This is the text representation, not the binary bitstream.
@@ -206,7 +204,6 @@ struct executable_t {
         const char *file_name;
         int file_line;
         int nref;
-        unsigned flags;
         /*
          * XXX: I'd rather this be uuid_t, but I want to limit the
          * platform dependence and header namespace to the C modules

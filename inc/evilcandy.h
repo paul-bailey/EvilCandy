@@ -1,21 +1,28 @@
 /*
  * evilcandy.h - Main API header for EvilCandy
  */
-#ifndef EGQ_H
-#define EGQ_H
+#ifndef EVILCANDY_H
+#define EVILCANDY_H
 
+/* headers for stuff I may want to port to other projects */
 #include <lib/hashtable.h>
 #include <lib/helpers.h>
 #include <lib/buffer.h>
 #include <lib/list.h>
-#include "instructions.h" /* TODO: remove */
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
 
+/* Tunable parameters */
 enum {
-        /* Tunable parameters */
+        /*
+         * XXX: Make RECURSION_MAX configurable by the command-line.
+         * Arbitrary choice for value, do some research and find out if
+         * there's a known reason for a specific pick/method for stack
+         * overrun protection.
+         */
         RECURSION_MAX   = 256,
 
         /* for vm.c and assembler.c */
@@ -27,58 +34,7 @@ enum {
 };
 
 /**
- * DOC: Magic numbers for built-in typedefs
- * @TYPE_EMPTY:         Uninitialized variable
- * @TYPE_DICT:          Object, or to be egg-headed and more precise, an
- *                      associative array
- * @TYPE_FUNCTION:      Function callable by script.
- * @TYPE_FLOAT:         Floating point number
- * @TYPE_INT:           Integer number
- * @TYPE_STRING:        C-string and some useful metadata
- * @TYPE_LIST:          Numerical array, ie. [ a, b, c...]-type array
- * @NTYPES_USER:        Boundary to check a magic number against
- *
- * These are used for serializing and some text representations,
- * but not for the normal type operations, which use the struct type_t's
- * defined in typedefs.h
- */
-enum type_magic_t {
-        TYPE_EMPTY = 0,
-        TYPE_DICT,
-        TYPE_FUNCTION,
-        TYPE_FLOAT,
-        TYPE_INT,
-        TYPE_STRING,
-        TYPE_LIST,
-        NTYPES_USER,
-
-        /*
-         * internal use, user should never be able to access these below
-         */
-
-        TYPE_STRPTR = NTYPES_USER,
-        TYPE_XPTR,
-        NTYPES,
-};
-
-/**
- * DOC: Flags for scope of currently parsed or executed expression
- * @FE_FOR: We're in that middle part of a for loop between two
- *          semicolons.  Only used by assembler.
- * @FE_TOP: We're at the top level, ie. not in a function.  In assembler
- *          this has the additional meaning that we are not inside of any
- *          program flow statement, even if we're at the script level.
- *
- * 99% for assembler.c use only, but pulled out to this header because
- * FE_TOP is handy for extra info in disassembler and VM
- */
-enum {
-        FE_FOR = 0x01,
-        FE_TOP = 0x02,
-};
-
-/**
- * DOC: Statuses passed around during runtime, ie. after parsing.
+ * DOC: Result values
  *
  * Fatal errors--mostly bug traps or running out of memory--cause the
  * program to exit immediately after printing an error message, so they
@@ -87,6 +43,11 @@ enum {
  * are not considered fatal, or exceptions intentionally raised by the
  * user.  They will eventually trickle their way back into the VM's
  * main loop, which will decide what to do next.
+ *
+ * For functions that must return a struct var_t (which is like half of
+ * them), return ErrorVar if there is an error.  (I'm trying to reduce
+ * the number of points where NULL could be returned, since it's so easy
+ * to accidentally de-reference them and cause a segmentation fault.)
  *
  * @RES_OK:             Success
  * @RES_EXCEPTION:      User raised an exception
@@ -112,112 +73,12 @@ struct array_handle_t;
 struct string_handle_t;
 struct function_handle_t;
 struct executable_t;
+struct vmframe_t;
 
-/**
- * struct var_t - User variable type
- * @magic: Magic number to determine which builtin type
- * @v_refcnt: DON'T TOUCH THIS! Use VAR_INCR_REF and VAR_DECR_REF instead
- *
- * built-in types have their own XXXXvar_t struct, which embeds this at
- * the very top, so they can be de-referenced with a simple cast.
- *
- * These are allocated with var_new.  After that, VAR_INCR/DECR_REF
- * is used to produce or consume a reference.
- */
-struct var_t {
-        struct type_t *v_type;
-        union {
-                void *v_dummy; /* keep v_refcnt same size as v_type */
-                int v_refcnt;  /* signed for easier bug trapping */
-        };
-};
-
-/**
- * struct seqvar_t - User variable type for sequential types
- * @v_size:  Number of sequential elements.
- *              (Do not confuse this with @base.v_type->size,
- *              which is the typedef's fixed allocation size in bytes.)
- *
- * IMPORTANT!
- *      See typedef.h - If a type's struct type_t has either of its
- *      .sqm or .mpm fields set, then:
- *        1. it MUST embed this struct at the top of its internal-use
- *           struct instead of just struct var_t.
- *        2. it must maintain this v_size field and keep it updated
- */
-struct seqvar_t {
-        struct var_t base;
-        size_t v_size;
-};
-
-/* only call these if you already know @v's type */
-static inline size_t seqvar_size(struct var_t *v)
-        { return ((struct seqvar_t *)v)->v_size; }
-static inline void seqvar_set_size(struct var_t *v, size_t size)
-        { ((struct seqvar_t *)v)->v_size = size; }
-
-struct block_t {
-        struct var_t **stack_level;
-        unsigned char type;
-};
-
-/* FIXME: Needs to be more private than this */
-struct vmframe_t {
-        struct var_t *owner, *func;
-        struct var_t **stackptr;
-        struct var_t **stack;
-        struct executable_t *ex;
-        int ap;
-        int n_blocks;
-        struct block_t blocks[FRAME_NEST_MAX];
-        instruction_t *ppii;
-        struct var_t **clo;
-        struct list_t alloc_list;
-#ifndef NDEBUG
-        bool freed;
-#endif
-};
-
-/**
- * struct global_t - This program's global data, declared as q_
- * @recursion:  For the RECURSION_INCR and RECURSION_DECR macros,
- *              to keep check on excess recursion with our eval()
- *              and expression() functions.
- * @opt:        Command-line options
- */
-struct global_t {
-        int recursion;
-        struct {
-                bool disassemble;
-                bool disassemble_only;
-                char *disassemble_outfile;
-                char *infile;
-        } opt;
-};
-
-#ifndef NDEBUG
-# define DBUG(msg, args...) \
-        fprintf(stderr, "[EvilCandy DEBUG]: " msg "\n", ##args)
-# define DBUG_FN(msg)   \
-        DBUG("function %s line %d: %s", __FUNCTION__, __LINE__, msg)
-#else
-# define DBUG(...)      do { (void)0; } while (0)
-# define DBUG_FN(msg)   do { (void)0; } while (0)
-#endif
-
-#define RECURSION_INCR() do { \
-        if (q_.recursion >= RECURSION_MAX) \
-                fail("Recursion overflow"); \
-        q_.recursion++; \
-} while (0)
-
-#define RECURSION_DECR() do { \
-        bug_on(q_.recursion <= 0); \
-        q_.recursion--; \
-} while (0)
+#include "typedefs.h"
+#include "uarg.h"
 
 /* main.c */
-extern struct global_t q_;
 extern void load_file(const char *filename, struct vmframe_t *fr);
 extern struct var_t *ErrorVar;
 extern struct var_t *NullVar;
@@ -227,31 +88,15 @@ extern struct executable_t *assemble(const char *filename,
                         FILE *fp, bool toeof, int *status);
 
 /* builtin/builtin.c */
-/*
- * These global variables probably ought to be in struct global_t,
- * but do I really want to type "q_.Something" all over the place?
- */
 extern struct var_t *GlobalObject;
 extern struct var_t *ParserError;
 extern struct var_t *RuntimeError;
 extern struct var_t *SystemError;
 extern void moduleinit_builtin(void);
 
-/* err.c */
-#ifndef NDEBUG
-# define bug() bug__(__FILE__, __LINE__)
-# define bug_on(cond_) do { if (cond_) bug(); } while (0)
-#else
-# define bug()          do { (void)0; } while (0)
-# define bug_on(...)    do { (void)0; } while (0)
-#endif
-/*
- * these should never be in C code for more than a few seconds
- * while testing something.
- */
-#define breakpoint() breakpoint__(__FILE__, __LINE__)
-#define breakpoint_if(cond)     do { if (cond) breakpoint(); } while (0)
+#include "debug.h"
 
+/* err.c */
 extern void fail(const char *msg, ...);
 extern void err_setstr(struct var_t *exc, const char *msg, ...);
 extern void err_get(struct var_t **exc, char **msg);
@@ -259,7 +104,6 @@ extern bool err_exists(void);
 extern void err_print(FILE *fp, struct var_t *exc, char *msg);
 extern void err_print_last(FILE *fp);
 extern bool err_occurred(void);
-
 extern void err_attribute(const char *getorset,
                           struct var_t *deref, struct var_t *obj);
 extern void err_argtype(const char *what);
@@ -267,9 +111,6 @@ extern void err_locked(void);
 extern void err_mismatch(const char *op);
 extern void err_permit(const char *op, struct var_t *var);
 extern void err_errno(const char *msg, ...);
-
-extern void bug__(const char *, int);
-extern void breakpoint__(const char *file, int line);
 
 /* disassemble.c */
 extern void disassemble(FILE *fp, struct executable_t *ex,
@@ -294,13 +135,9 @@ extern void moduleinit_keyword(void);
 extern struct hashtable_t literal_htbl__;
 /* see comments above literal.c for usage */
 static inline char *literal_put(const char *key)
-{
-        return hashtable_put_literal(&literal_htbl__, key);
-}
+        { return hashtable_put_literal(&literal_htbl__, key); }
 static inline char *literal(const char *key)
-{
-        return hashtable_get(&literal_htbl__, key);
-}
+        { return hashtable_get(&literal_htbl__, key); }
 extern void moduleinit_literal(void);
 
 /* mempool.c */
@@ -337,52 +174,7 @@ extern struct var_t *rangevar_new(long long start,
                         long long stop, long long step);
 
 /* var.c */
-extern struct var_t *var_new(struct type_t *type);
-extern void var_initialize_type(struct type_t *tp);
-extern struct var_t *var_getattr(struct var_t *v,
-                                 struct var_t *deref);
-extern enum result_t var_setattr(struct var_t *v,
-                                 struct var_t *deref,
-                                 struct var_t *attr);
-extern int var_compare(struct var_t *a, struct var_t *b);
-extern int var_sort(struct var_t *v);
-extern struct var_t *var_str(struct var_t *v);
-extern ssize_t var_len(struct var_t *v);
-extern const char *typestr(struct var_t *v);
-extern const char *typestr_(int magic);
-extern const char *attr_str(struct var_t *deref);
-/* common hashtable callback for var-storing hashtables */
-extern void var_bucket_delete(void *data);
-/* note: v only evaluated once in VAR_*_REF() */
-#define VAR_INCR_REF(v) do { (v)->v_refcnt++; } while (0)
-#define VAR_DECR_REF(v) do {      \
-        struct var_t *v_ = (v);   \
-        v_->v_refcnt--;           \
-        if (v_->v_refcnt <= 0)    \
-                var_delete__(v_); \
-} while (0)
-#ifndef NDEBUG
-  /*
-   * keep this a macro so I can tell where the bug was trapped
-   * I'd like to also sanity-check v_->v_type, but that's probably
-   * too many checks for even debug mode.
-   */
-# define VAR_SANITY(v_) do {                            \
-        struct var_t *v__ = (v_);                       \
-        if (!v__) {                                     \
-                DBUG("unexpected NULL var");            \
-                bug();                                  \
-        }                                               \
-        if (v__->v_refcnt <= 0) {                       \
-                DBUG("v_refcnt=%d", v__->v_refcnt);     \
-                bug();                                  \
-        }                                               \
-} while (0)
-#else
-# define VAR_SANITY(v_) do { (void)0; } while (0)
-#endif
-extern void var_delete__(struct var_t *v);
-extern void moduleinit_var(void);
+#include "var.h"
 
 /* serializer.c */
 extern int serialize_write(FILE *fp, struct executable_t *ex);
@@ -456,25 +248,6 @@ extern struct var_t *stringvar_from_source(const char *tokenstr, bool imm);
 extern char *uuidstr(void);
 
 /* vm.c */
-extern struct var_t *vm_exec_script(struct executable_t *top_level,
-                                struct vmframe_t *fr);
-extern struct var_t *vm_exec_func(struct vmframe_t *fr, struct var_t *func,
-                                struct var_t *owner, int argc,
-                                struct var_t **argv);
-extern void vm_add_global(const char *name, struct var_t *var);
-extern void moduleinit_vm(void);
-static inline struct var_t *vm_get_this(struct vmframe_t *fr)
-        { return fr->owner; }
-static inline struct var_t *vm_get_arg(struct vmframe_t *fr, unsigned int idx)
-        { return idx >= fr->ap ? NULL : fr->stack[idx]; }
-static inline int vm_get_argc(struct vmframe_t *fr)
-        { return fr->ap; }
-/* execute_loop shared between vm.c and function.c, else private */
-extern struct var_t *execute_loop(struct vmframe_t *fr);
+#include "vm.h"
 
-/* TODO: Get rid of references to frame_get_arg */
-# define frame_get_arg(fr, i)   vm_get_arg(fr, i)
-# define get_this(fr)           vm_get_this(fr)
-
-
-#endif /* EGQ_H */
+#endif /* EVILCANDY_H */

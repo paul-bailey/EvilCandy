@@ -4,7 +4,7 @@
  * Allow nulchars in the middle of the strings--I already know
  * the string's length--and stop relying so much on string.h functions.
  */
-#include "types_priv.h"
+#include <evilcandy.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>

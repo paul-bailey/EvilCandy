@@ -4,7 +4,7 @@
  *      2. Code dealing specifically with struct var_t with
  *         function-like magic number
  */
-#include "types_priv.h"
+#include <evilcandy.h>
 #include <stdlib.h>
 #include <string.h>
 

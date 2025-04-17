@@ -37,6 +37,14 @@
 #include <errno.h>
 #include <time.h>
 
+/*
+ * The @flags arg used in some of the functions below.
+ * @FE_FOR: We're in that middle part of a for loop between two
+ *          semicolons.  Only used by assembler.
+ * There used to be more, but they went obsolete.
+ */
+enum { FE_FOR = 0x01 };
+
 /* TODO: define instr_t and use sizeof() here */
 #define INSTR_SIZE      sizeof(instruction_t)
 #define DATA_ALIGN_SIZE 8
@@ -241,9 +249,6 @@ as_frame_push(struct assemble_t *a, int funcno)
         list_add_tail(&fr->list, &a->active_frames);
 
         a->fr = fr;
-
-        if (frame_is_top(a))
-                fr->x->flags = FE_TOP;
 }
 
 /*
@@ -1959,10 +1964,24 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
         return 1;
 }
 
+static int as_recursion = 0;
+
+#define AS_RECURSION_MAX RECURSION_MAX
+
+#define AS_RECURSION_INCR() do { \
+        if (as_recursion >= AS_RECURSION_MAX) \
+                fail("Recursion overflow"); \
+        as_recursion++; \
+} while (0)
+
+#define AS_RECURSION_DECR() do { \
+        bug_on(as_recursion <= 0); \
+        as_recursion--; \
+} while (0)
+
 /*
  * assemble_expression - Parser for the top-level expresison
  * @flags: If FE_FOR, we're in the iterator part of a for loop header.
- *         If FE_TOP (we're at the top level, not in a function).
  * @skip: Jump label to add B instruction for in case of 'break'
  *
  * This covers block expressions and single-line expressions
@@ -1997,7 +2016,7 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
 static void
 assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
 {
-        RECURSION_INCR();
+        AS_RECURSION_INCR();
 
         as_lex(a);
         if (a->oc->t == OC_LBRACE) {
@@ -2040,7 +2059,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                         as_errlex(a, OC_SEMI);
         }
 
-        RECURSION_DECR();
+        AS_RECURSION_DECR();
 }
 
 static void
@@ -2098,7 +2117,7 @@ static void
 assemble_first_pass(struct assemble_t *a, bool toeof)
 {
         do {
-                assemble_expression(a, FE_TOP, -1);
+                assemble_expression(a, 0, -1);
         } while (toeof && a->oc->t != EOF);
         add_instr(a, INSTR_END, 0, 0);
 
@@ -2124,7 +2143,6 @@ as_top_executable(struct assemble_t *a)
          * assemble_next encountered an error
          */
         bug_on(!!fr->x && &fr->list == &a->finished_frames);
-        bug_on(!!fr->x && !(fr->x->flags & FE_TOP));
 
         return fr->x;
 }

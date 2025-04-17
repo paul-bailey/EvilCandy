@@ -3,6 +3,7 @@
 
 #include <evilcandy.h>
 #include <uarg.h>
+#include <typedefs.h>
 
 #define TOFTBL(n, func, m, M) \
         { .magic = TYPE_FUNCTION, .name = n, \

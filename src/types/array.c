@@ -9,7 +9,7 @@
  * But here I call them "arrays" because I started writing this
  * file before I thought things through. (LOL, cf. object.c)
  */
-#include "types_priv.h"
+#include <evilcandy.h>
 #include <stdlib.h>
 #include <limits.h>
 

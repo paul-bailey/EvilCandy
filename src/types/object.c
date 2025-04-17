@@ -507,7 +507,7 @@ do_object_keys(struct vmframe_t *fr)
  *
  * Difference between:
  *      obj1 = obj2.copy()      # this function below
- *      obj1 = obj2             # object's qop_cp callback
+ *      obj1 = obj2             # object's var_cp callback
  *
  * The latter only passes a handle from obj2 to obj1, meaning that ALL
  * of it is by-reference.
@@ -535,7 +535,7 @@ do_object_copy(struct vmframe_t *fr)
         for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
              res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
                 if (object_setattr(ret, (char *)k,
-                                qop_cp((struct var_t *)v)) != RES_OK) {
+                                var_cp((struct var_t *)v)) != RES_OK) {
                         VAR_DECR_REF(ret);
                         return ErrorVar;
                 }

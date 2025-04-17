@@ -259,11 +259,6 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
         }
 }
 
-struct var_t *GlobalObject;
-struct var_t *ParserError;
-struct var_t *RuntimeError;
-struct var_t *SystemError;
-
 /* initialize the builtin/ C file modules */
 void
 moduleinit_builtin(void)

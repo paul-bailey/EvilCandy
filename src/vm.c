@@ -330,10 +330,10 @@ static struct var_t *
 logical_or(struct var_t *a, struct var_t *b)
 {
         int status;
-        bool res = !qop_cmpz(a, &status);
+        bool res = !var_cmpz(a, &status);
         if (status)
                 return NULL;
-        res = res || !qop_cmpz(b, &status);
+        res = res || !var_cmpz(b, &status);
         if (status)
                 return NULL;
         return intvar_new((int)res);
@@ -343,10 +343,10 @@ static struct var_t *
 logical_and(struct var_t *a, struct var_t *b)
 {
         int status;
-        bool res = !qop_cmpz(a, &status);
+        bool res = !var_cmpz(a, &status);
         if (status)
                 return NULL;
-        res = res && !qop_cmpz(b, &status);
+        res = res && !var_cmpz(b, &status);
         if (status)
                 return NULL;
         return intvar_new((int)res);
@@ -389,7 +389,7 @@ do_push_local(struct vmframe_t *fr, instruction_t ii)
 static int
 do_load_const(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *v = qop_cp(RODATA(fr, ii));
+        struct var_t *v = var_cp(RODATA(fr, ii));
         if (!v)
                 return -1;
         push(fr, v);
@@ -796,7 +796,7 @@ do_b_if(struct vmframe_t *fr, instruction_t ii)
 {
         int status;
         struct var_t *v = pop(fr);
-        bool cond = !qop_cmpz(v, &status);
+        bool cond = !var_cmpz(v, &status);
         if (!status && (bool)ii.arg1 == cond)
                 fr->ppii += ii.arg2;
         VAR_DECR_REF(v);
@@ -825,7 +825,7 @@ do_negate(struct vmframe_t *fr, instruction_t ii)
 static int
 do_logical_not(struct vmframe_t *fr, instruction_t ii)
 {
-        return unary_op_common(fr, qop_lnot);
+        return unary_op_common(fr, var_lnot);
 }
 
 static int
@@ -1095,7 +1095,7 @@ vm_exec_func(struct vmframe_t *fr_old, struct var_t *func,
         fr->ap = argc;
         bug_on(argc > 0 && !argv);
         while (argc-- > 0)
-                fr->stack[argc] = qop_cp(argv[argc]);
+                fr->stack[argc] = var_cp(argv[argc]);
 
         if (!owner)
                 owner = fr_old ? vm_get_this(fr_old) : GlobalObject;

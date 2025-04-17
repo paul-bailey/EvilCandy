@@ -94,21 +94,35 @@ struct vmframe_t;
 #include "typedefs.h"
 #include "uarg.h"
 
+/*
+ * Global User-Type Variables
+ *
+ *      When returning NullVar to mean 'null' (as the script user sees
+ *      it), produce a reference, just as if you would for any other
+ *      variable.  Ditto with GlobalObject, this is what the user sees
+ *      as '__gbl__'.
+ *
+ *      Do not produce a reference for the ErrorVar, since it tells you
+ *      an error occurred.  You should never use ErrorVar such that it
+ *      could be 'seen' by the user, eg. never push it onto the user
+ *      stack.
+ *
+ *      The others (ParserError et al.) are visible to the user in
+ *      __gbl__._builtins.  Produce a reference if they are requested
+ *      with the SYMTAB instruction, but do not produce a reference
+ *      when passing these as the first argument to err_setstr.
+ */
 /* main.c */
-extern void load_file(const char *filename, struct vmframe_t *fr);
 extern struct var_t *ErrorVar;
 extern struct var_t *NullVar;
-
-/* assembler.c */
-extern struct executable_t *assemble(const char *filename,
-                        FILE *fp, bool toeof, int *status);
-
-/* builtin/builtin.c */
 extern struct var_t *GlobalObject;
 extern struct var_t *ParserError;
 extern struct var_t *RuntimeError;
 extern struct var_t *SystemError;
-extern void moduleinit_builtin(void);
+
+/* assembler.c */
+extern struct executable_t *assemble(const char *filename,
+                        FILE *fp, bool toeof, int *status);
 
 #include "debug.h"
 
@@ -144,10 +158,6 @@ extern void efree(void *ptr);
 /* json.c */
 struct var_t *dict_from_json(const char *filename);
 
-/* keyword.c */
-extern int keyword_seek(const char *s);
-extern void moduleinit_keyword(void);
-
 /* literal.c */
 extern struct hashtable_t literal_htbl__;
 /* see comments above literal.c for usage */
@@ -155,7 +165,6 @@ static inline char *literal_put(const char *key)
         { return hashtable_put_literal(&literal_htbl__, key); }
 static inline char *literal(const char *key)
         { return hashtable_get(&literal_htbl__, key); }
-extern void moduleinit_literal(void);
 
 /* op.c */
 extern struct var_t *qop_mul(struct var_t *a, struct var_t *b);
@@ -166,11 +175,8 @@ extern struct var_t *qop_sub(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_bit_and(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_bit_or(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_xor(struct var_t *a, struct var_t *b);
-extern bool qop_cmpz(struct var_t *v, enum result_t *status);
 extern struct var_t *qop_bit_not(struct var_t *v);
 extern struct var_t *qop_negate(struct var_t *v);
-extern struct var_t *qop_lnot(struct var_t *v);
-extern struct var_t *qop_cp(struct var_t *v);
 
 /* find_import.c */
 extern FILE *find_import(const char *cur_path, const char *file_name,
@@ -191,9 +197,6 @@ extern struct var_t *rangevar_new(long long start,
 extern int serialize_write(FILE *fp, struct executable_t *ex);
 extern struct executable_t *serialize_read(FILE *fp,
                                         const char *file_name);
-
-/* token.c */
-extern void moduleinit_token(void);
 
 /* types/array.c */
 extern struct var_t *arrayvar_new(int n_items);

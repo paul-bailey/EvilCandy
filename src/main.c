@@ -14,22 +14,27 @@ static struct {
         } opt;
 } q_;
 
-/*
- * Dummy variable, since for some functions a return value of NULL
- * is not considered an error.
- */
 struct var_t *ErrorVar;
-/*
- * Dummy variable, prevents excessive XXXvar_new() calls for declaring
- * uninitialized variables (see do_push_local in vm.c).  They'll just
- * get replaced as soon as they are 'set', and we don't want a sea of
- * malloc() and free() calls.
- */
 struct var_t *NullVar;
+struct var_t *GlobalObject;
+struct var_t *ParserError;
+struct var_t *RuntimeError;
+struct var_t *SystemError;
 
 static void
 init_lib(void)
 {
+        /* literal.c */
+        extern void moduleinit_literal(void);
+        /* var.c */
+        extern void moduleinit_var(void);
+        /* vm.c */
+        extern void moduleinit_vm(void);
+        /* builtin/builtin.c */
+        extern void moduleinit_builtin(void);
+        /* token.c */
+        extern void moduleinit_token(void);
+
         /*
          * "moduleinit" was a poorly chosen name for these constructors.
          * They are "modules" because they are for C files that have
@@ -53,6 +58,10 @@ init_lib(void)
         for (t = INITFNS; t->initfn != NULL; t++)
                 t->initfn();
 
+        /*
+         * GlobalObject and the XxxError vars should have been
+         * initialized by moduleinit_builtin.  These two remain.
+         */
         ErrorVar = stringvar_new("If you can see this from the console, this is a BUG!!!\n");
         NullVar  = emptyvar_new();
 }
@@ -219,19 +228,6 @@ run_tty(void)
         }
 }
 
-/**
- * load_file - Read in a file, tokenize it, assemble it, execute it.
- * @filename:   Path to file as written after the "load" keyword or on
- *              the command line.
- */
-void
-load_file(const char *filename, struct vmframe_t *fr)
-{
-        FILE *fp = push_path(filename);
-        run_script(filename, fp, fr);
-        pop_path(fp);
-}
-
 int
 main(int argc, char **argv)
 {
@@ -241,7 +237,9 @@ main(int argc, char **argv)
                 return -1;
 
         if (q_.opt.infile) {
-                load_file(q_.opt.infile, NULL);
+                FILE *fp = push_path(q_.opt.infile);
+                run_script(q_.opt.infile, fp, NULL);
+                pop_path(fp);
         } else {
                 if (isatty(fileno(stdin))) {
                         run_tty();

@@ -56,20 +56,26 @@
  */
 #include <evilcandy.h>
 
-/* literal() and literal_put() are now inline functions in evilcandy.h */
-
-struct hashtable_t literal_htbl__;
-
-static void
-literal_delete_data(void *data)
-{
-        bug(); /* we should never get called */
-}
+static struct var_t *literal_dict__ = NULL;
 
 void
 moduleinit_literal(void)
 {
-        hashtable_init(&literal_htbl__, fnv_hash,
-                       str_key_match, literal_delete_data);
+        literal_dict__ = objectvar_new();
+}
+
+char *
+literal_put(const char *key)
+{
+        return object_unique(literal_dict__, key);
+}
+
+char *
+literal(const char *key)
+{
+        struct var_t *vs = object_getattr(literal_dict__, key);
+        if (!vs)
+                return NULL;
+        return string_get_cstring(vs);
 }
 

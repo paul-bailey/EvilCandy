@@ -155,12 +155,9 @@ extern void efree(void *ptr);
 struct var_t *dict_from_json(const char *filename);
 
 /* literal.c */
-extern struct hashtable_t literal_htbl__;
 /* see comments above literal.c for usage */
-static inline char *literal_put(const char *key)
-        { return hashtable_put_literal(&literal_htbl__, key); }
-static inline char *literal(const char *key)
-        { return hashtable_get(&literal_htbl__, key); }
+extern char *literal_put(const char *key);
+extern char *literal(const char *key);
 
 /* op.c */
 extern struct var_t *qop_mul(struct var_t *a, struct var_t *b);
@@ -246,6 +243,7 @@ extern enum result_t object_setattr_replace(struct var_t *dict,
                                 const char *key, struct var_t *attr);
 extern enum result_t object_setattr_exclusive(struct var_t *dict,
                                 const char *key, struct var_t *attr);
+extern char *object_unique(struct var_t *dict, const char *key);
 
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);

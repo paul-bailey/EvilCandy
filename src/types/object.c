@@ -225,6 +225,17 @@ object_setattr_exclusive(struct var_t *dict,
         return res;
 }
 
+/**
+ * used for specific purpose, so de-duplicate @key.
+ * See comments in literal.c, that's where this is used.
+ */
+char *
+object_unique(struct var_t *dict, const char *key)
+{
+        struct dictvar_t *d = V2D(dict);
+        return hashtable_put_literal(&d->dict, key);
+}
+
 /*
  * like object_setattr, but throw error if @key does not exist.
  * Used by the symbol table to change global variable values.

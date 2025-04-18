@@ -50,20 +50,12 @@ parseatomic(struct json_state_t *j)
 
         switch (j->tok->t) {
         case 'i':
-                child = intvar_new(j->tok->i);
-                break;
         case 'f':
-                child = floatvar_new(j->tok->i);
-                break;
         case 'q':
-                child = stringvar_new(j->tok->s);
-                break;
         case OC_TRUE:
-                child = intvar_new(1);
-                break;
         case OC_FALSE:
-                child = intvar_new(0);
-                break;
+                bug_on(j->tok->v == NULL);
+                child = j->tok->v;
         case OC_NULL:
                 VAR_INCR_REF(NullVar);
                 child = NullVar;
@@ -87,11 +79,11 @@ parseatomic(struct json_state_t *j)
                  * These functions would have to be limited, as they
                  * cannot take arguments or refer to closures.
                  */
-
-                child = ErrorVar; /* for the compiler */
+                child = ErrorVar;
                 json_err(j, JE_SYNTAX);
         }
         bug_on(child == ErrorVar || child == NULL);
+
 
         bug_on(j->recursion < 1);
         j->recursion--;

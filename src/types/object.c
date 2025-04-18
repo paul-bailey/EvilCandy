@@ -22,17 +22,15 @@ struct bucket_t {
 
 /**
  * struct dictvar_t - Descriptor for an object handle
- * @priv:       Internal private data, used by some built-in object types
- * @priv_cleanup: Way to clean up @priv if destroying this object handle.
- *              If this is NULL and @priv is not NULL, @priv will be
- *              simply freed.  Used by C accelerator modules, not scripts.
- * @dict:       Hash table of attributes
- * @d_size:     Array size of d_bucket, always a power of 2
- * @d_used:     Active entries in hash table
- * @d_count:    Active + removed ('dead') entries in hash table
- * @d_grow_size:   Next threshold for expanding
- * @d_shrink_size: Next threshold for shrinking
- * @d_bucket:   Array of bucket entries
+ * @priv: Deprecated, to be removed soon
+ * @priv_cleanup: ditto^^^
+ * @dict:               Hash table of attributes
+ * @d_size:             Array size of d_bucket, always a power of 2
+ * @d_used:             Active entries in hash table
+ * @d_count:            Active + removed ('dead') entries in hash table
+ * @d_grow_size:        Next threshold for expanding
+ * @d_shrink_size:      Next threshold for shrinking
+ * @d_bucket:           Array of bucket entries
  */
 struct dictvar_t {
         struct seqvar_t base;

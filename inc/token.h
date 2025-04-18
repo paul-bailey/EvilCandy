@@ -183,10 +183,7 @@ struct token_t {
         unsigned int t;
         unsigned int line;
         char *s;
-        union {
-                double f;
-                long long i;
-        };
+        struct var_t *v;
 };
 
 /* opaque struct, used only in token.c */

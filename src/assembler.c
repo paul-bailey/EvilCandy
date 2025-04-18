@@ -480,49 +480,11 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
 {
         struct as_frame_t *fr = a->fr;
         struct xptrvar_t *x = fr->x;
-        struct var_t *v;
 
-        switch (oc->t) {
-        case OC_TRUE:
-                v = intvar_new(1);
-                break;
-        case OC_FALSE:
-                v = intvar_new(0);
-                break;
-        case 'b':
-                v = bytesvar_from_source(oc->s);
-                if (v == ErrorVar) {
-                        err_setstr(ParserError,
-                                "Error in bytes literal %s",
-                                a->oc->s);
-                        as_err(a, AE_GEN);
-                }
-                break;
-        case 'i':
-                v = intvar_new(oc->i);
-                break;
-        case 'f':
-                v = floatvar_new(oc->f);
-                break;
-        case 'u':
-                /* FIXME: will need to immortalize this */
-                v = stringvar_from_immortal(oc->s);
-                break;
-        case 'q':
-                v = stringvar_from_source(oc->s, true);
-                if (v == ErrorVar) {
-                        err_setstr(ParserError,
-                                "Error in string literal %s",
-                                a->oc->s);
-                        as_err(a, AE_GEN);
-                }
-                break;
-        default:
-                v = NULL;
-                bug();
-        }
-
-        return xptr_add_rodata((struct var_t *)x, (struct var_t *)v);
+        /* oc->t can only be a sort that would have filled in oc->v */
+        bug_on(oc->v == NULL);
+        VAR_INCR_REF(oc->v);
+        return xptr_add_rodata((struct var_t *)x, oc->v);
 }
 
 static void

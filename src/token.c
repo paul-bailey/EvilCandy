@@ -705,7 +705,7 @@ tokenize(struct token_state_t *state)
                         .t = EOF,
                         .line = 0,
                         .s = NULL,
-                        .i = 0LL,
+                        .v = NULL,
                 };
                 state->eof = true;
                 buffer_putd(&state->pgm, &eofoc, sizeof(eofoc));
@@ -716,14 +716,61 @@ tokenize(struct token_state_t *state)
                 oc.line = state->lineno;
                 oc.s = literal_put(state->tok.s);
                 bug_on(oc.s == NULL);
-                if (ret == 'f') {
-                        double f = strtod(oc.s, NULL);
-                        oc.f = f;
-                } else if (ret == 'i') {
+
+                switch (ret) {
+                case OC_NULL:
+                        VAR_INCR_REF(NullVar);
+                        oc.v = NullVar;
+                        break;
+                case OC_TRUE:
+                        oc.v = intvar_new(1);
+                        break;
+                case OC_FALSE:
+                        oc.v = intvar_new(0);
+                        break;
+                case 'b':
+                        oc.v = bytesvar_from_source(oc.s);
+                        if (oc.v == ErrorVar) {
+                                err_setstr(ParserError,
+                                        "Error in bytes literal %s",
+                                        oc.s);
+                                oc.v = NULL;
+                                ret = TOKEN_ERROR;
+                        }
+                        break;
+                case 'i':
+                    {
                         long long i = strtoul(oc.s, NULL, 0);
-                        oc.i = i;
-                } else {
-                        oc.i = 0LL;
+                        oc.v = intvar_new(i);
+                        break;
+                    }
+                case 'f':
+                    {
+                        double f = strtod(oc.s, NULL);
+                        oc.v = floatvar_new(f);
+                        break;
+                    }
+                case 'u':
+                        /* FIXME: will need to immortalize this */
+                        oc.v = stringvar_from_immortal(oc.s);
+                        break;
+                case 'q':
+                        oc.v = stringvar_from_source(oc.s, true);
+                        if (oc.v == ErrorVar) {
+                                err_setstr(ParserError,
+                                        "Error in string literal %s",
+                                        oc.s);
+                                ret = TOKEN_ERROR;
+                        }
+                        break;
+                default:
+                        oc.v = NULL;
+                }
+
+                if (ret == TOKEN_ERROR) {
+                        if (oc.v)
+                                VAR_DECR_REF(oc.v);
+                        return ret;
                 }
                 buffer_putd(&state->pgm, &oc, sizeof(oc));
         }
@@ -844,7 +891,15 @@ token_state_trim(struct token_state_t *state)
 void
 token_state_free(struct token_state_t *state)
 {
+        struct token_t *tok = (struct token_t *)(state->pgm.s);
+        int i, n = buffer_size(&state->pgm);
+        if (n > state->ntok)
+                n = state->ntok;
         token_state_trim(state);
+        for (i = 0; i < n; i++) {
+                if (tok[i].v)
+                        VAR_DECR_REF(tok[i].v);
+        }
         buffer_free(&state->pgm);
         efree(state);
 }

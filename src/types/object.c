@@ -8,6 +8,18 @@
  */
 #include <evilcandy.h>
 
+struct bucket_t {
+        /*
+         * TODO: move b_hash to string data type.  Strings are immutable,
+         * so their hash should only need to be calculated once during
+         * their lifetime.  Do this when we start storing string data types
+         * instead of C strings for the keys
+         */
+        hash_t b_hash;
+        char *b_key;
+        struct var_t *b_data;
+};
+
 /**
  * struct dictvar_t - Descriptor for an object handle
  * @priv:       Internal private data, used by some built-in object types
@@ -15,20 +27,210 @@
  *              If this is NULL and @priv is not NULL, @priv will be
  *              simply freed.  Used by C accelerator modules, not scripts.
  * @dict:       Hash table of attributes
- * @lock:       Prevent SETATTR, GETATTR during an iterable cycle, such as
- *              foreach.
+ * @d_size:     Array size of d_bucket, always a power of 2
+ * @d_used:     Active entries in hash table
+ * @d_count:    Active + removed ('dead') entries in hash table
+ * @d_grow_size:   Next threshold for expanding
+ * @d_shrink_size: Next threshold for shrinking
+ * @d_bucket:   Array of bucket entries
  */
 struct dictvar_t {
         struct seqvar_t base;
         void *priv;
         void (*priv_cleanup)(struct var_t *, void *);
-        struct hashtable_t dict;
-        unsigned int lock;
+        size_t d_size;
+        size_t d_used;
+        size_t d_count;
+        size_t d_grow_size;
+        size_t d_shrink_size;
+        struct bucket_t **d_bucket;
 };
 
 #define V2D(v)          ((struct dictvar_t *)(v))
 #define V2SQ(v)         ((struct seqvar_t *)(v))
 #define OBJ_SIZE(v)     seqvar_size(v)
+
+static hash_t fnv_hash(const void *key);
+static bool str_key_match(const void *k1, const void *k2);
+
+/* **********************************************************************
+ *                      Hash table helpers
+ ***********************************************************************/
+
+#define GROW_SIZE(x)    (((x) * 2) / 3)
+#define BUCKET_DEAD     ((void *)-1)
+
+/*
+ * this initial size is small enough to not be a burden
+ * but large enough that for 90% use-cases, no resizing
+ * need occur.
+ */
+enum { INIT_SIZE = 16 };
+
+#define DICT_KEY_MATCH          str_key_match
+#define DICT_CALC_HASH          fnv_hash
+#define DICT_BUCKET_DELETE      var_bucket_delete
+
+static struct bucket_t *
+bucket_alloc(void)
+{
+        return emalloc(sizeof(struct bucket_t));
+}
+
+static void
+bucket_free(struct bucket_t *b)
+{
+        efree(b);
+}
+
+static inline int
+bucketi(struct dictvar_t *dict, hash_t hash)
+{
+        return hash & (dict->d_size - 1);
+}
+
+static struct bucket_t *
+seek_helper(struct dictvar_t *dict, const void *key,
+                        hash_t hash, unsigned int *idx)
+{
+        unsigned int i = bucketi(dict, hash);
+        struct bucket_t *b;
+        unsigned long perturb = hash;
+        /* this won't spinlock because we ensure table has
+         * enough room.  See comment below.
+         */
+        while ((b = dict->d_bucket[i]) != NULL) {
+                if (b != BUCKET_DEAD && DICT_KEY_MATCH(b->b_key, key))
+                        break;
+                /*
+                 * Collision or dead entry.
+                 *
+                 * Way to cope with a power-of-2-sized hash table, esp.
+                 * an open-address one.  Idea & algo taken from Python.
+                 * See cpython source code, "Object/dictobject.c" at
+                 *
+                 *      https://github.com/python/cpython.git
+                 *
+                 * Don't just seek the next adjacent empty slot.  For any
+                 * non-trivial alpha, this quickly degenerates into a
+                 * linear array search.  "Perturb it" instead.  This will
+                 * not spinlock because:
+                 *
+                 * 1. There is always at least one blank entry
+                 *
+                 * 2. We will eventually hit an empty slot, even in the
+                 *    worst-case scenario, because after floor(64/5)=12
+                 *    iterations, perturb will become zero, and
+                 *    (i*5+1) % SIZE will eventually hit every index at
+                 *    least once when size is a power of 2.  (I don't
+                 *    know the proof, but every which way I've tested it,
+                 *    it turns out to be true.  Also, very smart people
+                 *    claim to have proven it and they're smart.)
+                 */
+                perturb >>= 5;
+                i = bucketi(dict, i * 5 + perturb + 1);
+        }
+        *idx = i;
+        return b;
+}
+
+static void
+transfer_table(struct dictvar_t *dict, size_t old_size)
+{
+        int i, j, count;
+        struct bucket_t **old, **new;
+        old = dict->d_bucket;
+        dict->d_bucket = new = ecalloc(sizeof(void *) * dict->d_size);
+        count = 0;
+        for (i = 0; i < old_size; i++) {
+                unsigned long perturb;
+                struct bucket_t *b = old[i];
+                if (!b || b == BUCKET_DEAD)
+                        continue;
+
+                perturb = b->b_hash;
+                j = bucketi(dict, b->b_hash);
+                while (new[j]) {
+                        perturb >>= 5;
+                        j = bucketi(dict, j * 5 + perturb + 1);
+                }
+                new[j] = b;
+                count++;
+        }
+        dict->d_count = dict->d_used = count;
+        efree(old);
+}
+
+static void
+refresh_grow_markers(struct dictvar_t *dict)
+{
+        /*
+         * XXX REVISIT: "/3" is arbitrary division
+         *
+         * alpha=75%, "(x*3)>>2" is quicker, but its near the poor-
+         * performance range for open-address tables. alpha=50%, "x>>1",
+         * is a lot of wasted real-estate, probably resulting in lots of
+         * cache misses, killing the advantage that open-address has over
+         * chaining.  I'm assuming that amortization is reason enough not
+         * to care about any of this.
+         *
+         * TODO 4/2025: not necessary: if size * 3 > growsize * 2, grow it.
+         * If size * 2 < shrinksize * 3, shrink it.  Then each time we
+         * resize we multiply/divide all values by 2.  The division is
+         * no longer arbitrary.
+         * Do that instead of this below.
+         */
+        dict->d_grow_size = (dict->d_size << 1) / 3;
+        dict->d_shrink_size = dict->d_used <= INIT_SIZE
+                            ? 0: dict->d_grow_size / 3;
+}
+
+static void
+maybe_grow_table(struct dictvar_t *dict)
+{
+        size_t old_size = dict->d_size;
+        while (dict->d_count > dict->d_grow_size) {
+                /*
+                 * size must always be a power of 2 or else the
+                 * perturbation algo could spinlock.
+                 */
+                dict->d_size *= 2;
+                refresh_grow_markers(dict);
+        }
+
+        if (dict->d_size != old_size)
+                transfer_table(dict, old_size);
+}
+
+static void
+maybe_shrink_table(struct dictvar_t *dict)
+{
+        size_t old_size = dict->d_size;
+        while (dict->d_used < dict->d_shrink_size) {
+                dict->d_size /= 2;
+                refresh_grow_markers(dict);
+        }
+
+        if (dict->d_size < INIT_SIZE)
+                dict->d_size = INIT_SIZE;
+
+        if (dict->d_size != old_size)
+                transfer_table(dict, old_size);
+}
+
+static inline void
+insert_common(struct dictvar_t *dict, char *key,
+              struct var_t *data, hash_t hash, unsigned int i)
+{
+        struct bucket_t *b = bucket_alloc();
+        b->b_key = key;
+        b->b_data = data;
+        b->b_hash = hash;
+        dict->d_bucket[i] = b;
+        dict->d_count++;
+        dict->d_used++;
+        maybe_grow_table(dict);
+}
 
 
 /* **********************************************************************
@@ -43,24 +245,28 @@ struct var_t *
 object_keys(struct var_t *obj)
 {
         struct var_t *keys;
-        struct hashtable_t *d;
-        void *k, *v; /* v is unused dummy */
-        int res;
+        struct dictvar_t *d;
         unsigned int i;
         int array_i;
 
         bug_on(!isvar_object(obj));
-        d = &V2D(obj)->dict;
+        d = V2D(obj);
         keys = arrayvar_new(OBJ_SIZE(obj));
 
         array_i = 0;
-        for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
-             res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
-                struct var_t *ks = stringvar_new((char *)k);
+
+        for (i = 0; i < d->d_size; i++) {
+                struct bucket_t *b = d->d_bucket[i];
+                struct var_t *ks;
+                if (b == NULL || b == BUCKET_DEAD)
+                        continue;
+
+                ks = stringvar_new(b->b_key);
                 array_setitem(keys, array_i, ks);
                 VAR_DECR_REF(ks);
                 array_i++;
         }
+
         var_sort(keys);
         return keys;
 }
@@ -72,11 +278,16 @@ struct var_t *
 objectvar_new(void)
 {
         struct var_t *o = var_new(&ObjectType);
-        V2D(o)->priv = NULL;
-        V2D(o)->priv_cleanup = NULL;
+        struct dictvar_t *d = V2D(o);
+        d->priv = NULL;
+        d->priv_cleanup = NULL;
         seqvar_set_size(o, 0);
-        hashtable_init(&V2D(o)->dict, fnv_hash,
-                       str_key_match, var_bucket_delete);
+
+        d->d_size = INIT_SIZE;
+        d->d_used = 0;
+        d->d_count = 0;
+        refresh_grow_markers(d);
+        d->d_bucket = ecalloc(sizeof(void *) * INIT_SIZE);
         return o;
 }
 
@@ -124,24 +335,33 @@ object_get_priv(struct var_t *o)
  *      Calling code must decide whether NULL is an error or not
  */
 struct var_t *
-object_getattr(struct var_t *o, const char *s)
+object_getattr(struct var_t *o, const char *key)
 {
-        struct var_t *ret;
-        if (!s)
-                return NULL;
+        struct dictvar_t *d;
+        unsigned int i;
+        hash_t hash;
+        struct bucket_t *b;
+
+        d = V2D(o);
         bug_on(!isvar_object(o));
 
-        ret = hashtable_get(&V2D(o)->dict, s);
-        if (ret)
-                VAR_INCR_REF(ret);
-        return ret;
+        if (!key)
+                return NULL;
+
+        hash = DICT_CALC_HASH(key);
+        b = seek_helper(d, key, hash, &i);
+        if (!b)
+                return NULL;
+
+        VAR_INCR_REF(b->b_data);
+        return b->b_data;
 }
 
 /**
  * object_setattr - Insert an attribute to dictionary if it doesn't exist,
  *                  or change the existing attribute if it does.
  * @self:       Dictionary object
- * @name:       Name of attribute key
+ * @key:        Name of attribute key
  * @attr:       Value to set.  NULL means 'delete the entry'
  *
  * This does not touch the type's built-in-method attributes.
@@ -151,51 +371,66 @@ object_getattr(struct var_t *o, const char *s)
 enum result_t
 object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
 {
-        struct var_t *child;
-        struct dictvar_t *d = V2D(dict);
+        unsigned int i;
+        struct dictvar_t *d;
+        hash_t hash;
+        struct bucket_t *b;
 
+        d = V2D(dict);
         bug_on(!isvar_object(dict));
+
+        /*
+         * XXX REVISIT: literal_put immortalizes a key in an object that
+         * could later be destroyed.  More often than not @name is
+         * already immortal (it was most likely derived in some way from
+         * a literal in the source code), so this does nothing.  However,
+         * @name could have been constructed from something that the
+         * source never expresses literally.  Consider something weird
+         * like...
+         *
+         *      my_obj = (function(a, key_prefix) {
+         *              let o = {};
+         *              a.foreach(function(e, idx) {
+         *                      o[key_prefix + idx.tostr()] = e;
+         *              });
+         *              return o;
+         *      })(my_arr, 'my_key_');
+         *
+         * Here, 'my_key_' is a hard-coded literal, but 'my_key_0' is not.
+         * For a program with a long lifecycle, this could result in the
+         * build-up of a non-trivial amount of zombified strings.
+         */
+        key = literal_put(key);
+
+        hash = DICT_CALC_HASH(key);
+        b = seek_helper(d, key, hash, &i);
 
         /* @child is either the former entry replaced by @attr or NULL */
         if (attr) {
-                /*
-                 * XXX REVISIT: literal_put immortalizes a key in an object that
-                 * could later be destroyed.  More often than not @name is
-                 * already immortal (it was most likely derived in some way from
-                 * a literal in the source code), so this does nothing.  However,
-                 * @name could have been constructed from something that the
-                 * source never expresses literally.  Consider something weird
-                 * like...
-                 *
-                 *      my_obj = (function(a, key_prefix) {
-                 *              let o = {};
-                 *              a.foreach(function(e, idx) {
-                 *                      o[key_prefix + idx.tostr()] = e;
-                 *              });
-                 *              return o;
-                 *      })(my_arr, 'my_key_');
-                 *
-                 * Here, 'my_key_' is a hard-coded literal, but 'my_key_0' is not.
-                 * For a program with a long lifecycle, this could result in the
-                 * build-up of a non-trivial amount of zombified strings.
-                 */
-                key = literal_put(key);
-
-                child = hashtable_put_or_swap(&d->dict, (void *)key, attr);
-                if (child) {
-                        VAR_DECR_REF(child);
+                /* insert */
+                if (b) {
+                        /* replace old, don't grow table */
+                        VAR_DECR_REF(b->b_data);
+                        b->b_data = attr;
                 } else {
+                        /* put */
+                        insert_common(d, (char *)key, attr, hash, i);
                         seqvar_set_size(dict, seqvar_size(dict) + 1);
                 }
                 VAR_INCR_REF(attr);
-        } else {
-                /* XXX REVISIT: If !child, maybe throw error and print msg */
-                child = hashtable_remove(&d->dict, key);
-                if (child) {
-                        VAR_DECR_REF(child);
-                        seqvar_set_size(dict, seqvar_size(dict) - 1);
-                }
+        } else if (b) {
+                /* remove */
+                VAR_DECR_REF(b->b_data);
+                bucket_free(b);
+                d->d_bucket[i] = BUCKET_DEAD;
+                d->d_used--;
+                maybe_shrink_table(d);
+                seqvar_set_size(dict, seqvar_size(dict) - 1);
         }
+        /*
+         * XXX: If !attr and !b, trying to remove something that doesn't
+         * exist.  Throw error and print msg?
+         */
         return RES_OK;
 }
 
@@ -208,21 +443,28 @@ enum result_t
 object_setattr_exclusive(struct var_t *dict,
                          const char *key, struct var_t *attr)
 {
-        struct dictvar_t *d = V2D(dict);
-        enum result_t res;
+        struct dictvar_t *d;
+        unsigned int i;
+        hash_t hash;
+        struct bucket_t *b;
 
+        d = V2D(dict);
         bug_on(!isvar_object(dict));
         /*
          * XXX we know this is only called from do_symtab, whose key is
          * known to be a literal()'d string.
          */
         key = literal_put(key);
-        res = hashtable_put(&d->dict, (void *)key, attr);
-        if (res == RES_OK) {
-                VAR_INCR_REF(attr);
-                seqvar_set_size(dict, seqvar_size(dict) + 1);
-        }
-        return res;
+
+        hash = DICT_CALC_HASH(key);
+        b = seek_helper(d, key, hash, &i);
+        if (b)
+                return RES_ERROR;
+
+        insert_common(d, (char *)key, attr, hash, i);
+        seqvar_set_size(dict, seqvar_size(dict) + 1);
+        VAR_INCR_REF(attr);
+        return RES_OK;
 }
 
 /**
@@ -232,8 +474,26 @@ object_setattr_exclusive(struct var_t *dict,
 char *
 object_unique(struct var_t *dict, const char *key)
 {
-        struct dictvar_t *d = V2D(dict);
-        return hashtable_put_literal(&d->dict, key);
+        char *keycopy;
+        unsigned int i;
+        hash_t hash;
+        struct bucket_t *b;
+        struct dictvar_t *d;
+
+        d = V2D(dict);
+        bug_on(!isvar_object(dict));
+
+        hash = DICT_CALC_HASH(key);
+        b = seek_helper(d, key, hash, &i);
+#warning "should be b_data, keep up to date with scheme"
+        if (b)
+                return (char *)b->b_key;
+
+        keycopy = estrdup(key);
+#warning "fix this when immortalization scheme is changed"
+        insert_common(d, keycopy, /* XXX no! */
+                        stringvar_from_immortal(keycopy), hash, i);
+        return keycopy;
 }
 
 /*
@@ -245,29 +505,40 @@ enum result_t
 object_setattr_replace(struct var_t *dict,
                        const char *key, struct var_t *attr)
 {
-        struct var_t *child;
-        struct dictvar_t *d = V2D(dict);
+        unsigned int i;
+        struct dictvar_t *d;
+        hash_t hash;
+        struct bucket_t *b;
 
+        d = V2D(dict);
         bug_on(!isvar_object(dict));
+
         key = literal_put(key);
-        child = hashtable_swap(&d->dict, (void *)key, attr);
-        if (!child)
+
+        hash = DICT_CALC_HASH(key);
+        b = seek_helper(d, key, hash, &i);
+        if (!b)
                 return RES_ERROR;
+
+        VAR_DECR_REF(b->b_data);
+        b->b_data = attr;
+        /* no need to resize */
+
         VAR_INCR_REF(attr);
-        VAR_DECR_REF(child);
         return RES_OK;
 }
 
 
 static int
-object_hasattr(struct var_t *o, const char *key)
+object_hasattr(struct var_t *dict, const char *key)
 {
-        struct var_t *child;
+        unsigned int i;
+        if (!key)
+                return 0;
+        bug_on(!isvar_object(dict));
 
-        bug_on(!isvar_object(o));
-
-        child = hashtable_get(&V2D(o)->dict, key);
-        return child != NULL;
+        hash_t hash = DICT_CALC_HASH(key);
+        return seek_helper(V2D(dict), key, hash, &i) != NULL;
 }
 
 /*
@@ -280,17 +551,18 @@ object_hasattr(struct var_t *o, const char *key)
  *  ...and so on.
  */
 void
-object_add_to_globals(struct var_t *obj)
+object_add_to_globals(struct var_t *dict)
 {
-        bug_on(!obj);
-
         unsigned int i;
-        int res;
-        void *k, *v;
-        struct hashtable_t *h = &V2D(obj)->dict;
-        for (i = 0, res = hashtable_iterate(h, &k, &v, &i);
-             res == 0; res = hashtable_iterate(h, &k, &v, &i)) {
-                vm_add_global((char *)k, (struct var_t *)v);
+        struct dictvar_t *d = V2D(dict);
+        bug_on(!isvar_object(dict));
+
+        for (i = 0; i < d->d_size; i++) {
+                struct bucket_t *b = d->d_bucket[i];
+                if (b == NULL || b == BUCKET_DEAD)
+                        continue;
+
+                vm_add_global(b->b_key, b->b_data);
         }
 }
 
@@ -310,56 +582,74 @@ object_cmp(struct var_t *a, struct var_t *b)
 static bool
 object_cmpz(struct var_t *obj)
 {
-        return false;
+        return seqvar_size(obj) == 0;
 }
 
 static void
 object_reset(struct var_t *o)
 {
-        struct dictvar_t *oh;
+        struct dictvar_t *dict;
+        int i;
 
         bug_on(!isvar_object(o));
-        oh = V2D(o);
-        if (oh->priv) {
-                if (oh->priv_cleanup)
-                        oh->priv_cleanup(o, oh->priv);
+        dict = V2D(o);
+        if (dict->priv) {
+                if (dict->priv_cleanup)
+                        dict->priv_cleanup(o, dict->priv);
                 else
-                        efree(oh->priv);
+                        efree(dict->priv);
         }
-        hashtable_destroy(&oh->dict);
+
+        /* not a full wipe, just get rid of entries */
+        for (i = 0; i < dict->d_size; i++) {
+                if (dict->d_bucket[i] == BUCKET_DEAD) {
+                        dict->d_bucket[i] = NULL;
+                } else if (dict->d_bucket[i] != NULL) {
+                        VAR_DECR_REF(dict->d_bucket[i]->b_data);
+                        bucket_free(dict->d_bucket[i]);
+                        dict->d_bucket[i] = NULL;
+                }
+        }
+        dict->d_count = dict->d_used = 0;
+        efree(dict->d_bucket);
 }
 
 static struct var_t *
 object_str(struct var_t *o)
 {
-        struct dictvar_t *oh;
+        struct dictvar_t *d;
         struct buffer_t b;
-        void *k, *v;
         unsigned int i;
-        int res, count;
-        struct hashtable_t *h;
+        int count;
         struct var_t *ret;
 
         bug_on(!isvar_object(o));
 
-        oh = V2D(o);
-        h = &oh->dict;
+        d = V2D(o);
         buffer_init(&b);
         buffer_putc(&b, '{');
-        for (i = 0, count = 0, res = hashtable_iterate(h, &k, &v, &i);
-             res == 0; res = hashtable_iterate(h, &k, &v, &i), count++) {
+
+        count = 0;
+        for (i = 0; i < d->d_size; i++) {
+                struct bucket_t *bk = d->d_bucket[i];
                 struct var_t *item;
+                if (bk == NULL || bk == BUCKET_DEAD)
+                        continue;
+
                 if (count > 0)
                         buffer_puts(&b, ", ");
 
                 buffer_putc(&b, '\'');
-                buffer_puts(&b, (char *)k);
+                buffer_puts(&b, bk->b_key);
                 buffer_puts(&b, "': ");
 
-                item = var_str((struct var_t *)v);
+                item = var_str(bk->b_data);
                 buffer_puts(&b, string_get_cstring(item));
                 VAR_DECR_REF(item);
+
+                count++;
         }
+
         buffer_putc(&b, '}');
         ret = stringvar_new(b.s);
         buffer_free(&b);
@@ -564,23 +854,22 @@ static struct var_t *
 do_object_copy(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
-        void *k, *v;
-        int res;
         unsigned int i;
-        struct hashtable_t *d;
+        struct dictvar_t *d;
         struct var_t *ret = objectvar_new();
 
         bug_on(!isvar_object(self));
 
-        d = &V2D(self)->dict;
-        for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
-             res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
-                struct var_t *vv = (struct var_t *)v;
+        d = V2D(self);
+        for (i = 0; i < d->d_size; i++) {
+                struct bucket_t *b = d->d_bucket[i];
+                if (b == NULL || b == BUCKET_DEAD)
+                        continue;
                 /*
                  * object_setattr will produce another reference
-                 * to @vv
+                 * to @b->b_data
                  */
-                if (object_setattr(ret, (char *)k, vv) != RES_OK) {
+                if (object_setattr(ret, b->b_key, b->b_data) != RES_OK) {
                         VAR_DECR_REF(ret);
                         return ErrorVar;
                 }
@@ -619,4 +908,44 @@ struct type_t ObjectType = {
         .cmpz   = object_cmpz,
         .reset  = object_reset,
 };
+
+/*
+ * TODO: move this to some file named, like, stringutils.c or somthing.
+ * It could be the common source between dictionaries and strings--
+ * hashing and other stuff.
+ */
+/*
+ * fnv_hash - The FNV-1a hash algorithm
+ *
+ * See Wikipedia article "Fowler-Noll-Vo hash function"
+ */
+static hash_t
+fnv_hash(const void *key)
+{
+        /* 64-bit version */
+#define FNV_PRIME      0x00000100000001B3LL
+#define FNV_OFFSET     0xCBF29CE484222325LL
+
+        const unsigned char *s = key;
+        unsigned int c;
+        unsigned long hash = FNV_PRIME;
+
+        bug_on(sizeof(hash_t) != 8);
+
+        /*
+         * since C string has no zeros in the part that gets
+         * hashed, don't worry about sticky state.
+         */
+        while ((c = *s++) != '\0')
+                hash = (hash * FNV_OFFSET) ^ c;
+        return (hash_t)hash;
+}
+
+static bool
+str_key_match(const void *key1, const void *key2)
+{
+        /* fast-path "==", since these still sometimes are literal()'d */
+        return key1 == key2 || !strcmp((char *)key1, (char *)key2);
+}
+
 

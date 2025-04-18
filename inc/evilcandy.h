@@ -8,7 +8,7 @@
  * headers for stuff I wish was standard
  * so I wouldn't have to write myself.
  */
-#include <lib/hashtable.h>
+// #include <lib/hashtable.h>
 #include <lib/helpers.h>
 #include <lib/buffer.h>
 #include <lib/list.h>
@@ -89,6 +89,9 @@ struct vmframe_t;
 
 #include "typedefs.h"
 #include "uarg.h"
+
+/* TODO: to stringutils.h, see comment at bottom of types/object.c */
+typedef uint64_t hash_t;
 
 /*
  * Global User-Type Variables
@@ -253,6 +256,7 @@ extern struct var_t *string_from_file(FILE *fp,
 extern struct var_t *stringvar_new(const char *cstr);
 extern struct var_t *stringvar_from_immortal(const char *immstr);
 extern struct var_t *stringvar_from_source(const char *tokenstr, bool imm);
+extern struct var_t *stringvar_nocopy(const char *cstr);
 
 /* uuid.c */
 extern char *uuidstr(void);

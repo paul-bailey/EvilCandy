@@ -1302,6 +1302,13 @@ stringvar_from_immortal(const char *immstr)
         return stringvar_newf((char *)immstr, SF_IMMORTAL);
 }
 
+/* like stringvar_new, but don't make a copy, just take the pointer */
+struct var_t *
+stringvar_nocopy(const char *cstr)
+{
+        return stringvar_newf((char *)cstr, 0);
+}
+
 /**
  * stringvar_from_source - Get a stringvar from an unparsed token.
  * @tokenstr: C-string as written in a source file, possibly containing

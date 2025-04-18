@@ -1176,10 +1176,7 @@ string_str(struct var_t *v)
                 }
         }
         buffer_putc(&b, Q);
-
-        ret = stringvar_new(b.s);
-        buffer_free(&b);
-        return ret;
+        return stringvar_newf(b.s, 0);
 }
 
 static void

@@ -146,15 +146,19 @@ var_delete__(struct var_t *v)
 }
 
 static void
-config_builtin_methods(const struct type_inittbl_t *tbl,
-                       struct hashtable_t *htbl)
+config_builtin_methods(const struct type_inittbl_t *tbl_arr,
+                       struct var_t *dict)
 {
-        const struct type_inittbl_t *t = tbl;
+        const struct type_inittbl_t *t = tbl_arr;
         while (t->name != NULL) {
                 struct var_t *v;
+                enum result_t res;
 
                 v = funcvar_new_intl(t->fn, t->minargs, t->maxargs);
-                hashtable_put(htbl, literal_put(t->name), v);
+                res = object_setattr_exclusive(dict,
+                                        literal_put(t->name), v);
+                bug_on(res != RES_OK);
+                (void)res;
                 t++;
         }
 }
@@ -169,10 +173,9 @@ config_builtin_methods(const struct type_inittbl_t *tbl,
 void
 var_initialize_type(struct type_t *tp)
 {
-        hashtable_init(&tp->methods, fnv_hash,
-                       str_key_match, var_bucket_delete);
+        tp->methods = objectvar_new();
         if (tp->cbm)
-                config_builtin_methods(tp->cbm, &tp->methods);
+                config_builtin_methods(tp->cbm, tp->methods);
 }
 
 /*
@@ -255,6 +258,10 @@ var_realindex(struct var_t *v, long long idx)
  * attribute, not a copy, so be careful what you do with it.
  *
  * This gets the equivalent to the EvilCandy expression: v[key]
+ *
+ * ONLY vm.c SHOULD USE THIS!  It accesses a dictionary which may not
+ * yet exist during initialization, but which will be available by the
+ * time the VM is running.
  */
 struct var_t *
 var_getattr(struct var_t *v, struct var_t *key)
@@ -287,7 +294,7 @@ var_getattr(struct var_t *v, struct var_t *key)
                 }
 
                 /* still here? try built-ins */
-                ret = hashtable_get(&v->v_type->methods, ks);
+                ret = object_getattr(v->v_type->methods, ks);
                 if (ret)
                         VAR_INCR_REF(ret);
                 return ret;

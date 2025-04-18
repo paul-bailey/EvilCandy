@@ -96,9 +96,10 @@ struct type_inittbl_t {
  *              this to NULL.
  * @n_freelist: Used by var.c for memory management. Statically initialize
  *              this to zero.
- * @methods:    Hash table of built-in methods for the type; these are
- *              things scripts call as functions. moduleinit_var() fills
- *              in this hashtable during initialization time.
+ * @methods:    Dictionary of built-in methods for the type; these are
+ *              things scripts call as functions.  moduleinit_var()
+ *              allocates this and fills it with .cbm entries during
+ *              initialization time.
  * @opm:        Callbacks for performing primitive operations like
  *              + or - on type.  This is for numerical operations only.
  *              ('+' for 'cat' is in @sqm.)
@@ -123,7 +124,7 @@ struct type_t {
         const char *name;
         struct var_mem_t *freelist;
         size_t n_freelist;
-        struct hashtable_t methods;
+        struct var_t *methods;
         const struct operator_methods_t *opm;
         const struct type_inittbl_t *cbm;
         const struct map_methods_t *mpm;

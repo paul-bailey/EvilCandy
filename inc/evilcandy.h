@@ -242,6 +242,10 @@ extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct var_t *, void *));
 extern void *object_get_priv(struct var_t *o);
 extern void object_add_to_globals(struct var_t *obj);
+extern enum result_t object_setattr_replace(struct var_t *dict,
+                                const char *key, struct var_t *attr);
+extern enum result_t object_setattr_exclusive(struct var_t *dict,
+                                const char *key, struct var_t *attr);
 
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);

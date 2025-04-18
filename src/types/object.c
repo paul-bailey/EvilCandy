@@ -146,7 +146,7 @@ object_getattr(struct var_t *o, const char *s)
  *
  * This does not touch the type's built-in-method attributes.
  *
- * Return: res_ok or RES_ERROR.
+ * Return: RES_OK or RES_ERROR.
  */
 enum result_t
 object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
@@ -198,6 +198,55 @@ object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
         }
         return RES_OK;
 }
+
+/*
+ * like object_setattr, but throw error if @key already exists.
+ * Used by the symbol table to prevent duplicate declarations.
+ * @attr may not be NULL this time.
+ */
+enum result_t
+object_setattr_exclusive(struct var_t *dict,
+                         const char *key, struct var_t *attr)
+{
+        struct dictvar_t *d = V2D(dict);
+        enum result_t res;
+
+        bug_on(!isvar_object(dict));
+        /*
+         * XXX we know this is only called from do_symtab, whose key is
+         * known to be a literal()'d string.
+         */
+        key = literal_put(key);
+        res = hashtable_put(&d->dict, (void *)key, attr);
+        if (res == RES_OK) {
+                VAR_INCR_REF(attr);
+                seqvar_set_size(dict, seqvar_size(dict) + 1);
+        }
+        return res;
+}
+
+/*
+ * like object_setattr, but throw error if @key does not exist.
+ * Used by the symbol table to change global variable values.
+ * @attr may not be NULL.
+ */
+enum result_t
+object_setattr_replace(struct var_t *dict,
+                       const char *key, struct var_t *attr)
+{
+        struct var_t *child;
+        struct dictvar_t *d = V2D(dict);
+
+        bug_on(!isvar_object(dict));
+        key = literal_put(key);
+        child = hashtable_swap(&d->dict, (void *)key, attr);
+        if (!child)
+                return RES_ERROR;
+        VAR_INCR_REF(attr);
+        VAR_DECR_REF(child);
+        return RES_OK;
+}
+
 
 static int
 object_hasattr(struct var_t *o, const char *key)

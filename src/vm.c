@@ -27,7 +27,7 @@
 #include <token.h>
 #include <xptr.h>
 
-static struct hashtable_t *symbol_table;
+static struct var_t *symbol_table = NULL;
 
 /* XXX: Need to be made per-thread */
 static struct var_t **vm_stack;
@@ -99,9 +99,17 @@ symbol_seek(struct var_t *name)
         s = string_get_cstring(name);
         bug_on(!s);
 
-        ret = hashtable_get(symbol_table, s);
+        ret = object_getattr(symbol_table, s);
         if (!ret)
                 err_setstr(RuntimeError, "Symbol %s not found", s);
+
+        /*
+         * See where used below.  object_getattr produced a reference,
+         * but so will do_load, since VARPTR might give it something from
+         * the stack instead of here.  So consume one reference to keep
+         * it balanced.
+         */
+        VAR_DECR_REF(ret);
         return ret;
 }
 
@@ -109,20 +117,13 @@ static int
 symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
 {
         const char *s;
-        struct var_t *child;
 
         bug_on(!isvar_string(name));
 
         s = string_get_cstring(name);
         bug_on(!s);
 
-        if ((child = hashtable_swap(symbol_table, (void *)s, v)) != NULL) {
-                VAR_INCR_REF(v);
-                VAR_DECR_REF(child);
-                return RES_OK;
-        }
-
-        return RES_ERROR;
+        return object_setattr_replace(symbol_table, s, v);
 }
 
 /*
@@ -475,11 +476,9 @@ static int
 do_symtab(struct vmframe_t *fr, instruction_t ii)
 {
         char *s = RODATA_STR(fr, ii);
-        int res = hashtable_put(symbol_table, s, NullVar);
+        int res = object_setattr_exclusive(symbol_table, s, NullVar);
         if (res != RES_OK)
                 err_setstr(RuntimeError, "Symbol %s already exists", s);
-        else
-                VAR_INCR_REF(NullVar);
         return res;
 }
 
@@ -1145,16 +1144,17 @@ void
 vm_add_global(const char *name, struct var_t *var)
 {
         /* moduleinit_vm should have been called first */
+        int res;
         bug_on(!symbol_table);
-        hashtable_put(symbol_table, (void *)name, var);
+        res = object_setattr_exclusive(symbol_table, name, var);
+        bug_on(res != RES_OK);
+        (void)res;
 }
 
 void
 moduleinit_vm(void)
 {
-        symbol_table = emalloc(sizeof(*symbol_table));
-        hashtable_init(symbol_table, ptr_hash, ptr_key_match,
-                       var_bucket_delete);
+        symbol_table = objectvar_new();
 
         vm_stack = emalloc(sizeof(struct var_t *) * VM_STACK_SIZE);
         vm_stack_end = vm_stack + VM_STACK_SIZE - 1;

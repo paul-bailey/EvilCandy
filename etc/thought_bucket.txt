@@ -4,6 +4,87 @@ Thought Bucket
 These are not bugs, though they may address design flaws.
 Instead they are a more verbose version of to-do.txt.
 
+Rethinking Dictinaries
+----------------------
+
+:date: 2025-4-18
+
+I'd rather destroy 'literal()' strings when parsing is done to free up
+memory.
+
+I'd also like to simplify the whole 'immortalization' of strings.
+If .rodata is immortal(ish), and if hash tables stored keys as
+struct var_t instead of C strings (and therefore let VAR_DECR_REF
+bother over whether or not the C string is 'immortal'), then I
+should not need to add the potentially memory-spamming ``literal_put``
+call in ``object_setattr`` (see big comment there).
+
+Either option below may mean getting rid of the fast ptr_hash and
+pointer-compare callbacks for the symbol table.  One way to speed
+things up is, since strings are now immutable, calculate hash on
+string creation to speed up dictionary searches...esp. since half
+the strings in a program are just reference-producing copies of
+.rodata, so not a lot of hashing will go on anymore.
+
+Option 1
+~~~~~~~~
+
+Have string.c's library contain its own 'immortalization' scheme
+for C strings.  They have their own literal() hash table.  Callers
+to ``stringvar_new`` pass flags telling what to do about its arg:
+
+* copy it. It's a stack buffer or a token which had been literal'd
+  the old way -- the way I'm trying to get rid of now.
+
+* copy just the pointer. The C string has been allocated on the
+  heap and calling code will hand it over to string lib for memory
+  management going forward.
+
+* (exclusive to above flags). Uniquify and immortalize.  If already
+  exists and copy-the-pointer is set, free the arg's pointer. This
+
+The 'uniquify' flag would be temporary if later I complete 'option
+2', which may make immortalization unnecessary.
+
+Option 2
+~~~~~~~~
+
+Have objects store keys (as struct var_t) as well as values.  Produce
+a reference when inserting and consume a reference when deleting,
+just as with values.  Needs re-thinking the whole hashtable library
+for this project.
+
+Steps:
+
+#. Get rid of general-purpose lib/hashtable.h API and put it all
+   in types/object.c
+
+   a. Need temporary way to uniquify strings during parsing,
+      maybe add ``object_uniq`` which sets a flag.
+
+   b. Symbol table and built-in methods initialization and later
+      look-ups need rethinking for this as well.
+
+#. Make object.c's hash table insertion algorithm have a second
+   bucket list of keys, which are inserted at the same index as
+   the values.
+
+#. Make object_XXXattr take struct var_t arguments instead of
+   char pointers.
+
+#. Make hash table destructor method pass keys and values.
+   VAR_DECR_REF both.
+
+#. When adding via object_setattr, can't know if key was from
+   .rodata, so figuring out whether to produce or consume a
+   reference is tricky here.  I think 'produce' but only if
+   not replacing an already-existing entry (in which case the
+   old key should be left alone in the table).  If the calling
+   code created their arg or got it from the stack, they
+   consume the reference regardless of what object_setattr
+   did; if they got it from .rodata, do nothing to it.
+
+
 struct executable_t as a variable
 ---------------------------------
 

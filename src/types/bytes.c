@@ -148,14 +148,6 @@ bytes_reset(struct var_t *v)
                 efree(b);
 }
 
-static struct var_t *
-bytes_cp(struct var_t *v)
-{
-        /* immutable, so merely produce a reference */
-        VAR_INCR_REF(v);
-        return v;
-}
-
 enum {
         BF_COPY = 1,
 };
@@ -332,6 +324,5 @@ struct type_t BytesType = {
         .cmp    = bytes_cmp,
         .cmpz   = bytes_cmpz,
         .reset  = bytes_reset,
-        .cp     = bytes_cp,
 };
 

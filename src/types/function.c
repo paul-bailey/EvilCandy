@@ -330,13 +330,6 @@ func_cmpz(struct var_t *func)
         return false;
 }
 
-static struct var_t *
-func_cp(struct var_t *v)
-{
-        VAR_INCR_REF(v);
-        return v;
-}
-
 static void
 func_reset(struct var_t *func)
 {
@@ -358,6 +351,5 @@ struct type_t FunctionType = {
         .cmp    = func_cmp,
         .cmpz   = func_cmpz,
         .reset  = func_reset,
-        .cp     = func_cp,
 };
 

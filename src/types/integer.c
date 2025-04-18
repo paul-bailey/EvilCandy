@@ -157,12 +157,6 @@ int_negate(struct var_t *a)
 }
 
 static struct var_t *
-int_cp(struct var_t *v)
-{
-        return intvar_new(V2I(v)->i);
-}
-
-static struct var_t *
 int_str(struct var_t *v)
 {
         char buf[64];
@@ -215,7 +209,6 @@ struct type_t IntType = {
         .sqm    = NULL,
         .size   = sizeof(struct intvar_t),
         .str    = int_str,
-        .cp     = int_cp,
         .cmpz   = int_cmpz,
         .cmp    = int_cmp,
 };

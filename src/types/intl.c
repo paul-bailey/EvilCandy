@@ -54,6 +54,5 @@ struct type_t UuidptrType = {
         .str    = uuidptr_str,
         .cmp    = NULL,
         .cmpz   = NULL,
-        .cp     = NULL,
         .reset = uuidptr_reset,
 };

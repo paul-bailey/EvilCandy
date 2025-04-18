@@ -453,24 +453,4 @@ var_lnot(struct var_t *v)
         return intvar_new((int)cond);
 }
 
-/**
- * var_cp - Copy @v to a new variable
- * @v: variable to copy.  Its reference counter will not be consumed.
- *
- * Return: A duplicate of @v. This will have its own reference counter.
- *
- * Quirks:
- * - If @v is TYPE_STRPTR, the return value will be TYPE_STRING
- * - Dictionaries, lists, and functions are BY REFERENCE; the copies
- *   will be of pointers to the same resource.  Floats, integers, and
- *   strings are BY VALUE; the copies will contain duplicates of the
- *   originals' data.
- */
-struct var_t *
-var_cp(struct var_t *v)
-{
-        bug_on(!v->v_type->cp);
-        return v->v_type->cp(v);
-}
-
 

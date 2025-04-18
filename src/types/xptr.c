@@ -30,14 +30,6 @@ xptr_cmp(struct var_t *a, struct var_t *b)
 }
 
 static struct var_t *
-xptr_cp(struct var_t *x)
-{
-        /* should be unreachable */
-        bug();
-        return NULL;
-}
-
-static struct var_t *
 xptr_str(struct var_t *v)
 {
         char buf[64];
@@ -57,7 +49,6 @@ struct type_t XptrType = {
         .str    = xptr_str,
         .cmp    = xptr_cmp,
         .cmpz   = NULL,
-        .cp     = xptr_cp,
         .reset  = xptr_reset,
 };
 

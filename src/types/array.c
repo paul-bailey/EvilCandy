@@ -213,14 +213,6 @@ tuple_str(struct var_t *t)
         return array_or_tuple_str(t, '(');
 }
 
-/* type_t .cp callback */
-static struct var_t *
-array_cp(struct var_t *a)
-{
-        VAR_INCR_REF(a);
-        return a;
-}
-
 /* implement 'x.len()' */
 static struct var_t *
 do_array_len(struct vmframe_t *fr)
@@ -331,7 +323,6 @@ struct type_t ArrayType = {
         .size = sizeof(struct arrayvar_t),
         .str = array_str,
         .cmp = array_cmp,
-        .cp  = array_cp,
         .reset = array_reset,
 };
 
@@ -357,6 +348,5 @@ struct type_t TupleType = {
         .size = sizeof(struct arrayvar_t),
         .str = tuple_str,
         .cmp = array_cmp,
-        .cp  = array_cp,
         .reset = array_reset,
 };

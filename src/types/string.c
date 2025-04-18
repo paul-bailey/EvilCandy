@@ -1243,12 +1243,6 @@ string_cmpz(struct var_t *a)
         return s ? s[0] == '\0' : true;
 }
 
-static struct var_t *
-string_cp(struct var_t *v)
-{
-        return string_copy__(v);
-}
-
 /* .getitem sequence method for string  */
 static struct var_t *
 string_getitem(struct var_t *str, int idx)
@@ -1409,7 +1403,6 @@ struct type_t StringType = {
         .cmp    = string_cmp,
         .cmpz   = string_cmpz,
         .reset  = string_reset,
-        .cp     = string_cp,
 };
 
 

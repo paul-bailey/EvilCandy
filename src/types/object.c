@@ -238,14 +238,6 @@ object_add_to_globals(struct var_t *obj)
  *              Built-in Operator Callbacks
  ***********************************************************************/
 
-static struct var_t *
-object_cp(struct var_t *v)
-{
-        /* dictionaries CP by-reference, so this is quite easy */
-        VAR_INCR_REF(v);
-        return v;
-}
-
 static int
 object_cmp(struct var_t *a, struct var_t *b)
 {
@@ -505,18 +497,7 @@ do_object_keys(struct vmframe_t *fr)
 /*
  * .copy()      Duplicate myself
  *
- * Difference between:
- *      obj1 = obj2.copy()      # this function below
- *      obj1 = obj2             # object's var_cp callback
- *
- * The latter only passes a handle from obj2 to obj1, meaning that ALL
- * of it is by-reference.
- *
- * The former makes an all new hash table and copies obj2's keys and
- * values into it.  Later changes to obj1 will not affect obj2, but
- * for one important...
- *
- * ...quirk: This is not recursive.  If any of obj2's items are lists
+ * This is not recursive.  If any of obj2's items are lists
  * or dictionaries, then they will still be copied by-reference.
  */
 static struct var_t *
@@ -534,8 +515,12 @@ do_object_copy(struct vmframe_t *fr)
         d = &V2D(self)->dict;
         for (i = 0, res = hashtable_iterate(d, &k, &v, &i);
              res == 0; res = hashtable_iterate(d, &k, &v, &i)) {
-                if (object_setattr(ret, (char *)k,
-                                var_cp((struct var_t *)v)) != RES_OK) {
+                struct var_t *vv = (struct var_t *)v;
+                /*
+                 * object_setattr will produce another reference
+                 * to @vv
+                 */
+                if (object_setattr(ret, (char *)k, vv) != RES_OK) {
                         VAR_DECR_REF(ret);
                         return ErrorVar;
                 }
@@ -573,6 +558,5 @@ struct type_t ObjectType = {
         .cmp    = object_cmp,
         .cmpz   = object_cmpz,
         .reset  = object_reset,
-        .cp     = object_cp,
 };
 

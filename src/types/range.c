@@ -61,17 +61,6 @@ range_getitem(struct var_t *rng, int idx)
         return intvar_new(resi);
 }
 
-static struct var_t *
-range_cp(struct var_t *rng)
-{
-        /*
-         * technically this should be by-val, but since it's read-only,
-         * producing a reference is fine.
-         */
-        VAR_INCR_REF(rng);
-        return rng;
-}
-
 static int
 range_cmp(struct var_t *a, struct var_t *b)
 {
@@ -172,7 +161,6 @@ struct type_t RangeType = {
         .size   = sizeof(struct rangevar_t),
         .str    = range_str,
         .cmp    = range_cmp,
-        .cp     = range_cp,
         .reset  = NULL,
 };
 

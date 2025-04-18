@@ -117,9 +117,6 @@ struct type_inittbl_t {
  *              brackets bookend the expression.
  * @cmp:        Returns -1 if a<b, 0 if a==b, >0 if a>b
  * @cmpz:       Returns 1 if some kind of zero.
- * @cp:         Copy self.  By-ref types should just produce a reference
- *              and return self.  By-val types should create a new var and
- *              set it to the same value.
  * reset:       May be NULL.  Destructor for a variable's private data.
  */
 struct type_t {
@@ -135,7 +132,6 @@ struct type_t {
         struct var_t *(*str)(struct var_t *);
         int (*cmp)(struct var_t *, struct var_t *);
         bool (*cmpz)(struct var_t *);    /* a == 0 ? */
-        unary_operator_t cp;
         void (*reset)(struct var_t *);
 };
 

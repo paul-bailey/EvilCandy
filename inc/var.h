@@ -91,7 +91,6 @@ extern struct var_t *var_str(struct var_t *v);
 extern ssize_t var_len(struct var_t *v);
 extern bool var_cmpz(struct var_t *v, enum result_t *status);
 extern struct var_t *var_lnot(struct var_t *v);
-extern struct var_t *var_cp(struct var_t *v);
 extern const char *typestr(struct var_t *v);
 extern const char *typestr_(int magic);
 extern const char *attr_str(struct var_t *deref);

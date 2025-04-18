@@ -18,12 +18,6 @@ floatvar_new(double v)
 }
 
 static struct var_t *
-float_cp(struct var_t *f)
-{
-        return floatvar_new(V2F(f)->f);
-}
-
-static struct var_t *
 float_mul(struct var_t *a, struct var_t *b)
 {
         if (!isnumvar(b)) {
@@ -154,7 +148,6 @@ struct type_t FloatType = {
         .cbm    = float_methods,
         .size   = sizeof(struct floatvar_t),
         .str    = float_str,
-        .cp     = float_cp,
         .cmp    = float_cmp,
         .cmpz   = float_cmpz,
 };

@@ -390,9 +390,14 @@ do_push_local(struct vmframe_t *fr, instruction_t ii)
 static int
 do_load_const(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *v = var_cp(RODATA(fr, ii));
-        if (!v)
+        struct var_t *v = RODATA(fr, ii);
+        if (!v) /* xxx bug? */
                 return -1;
+        /*
+         * Don't need a shallow copy, because all RODATA
+         * vars are the immutable kind--no lists or dictionaries.
+         */
+        VAR_INCR_REF(v);
         push(fr, v);
         return 0;
 }
@@ -1085,9 +1090,8 @@ vm_exec_script(struct var_t *top_level, struct vmframe_t *fr_old)
  * Return: Return value of function being called or ErrorVar if execution
  *         failed.
  *
- * Note: This does not consume any reference counters for @argv, since
- *       in order to enforce BY-VALUE policy when passing named
- *       variables, each member of @argv[] is copied into a new variable.
+ * Note: This has a net-zero effect on reference counters for @argv,
+ *       although they will temporarily be incremented.
  */
 struct var_t *
 vm_exec_func(struct vmframe_t *fr_old, struct var_t *func,
@@ -1100,8 +1104,11 @@ vm_exec_func(struct vmframe_t *fr_old, struct var_t *func,
         fr->stack = fr_old ? fr_old->stackptr : vm_stack;
         fr->ap = argc;
         bug_on(argc > 0 && !argv);
-        while (argc-- > 0)
-                fr->stack[argc] = var_cp(argv[argc]);
+        while (argc-- > 0) {
+                /* vmframe_free below decrements these back */
+                VAR_INCR_REF(argv[argc]);
+                fr->stack[argc] = argv[argc];
+        }
 
         if (!owner)
                 owner = fr_old ? vm_get_this(fr_old) : GlobalObject;

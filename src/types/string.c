@@ -78,7 +78,8 @@ stringvar_newf(char *cstr, unsigned int flags)
 static inline struct var_t *
 string_copy__(struct var_t *str)
 {
-        return stringvar_newf(V2CSTR(str), SF_COPY);
+        VAR_INCR_REF(str);
+        return str;
 }
 
 
@@ -1128,7 +1129,6 @@ static struct var_t *
 string_str(struct var_t *v)
 {
         struct buffer_t b;
-        struct var_t *ret;
         const char *s;
         int c;
         enum { Q = '\'', BKSL = '\\' };

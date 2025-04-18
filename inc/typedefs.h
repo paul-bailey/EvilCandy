@@ -137,7 +137,6 @@ struct type_t {
         bool (*cmpz)(struct var_t *);    /* a == 0 ? */
         unary_operator_t cp;
         void (*reset)(struct var_t *);
-
 };
 
 /*

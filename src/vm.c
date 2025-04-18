@@ -754,7 +754,7 @@ do_foreach_iter(struct vmframe_t *fr, instruction_t ii)
         bug_on(!haystack->v_type->sqm->getitem);
         bug_on(!isvar_int(iter));
 
-        n = ((struct seqvar_t *)haystack)->v_size;
+        n = seqvar_size(haystack);
         i = intvar_toll(iter);
         bug_on(i > INT_MAX || n > INT_MAX || i < 0 || n < 0);
         if (i >= n) {

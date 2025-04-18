@@ -23,6 +23,8 @@ Bugs
 Must Do
 -------
 
+* no need for ``var_cp`` after all, get rid of it.
+
 * ``this`` keyword barely tested; it will probably break a lot of
   stuff that seems to work without it.
 
@@ -64,10 +66,15 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
+* Get rid of object_set_priv/object_get_priv.  It makes no sense for
+  C code that's part of the compiled program to need this, when a new
+  data class can be made.  Only EvilCandy user code needs dictionary
+  types to create their own user-defined classes.
+
+* Make FileType class and move general file stuff out of builtin/io.c
+
 * Add way to mark current location while parsing, so that token.c and
   main.c aren't making their own separate and different error splashes.
-
-* Add locations into struct executable_t.
 
 * To cast an int to a float, user has to do something like
   ``x = 1.0 * x``.  Add something like ``float(x)`` and ``int(x)``

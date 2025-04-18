@@ -21,7 +21,7 @@ struct stringvar_t {
 #define V2STR(v)                ((struct stringvar_t *)(v))
 #define V2SQ(v)                 ((struct seqvar_t *)(v))
 #define V2CSTR(v)               (V2STR(v)->s)
-#define STRING_LENGTH(str)      (V2SQ(str)->v_size)
+#define STRING_LENGTH(str)      seqvar_size(str)
 #define STRING_NBYTES(str)      (V2STR(str)->s_info.ascii_len)
 
 
@@ -71,7 +71,7 @@ stringvar_newf(char *cstr, unsigned int flags)
         }
         vs->s_imm = !!(flags & SF_IMMORTAL);
         utf8_scan(cstr, &vs->s_info);
-        V2SQ(ret)->v_size = vs->s_info.enc_len;
+        seqvar_set_size(ret, vs->s_info.enc_len);
         return ret;
 }
 

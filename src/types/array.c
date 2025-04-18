@@ -38,7 +38,7 @@ array_getitem(struct var_t *array, int idx)
 {
         struct arrayvar_t *va = V2ARR(array);
 
-        bug_on(idx >= V2SQ(array)->v_size);
+        bug_on(idx >= seqvar_size(array));
         VAR_INCR_REF(va->items[idx]);
         return va->items[idx];
 }
@@ -55,10 +55,10 @@ static void
 array_sort(struct var_t *array)
 {
         struct arrayvar_t *a = V2ARR(array);
-        if (V2SQ(array)->v_size < 2)
+        if (seqvar_size(array) < 2)
                 return;
         bug_on(!a->items);
-        qsort(a->items, V2SQ(array)->v_size,
+        qsort(a->items, seqvar_size(array),
               sizeof(struct var_t *), array_sort_cmp);
 }
 
@@ -76,7 +76,7 @@ array_setitem(struct var_t *array, int i, struct var_t *child)
         struct arrayvar_t *va = V2ARR(array);
         bug_on(!isvar_array(array) && !isvar_tuple(array));
 
-        bug_on(i >= V2SQ(array)->v_size);
+        bug_on(i >= seqvar_size(array));
 
         /* delete old entry */
         bug_on(va->items[i] == NULL);
@@ -98,7 +98,7 @@ enum result_t
 array_append(struct var_t *array, struct var_t *child)
 {
         struct arrayvar_t *h = V2ARR(array);
-        size_t size = V2SQ(array)->v_size;
+        size_t size = seqvar_size(array);
 
         if (h->lock) {
                 err_locked();
@@ -108,7 +108,7 @@ array_append(struct var_t *array, struct var_t *child)
         h->items = erealloc(h->items, (size + 1) * sizeof(struct var_t *));
         h->items[size] = child;
 
-        V2SQ(array)->v_size = size + 1;
+        seqvar_set_size(array, size + 1);
         VAR_INCR_REF(child);
         return RES_OK;
 }
@@ -123,7 +123,7 @@ arrayvar_new_common(int n_items, struct type_t *type)
         if (!alloc_size)
                 alloc_size = 1;
 
-        V2SQ(array)->v_size = n_items;
+        seqvar_set_size(array, n_items);
         va->items = emalloc(alloc_size);
         for (i = 0; i < n_items; i++) {
                 VAR_INCR_REF(NullVar);
@@ -164,17 +164,17 @@ array_reset(struct var_t *a)
 static int
 array_cmp(struct var_t *a, struct var_t *b)
 {
-        int i, n = V2SQ(a)->v_size;
+        int i, n = seqvar_size(a);
         struct var_t **aitems = V2ARR(a)->items;
         struct var_t **bitems = V2ARR(b)->items;
-        if (n > V2SQ(b)->v_size)
-                n = V2SQ(b)->v_size;
+        if (n > seqvar_size(b))
+                n = seqvar_size(b);
         for (i = 0; i < n; i++) {
                 int x = var_compare(aitems[i], bitems[i]);
                 if (x)
                         return x;
         }
-        return V2SQ(a)->v_size - V2SQ(b)->v_size;
+        return seqvar_size(a) - seqvar_size(b);
 }
 
 /* type_t .str callbacks for array and tuple */
@@ -183,7 +183,7 @@ array_or_tuple_str(struct var_t *t, int startchar)
 {
         struct buffer_t b;
         struct var_t *ret;
-        size_t i, n = V2SQ(t)->v_size;
+        size_t i, n = seqvar_size(t);
         buffer_init(&b);
         buffer_putc(&b, startchar);
 
@@ -227,7 +227,7 @@ do_array_len(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         bug_on(!isvar_array(self) && !isvar_tuple(self));
-        return intvar_new(V2SQ(self)->v_size);
+        return intvar_new(seqvar_size(self));
 }
 
 /* implement 'x.foreach(myfunc, mypriv)' */
@@ -250,7 +250,7 @@ do_array_foreach(struct vmframe_t *fr)
         if (!priv)
                 priv = NullVar;
         h = V2ARR(self);
-        if (!V2SQ(self)->v_size) /* nothing to iterate over */
+        if (!seqvar_size(self)) /* nothing to iterate over */
                 goto out;
 
         /*
@@ -260,7 +260,7 @@ do_array_foreach(struct vmframe_t *fr)
         lock = h->lock;
         h->lock = 1;
 
-        for (idx = 0; idx < V2SQ(self)->v_size; idx++) {
+        for (idx = 0; idx < seqvar_size(self); idx++) {
                 /*
                  * XXX creating a new intvar every time, maybe some
                  * back-door hacks to intvar should be allowed for

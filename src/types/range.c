@@ -13,8 +13,8 @@ struct rangevar_t {
 
 #define V2R(v_)                 ((struct rangevar_t *)(v_))
 #define V2SQ(v_)                ((struct seqvar_t *)(v_))
-#define RANGE_LEN(v_)           (V2SQ(v_)->v_size)
-#define RANGE_SETLEN(v_, n_)    do { V2SQ(v_)->v_size = (n_); } while (0)
+#define RANGE_LEN(v_)           seqvar_size(v_)
+#define RANGE_SETLEN(v_, n_)    do { seqvar_set_size(v_, (n_)); } while (0)
 
 struct var_t *
 rangevar_new(long long start, long long stop, long long step)

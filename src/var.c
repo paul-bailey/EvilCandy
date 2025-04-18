@@ -5,7 +5,7 @@
  * If 1 and !NDEBUG, splash some debug data about var allocation
  * to stderr upon exit.
  */
-#define REPORT_VARS_ON_EXIT 1
+#define REPORT_VARS_ON_EXIT 0
 
 #ifdef NDEBUG
 # undef REPORT_VARS_ON_EXIT
@@ -238,7 +238,7 @@ var_realindex(struct var_t *v, long long idx)
                 return -1;
 
         i = (int)idx;
-        n = ((struct seqvar_t *)v)->v_size;
+        n = seqvar_size(v);
 
         /* convert '[-i]' to '[size-i]' */
         if (i < 0)
@@ -409,7 +409,7 @@ var_len(struct var_t *v)
 {
         if (!hasvar_len(v))
                 return -1;
-        return ((struct seqvar_t *)v)->v_size;
+        return seqvar_size(v);
 }
 
 const char *

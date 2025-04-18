@@ -28,7 +28,7 @@ struct dictvar_t {
 
 #define V2D(v)          ((struct dictvar_t *)(v))
 #define V2SQ(v)         ((struct seqvar_t *)(v))
-#define OBJ_SIZE(v)     (V2SQ(v)->v_size)
+#define OBJ_SIZE(v)     seqvar_size(v)
 
 
 /* **********************************************************************
@@ -74,7 +74,7 @@ objectvar_new(void)
         struct var_t *o = var_new(&ObjectType);
         V2D(o)->priv = NULL;
         V2D(o)->priv_cleanup = NULL;
-        V2SQ(o)->v_size = 0;
+        seqvar_set_size(o, 0);
         hashtable_init(&V2D(o)->dict, fnv_hash,
                        str_key_match, var_bucket_delete);
         return o;
@@ -185,7 +185,7 @@ object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
                 if (child) {
                         VAR_DECR_REF(child);
                 } else {
-                        V2SQ(dict)->v_size++;
+                        seqvar_set_size(dict, seqvar_size(dict) + 1);
                 }
                 VAR_INCR_REF(attr);
         } else {
@@ -193,7 +193,7 @@ object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
                 child = hashtable_remove(&d->dict, key);
                 if (child) {
                         VAR_DECR_REF(child);
-                        V2SQ(dict)->v_size--;
+                        seqvar_set_size(dict, seqvar_size(dict) - 1);
                 }
         }
         return RES_OK;

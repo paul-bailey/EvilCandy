@@ -8,7 +8,7 @@
 
 /**
  * struct var_t - User variable type
- * @magic: Magic number to determine which builtin type
+ * @v_type:   Pointer to class methods et al for this data type.
  * @v_refcnt: DON'T TOUCH THIS! Use VAR_INCR_REF and VAR_DECR_REF instead
  *
  * built-in types have their own XXXXvar_t struct, which embeds this at

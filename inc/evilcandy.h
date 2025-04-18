@@ -32,7 +32,7 @@ enum {
          */
         RECURSION_MAX   = 256,
 
-        /* for vm.c and assembler.c */
+        /* for vm.c */
         /* TODO: Make VM_STACK_SIZE configurable by the command-line. */
         VM_STACK_SIZE   = 1024 * 16,
 

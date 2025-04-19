@@ -255,11 +255,6 @@ as_frame_take(struct assemble_t *a)
         list_remove(&child->list);
         a->fr = parent;
 
-        if (frame_is_top(a)) {
-                as_frame_restore(a, child);
-                return NULL;
-        }
-
         return child;
 }
 
@@ -753,19 +748,17 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
         if (!this_frame)
                 return -1;
 
-        if (!frame_is_top(a)) {
-                if (symtab_seek(a, name) >= 0 ||
-                    arg_seek(a, name) >= 0 ||
-                    clo_seek(a, name) >= 0)  {
+        if (symtab_seek(a, name) >= 0 ||
+            arg_seek(a, name) >= 0 ||
+            clo_seek(a, name) >= 0)  {
 
-                        pos = as_swap_pos(a, pos);
-                        assemble_eval_atomic(a);
-                        as_swap_pos(a, pos);
+                pos = as_swap_pos(a, pos);
+                assemble_eval_atomic(a);
+                as_swap_pos(a, pos);
 
-                        /* back to identifier */
-                        add_instr(a, INSTR_ADD_CLOSURE, 0, 0);
-                        success = true;
-                }
+                /* back to identifier */
+                add_instr(a, INSTR_ADD_CLOSURE, 0, 0);
+                success = true;
         }
 
         as_frame_restore(a, this_frame);

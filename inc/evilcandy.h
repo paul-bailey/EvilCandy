@@ -228,20 +228,20 @@ extern struct var_t *uuidptrvar_new(char *uuid);
 extern char *uuidptr_get_cstring(struct var_t *v);
 
 /* types/object.c */
-extern struct var_t *objectvar_new(void);
-extern struct var_t *object_keys(struct var_t *obj);
-extern struct var_t *object_getattr(struct var_t *o, struct var_t *key);
-extern enum result_t object_setattr(struct var_t *o,
+extern struct var_t *dictvar_new(void);
+extern struct var_t *dict_keys(struct var_t *obj);
+extern struct var_t *dict_getattr(struct var_t *o, struct var_t *key);
+extern enum result_t dict_setattr(struct var_t *o,
                                     struct var_t *key, struct var_t *attr);
-extern void object_set_priv(struct var_t *o, void *priv,
+extern void dict_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct var_t *, void *));
-extern void *object_get_priv(struct var_t *o);
-extern void object_add_to_globals(struct var_t *obj);
-extern enum result_t object_setattr_replace(struct var_t *dict,
+extern void *dict_get_priv(struct var_t *o);
+extern void dict_add_to_globals(struct var_t *obj);
+extern enum result_t dict_setattr_replace(struct var_t *dict,
                                 struct var_t *key, struct var_t *attr);
-extern enum result_t object_setattr_exclusive(struct var_t *dict,
+extern enum result_t dict_setattr_exclusive(struct var_t *dict,
                                 struct var_t *key, struct var_t *attr);
-extern char *object_unique(struct var_t *dict, const char *key);
+extern char *dict_unique(struct var_t *dict, const char *key);
 
 /* types/string.c */
 extern void string_assign_cstring(struct var_t *str, const char *s);

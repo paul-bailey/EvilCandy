@@ -234,18 +234,18 @@ insert_common(struct dictvar_t *dict, struct var_t *key,
  ***********************************************************************/
 
 /**
- * object_keys - Get an alphabetically sorted list of all the keys
+ * dict_keys - Get an alphabetically sorted list of all the keys
  *               currently in the dictionary.
  */
 struct var_t *
-object_keys(struct var_t *obj)
+dict_keys(struct var_t *obj)
 {
         struct var_t *keys;
         struct dictvar_t *d;
         unsigned int i;
         int array_i;
 
-        bug_on(!isvar_object(obj));
+        bug_on(!isvar_dict(obj));
         d = V2D(obj);
         keys = arrayvar_new(OBJ_SIZE(obj));
 
@@ -267,12 +267,12 @@ object_keys(struct var_t *obj)
 }
 
 /**
- * objectvar_new - Create a new empty dictionary
+ * dictvar_new - Create a new empty dictionary
  */
 struct var_t *
-objectvar_new(void)
+dictvar_new(void)
 {
-        struct var_t *o = var_new(&ObjectType);
+        struct var_t *o = var_new(&DictType);
         struct dictvar_t *d = V2D(o);
         d->priv = NULL;
         d->priv_cleanup = NULL;
@@ -287,7 +287,7 @@ objectvar_new(void)
 }
 
 /*
- * XXX REVISIT: Consider removing object_set/get_priv.
+ * XXX REVISIT: Consider removing dict_set/get_priv.
  * The private data is unused for user-defined dictionaries, and there's
  * no reason built-in modules need to be dictionaries at all, as opposed
  * to their own types.  True for IO module, which so far is the only
@@ -295,34 +295,34 @@ objectvar_new(void)
  */
 
 /**
- * object_set_priv - Set an object's private data
+ * dict_set_priv - Set an object's private data
  * @o: Object
  * @priv: Private data to set
  * @cleanup: Cleanup method to clean up private data at garbage
  *           collection time, or NULL to let it be simply free'd
  */
 void
-object_set_priv(struct var_t *o, void *priv,
+dict_set_priv(struct var_t *o, void *priv,
                 void (*cleanup)(struct var_t *, void *))
 {
-        bug_on(!isvar_object(o));
+        bug_on(!isvar_dict(o));
         V2D(o)->priv = priv;
         V2D(o)->priv_cleanup = cleanup;
 }
 
 /**
- * object_get_priv - Get the object's private data,
+ * dict_get_priv - Get the object's private data,
  *                      or NULL if none exists.
  */
 void *
-object_get_priv(struct var_t *o)
+dict_get_priv(struct var_t *o)
 {
         return V2D(o)->priv;
 }
 
 
 /**
- * object_getattr - Get object attribute
+ * dict_getattr - Get object attribute
  * @o:  Me
  * @s:  Key
  *
@@ -330,7 +330,7 @@ object_get_priv(struct var_t *o)
  *      Calling code must decide whether NULL is an error or not
  */
 struct var_t *
-object_getattr(struct var_t *o, struct var_t *key)
+dict_getattr(struct var_t *o, struct var_t *key)
 {
         struct dictvar_t *d;
         unsigned int i;
@@ -338,7 +338,7 @@ object_getattr(struct var_t *o, struct var_t *key)
         struct bucket_t *b;
 
         d = V2D(o);
-        bug_on(!isvar_object(o));
+        bug_on(!isvar_dict(o));
         bug_on(!isvar_string(key));
 
         hash = DICT_CALC_HASH(key);
@@ -358,7 +358,7 @@ enum {
 };
 
 static enum result_t
-object_insert(struct var_t *dict, struct var_t *key,
+dict_insert(struct var_t *dict, struct var_t *key,
               struct var_t *attr, unsigned int flags)
 {
         unsigned int i;
@@ -369,7 +369,7 @@ object_insert(struct var_t *dict, struct var_t *key,
         bug_on(!!(flags & DF_EXCL) && attr == NULL);
         bug_on(!!(flags & DF_SWAP) && attr == NULL);
         bug_on((flags & (DF_SWAP|DF_EXCL)) == (DF_SWAP|DF_EXCL));
-        bug_on(!isvar_object(dict));
+        bug_on(!isvar_dict(dict));
         bug_on(!isvar_string(key));
 
         d = V2D(dict);
@@ -417,7 +417,7 @@ object_insert(struct var_t *dict, struct var_t *key,
 }
 
 /**
- * object_setattr - Insert an attribute to dictionary if it doesn't exist,
+ * dict_setattr - Insert an attribute to dictionary if it doesn't exist,
  *                  or change the existing attribute if it does.
  * @self:       Dictionary object
  * @key:        Name of attribute key
@@ -428,21 +428,21 @@ object_insert(struct var_t *dict, struct var_t *key,
  * Return: RES_OK or RES_ERROR.
  */
 enum result_t
-object_setattr(struct var_t *dict, struct var_t *key, struct var_t *attr)
+dict_setattr(struct var_t *dict, struct var_t *key, struct var_t *attr)
 {
-        return object_insert(dict, key, attr, 0);
+        return dict_insert(dict, key, attr, 0);
 }
 
 /*
- * like object_setattr, but throw error if @key already exists.
+ * like dict_setattr, but throw error if @key already exists.
  * Used by the symbol table to prevent duplicate declarations.
  * @attr may not be NULL this time.
  */
 enum result_t
-object_setattr_exclusive(struct var_t *dict,
+dict_setattr_exclusive(struct var_t *dict,
                          struct var_t *key, struct var_t *attr)
 {
-        return object_insert(dict, key, attr, DF_EXCL);
+        return dict_insert(dict, key, attr, DF_EXCL);
 }
 
 /**
@@ -450,7 +450,7 @@ object_setattr_exclusive(struct var_t *dict,
  * See comments in literal.c, that's where this is used.
  */
 char *
-object_unique(struct var_t *dict, const char *key)
+dict_unique(struct var_t *dict, const char *key)
 {
         struct var_t *keycopy;
         unsigned int i;
@@ -459,7 +459,7 @@ object_unique(struct var_t *dict, const char *key)
         struct dictvar_t *d;
 
         d = V2D(dict);
-        bug_on(!isvar_object(dict));
+        bug_on(!isvar_dict(dict));
 
         /*
          * XXX only done at load time, but is it still
@@ -482,25 +482,25 @@ object_unique(struct var_t *dict, const char *key)
 }
 
 /*
- * like object_setattr, but throw error if @key does not exist.
+ * like dict_setattr, but throw error if @key does not exist.
  * Used by the symbol table to change global variable values.
  * @attr may not be NULL.
  */
 enum result_t
-object_setattr_replace(struct var_t *dict,
+dict_setattr_replace(struct var_t *dict,
                        struct var_t *key, struct var_t *attr)
 {
-        return object_insert(dict, key, attr, DF_SWAP);
+        return dict_insert(dict, key, attr, DF_SWAP);
 }
 
 
 static int
-object_hasattr(struct var_t *dict, struct var_t *key)
+dict_hasattr(struct var_t *dict, struct var_t *key)
 {
         unsigned int i;
         if (!key)
                 return 0;
-        bug_on(!isvar_object(dict));
+        bug_on(!isvar_dict(dict));
 
         hash_t hash = DICT_CALC_HASH(key);
         return seek_helper(V2D(dict), key, hash, &i) != NULL;
@@ -516,11 +516,11 @@ object_hasattr(struct var_t *dict, struct var_t *key)
  *  ...and so on.
  */
 void
-object_add_to_globals(struct var_t *dict)
+dict_add_to_globals(struct var_t *dict)
 {
         unsigned int i;
         struct dictvar_t *d = V2D(dict);
-        bug_on(!isvar_object(dict));
+        bug_on(!isvar_dict(dict));
 
         for (i = 0; i < d->d_size; i++) {
                 struct bucket_t *b = d->d_bucket[i];
@@ -536,27 +536,27 @@ object_add_to_globals(struct var_t *dict)
  ***********************************************************************/
 
 static int
-object_cmp(struct var_t *a, struct var_t *b)
+dict_cmp(struct var_t *a, struct var_t *b)
 {
-        if (isvar_object(b))
+        if (isvar_dict(b))
                 return 0;
         /* FIXME: need to recurse here */
         return 1;
 }
 
 static bool
-object_cmpz(struct var_t *obj)
+dict_cmpz(struct var_t *obj)
 {
         return seqvar_size(obj) == 0;
 }
 
 static void
-object_reset(struct var_t *o)
+dict_reset(struct var_t *o)
 {
         struct dictvar_t *dict;
         int i;
 
-        bug_on(!isvar_object(o));
+        bug_on(!isvar_dict(o));
         dict = V2D(o);
         if (dict->priv) {
                 if (dict->priv_cleanup)
@@ -581,7 +581,7 @@ object_reset(struct var_t *o)
 }
 
 static struct var_t *
-object_str(struct var_t *o)
+dict_str(struct var_t *o)
 {
         struct dictvar_t *d;
         struct buffer_t b;
@@ -589,7 +589,7 @@ object_str(struct var_t *o)
         int count;
         struct var_t *ret;
 
-        bug_on(!isvar_object(o));
+        bug_on(!isvar_dict(o));
 
         d = V2D(o);
         buffer_init(&b);
@@ -634,13 +634,13 @@ object_str(struct var_t *o)
  * Returns nothing
  */
 struct var_t *
-do_object_foreach(struct vmframe_t *fr)
+do_dict_foreach(struct vmframe_t *fr)
 {
         struct var_t *keys, *func, *self, *priv;
         int i, len, status;
 
         self = get_this(fr);
-        bug_on(!isvar_object(self));
+        bug_on(!isvar_dict(self));
         func = frame_get_arg(fr, 0);
         if (!func) {
                 err_argtype("function");
@@ -650,7 +650,7 @@ do_object_foreach(struct vmframe_t *fr)
         if (!priv)
                 priv = NullVar;
 
-        keys = object_keys(self);
+        keys = dict_keys(self);
         len = var_len(keys);
         bug_on(var_len < 0);
 
@@ -660,7 +660,7 @@ do_object_foreach(struct vmframe_t *fr)
 
                 key = array_getitem(keys, i);
                 bug_on(!key || key == ErrorVar);
-                val = object_getattr(self, key);
+                val = dict_getattr(self, key);
                 if (!val) /* user shenanigans in foreach loop */
                         continue;
 
@@ -689,32 +689,32 @@ do_object_foreach(struct vmframe_t *fr)
  * returns number of elements in object
  */
 static struct var_t *
-do_object_len(struct vmframe_t *fr)
+do_dict_len(struct vmframe_t *fr)
 {
         struct var_t *v;
         int i;
 
         v = vm_get_this(fr);
-        bug_on(!v || !isvar_object(v));
+        bug_on(!v || !isvar_dict(v));
         i = OBJ_SIZE(v);
         return intvar_new(i);
 }
 
 static struct var_t *
-do_object_hasattr(struct vmframe_t *fr)
+do_dict_hasattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = frame_get_arg(fr, 0);
         struct var_t *child = NULL;
 
-        bug_on(!isvar_object(self));
+        bug_on(!isvar_dict(self));
 
         if (!name || !isvar_string(name)) {
                 err_argtype("string");
                 return ErrorVar;
         }
 
-        child = object_getattr(self, name);
+        child = dict_getattr(self, name);
         /* TODO: if child == NULL, check built-in methods */
 
         return intvar_new((int)(child != NULL));
@@ -722,13 +722,13 @@ do_object_hasattr(struct vmframe_t *fr)
 
 /* "obj.setattr('name', val)" is an alternative to "obj.name = val" */
 static struct var_t *
-do_object_setattr(struct vmframe_t *fr)
+do_dict_setattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = frame_get_arg(fr, 0);
         struct var_t *value = frame_get_arg(fr, 1);
 
-        bug_on(!isvar_object(self));
+        bug_on(!isvar_dict(self));
 
         if (!name || !isvar_string(name)) {
                 err_argtype("name");
@@ -738,7 +738,7 @@ do_object_setattr(struct vmframe_t *fr)
                 err_argtype("value");
                 return ErrorVar;
         }
-        if (object_setattr(self, name, value) != RES_OK)
+        if (dict_setattr(self, name, value) != RES_OK)
                 return ErrorVar;
 
         return NULL;
@@ -759,14 +759,14 @@ do_object_setattr(struct vmframe_t *fr)
  * if 'name' does not exist.
  */
 static struct var_t *
-do_object_getattr(struct vmframe_t *fr)
+do_dict_getattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = frame_get_arg(fr, 0);
         struct var_t *ret;
         char *s;
 
-        bug_on(!isvar_object(self));
+        bug_on(!isvar_dict(self));
         if (arg_type_check(name, &StringType) != 0)
                 return ErrorVar;
 
@@ -776,7 +776,7 @@ do_object_getattr(struct vmframe_t *fr)
                 return ErrorVar;
         }
 
-        ret = object_getattr(self, name);
+        ret = dict_getattr(self, name);
         /* XXX: If NULL, check built-in methods */
         /* XXX: VAR_INCR_REF? Who's taking this? */
         if (!ret)
@@ -785,24 +785,24 @@ do_object_getattr(struct vmframe_t *fr)
 }
 
 static struct var_t *
-do_object_delattr(struct vmframe_t *fr)
+do_dict_delattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = vm_get_arg(fr, 0);
 
-        bug_on(!isvar_object(self));
+        bug_on(!isvar_dict(self));
         if (arg_type_check(name, &StringType) != 0)
                 return ErrorVar;
 
-        if (object_setattr(self, name, NULL) != RES_OK)
+        if (dict_setattr(self, name, NULL) != RES_OK)
                 return ErrorVar;
         return NULL;
 }
 
 static struct var_t *
-do_object_keys(struct vmframe_t *fr)
+do_dict_keys(struct vmframe_t *fr)
 {
-        return object_keys(get_this(fr));
+        return dict_keys(get_this(fr));
 }
 
 /*
@@ -812,14 +812,14 @@ do_object_keys(struct vmframe_t *fr)
  * or dictionaries, then they will still be copied by-reference.
  */
 static struct var_t *
-do_object_copy(struct vmframe_t *fr)
+do_dict_copy(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         unsigned int i;
         struct dictvar_t *d;
-        struct var_t *ret = objectvar_new();
+        struct var_t *ret = dictvar_new();
 
-        bug_on(!isvar_object(self));
+        bug_on(!isvar_dict(self));
 
         d = V2D(self);
         for (i = 0; i < d->d_size; i++) {
@@ -827,47 +827,47 @@ do_object_copy(struct vmframe_t *fr)
                 if (b == NULL || b == BUCKET_DEAD)
                         continue;
                 /*
-                 * object_setattr will produce another reference
+                 * dict_setattr will produce another reference
                  * to @b->b_data
                  */
-                if (object_setattr(ret, b->b_key, b->b_data) != RES_OK) {
+                if (dict_setattr(ret, b->b_key, b->b_data) != RES_OK) {
                         VAR_DECR_REF(ret);
                         return ErrorVar;
                 }
-                /* object_addattr already incremented ref */
+                /* dict_addattr already incremented ref */
         }
         return ret;
 }
 
-static const struct type_inittbl_t object_cb_methods[] = {
-        V_INITTBL("len",       do_object_len,       0, 0),
-        V_INITTBL("foreach",   do_object_foreach,   1, 1),
-        V_INITTBL("hasattr",   do_object_hasattr,   1, 1),
-        V_INITTBL("setattr",   do_object_setattr,   2, 2),
-        V_INITTBL("getattr",   do_object_getattr,   1, 1),
-        V_INITTBL("delattr",   do_object_delattr,   1, 1),
-        V_INITTBL("keys",      do_object_keys,      0, 0),
-        V_INITTBL("copy",      do_object_copy,      0, 0),
+static const struct type_inittbl_t dict_cb_methods[] = {
+        V_INITTBL("len",       do_dict_len,       0, 0),
+        V_INITTBL("foreach",   do_dict_foreach,   1, 1),
+        V_INITTBL("hasattr",   do_dict_hasattr,   1, 1),
+        V_INITTBL("setattr",   do_dict_setattr,   2, 2),
+        V_INITTBL("getattr",   do_dict_getattr,   1, 1),
+        V_INITTBL("delattr",   do_dict_delattr,   1, 1),
+        V_INITTBL("keys",      do_dict_keys,      0, 0),
+        V_INITTBL("copy",      do_dict_copy,      0, 0),
         TBLEND,
 };
 
-static const struct map_methods_t object_map_methods = {
-        .getitem = object_getattr,
-        .setitem = object_setattr,
-        .hasitem = object_hasattr,
+static const struct map_methods_t dict_map_methods = {
+        .getitem = dict_getattr,
+        .setitem = dict_setattr,
+        .hasitem = dict_hasattr,
 };
 
-struct type_t ObjectType = {
+struct type_t DictType = {
         .name = "dictionary",
         .opm    = NULL,
-        .cbm    = object_cb_methods,
-        .mpm    = &object_map_methods,
+        .cbm    = dict_cb_methods,
+        .mpm    = &dict_map_methods,
         .sqm    = NULL,
         .size   = sizeof(struct dictvar_t),
-        .str    = object_str,
-        .cmp    = object_cmp,
-        .cmpz   = object_cmpz,
-        .reset  = object_reset,
+        .str    = dict_str,
+        .cmp    = dict_cmp,
+        .cmpz   = dict_cmpz,
+        .reset  = dict_reset,
 };
 
 /*

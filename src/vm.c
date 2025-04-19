@@ -82,14 +82,14 @@ symbol_seek(struct var_t *name)
 
         bug_on(!isvar_string(name));
 
-        ret = object_getattr(symbol_table, name);
+        ret = dict_getattr(symbol_table, name);
         if (!ret) {
                 err_setstr(RuntimeError, "Symbol %s not found",
                            string_get_cstring(name));
         }
 
         /*
-         * See where used below.  object_getattr produced a reference,
+         * See where used below.  dict_getattr produced a reference,
          * but so will do_load, since VARPTR might give it something from
          * the stack instead of here.  So consume one reference to keep
          * it balanced.
@@ -102,7 +102,7 @@ static int
 symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
 {
         bug_on(!isvar_string(name));
-        return object_setattr_replace(symbol_table, name, v);
+        return dict_setattr_replace(symbol_table, name, v);
 }
 
 /*
@@ -457,7 +457,7 @@ do_symtab(struct vmframe_t *fr, instruction_t ii)
         int res;
         struct var_t *name = RODATA(fr, ii);
         bug_on(!isvar_string(name));
-        res = object_setattr_exclusive(symbol_table, name, NullVar);
+        res = dict_setattr_exclusive(symbol_table, name, NullVar);
         if (res != RES_OK) {
                 err_setstr(RuntimeError, "Symbol %s already exists",
                                 string_get_cstring(name));
@@ -590,7 +590,7 @@ do_deflist(struct vmframe_t *fr, instruction_t ii)
 static int
 do_defdict(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *obj = objectvar_new();
+        struct var_t *obj = dictvar_new();
         push(fr, obj);
         return 0;
 }
@@ -608,7 +608,7 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
          * do_list_append below.)
          */
         bug_on(!isvar_string(name));
-        res = object_setattr(obj, name, attr);
+        res = dict_setattr(obj, name, attr);
         VAR_DECR_REF(attr);
         push(fr, obj);
         return res;
@@ -708,7 +708,7 @@ do_foreach_setup(struct vmframe_t *fr, instruction_t ii)
                 }
 
                 /* Dictionary, use its keys instead */
-                w = object_keys(v);
+                w = dict_keys(v);
                 VAR_DECR_REF(v);
                 v = w;
         }
@@ -1131,7 +1131,7 @@ vm_add_global(struct var_t *name, struct var_t *var)
         int res;
         bug_on(!symbol_table);
         bug_on(!isvar_string(name));
-        res = object_setattr_exclusive(symbol_table, name, var);
+        res = dict_setattr_exclusive(symbol_table, name, var);
         bug_on(res != RES_OK);
         (void)res;
 }
@@ -1139,7 +1139,7 @@ vm_add_global(struct var_t *name, struct var_t *var)
 void
 moduleinit_vm(void)
 {
-        symbol_table = objectvar_new();
+        symbol_table = dictvar_new();
 
         vm_stack = emalloc(sizeof(struct var_t *) * VM_STACK_SIZE);
         vm_stack_end = vm_stack + VM_STACK_SIZE - 1;

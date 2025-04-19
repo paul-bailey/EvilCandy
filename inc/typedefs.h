@@ -150,7 +150,7 @@ extern struct type_t FloatType;
 extern struct type_t FunctionType;
 extern struct type_t IntType;
 extern struct type_t XptrType;
-extern struct type_t ObjectType;
+extern struct type_t DictType;
 extern struct type_t StringType;
 extern struct type_t BytesType;
 extern struct type_t RangeType;
@@ -170,9 +170,8 @@ static inline bool isvar_int(struct var_t *v)
         { return v->v_type == &IntType; }
 static inline bool isvar_xptr(struct var_t *v)
         { return v->v_type == &XptrType; }
-static inline bool isvar_object(struct var_t *v)
-        { return v->v_type == &ObjectType; }
-#define isvar_dict isvar_object
+static inline bool isvar_dict(struct var_t *v)
+        { return v->v_type == &DictType; }
 static inline bool isvar_string(struct var_t *v)
         { return v->v_type == &StringType; }
 static inline bool isvar_bytes(struct var_t *v)

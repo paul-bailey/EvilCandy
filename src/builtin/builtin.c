@@ -233,7 +233,7 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                 struct var_t *child, *key;
                 switch (t->magic) {
                 case TYPE_DICT:
-                        child = objectvar_new();
+                        child = dictvar_new();
                         bi_build_internal_object__(child, t->tbl);
                         break;
                 case TYPE_FUNCTION:
@@ -254,7 +254,7 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                         bug();
                 }
                 key = stringvar_new(t->name);
-                if (object_setattr(parent, key, child) != 0) {
+                if (dict_setattr(parent, key, child) != 0) {
                         /*
                          * Whether this is a "bug" or not is philosophical.
                          * Anyway, it can't be user error, so something
@@ -270,7 +270,7 @@ static struct var_t *
 gblobject(const char *ks)
 {
         struct var_t *key = stringvar_new(ks);
-        struct var_t *ret = object_getattr(GlobalObject, key);
+        struct var_t *ret = dict_getattr(GlobalObject, key);
         VAR_DECR_REF(key);
         return ret;
 }
@@ -282,8 +282,8 @@ moduleinit_builtin(void)
         struct var_t *o, *k;
 
         /* Do this first.  bi_build_internal_object__ de-references it. */
-        GlobalObject = objectvar_new();
-        object_set_priv(GlobalObject, &gbl, NULL);
+        GlobalObject = dictvar_new();
+        dict_set_priv(GlobalObject, &gbl, NULL);
         bi_build_internal_object__(GlobalObject, gblinit);
 
         ParserError  = gblobject("ParserError");
@@ -294,7 +294,7 @@ moduleinit_builtin(void)
         }
         o = gblobject("_builtins");
         bug_on(!o);
-        object_add_to_globals(o);
+        dict_add_to_globals(o);
 
         k = stringvar_new("__gbl__");
         vm_add_global(k, GlobalObject);

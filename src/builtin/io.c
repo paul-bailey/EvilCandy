@@ -45,8 +45,8 @@ getfh(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct file_handle_t *fh;
-        bug_on(!isvar_object(self));
-        fh = object_get_priv(self);
+        bug_on(!isvar_dict(self));
+        fh = dict_get_priv(self);
         bug_on(fh->magic != FILE_HANDLE_MAGIC);
         return fh;
 }
@@ -296,8 +296,8 @@ do_open(struct vmframe_t *fr)
         if ((fh = file_new(name, mode)) == NULL)
                 goto bad;
 
-        ret = objectvar_new();
-        object_set_priv(ret, fh, file_reset);
+        ret = dictvar_new();
+        dict_set_priv(ret, fh, file_reset);
         bi_build_internal_object__(ret, file_methods);
         return ret;
 

@@ -772,7 +772,7 @@ tokenize(struct token_state_t *state)
                 }
 
                 if (oc.v == NULL || intern) {
-                        oc.s = object_unique(state->dedup, state->tok.s);
+                        oc.s = dict_unique(state->dedup, state->tok.s);
                 } else {
                         oc.s = estrdup(state->tok.s);
                 }
@@ -957,7 +957,7 @@ token_state_new(FILE *fp, const char *filename)
         state->nexttok  = 0;
         state->eof      = false;
         state->tty      = !!isatty(fileno(fp));
-        state->dedup    = objectvar_new();
+        state->dedup    = dictvar_new();
 
         /*
          * Get first line, so that the

@@ -65,7 +65,7 @@ parseatomic(struct json_state_t *j)
                 parsearray(j, child);
                 break;
         case OC_LBRACE:
-                child = objectvar_new();
+                child = dictvar_new();
                 parsedict(j, child);
                 break;
         default:
@@ -139,7 +139,7 @@ parsedict(struct json_state_t *j, struct var_t *parent)
                 json_get_tok(j);
                 child = parseatomic(j);
                 key = stringvar_new(name);
-                res = object_setattr(parent, key, child);
+                res = dict_setattr(parent, key, child);
                 VAR_DECR_REF(key);
                 if (res != RES_OK)
                         json_err(j, JE_ADDATTR);
@@ -234,7 +234,7 @@ dict_from_json(const char *filename)
         if (!jstate.tok_state) {
                 /* Empty file: treat as error or OK? */
                 fclose(fp);
-                return objectvar_new();
+                return dictvar_new();
         }
         jstate.d = NULL;
         jstate.recursion = 0;
@@ -267,9 +267,9 @@ dict_from_json(const char *filename)
                 int t = json_get_tok(&jstate);
                 if (t == EOF) {
                         /* empty file */
-                        ret = objectvar_new();
+                        ret = dictvar_new();
                 } else if (t == OC_LBRACE) {
-                        jstate.d = ret = objectvar_new();
+                        jstate.d = ret = dictvar_new();
 
                         parsedict(&jstate, ret);
 

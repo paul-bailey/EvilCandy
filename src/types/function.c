@@ -99,12 +99,12 @@ function_of(struct var_t *fn, struct var_t **owner)
         while (fn) {
                 if (isvar_function(fn)) {
                         goto done;
-                } else if (isvar_object(fn)) {
+                } else if (isvar_dict(fn)) {
                         if (!callable_key)
                                 callable_key = stringvar_new("__callable__");
 
                         new_owner = fn;
-                        fn = object_getattr(fn, callable_key);
+                        fn = dict_getattr(fn, callable_key);
                 } else {
                         fn = NULL;
                 }

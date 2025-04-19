@@ -156,7 +156,7 @@ config_builtin_methods(const struct type_inittbl_t *tbl_arr,
 
                 v = funcvar_new_intl(t->fn, t->minargs, t->maxargs);
                 k = stringvar_new(t->name);
-                res = object_setattr_exclusive(dict, k, v);
+                res = dict_setattr_exclusive(dict, k, v);
                 VAR_DECR_REF(k);
 
                 bug_on(res != RES_OK);
@@ -176,7 +176,7 @@ config_builtin_methods(const struct type_inittbl_t *tbl_arr,
 void
 var_initialize_type(struct type_t *tp)
 {
-        tp->methods = objectvar_new();
+        tp->methods = dictvar_new();
         if (tp->cbm)
                 config_builtin_methods(tp->cbm, tp->methods);
 }
@@ -195,7 +195,7 @@ moduleinit_var(void)
                 &FunctionType,
                 &IntType,
                 &XptrType,
-                &ObjectType,
+                &DictType,
                 &StringType,
                 &BytesType,
                 &RangeType,
@@ -294,7 +294,7 @@ var_getattr(struct var_t *v, struct var_t *key)
                 }
 
                 /* still here? try built-ins */
-                ret = object_getattr(v->v_type->methods, key);
+                ret = dict_getattr(v->v_type->methods, key);
                 if (ret)
                         VAR_INCR_REF(ret);
                 return ret;

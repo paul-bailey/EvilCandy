@@ -32,13 +32,11 @@ struct stringvar_t {
 enum {
         /* flags arg to stringvar_newf, see comments there */
         SF_COPY         = 1,
-        SF_IMMORTAL     = 2,
 };
 
 /*
  * Flags are:
  *      SF_COPY         make a copy of @cstr
- *      SF_IMMORTAL     use @cstr exactly and do not free on reset
  *      0               use @cstr exactly and free on reset
  */
 static struct var_t *
@@ -48,13 +46,9 @@ stringvar_newf(char *cstr, unsigned int flags)
         struct var_t *ret;
 
         if (!cstr) {
-                bug_on(!!(flags & SF_IMMORTAL));
                 cstr = "";
                 flags |= SF_COPY;
         }
-
-        /* These cannot both be set */
-        bug_on((flags & (SF_COPY|SF_IMMORTAL)) == (SF_COPY|SF_IMMORTAL));
 
         ret = var_new(&StringType);
         vs = V2STR(ret);
@@ -69,7 +63,6 @@ stringvar_newf(char *cstr, unsigned int flags)
         } else {
                 vs->s = cstr;
         }
-        vs->s_imm = !!(flags & SF_IMMORTAL);
         utf8_scan(cstr, &vs->s_info);
         seqvar_set_size(ret, vs->s_info.enc_len);
         return ret;
@@ -1289,20 +1282,12 @@ stringvar_new(const char *cstr)
 }
 
 /**
- * stringvar_from_immortal - Get a string that contains an immortal string
- * @immstr: C-string already returned from literal().
+ * stringvar_nocopy - like stringvar_new, but don't make a copy, just
+ *                    take the pointer.
  *
- * Return: new string var containing @immstr exactly.  @immstr will be
- *      protected from free() when the return value's destructor function
- *      is called.
+ * Calling function is 'handing over' the pointer; it must have been
+ * allocated on the heap.
  */
-struct var_t *
-stringvar_from_immortal(const char *immstr)
-{
-        return stringvar_newf((char *)immstr, SF_IMMORTAL);
-}
-
-/* like stringvar_new, but don't make a copy, just take the pointer */
 struct var_t *
 stringvar_nocopy(const char *cstr)
 {
@@ -1319,8 +1304,6 @@ stringvar_nocopy(const char *cstr)
  *              the next token; the different tokens need all not be
  *              wrapped by the same type of quote, though only jerk
  *              programmers mix and match these.
- *@imm: True to immortalize the string in the return value, false to
- *      allocate a copy to delete when the variable leaves scope.
  *
  * Return: Variable from interpreted @tokenstr or ErrorVar.  Unicode
  *      escape sequences (ie. '\uNNNN') will be encoded into utf-8, even
@@ -1339,19 +1322,7 @@ stringvar_from_source(const char *tokenstr, bool imm)
         char *s = string_parse(tokenstr);
         if (!s)
                 return ErrorVar;
-        /*
-         * TODO: I need a second Literal table, one for immortals and one
-         * for mortals.  Then @s will be filtered through an immortal-table
-         * de-duplicator, similar to literal_put().
-         * see etc/thought_bucket.txt
-         */
-        if (imm) {
-                char *ls = literal_put(s);
-                efree(s);
-                s = ls;
-        }
-
-        return stringvar_newf(s, imm ? SF_IMMORTAL : 0);
+        return stringvar_newf(s, 0);
 }
 
 /*

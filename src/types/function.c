@@ -88,7 +88,7 @@ remove_args(struct var_t **arr, int count)
 static struct var_t *
 function_of(struct var_t *fn, struct var_t **owner)
 {
-        static char *callable = NULL;
+        static struct var_t *callable_key = NULL;
         struct var_t *new_owner = *owner;
 
         /*
@@ -100,11 +100,11 @@ function_of(struct var_t *fn, struct var_t **owner)
                 if (isvar_function(fn)) {
                         goto done;
                 } else if (isvar_object(fn)) {
-                        if (!callable)
-                                callable = literal_put("__callable__");
+                        if (!callable_key)
+                                callable_key = stringvar_new("__callable__");
 
                         new_owner = fn;
-                        fn = object_getattr(fn, callable);
+                        fn = object_getattr(fn, callable_key);
                 } else {
                         fn = NULL;
                 }

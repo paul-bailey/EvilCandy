@@ -49,8 +49,6 @@ static inline struct var_t *pop(struct vmframe_t *fr)
 
 static inline struct var_t *RODATA(struct vmframe_t *fr, instruction_t ii)
         { return fr->ex->rodata[ii.arg2]; }
-static inline char *RODATA_STR(struct vmframe_t *fr, instruction_t ii)
-        { return string_get_cstring(RODATA(fr, ii)); }
 
 #else /* DEBUG */
 
@@ -75,33 +73,20 @@ RODATA(struct vmframe_t *fr, instruction_t ii)
         return fr->ex->rodata[ii.arg2];
 }
 
-static inline char *
-RODATA_STR(struct vmframe_t *fr, instruction_t ii)
-{
-        char *ret;
-        struct var_t *vs = RODATA(fr, ii);
-        bug_on(!isvar_string(vs));
-        ret = string_get_cstring(vs);
-        bug_on(!ret);
-        return ret;
-}
-
 #endif /* DEBUG */
 
 static struct var_t *
 symbol_seek(struct var_t *name)
 {
         struct var_t *ret;
-        const char *s;
 
         bug_on(!isvar_string(name));
 
-        s = string_get_cstring(name);
-        bug_on(!s);
-
-        ret = object_getattr(symbol_table, s);
-        if (!ret)
-                err_setstr(RuntimeError, "Symbol %s not found", s);
+        ret = object_getattr(symbol_table, name);
+        if (!ret) {
+                err_setstr(RuntimeError, "Symbol %s not found",
+                           string_get_cstring(name));
+        }
 
         /*
          * See where used below.  object_getattr produced a reference,
@@ -116,14 +101,8 @@ symbol_seek(struct var_t *name)
 static int
 symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
 {
-        const char *s;
-
         bug_on(!isvar_string(name));
-
-        s = string_get_cstring(name);
-        bug_on(!s);
-
-        return object_setattr_replace(symbol_table, s, v);
+        return object_setattr_replace(symbol_table, name, v);
 }
 
 /*
@@ -475,10 +454,14 @@ do_assign(struct vmframe_t *fr, instruction_t ii)
 static int
 do_symtab(struct vmframe_t *fr, instruction_t ii)
 {
-        char *s = RODATA_STR(fr, ii);
-        int res = object_setattr_exclusive(symbol_table, s, NullVar);
-        if (res != RES_OK)
-                err_setstr(RuntimeError, "Symbol %s already exists", s);
+        int res;
+        struct var_t *name = RODATA(fr, ii);
+        bug_on(!isvar_string(name));
+        res = object_setattr_exclusive(symbol_table, name, NullVar);
+        if (res != RES_OK) {
+                err_setstr(RuntimeError, "Symbol %s already exists",
+                                string_get_cstring(name));
+        }
         return res;
 }
 
@@ -617,13 +600,14 @@ do_addattr(struct vmframe_t *fr, instruction_t ii)
 {
         struct var_t *attr = pop(fr);
         struct var_t *obj = pop(fr);
-        char *name = RODATA_STR(fr, ii);
+        struct var_t *name = RODATA(fr, ii);
         int res;
         /*
          * There is no var_*_attr for add, since only dictionaries
          * support it.  (Lists have a separate opcode, see
          * do_list_append below.)
          */
+        bug_on(!isvar_string(name));
         res = object_setattr(obj, name, attr);
         VAR_DECR_REF(attr);
         push(fr, obj);
@@ -1141,11 +1125,12 @@ vm_exec_func(struct vmframe_t *fr_old, struct var_t *func,
  * or literal_put().
  */
 void
-vm_add_global(const char *name, struct var_t *var)
+vm_add_global(struct var_t *name, struct var_t *var)
 {
         /* moduleinit_vm should have been called first */
         int res;
         bug_on(!symbol_table);
+        bug_on(!isvar_string(name));
         res = object_setattr_exclusive(symbol_table, name, var);
         bug_on(res != RES_OK);
         (void)res;

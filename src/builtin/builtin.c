@@ -230,7 +230,7 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
         if (!tbl)
                 return;
         for (t = tbl; t->name != NULL; t++) {
-                struct var_t *child;
+                struct var_t *child, *key;
                 switch (t->magic) {
                 case TYPE_DICT:
                         child = objectvar_new();
@@ -253,7 +253,8 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                         child = NULL;
                         bug();
                 }
-                if (object_setattr(parent, t->name, child) != 0) {
+                key = stringvar_new(t->name);
+                if (object_setattr(parent, key, child) != 0) {
                         /*
                          * Whether this is a "bug" or not is philosophical.
                          * Anyway, it can't be user error, so something
@@ -261,30 +262,43 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
                          */
                         bug();
                 }
+                VAR_DECR_REF(key);
         }
+}
+
+static struct var_t *
+gblobject(const char *ks)
+{
+        struct var_t *key = stringvar_new(ks);
+        struct var_t *ret = object_getattr(GlobalObject, key);
+        VAR_DECR_REF(key);
+        return ret;
 }
 
 /* initialize the builtin/ C file modules */
 void
 moduleinit_builtin(void)
 {
-        struct var_t *o;
+        struct var_t *o, *k;
 
         /* Do this first.  bi_build_internal_object__ de-references it. */
         GlobalObject = objectvar_new();
         object_set_priv(GlobalObject, &gbl, NULL);
         bi_build_internal_object__(GlobalObject, gblinit);
 
-        ParserError  = object_getattr(GlobalObject, "ParserError");
-        RuntimeError = object_getattr(GlobalObject, "RuntimeError");
-        SystemError  = object_getattr(GlobalObject, "SystemError");
+        ParserError  = gblobject("ParserError");
+        RuntimeError = gblobject("RuntimeError");
+        SystemError  = gblobject("SystemError");
         if (!ParserError || !RuntimeError || !SystemError) {
                 fail("Could not create error objects");
         }
-        o = object_getattr(GlobalObject, literal_put("_builtins"));
+        o = gblobject("_builtins");
         bug_on(!o);
         object_add_to_globals(o);
-        vm_add_global(literal_put("__gbl__"), GlobalObject);
+
+        k = stringvar_new("__gbl__");
+        vm_add_global(k, GlobalObject);
+        VAR_DECR_REF(k);
 
         /* Set up gbl private data */
         strcpy(gbl.nl, "\n");

@@ -36,7 +36,7 @@ extern struct var_t *vm_exec_script(struct var_t *top_level,
 extern struct var_t *vm_exec_func(struct vmframe_t *fr, struct var_t *func,
                                 struct var_t *owner, int argc,
                                 struct var_t **argv);
-extern void vm_add_global(const char *name, struct var_t *var);
+extern void vm_add_global(struct var_t *name, struct var_t *var);
 static inline struct var_t *vm_get_this(struct vmframe_t *fr)
         { return fr->owner; }
 static inline struct var_t *vm_get_arg(struct vmframe_t *fr, unsigned int idx)

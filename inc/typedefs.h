@@ -62,9 +62,10 @@ struct operator_methods_t {
 };
 
 struct map_methods_t {
-        struct var_t *(*getitem)(struct var_t *, const char *);
-        int (*setitem)(struct var_t *, const char *, struct var_t *);
-        int (*hasitem)(struct var_t *, const char *);
+        struct var_t *(*getitem)(struct var_t *d, struct var_t *key);
+        int (*setitem)(struct var_t *d,
+                       struct var_t *key, struct var_t *item);
+        int (*hasitem)(struct var_t *d, struct var_t *key);
 };
 
 struct seq_methods_t {

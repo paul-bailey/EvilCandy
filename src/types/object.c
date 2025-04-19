@@ -16,7 +16,7 @@ struct bucket_t {
          * instead of C strings for the keys
          */
         hash_t b_hash;
-        char *b_key;
+        struct var_t *b_key;
         struct var_t *b_data;
 };
 
@@ -48,8 +48,9 @@ struct dictvar_t {
 #define V2SQ(v)         ((struct seqvar_t *)(v))
 #define OBJ_SIZE(v)     seqvar_size(v)
 
-static hash_t fnv_hash(const void *key);
-static bool str_key_match(const void *k1, const void *k2);
+static hash_t fnv_hash(struct var_t *key);
+static hash_t fnv_cstring_hash(const char *key);
+static bool str_key_match(struct var_t *k1, struct var_t *k2);
 
 /* **********************************************************************
  *                      Hash table helpers
@@ -88,7 +89,7 @@ bucketi(struct dictvar_t *dict, hash_t hash)
 }
 
 static struct bucket_t *
-seek_helper(struct dictvar_t *dict, const void *key,
+seek_helper(struct dictvar_t *dict, struct var_t *key,
                         hash_t hash, unsigned int *idx)
 {
         unsigned int i = bucketi(dict, hash);
@@ -217,7 +218,7 @@ maybe_shrink_table(struct dictvar_t *dict)
 }
 
 static inline void
-insert_common(struct dictvar_t *dict, char *key,
+insert_common(struct dictvar_t *dict, struct var_t *key,
               struct var_t *data, hash_t hash, unsigned int i)
 {
         struct bucket_t *b = bucket_alloc();
@@ -259,9 +260,8 @@ object_keys(struct var_t *obj)
                 if (b == NULL || b == BUCKET_DEAD)
                         continue;
 
-                ks = stringvar_new(b->b_key);
+                ks = b->b_key;
                 array_setitem(keys, array_i, ks);
-                VAR_DECR_REF(ks);
                 array_i++;
         }
 
@@ -333,7 +333,7 @@ object_get_priv(struct var_t *o)
  *      Calling code must decide whether NULL is an error or not
  */
 struct var_t *
-object_getattr(struct var_t *o, const char *key)
+object_getattr(struct var_t *o, struct var_t *key)
 {
         struct dictvar_t *d;
         unsigned int i;
@@ -342,9 +342,7 @@ object_getattr(struct var_t *o, const char *key)
 
         d = V2D(o);
         bug_on(!isvar_object(o));
-
-        if (!key)
-                return NULL;
+        bug_on(!isvar_string(key));
 
         hash = DICT_CALC_HASH(key);
         b = seek_helper(d, key, hash, &i);
@@ -353,6 +351,72 @@ object_getattr(struct var_t *o, const char *key)
 
         VAR_INCR_REF(b->b_data);
         return b->b_data;
+}
+
+enum {
+        /* throw error if key does not exist */
+        DF_SWAP = 1,
+        /* throw error if key does exist */
+        DF_EXCL = 2,
+};
+
+static enum result_t
+object_insert(struct var_t *dict, struct var_t *key,
+              struct var_t *attr, unsigned int flags)
+{
+        unsigned int i;
+        struct dictvar_t *d;
+        hash_t hash;
+        struct bucket_t *b;
+
+        bug_on(!!(flags & DF_EXCL) && attr == NULL);
+        bug_on(!!(flags & DF_SWAP) && attr == NULL);
+        bug_on((flags & (DF_SWAP|DF_EXCL)) == (DF_SWAP|DF_EXCL));
+        bug_on(!isvar_object(dict));
+        bug_on(!isvar_string(key));
+
+        d = V2D(dict);
+
+        hash = DICT_CALC_HASH(key);
+        b = seek_helper(d, key, hash, &i);
+
+        /* @child is either the former entry replaced by @attr or NULL */
+        if (attr) {
+                /* insert */
+                if (b) {
+                        /* replace old, don't grow table */
+                        if (!!(flags & DF_EXCL))
+                                return RES_ERROR;
+
+                        VAR_DECR_REF(b->b_data);
+                        VAR_INCR_REF(b->b_key);
+                        b->b_data = attr;
+                } else {
+                        /* put */
+                        if (!!(flags & DF_SWAP))
+                                return RES_ERROR;
+                        VAR_INCR_REF(key);
+                        VAR_INCR_REF(attr);
+                        insert_common(d, key, attr, hash, i);
+                        bug_on(d->d_used != seqvar_size(dict) + 1);
+                        seqvar_set_size(dict, d->d_used);
+                }
+        } else if (b) {
+                /* remove */
+                VAR_DECR_REF(b->b_data);
+                VAR_DECR_REF(b->b_key);
+                bucket_free(b);
+                d->d_bucket[i] = BUCKET_DEAD;
+                d->d_used--;
+                maybe_shrink_table(d);
+                bug_on(d->d_used != seqvar_size(dict) - 1);
+                seqvar_set_size(dict, d->d_used);
+        }
+        /*
+         * XXX: If !attr and !b, trying to remove something that doesn't
+         * exist.  Throw error and print msg?
+         */
+        return RES_OK;
 }
 
 /**
@@ -367,69 +431,9 @@ object_getattr(struct var_t *o, const char *key)
  * Return: RES_OK or RES_ERROR.
  */
 enum result_t
-object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
+object_setattr(struct var_t *dict, struct var_t *key, struct var_t *attr)
 {
-        unsigned int i;
-        struct dictvar_t *d;
-        hash_t hash;
-        struct bucket_t *b;
-
-        d = V2D(dict);
-        bug_on(!isvar_object(dict));
-
-        /*
-         * XXX REVISIT: literal_put immortalizes a key in an object that
-         * could later be destroyed.  More often than not @name is
-         * already immortal (it was most likely derived in some way from
-         * a literal in the source code), so this does nothing.  However,
-         * @name could have been constructed from something that the
-         * source never expresses literally.  Consider something weird
-         * like...
-         *
-         *      my_obj = (function(a, key_prefix) {
-         *              let o = {};
-         *              a.foreach(function(e, idx) {
-         *                      o[key_prefix + idx.tostr()] = e;
-         *              });
-         *              return o;
-         *      })(my_arr, 'my_key_');
-         *
-         * Here, 'my_key_' is a hard-coded literal, but 'my_key_0' is not.
-         * For a program with a long lifecycle, this could result in the
-         * build-up of a non-trivial amount of zombified strings.
-         */
-        key = literal_put(key);
-
-        hash = DICT_CALC_HASH(key);
-        b = seek_helper(d, key, hash, &i);
-
-        /* @child is either the former entry replaced by @attr or NULL */
-        if (attr) {
-                /* insert */
-                if (b) {
-                        /* replace old, don't grow table */
-                        VAR_DECR_REF(b->b_data);
-                        b->b_data = attr;
-                } else {
-                        /* put */
-                        insert_common(d, (char *)key, attr, hash, i);
-                        seqvar_set_size(dict, seqvar_size(dict) + 1);
-                }
-                VAR_INCR_REF(attr);
-        } else if (b) {
-                /* remove */
-                VAR_DECR_REF(b->b_data);
-                bucket_free(b);
-                d->d_bucket[i] = BUCKET_DEAD;
-                d->d_used--;
-                maybe_shrink_table(d);
-                seqvar_set_size(dict, seqvar_size(dict) - 1);
-        }
-        /*
-         * XXX: If !attr and !b, trying to remove something that doesn't
-         * exist.  Throw error and print msg?
-         */
-        return RES_OK;
+        return object_insert(dict, key, attr, 0);
 }
 
 /*
@@ -439,30 +443,9 @@ object_setattr(struct var_t *dict, const char *key, struct var_t *attr)
  */
 enum result_t
 object_setattr_exclusive(struct var_t *dict,
-                         const char *key, struct var_t *attr)
+                         struct var_t *key, struct var_t *attr)
 {
-        struct dictvar_t *d;
-        unsigned int i;
-        hash_t hash;
-        struct bucket_t *b;
-
-        d = V2D(dict);
-        bug_on(!isvar_object(dict));
-        /*
-         * XXX we know this is only called from do_symtab, whose key is
-         * known to be a literal()'d string.
-         */
-        key = literal_put(key);
-
-        hash = DICT_CALC_HASH(key);
-        b = seek_helper(d, key, hash, &i);
-        if (b)
-                return RES_ERROR;
-
-        insert_common(d, (char *)key, attr, hash, i);
-        seqvar_set_size(dict, seqvar_size(dict) + 1);
-        VAR_INCR_REF(attr);
-        return RES_OK;
+        return object_insert(dict, key, attr, DF_EXCL);
 }
 
 /**
@@ -472,7 +455,7 @@ object_setattr_exclusive(struct var_t *dict,
 char *
 object_unique(struct var_t *dict, const char *key)
 {
-        char *keycopy;
+        struct var_t *keycopy;
         unsigned int i;
         hash_t hash;
         struct bucket_t *b;
@@ -481,17 +464,24 @@ object_unique(struct var_t *dict, const char *key)
         d = V2D(dict);
         bug_on(!isvar_object(dict));
 
-        hash = DICT_CALC_HASH(key);
-        b = seek_helper(d, key, hash, &i);
-#warning "should be b_data, keep up to date with scheme"
-        if (b)
-                return (char *)b->b_key;
+        /*
+         * XXX only done at load time, but is it still
+         * time consuming?  This is for **every** token!
+         */
+        keycopy = stringvar_new(key);
+        hash = DICT_CALC_HASH(keycopy);
+        b = seek_helper(d, keycopy, hash, &i);
+        if (b) {
+                VAR_DECR_REF(keycopy);
+                return string_get_cstring(b->b_key);
+        }
 
-        keycopy = estrdup(key);
-#warning "fix this when immortalization scheme is changed"
-        insert_common(d, keycopy, /* XXX no! */
-                        stringvar_from_immortal(keycopy), hash, i);
-        return keycopy;
+        insert_common(d, keycopy, keycopy, hash, i);
+        seqvar_set_size(dict, d->d_used);
+
+        /* additional incref since it's stored twice */
+        VAR_INCR_REF(keycopy);
+        return string_get_cstring(keycopy);
 }
 
 /*
@@ -501,34 +491,14 @@ object_unique(struct var_t *dict, const char *key)
  */
 enum result_t
 object_setattr_replace(struct var_t *dict,
-                       const char *key, struct var_t *attr)
+                       struct var_t *key, struct var_t *attr)
 {
-        unsigned int i;
-        struct dictvar_t *d;
-        hash_t hash;
-        struct bucket_t *b;
-
-        d = V2D(dict);
-        bug_on(!isvar_object(dict));
-
-        key = literal_put(key);
-
-        hash = DICT_CALC_HASH(key);
-        b = seek_helper(d, key, hash, &i);
-        if (!b)
-                return RES_ERROR;
-
-        VAR_DECR_REF(b->b_data);
-        b->b_data = attr;
-        /* no need to resize */
-
-        VAR_INCR_REF(attr);
-        return RES_OK;
+        return object_insert(dict, key, attr, DF_SWAP);
 }
 
 
 static int
-object_hasattr(struct var_t *dict, const char *key)
+object_hasattr(struct var_t *dict, struct var_t *key)
 {
         unsigned int i;
         if (!key)
@@ -604,6 +574,7 @@ object_reset(struct var_t *o)
                         dict->d_bucket[i] = NULL;
                 } else if (dict->d_bucket[i] != NULL) {
                         VAR_DECR_REF(dict->d_bucket[i]->b_data);
+                        VAR_DECR_REF(dict->d_bucket[i]->b_key);
                         bucket_free(dict->d_bucket[i]);
                         dict->d_bucket[i] = NULL;
                 }
@@ -638,7 +609,7 @@ object_str(struct var_t *o)
                         buffer_puts(&b, ", ");
 
                 buffer_putc(&b, '\'');
-                buffer_puts(&b, bk->b_key);
+                buffer_puts(&b, string_get_cstring(bk->b_key));
                 buffer_puts(&b, "': ");
 
                 item = var_str(bk->b_data);
@@ -692,7 +663,7 @@ do_object_foreach(struct vmframe_t *fr)
 
                 key = array_getitem(keys, i);
                 bug_on(!key || key == ErrorVar);
-                val = object_getattr(self, string_get_cstring(key));
+                val = object_getattr(self, key);
                 if (!val) /* user shenanigans in foreach loop */
                         continue;
 
@@ -738,7 +709,6 @@ do_object_hasattr(struct vmframe_t *fr)
         struct var_t *self = get_this(fr);
         struct var_t *name = frame_get_arg(fr, 0);
         struct var_t *child = NULL;
-        char *s;
 
         bug_on(!isvar_object(self));
 
@@ -747,9 +717,7 @@ do_object_hasattr(struct vmframe_t *fr)
                 return ErrorVar;
         }
 
-        if ((s = string_get_cstring(name)) != NULL)
-                child = object_getattr(self, s);
-
+        child = object_getattr(self, name);
         /* TODO: if child == NULL, check built-in methods */
 
         return intvar_new((int)(child != NULL));
@@ -773,7 +741,7 @@ do_object_setattr(struct vmframe_t *fr)
                 err_argtype("value");
                 return ErrorVar;
         }
-        if (object_setattr(self, string_get_cstring(name), value) != RES_OK)
+        if (object_setattr(self, name, value) != RES_OK)
                 return ErrorVar;
 
         return NULL;
@@ -811,7 +779,7 @@ do_object_getattr(struct vmframe_t *fr)
                 return ErrorVar;
         }
 
-        ret = object_getattr(self, s);
+        ret = object_getattr(self, name);
         /* XXX: If NULL, check built-in methods */
         /* XXX: VAR_INCR_REF? Who's taking this? */
         if (!ret)
@@ -824,14 +792,12 @@ do_object_delattr(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
         struct var_t *name = vm_get_arg(fr, 0);
-        char *s;
 
         bug_on(!isvar_object(self));
         if (arg_type_check(name, &StringType) != 0)
                 return ErrorVar;
 
-        s = string_get_cstring(name);
-        if (object_setattr(self, s, NULL) != RES_OK)
+        if (object_setattr(self, name, NULL) != RES_OK)
                 return ErrorVar;
         return NULL;
 }
@@ -912,19 +878,15 @@ struct type_t ObjectType = {
  * It could be the common source between dictionaries and strings--
  * hashing and other stuff.
  */
-/*
- * fnv_hash - The FNV-1a hash algorithm
- *
- * See Wikipedia article "Fowler-Noll-Vo hash function"
- */
+
 static hash_t
-fnv_hash(const void *key)
+fnv_cstring_hash(const char *key)
 {
         /* 64-bit version */
 #define FNV_PRIME      0x00000100000001B3LL
 #define FNV_OFFSET     0xCBF29CE484222325LL
 
-        const unsigned char *s = key;
+        const unsigned char *s = (unsigned char *)key;
         unsigned int c;
         unsigned long hash = FNV_PRIME;
 
@@ -939,11 +901,26 @@ fnv_hash(const void *key)
         return (hash_t)hash;
 }
 
-static bool
-str_key_match(const void *key1, const void *key2)
+/*
+ * fnv_hash - The FNV-1a hash algorithm
+ *
+ * See Wikipedia article "Fowler-Noll-Vo hash function"
+ */
+static hash_t
+fnv_hash(struct var_t *key)
 {
+        bug_on(!isvar_string(key));
+        return fnv_cstring_hash(string_get_cstring(key));
+}
+
+static bool
+str_key_match(struct var_t *key1, struct var_t *key2)
+{
+        bug_on(!isvar_string(key1) || !isvar_string(key2));
+
         /* fast-path "==", since these still sometimes are literal()'d */
-        return key1 == key2 || !strcmp((char *)key1, (char *)key2);
+        return key1 == key2 ||
+                !strcmp(string_get_cstring(key1), string_get_cstring(key2));
 }
 
 

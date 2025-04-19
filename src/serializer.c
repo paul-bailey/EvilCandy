@@ -535,8 +535,7 @@ read_rodata(struct serial_rstate_t *state, struct xptrvar_t *ex)
                          * put this off as long as possible, so we aren't
                          * stuck with it in case this fails later?
                          */
-                        v = stringvar_from_immortal(literal_put(s));
-                        efree(s);
+                        v = stringvar_nocopy(s);
                         break;
                 case TYPE_XPTR:
                         s = rstring(state, &len);

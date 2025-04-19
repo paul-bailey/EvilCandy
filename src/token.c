@@ -29,6 +29,8 @@ enum {
  * struct token_state_t - Keep track of all the tokenize calls
  *                        for a given input stream.
  * @lineno:     Current line number in file.
+ * @dedup:      Dictionary designed to eliminate duplicate strings,
+ *              which are everywhere in a source file.
  * @tok:        Last parsed token, not literal()-ized yet.  Library use
  *              only.
  * @s:          Current pointer into @line, where to look for next token
@@ -48,6 +50,7 @@ enum {
  */
 struct token_state_t {
         int lineno;
+        struct var_t *dedup;
         struct buffer_t tok;
         char *s;
         size_t _slen;
@@ -489,7 +492,6 @@ get_tok_delim_helper(int *ret, const char *s)
         case '`':
                 if (*s != '`')
                         return 0;
-                        // token_errset(state, TE_HALFLAMBDA);
                 *ret = OC_LAMBDA;
                 return 2;
         }
@@ -711,60 +713,68 @@ tokenize(struct token_state_t *state)
                 buffer_putd(&state->pgm, &eofoc, sizeof(eofoc));
         } else {
                 struct token_t oc;
+                bool intern = false;
 
                 oc.t = ret;
                 oc.line = state->lineno;
-                oc.s = literal_put(state->tok.s);
-                bug_on(oc.s == NULL);
 
                 switch (ret) {
                 case OC_NULL:
                         VAR_INCR_REF(NullVar);
                         oc.v = NullVar;
+                        intern = true;
                         break;
                 case OC_TRUE:
                         oc.v = intvar_new(1);
+                        intern = true;
                         break;
                 case OC_FALSE:
                         oc.v = intvar_new(0);
+                        intern = true;
                         break;
                 case 'b':
-                        oc.v = bytesvar_from_source(oc.s);
+                        oc.v = bytesvar_from_source(state->tok.s);
                         if (oc.v == ErrorVar) {
                                 err_setstr(ParserError,
                                         "Error in bytes literal %s",
-                                        oc.s);
+                                        state->tok.s);
                                 oc.v = NULL;
                                 ret = TOKEN_ERROR;
                         }
                         break;
                 case 'i':
                     {
-                        long long i = strtoul(oc.s, NULL, 0);
+                        long long i = strtoul(state->tok.s, NULL, 0);
                         oc.v = intvar_new(i);
                         break;
                     }
                 case 'f':
                     {
-                        double f = strtod(oc.s, NULL);
+                        double f = strtod(state->tok.s, NULL);
                         oc.v = floatvar_new(f);
                         break;
                     }
                 case 'u':
-                        /* FIXME: will need to immortalize this */
-                        oc.v = stringvar_from_immortal(oc.s);
+                        /* FIXME: will need to de-dup this */
+                        oc.v = stringvar_new(state->tok.s);
                         break;
                 case 'q':
-                        oc.v = stringvar_from_source(oc.s, true);
+                        oc.v = stringvar_from_source(state->tok.s, true);
                         if (oc.v == ErrorVar) {
                                 err_setstr(ParserError,
                                         "Error in string literal %s",
-                                        oc.s);
+                                        state->tok.s);
                                 ret = TOKEN_ERROR;
                         }
                         break;
                 default:
                         oc.v = NULL;
+                }
+
+                if (oc.v == NULL || intern) {
+                        oc.s = object_unique(state->dedup, state->tok.s);
+                } else {
+                        oc.s = estrdup(state->tok.s);
                 }
 
                 if (ret == TOKEN_ERROR) {
@@ -897,10 +907,26 @@ token_state_free(struct token_state_t *state)
                 n = state->ntok;
         token_state_trim(state);
         for (i = 0; i < n; i++) {
-                if (tok[i].v)
+                bool intern = false;
+                if (tok[i].v) {
+                        int t = tok[i].t;
+                        if (t == OC_NULL || t == OC_TRUE
+                            || t == OC_FALSE) {
+                                intern = true;
+                        }
                         VAR_DECR_REF(tok[i].v);
+                } else {
+                        intern = true;
+                }
+
+                if (!intern) {
+                       bug_on(!tok[i].s);
+                       efree(tok[i].s);
+                }
         }
+        VAR_DECR_REF(state->dedup);
         buffer_free(&state->pgm);
+        efree(state->filename);
         efree(state);
 }
 
@@ -922,7 +948,7 @@ token_state_new(FILE *fp, const char *filename)
         state->line     = NULL;
         state->_slen    = 0;
         state->s        = NULL;
-        state->filename = literal_put(filename);
+        state->filename = estrdup(filename);
         state->fp       = fp;
         state->lineno   = 0;
 
@@ -931,6 +957,7 @@ token_state_new(FILE *fp, const char *filename)
         state->nexttok  = 0;
         state->eof      = false;
         state->tty      = !!isatty(fileno(fp));
+        state->dedup    = objectvar_new();
 
         /*
          * Get first line, so that the

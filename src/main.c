@@ -26,8 +26,6 @@ init_lib(void)
 {
         /* ewrappers.c */
         extern void moduleinit_ewrappers(void);
-        /* literal.c */
-        extern void moduleinit_literal(void);
         /* var.c */
         extern void moduleinit_var(void);
         /* vm.c */
@@ -49,7 +47,6 @@ init_lib(void)
         } INITFNS[] = {
                 /* Note: the order of this table matters */
                 { .initfn = moduleinit_ewrappers },
-                { .initfn = moduleinit_literal },
                 { .initfn = moduleinit_var },
                 { .initfn = moduleinit_vm },
                 { .initfn = moduleinit_builtin },

@@ -5,7 +5,7 @@
  * If 1 and !NDEBUG, splash some debug data about var allocation
  * to stderr upon exit.
  */
-#define REPORT_VARS_ON_EXIT 0
+#define REPORT_VARS_ON_EXIT 1
 
 #ifdef NDEBUG
 # undef REPORT_VARS_ON_EXIT
@@ -151,14 +151,17 @@ config_builtin_methods(const struct type_inittbl_t *tbl_arr,
 {
         const struct type_inittbl_t *t = tbl_arr;
         while (t->name != NULL) {
-                struct var_t *v;
+                struct var_t *v, *k;
                 enum result_t res;
 
                 v = funcvar_new_intl(t->fn, t->minargs, t->maxargs);
-                res = object_setattr_exclusive(dict,
-                                        literal_put(t->name), v);
+                k = stringvar_new(t->name);
+                res = object_setattr_exclusive(dict, k, v);
+                VAR_DECR_REF(k);
+
                 bug_on(res != RES_OK);
                 (void)res;
+
                 t++;
         }
 }
@@ -282,19 +285,16 @@ var_getattr(struct var_t *v, struct var_t *key)
                  * first check if v maps it. If failed, check the
                  * built-in methods.
                  */
-                const char *ks = string_get_cstring(key);
                 struct var_t *ret;
                 const struct map_methods_t *mpm = v->v_type->mpm;
-                if (!ks || ks[0] == '\0')
-                        return NULL;
                 if (mpm && mpm->getitem) {
-                        ret = mpm->getitem(v, ks);
+                        ret = mpm->getitem(v, key);
                         if (ret)
                                 return ret;
                 }
 
                 /* still here? try built-ins */
-                ret = object_getattr(v->v_type->methods, ks);
+                ret = object_getattr(v->v_type->methods, key);
                 if (ret)
                         VAR_INCR_REF(ret);
                 return ret;
@@ -323,7 +323,7 @@ var_setattr(struct var_t *v, struct var_t *key, struct var_t *attr)
                         return RES_ERROR;
                 if (!ks || ks[0] == '\0')
                         return RES_ERROR;
-                return map->setitem(v, ks, attr);
+                return map->setitem(v, key, attr);
         } else if (isvar_int(key)) {
                 int i;
                 const struct seq_methods_t *seq = v->v_type->sqm;

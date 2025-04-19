@@ -372,7 +372,7 @@ symtab_seek(struct assemble_t *a, const char *s)
         int i;
         struct as_frame_t *fr = a->fr;
         for (i = 0; i < fr->sp; i++) {
-                if (s && s == (char *)fr->symtab[i])
+                if (s && fr->symtab[i] && !strcmp(s, fr->symtab[i]))
                         return i;
         }
         return -1;
@@ -384,7 +384,7 @@ arg_seek(struct assemble_t *a, const char *s)
         int i;
         struct as_frame_t *fr = a->fr;
         for (i = 0; i < fr->argc; i++) {
-                if (s && s == (char *)fr->argv[i])
+                if (s && fr->argv[i] && !strcmp(s, fr->argv[i]))
                         return i;
         }
         return -1;
@@ -396,7 +396,7 @@ clo_seek(struct assemble_t *a, const char *s)
         int i;
         struct as_frame_t *fr = a->fr;
         for (i = 0; i < fr->cp; i++) {
-                if (s && s == (char *)fr->clo[i])
+                if (s && fr->clo[i] && !strcmp(s, fr->clo[i]))
                         return i;
         }
         return -1;

@@ -157,11 +157,6 @@ extern void efree(void *ptr);
 /* json.c */
 struct var_t *dict_from_json(const char *filename);
 
-/* literal.c */
-/* see comments above literal.c for usage */
-extern char *literal_put(const char *key);
-extern char *literal(const char *key);
-
 /* op.c */
 extern struct var_t *qop_mul(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_div(struct var_t *a, struct var_t *b);
@@ -235,17 +230,17 @@ extern char *uuidptr_get_cstring(struct var_t *v);
 /* types/object.c */
 extern struct var_t *objectvar_new(void);
 extern struct var_t *object_keys(struct var_t *obj);
-extern struct var_t *object_getattr(struct var_t *o, const char *key);
+extern struct var_t *object_getattr(struct var_t *o, struct var_t *key);
 extern enum result_t object_setattr(struct var_t *o,
-                                    const char *key, struct var_t *attr);
+                                    struct var_t *key, struct var_t *attr);
 extern void object_set_priv(struct var_t *o, void *priv,
                       void (*cleanup)(struct var_t *, void *));
 extern void *object_get_priv(struct var_t *o);
 extern void object_add_to_globals(struct var_t *obj);
 extern enum result_t object_setattr_replace(struct var_t *dict,
-                                const char *key, struct var_t *attr);
+                                struct var_t *key, struct var_t *attr);
 extern enum result_t object_setattr_exclusive(struct var_t *dict,
-                                const char *key, struct var_t *attr);
+                                struct var_t *key, struct var_t *attr);
 extern char *object_unique(struct var_t *dict, const char *key);
 
 /* types/string.c */

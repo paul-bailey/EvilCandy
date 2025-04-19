@@ -252,6 +252,13 @@ main(int argc, char **argv)
                 }
         }
 
+        /*
+         * TODO: Before this, if debug mode, atexit() some function that
+         * will scan through GlobalObject and count how many entries have
+         * a refcount > 1.  The only ones ought to be 'XxxError'.
+         */
+        VAR_DECR_REF(GlobalObject);
+        VAR_DECR_REF(ErrorVar);
         return 0;
 }
 

@@ -350,6 +350,7 @@ dict_insert(struct var_t *dict, struct var_t *key,
                                 return RES_ERROR;
 
                         VAR_DECR_REF(b->b_data);
+                        VAR_INCR_REF(attr);
                         VAR_INCR_REF(b->b_key);
                         b->b_data = attr;
                 } else {

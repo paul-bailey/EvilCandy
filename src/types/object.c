@@ -70,13 +70,13 @@ enum { INIT_SIZE = 16 };
 #define DICT_CALC_HASH          fnv_hash
 #define DICT_BUCKET_DELETE      var_bucket_delete
 
-static struct bucket_t *
+static inline struct bucket_t *
 bucket_alloc(void)
 {
         return emalloc(sizeof(struct bucket_t));
 }
 
-static void
+static inline void
 bucket_free(struct bucket_t *b)
 {
         efree(b);
@@ -95,9 +95,6 @@ seek_helper(struct dictvar_t *dict, struct var_t *key,
         unsigned int i = bucketi(dict, hash);
         struct bucket_t *b;
         unsigned long perturb = hash;
-        /* this won't spinlock because we ensure table has
-         * enough room.  See comment below.
-         */
         while ((b = dict->d_bucket[i]) != NULL) {
                 if (b != BUCKET_DEAD && DICT_KEY_MATCH(b->b_key, key))
                         break;

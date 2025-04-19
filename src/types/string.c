@@ -11,15 +11,16 @@ enum {
         PAD_MAX = JUST_MAX,
 };
 
+/* flags arg to stringvar_newf, see comments there */
+enum { SF_COPY = 1, };
+
 struct stringvar_t {
         struct seqvar_t base;
         char *s;        /* the actual C string */
-        bool s_imm;     /* true if immortal */
         struct utf8_info_t s_info;
 };
 
 #define V2STR(v)                ((struct stringvar_t *)(v))
-#define V2SQ(v)                 ((struct seqvar_t *)(v))
 #define V2CSTR(v)               (V2STR(v)->s)
 #define STRING_LENGTH(str)      seqvar_size(str)
 #define STRING_NBYTES(str)      (V2STR(str)->s_info.ascii_len)
@@ -29,15 +30,11 @@ struct stringvar_t {
  *                      Common Helpers
  ***********************************************************************/
 
-enum {
-        /* flags arg to stringvar_newf, see comments there */
-        SF_COPY         = 1,
-};
-
 /*
  * Flags are:
  *      SF_COPY         make a copy of @cstr
  *      0               use @cstr exactly and free on reset
+ * There used to be more, but they went obsolete.
  */
 static struct var_t *
 stringvar_newf(char *cstr, unsigned int flags)
@@ -1176,8 +1173,7 @@ static void
 string_reset(struct var_t *str)
 {
         struct stringvar_t *vs = V2STR(str);
-        if (!vs->s_imm)
-                efree(vs->s);
+        efree(vs->s);
 }
 
 static struct var_t *
@@ -1345,6 +1341,8 @@ string_get_cstring(struct var_t *str)
  * @delim:      Delimiter to read to.
  * @stuff_delim: True to include the delimiter with the string, false to leave
  *              it out (it will not be ungetc'd).
+ *
+ * FIXME: This no longer needs to be here, not with string_nocopy.
  *
  * Return: the line as a string var
  */

@@ -2,9 +2,8 @@
  * Definitions for the dictionary (ie. associative array) class of objects.
  *
  * JavaScript calls these "objects".  Python calls them "dictionaries".
- * I should have done like Python, since *all* these classes are
- * tecnhically objects, and the documentation calls them dictionaries,
- * too.  Too late...
+ * Calling one kind of an object an 'object' to distinguish it from another
+ * kind of object is kind of janky, so I'm going with Python on this one.
  */
 #include <evilcandy.h>
 

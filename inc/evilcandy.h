@@ -90,7 +90,7 @@ struct vmframe_t;
 #include "typedefs.h"
 #include "uarg.h"
 
-/* TODO: to stringutils.h, see comment at bottom of types/object.c */
+/* TODO: to stringutils.h, see comment at bottom of types/dict.c */
 typedef uint64_t hash_t;
 
 /*
@@ -227,7 +227,7 @@ extern struct var_t *intvar_new(long long value);
 extern struct var_t *uuidptrvar_new(char *uuid);
 extern char *uuidptr_get_cstring(struct var_t *v);
 
-/* types/object.c */
+/* types/dict.c */
 extern struct var_t *dictvar_new(void);
 extern struct var_t *dict_keys(struct var_t *obj);
 extern struct var_t *dict_getattr(struct var_t *o, struct var_t *key);

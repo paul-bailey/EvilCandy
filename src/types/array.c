@@ -7,7 +7,7 @@
  *         they are fast like C arrays.  They are not.
  *
  * But here I call them "arrays" because I started writing this
- * file before I thought things through. (LOL, cf. object.c)
+ * file before I thought things through.
  */
 #include <evilcandy.h>
 

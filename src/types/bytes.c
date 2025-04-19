@@ -166,6 +166,17 @@ bytesvar_newf(unsigned char *buf, size_t len, unsigned int flags)
 }
 
 /**
+ * bytes_getbuf - Get raw data array from bytes object.
+ * seqvar_size(v) will return its length in bytes
+ */
+const unsigned char *
+bytes_getbuf(struct var_t *v)
+{
+        bug_on(!isvar_bytes(v));
+        return V2B(v)->b_buf;
+}
+
+/**
  * bytesvar_new - Get a new bytes var
  * @buf: Array of bytes to copy into new var
  * @len: Length of @buf
@@ -176,6 +187,16 @@ struct var_t *
 bytesvar_new(unsigned char *buf, size_t len)
 {
         return bytesvar_newf(buf, len, BF_COPY);
+}
+
+/**
+ * bytesvar_nocopy - Same relation to bytesvar_new that stringvar_nocopy
+ *                   has to stringvar_new
+ */
+struct var_t *
+bytesvar_nocopy(unsigned char *buf, size_t len)
+{
+        return bytesvar_newf(buf, len, 0);
 }
 
 /**

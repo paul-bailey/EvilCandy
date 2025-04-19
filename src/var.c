@@ -200,6 +200,7 @@ moduleinit_var(void)
                 &BytesType,
                 &RangeType,
                 &UuidptrType,
+                &FileType,
                 NULL,
         };
 

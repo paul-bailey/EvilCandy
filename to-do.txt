@@ -3,6 +3,8 @@ Bugs
 
 * BUGs 4/2025:
 
+        * still reference count imbalance when freeing XptrType at the
+          end of program, see output of test_def.evc.
         * closures seem to only work in the simplest cases.  They do not
           work when referenced from a .foreach callback, and they do not
           seem to work when the declaration is at the file scope.  Strange

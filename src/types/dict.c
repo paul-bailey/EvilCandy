@@ -285,41 +285,6 @@ dictvar_new(void)
         return o;
 }
 
-/*
- * XXX REVISIT: Consider removing dict_set/get_priv.
- * The private data is unused for user-defined dictionaries, and there's
- * no reason built-in modules need to be dictionaries at all, as opposed
- * to their own types.  True for IO module, which so far is the only
- * module which uses this.
- */
-
-/**
- * dict_set_priv - Set an object's private data
- * @o: Object
- * @priv: Private data to set
- * @cleanup: Cleanup method to clean up private data at garbage
- *           collection time, or NULL to let it be simply free'd
- */
-void
-dict_set_priv(struct var_t *o, void *priv,
-                void (*cleanup)(struct var_t *, void *))
-{
-        bug_on(!isvar_dict(o));
-        V2D(o)->priv = priv;
-        V2D(o)->priv_cleanup = cleanup;
-}
-
-/**
- * dict_get_priv - Get the object's private data,
- *                      or NULL if none exists.
- */
-void *
-dict_get_priv(struct var_t *o)
-{
-        return V2D(o)->priv;
-}
-
-
 /**
  * dict_getattr - Get object attribute
  * @o:  Me

@@ -155,6 +155,7 @@ extern struct type_t StringType;
 extern struct type_t BytesType;
 extern struct type_t RangeType;
 extern struct type_t UuidptrType;
+extern struct type_t FileType;
 
 static inline bool isvar_array(struct var_t *v)
         { return v->v_type == &ArrayType; }
@@ -180,6 +181,8 @@ static inline bool isvar_range(struct var_t *v)
         { return v->v_type == &RangeType; }
 static inline bool isvar_uuidptr(struct var_t *v)
         { return v->v_type == &UuidptrType; }
+static inline bool isvar_file(struct var_t *v)
+        { return v->v_type == &FileType; }
 
 /* not 'isvar_num'... there always has to be an odd one out */
 static inline bool isnumvar(struct var_t *v)

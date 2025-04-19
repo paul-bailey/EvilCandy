@@ -202,9 +202,20 @@ extern enum result_t array_append(struct var_t *array,
 /* types/bytes.c */
 extern struct var_t *bytesvar_new(unsigned char *buf, size_t len);
 extern struct var_t *bytesvar_from_source(char *src);
+extern const unsigned char *bytes_getbuf(struct var_t *v);
+extern struct var_t *bytesvar_nocopy(unsigned char *buf, size_t len);
 
 /* types/empty.c */
 extern struct var_t *emptyvar_new(void);
+
+/* types/file.c */
+enum {
+        FMODE_BINARY    = 0x01,
+        FMODE_READ      = 0x02,
+        FMODE_WRITE     = 0x04,
+};
+struct var_t *filevar_new(FILE *fp,
+                        struct var_t *name, unsigned int mode);
 
 /* types/float.c */
 extern struct var_t *floatvar_new(double value);
@@ -233,9 +244,6 @@ extern struct var_t *dict_keys(struct var_t *obj);
 extern struct var_t *dict_getattr(struct var_t *o, struct var_t *key);
 extern enum result_t dict_setattr(struct var_t *o,
                                     struct var_t *key, struct var_t *attr);
-extern void dict_set_priv(struct var_t *o, void *priv,
-                      void (*cleanup)(struct var_t *, void *));
-extern void *dict_get_priv(struct var_t *o);
 extern void dict_add_to_globals(struct var_t *obj);
 extern enum result_t dict_setattr_replace(struct var_t *dict,
                                 struct var_t *key, struct var_t *attr);

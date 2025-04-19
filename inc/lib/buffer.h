@@ -49,6 +49,7 @@ buffer_reset(struct buffer_t *buf)
 }
 extern void buffer_vprintf(struct buffer_t *buf,
                            const char *msg, va_list ap);
+extern void buffer_printf(struct buffer_t *buf, const char *msg, ...);
 
 #endif /* EGQ_BUFFER_H */
 

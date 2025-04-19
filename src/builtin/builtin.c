@@ -5,6 +5,11 @@
 
 #define NLMAX 8
 
+/*
+ * FIXME: this is Windows-level of 'who does this?'
+ * Replace it with more professional-looking locale
+ * interface with user.
+ */
 /* Private data for the global object */
 static struct gbl_private_t {
         char nl[NLMAX];
@@ -283,7 +288,6 @@ moduleinit_builtin(void)
 
         /* Do this first.  bi_build_internal_object__ de-references it. */
         GlobalObject = dictvar_new();
-        dict_set_priv(GlobalObject, &gbl, NULL);
         bi_build_internal_object__(GlobalObject, gblinit);
 
         ParserError  = gblobject("ParserError");

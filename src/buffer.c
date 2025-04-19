@@ -272,7 +272,7 @@ buffer_putd(struct buffer_t *buf, const void *data, size_t datalen)
 }
 
 /**
- * buffer_printf - Do a formatted printf into a buffer
+ * buffer_vprintf - Do a formatted printf into a buffer
  * @buf: Buffer to print to
  * @msg: Formatted message
  * @ap:  Variable-arg list already initialized with va_start
@@ -295,3 +295,13 @@ buffer_vprintf(struct buffer_t *buf, const char *msg, va_list ap)
                 vsnprintf(&buf->s[buf->p], need_size + 1, msg, ap);
         }
 }
+
+void
+buffer_printf(struct buffer_t *buf, const char *msg, ...)
+{
+        va_list ap;
+        va_start(ap, msg);
+        buffer_vprintf(buf, msg, ap);
+        va_end(ap);
+}
+

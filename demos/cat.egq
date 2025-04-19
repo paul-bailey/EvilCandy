@@ -5,12 +5,14 @@ import("io.evc", "x");
 // Print myself
 (function(name) {
         let f = Io.open(name, "r");
-        if (typeof(f) == "string") {
-                print("Cannot open '{}', reason='{}'".format(name, f));
-                exit();
+        let s;
+        while (true) {
+            s = f.read();
+            if (s == null)
+                break;
+            // currently print always adds a newline
+            print(s.rstrip("\n"));
         }
-        while (!f.eof())
-                print(f.readline());
 })("demos/cat.egq");
 
 // : vim: set syntax=javascript :

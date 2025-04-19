@@ -1499,10 +1499,12 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         /* for initializers, only '=', not '+=' or such */
         as_errlex(a, OC_EQ);
 
+        /* XXX: is the extra LOAD/POP necessary? */
         ainstr_load_symbol(a, &name, pos);
         assemble_eval(a);
         add_instr(a, INSTR_ASSIGN,
                   tok == OC_LET ? IARG_PTR_AP : IARG_PTR_SEEK, namei);
+        add_instr(a, INSTR_POP, 0, 0);
 }
 
 static void
@@ -1769,11 +1771,22 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
                 as_unlex(a);
                 break;
         case OC_LPAR:
+                /*
+                 * value expression, eg. '(x + y)' or more likely an IIFE
+                 * '(function() {...})'.  In both cases I evaluate the
+                 * statement and throw away the result. In the IIFE case,
+                 * it will likeyly be followed by an additional '(args)',
+                 * but eval8 will parse that within the assemble_eval()
+                 * call below, resulting in whatever side effect the
+                 * function has, while in the former case, the programmer
+                 * just wasted time.  Allow it, maybe a line like '(1);'
+                 * could come in handy to someone as a sort of NOP, in
+                 * ways that the empty ';' statement above will not.
+                 */
                 as_unlex(a);
                 assemble_eval(a);
                 /* throw result away */
                 add_instr(a, INSTR_POP, 0, 0);
-                /* semi-colon not expected */
                 break;
         case OC_RPAR:
                 if (!(flags & FE_FOR)) {

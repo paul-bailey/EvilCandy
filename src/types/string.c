@@ -1,5 +1,6 @@
 /* string.c - Built-in methods for string data types */
 #include <evilcandy.h>
+#include <stringtype.h>
 #include <errno.h>
 #include <math.h>
 #include <stdlib.h> /* strtol and friends */
@@ -13,12 +14,6 @@ enum {
 
 /* flags arg to stringvar_newf, see comments there */
 enum { SF_COPY = 1, };
-
-struct stringvar_t {
-        struct seqvar_t base;
-        char *s;        /* the actual C string */
-        struct utf8_info_t s_info;
-};
 
 #define V2STR(v)                ((struct stringvar_t *)(v))
 #define V2CSTR(v)               (V2STR(v)->s)
@@ -61,6 +56,7 @@ stringvar_newf(char *cstr, unsigned int flags)
                 vs->s = cstr;
         }
         utf8_scan(cstr, &vs->s_info);
+        vs->s_hash = 0;
         seqvar_set_size(ret, vs->s_info.enc_len);
         return ret;
 }

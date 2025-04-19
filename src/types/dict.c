@@ -6,6 +6,7 @@
  * kind of object is kind of janky, so I'm going with Python on this one.
  */
 #include <evilcandy.h>
+#include <stringtype.h>
 
 struct bucket_t {
         /*
@@ -47,9 +48,6 @@ struct dictvar_t {
 #define V2SQ(v)         ((struct seqvar_t *)(v))
 #define OBJ_SIZE(v)     seqvar_size(v)
 
-static hash_t fnv_hash(struct var_t *key);
-static hash_t fnv_cstring_hash(const char *key);
-static bool str_key_match(struct var_t *k1, struct var_t *k2);
 
 /* **********************************************************************
  *                      Hash table helpers
@@ -65,9 +63,17 @@ static bool str_key_match(struct var_t *k1, struct var_t *k2);
  */
 enum { INIT_SIZE = 16 };
 
-#define DICT_KEY_MATCH          str_key_match
-#define DICT_CALC_HASH          fnv_hash
-#define DICT_BUCKET_DELETE      var_bucket_delete
+static bool
+str_key_match(struct var_t *key1, struct var_t *key2)
+{
+        bug_on(!isvar_string(key1) || !isvar_string(key2));
+
+        /* fast-path "==", since these still sometimes are literal()'d */
+        return key1 == key2
+               || (string_hash(key1) == string_hash(key2)
+                   && !strcmp(string_get_cstring(key1),
+                              string_get_cstring(key2)));
+}
 
 static inline struct bucket_t *
 bucket_alloc(void)
@@ -95,7 +101,7 @@ seek_helper(struct dictvar_t *dict, struct var_t *key,
         struct bucket_t *b;
         unsigned long perturb = hash;
         while ((b = dict->d_bucket[i]) != NULL) {
-                if (b != BUCKET_DEAD && DICT_KEY_MATCH(b->b_key, key))
+                if (b != BUCKET_DEAD && str_key_match(b->b_key, key))
                         break;
                 /*
                  * Collision or dead entry.
@@ -305,7 +311,7 @@ dict_getattr(struct var_t *o, struct var_t *key)
         bug_on(!isvar_dict(o));
         bug_on(!isvar_string(key));
 
-        hash = DICT_CALC_HASH(key);
+        hash = string_update_hash(key);
         b = seek_helper(d, key, hash, &i);
         if (!b)
                 return NULL;
@@ -338,7 +344,7 @@ dict_insert(struct var_t *dict, struct var_t *key,
 
         d = V2D(dict);
 
-        hash = DICT_CALC_HASH(key);
+        hash = string_update_hash(key);
         b = seek_helper(d, key, hash, &i);
 
         /* @child is either the former entry replaced by @attr or NULL */
@@ -431,7 +437,7 @@ dict_unique(struct var_t *dict, const char *key)
          * time consuming?  This is for **every** token!
          */
         keycopy = stringvar_new(key);
-        hash = DICT_CALC_HASH(keycopy);
+        hash = string_update_hash(keycopy);
         b = seek_helper(d, keycopy, hash, &i);
         if (b) {
                 VAR_DECR_REF(keycopy);
@@ -467,7 +473,7 @@ dict_hasattr(struct var_t *dict, struct var_t *key)
                 return 0;
         bug_on(!isvar_dict(dict));
 
-        hash_t hash = DICT_CALC_HASH(key);
+        hash_t hash = string_update_hash(key);
         return seek_helper(V2D(dict), key, hash, &i) != NULL;
 }
 
@@ -834,55 +840,5 @@ struct type_t DictType = {
         .cmpz   = dict_cmpz,
         .reset  = dict_reset,
 };
-
-/*
- * TODO: move this to some file named, like, stringutils.c or somthing.
- * It could be the common source between dictionaries and strings--
- * hashing and other stuff.
- */
-
-static hash_t
-fnv_cstring_hash(const char *key)
-{
-        /* 64-bit version */
-#define FNV_PRIME      0x00000100000001B3LL
-#define FNV_OFFSET     0xCBF29CE484222325LL
-
-        const unsigned char *s = (unsigned char *)key;
-        unsigned int c;
-        unsigned long hash = FNV_PRIME;
-
-        bug_on(sizeof(hash_t) != 8);
-
-        /*
-         * since C string has no zeros in the part that gets
-         * hashed, don't worry about sticky state.
-         */
-        while ((c = *s++) != '\0')
-                hash = (hash * FNV_OFFSET) ^ c;
-        return (hash_t)hash;
-}
-
-/*
- * fnv_hash - The FNV-1a hash algorithm
- *
- * See Wikipedia article "Fowler-Noll-Vo hash function"
- */
-static hash_t
-fnv_hash(struct var_t *key)
-{
-        bug_on(!isvar_string(key));
-        return fnv_cstring_hash(string_get_cstring(key));
-}
-
-static bool
-str_key_match(struct var_t *key1, struct var_t *key2)
-{
-        bug_on(!isvar_string(key1) || !isvar_string(key2));
-
-        /* fast-path "==", since these still sometimes are literal()'d */
-        return key1 == key2 ||
-                !strcmp(string_get_cstring(key1), string_get_cstring(key2));
-}
 
 

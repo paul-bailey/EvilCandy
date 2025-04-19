@@ -154,6 +154,9 @@ extern void *erealloc(void *buf, size_t size);
 extern void *ememdup(void *buf, size_t size);
 extern void efree(void *ptr);
 
+/* hash.c */
+extern hash_t calc_string_hash(struct var_t *key);
+
 /* json.c */
 struct var_t *dict_from_json(const char *filename);
 

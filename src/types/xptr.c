@@ -129,6 +129,9 @@ xptr_add_rodata(struct var_t *v, struct var_t *new_data)
                                      (x->n_rodata + 1) * sizeof(struct var_t *));
                 x->rodata[x->n_rodata] = new_data;
                 x->n_rodata++;
+#if DEBUG_MISSING_RODATA
+                new_data->v_rodata = 1;
+#endif /* DEBUG_MISSING_RODATA */
         }
 
         return i;

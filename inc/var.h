@@ -6,6 +6,13 @@
 #ifndef EVILCANDY_VAR_H
 #define EVILCANDY_VAR_H
 
+/*
+ * Keep this zero unless you are trying to debug an excess VAR_DECR_REF
+ * somewhere.  Twice now, seeing if any .rodata were getting freed before
+ * their parent struct was helped narrow down the bug quickly.
+ */
+#define DEBUG_MISSING_RODATA 0
+
 /**
  * struct var_t - User variable type
  * @v_type:   Pointer to class methods et al for this data type.
@@ -21,7 +28,15 @@ struct var_t {
         struct type_t *v_type;
         union {
                 void *v_dummy; /* keep v_refcnt same size as v_type */
-                int v_refcnt;  /* signed for easier bug trapping */
+#if DEBUG_MISSING_RODATA
+                struct {
+                        short v_rodata;
+                        short v_refcnt;
+                };
+#else
+                /* signed for easier bug trapping */
+                int v_refcnt;
+#endif
         };
 };
 

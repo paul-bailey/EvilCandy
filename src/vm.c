@@ -86,15 +86,16 @@ symbol_seek(struct var_t *name)
         if (!ret) {
                 err_setstr(RuntimeError, "Symbol %s not found",
                            string_get_cstring(name));
-        }
+        } else {
 
-        /*
-         * See where used below.  dict_getattr produced a reference,
-         * but so will do_load, since VARPTR might give it something from
-         * the stack instead of here.  So consume one reference to keep
-         * it balanced.
-         */
-        VAR_DECR_REF(ret);
+                /*
+                 * See where used below.  dict_getattr produced a
+                 * reference, but so will do_load, since VARPTR might
+                 * give it something from the stack instead of here.
+                 * So consume one reference to keep it balanced.
+                 */
+                VAR_DECR_REF(ret);
+        }
         return ret;
 }
 
@@ -296,7 +297,11 @@ assign_complete(struct vmframe_t *fr, instruction_t ii, struct var_t *from)
                 err_setstr(RuntimeError, "You may not assign `this'");
                 return RES_ERROR;
         default:
-                fprintf(stderr, "arg1=%d\n", ii.arg1);
+                /*
+                 * XXX: bug? could we reach this if user tries to assign
+                 * a const, or did the assembler trap that already?
+                 */
+                DBUG("Invalid ASSIGN address arg1=%d", ii.arg1);
                 bug();
                 return RES_ERROR;
         }
@@ -375,7 +380,9 @@ do_load_const(struct vmframe_t *fr, instruction_t ii)
                 return -1;
         /*
          * Don't need a shallow copy, because all RODATA
-         * vars are the immutable kind--no lists or dictionaries.
+         * vars are the immutable kind--no lists or dictionaries,
+         * and there's no arg to do_assign that could replace the
+         * const in .rodata.
          */
         VAR_INCR_REF(v);
         push(fr, v);

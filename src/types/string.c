@@ -690,7 +690,7 @@ string_format2(struct vmframe_t *fr)
                 }
         }
 
-        ret = stringvar_newf(b.s, 0);
+        ret = stringvar_newf(buffer_trim(&b), 0);
         return ret;
 }
 
@@ -754,7 +754,7 @@ string_format_helper(struct vmframe_t *fr, char **src,
 static struct var_t *
 string_format(struct vmframe_t *fr)
 {
-        static struct buffer_t t;
+        struct buffer_t t;
         struct var_t *self = get_this(fr);
         int lastarg = 0;
         char *s, *self_s;
@@ -773,7 +773,7 @@ string_format(struct vmframe_t *fr)
                 buffer_putc(&t, *s);
         }
 
-        return stringvar_newf(t.s, 0);
+        return stringvar_newf(buffer_trim(&t), 0);
 }
 
 /* toint() (no args)
@@ -845,7 +845,7 @@ string_lstrip(struct vmframe_t *fr)
         charset = arg ? V2CSTR(arg) : NULL;
         buffer_lstrip(&b, charset);
 
-        return stringvar_newf(b.s, 0);
+        return stringvar_newf(buffer_trim(&b), 0);
 }
 
 /*
@@ -869,7 +869,7 @@ string_rstrip(struct vmframe_t *fr)
         buffer_puts(&b, V2CSTR(self));
         charset = arg ? V2CSTR(arg) : NULL;
         buffer_rstrip(&b, charset);
-        return stringvar_newf(b.s, 0);
+        return stringvar_newf(buffer_trim(&b), 0);
 }
 
 /*
@@ -894,7 +894,7 @@ string_strip(struct vmframe_t *fr)
         charset = arg ? V2CSTR(arg) : NULL;
         buffer_rstrip(&b, charset);
         buffer_lstrip(&b, charset);
-        return stringvar_newf(b.s, 0);
+        return stringvar_newf(buffer_trim(&b), 0);
 }
 
 static struct var_t *
@@ -945,7 +945,7 @@ string_replace(struct vmframe_t *fr)
         if (*haystack != '\0')
                 buffer_puts(&b, haystack);
 done:
-        return stringvar_newf(b.s, 0);
+        return stringvar_newf(buffer_trim(&b), 0);
 }
 
 /* XXX Superfluous, the way we do things now, remove? */
@@ -989,7 +989,7 @@ string_rjust(struct vmframe_t *fr)
                 while (just--)
                         buffer_putc(&b, ' ');
                 buffer_puts(&b, V2CSTR(self));
-                return stringvar_newf(b.s, 0);
+                return stringvar_newf(buffer_trim(&b), 0);
         } else {
                 return string_copy__(self);
         }
@@ -1021,7 +1021,7 @@ string_ljust(struct vmframe_t *fr)
                 just -= len;
                 while (just--)
                         buffer_putc(&b, ' ');
-                return stringvar_newf(b.s, 0);
+                return stringvar_newf(buffer_trim(&b), 0);
         } else {
                 return string_copy__(self);
         }
@@ -1081,7 +1081,7 @@ string_join(struct vmframe_t *fr)
                 buffer_puts(&b, V2CSTR(elem));
                 VAR_DECR_REF(elem);
         }
-        return stringvar_newf(b.s, 0);
+        return stringvar_newf(buffer_trim(&b), 0);
 }
 
 static struct type_inittbl_t string_methods[] = {
@@ -1162,7 +1162,7 @@ string_str(struct var_t *v)
                 }
         }
         buffer_putc(&b, Q);
-        return stringvar_newf(b.s, 0);
+        return stringvar_newf(buffer_trim(&b), 0);
 }
 
 static void
@@ -1284,6 +1284,21 @@ struct var_t *
 stringvar_nocopy(const char *cstr)
 {
         return stringvar_newf((char *)cstr, 0);
+}
+
+/**
+ * stringvar_from_buffer - Create a StringType variable using a buffer.
+ * @b: Buffer which at the very minimum had been initialized with
+ *      buffer_init.  This will be reinitialized upon return (see
+ *      buffer_trim in buffer.c).
+ *
+ * Return: The newly created string variable.
+ */
+struct var_t *
+stringvar_from_buffer(struct buffer_t *b)
+{
+        char *s = buffer_trim(b);
+        return stringvar_newf(s, 0);
 }
 
 /**

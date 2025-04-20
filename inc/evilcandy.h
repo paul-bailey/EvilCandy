@@ -257,7 +257,7 @@ extern char *dict_unique(struct var_t *dict, const char *key);
 extern void string_assign_cstring(struct var_t *str, const char *s);
 extern char *string_get_cstring(struct var_t *str);
 extern struct var_t *stringvar_new(const char *cstr);
-extern struct var_t *stringvar_from_immortal(const char *immstr);
+extern struct var_t *stringvar_from_buffer(struct buffer_t *b);
 extern struct var_t *stringvar_from_source(const char *tokenstr, bool imm);
 extern struct var_t *stringvar_nocopy(const char *cstr);
 

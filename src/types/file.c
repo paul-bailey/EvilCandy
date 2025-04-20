@@ -53,7 +53,7 @@ file_str(struct var_t *v)
         buffer_printf(&b, "<%s file at %s>",
                      f->f_fp ? "open" : "closed",
                      string_get_cstring(f->f_name));
-        return stringvar_nocopy(b.s);
+        return stringvar_from_buffer(&b);
 }
 
 #define RETURN_IF_BAD_FILE(f_) do {                       \
@@ -196,7 +196,7 @@ do_read(struct vmframe_t *fr)
                          * should we be treating this like it's OK?
                          */
                 }
-                return stringvar_nocopy(b.s);
+                return stringvar_from_buffer(&b);
         }
 }
 

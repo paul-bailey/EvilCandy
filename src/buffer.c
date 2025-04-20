@@ -53,18 +53,6 @@ buffer_init_(struct buffer_t *b)
 }
 
 /**
- * buffer_init_from - Initialize @buf using pre-existing pointer
- *                    and alloc size
- */
-void
-buffer_init_from(struct buffer_t *buf, char *line, size_t size)
-{
-        buf->s = line;
-        buf->size = size;
-        buf->p = 0;
-}
-
-/**
  * buffer_init - Initialize @buf
  *
  * This is NOT a reset function!
@@ -303,5 +291,39 @@ buffer_printf(struct buffer_t *buf, const char *msg, ...)
         va_start(ap, msg);
         buffer_vprintf(buf, msg, ap);
         va_end(ap);
+}
+
+/**
+ * buffer_trim - Resize, if necessary, a buffer to its contained
+ *               data, and re-initialize the buffer.
+ * @buf: Buffer to resize.
+ *
+ * Return: Pointer to the resized data, which will no longer be in @buf.
+ *
+ * This is intended as a finalizing step when filling a buffer with
+ * text or data.  The buffer grows in chunks to reduce the number of
+ * realloc calls, and this shrinks it back down to size at the end.
+ */
+void *
+buffer_trim(struct buffer_t *buf)
+{
+        void *ret;
+        if (buf->s == NULL) {
+                bug_on(buf->size != 0);
+                ret = estrdup("");
+        } else {
+                /*
+                 * '+1' in case it's size zero, or it's a char-based buf,
+                 * which has a nullchar at the end.  Add the nullchar
+                 * explicitly, in case @buf had been using buffer_putd.
+                 * It's only a matter of time before a binary buffer
+                 * result is accidentally passed to a string.h function.
+                 */
+                buf->s = erealloc(buf->s, buf->p + 1);
+                buf->s[buf->p] = 0;
+                ret = buf->s;
+        }
+        buffer_init_(buf);
+        return ret;
 }
 

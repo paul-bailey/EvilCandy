@@ -3,7 +3,6 @@
 #include "token.h"
 #include <setjmp.h>
 #include <stdlib.h>
-#include <unistd.h> /* TODO: for isatty, get rid of this */
 
 enum {
         QDELIM = 0x01,
@@ -61,7 +60,6 @@ struct token_state_t {
         int ntok;
         int nexttok;
         bool eof;
-        bool tty;
         jmp_buf env;
 };
 
@@ -88,10 +86,6 @@ tok_next_line(struct token_state_t *state)
         if (res != -1) {
                 state->s = state->line;
                 state->lineno++;
-                /*
-                 * TODO: if state->tty, here's where to print
-                 * continuation prompt
-                 */
         } else {
                 state->s = NULL;
         }
@@ -956,7 +950,6 @@ token_state_new(FILE *fp, const char *filename)
         state->ntok     = 0;
         state->nexttok  = 0;
         state->eof      = false;
-        state->tty      = !!isatty(fileno(fp));
         state->dedup    = dictvar_new();
 
         /*

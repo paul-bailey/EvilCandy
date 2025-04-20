@@ -70,8 +70,8 @@ var_alloc_tell(void)
 }
 # endif /* REPORT_VARS_ON_EXIT */
 #else /* NDEBUG */
-# define REGISTER_ALLOC() do { (void)0; } while (0)
-# define REGISTER_FREE()  do { (void)0; } while (0)
+# define REGISTER_ALLOC(x) do { (void)0; } while (0)
+# define REGISTER_FREE(x)  do { (void)0; } while (0)
 #endif /* NDEBUG */
 
 static struct var_t *

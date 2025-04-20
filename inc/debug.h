@@ -11,6 +11,7 @@
         DBUG("function %s line %d: %s", __FUNCTION__, __LINE__, msg)
 #else
 # define DBUG(...)      do { (void)0; } while (0)
+# define DBUG1(...)     do { (void)0; } while (0)
 # define DBUG_FN(msg)   do { (void)0; } while (0)
 #endif
 

@@ -184,6 +184,7 @@ again:
 
                                 ubuf_size = utf8_encode(point, ubuf);
                                 bug_on(ubuf_size == 0);
+                                (void)ubuf_size;
 
                                 s += amt;
                                 buffer_puts(&b, ubuf);

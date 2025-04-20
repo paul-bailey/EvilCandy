@@ -609,7 +609,7 @@ do_dict_foreach(struct vmframe_t *fr)
 
         keys = dict_keys(self);
         len = var_len(keys);
-        bug_on(var_len < 0);
+        bug_on(len < 0);
 
         status = RES_OK;
         for (i = 0; i < len; i++) {

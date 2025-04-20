@@ -70,6 +70,9 @@ static void
 remove_args(struct var_t **arr, int count)
 {
         int i;
+        if (!arr)
+                return;
+
         for (i = 0; i < count; i++) {
                 /* these arrays may have unset fields */
                 if (arr[i])

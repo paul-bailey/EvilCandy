@@ -113,6 +113,7 @@ ememdup(void *buf, size_t size)
 void
 efree(void *ptr)
 {
+        bug_on(!ptr);
         DBUG_LOG_FREE(ptr);
         free(ptr);
 }

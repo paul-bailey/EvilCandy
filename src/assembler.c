@@ -1150,13 +1150,45 @@ assemble_eval(struct assemble_t *a)
         as_unlex(a);
 }
 
-/* do not pass old a->oc as @name, save it before calling */
-static void
-assemble_assign(struct assemble_t *a, struct token_t *name, token_pos_t pos)
+/* t is '+=', '/=', etc. */
+static int
+asgntok2instr(int t)
 {
-        int t = a->oc->t;
-        int instr;
+        switch (t) {
+        case OC_PLUSEQ:
+                return INSTR_ADD;
+        case OC_MINUSEQ:
+                return INSTR_SUB;
+        case OC_MULEQ:
+                return INSTR_MUL;
+        case OC_DIVEQ:
+                return INSTR_DIV;
+        case OC_MODEQ:
+                return INSTR_MOD;
+        case OC_XOREQ:
+                return INSTR_BINARY_XOR;
+        case OC_LSEQ:
+                return INSTR_LSHIFT;
+        case OC_RSEQ:
+                return INSTR_RSHIFT;
+        case OC_OREQ:
+                return INSTR_BINARY_OR;
+        case OC_ANDEQ:
+                return INSTR_BINARY_AND;
+        default:
+                bug();
+                return 0;
+        }
+}
 
+/*
+ * If an assignment involves an additional operation, eg.  '+=' instead
+ * of just '=', perform the operation.  Calling code will then perform
+ * the assignment (SETATTR, ASSIGN, etc.)
+ */
+static void
+assemble_preassign(struct assemble_t *a, int t)
+{
         /* first check the ones that don't call assemble_eval */
         switch (t) {
         case OC_PLUSPLUS:
@@ -1170,46 +1202,10 @@ assemble_assign(struct assemble_t *a, struct token_t *name, token_pos_t pos)
                 break;
 
         default:
+                bug_on(t == OC_EQ || !(t & TF_ASSIGN));
                 assemble_eval(a);
-
-                switch (t) {
-                case OC_PLUSEQ:
-                        instr = INSTR_ADD;
-                        break;
-                case OC_MINUSEQ:
-                        instr = INSTR_SUB;
-                        break;
-                case OC_MULEQ:
-                        instr = INSTR_MUL;
-                        break;
-                case OC_DIVEQ:
-                        instr = INSTR_DIV;
-                        break;
-                case OC_MODEQ:
-                        instr = INSTR_MOD;
-                        break;
-                case OC_XOREQ:
-                        instr = INSTR_BINARY_XOR;
-                        break;
-                case OC_LSEQ:
-                        instr = INSTR_LSHIFT;
-                        break;
-                case OC_RSEQ:
-                        instr = INSTR_RSHIFT;
-                        break;
-                case OC_OREQ:
-                        instr = INSTR_BINARY_OR;
-                        break;
-                case OC_ANDEQ:
-                        instr = INSTR_BINARY_AND;
-                        break;
-                default:
-                        instr = 0;
-                        bug();
-                }
-                add_instr(a, instr, 0, 0);
+                add_instr(a, asgntok2instr(t), 0, 0);
         }
-        ainstr_load_or_assign(a, name, INSTR_ASSIGN, pos);
 }
 
 /* FIXME: huge DRY violation w/ eval8 */
@@ -1267,18 +1263,24 @@ assemble_ident_helper(struct assemble_t *a)
 
 #define SETATTR_SHIFT(arg1, arg2)                                       \
                 do {                                                    \
-                        assemble_eval(a);                               \
+                        if (t_ == OC_EQ) {                              \
+                                assemble_eval(a);                       \
+                        } else {                                        \
+                                add_instr(a, INSTR_GETATTR, arg1, arg2); \
+                                assemble_preassign(a, t_);              \
+                        }                                               \
                         if (have_parent)                                \
                                 add_instr(a, INSTR_SHIFT_DOWN, 0, 0);   \
                         add_instr(a, INSTR_SETATTR, arg1, arg2);        \
                 } while (0)
 
-#define SETATTR_SHIFT_IF_ASGN(arg1, arg2)                       \
-                do {                                            \
-                        if (as_lex(a) == OC_EQ) {               \
-                                SETATTR_SHIFT(arg1, arg2);      \
-                                goto done;                      \
-                        }                                       \
+#define SETATTR_SHIFT_IF_ASGN(arg1, arg2)                               \
+                do {                                                    \
+                        int t_ = as_lex(a);                             \
+                        if (!!(t_ & TF_ASSIGN)) {                       \
+                                SETATTR_SHIFT(arg1, arg2);              \
+                                goto done;                              \
+                        }                                               \
                 } while (0)
 
 #define GETSETATTR_SHIFT(arg1, arg2)                            \
@@ -1388,6 +1390,7 @@ done:
 #undef GETATTR_SHIFT
 #undef SETATTR_SHIFT
 #undef SETATTR_SHIFT_IF_ASGN
+#undef GETSETATTR_SHIFT
 }
 
 static void
@@ -1425,7 +1428,8 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * ...
                  */
                 ainstr_load_symbol(a, &name, pos);
-                assemble_assign(a, &name, pos);
+                assemble_preassign(a, a->oc->t);
+                ainstr_load_or_assign(a, &name, INSTR_ASSIGN, pos);
         } else {
                 /*
                  * x(args);

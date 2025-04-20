@@ -1331,32 +1331,6 @@ string_get_cstring(struct var_t *str)
         return V2CSTR(str);
 }
 
-/**
- * string_from_file - get a line from file and put in in a string var
- * @fp:         File to read from
- * @delim:      Delimiter to read to.
- * @stuff_delim: True to include the delimiter with the string, false to leave
- *              it out (it will not be ungetc'd).
- *
- * FIXME: This no longer needs to be here, not with string_nocopy.
- *
- * Return: the line as a string var
- */
-struct var_t *
-string_from_file(FILE *fp, int delim, bool stuff_delim)
-{
-        int c;
-        struct buffer_t b;
-
-        buffer_init(&b);
-        while ((c = getc(fp)) != delim && c != EOF) {
-                buffer_putc(&b, c);
-        }
-        if (stuff_delim && c == delim)
-                buffer_putc(&b, c);
-        return stringvar_newf(b.s, 0);
-}
-
 struct seq_methods_t string_seq_methods = {
         .getitem        = string_getitem,
         .setitem        = NULL,

@@ -322,7 +322,7 @@ func_str(struct var_t *a)
                          "<function (user) at '%s'>", f->f_ex->uuid);
         } else {
                 snprintf(buf, sizeof(buf)-1,
-                         "<function (intl) at %p>", f->f_cb);
+                         "<function (intl) at %p>", (void *)f->f_cb);
         }
         return stringvar_new(buf);
 }

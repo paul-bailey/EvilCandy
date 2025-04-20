@@ -4,8 +4,9 @@
 #include <stdio.h>
 
 #ifndef NDEBUG
-# define DBUG(msg, args...) \
-        fprintf(stderr, "[EvilCandy DEBUG]: " msg "\n", ##args)
+# define DBUG(msg, ...) \
+        fprintf(stderr, "[EvilCandy DEBUG]: " msg "\n", __VA_ARGS__)
+# define DBUG1(msg) DBUG("%s", msg)
 # define DBUG_FN(msg)   \
         DBUG("function %s line %d: %s", __FUNCTION__, __LINE__, msg)
 #else

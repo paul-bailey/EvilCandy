@@ -81,7 +81,7 @@ static inline void seqvar_set_size(struct var_t *v, size_t size)
 # define VAR_SANITY(v_) do {                            \
         struct var_t *v__ = (v_);                       \
         if (!v__) {                                     \
-                DBUG("unexpected NULL var");            \
+                DBUG1("unexpected NULL var");           \
                 bug();                                  \
         }                                               \
         if (v__->v_refcnt <= 0) {                       \

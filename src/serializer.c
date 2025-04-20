@@ -656,7 +656,7 @@ resolve_uuid(struct xptrvar_t *ex, struct xptrvar_t **xa, int n)
                          * probably a bug, but hypothetically it could be
                          * a maliciously malformed file.
                          */
-                        DBUG("byte code executable may not reference itself");
+                        DBUG1("byte code executable may not reference itself");
                         return RES_ERROR;
                 }
                 if (ref == NULL) {

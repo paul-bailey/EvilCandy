@@ -87,7 +87,6 @@ symbol_seek(struct var_t *name)
                 err_setstr(RuntimeError, "Symbol %s not found",
                            string_get_cstring(name));
         } else {
-
                 /*
                  * See where used below.  dict_getattr produced a
                  * reference, but so will do_load, since VARPTR might

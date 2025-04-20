@@ -161,9 +161,6 @@ static void assemble_expression(struct assemble_t *a,
 static int assemble_expression_simple(struct assemble_t *a,
                                 unsigned int flags, int skip);
 
-static inline bool frame_is_top(struct assemble_t *a)
-        { return a->active_frames.next == &a->fr->list; }
-
 /*
  * See comments above get_tok().
  * We cannot naively have something like

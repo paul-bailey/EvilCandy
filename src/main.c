@@ -238,6 +238,8 @@ main(int argc, char **argv)
 
         if (q_.opt.infile) {
                 FILE *fp = push_path(q_.opt.infile);
+                if (!fp)
+                        fail("Could not open '%s'", q_.opt.infile);
                 run_script(q_.opt.infile, fp, NULL);
                 pop_path(fp);
         } else {

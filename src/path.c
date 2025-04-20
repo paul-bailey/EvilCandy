@@ -57,9 +57,8 @@ push_path(const char *filename)
         char pathfill[PATH_MAX];
         FILE *fp = find_import(current_path(), filename,
                                pathfill, PATH_MAX);
-#warning "replace with err_setstr"
         if (!fp)
-                fail("Could not open '%s'", filename);
+                return NULL;
         push_path_(estrdup(pathfill));
         return fp;
 }

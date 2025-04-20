@@ -95,7 +95,9 @@ enum {
         /* magic numbers for field in struct xptrvar_t */
         INSTR_MAGIC     = 'I',
         RODATA_MAGIC    = 'R',
-        LABEL_MAGIC     = 'L'
+        LABEL_MAGIC     = 'L',
+
+        SUSPICIOUS_LEN  = 0xffffu,
 };
 
 
@@ -350,11 +352,11 @@ rstring(struct serial_rstate_t *state, size_t *n)
 {
         char *str, *ret;
         unsigned long len = rlong(state);
-#warning "fix this up when finished debugging"
-        if (err_occurred()) /* || (long)len < 0) */
+
+        if (err_occurred())
                 return NULL;
 #ifndef NDEBUG
-        if (len > 0xffffu) {
+        if (len > SUSPICIOUS_LEN) {
                 DBUG("suspicious string length %lu", len);
                 bug();
         }
@@ -403,8 +405,8 @@ read_header(struct serial_rstate_t *state, struct serial_header_t *hdr)
                            hdr->version);
                 return RES_ERROR;
         }
-#warning "fix this up when finished debugging."
-        if (hdr->nexec > 0xffffu) {
+
+        if (hdr->nexec > SUSPICIOUS_LEN) {
                 DBUG("suspicious number of executables %u", hdr->nexec);
                 return RES_ERROR;
         }

@@ -83,7 +83,7 @@ remove_args(struct var_t **arr, int count)
  * If @fn is a function, return that.
  * If @fn is a callable object, return the callable function, and
  *      update @owner accordingly.
- * If @fn is anything else, throw a syntax error.
+ * If @fn is anything else, return NULL and report an error.
  */
 static struct var_t *
 function_of(struct var_t *fn, struct var_t **owner)

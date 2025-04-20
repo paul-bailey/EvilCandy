@@ -6,9 +6,8 @@
 
 /*
  * headers for stuff I wish was standard
- * so I wouldn't have to write myself.
+ * so I wouldn't have to write them myself.
  */
-// #include <lib/hashtable.h>
 #include <lib/helpers.h>
 #include <lib/buffer.h>
 #include <lib/list.h>

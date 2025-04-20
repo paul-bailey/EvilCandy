@@ -22,9 +22,6 @@ struct bucket_t {
 
 /**
  * struct dictvar_t - Descriptor for an object handle
- * @priv: Deprecated, to be removed soon
- * @priv_cleanup: ditto^^^
- * @dict:               Hash table of attributes
  * @d_size:             Array size of d_bucket, always a power of 2
  * @d_used:             Active entries in hash table
  * @d_count:            Active + removed ('dead') entries in hash table
@@ -34,8 +31,6 @@ struct bucket_t {
  */
 struct dictvar_t {
         struct seqvar_t base;
-        void *priv;
-        void (*priv_cleanup)(struct var_t *, void *);
         size_t d_size;
         size_t d_used;
         size_t d_count;
@@ -279,8 +274,6 @@ dictvar_new(void)
 {
         struct var_t *o = var_new(&DictType);
         struct dictvar_t *d = V2D(o);
-        d->priv = NULL;
-        d->priv_cleanup = NULL;
         seqvar_set_size(o, 0);
 
         d->d_size = INIT_SIZE;
@@ -529,14 +522,7 @@ dict_reset(struct var_t *o)
 
         bug_on(!isvar_dict(o));
         dict = V2D(o);
-        if (dict->priv) {
-                if (dict->priv_cleanup)
-                        dict->priv_cleanup(o, dict->priv);
-                else
-                        efree(dict->priv);
-        }
 
-        /* not a full wipe, just get rid of entries */
         for (i = 0; i < dict->d_size; i++) {
                 if (dict->d_bucket[i] == BUCKET_DEAD) {
                         dict->d_bucket[i] = NULL;

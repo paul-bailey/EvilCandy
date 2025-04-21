@@ -34,7 +34,12 @@ types/range.c \
 types/string.c \
 types/xptr.c
 
-evilcandy_CPPFLAGS=-I$(top_srcdir)/inc -DRCDATADIR=\"$(datadir)\"
+evilcandydir=${datadir}/evilcandy
+evilcandy_CPPFLAGS=-I$(top_srcdir)/inc -DRCDATADIR=\"$(evilcandydir)\"
+
+evilcandy_DATA= \
+ $(top_srcdir)/lib/io.evc \
+ $(top_srcdir)/lib/math.evc
 
 nodist_evilcandy_SOURCES = \
  instruction_defs.h \

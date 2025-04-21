@@ -4,6 +4,8 @@
 #ifndef EVILCANDY_H
 #define EVILCANDY_H
 
+#include "config.h"
+
 /*
  * headers for stuff I wish was standard
  * so I wouldn't have to write them myself.

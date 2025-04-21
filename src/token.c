@@ -49,6 +49,7 @@ enum {
  */
 struct token_state_t {
         int lineno;
+        int col;
         struct var_t *dedup;
         struct buffer_t tok;
         char *s;
@@ -533,6 +534,7 @@ skip_whitespace(struct token_state_t *state)
                 if (*s == '\0')
                         return EOF;
         } while (skip_comment(state));
+        state->col = state->s - state->line;
         return 0;
 }
 
@@ -623,31 +625,6 @@ tokenize_helper(struct token_state_t *state)
                 }
 
                 err_setstr(ParserError, msg);
-
-                /* XXX: Hacky, but do for now, remove to main.c wrapper */
-                char *emsg;
-                struct var_t *exc;
-                err_get(&exc, &emsg);
-                bug_on(exc == NULL || emsg == NULL);
-                err_print(stderr, exc, emsg);
-                efree(emsg);
-                if (state->line != NULL) {
-                        fprintf(stderr, "In file %s line %d:\n",
-                                state->filename, state->lineno);
-                        /* the newline is included in the "%s" here */
-                        fprintf(stderr, "\t%s\t", state->line);
-                        if (state->s != NULL) {
-                                ssize_t col = state->s - state->line;
-                                while (col-- > 0)
-                                        fputc(' ', stderr);
-                                fprintf(stderr, "^\n");
-                        }
-
-                        /* Flush this whole line */
-                        state->s = state->line;
-                        state->s[0] = '\0';
-                }
-
         } else {
                 struct buffer_t *tok = &state->tok;
 
@@ -1004,3 +981,18 @@ moduleinit_token(void)
         tok_charmap['_'] |= QIDENT | QIDENT1;
 }
 
+/**
+ * token_get_this_line - get currently-being-parsed line
+ * @col: Variable to hold column of last token parsed or partially parsed.
+ *       This may not be NULL.
+ *
+ *      BEWARE!!  This pointer may be invalidated on next call
+ *      to get_tok, so don't save the result.  Either copy it
+ *      or whatever you're doing with it do it now.
+ */
+char *
+token_get_this_line(struct token_state_t *state, int *col)
+{
+        *col = state->col;
+        return state->line;
+}

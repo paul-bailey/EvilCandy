@@ -36,12 +36,6 @@ Must Do
 
 * Fix the cyclic-reference problem in GC.
 
-* MEMORY LEAK BUG:  When top-level expressions have been executed, their
-  code arrays should be deleted.  Same for functions' code arrays if
-  all references to them leave scope.  However, current GC implementation
-  is too naive for this, deleting IIFEs before they can execute.  So for
-  now, GC is turned off for all executable code, letting it zombify.
-
 Library/Language Features
 -------------------------
 
@@ -50,6 +44,8 @@ Library/Language Features
 * Add sets
 
 * Add try/catch
+
+* Support soft keywords
 
 * Add a Matrix/DSP module, something like NumPy for Python
 

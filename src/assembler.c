@@ -2059,6 +2059,31 @@ free_assembler(struct assemble_t *a, int err)
         efree(a);
 }
 
+/* Tell user where they screwed up */
+static void
+assemble_splash_error(struct assemble_t *a)
+{
+        char *emsg;
+        struct var_t *exc;
+        int col;
+        char *line = NULL;
+
+        err_get(&exc, &emsg);
+        bug_on(!exc || !emsg);
+        err_print(stderr, exc, emsg);
+        efree(emsg);
+        fprintf(stderr, "in file '%s' near line '%d'\n",
+                a->file_name, a->oc->line);
+        line = token_get_this_line(a->prog, &col);
+        if (line) {
+                fprintf(stderr, "Expected error location:\n");
+                fprintf(stderr, "\t%s\t", line);
+                while (col-- > 0)
+                        fputc(' ', stderr);
+                fprintf(stderr, "^\n");
+        }
+}
+
 /**
  * assemble_next - Parse input and convert into an array of pseudo-
  *                 assembly instructions
@@ -2093,6 +2118,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
 
         if ((res = setjmp(a->env)) != 0) {
                 const char *msg;
+
                 switch (res) {
                 default:
                 case AE_GEN:
@@ -2124,20 +2150,11 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                         msg = NULL;
                         break;
                 }
-                if (msg) {
-                        if (!err_occurred())
-                                err_setstr(ParserError, "%s", msg);
 
-                        /* FIXME: more hax, need to put this in main.c */
-                        char *emsg;
-                        struct var_t *exc;
-                        err_get(&exc, &emsg);
-                        bug_on(!exc || !emsg);
-                        err_print(stderr, exc, emsg);
-                        efree(emsg);
-                        fprintf(stderr, "in file '%s' near line '%d'\n",
-                                a->file_name, a->oc->line);
-                }
+                if (msg && !err_occurred())
+                        err_setstr(ParserError, "%s", msg);
+
+                assemble_splash_error(a);
 
                 /*
                  * TODO: probably more meticulous cleanup needed here,

@@ -648,6 +648,7 @@ tokenize_helper(struct token_state_t *state)
                         return 'q';
                 } else if (get_tok_bytes(state)) {
                         do {
+                                ret = skip_whitespace(state);
                         } while (ret != EOF && get_tok_bytes(state));
                         return 'b';
                 } else if (get_tok_identifier(state)) {

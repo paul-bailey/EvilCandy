@@ -3,9 +3,6 @@ Bugs
 
 * BUGs 4/2025:
 
-        * When an undeclared variable is to the left of an assignement
-          operator, eg 'x = y;' instead of 'let x = y;', an error is not
-          thrown as it should be.
         * closures seem to only work in the simplest cases.  They do not
           work when referenced from a .foreach callback, and they do not
           seem to work when the declaration is at the file scope.  Strange

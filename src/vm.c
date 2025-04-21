@@ -102,7 +102,13 @@ static int
 symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
 {
         bug_on(!isvar_string(name));
-        return dict_setattr_replace(symbol_table, name, v);
+        int ret = dict_setattr_replace(symbol_table, name, v);
+        if (ret != RES_OK && !err_occurred()) {
+                err_setstr(RuntimeError,
+                           "Symbol '%s' does not exist or is unassignable",
+                           string_get_cstring(name));
+        }
+        return ret;
 }
 
 /*
@@ -1021,6 +1027,12 @@ execute_loop(struct vmframe_t *fr)
                          */
                         goto out;
                 } else {
+                        if (!err_occurred()) {
+                                err_setstr(RuntimeError,
+                                           "instruction %hhd:%hhd:%hd unreported error",
+                                           ii.code, ii.arg1, ii.arg2);
+                        }
+
                         /*
                          * res neither 0 nor RES_RETURN, it's an error or exception.
                          *

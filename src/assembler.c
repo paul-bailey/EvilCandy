@@ -158,8 +158,6 @@ struct assemble_t {
 static void assemble_eval(struct assemble_t *a);
 static void assemble_expression(struct assemble_t *a,
                                 unsigned int flags, int skip);
-static int assemble_expression_simple(struct assemble_t *a,
-                                unsigned int flags, int skip);
 
 /*
  * See comments above get_tok().
@@ -1660,15 +1658,7 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
                 add_instr(a, INSTR_B, 0, then);
         }
         as_set_label(a, iter);
-        if (!assemble_expression_simple(a, FE_FOR, -1)) {
-                /*
-                 * user tried to make a {...} compound statement
-                 * instead of something simple like 'i++'.  I'm not
-                 * sure if we should allow this or not, but I'm also
-                 * not sure if I can parse that properly.
-                 */
-                as_err(a, AE_BADTOK);
-        }
+        assemble_expression(a, FE_FOR, -1);
         as_errlex(a, OC_RPAR);
 
         add_instr(a, INSTR_B, 0, start);
@@ -1725,19 +1715,45 @@ assemble_for(struct assemble_t *a, int skip_else)
 }
 
 /*
+ * parse '{' stmt; stmt;... '}'
+ * The first '{' has already been read.
+ */
+static void
+assemble_block_stmt(struct assemble_t *a, unsigned int flags, int skip)
+{
+        apush_scope(a);
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
+
+        for (;;) {
+                int exp;
+
+                /* peek for end of compound statement */
+                as_lex(a);
+                if (a->oc->t == OC_RBRACE)
+                        break;
+                as_unlex(a);
+
+                assemble_expression(a, flags, skip);
+        }
+        add_instr(a, INSTR_POP_BLOCK, 0, 0);
+        apop_scope(a);
+}
+
+/*
  * parse the stmt of 'stmt' + ';'
  * return true if semicolon expected, false if not (because
  * we recursed into a '{...}' statement which requires no semicolon).
  */
-static int
+static void
 assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
 {
         as_lex(a);
+        /* cases return early if semicolon not expected at the end */
         switch (a->oc->t) {
         case OC_EOF:
                 if (skip >= 0)
                         as_badeof(a);
-                return 0;
+                return;
         case 'u':
                 assemble_identifier(a, flags);
                 break;
@@ -1768,6 +1784,7 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
                 add_instr(a, INSTR_POP, 0, 0);
                 break;
         case OC_RPAR:
+                /* in case for loop ends with empty ";)" */
                 if (!(flags & FE_FOR)) {
                         as_err(a, AE_PAR);
                 }
@@ -1790,25 +1807,25 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
                 break;
         case OC_IF:
                 assemble_if(a, skip);
-                return 0;
+                return;
         case OC_WHILE:
                 assemble_while(a);
-                return 0;
+                return;
         case OC_FOR:
                 assemble_for(a, skip);
-                return 0;
+                return;
         case OC_LBRACE:
-                as_unlex(a);
-                assemble_expression(a, flags, skip);
-                return 0;
+                assemble_block_stmt(a, flags, skip);
+                return;
         case OC_DO:
                 assemble_do(a);
-                return 0;
+                return;
         default:
                 DBUG("Got token %X ('%s')\n", a->oc->t, a->oc->s);
                 as_err(a, AE_BADTOK);
         }
-        return 1;
+        if (!(flags & FE_FOR))
+                as_errlex(a, OC_SEMI);
 }
 
 static int as_recursion = 0;
@@ -1824,6 +1841,10 @@ static int as_recursion = 0;
 #define AS_RECURSION_DECR() do { \
         bug_on(as_recursion <= 0); \
         as_recursion--; \
+} while (0)
+
+#define AS_RECURSION_RESET() do { \
+        as_recursion = 0; \
 } while (0)
 
 /*
@@ -1865,46 +1886,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
 {
         AS_RECURSION_INCR();
 
-        as_lex(a);
-        if (a->oc->t == OC_LBRACE) {
-                /* compound statement */
-                apush_scope(a);
-                add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
-
-                for (;;) {
-                        int exp;
-
-                        /* peek for end of compound statement */
-                        as_lex(a);
-                        if (a->oc->t == OC_RBRACE)
-                                break;
-                        as_unlex(a);
-
-                        exp = assemble_expression_simple(a, flags, skip);
-                        if (!exp) {
-                                if (a->oc->t == OC_EOF)
-                                        as_badeof(a);
-                                continue;
-                        }
-
-                        as_lex(a);
-                        if (a->oc->t != OC_SEMI) {
-                                err_setstr(ParserError,
-                                           "Expected ';' but got '%s'", a->oc->s);
-                                as_err(a, AE_BADTOK);
-                        }
-                }
-                add_instr(a, INSTR_POP_BLOCK, 0, 0);
-                apop_scope(a);
-        } else if (a->oc->t != OC_EOF) {
-                /* single line statement */
-                int exp;
-
-                as_unlex(a);
-                exp = assemble_expression_simple(a, flags, skip);
-                if (exp)
-                        as_errlex(a, OC_SEMI);
-        }
+        assemble_expression_simple(a, flags, skip);
 
         AS_RECURSION_DECR();
 }
@@ -2154,6 +2136,8 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                 *status = RES_OK;
                 ex = as_top_executable(a);
         }
+
+        AS_RECURSION_RESET();
 
         return ex;
 }

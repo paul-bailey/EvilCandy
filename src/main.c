@@ -1,6 +1,5 @@
 #include <evilcandy.h>
 #include <stdlib.h>
-#include <getopt.h>
 #include <unistd.h>
 #include <errno.h>
 

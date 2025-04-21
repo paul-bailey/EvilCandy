@@ -1232,21 +1232,6 @@ assemble_ident_helper(struct assemble_t *a)
                 struct token_t name;
 
                 /*
-                 * FIXME: What about increment, decrement?
-                 * like this, "foo.bar++" is not possible.
-                 */
-
-                /*
-                 * FIXME: For the SETATTR cases below, I should permit
-                 * more than '=', but any of the TF_ASSIGN tokens.
-                 * Requires a new family of instructions to parallel
-                 * the assignment instructions, ie.
-                 *      INSTR_ASSIGN_LS  <=> INSTR_SETATTR_LS
-                 * and so on..
-                 */
-
-
-                /*
                  * These macros sorta bury the program flow, but the code
                  * is repetitive and barely readable anyway.  I could
                  * probably simplify it greatly with some recursion, but

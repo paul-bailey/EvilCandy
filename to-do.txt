@@ -61,6 +61,10 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
+* Replace setjmp in assemble.c with normal stack unwinding.  May need
+  to replace EOF with OC_EOF so that a <0 check will always mean
+  'error'.
+
 * Add way to mark current location while parsing, so that token.c and
   main.c aren't making their own separate and different error splashes.
 

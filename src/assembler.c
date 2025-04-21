@@ -312,7 +312,7 @@ static int
 as_lex(struct assemble_t *a)
 {
         int ret = get_tok(a->prog, &a->oc);
-        if (ret == TOKEN_ERROR)
+        if (ret == RES_ERROR)
                 as_err(a, AE_PARSER);
         return ret;
 }
@@ -352,7 +352,7 @@ peek_semi(struct assemble_t *a)
          * EOF.  Since no one calls peek_semi() unless they expect either
          * a semicolon or more input, this is an error.
          */
-        if (a->oc->t == EOF)
+        if (a->oc->t == OC_EOF)
                 as_badeof(a);
         as_unlex(a);
         return res;
@@ -1647,7 +1647,7 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
 
         as_set_label(a, start);
         as_lex(a);
-        if (a->oc->t == EOF) {
+        if (a->oc->t == OC_EOF) {
                 as_badeof(a);
         } else if (a->oc->t == OC_SEMI) {
                 /* empty condition, always true */
@@ -1679,7 +1679,7 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
         as_set_label(a, forelse);
 
         as_lex(a);
-        if (a->oc->t == EOF) {
+        if (a->oc->t == OC_EOF) {
                 as_badeof(a);
         } else if (a->oc->t == OC_ELSE) {
                 assemble_expression(a, 0, skip_else);
@@ -1734,7 +1734,7 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
 {
         as_lex(a);
         switch (a->oc->t) {
-        case EOF:
+        case OC_EOF:
                 if (skip >= 0)
                         as_badeof(a);
                 return 0;
@@ -1882,7 +1882,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
 
                         exp = assemble_expression_simple(a, flags, skip);
                         if (!exp) {
-                                if (a->oc->t == EOF)
+                                if (a->oc->t == OC_EOF)
                                         as_badeof(a);
                                 continue;
                         }
@@ -1896,7 +1896,7 @@ assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
                 }
                 add_instr(a, INSTR_POP_BLOCK, 0, 0);
                 apop_scope(a);
-        } else if (a->oc->t != EOF) {
+        } else if (a->oc->t != OC_EOF) {
                 /* single line statement */
                 int exp;
 
@@ -1969,7 +1969,7 @@ assemble_first_pass(struct assemble_t *a, bool toeof)
 {
         do {
                 assemble_expression(a, 0, -1);
-        } while (toeof && a->oc->t != EOF);
+        } while (toeof && a->oc->t != OC_EOF);
         add_instr(a, INSTR_END, 0, 0);
 
         list_remove(&a->fr->list);
@@ -2096,7 +2096,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
         struct xptrvar_t *ex;
         int res;
 
-        if (a->oc && a->oc->t == EOF) {
+        if (a->oc && a->oc->t == OC_EOF) {
                 *status = RES_OK;
                 return NULL;
         }

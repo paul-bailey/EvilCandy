@@ -22,3 +22,7 @@ src/builtin/.*.swp
 # files created by tools/gen
 /*/*_gen.c.h
 /inc/instruction_defs.h
+
+# Stuff I sometimes want to keep in local copy
+# but not version control
+/nonversion/

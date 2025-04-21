@@ -18,7 +18,6 @@ enum {
         TE_INVALID_CHARS,
         TE_TOO_BIG,
         TE_MALFORMED,
-        TE_HALFLAMBDA,
         TE_UNRECOGNIZED
 };
 
@@ -532,7 +531,7 @@ skip_whitespace(struct token_state_t *state)
                 } while (*s == '\0' && tok_next_line(state) != -1);
                 state->s = s;
                 if (*s == '\0')
-                        return EOF;
+                        return OC_EOF;
         } while (skip_comment(state));
         state->col = state->s - state->line;
         return 0;
@@ -582,7 +581,7 @@ tok_kw_seek(const char *key)
  * 'u' if identifier
  * EOF if end of file
  *
- * TOKEN_ERROR if bad or unparseable token.  Do not de-reference
+ * RES_ERROR if bad or unparseable token.  Do not de-reference
  * token data if this happens.
  */
 static int
@@ -613,9 +612,6 @@ tokenize_helper(struct token_state_t *state)
                 case TE_MALFORMED:
                         msg = "Malformed numerical expression";
                         break;
-                case TE_HALFLAMBDA:
-                        msg = "Unrecognized token '`'";
-                        break;
                 case TE_UNRECOGNIZED:
                         msg = "Unrecognized token";
                         break;
@@ -631,7 +627,7 @@ tokenize_helper(struct token_state_t *state)
                 buffer_reset(tok);
 
                 /* repurpose ret to be a token-type result */
-                if ((ret = skip_whitespace(state)) == EOF)
+                if ((ret = skip_whitespace(state)) == OC_EOF)
                         return ret;
 
                 if (get_tok_delim(&ret, state)) {
@@ -644,12 +640,12 @@ tokenize_helper(struct token_state_t *state)
                          */
                         do {
                                 ret = skip_whitespace(state);
-                        } while (ret != EOF && get_tok_string(state));
+                        } while (ret != OC_EOF && get_tok_string(state));
                         return 'q';
                 } else if (get_tok_bytes(state)) {
                         do {
                                 ret = skip_whitespace(state);
-                        } while (ret != EOF && get_tok_bytes(state));
+                        } while (ret != OC_EOF && get_tok_bytes(state));
                         return 'b';
                 } else if (get_tok_identifier(state)) {
                         if ((ret = tok_kw_seek(tok->s)) >= 0)
@@ -662,7 +658,7 @@ tokenize_helper(struct token_state_t *state)
         }
 
         /* If we're here, some error happened */
-        return TOKEN_ERROR;
+        return RES_ERROR;
 }
 
 /* Get the next token from the current input file. */
@@ -672,11 +668,11 @@ tokenize(struct token_state_t *state)
         int ret;
 
         ret = tokenize_helper(state);
-        if (ret == TOKEN_ERROR) {
+        if (ret == RES_ERROR) {
                 return ret;
-        } else if (ret == EOF) {
+        } else if (ret == OC_EOF) {
                 static const struct token_t eofoc = {
-                        .t = EOF,
+                        .t = OC_EOF,
                         .line = 0,
                         .s = NULL,
                         .v = NULL,
@@ -711,7 +707,7 @@ tokenize(struct token_state_t *state)
                                         "Error in bytes literal %s",
                                         state->tok.s);
                                 oc.v = NULL;
-                                ret = TOKEN_ERROR;
+                                ret = RES_ERROR;
                         }
                         break;
                 case 'i':
@@ -736,7 +732,7 @@ tokenize(struct token_state_t *state)
                                 err_setstr(ParserError,
                                         "Error in string literal %s",
                                         state->tok.s);
-                                ret = TOKEN_ERROR;
+                                ret = RES_ERROR;
                         }
                         break;
                 default:
@@ -749,7 +745,7 @@ tokenize(struct token_state_t *state)
                         oc.s = estrdup(state->tok.s);
                 }
 
-                if (ret == TOKEN_ERROR) {
+                if (ret == RES_ERROR) {
                         if (oc.v)
                                 VAR_DECR_REF(oc.v);
                         return ret;
@@ -767,7 +763,7 @@ tokenize(struct token_state_t *state)
  * @state:      Token state machine
  * @tok:        (output) pointer to the next token
  *
- * Return: Type of token stored in @tok.  If TOKEN_ERROR, then @tok was
+ * Return: Type of token stored in @tok.  If RES_ERROR, then @tok was
  * not updated and an error message was printed to stderr.
  *
  * WARNING!! @tok will point into an array of struct token_t's, which
@@ -802,11 +798,11 @@ get_tok(struct token_state_t *state, struct token_t **tok)
                          */
                         bug_on(state->ntok <= 0);
                         cur = TOKBUF(state) + state->ntok - 1;
-                        bug_on(cur->t != EOF);
+                        bug_on(cur->t != OC_EOF);
                         goto done;
                 }
-                if (tokenize(state) == TOKEN_ERROR)
-                        return TOKEN_ERROR;
+                if (tokenize(state) == RES_ERROR)
+                        return RES_ERROR;
                 bug_on(state->nexttok >= state->ntok);
         }
 

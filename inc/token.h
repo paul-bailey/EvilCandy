@@ -6,7 +6,7 @@
 #define TO_TOK(c1_, c2_)        ((c1_) | ((c2_) << 8))
 #define TO_DTOK(c_)             TO_TOK('d', c_)
 #define TO_KTOK(c_)             TO_TOK('k', c_)
-#define TOKEN_ERROR             TO_TOK('!', TD_ERROR)
+#define TO_EOF                  TO_TOK('!', TD_ERROR)
 
 enum {
         TF_LOGICAL      = 0x00010000,
@@ -166,6 +166,8 @@ enum {
         OC_TRUE         = TO_KTOK(KW_TRUE),
         OC_FALSE        = TO_KTOK(KW_FALSE),
         OC_NULL         = TO_KTOK(KW_NULL),
+
+        OC_EOF          = TO_TOK('!', TD_ERROR),
 };
 
 /**

@@ -25,7 +25,7 @@ static int
 json_get_tok(struct json_state_t *j)
 {
         int ret = get_tok(j->tok_state, &j->tok);
-        if (ret == TOKEN_ERROR)
+        if (ret == RES_ERROR)
                 json_err(j, JE_PARSER);
         return ret;
 }
@@ -265,7 +265,7 @@ dict_from_json(const char *filename)
                 ret = ErrorVar;
         } else {
                 int t = json_get_tok(&jstate);
-                if (t == EOF) {
+                if (t == OC_EOF) {
                         /* empty file */
                         ret = dictvar_new();
                 } else if (t == OC_LBRACE) {
@@ -275,7 +275,7 @@ dict_from_json(const char *filename)
 
                         /* make sure this file only contained json */
                         t = json_get_tok(&jstate);
-                        if (t != EOF)
+                        if (t != OC_EOF)
                                 json_err(&jstate, JE_EXCESS);
                 } else {
                         /* first tok must be '{' */

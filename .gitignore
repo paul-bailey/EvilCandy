@@ -4,3 +4,7 @@ src/builtin/.*.swp
 .deps/
 .objs/
 ./egq
+build/compile
+build/depcomp
+build/install-sh
+build/missing

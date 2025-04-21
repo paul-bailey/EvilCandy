@@ -248,7 +248,7 @@ again:
                                         if (!isodigit(*src))
                                                 break;
                                         /* '0' & 7 happens to be 0 */
-                                        v = (v << 3) + c & 7;
+                                        v = (v << 3) + (*src & 7);
                                 }
                                 if (v >= 256)
                                         goto err;

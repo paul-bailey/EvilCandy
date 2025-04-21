@@ -8,3 +8,5 @@ build/compile
 build/depcomp
 build/install-sh
 build/missing
+*/.dirstamp
+*/*/.dirstamp

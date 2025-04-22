@@ -3,7 +3,6 @@ Bugs
 
 * BUGs 4/2025:
 
-        * typeof() causes a crash when it receives no arguments.
         * "1000.0 < 1" is regarded as true, because they are different
           types, therefore the result is 'float' < 'integer', because
           'f' < 'i'.  I need to make an exception for numers.

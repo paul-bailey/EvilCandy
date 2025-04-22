@@ -19,6 +19,10 @@ static struct var_t *
 do_typeof(struct vmframe_t *fr)
 {
         struct var_t *p = frame_get_arg(fr, 0);
+        if (!p) {
+                err_setstr(RuntimeError, "Expected: any data type");
+                return ErrorVar;
+        }
         return stringvar_new(typestr(p));
 }
 

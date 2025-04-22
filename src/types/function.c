@@ -37,6 +37,9 @@ struct funcvar_t {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
         } f_magic;
+        struct var_t **f_argv;
+        size_t f_arg_alloc;
+        int f_argc;
         union {
                 struct {
                         /* FUNC_INTERNAL exclusives */
@@ -47,11 +50,8 @@ struct funcvar_t {
                 struct {
                         /* FUNC_USER exclusives */
                         struct xptrvar_t *f_ex;
-                        struct var_t **f_argv;
                         struct var_t **f_clov;
-                        int f_argc;
                         int f_cloc;
-                        size_t f_arg_alloc;
                         size_t f_clo_alloc;
                 };
         };
@@ -259,6 +259,18 @@ function_add_default(struct var_t *func,
         fh->f_argc = argno + 1;
 }
 
+static struct var_t *
+funcvar_alloc(int magic)
+{
+        struct var_t *func = var_new(&FunctionType);
+        struct funcvar_t *fh = V2FUNC(func);
+        fh->f_argv = NULL;
+        fh->f_arg_alloc = 0;
+        fh->f_argc = 0;
+        fh->f_magic = magic;
+        return func;
+}
+
 /**
  * funcvar_new_intl - create a builtin function var
  * @cb: Callback that executes the function.  It may pass the vmframe_t
@@ -276,9 +288,8 @@ struct var_t *
 funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
                  int minargs, int maxargs)
 {
-        struct var_t *func = var_new(&FunctionType);
+        struct var_t *func = funcvar_alloc(FUNC_INTERNAL);
         struct funcvar_t *fh = V2FUNC(func);
-        fh->f_magic = FUNC_INTERNAL;
         fh->f_cb = cb;
         fh->f_minargs = minargs;
         fh->f_maxargs = maxargs;
@@ -292,10 +303,9 @@ funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
 struct var_t *
 funcvar_new_user(struct var_t *ex)
 {
-        struct var_t *func = var_new(&FunctionType);
+        struct var_t *func = funcvar_alloc(FUNC_USER);
         struct funcvar_t *fh = V2FUNC(func);
         bug_on(!isvar_xptr(ex));
-        fh->f_magic = FUNC_USER;
         fh->f_ex = (struct xptrvar_t *)ex;
         VAR_INCR_REF((struct var_t *)ex);
         return func;

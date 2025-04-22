@@ -426,18 +426,20 @@ EvilCandy uses the following operators:
 | ``^=``  | lval = lval ``^`` rval  |
 +---------+-------------------------+
 
-.. [#] For string and bytes data types, the plus operator concatenates the two strings.
+.. [#] For string and bytes data types, the plus operator concatenates
+       the two strings.
 
-.. [#] Bitwise operators are valid when operating on integers, but not on floats.
+.. [#] Except for the modulo operator, bitwise operators are valid when
+       operating on integers, but not on floats.
 
-.. [#] The "pre-" and "post-" of preincrement and postincrement are undefined for EvilCandy.
-       Currently increment and decrement operations must be their own expressions.
+.. [#] The "pre-" and "post-" of preincrement and postincrement are
+       undefined for EvilCandy.  Currently increment and decrement
+       operations must be their own expressions.
 
-.. [#]
-        Currently ``lval OP= rval`` is not only syntactically the same as
-        ``lval OP rval``, but it is the same implementation-wise as well,
-        so do not express it this way if the more verbose way is clearer;
-        you will not gain any speed advantage from it.
+.. [#] Currently ``lval OP= rval`` is not only syntactically the same as
+       ``lval = lval OP rval``, but it is the same implementation-wise as
+       well, so do not express it this way if the normal way is clearer;
+       you will not gain any speed advantage from it.
 
 
 Expressions and statements

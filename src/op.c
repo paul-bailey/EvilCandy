@@ -47,9 +47,6 @@ BINARY_OP_BASIC_FUNC(mul, "*");
 BINARY_OP_BASIC_FUNC(div, "/");
 BINARY_OP_BASIC_FUNC(mod, "%");
 
-/**
- * assign a = a + b
- */
 struct var_t *
 qop_add(struct var_t *a, struct var_t *b)
 {

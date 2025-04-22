@@ -184,26 +184,14 @@ err_locked(void)
 
 /* @op: string expression of operation, eg "*", "+", "<<", etc. */
 void
-err_mismatch(const char *op)
-{
-        /* You can't do that with me! I'm not your type! */
-        err_setstr(RuntimeError,
-                   "Invalid/mismatched type for '%s' operator", op);
-}
-
-/*
- * @op: same as in err_mismatch
- * Unary operation not allow, @var is known type
- */
-void
 err_permit(const char *op, struct var_t *var)
 {
         err_setstr(RuntimeError,
-                   "%s operation not permitted for type %s",
+                   "%s operator not permitted for type %s",
                    op, typestr(var));
 }
 
-/* like err_permit but for left-right operation */
+/* @op same as with err_permit */
 void
 err_permit2(const char *op, struct var_t *a, struct var_t *b)
 {

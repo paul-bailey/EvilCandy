@@ -55,6 +55,21 @@ float_div(struct var_t *a, struct var_t *b)
 }
 
 static struct var_t *
+float_mod(struct var_t *a, struct var_t *b)
+{
+        double fa, fb;
+        DOUBLE(a, fa);
+        DOUBLE(b, fb);
+
+        if (fb == 0.0) {
+                err_setstr(RuntimeError, "Modulo by zero");
+                return NULL;
+        }
+
+        return floatvar_new(fmod(fa, fb));
+}
+
+static struct var_t *
 float_add(struct var_t *a, struct var_t *b)
 {
         double fa, fb;
@@ -147,6 +162,7 @@ static const struct type_inittbl_t float_methods[] = {
 static const struct operator_methods_t float_primitives = {
         .mul            = float_mul,
         .div            = float_div,
+        .mod            = float_mod,
         .add            = float_add,
         .sub            = float_sub,
         .negate         = float_negate,

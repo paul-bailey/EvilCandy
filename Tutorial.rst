@@ -15,6 +15,9 @@ is still unstable.  As for the documentation below, about a third of it
 is true right now, another third of it was true before but no longer, and
 still another third is yet to be true.
 
+**FIXME** April 2025.  This is beginning to look more like a specification
+than a tutorial.
+
 .. note::
         If you're reading the raw version of this file, you may notice
         it uses the syntax highlighting for JavaScript everywhere.
@@ -67,8 +70,8 @@ Source File Encoding Requirements
 ---------------------------------
 
 Source files must be either ASCII or UTF-8.  Do not include byte order
-marks in the file.  With the exception of quoted Strings_
-and Comments_, all tokens, including whitespace, must be ASCII.
+marks in the file.  With the exception of quoted strings and comments,
+all tokens, including whitespace, must be ASCII.
 
 Hello World
 -----------
@@ -81,9 +84,10 @@ In EvilCandy, a "Hello world" program is the following line:
 
 The semicolon is needed; it marks the end of the expression.
 EvilCandy does not look for a function called ``main``.
-It executes expressions in the order they are written,
+It executes statements in the order they are written,
 starting from the top level of the file.  (A function definition
-is a kind of partial expression, more on that in Expressions_).
+is a kind of partial statement called an "expression", more on that
+in `Expressions and statements`_).
 
 Syntax
 ======
@@ -129,7 +133,8 @@ number to facilitate more helpful error messages.
 Identifier Tokens
 ~~~~~~~~~~~~~~~~~
 
-Identifiers must start with a letter or an underscore ``_``.
+Identifiers are the names of variables.  They must start with a letter
+or an underscore ``_``.
 The remaining characters may be any combination of ASCII letters, numbers,
 and underscores.
 All identifiers in EvilCandy are case-sensitive.
@@ -188,7 +193,8 @@ is not to be escaped.
 
 Backslash escapes that attempt to insert a nulchar, such as ``"\x00"`` or
 ``"\u0000"``, will be rejected.  If you must have a value of zero in the
-middle, choose a Bytes_ data type instead of a string, discussed below.
+middle, choose a bytes data type instead of a string, (see `Bytes
+Literals`_ below).
 
 Unsupported backslash escape sequences will result in a parsing error,
 and the script will not be executed.
@@ -254,10 +260,10 @@ The following two examples are syntactically identical:
 Bytes Literals
 ~~~~~~~~~~~~~~
 
-Bytes literals are for the Bytes_ data type.  This is used for storing
-binary data in a octet sequence whose values are within the range of
-0 to 255.  Unlike with string literals, bytes literals may contain a
-value of zero within.
+Bytes literals express the bytes data type (see `Strings and Bytes`_
+below).  This is used for storing binary data in a octet sequence
+whose values are within the range of 0 to 255.  Unlike with string
+literals, bytes literals may contain a value of zero within.
 
 Bytes literals are expressed with a letter ``b`` before the quotes.
 As with string literals, they may be either single or double quotes.
@@ -266,6 +272,7 @@ non-ASCII or nonprintable values, use backslash escapes.  Do not
 use Unicode escape sequences.  An example bytes literal:
 
 .. code::
+
         b'a\xff\033\000b'
 
 This expresses a byte array whose elements are, in order 97
@@ -324,16 +331,16 @@ The following keywords are reserved for EvilCandy:
 
 **Table 1**
 
-================ ========== ============
+================ =========== =============
 Reserved Keywords
-========================================
-``break``        ``const``* ``do``
-``else``         ``false``  ``for``
-``global``       ``if``     ``let``
-``function``     ``null``   ``private``*
-``return``       ``this``   ``true``
+==========================================
+``break``        ``const`` *  ``do``
+``else``         ``false``   ``for``
+``global``       ``if``      ``let``
+``function``     ``null``    ``private`` *
+``return``       ``this``    ``true``
 ``while``
-================ ========== ============
+================ =========== =============
 
 .. note::
         ``private`` and ``const`` were part of early development, but
@@ -429,7 +436,7 @@ EvilCandy uses the following operators:
 .. [#]
         Currently ``lval OP= rval`` is not only syntactically the same as
         ``lval OP rval``, but it is the same implementation-wise as well,
-        so do not express it this way if the more verbose way is less clear;
+        so do not express it this way if the more verbose way is clearer;
         you will not gain any speed advantage from it.
 
 
@@ -442,21 +449,22 @@ variable, such as ``1``, ``(1+x)/2``, ``my_function_result()``, and so on.
 A *statement* may contain expressions.  Statements take two forms:
 
 :single-line:   *stmt* ``;``
-:block:         ``{`` *stmt* *stmt* ... ``}``
+:block:         ``{`` *stmt* ``;`` *stmt* ``;`` ... ``}``
 
 Blocks may be nested, thus each *stmt* above may be a block instead
-of a single-line statement.  Braces also define a new `Scope`_, see below.
+of a single-line statement, in which case the semicolon is not required.
+Braces also define a new `Scope`_, see below.
 
-Valid single-line expressions are:
+Valid statements are:
 
 **Table 3**
 
 === ======================== =============================================
 1.  Empty declaration        ``let`` *identifier*
-                             ``global`` *identifier*
+... ...                      ``global`` *identifier*
 2.  Assignment               *identifier* ``=`` *expr*
 3.  Declaration + assignment ``let`` *identifier* ``=`` *expr*
-                             ``global`` *identifier* ``=`` *expr*
+... ...                      ``global`` *identifier* ``=`` *expr*
 4.  Eval [#]_                *identifier* ``(`` *args* ... ``)``
 5.  Eval                     ``(`` *expr* ``)``
 6.  Empty expression         *identifier*
@@ -526,8 +534,8 @@ Statements may not begin with an expression, with two exceptions:
 
         do_something();
 
-All other expressions must eithher be on the right-hand side of an
-assignment operator or else as described in table 3, such as within
+All other expressions must either be on the right-hand side of an
+assignment operator or else be as described in table 3, such as within
 the parentheses of function arguments or program-flow statements.
 Note that this restricts the ways to express IIFEs.  Some Javascript
 implementations might allow something like:
@@ -578,7 +586,7 @@ Variables
 Storage Class
 -------------
 
-Abstracting away how it's truly implemented, there are four storage
+Abstracting away how it's truly implemented, there are three storage
 classes for variables:
 
 1. *automatic* variables, those stored in what can be thought of as
@@ -590,9 +598,6 @@ classes for variables:
 3. *global* variables, which are a part of the global symbol table, and
    are available to all functions, even outside of a script's execution
    (if, say, a script is loaded by another).
-
-syntactically the same thing as automatic
-   variables, except that they remain in scope forever.
 
 Declaring variables
 ~~~~~~~~~~~~~~~~~~~
@@ -688,7 +693,7 @@ I'll usually call "type" (a consequence of writing too much C).
 The default class of variable is ``null``.  All variables that
 have been declared without an initializer are set to this.
 The table below lists the main types.  Others exist, but these
-are the once that can be initialized with a literal expression
+are the ones that can be initialized with a literal expression
 or sequence of literal expressions.  Others require at least a
 built-in function to create.
 
@@ -738,7 +743,7 @@ Mutable example (dictionaries, lists):
 
         let a = [0, 1, 2];
         let b = a;
-        b[0] = 'not 0';  // will affect a too
+        b[0] = 'not zero';  // will affect a too
         print(a);
         print(b);
 
@@ -928,21 +933,21 @@ Adding Dictionary Attributes
 
 A dictionary may be assigned an empty associative array (``{}``),
 and have its attributes added later.  Unlike with lists, you do not
-need a special callback:
+need a special "append" callback:
 
 .. code-block:: js
+
         let x = {};
 
-        // will create 'thing' because it does not exist yet
+        // 'thing' does not exist yet; this will create it
         x['thing'] = 1;
 
-        // if key is valid identifier syntax, you may also
-        // use dot notation.
-        x.other_thing = 2;
+        // 'thing' uses valid identifier syntax, so you may also use dot notation.
+        x.thing = 2;
 
 The associative-array notation requires the attribute key to be written
 as either a quoted string (``'thing'`` in the example above),
-or a string variable, like so:
+or as a variable which evaluates to a string, like so:
 
 .. code-block:: js
 
@@ -962,21 +967,43 @@ Getting Dictionary Attributes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A dictionary may be de-referenced using the same kind of notation
-used for setting attributes.
-
-1. The dot notation, so long as a key adheres to the rules of
-   an identifier token:
+used for setting attributes: dot notation and associative-array
+notation.
 
 .. code-block:: js
 
-        let y = x.thing;
+        let a = x.thing;
+        let b = x["thing"];
 
-2. Associative-array notation:
+Unlike with setting a dictionary's entries, you may not read
+an entry unless it already exists.
 
 .. code-block:: js
 
-        let y = x["thing"];
+        let a = { 'a': 1 };
+        let x = a.a;    // vailid
+        let y = a.b;    // invalid! You will receive an error.
 
+To be sure a dictionary has an entry before accessing it,
+use the dictionary's built-in ``.hasattr`` method.
+
+.. code-block:: js
+
+        let y;
+        if (a.hasattr('b')) {
+                y = a.b;
+        } else {
+                // do some error handling
+                ;
+        }
+
+.. note::
+
+        See rant above.  EvilCandy does not distinguish between an object
+        class's built-in attributes and a dictionary's entries.  Compare
+        this to Python's distinct ``hasattr`` and ``in`` keywords.  This
+        is simultaneously one of the best and one of the most annoying
+        things about JavaScript which I have immitated in EvilCandy.)
 
 Is It a Class or a Dictionary?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1027,7 +1054,7 @@ integer and strings return a single-character string.
 .. code-block:: js
 
         let mybytes  = b'hello';
-        let mystring = 'hello;
+        let mystring = 'hello';
         print(mybytes[0]);
         print(mystring[0]);
 
@@ -1113,7 +1140,7 @@ will be either ``true`` or ``false``.
 Comparison between two objects
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-These expressions have two sub-expressions with a relational
+Comparisons have two expressions with a relational
 operator between them.  The relational operators are:
 
 **Table 6**
@@ -1150,13 +1177,14 @@ Testing a single object for truthiness
 If a conditional test contains a single expression,
 
 Boolen expressions ``true`` and ``false`` are actually integer types.
-They are aliases for 1 and 0, respectively.  Be careful when using them
-for comparison. ``null == false`` and ``null == true`` *both* evaluate
-to ``false``.  Condition testing can instead take a single expression,
-to get the result of "does this expression evaluate to 'false'?".
+They are aliases for 1 and 0, respectively.  They were intended for
+convenient assignments and return values, not for comparisons.  The
+expressions ``(null == false)`` and ``(null == true)`` *both* evaluate
+to ``false``!  So instead of ``if (my_varialbe == true)`` you should
+just use ``if (my_variable)``, which means "does this expression evaluate
+to 'true'?".
 
-The following conditions result in a variable
-evaluating to *true*:
+The following conditions result in a variable evaluating to *true*:
 
 :FIXME: This table is out of date 4/2025
 
@@ -1173,12 +1201,6 @@ dictionary   true always
 string       true if not the empty "" string
 function     true always
 ============ ==================================================
-
-``true`` and ``false`` are for convenient assignments and return values,
-not for comparisons.  Never use ``if (myinteger == true)``; you shouldn't
-use ``if (myinteger != false)`` either, if you are not certain
-``myinteger`` is actually an integer.  Instead use just
-``if (myinteger)``.
 
 ``if`` statement
 ----------------
@@ -1278,7 +1300,7 @@ The statement::
 
 is equivalent to Python's
 
-.. code-block Python::
+.. code-block:: python
 
         for NEEDLE in HAYSTACK:
                 STATEMENT
@@ -1288,19 +1310,31 @@ variable which will only be visible within the scope of the for loop.
 This is (currently) the only occasion outside of a function definition
 where an automatic variable may be declared without the ``let`` statement.
 
-*haystack* is an iterable object, and *needle* will be each member
-of *haystack* iterated through the loop, in order.  If *haystack*
-is a dictionary, then *needle* will be each member of its keys,
-iterated in alphabetical order.
+*haystack* is an iterable object, and for each iteration of the loop,
+*needle* will be set to a different member of *haystack*, in order.
+If *haystack* is a dictionary (and therefore not sequential), then
+*needle* will be set to each member of its keys rather than its values.
+Since the insertion order is not preserved for dictionaries, the order of
+iteration will be alphabetical instead.
+
+In EvilCandy, a trivial example may be the following, which prints
+all the keys and values in some dictionary ``mydict``:
+
+.. code-block:: js
+
+        for (key, mydict) {
+                print('key: {0}, value: {1}'.format(key, mydict[key]));
+        }
 
 If you need to iterate over a sequence of numbers, you can use the
-``range`` built-in function to create an object which will iterate for
+``range()`` built-in function to create an object which will iterate for
 you.  This is based on Python's range object.  As with Python, a
 ``range`` object is highly compact; its members are not stored in memory,
 but rather they are retrieved algorithmically upon request; considering
 that only three parameters (start, stop, and step) constitute all the
 necessary computation, this is actually faster than the C-style for loop.
-``range`` take 1 to three arguments, all integers.  The prototype is:
+the built-in ``range()`` function takes 1 to three arguments, all integers.
+The prototype is:
 
 .. code::
 
@@ -1317,17 +1351,17 @@ not be used in algorithmically intense scenarios.
 ``for`` - ``else`` combination
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. warning:: DEPRECATED, will be replaced by a different keyword than 'else'
+.. warning:: DEPRECATED, 'else' will be replaced by a different keyword
 
-   As much as I prefer to limit the number of keywords and re-use 'else'
-   here, it is poorly suited to EvilCandy's JS-like notation, where the
-   sloppy neglect of braces gives rise to misleading indentation.  Consider
-   something like "for...if...else".  If braces were not used, the 'else'
-   is the response to 'if', but the indentation could tell a different
-   story.  Even more misleading is "if...for...else".
+        Even though I dislike keyword bloat, repurposing 'else' here is
+        poorly suited to EvilCandy's JS-like notation, where someone's sloppy
+        neglect of braces can give rise to misleading indentation.  Consider
+        something like "for...if...else".  If braces were not used, the
+        'else' is the response to 'if', no matter how it was indented.
+        Even more misleading is "if...for...else".
 
-   So I will probably replace it with 'otherwise', 'orelse', or just 'orlse',
-   as in 'there better be no bugs in this code, orlse...'
+        So I will probably replace it with 'otherwise', 'orelse', or just
+        'orlse', as in 'there better be no bugs in this code, orlse...'
 
 EvilCandy's ``for`` loop has an optional following ``else`` statement,
 another immitation of Python.  In the following example (cribbed and adapted
@@ -1445,7 +1479,7 @@ only the definition may.  **The order in which arguments are passed
 always matters.**  For that reason, it makes no sense to place the
 optional arguments at the front of the argument list.
 
-The most likelly use-case for a default arg is a work-around for the
+The most likely use-case for a default arg is a work-around for the
 lack of keyword arguments, for example:
 
 .. code-block:: js
@@ -1459,8 +1493,10 @@ lack of keyword arguments, for example:
                 /* ...the function def... */
         };
 
-Here, the code can either use the options.outline, options.fill,
-etc., which are the user's or the defaults if not provided.
+Here, ``size`` and ``height`` are required arguments.  The constructor
+function can also use ``options.outline`` and ``options.fill``,
+which are either from the caller or from the stored defaults if they
+were not provided.
 
 .. warning:: DEPRECATED
 
@@ -1491,8 +1527,8 @@ argument.
 
 The problem is that since the default literal ``{}`` is evaluated
 only once, during the creation of the function, and dictionaries
-are mutable, *all callers* will be mutating the same return value.
-The result is pure chaos.
+are mutable, *all callers* which do not pass an ``x`` argument will
+be mutating the same return value.  The result is pure chaos.
 
 The solution is to do this:
 
@@ -1554,15 +1590,14 @@ For example, given the dictionary:
 then a call to ``mydict()`` is equivalent to calling
 ``mydict.__callable__()``.  The number and type of arguments for
 ``__callable__`` may be entirely user-defined.  Note that this
-is a trivial example, however, and a simplier way is to use closures.
+is a trivial example, however, and a simplier way is to use Closures_.
 
 Lambda Functions
 ----------------
 
-Normal function notation may be used for lambda functions--in a sense,
-they're all lambas anyway--but if you want to be cute and brief, special
-notation exists to make small lambdas even smaller, most easily shown by
-example:
+Normal function notation may be used for lambda functions, but if you
+want to be cute and brief, special notation exists to make small lambdas
+even smaller, most easily shown by example:
 
 .. code-block:: js
 

@@ -2,147 +2,125 @@
 
 #define V2I(v)  ((struct intvar_t *)v)
 
-static inline long long
-var2int(struct var_t *v)
-{
-        return isvar_int(v) ? V2I(v)->i : floatvar_tod(v);
-}
+#define BUGCHECK_TYPES(A, B) \
+                bug_on(!isvar_int(a) || !isvar_int(b))
 
 static struct var_t *
 int_mul(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("*");
-                return NULL;
-        }
-        return intvar_new(V2I(a)->i * var2int(b));
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        return intvar_new(la * lb);
 }
 
 static struct var_t *
 int_div(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("/");
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        if (lb == 0LL) {
+                err_setstr(RuntimeError, "Divide by zero");
                 return NULL;
         }
-        long long i = var2int(b);
-        if (i == 0LL) /* No! */
-                return intvar_new(0LL);
-        else
-                return intvar_new(V2I(a)->i / i);
+        return intvar_new(la / lb);
 }
 
 static struct var_t *
 int_mod(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("%");
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        if (lb == 0LL) {
+                err_setstr(RuntimeError, "Modulo zero");
                 return NULL;
         }
-        long long i = var2int(b);
-        if (i == 0LL)
-                return intvar_new(0LL);
-        else
-                return intvar_new(V2I(a)->i % i);
+        return intvar_new(la % lb);
 }
 
 static struct var_t *
 int_add(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("+");
-                return NULL;
-        }
-        return intvar_new(V2I(a)->i + var2int(b));
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        return intvar_new(la + lb);
 }
 
 static struct var_t *
 int_sub(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("-");
-                return NULL;
-        }
-        return intvar_new(V2I(a)->i - var2int(b));
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        return intvar_new(la - lb);
 }
 
 static int
 int_cmp(struct var_t *a, struct var_t *b)
 {
-        bug_on(!isnumvar(a) || !isnumvar(b));
-
-        if (isvar_float(b)) {
-                double fa = (double)intvar_toll(a);
-                double fb = floatvar_tod(b);
-                return OP_CMP(fa, fb);
-        } else {
-                long long ia = intvar_toll(a);
-                long long ib = intvar_toll(b);
-                return OP_CMP(ia, ib);
-        }
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        return OP_CMP(la, lb);
 }
 
 static struct var_t *
 int_lshift(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("<<");
-                return NULL;
-        }
-        long long shift = var2int(b);
-        if (shift >= 64 || shift <= 0)
-                return intvar_new(0LL);
-        else
-                return intvar_new(V2I(a)->i << shift);
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        return intvar_new(la << lb);
 }
 
 static struct var_t *
 int_rshift(struct var_t *a, struct var_t *b)
 {
-        /*
-         * XXX REVISIT: Policy decision, is this logical shift,
-         * or arithmetic shift?
-         */
-        if (!isnumvar(b)) {
-                err_mismatch(">>");
-                return NULL;
-        }
-        long long shift = var2int(b);
-        unsigned long long i = V2I(a)->i;
-        if (shift >= 64 || shift <= 0)
-                return intvar_new(0LL);
-        else
-                return intvar_new(i >> shift);
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        return intvar_new(la >> lb);
 }
 
 static struct var_t *
 int_bit_and(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("&");
-                return NULL;
-        }
-        return intvar_new(V2I(a)->i & var2int(b));
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        return intvar_new(la & lb);
 }
 
 static struct var_t *
 int_bit_or(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("|");
-                return NULL;
-        }
-        return intvar_new(V2I(a)->i | var2int(b));
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        return intvar_new(la | lb);
 }
 
 static struct var_t *
 int_xor(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("^");
-                return NULL;
-        }
-        return intvar_new(V2I(a)->i ^ var2int(b));
+        long long la, lb;
+        BUGCHECK_TYPES(a, b);
+        la = intvar_toll(a);
+        lb = intvar_toll(b);
+        return intvar_new(la ^ lb);
 }
 
 static bool

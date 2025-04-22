@@ -3,6 +3,19 @@
 
 #define V2F(v)  ((struct floatvar_t *)(v))
 
+/*
+ * 'bug' because code in var.c ought to have trapped
+ * non-number before calling us.
+ */
+#define DOUBLE(v, d) do {                       \
+        if (isvar_float(v))                     \
+                d = floatvar_tod(v);            \
+        else if (isvar_int(v))                  \
+                d = (double)intvar_toll(v);     \
+        else                                    \
+                bug();                          \
+} while (0)
+
 static inline double
 var2float(struct var_t *v)
 {
@@ -20,57 +33,51 @@ floatvar_new(double v)
 static struct var_t *
 float_mul(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("*");
-                return NULL;
-        }
-        return floatvar_new(V2F(a)->f * var2float(b));
+        double fa, fb;
+        DOUBLE(a, fa);
+        DOUBLE(b, fb);
+        return floatvar_new(fa * fb);
 }
 
 static struct var_t *
 float_div(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("/");
+        double fa, fb;
+        DOUBLE(a, fa);
+        DOUBLE(b, fb);
+
+        if (fb == 0.0) {
+                err_setstr(RuntimeError, "Divide by zero");
                 return NULL;
         }
-        double f = var2float(b);
-        /* don't accidentally divide by zero */
-        if (fpclassify(f) != FP_NORMAL)
-                return floatvar_new(0.);
-        else
-                return floatvar_new(V2F(a)->f / f);
+
+        return floatvar_new(fa / fb);
 }
 
 static struct var_t *
 float_add(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("+");
-                return NULL;
-        }
-        return floatvar_new(V2F(a)->f + var2float(b));
+        double fa, fb;
+        DOUBLE(a, fa);
+        DOUBLE(b, fb);
+        return floatvar_new(fa + fb);
 }
 
 static struct var_t *
 float_sub(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b)) {
-                err_mismatch("-");
-                return NULL;
-        }
-        return floatvar_new(V2F(a)->f - var2float(b));
+        double fa, fb;
+        DOUBLE(a, fa);
+        DOUBLE(b, fb);
+        return floatvar_new(fa - fb);
 }
 
 static int
 float_cmp(struct var_t *a, struct var_t *b)
 {
         double fa, fb;
-
-        bug_on(!isvar_float(a) || !isnumvar(b));
-
-        fa = floatvar_tod(a);
-        fb = isvar_float(b) ? (double)intvar_toll(b) : floatvar_tod(b);
+        DOUBLE(a, fa);
+        DOUBLE(b, fb);
         return OP_CMP(fa, fb);
 }
 

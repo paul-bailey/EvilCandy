@@ -45,6 +45,12 @@ typedef struct var_t *(*unary_operator_t)(struct var_t *);
 
 /*
  * Per-type callbacks for mathematical operators, like + or -
+ *
+ * For binary operations, FloatType code expects either float or integer
+ * either a or b.  IntType code expects only integers for both a and b.
+ * Remaining types expect their own type for a, and any type for b.
+ *
+ * For unary operations, type need not be checked.
  */
 struct operator_methods_t {
         binary_operator_t mul;    /* new = a * b */

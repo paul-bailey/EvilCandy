@@ -283,7 +283,7 @@ Numerical Tokens
 ~~~~~~~~~~~~~~~~
 
 EvilCandy interprets two kinds of numbers--integer and float.
-See Integers_ and Floats_ how these are stored internally.
+See `Integers and Floats`_ how these are stored internally.
 Complex numbers may become supported in the future.
 
 Literal expressions of these numbers follow the convention used by C,
@@ -764,29 +764,25 @@ be an integer and later assign the value ``"some string"`` to it, then it
 will now become a string.  This does not require you to re-declare the
 variable; doing so will result in an error if it is in scope.
 
-.. tip::
 
-        If you need to cast an int to a float, for example in some math
-        function which may take integers and floats alike as arugments,
-        then, given a variable named ``x``, use the statement ``x = 1.0 * x;``.
-        Vice-versa when casting to an integer.  Numerical operations are
-        valid between integers and floats, and a binary-operator expression
-        eg. A times B, will evaluate to the type of the left-hand number.
-        This is faster than if EvilCandy used built-in functions like
-        ``float()`` and ``integer()``.
+Integers and Floats
+-------------------
 
-Integers
---------
-
-The literal expression of integers are discussed in `Numerical Tokens`_.
 All integers are stored as *signed* 64-bit values.
-
-Floats
-------
-
-The literal expression of floats are discussed in `Numerical Tokens`_.
 All floats are stored as IEEE-754 double-precision floating point
 numbers.
+The literal expression of integers and floats are discussed
+in `Numerical Tokens`_.
+
+When both integers and floats are used in calculations, the
+result will always be float.
+
+.. code::
+
+        print(2 / 3);
+        0
+        print(2.0 / 3);
+        0.66666666666666663
 
 Lists and Tuples
 ----------------

@@ -433,13 +433,10 @@ typestr(struct var_t *v)
  * @status:  To be set to RES_ERROR if cmpz not permitted,
  *           RES_OK otherwise.  This may not be NULL.
  *
- * Return: if @v is...
- *      empty:          true always
- *      integer:        true if zero
- *      float:          true if 0.0 exactly
- *      string:         true if null or even if "", false otherwise
- *      object:         false always, even if empty
- *      anything else:  false or error
+ * Return: true if @v is some kind of 'false', which depends on
+ *         type.  Generally, return true if...
+ *               @v is numerical and its value is zero.
+ *               @v is sequential and its length is zero.
  */
 bool
 var_cmpz(struct var_t *v, enum result_t *status)

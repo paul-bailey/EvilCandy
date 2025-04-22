@@ -140,6 +140,8 @@ extern void err_argtype(const char *what);
 extern void err_locked(void);
 extern void err_mismatch(const char *op);
 extern void err_permit(const char *op, struct var_t *var);
+extern void err_permit2(const char *op,
+                        struct var_t *a, struct var_t *b);
 extern void err_errno(const char *msg, ...);
 
 /* disassemble.c */

@@ -191,13 +191,25 @@ err_mismatch(const char *op)
                    "Invalid/mismatched type for '%s' operator", op);
 }
 
-/* *op: same as in err_mismatch */
+/*
+ * @op: same as in err_mismatch
+ * Unary operation not allow, @var is known type
+ */
 void
 err_permit(const char *op, struct var_t *var)
 {
         err_setstr(RuntimeError,
                    "%s operation not permitted for type %s",
                    op, typestr(var));
+}
+
+/* like err_permit but for left-right operation */
+void
+err_permit2(const char *op, struct var_t *a, struct var_t *b)
+{
+        err_setstr(RuntimeError,
+                   "%s operator not permitted between %s and %s",
+                   op, typestr(a), typestr(b));
 }
 
 void

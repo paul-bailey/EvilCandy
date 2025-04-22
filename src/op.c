@@ -35,7 +35,7 @@ qop_##Field (struct var_t *a, struct var_t *b)          \
         const struct operator_methods_t *opm;           \
         if ((opm = get_binop_method(a, b)) == NULL      \
             || opm->Field == NULL) {                    \
-                err_permit(What, a);                    \
+                err_permit2(What, a, b);                \
                 return NULL;                            \
         }                                               \
         bug_on(!opm->Field);                            \
@@ -69,7 +69,7 @@ qop_add(struct var_t *a, struct var_t *b)
         /* else, not '+'-ible */
 
 cant:
-        err_permit("+", a);
+        err_permit2("+", a, b);
         return NULL;
 }
 

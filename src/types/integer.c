@@ -69,10 +69,17 @@ int_sub(struct var_t *a, struct var_t *b)
 static int
 int_cmp(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b))
-                return -1;
-        long long i = var2int(b);
-        return OP_CMP(V2I(a)->i, i);
+        bug_on(!isnumvar(a) || !isnumvar(b));
+
+        if (isvar_float(b)) {
+                double fa = (double)intvar_toll(a);
+                double fb = floatvar_tod(b);
+                return OP_CMP(fa, fb);
+        } else {
+                long long ia = intvar_toll(a);
+                long long ib = intvar_toll(b);
+                return OP_CMP(ia, ib);
+        }
 }
 
 static struct var_t *

@@ -1156,17 +1156,10 @@ Operator Meaning
 >        Greater than
 ======== ========================
 
-If the left and right values are **different types** then the result
-will be a string comparison of their type names.
-
-.. note::
-
-        This is even true for floats and integers.  This is considered
-        a bug, since 2.0 (a float) is definitely greater 1 (an integer),
-        but EvilCandy thinks otherwise.  It's on the to-do list to fix.
-
-EvilCandy does not support the ``===`` operator, which may be familiar
-to JavaScript programmers.
+If the two values are an integer and a float (in either order), then
+the integer's floating point conversion will be used for the comparison.
+In all other occasions where the left and right values are **different
+types**, the result will be a string comparison of their type names.
 
 Do not compare one object to ``true`` or ``false`` directly.  Instead,
 use the single-object method:
@@ -1180,13 +1173,13 @@ Boolen expressions ``true`` and ``false`` are actually integer types.
 They are aliases for 1 and 0, respectively.  They were intended for
 convenient assignments and return values, not for comparisons.  The
 expressions ``(null == false)`` and ``(null == true)`` *both* evaluate
-to ``false``!  So instead of ``if (my_varialbe == true)`` you should
+to ``false``!  So instead of ``if (my_variable == true)`` you should
 just use ``if (my_variable)``, which means "does this expression evaluate
 to 'true'?".
 
 The following conditions result in a variable evaluating to *true*:
 
-:FIXME: This table is out of date 4/2025
+:FIXME: This table is what it **should** be, I need to update code (see to-do.txt)
 
 **Table 7**
 
@@ -1195,9 +1188,11 @@ Type         Condition
 ============ ==================================================
 empty (null) false always
 integer      true if != 0
-float        true if subnormal or 0.0
-list         true always
-dictionary   true always
+float        true if not subnormal or != 0.0
+list         true if its size is greater than zero
+bytes        true if its size is greater than zero
+tuple        true if its size is greater than zero
+dictionary   true if it has at least one entry
 string       true if not the empty "" string
 function     true always
 ============ ==================================================

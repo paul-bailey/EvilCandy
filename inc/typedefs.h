@@ -117,7 +117,11 @@ struct type_inittbl_t {
  *              in a way that (for most data types) can be re-interpreted
  *              back.  Exceptions are things like functions, where angle
  *              brackets bookend the expression.
- * @cmp:        Returns -1 if a<b, 0 if a==b, >0 if a>b
+ * @cmp:        Returns -1 if a<b, 0 if a==b, >0 if a>b.  For non-
+ *              numerical types, a and b are already checked to be the
+ *              correct type.  For numbers, a is the correct type, b is
+ *              a number which may be either int or float; @cmp will have
+ *              to check and make a conversion.
  * @cmpz:       Returns 1 if some kind of zero.
  * reset:       May be NULL.  Destructor for a variable's private data.
  */

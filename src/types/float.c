@@ -65,10 +65,13 @@ float_sub(struct var_t *a, struct var_t *b)
 static int
 float_cmp(struct var_t *a, struct var_t *b)
 {
-        if (!isnumvar(b))
-                return -1;
-        double f = var2float(b);
-        return OP_CMP(V2F(a)->f, f);
+        double fa, fb;
+
+        bug_on(!isvar_float(a) || !isnumvar(b));
+
+        fa = floatvar_tod(a);
+        fb = isvar_float(b) ? (double)intvar_toll(b) : floatvar_tod(b);
+        return OP_CMP(fa, fb);
 }
 
 static bool

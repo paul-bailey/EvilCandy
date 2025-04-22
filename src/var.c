@@ -387,8 +387,10 @@ var_compare(struct var_t *a, struct var_t *b)
                 return -1;
         if (b == NULL)
                 return 1;
-        if (a->v_type != b->v_type)
+        if (a->v_type != b->v_type
+            && !(isnumvar(a) && isnumvar(b))) {
                 return strcmp(typestr(a), typestr(b));
+        }
         if (!a->v_type->cmp)
                 return a < b ? -1 : 1;
         return a->v_type->cmp(a, b);

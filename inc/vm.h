@@ -11,6 +11,27 @@ struct block_t {
 
 /**
  * struct vmframe_t - VM's per-function frame.
+ * @owner:      'this', as user code sees it
+ * @func:       Handle to the function being executed
+ * @stackptr:   Current stack position
+ * @stack:      Base of the frame stack, which actually points into a
+ *              shared global stack.
+ * @ex:         Executable code being run by this frame
+ * @ap:         Array offset from @stack where arguments end.  This is
+ *              the start of the evaluation stack, where local variables
+ *              are stored and temporary variables are manipulated for
+ *              evalutation.
+ * @n_blocks:   Number of blocks currently being used by this frame
+ * @blocks:     Blocks used by this frame.  One is taken (and @n_blocks
+ *              increases by one) every time we descend into a block-type
+ *              program-flow statement
+ * @ppii:       Pointer to the next instruction to execute.
+ * @clo:        Closures.  These are 'borrowed' from @func, so we do not
+ *              consume or any references to them when the frame is
+ *              deconstructed
+ * @alloc_list: Used for some memory-management bookkeepping.  See
+ *              comments above vmframe_alloc/vmframe_free in vm.c
+ * @freed:      Sanity checker, used only on debug builds.
  *
  * Its fields should only be used by vm.c and (for now) types/function.c
  */

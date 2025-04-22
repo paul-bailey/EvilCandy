@@ -112,6 +112,12 @@ xptr_add_rodata(struct var_t *v, struct var_t *new_data)
 
         bug_on(!isvar_xptr(v));
         for (i = 0; i < x->n_rodata; i++) {
+                /*
+                 * careful, var_compare will think 2.0 == 2,
+                 * but we want to preserve number types in rodata.
+                 */
+                if (new_data->v_type != v->v_type)
+                        continue;
                 if (var_compare(new_data, x->rodata[i]) == 0) {
                         VAR_DECR_REF(new_data);
                         break;

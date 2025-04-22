@@ -3,6 +3,11 @@ Bugs
 
 * BUGs 4/2025:
 
+        * typeof() causes a crash when it receives no arguments.
+        * "1000.0 < 1" is regarded as true, because they are different
+          types, therefore the result is 'float' < 'integer', because
+          'f' < 'i'.  I need to make an exception for numers.
+        * All user-visible data types need a .cpmz method.
         * closures seem to only work in the simplest cases.  They do not
           work when referenced from a .foreach callback, and they do not
           seem to work when the declaration is at the file scope.  Strange

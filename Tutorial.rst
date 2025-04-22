@@ -3,7 +3,7 @@ EvilCandy tutorial
 ==================
 
 :Author: Paul Bailey
-:Date: November 2023
+:Date: April 2025
 
 .. sectnum::
 
@@ -628,7 +628,7 @@ the functions' instantiations.
 This merits special attention, because it is fundamentally different
 from both JavaScript and Python.  **File-scope automatic variables
 are not "global" to the functions within that file**.  Instead they
-become closures, just as a parent function's local variables become
+become Closures_, just as a parent function's local variables become
 closures to a nested function.  Given the following code:
 
 .. code-block:: js
@@ -692,7 +692,7 @@ I'll usually call "type" (a consequence of writing too much C).
 
 The default class of variable is ``null``.  All variables that
 have been declared without an initializer are set to this.
-The table below lists the main types.  Others exist, but these
+The table below lists the other main types.  More exist, but these
 are the ones that can be initialized with a literal expression
 or sequence of literal expressions.  Others require at least a
 built-in function to create.
@@ -767,8 +767,8 @@ variable; doing so will result in an error if it is in scope.
 .. tip::
 
         If you need to cast an int to a float, for example in some math
-        function which may take integers and floats alike, then given a
-        variable named ``x`` use the statement ``x = 1.0 * x;``.
+        function which may take integers and floats alike as arugments,
+        then, given a variable named ``x``, use the statement ``x = 1.0 * x;``.
         Vice-versa when casting to an integer.  Numerical operations are
         valid between integers and floats, and a binary-operator expression
         eg. A times B, will evaluate to the type of the left-hand number.

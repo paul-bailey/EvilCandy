@@ -15,13 +15,96 @@ About
 **EvilCandy** is a(nother) object-oriented interpreted programming
 language and interpreter.  The language itself is nothing original;
 I cherry-picked some of my favorite syntactic features of Python
-and JavaScript, but it looks mostly like JavaScript.  The real purpose
-of the project is in the challenge of writing an interpreter and then
-making it fast.
+and JavaScript, and put them together in the same language.  That
+may sound strange, like some Frankenstein's monster of a language,
+but I took pains to adapt features that work naturally together.
+I'd say that EvilCandy is JavaScript-like in its syntax and overall
+appearance, as well as its slightly lambda-ish nature, but it is
+Python-like in many of its basic data types, built-in functions, and
+underlying machinery.  The real purpose of the project is in the
+challenge of writing an interpreter and virtual machine, not
+inventing a paradigm-changing language.
 
-So in that sense (see the all-caps part of COPYING), **EvilCandy**
-is an *exercise*, not a shippable release candidate, not even a
-Pre-alpha, really. (see Status_ below).
+But despite being influenced by those languages, it is not either of
+them, nor is it an off-brand version of them, like Octave to MATLAB,
+or a lightweight 'embedded' version, like Cash to jQuery.  EvilCandy
+immitates JavaScript and Python only as a starting point, but its
+continuing development makes no effort to conform to them in any way.
+In many ways, it diverges greatly.
+
+Status
+======
+
+**UNSTABLE!!**  See disclaimer in COPYING.  As of April 2025, the
+language and its implementation are under rapid development.  I spend
+less time polishing and improving code, and more time either completely
+refactoring the early-stage just-get-it-working kind of code or chasing
+down extremely crashy bugs.  I am even still figuring out what I want for
+certain language features, although it's getting to be less "how do I do
+that" and more just philosophical conundrums like "do I really want that
+feature?"
+
+The version is currently 0.0.1, and I will not bother keeping that
+up-to-date until the source tree has stabilized to a point where versions
+are meaningful.
+
+As of April 2025, the following can (roughly) be said about EvilCandy:
+
+* It "works," but it still has elementary bugs that I keep logging
+  and tracking down in to-do.txt.  (Just having a to-do.txt instead
+  of bug tracking software should give you an idea how early-development
+  this project is.)
+
+* It parses an input, compiles it into binary code, then executes it
+  in a virtual stack machine.  When debug hooks are turned off (which
+  in truth it's not ready for), its speed is comparable to Python, at
+  least on my computer.
+
+* It can run in interactive mode, although it's a bit quirky; I haven't
+  figured out a good solution to statements where the parser needs to
+  "peek" at the next token, so if you type an "if" statement and do not
+  intend to add and "else" statement, you need to type a superfluous
+  semicolon to let the parser know to execute it...that kind of quirky.
+
+* It can run in disassembly mode, where instead of executing code,
+  it will disassemble its compiled input and print it.  Probably not
+  useful to anybody but me, as a debugging tool.
+
+* It can load and execute scripts, and have those scripts load and
+  execute scripts.  However, I am not settled on its method for doing
+  so.
+
+* It has the skeleton of a math and IO library, but these are mainly
+  as they were when I threw them together just to see if something works.
+
+* I have implemented most of the basic language features, but I have
+  not implemented try/catch, continue, and a couple others which I have
+  put off... I want to rewrite the parser before I finish that stuff.
+  Others I have not yet decided what I want.  These include things
+  like functions' keyword arguments vs. default arguments, policy
+  regarding 'else' statement in a 'for' loop (I really want it, but
+  it would be a bad idea to call it 'else')... that kind of stuff.
+
+* It is single-threaded, and it will probably remain that way at least
+  for a while.
+
+* It is loaded with thrown-together code that needs refactoring and
+  make-professional-ing.  There is not a lot of portability checking,
+  for example, nor is there much rigorous boundary checking for things
+  like values that are too big for the width of the variable that will
+  store them.
+
+* I have thus far only ran this on Darwin, and compiled it with...
+  well I *think* it's gcc, but I think that clang and xcode like to
+  lie and call themselves gcc and gmake, I'm not really sure.  But
+  I have not yet done much to make it portable besides a recent
+  migration out of my hand-typed Makefile to an automake-generated
+  Makefile.
+
+So no, EvilCandy is not a ship-able release candidate.
+
+Some FAQ
+========
 
 Why Is It Called EvilCandy?
 ---------------------------
@@ -44,7 +127,7 @@ But here are some major differences...
   to be accessed by a "name," otherwise they will go out of scope and
   disappear.  (Like with JS, this is useful for IIFEs.)
 
-* There is no ``var`` keyword.  There is only ``let``.
+* There is no ``var`` keyword.  There are only ``let`` and ``global``.
 
 * So far, there is no ``try`` and ``catch``.  However, I intend to add
   this in the future.
@@ -86,7 +169,7 @@ But here are some major differences...
     no braces and misleading tabs to confuse a programmer where the
     program flow is actually going.)
 
-  * There's an alternative way to declare closures.
+  * Closures can be more explicitly declared
 
   * EvilCandy (currently) has nothing to do with the Document Object Model.
 
@@ -119,74 +202,33 @@ about a third as fast.
 
 Still, this is not embarrassing, and I'm quite proud of how fast it runs.
 
-Status
-======
+How Do I Compile?
+-----------------
 
-As of April, 2025...
+To compile the source tree as checked out of version control, you
+need to reconfigure with
 
-This project is still under initial development and neither the syntax
-nor the implementation is at all stable.
+.. code::
 
-* This project technically "works," but it's buggy and crashy as all hell.
-  **For the love of god do not try to pitch this as an actual interpreter
-  worth anyone's salt!**  I still get the occasional segfault when I hard
-  test it with code.
+        autoreconf -i
+        ./configure
 
-* EvilCandy is still single-threaded.
+Then you type ``make`` in the command line.
 
-* The current implementation of closures is hacky and unsatisfying.
-
-* This does not do the most rigorous boundary checking for things like
-  size-field boundary limits (if you're writing a token that's longer
-  than 2**32 characters, you're a madman).
-
-* I have thus far only ran this on Darwin ie. macOS, and compiled it with
-  clang (pretending to be gcc).  I have not yet had the chance to test if
-  there are any portability issues with GNU/Linux.  (I don't know what a
-  Windows is, I think that's what they use in Shelbyville.)
-
-* The library is practically non-existant at the moment, except for a
-  few builtins that exists mainly to test that access to a builtin
-  library even works.
-
-I've started to-do.txt to add to my development wishlist.
+Be aware that I have only ever compiled this on Darwin.  I have tried to
+avoid system-specific functionality (uuid code is a little bit of a snag),
+and I occasionally compile with ``-std=c17 -pedantic-errors``.  I'm trying
+where possible to avoid gcc-specific extensions, but since clang seems to
+call itself gcc, it's hard to tell if I'm succeeding.  Computers built in
+Obscuresylvania or the 1970s probably will not execute this program
+correctly.  It's hard to not accidentally make assumptions about a system
+when you're the only developer on a project.  So I make no promise that it
+will compile on your system, especially if it is a Windows system.
 
 The Language
 ============
 
 See Tutorial.rst
-
-Portability
-===========
-
-*As of 12/2023:*
-I currently have been developing this on one computer, an iMac Pro with
-Intel and macOS 12.5.1.  Nothing else.  When the code is more stable I
-intend to port it to GNU/Linux.  I'm trying where possible to avoid
-gcc-specific extensions, but since clang seems to call itself gcc, it's
-hard to tell if I'm succeeding.
-
-Computers built in Obscuresylvania or the 1970s probably will not execute
-this program correctly. I make assumptions like 'ints are at least 32 bits'
-and 'char is 8 bits' and 'floats and doubles match IEEE-754 singles and
-doubles' and 'unions between long long and double will work for packing'...
-
-I don't do the Windows thing and I never heard of a wchar_t.
-
-Some Rules
-==========
-
-Since this is a challenge, not a commercial product, here are some
-rules to keep it interesting:
-
-1. Implement it by hand--no yacc or bison.
-2. In fact, no code generation at all unless I write the generator
-   myself and it actually clarifies what's going on rather than
-   obscures it.  Or at least if it reduces human error.
-2. Keep it as simple and clean as possible.  No cute preprocessor
-   tricks or outsmart-the-compiler optimizations that try to take
-   advantage of cosmic paradoxes or glitches in the Matrix or such.
-   Keep the C code looking like C.
 
 Licence
 =======

@@ -35,11 +35,15 @@ Must Do
 Library/Language Features
 -------------------------
 
+* Add try/catch
+
 * Support the continue statement
+
+* Support array slicing
 
 * Add sets
 
-* Add try/catch
+* Add union operator for dicts
 
 * Support soft keywords
 

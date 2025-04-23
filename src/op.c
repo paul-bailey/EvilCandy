@@ -99,12 +99,10 @@ qop_mul(struct var_t *a, struct var_t *b)
         /*
          * XXX: should we sanity check huge multipliers, or let
          * user wait for an OOM crash?
-         *
-         * FIXME: What do we return if i == 0?
          */
         adder = b->v_type->sqm->cat;
         i = intvar_toll(a);
-        if (i == 0)
+        if (i <= 0)
                 return adder(b, NULL);
 
         VAR_INCR_REF(b);

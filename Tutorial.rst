@@ -643,13 +643,15 @@ closures to a nested function.  Given the following code:
         };
         myfunc();
         myfunc();
-        print('a={0}, b={1}'.format(a, b));
+        print('a:', a)
+        print('b:', b));
 
 The output will be:
 
 .. code::
 
-        a=12, b=10
+        a: 12
+        b: 10
 
 This is because ``b`` inside of ``myfunc`` is a *closure*, a variable
 which was instantiated with a value of 10 when ``myfunc`` was created.
@@ -1316,7 +1318,8 @@ all the keys and values in some dictionary ``mydict``:
 .. code-block:: js
 
         for (key, mydict) {
-                print('key: {0}, value: {1}'.format(key, mydict[key]));
+                print('key:', key);
+                print('val:' mydict[key]);
         }
 
 If you need to iterate over a sequence of numbers, you can use the
@@ -1369,7 +1372,7 @@ straight from an algorithm in the python.org `documentation
                         if ((n % x) == 0)
                                 break;
                 } else {
-                        print("{}".format(n));
+                        print(n);
                 }
         }
 

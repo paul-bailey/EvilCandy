@@ -1504,8 +1504,8 @@ only the definition may.  **The order in which arguments are passed
 always matters.**  For that reason, it makes no sense to place the
 optional arguments at the front of the argument list.
 
-The most likely use-case for a default arg is a work-around for the
-lack of keyword arguments, for example:
+The most likely use-case for this is to have only one default arg,
+a dictionary which can substitute for keyword arguments, for example:
 
 .. code-block:: js
 

@@ -1744,8 +1744,6 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags, int skip)
         add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
 
         for (;;) {
-                int exp;
-
                 /* peek for end of compound statement */
                 as_lex(a);
                 if (a->oc->t == OC_RBRACE)

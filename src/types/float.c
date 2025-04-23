@@ -12,15 +12,11 @@
                 d = floatvar_tod(v);            \
         else if (isvar_int(v))                  \
                 d = (double)intvar_toll(v);     \
-        else                                    \
+        else {                                  \
+                d = 0.0; /* happy, compiler? */ \
                 bug();                          \
+        }                                       \
 } while (0)
-
-static inline double
-var2float(struct var_t *v)
-{
-        return isvar_int(v) ? intvar_toll(v) : V2F(v)->f;
-}
 
 struct var_t *
 floatvar_new(double v)

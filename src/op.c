@@ -42,14 +42,14 @@ qop_##Field (struct var_t *a, struct var_t *b)          \
         return opm->Field(a, b);                        \
 }
 
-BINARY_OP_BASIC_FUNC(pow, "**");
-BINARY_OP_BASIC_FUNC(div, "/");
-BINARY_OP_BASIC_FUNC(mod, "%");
-BINARY_OP_BASIC_FUNC(sub, "-");
-BINARY_OP_BASIC_FUNC(bit_and, "&");
-BINARY_OP_BASIC_FUNC(xor, "^");
-BINARY_OP_BASIC_FUNC(lshift, "<<");
-BINARY_OP_BASIC_FUNC(rshift, ">>");
+BINARY_OP_BASIC_FUNC(pow, "**")
+BINARY_OP_BASIC_FUNC(div, "/")
+BINARY_OP_BASIC_FUNC(mod, "%")
+BINARY_OP_BASIC_FUNC(sub, "-")
+BINARY_OP_BASIC_FUNC(bit_and, "&")
+BINARY_OP_BASIC_FUNC(xor, "^")
+BINARY_OP_BASIC_FUNC(lshift, "<<")
+BINARY_OP_BASIC_FUNC(rshift, ">>")
 
 
 struct var_t *

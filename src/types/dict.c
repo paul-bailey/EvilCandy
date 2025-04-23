@@ -598,9 +598,7 @@ dict_copyto(struct var_t *to, struct var_t *from)
 static struct var_t *
 dict_union(struct var_t *a, struct var_t *b)
 {
-        unsigned int i;
         struct var_t *c = dictvar_new();
-        struct dictvar_t *d;
 
         if (dict_copyto(c, a) != RES_OK)
                 goto err;

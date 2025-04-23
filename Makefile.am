@@ -41,7 +41,10 @@ evilcandy_SOURCES = \
         src/types/xptr.c
 
 evilcandydir=${datadir}/evilcandy
-evilcandy_CPPFLAGS=-I$(top_srcdir)/inc -DRCDATADIR=\"$(evilcandydir)\"
+evilcandy_CPPFLAGS=\
+ -I$(top_srcdir)/inc \
+ -DRCDATADIR=\"$(evilcandydir)\" \
+ -Wall
 
 evilcandy_DATA= \
         lib/io.evc \

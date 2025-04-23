@@ -343,26 +343,6 @@ logical_and(struct var_t *a, struct var_t *b)
         return intvar_new((int)res);
 }
 
-static struct var_t *
-rshift(struct var_t *a, struct var_t *b)
-{
-        if (!a->v_type->opm || !a->v_type->opm->rshift) {
-                err_permit(">>", a);
-                return NULL;
-        }
-        return a->v_type->opm->rshift(a, b);
-}
-
-static struct var_t *
-lshift(struct var_t *a, struct var_t *b)
-{
-        if (!a->v_type->opm || !a->v_type->opm->lshift) {
-                err_permit("<<", a);
-                return NULL;
-        }
-        return a->v_type->opm->lshift(a, b);
-}
-
 static int
 do_nop(struct vmframe_t *fr, instruction_t ii)
 {
@@ -868,13 +848,13 @@ do_sub(struct vmframe_t *fr, instruction_t ii)
 static int
 do_lshift(struct vmframe_t *fr, instruction_t ii)
 {
-        return binary_op_common(fr, lshift);
+        return binary_op_common(fr, qop_lshift);
 }
 
 static int
 do_rshift(struct vmframe_t *fr, instruction_t ii)
 {
-        return binary_op_common(fr, rshift);
+        return binary_op_common(fr, qop_rshift);
 }
 
 static int

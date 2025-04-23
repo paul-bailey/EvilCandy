@@ -74,6 +74,8 @@ BINARY_OP_BASIC_FUNC(sub, "-");
 BINARY_OP_BASIC_FUNC(bit_and, "&");
 BINARY_OP_BASIC_FUNC(bit_or, "|");
 BINARY_OP_BASIC_FUNC(xor, "^");
+BINARY_OP_BASIC_FUNC(lshift, "<<");
+BINARY_OP_BASIC_FUNC(rshift, ">>");
 
 /* ~v */
 struct var_t *

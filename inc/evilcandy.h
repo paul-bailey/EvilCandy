@@ -170,6 +170,8 @@ extern struct var_t *qop_div(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_mod(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_add(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_sub(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_lshift(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_rshift(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_bit_and(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_bit_or(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_xor(struct var_t *a, struct var_t *b);

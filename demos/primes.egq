@@ -7,7 +7,7 @@ let primes_to = function(bound) {
                         if ((n % x) == 0)
                                 break;
                 } else {
-                        print("{}".format(n));
+                        print(n);
                 }
         }
 };

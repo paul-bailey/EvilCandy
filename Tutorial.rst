@@ -347,7 +347,10 @@ Reserved Keywords
         list of reserved keywords.
 
 All keywords in EvilCandy are case-sensitive.  None are "soft"; you
-cannot, for example, declare a variable named ``function``.
+cannot, for example, declare a variable named ``function``.  (Built-in
+functions might be thought of as "soft keywords", however, since they
+exist as global variables; local variables take precedence over global
+variables.)
 
 Operators
 ~~~~~~~~~
@@ -657,19 +660,18 @@ This is because ``b`` inside of ``myfunc`` is a *closure*, a variable
 which was instantiated with a value of 10 when ``myfunc`` was created.
 Any manipulation of ``b``, reading or writing, done by ``myfunc`` upon
 later calls to it will be with the closure, not the outer variable.
-
 *Full* access to automatic variables is only available to code at the
-same function scope.  (There's an additional sub-function scope for
-program flow; that will be discussed in Scope_ below).
+same function scope, where a script is thought of as a function itself.
+(There's an additional block-level scope for program flow, but that does
+not create closures from variables in the same function; this is
+discussed in Scope_ below).
 
-If a script at any level tries to access a variable that has not yet
-been declared in the script, the parser will assume that it's a global
-variable (either built-in or added by an imported script).  If the
-variable truly does not exist, it will be a runtime error instead of
-a parser-time error.  To catch these mistakes sooner, at parsing time,
-instead of later, global variables are generally to be avoided.  See
-`Importing Modules`_ below how a source-tree of EvilCandy scripts can
-be run from the top level without having to add global variables.
+If a script needs its nested functions to access several script-level
+variables normally, it can instead create a single file-scope dictionary,
+for example ``let locals = { /*...*/ }``.  This works because dictionaries
+are mutable objects (see `Dictionaries`_ below).  It has the added benefit
+of clarity.  If you see ``locals.x`` instead of just ``x``, it's clearer
+what's being manipulated.
 
 .. note:: Implementation note:
 
@@ -677,18 +679,75 @@ be run from the top level without having to add global variables.
    accessed by name.  Rather, they are accessed as offsets from a frame
    pointer, cooked into the pseudo-assembly instructions at parsing time.
    It means that automatic variables are technically much faster than
-   global variables.  This speed advantage is mostly only useful when
-   working with algorithmically intense pure functions, that may have to
-   do lots of manipulations on local variables.
+   global variables.  This speed advantage is mostly only useful with
+   algorithmically intense pure functions which need to repeatedly
+   manipulate local variables.
 
-   However, file-scope variables are likely to be put in a dictionary
-   to work around the closure problem mentioned above.  This results
-   in about the same speed as accessing global variables.  So the real
-   reason to avoid unnecessary global variables at the file scope
-   is not speed; it's just to prevent namespace clutter.
+   On the other hand, most other kinds of data accesses will be to a
+   variable's dictionary attributes, which has approximately the same
+   speed as accessing global variables.  So the real reason to avoid
+   unnecessary global variables at the file scope is not speed; it's
+   just to prevent namespace clutter.
 
-Variables Classes
------------------
+There are two instances where global variables are useful:
+
+1. Prevent cyclic importing of the same script.  When EvilCandy detects
+   runaway recursion, it will not raise an exception.  Instead it will
+   print a fatal-error message and abort.  This is a problem for complex
+   projects where a top-level script may have to import an entire
+   hierarchy of subordinate scripts.  Global variables can work around
+   this roughly the way preprocessor macros can prevent C headers from
+   recursively including themselves:
+
+   .. code::
+
+        $ cat definitions.evc   # some import named 'definitions.evc'
+
+        if (!exists('MYPROJECT_DEFINITIONS_EVC')) {
+                global MYPROJECT_DEFINITIONS_EVC;
+
+                // The rest of the script here
+        }
+        // script returns 'null' by default
+
+2. A work-around for an interactive-mode quirk, where the stack is
+   cleared for every top-level statement.  This is considered a design
+   flaw, so it may get fixed in a later versions of EvilCandy.
+
+   .. code::
+
+        $ ./evilcandy
+
+        let a = 1;
+        print(a);
+        [EvilCandy] Runtime Error Symbol a not found
+
+        # need a to be global
+        global a = 1;
+        print(a);
+        1
+
+        # alternatively, wrap it all in a function or a block.
+        {
+                let a = 1;
+                print(a);
+        }
+        1
+
+If a script at any level tries to access a variable that has not yet been
+declared, the global-variables will be searched, even if no ``global``
+declaration has been made.  (Implementation-wise, global variables are
+entries in a dictionary.)  This is because the parser cannot tell if a
+symbol is expected to have been added by an imported script or not.  So
+if the symbol truly does not exist, it will be a runtime error instead of
+a load-time error.  To catch these mistakes sooner, at parsing time,
+instead of later, global variables are generally to be avoided.  See
+`Importing Modules`_ below how a source-tree of EvilCandy scripts can be
+run from the top level without having to add global variables.
+
+
+Variable Classes
+----------------
 
 Besides storage class, variables also have their own properies,
 attributes, behavior, etc., usually called "class", but which
@@ -1033,6 +1092,29 @@ use the dictionary's built-in ``.hasattr`` method.
         this to Python's distinct ``hasattr`` and ``in`` keywords.  This
         is simultaneously one of the best and one of the most annoying
         things about JavaScript which I have immitated in EvilCandy.)
+
+Merging Dictionaries
+~~~~~~~~~~~~~~~~~~~~
+
+The pipe character ``|`` acts as a union operator when the left and
+right value are both dictionaries.  In the case of
+
+.. code:: js
+
+        c = a | b;
+
+``c`` will be set to a dictionary that has all of ``a``'s contents as
+well as ``b``.  If there are any matching keys between the two, the
+right-hand side will take precedence.  This may be useful for selectively
+overriding default parameters (see the ``makebox`` example in `Function
+Definition Syntax`_ below).
+
+This does not do any in-place manipulation. ``a`` and ``b`` will be
+unaffected by the operation, while ``c`` is a third dictionary
+resulting from the operation.  (As an implementation note, there is a
+slight speed advantage to an in-place operation, but it is far *too*
+slight to justify itself compared to the cleanliness and consistency
+with which binary operators are handled in EvilCandy.)
 
 Is It a Class or a Dictionary?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1496,20 +1578,20 @@ the argument should one not be provided by the caller, e.g.:
 
 .. code-block:: js
 
-        function(a, b, c="Hello", d=12.5)
+        let makebox = function(size, height, outline=false, fill=false);
 
-Do not be misled by the "a=b" syntax of parameter definitions. These
-are not "keyword arguments", and the caller may not use this syntax;
-only the definition may.  **The order in which arguments are passed
-always matters.**  For that reason, it makes no sense to place the
-optional arguments at the front of the argument list.
-
-The most likely use-case for this is to have only one default arg,
-a dictionary which can substitute for keyword arguments, for example:
+This example is actually poor function design.  What if the caller wanted
+to override the default for ``fill`` but not for ``outline``?  These are
+not keyword arguments: **the order in which arguments are defined
+matters**, for optional arguments and mandatory arguments alike.  (For
+that reason, it makes no sense to place the optional arguments at the
+front of the argument list.) Better practice is to always have at most
+one default argument, which can substitute as a sort of keyword-arguments
+list, like this:
 
 .. code-block:: js
 
-        let box_constructor = function(size, height, useropts={}) {
+        let makebox = function(size, height, useropts={}) {
                 let opts = {
                         /* default opts */
                         'outline': false,
@@ -1522,21 +1604,15 @@ a dictionary which can substitute for keyword arguments, for example:
 Here, ``size`` and ``height`` are required arguments.  The constructor
 function can also use ``opts.outline`` and ``opts.fill``, which are
 either from the caller or from the declared defaults if they were not
-provided.
-
-``|``, when used on dictionaries, is a union operator which merges the
-two; the right-hand dictionary takes precedence over the left-hand
-dictionary, so any keys that overlap between ``opts`` and ``useropts``
-will result in ``useropts``'s value being chosen.  This is safe, because
-the result is a shallow copy of the two; nothing is done in-place.
+provided.  (See `Merging Dictionaries`_ above for how the ``|`` operator
+is used with dictionaries.)
 
 .. caution::
 
-        In this example, useropts is an empty dictionary by default,
-        but the caller could send any type, which in this case would
-        result in an error, since ``box_constructor`` does not do
-        any argument checking.  The union operator cannot merge a
-        dictionary with another type of data.
+        Be aware that the caller could send any data type, not necessarily
+        the type defined as the default.  If the function does not want an
+        exception to be raised due to operators used on improper types, it
+        should check the argument's type itself.
 
 Function Call Syntax
 --------------------

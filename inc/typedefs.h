@@ -78,7 +78,8 @@ struct map_methods_t {
 struct seq_methods_t {
         struct var_t *(*getitem)(struct var_t *, int);
         enum result_t (*setitem)(struct var_t *, int, struct var_t *);
-        binary_operator_t cat; /* new = a + b */
+        /* new = a + b; if b is NULL, return new empty var */
+        binary_operator_t cat;
         void (*sort)(struct var_t *);
 };
 

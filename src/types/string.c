@@ -1180,6 +1180,9 @@ string_cat(struct var_t *a, struct var_t *b)
         char *lval, *rval;
         size_t rlen, llen;
 
+        if (!b)
+                return stringvar_new("");
+
         if (!isvar_string(b)) {
                 err_setstr(RuntimeError,
                            "Mismatched types for + operation");

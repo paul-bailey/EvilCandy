@@ -42,7 +42,6 @@ qop_##Field (struct var_t *a, struct var_t *b)          \
         return opm->Field(a, b);                        \
 }
 
-BINARY_OP_BASIC_FUNC(mul, "*");
 BINARY_OP_BASIC_FUNC(pow, "**");
 BINARY_OP_BASIC_FUNC(div, "/");
 BINARY_OP_BASIC_FUNC(mod, "%");
@@ -69,6 +68,60 @@ cant:
         err_permit2("+", a, b);
         return NULL;
 }
+
+#define MAY_CAT(v_)     ((v_)->v_type->sqm && (v_)->v_type->sqm->cat)
+struct var_t *
+qop_mul(struct var_t *a, struct var_t *b)
+{
+        const struct operator_methods_t *opm;
+        struct var_t *ret;
+        long long i;
+        binary_operator_t adder;
+
+        if ((opm = get_binop_method(a, b)) != NULL) {
+                /* fast path, number multiplication */
+                bug_on(!opm->mul);
+                return opm->mul(a, b);
+        }
+
+        if (MAY_CAT(a)) {
+                struct var_t *tmp;
+                if (!isvar_int(b))
+                        goto cant;
+                tmp = a;
+                a = b;
+                b = tmp;
+        } else if (MAY_CAT(b)) {
+                if (!isvar_int(a))
+                        goto cant;
+        }
+
+        /*
+         * XXX: should we sanity check huge multipliers, or let
+         * user wait for an OOM crash?
+         *
+         * FIXME: What do we return if i == 0?
+         */
+        adder = b->v_type->sqm->cat;
+        i = intvar_toll(a);
+        if (i == 0)
+                return adder(b, NULL);
+
+        VAR_INCR_REF(b);
+        ret = b;
+        while (i > 1) {
+                struct var_t *tmp = adder(b, ret);
+                VAR_DECR_REF(ret);
+                ret = tmp;
+                i--;
+        }
+        return ret;
+
+cant:
+        err_permit2("*", a, b);
+        return NULL;
+}
+#undef MAY_CAT
 
 BINARY_OP_BASIC_FUNC(sub, "-");
 BINARY_OP_BASIC_FUNC(bit_and, "&");

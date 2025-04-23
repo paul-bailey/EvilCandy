@@ -43,6 +43,10 @@ bytes_cat(struct var_t *a, struct var_t *b)
 {
         unsigned char *ba, *bb, *bc;
         size_t a_len, b_len, c_len;
+
+        if (!b)
+                return bytesvar_new((unsigned char *)"", 0);
+
         ba = V2B(a)->b_buf;
         bb = V2B(b)->b_buf;
         a_len = seqvar_size(a);

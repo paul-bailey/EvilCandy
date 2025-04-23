@@ -96,7 +96,10 @@ erealloc(void *buf, size_t size)
 void *
 ememdup(void *buf, size_t size)
 {
-        void *ret = emalloc(size);
+        void *ret;
+        if (!size)
+                size = 1;
+        ret = emalloc(size);
         DBUG_LOG_MALLOC(buf, size);
         memcpy(ret, buf, size);
         return ret;

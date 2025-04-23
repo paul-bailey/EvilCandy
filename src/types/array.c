@@ -177,6 +177,40 @@ array_cmp(struct var_t *a, struct var_t *b)
         return seqvar_size(a) - seqvar_size(b);
 }
 
+/* helper to array_cat and tuple_cat */
+static struct var_t *
+array_cat_common(struct var_t *a, struct var_t *b, struct type_t *type)
+{
+        size_t size_a = seqvar_size(a);
+        size_t size_b = seqvar_size(b);
+        struct var_t **ppa = V2ARR(a)->items;
+        struct var_t **ppb = V2ARR(b)->items;
+        struct var_t *c = arrayvar_new_common(size_a + size_b, type);
+        struct var_t **ppc = V2ARR(c)->items;
+        if (size_a) {
+                memcpy(ppc, ppa, size_a * sizeof(struct var_t *));
+                ppc += size_a;
+        }
+        if (size_b) {
+                memcpy(ppc, ppb, size_b * sizeof(struct var_t *));
+        }
+        return c;
+}
+
+/* implement concatenation of a + b */
+static struct var_t *
+array_cat(struct var_t *a, struct var_t *b)
+{
+        return array_cat_common(a, b, &ArrayType);
+}
+
+/* implement concatenation of a + b */
+static struct var_t *
+tuple_cat(struct var_t *a, struct var_t *b)
+{
+        return array_cat_common(a, b, &TupleType);
+}
+
 /* type_t .str callbacks for array and tuple */
 static struct var_t *
 array_or_tuple_str(struct var_t *t, int startchar)
@@ -310,7 +344,7 @@ static const struct type_inittbl_t array_cb_methods[] = {
 static const struct seq_methods_t array_seq_methods = {
         .getitem        = array_getitem,
         .setitem        = array_setitem,
-        .cat            = NULL, /* TODO: this */
+        .cat            = array_cat,
         .sort           = array_sort,
 };
 
@@ -335,7 +369,7 @@ static const struct type_inittbl_t tuple_cb_methods[] = {
 static const struct seq_methods_t tuple_seq_methods = {
         .getitem        = array_getitem,
         .setitem        = NULL,
-        .cat            = NULL, /* TODO: this */
+        .cat            = tuple_cat,
         .sort           = NULL,
 };
 

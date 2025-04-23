@@ -18,6 +18,9 @@ Bugs
 Must Do
 -------
 
+* Integers are too recessive now; we need a way to int-ify a float
+  without using a slow built-in function.
+
 * ``this`` keyword barely tested; it will probably break a lot of
   stuff that seems to work without it.
 

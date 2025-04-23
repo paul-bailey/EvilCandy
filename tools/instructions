@@ -162,6 +162,7 @@ LOGICAL_NOT
 # then pop 'b' off the stack, perform 'c = a OPERATOR b' and push
 # c onto the stack.
 MUL
+POW
 DIV
 MOD
 ADD

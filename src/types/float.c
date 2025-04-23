@@ -31,6 +31,17 @@ floatvar_new(double v)
 }
 
 static struct var_t *
+float_pow(struct var_t *a, struct var_t *b)
+{
+        double fa, fb;
+        DOUBLE(a, fa);
+        DOUBLE(b, fb);
+
+        /* XXX: 'Just call pow.'  Wow!  Are we ok with this? */
+        return floatvar_new(pow(fa, fb));
+}
+
+static struct var_t *
 float_mul(struct var_t *a, struct var_t *b)
 {
         double fa, fb;
@@ -160,6 +171,7 @@ static const struct type_inittbl_t float_methods[] = {
 };
 
 static const struct operator_methods_t float_primitives = {
+        .pow            = float_pow,
         .mul            = float_mul,
         .div            = float_div,
         .mod            = float_mod,

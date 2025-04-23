@@ -233,6 +233,15 @@ err_occurred(void)
         return exception_last != NULL;
 }
 
+void
+err_clear(void)
+{
+        if (msg_last)
+                efree(msg_last);
+        exception_last = NULL;
+        msg_last = NULL;
+}
+
 /*
  * slow-path completion of arg_type_check() in uarg.h.
  * figure out what error message to print and return an error value

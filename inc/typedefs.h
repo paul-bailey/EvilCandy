@@ -53,6 +53,7 @@ typedef struct var_t *(*unary_operator_t)(struct var_t *);
  * For unary operations, type need not be checked.
  */
 struct operator_methods_t {
+        binary_operator_t pow;    /* new = a ** b */
         binary_operator_t mul;    /* new = a * b */
         binary_operator_t div;    /* new = a / b */
         binary_operator_t mod;    /* new = a % b */

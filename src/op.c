@@ -42,8 +42,8 @@ qop_##Field (struct var_t *a, struct var_t *b)          \
         return opm->Field(a, b);                        \
 }
 
-/* TODO: maybe allow integer '*' sequential, like in Python */
 BINARY_OP_BASIC_FUNC(mul, "*");
+BINARY_OP_BASIC_FUNC(pow, "**");
 BINARY_OP_BASIC_FUNC(div, "/");
 BINARY_OP_BASIC_FUNC(mod, "%");
 

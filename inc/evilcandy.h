@@ -134,6 +134,7 @@ extern bool err_exists(void);
 extern void err_print(FILE *fp, struct var_t *exc, char *msg);
 extern void err_print_last(FILE *fp);
 extern bool err_occurred(void);
+extern void err_clear(void);
 extern void err_attribute(const char *getorset,
                           struct var_t *deref, struct var_t *obj);
 extern void err_argtype(const char *what);
@@ -164,6 +165,7 @@ struct var_t *dict_from_json(const char *filename);
 
 /* op.c */
 extern struct var_t *qop_mul(struct var_t *a, struct var_t *b);
+extern struct var_t *qop_pow(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_div(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_mod(struct var_t *a, struct var_t *b);
 extern struct var_t *qop_add(struct var_t *a, struct var_t *b);

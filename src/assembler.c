@@ -1012,10 +1012,22 @@ assemble_eval7(struct assemble_t *a)
         }
 }
 
+/* awk...ward! Added this late in the game */
+static void
+assemble_eval6_2(struct assemble_t *a)
+{
+        assemble_eval7(a);
+        while (a->oc->t == OC_POW) {
+                as_lex(a);
+                assemble_eval7(a);
+                add_instr(a, INSTR_POW, 0, 0);
+        }
+}
+
 static void
 assemble_eval6(struct assemble_t *a)
 {
-        assemble_eval7(a);
+        assemble_eval6_2(a);
         while (!!(a->oc->t & TF_MULDIVMOD)) {
                 int op;
                 if (a->oc->t == OC_MUL)
@@ -1025,7 +1037,7 @@ assemble_eval6(struct assemble_t *a)
                 else
                         op = INSTR_MOD;
                 as_lex(a);
-                assemble_eval7(a);
+                assemble_eval6_2(a);
                 add_instr(a, op, 0, 0);
         }
 }

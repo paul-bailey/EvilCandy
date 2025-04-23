@@ -836,6 +836,12 @@ do_mul(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
+do_pow(struct vmframe_t *fr, instruction_t ii)
+{
+        return binary_op_common(fr, qop_pow);
+}
+
+static int
 do_div(struct vmframe_t *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_div);

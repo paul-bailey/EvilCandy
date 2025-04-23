@@ -441,7 +441,9 @@ get_tok_delim_helper(int *ret, const char *s)
                 case '=':
                         *ret = OC_MULEQ;
                         return 2;
-                /* TODO: support **, pow() */
+                case '*':
+                        *ret = OC_POW;
+                        return 2;
                 }
                 *ret = OC_MUL;
                 return 1;
@@ -964,7 +966,8 @@ moduleinit_token(void)
         for (s = DELIMDBL; *s != '\0'; s++)
                 tok_charmap[(int)*s] |= QDDELIM;
 
-        /* special case */
+        /* special cases */
+        tok_charmap[(int)'*'] |= (QDELIM | QDDELIM);
         tok_charmap[(int)'`'] |= (QDELIM | QDDELIM);
         tok_charmap[0] |= QDELIM;
 

@@ -684,13 +684,8 @@ assemble_objdef(struct assemble_t *a)
         as_unlex(a);
         do {
                 int namei;
-                unsigned attrarg = 0;
 
                 as_lex(a);
-                if (a->oc->t == OC_CONST) {
-                        as_lex(a);
-                        attrarg = IARG_FLAG_CONST;
-                }
                 if (a->oc->t != 'u' && a->oc->t != 'q') {
                         err_setstr(ParserError,
                                 "Dictionary key must be either an identifier or string");
@@ -704,7 +699,7 @@ assemble_objdef(struct assemble_t *a)
                 }
                 assemble_eval(a);
                 /* REVISIT: why not just SETATTR?  */
-                add_instr(a, INSTR_ADDATTR, attrarg, namei);
+                add_instr(a, INSTR_ADDATTR, 0, namei);
                 as_lex(a);
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);

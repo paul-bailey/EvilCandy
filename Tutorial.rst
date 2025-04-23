@@ -928,6 +928,30 @@ programming.  A function that sets up a dictionary, possibly with
 closures for some of its fields, and then returns that dictionary,
 is basically a class constructor, just as in JavaScript.
 
+While expressing literals, values may be computed in runtime,
+but unlike with JavaScript, keys may not, as shown in this example:
+
+.. code-block:: js
+
+        let key = 'a';
+        let value = 1;
+
+        let dict1 = { 'a': value };
+        let dict2 = { key: 1 };
+
+        print('dict1: ', dict1);
+        print('dict2: ', dict2);
+
+will output
+
+.. code-block::
+
+        dict1: {'a': 1}
+        dict2: {'key': 1}
+
+The JavaScript ``[key]: value`` syntax is not yet supported for this.
+
+
 Adding Dictionary Attributes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

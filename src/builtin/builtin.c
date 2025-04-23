@@ -37,20 +37,27 @@ print_nl(void)
 static struct var_t *
 do_print(struct vmframe_t *fr)
 {
-        struct var_t *p = frame_get_arg(fr, 0);
-        if (!p) {
+        int argc = vm_get_argc(fr);
+        int i;
+        if (!argc) {
                 err_setstr(RuntimeError,
                            "Expected: at least one argument to print");
                 return ErrorVar;
         }
-        if (isvar_string(p)) {
-                char *s = string_get_cstring(p);
-                while (*s)
-                        putchar((int)*s++);
-        } else {
-                struct var_t *xpr = var_str(p);
-                printf("%s", string_get_cstring(xpr));
-                VAR_DECR_REF(xpr);
+        for (i = 0; i < argc; i++) {
+                struct var_t *p = vm_get_arg(fr, i);
+                if (i > 0)
+                        putchar(' ');
+                bug_on(!p);
+                if (isvar_string(p)) {
+                        char *s = string_get_cstring(p);
+                        while (*s)
+                                putchar((int)*s++);
+                } else {
+                        struct var_t *xpr = var_str(p);
+                        printf("%s", string_get_cstring(xpr));
+                        VAR_DECR_REF(xpr);
+                }
         }
         print_nl();
         return NULL;

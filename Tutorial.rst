@@ -145,8 +145,7 @@ EvilCandy uses this pattern for some built-in identifiers that may be
 visible to the user.
 
 Identifiers matching the pattern ``_*`` are built-in C accelerators for
-library modules, wherein their appurtenant load command would be
-``load "*.evc"``.
+library modules.
 
 String Literal Tokens
 ~~~~~~~~~~~~~~~~~~~~~
@@ -373,6 +372,8 @@ EvilCandy uses the following operators:
 +---------+-------------------------+
 | ``%``   | modulo (remainder)      |
 +---------+-------------------------+
+| ``**``  | exponentiation          |
++---------+-------------------------+
 | ``&&``  | logical AND             |
 +---------+-------------------------+
 | ``||``  | logical OR              |
@@ -478,8 +479,7 @@ Valid statements are:
 12. Return nothing           ``return``
 13. Return something         ``return`` *expr*
 14. Break                    ``break``
-15. Load                     ``load``
-16. Nothing [#]_
+15. Nothing [#]_
 === ======================== =============================================
 
 .. [#] *Eval* has limitations here, see below.

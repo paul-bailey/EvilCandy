@@ -4,10 +4,6 @@ Bugs
 * BUGs 4/2025:
 
         * All user-visible data types need a .cpmz method.
-        * closures seem to only work in the simplest cases.  They do not
-          work when referenced from a .foreach callback, and they do not
-          seem to work when the declaration is at the file scope.  Strange
-          and unpredictable behavior occurs in these cases.
         * ``(range(x)).foreach(y);`` works but ``range(x).foreach(y);``
           does not, though both should behave the same.
         * More of a flaw than a bug, but in TTY mode, 'if' and 'for'
@@ -18,8 +14,6 @@ Bugs
           portion.
         * there's a VAR_INCR/DECR_REF imbalance somewhere, preventing
           some vars from getting deleted when they should.
-        * Broke static typing.  This was intentional to get rid of the
-          qop_mov way of assignment, but now it needs to be fixed.
 
 Must Do
 -------
@@ -46,11 +40,13 @@ Library/Language Features
 
 * Support soft keywords
 
+* Support complex numbers.
+
 * Add a Matrix/DSP module, something like NumPy for Python
 
-* Support regular expressions
+* ^^ also add Tensor module, why not?
 
-* Support complex numbers.
+* Support regular expressions
 
 * Add debug module, make frames/code objects visible to user
 

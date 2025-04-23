@@ -147,6 +147,19 @@ do_setnl(struct vmframe_t *fr)
 }
 
 static struct var_t *
+do_exists(struct vmframe_t *fr)
+{
+        struct var_t *key = vm_get_arg(fr, 0);
+        bool exists;
+        if (!key || !isvar_string(key)) {
+                err_setstr(RuntimeError, "Expected: string");
+                return ErrorVar;
+        }
+        exists = vm_symbol_exists(key);
+        return intvar_new((int)exists);
+}
+
+static struct var_t *
 do_range(struct vmframe_t *fr)
 {
         int argc = vm_get_argc(fr);
@@ -205,6 +218,7 @@ static const struct inittbl_t builtin_inittbl[] = {
         TOFTBL("range",  do_range,  1, 3),
         /* XXX: maybe exit should be a method of __gbl__._sys */
         TOFTBL("exit",   do_exit,   0, -1),
+        TOFTBL("exists", do_exists, 1, 1),
         TOFTBL("import", do_import, 0, 2),
         { .name = NULL },
 };

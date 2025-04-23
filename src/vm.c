@@ -1160,6 +1160,24 @@ vm_add_global(struct var_t *name, struct var_t *var)
         (void)res;
 }
 
+/**
+ * vm_symbol_exists - Check if a global variable exists
+ * @key: Name of the global variable.
+ */
+bool
+vm_symbol_exists(struct var_t *key)
+{
+        /*
+         * XXX Give dict_getattr extern linkage so I don't have to
+         * waste time with reference counters on dummy variables.
+         */
+        struct var_t *val;
+        val = dict_getattr(symbol_table, key);
+        if (val)
+                VAR_DECR_REF(val);
+        return val != NULL;
+}
+
 void
 moduleinit_vm(void)
 {

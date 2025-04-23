@@ -588,22 +588,47 @@ do_defdict(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
+setattr_common(struct vmframe_t *fr, instruction_t ii, bool keep_parent)
+{
+        bool del = false;
+        struct var_t *val, *key, *obj;
+        int ret = 0;
+
+        val = pop(fr);
+
+        if (ii.arg1 == IARG_ATTR_STACK) {
+                key = pop(fr);
+                del = true;
+        } else {
+                key = RODATA(fr, ii);
+        }
+
+        obj = pop(fr);
+
+        if ((ret = var_setattr(obj, key, val)) != 0) {
+                if (!err_occurred())
+                        err_attribute("set", key, obj);
+        }
+
+        if (del)
+                VAR_DECR_REF(key);
+
+        VAR_DECR_REF(val);
+        if (keep_parent)
+                push(fr, obj);
+        else
+                VAR_DECR_REF(obj);
+        return ret;
+}
+
+/*
+ * subtle difference from INSTR_SETATTR: push the dictionary
+ * back onto the stack.
+ */
+static int
 do_addattr(struct vmframe_t *fr, instruction_t ii)
 {
-        struct var_t *attr = pop(fr);
-        struct var_t *obj = pop(fr);
-        struct var_t *name = RODATA(fr, ii);
-        int res;
-        /*
-         * There is no var_*_attr for add, since only dictionaries
-         * support it.  (Lists have a separate opcode, see
-         * do_list_append below.)
-         */
-        bug_on(!isvar_string(name));
-        res = dict_setattr(obj, name, attr);
-        VAR_DECR_REF(attr);
-        push(fr, obj);
-        return res;
+        return setattr_common(fr, ii, true);
 }
 
 static int
@@ -648,36 +673,7 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
 static int
 do_setattr(struct vmframe_t *fr, instruction_t ii)
 {
-        bool del = false;
-        struct var_t *val, *deref, *obj;
-        int ret = 0;
-
-        val = pop(fr);
-
-        if (ii.arg1 == IARG_ATTR_STACK) {
-                deref = pop(fr);
-                del = true;
-        } else {
-                deref = RODATA(fr, ii);
-        }
-
-        obj = pop(fr);
-
-        if (var_setattr(obj, deref, val) != 0) {
-                /*
-                 * XXX This could clobber a pending error message that
-                 * was set during var_setattr
-                 */
-                err_attribute("set", deref, obj);
-                ret = -1;
-        }
-
-        if (del)
-                VAR_DECR_REF(deref);
-
-        VAR_DECR_REF(val);
-        VAR_DECR_REF(obj);
-        return ret;
+        return setattr_common(fr, ii, false);
 }
 
 static int

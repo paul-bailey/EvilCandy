@@ -683,23 +683,35 @@ assemble_objdef(struct assemble_t *a)
                 return;
         as_unlex(a);
         do {
-                int namei;
+                /* arg2 of opcode, will be zerof if unused */
+                int namei = 0;
+                int attrarg;
 
                 as_lex(a);
-                if (a->oc->t != 'u' && a->oc->t != 'q') {
+
+                if (a->oc->t == OC_LBRACK) {
+                        /* computed key */
+                        namei = -1;
+                        attrarg = IARG_ATTR_STACK;
+                        assemble_eval(a);
+                        as_errlex(a, OC_RBRACK);
+                } else if (a->oc->t == 'u' || a->oc->t == 'q') {
+                        /* key is literal text */
+                        attrarg = IARG_ATTR_CONST;
+                        namei = seek_or_add_const(a, a->oc);
+                } else {
+                        attrarg = 0;
                         err_setstr(ParserError,
                                 "Dictionary key must be either an identifier or string");
                         as_err(a, AE_EXPECT);
                 }
-                namei = seek_or_add_const(a, a->oc);
                 as_lex(a);
                 if (a->oc->t != OC_COLON) {
                         err_setstr(ParserError, "Expected: ':'");
                         as_err(a, AE_EXPECT);
                 }
                 assemble_eval(a);
-                /* REVISIT: why not just SETATTR?  */
-                add_instr(a, INSTR_ADDATTR, 0, namei);
+                add_instr(a, INSTR_ADDATTR, attrarg, namei);
                 as_lex(a);
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);

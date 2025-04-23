@@ -928,16 +928,18 @@ programming.  A function that sets up a dictionary, possibly with
 closures for some of its fields, and then returns that dictionary,
 is basically a class constructor, just as in JavaScript.
 
-While expressing literals, values may be computed in runtime,
-but unlike with JavaScript, keys may not, as shown in this example:
+While expressing dictionary literals, its values and keys need
+not be literals; they may be computed in runtime instead.  However,
+the computed keys must be in square brackets, and they must evaluate
+to a string data type:
 
 .. code-block:: js
 
         let key = 'a';
         let value = 1;
 
-        let dict1 = { 'a': value };
-        let dict2 = { key: 1 };
+        let dict1 = { key: value };
+        let dict2 = { [key]: value };
 
         print('dict1: ', dict1);
         print('dict2: ', dict2);
@@ -946,10 +948,13 @@ will output
 
 .. code-block::
 
-        dict1: {'a': 1}
-        dict2: {'key': 1}
+        dict1: {'key': 1}
+        dict2: {'a': 1}
 
-The JavaScript ``[key]: value`` syntax is not yet supported for this.
+.. note:: Although this makes it possible to runtime-generate keys, for
+          example you could express an entry as ``[k1+k2]: val``,
+          this may affect speed due to the increased probability of
+          repetitive hash calculating on later dictionary lookups.
 
 
 Adding Dictionary Attributes

@@ -1480,71 +1480,34 @@ lack of keyword arguments, for example:
 
 .. code-block:: js
 
-        let box_constructor = function(size,
-                                       height,
-                                       options = {
-                                          'outline': false,
-                                          'fill':    false,
-                                       }) {
+        let box_constructor = function(size, height, useropts={}) {
+                let opts = {
+                        /* default opts */
+                        'outline': false,
+                        'fill':    false,
+                } | useropts;
+
                 /* ...the function def... */
         };
 
 Here, ``size`` and ``height`` are required arguments.  The constructor
-function can also use ``options.outline`` and ``options.fill``,
-which are either from the caller or from the stored defaults if they
-were not provided.
+function can also use ``opts.outline`` and ``opts.fill``, which are
+either from the caller or from the declared defaults if they were not
+provided.
 
-.. warning:: DEPRECATED
+``|``, when used on dictionaries, is a union operator which merges the
+two; the right-hand dictionary takes precedence over the left-hand
+dictionary, so any keys that overlap between ``opts`` and ``useropts``
+will result in ``useropts``'s value being chosen.  This is safe, because
+the result is a shallow copy of the two; nothing is done in-place.
 
-   The above example also reveals a design flaw: user must provide
-   the correct dictionary members, or else ``box_constructor`` will
-   not even be able to ``see`` its own defaults.  Adding for-real
-   keyword arguments is on my to-do list, but it may require me to
-   repurpose the default-args syntax.
+.. caution::
 
-A Caution About Using Optional Arguments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Default values for arguments can be tricky when they involve mutable
-data types.  Consider the following constructor:
-
-.. code-block:: js
-
-        let MyNewObj = function(x = {}) {
-                x.a = methodA;
-                x.b = methodB;
-                return x;
-        }
-
-It *seems* to allow a caller to choose whether to have a child inherit
-the properties of MyNewObj by passing an argument, or to get a new
-instantiation of the MyNewObj class altogether, by not passing an
-argument.
-
-The problem is that since the default literal ``{}`` is evaluated
-only once, during the creation of the function, and dictionaries
-are mutable, *all callers* which do not pass an ``x`` argument will
-be mutating the same return value.  The result is pure chaos.
-
-The solution is to do this:
-
-.. code-block:: js
-
-        let MyNewObj = function(x = null) {
-                // assign y <= either x or new instantiation
-                let y = (function(x) {
-                        if (x == null)
-                                return {};
-                        return x;
-                })(x);
-                y.a = methodA;
-                y.b = methodB;
-                return y;
-        }
-
-In this case, the literal ``{}`` is evaluated anew every time the
-function is called, so a caller who does not pass an argument to
-MyNewObj will always get a brand-new instantiation.
+        In this example, useropts is an empty dictionary by default,
+        but the caller could send any type, which in this case would
+        result in an error, since ``box_constructor`` does not do
+        any argument checking.  The union operator cannot merge a
+        dictionary with another type of data.
 
 Function Call Syntax
 --------------------

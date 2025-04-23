@@ -73,6 +73,11 @@ struct map_methods_t {
         int (*setitem)(struct var_t *d,
                        struct var_t *key, struct var_t *item);
         int (*hasitem)(struct var_t *d, struct var_t *key);
+        /*
+         * Not an in-place operation.  Make shallow copy of lval
+         * and fill it--possibly overriding it--with rval.
+         */
+        binary_operator_t mpunion;
 };
 
 struct seq_methods_t {

@@ -45,6 +45,33 @@ qop_##Field (struct var_t *a, struct var_t *b)          \
 BINARY_OP_BASIC_FUNC(pow, "**");
 BINARY_OP_BASIC_FUNC(div, "/");
 BINARY_OP_BASIC_FUNC(mod, "%");
+BINARY_OP_BASIC_FUNC(sub, "-");
+BINARY_OP_BASIC_FUNC(bit_and, "&");
+BINARY_OP_BASIC_FUNC(xor, "^");
+BINARY_OP_BASIC_FUNC(lshift, "<<");
+BINARY_OP_BASIC_FUNC(rshift, ">>");
+
+
+struct var_t *
+qop_bit_or(struct var_t *a, struct var_t *b)
+{
+        const struct operator_methods_t *opm;
+        const struct map_methods_t *mpm;
+        if ((opm = get_binop_method(a, b)) != NULL) {
+                if (!opm->bit_or)
+                        goto err;
+                return opm->bit_or(a, b);
+        }
+
+        if (((mpm = a->v_type->mpm) != NULL)
+            && mpm->mpunion && a->v_type == b->v_type) {
+                return mpm->mpunion(a, b);
+        }
+
+err:
+        err_permit2("|", a, b);
+        return NULL;
+}
 
 struct var_t *
 qop_add(struct var_t *a, struct var_t *b)
@@ -120,13 +147,6 @@ cant:
         return NULL;
 }
 #undef MAY_CAT
-
-BINARY_OP_BASIC_FUNC(sub, "-");
-BINARY_OP_BASIC_FUNC(bit_and, "&");
-BINARY_OP_BASIC_FUNC(bit_or, "|");
-BINARY_OP_BASIC_FUNC(xor, "^");
-BINARY_OP_BASIC_FUNC(lshift, "<<");
-BINARY_OP_BASIC_FUNC(rshift, ">>");
 
 /* ~v */
 struct var_t *

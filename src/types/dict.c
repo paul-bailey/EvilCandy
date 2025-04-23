@@ -579,6 +579,42 @@ dict_str(struct var_t *o)
         return ret;
 }
 
+static int
+dict_copyto(struct var_t *to, struct var_t *from)
+{
+        unsigned int i;
+        struct dictvar_t *d = V2D(from);
+
+        for (i = 0; i < d->d_size; i++) {
+                struct bucket_t *b = d->d_bucket[i];
+                if (b == NULL || b == BUCKET_DEAD)
+                        continue;
+                if (dict_setattr(to, b->b_key, b->b_data) != RES_OK)
+                        return RES_ERROR;
+        }
+        return RES_OK;
+}
+
+static struct var_t *
+dict_union(struct var_t *a, struct var_t *b)
+{
+        unsigned int i;
+        struct var_t *c = dictvar_new();
+        struct dictvar_t *d;
+
+        if (dict_copyto(c, a) != RES_OK)
+                goto err;
+        if (dict_copyto(c, b) != RES_OK)
+                goto err;
+        return c;
+
+err:
+        if (!err_occurred())
+                err_setstr(RuntimeError, "Failed to copy dict");
+        VAR_DECR_REF(c);
+        return ErrorVar;
+}
+
 /* **********************************************************************
  *                      Built-in Methods
  ***********************************************************************/
@@ -772,26 +808,13 @@ static struct var_t *
 do_dict_copy(struct vmframe_t *fr)
 {
         struct var_t *self = get_this(fr);
-        unsigned int i;
-        struct dictvar_t *d;
         struct var_t *ret = dictvar_new();
 
         bug_on(!isvar_dict(self));
 
-        d = V2D(self);
-        for (i = 0; i < d->d_size; i++) {
-                struct bucket_t *b = d->d_bucket[i];
-                if (b == NULL || b == BUCKET_DEAD)
-                        continue;
-                /*
-                 * dict_setattr will produce another reference
-                 * to @b->b_data
-                 */
-                if (dict_setattr(ret, b->b_key, b->b_data) != RES_OK) {
-                        VAR_DECR_REF(ret);
-                        return ErrorVar;
-                }
-                /* dict_addattr already incremented ref */
+        if (dict_copyto(ret, self) != RES_OK) {
+                VAR_DECR_REF(ret);
+                return ErrorVar;
         }
         return ret;
 }
@@ -812,6 +835,7 @@ static const struct map_methods_t dict_map_methods = {
         .getitem = dict_getattr,
         .setitem = dict_setattr,
         .hasitem = dict_hasattr,
+        .mpunion = dict_union,
 };
 
 struct type_t DictType = {

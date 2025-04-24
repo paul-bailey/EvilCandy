@@ -245,6 +245,8 @@ run_tty(void)
         }
 }
 
+extern void vm_cleanup(void);
+
 int
 main(int argc, char **argv)
 {
@@ -276,6 +278,7 @@ main(int argc, char **argv)
          * will scan through GlobalObject and count how many entries have
          * a refcount > 1.  The only ones ought to be 'XxxError'.
          */
+        vm_cleanup();
         VAR_DECR_REF(GlobalObject);
         VAR_DECR_REF(ErrorVar);
         return 0;

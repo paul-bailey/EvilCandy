@@ -18,10 +18,10 @@ struct methodvar_t {
  * @func: Pointer to store function, may not be NULL
  * @owner: Pointer to store owner, may not be NULL
  *
- * Return: RES_OK, if args are correct, RES_ERROR otherwise.
+ * Return: RES_OK if @meth is a method, RES_ERROR otherwise.
  *
- * These are not borrowed; references will be produced by this
- * call.
+ * @func and @owner will have references produced for them, and but @meth
+ * will not.
  */
 int
 methodvar_tofunc(Object *meth, Object **func, Object **owner)
@@ -30,10 +30,10 @@ methodvar_tofunc(Object *meth, Object **func, Object **owner)
         if (!isvar_method(meth))
                 return RES_ERROR;
 
-        VAR_INCR_REF(m->func);
-        VAR_INCR_REF(m->owner);
         *func = m->func;
         *owner = m->owner;
+        VAR_INCR_REF(m->func);
+        VAR_INCR_REF(m->owner);
         return RES_OK;
 }
 

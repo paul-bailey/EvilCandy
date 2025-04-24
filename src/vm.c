@@ -464,8 +464,10 @@ do_call_func(Frame *fr, instruction_t ii)
         func = *(fr->stackptr - argc - 1);
 
         if (isvar_method(func)) {
-                if (methodvar_tofunc(func, &func, &owner) == RES_ERROR)
+                Object *meth = func;
+                if (methodvar_tofunc(meth, &func, &owner) == RES_ERROR)
                         return RES_ERROR;
+                VAR_DECR_REF(meth);
 
                 bug_on(!func);
                 bug_on(!owner);
@@ -1143,5 +1145,13 @@ moduleinit_vm(void)
 
         vm_stack = emalloc(sizeof(Object *) * VM_STACK_SIZE);
         vm_stack_end = vm_stack + VM_STACK_SIZE - 1;
+}
+
+void
+vm_cleanup(void)
+{
+        VAR_DECR_REF(symbol_table);
+        /* XXX: any way to clear the stack vars? */
+        efree(vm_stack);
 }
 

@@ -19,6 +19,7 @@ still another third is yet to be true.
 than a tutorial.
 
 Note:
+
         If you're reading the raw version of this file, you may notice
         it uses the syntax highlighting for JavaScript everywhere.
         This is because I do not expect Github to support anything that
@@ -127,7 +128,7 @@ Whitespace Tokens
 The whitespace characters are space, horizontal tab, vertical tab,
 form-feed, newline, and carriage return.  Do not use non-ASCII whitespace.
 
-EvilCandy ignores whitespace, except for some bookkeepping on the line
+EvilCandy ignores whitespace, except for some bookkeeping on the line
 number to facilitate more helpful error messages.
 
 Identifier Tokens
@@ -249,7 +250,8 @@ The following two examples are syntactically identical:
         let s = "First line\nSecond line";
 
 Note:
-        In Evilcandy's current implementation, this kind of concatenation
+
+        In EvilCandy's current implementation, this kind of concatenation
         is quicker than using the ``+`` operator, because it occurs while
         tokenizing the input.  The ``+`` operation, on the other hand,
         occurs at execution time, even when the l-value and r-value are
@@ -266,7 +268,7 @@ literals, bytes literals may contain a value of zero within.
 Bytes literals are expressed with a letter ``b`` before the quotes.
 As with string literals, they may be either single or double quotes.
 Unlike strings, bytes literals must all be ASCII text.  To express
-non-ASCII or nonprintable values, use backslash escapes.  Do not
+non-ASCII or unprintable values, use backslash escapes.  Do not
 use Unicode escape sequences.  An example bytes literal:
 
 .. code::
@@ -318,6 +320,7 @@ Specific rules of numerical interpretation:
    (decimal) number, and they will be interpreted as an integer.
 
 Note:
+
         The Python-style ``0o`` prefix for an octal number is not
         supported in this version.  It may be added in the future.
 
@@ -341,6 +344,7 @@ Reserved Keywords
 ================ =========== =============
 
 Note:
+
         ``private`` and ``const`` were part of early development, but
         they are no longer supported, and may be removed from the
         list of reserved keywords.
@@ -541,7 +545,7 @@ Statements may not begin with an expression, with two exceptions:
 All other expressions must either be on the right-hand side of an
 assignment operator or else be as described in table 3, such as within
 the parentheses of function arguments or program-flow statements.
-Note that this restricts the ways to express IIFEs.  Some Javascript
+Note that this restricts the ways to express IIFEs.  Some JavaScript
 implementations might allow something like:
 
 .. code-block:: js
@@ -673,6 +677,7 @@ of clarity.  If you see ``locals.x`` instead of just ``x``, it's clearer
 what's being manipulated.
 
 Implementation note:
+
    Automatic variables are not, in the low-level implementation,
    accessed by name.  Rather, they are accessed as offsets from a frame
    pointer, cooked into the pseudo-assembly instructions at parsing time.
@@ -747,7 +752,7 @@ run from the top level without having to add global variables.
 Variable Classes
 ----------------
 
-Besides storage class, variables also have their own properies,
+Besides storage class, variables also have their own properties,
 attributes, behavior, etc., usually called "class", but which
 I'll usually call "type" (a consequence of writing too much C).
 
@@ -816,6 +821,7 @@ The output will be:
         ['not zero', 1, 2];
 
 Note:
+
         Tuples and functions are 'immutable' in the sense
         that write-access to their contents are forbidden.
 
@@ -1007,6 +1013,7 @@ will output
         dict2: {'a': 1}
 
 Note:
+
         Although this makes it possible to runtime-generate keys, for
         example you could express an entry as ``[k1+k2]: val``,
         this may affect speed due to the increased probability of
@@ -1088,7 +1095,7 @@ Note:
         class's built-in attributes and a dictionary's entries.  Compare
         this to Python's distinct ``hasattr`` and ``in`` keywords.  This
         is simultaneously one of the best and one of the most annoying
-        things about JavaScript which I have immitated in EvilCandy.)
+        things about JavaScript which EvilCandy nevertheless imitates.)
 
 Merging Dictionaries
 ~~~~~~~~~~~~~~~~~~~~
@@ -1149,7 +1156,7 @@ Strings and Bytes
 -----------------
 
 In EvilCandy a string is a sequence of text.  Internally, they are
-nullchar-terminated C strings with additional metadata.  They can be
+nulchar-terminated C strings with additional metadata.  They can be
 represented by string literals (see `String Literal Tokens`_ above).
 
 Bytes are binary data arrays whose values are unsigned, in the range
@@ -1277,7 +1284,7 @@ Testing a single object for truthiness
 
 If a conditional test contains a single expression,
 
-Boolen expressions ``true`` and ``false`` are actually integer types.
+Boolean expressions ``true`` and ``false`` are actually integer types.
 They are aliases for 1 and 0, respectively.  They were intended for
 convenient assignments and return values, not for comparisons.  The
 expressions ``(null == false)`` and ``(null == true)`` *both* evaluate
@@ -1436,7 +1443,7 @@ you.  This is based on Python's range object.  As with Python, a
 ``range`` object is highly compact; its members are not stored in memory,
 but rather they are retrieved algorithmically upon request; considering
 that only three parameters (start, stop, and step) constitute all the
-necessary computation, this is actually faster than the C-style for loop.
+necessary computation, this is actually faster in EvilCandy than its C-style for loop.
 the built-in ``range()`` function takes 1 to three arguments, all integers.
 The prototype is:
 
@@ -1455,7 +1462,9 @@ not be used in algorithmically intense scenarios.
 ``for`` - ``else`` combination
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. warning:: DEPRECATED, 'else' will be replaced by a different keyword
+Warning! Deprecated!
+
+        'else' will be replaced by a different keyword
 
         Even though I dislike keyword bloat, repurposing 'else' here is
         poorly suited to EvilCandy's JS-like notation, where someone's sloppy
@@ -1468,7 +1477,7 @@ not be used in algorithmically intense scenarios.
         'orlse', as in 'there better be no bugs in this code, orlse...'
 
 EvilCandy's ``for`` loop has an optional following ``else`` statement,
-another immitation of Python.  In the following example (cribbed and adapted
+another imitation of Python.  In the following example (cribbed and adapted
 straight from an algorithm in the python.org `documentation
 <https://docs.python.org/3.12/tutorial/controlflow.html#for-statements>`_):
 
@@ -1514,7 +1523,7 @@ In the following example, ``x`` is only visible inside the ``if`` statement.
                 let a = x;  // x no longer exists
                 ...
 
-However, automatic variables **may** supercede global variables with the
+However, automatic variables **may** supersede global variables with the
 same name.  The following code is valid:
 
 .. code-block:: js
@@ -1604,7 +1613,7 @@ either from the caller or from the declared defaults if they were not
 provided.  (See `Merging Dictionaries`_ above for how the ``|`` operator
 is used with dictionaries.)
 
-.. caution::
+Caution!
 
         Be aware that the caller could send any data type, not necessarily
         the type defined as the default.  If the function does not want an
@@ -1651,7 +1660,7 @@ For example, given the dictionary:
 then a call to ``mydict()`` is equivalent to calling
 ``mydict.__callable__()``.  The number and type of arguments for
 ``__callable__`` may be entirely user-defined.  Note that this
-is a trivial example, however, and a simplier way is to use Closures_.
+is a trivial example, however, and a simpler way is to use Closures_.
 
 Lambda Functions
 ----------------
@@ -1678,7 +1687,7 @@ This is equivalent to:
 
 In both examples, the return value is technically a lambda function.
 But for our purposes, *lambda notation* refers to the former case,
-where the double backquote tokens (``````) provide syntactic sugar
+where the double back-quote tokens (``````) provide syntactic sugar
 for a very small function.  The general form is::
 
         `` ( ARGS ) EXPR ``

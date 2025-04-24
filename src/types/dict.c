@@ -829,6 +829,72 @@ do_dict_copy(Frame *fr)
         return ret;
 }
 
+static void
+purloin_one(struct bucket_t *b)
+{
+        if (isvar_method(b->b_data)) {
+                Object *func, *owner;
+                methodvar_tofunc(b->b_data, &func, &owner);
+                VAR_DECR_REF(owner);
+                VAR_DECR_REF(b->b_data);
+                b->b_data = func;
+        }
+}
+
+/*
+ * .purloin()
+ * .purloin(key)        Reclaim all method-object entries contained
+ *                      within a dictionary.
+ *
+ * The next retrieval of a certain function from the dictionary will
+ * be plain functions, not method objects pointing somewhere else.
+ * The retrieval process (if done by user, ie. via var_getattr), will
+ * put the function into a new method object pointing at this
+ * dictionary.
+ *
+ * This is not safe unless done with extreme care.  It only exists
+ * because there is bound to be some rare scenario where inheritance
+ * via the union operator just won't be enough.
+ */
+static Object *
+do_dict_purloin(Frame *fr)
+{
+        unsigned int i;
+        struct bucket_t *b;
+        Object *self = get_this(fr);
+        Object *key  = vm_get_arg(fr, 0);
+        struct dictvar_t *d = V2D(self);
+
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
+
+        if (!key) {
+                for (i = 0; i < d->d_size; i++) {
+                        b = d->d_bucket[i];
+                        if (b == NULL || b == BUCKET_DEAD)
+                                continue;
+
+                        purloin_one(b);
+                }
+        } else {
+                hash_t hash;
+
+                if (arg_type_check(key, &StringType) == RES_ERROR)
+                        return ErrorVar;
+
+                hash = string_update_hash(key);
+                b = seek_helper(d, key, hash, &i);
+                if (!b) {
+                        err_setstr(RuntimeError,
+                                "Cannot purloin %s: does not exist",
+                                string_get_cstring(key));
+                        return ErrorVar;
+                }
+                purloin_one(b);
+        }
+        return NULL;
+}
+
 static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("len",       do_dict_len,       0, 0),
         V_INITTBL("foreach",   do_dict_foreach,   1, 1),
@@ -836,6 +902,7 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("setattr",   do_dict_setattr,   2, 2),
         V_INITTBL("getattr",   do_dict_getattr,   1, 1),
         V_INITTBL("delattr",   do_dict_delattr,   1, 1),
+        V_INITTBL("purloin",   do_dict_purloin,   0, 0),
         V_INITTBL("keys",      do_dict_keys,      0, 0),
         V_INITTBL("copy",      do_dict_copy,      0, 0),
         TBLEND,

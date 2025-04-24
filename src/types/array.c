@@ -14,6 +14,7 @@
 /**
  * struct arrayvar_t - Handle to a numerical array
  * @lock:    Lock to prevent add/remove during foreach
+ * @alloc_size: Size of allocated array for @items, in bytes
  * @items:   Array of pointers to variables stored in it
  *
  * Arrays and tuples share the same data struct.  Tuples do not need @lock,
@@ -22,11 +23,53 @@
 struct arrayvar_t {
         struct seqvar_t base;
         int lock;
+        size_t alloc_size;
         struct var_t **items;
 };
 
 #define V2ARR(v_)       ((struct arrayvar_t *)(v_))
 #define V2SQ(v_)        ((struct seqvar_t *)(v_))
+
+static void
+array_resize(struct var_t *array, int n_items)
+{
+        struct arrayvar_t *va = V2ARR(array);
+        size_t new_size = va->alloc_size;
+        size_t needsize = n_items * sizeof(struct var_t *);
+
+        if (needsize == 0) {
+                /* 1-element size, just so we don't have aNULL .items */
+                new_size = sizeof(struct var_t *);
+                goto resize;
+        }
+
+        /* 0 times X is still 0, would spinlock algorithm below */
+        if (new_size == 0)
+                new_size = sizeof(struct var_t *);
+
+        /*
+         * Similar to our hash table algorithm, except we don't need to
+         * worry about collisions, so alpha=.75 is fine.  This causes
+         * amortization so that we aren't resizing all the time.
+         */
+        while (((new_size * 3) / 4) <= needsize)
+                new_size *= 2;
+
+        if (new_size != va->alloc_size)
+                goto resize;
+
+        /* maybe shrink, do so if <50% */
+        while ((new_size / 4) > needsize)
+                new_size /= 4;
+
+        if (new_size == va->alloc_size)
+                return;
+
+resize:
+        bug_on(needsize > new_size);
+        va->alloc_size = new_size;
+        va->items = erealloc(va->items, new_size);
+}
 
 /**
  * array_getitem - seq_methods_t .getitem callback
@@ -105,7 +148,7 @@ array_append(struct var_t *array, struct var_t *child)
                 return RES_ERROR;
         }
 
-        h->items = erealloc(h->items, (size + 1) * sizeof(struct var_t *));
+        array_resize(array, size + 1);
         h->items[size] = child;
 
         seqvar_set_size(array, size + 1);
@@ -119,12 +162,11 @@ arrayvar_new_common(int n_items, struct type_t *type)
         int i;
         struct var_t *array = var_new(type);
         struct arrayvar_t *va = V2ARR(array);
-        size_t alloc_size = sizeof(struct var_t *) * n_items;
-        if (!alloc_size)
-                alloc_size = 1;
+        va->alloc_size = 0;
+        va->items = NULL;
 
+        array_resize(array, n_items);
         seqvar_set_size(array, n_items);
-        va->items = emalloc(alloc_size);
         for (i = 0; i < n_items; i++) {
                 VAR_INCR_REF(NullVar);
                 va->items[i] = NullVar;
@@ -341,10 +383,28 @@ do_array_append(struct vmframe_t *fr)
         return NULL;
 }
 
+/*
+ * array.allocated() - Return number of actual slots available in the
+ *                     array's memory.
+ * This should always return a value greater than or equal to the return
+ * value of array.len().  This is used for debugging the efficiency of
+ * array_resize() above.  We don't want to trigger too many calls
+ * to realloc(), but we don't want to have a ton of wasted real-estate
+ * in RAM.
+ */
+static struct var_t *
+do_array_allocated(struct vmframe_t *fr)
+{
+        struct var_t *self = vm_get_this(fr);
+        return intvar_new(V2ARR(self)->alloc_size
+                          / sizeof(struct var_t *));
+}
+
 static const struct type_inittbl_t array_cb_methods[] = {
         V_INITTBL("append",     do_array_append,   0, 0),
         V_INITTBL("len",        do_array_len,      0, 0),
         V_INITTBL("foreach",    do_array_foreach,  0, 0),
+        V_INITTBL("allocated",  do_array_allocated, 0, 0),
         TBLEND,
 };
 

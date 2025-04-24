@@ -1180,11 +1180,11 @@ not be sufficient.
 
 .. [#]
         Low-level impementation note: Checks are done to prevent cyclic
-        dependency should the method be re-inserted into the same object
+        reference should the method be re-inserted into the same object
         that it's bound to.  In this case, the method will be destroyed
         and plain unbound function will be inserted instead.  This is a
         rare occasion, however, and the above example, which does not
-        involve cyclic dependency, is more likely.
+        involve cyclic reference, is more likely.
 
 .. [#]
         Don't worry about ``a`` in this case, c.purloin() will

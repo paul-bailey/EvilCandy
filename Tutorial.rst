@@ -1139,6 +1139,36 @@ actually requiring a syntax dedicated to creating classes.  JavaScript's
 whose minds are locked into whatever paradigm their previous programming
 language taught them.
 
+**But it comes with a hazard**.  Functions, when called, are passed as
+a hidden argument, the function's owning object.  In user code, this may
+be accessed by the shady ``this`` keyword.  But in the case of
+dictionaries (as opposed to a more specialized ``class`` data-type as
+in C++ or Python), the only way that ownership is known is based on how
+a function call is expressed.  Consider the following:
+
+.. code-block:: js
+
+        let a = {};
+        let b = a.len;
+
+        # !?!? This result!
+        print(a.len(), b());
+        0 6
+
+In this case, ``__gbl__`` is the 'owner', or ``this``, of ``b``, not
+``a``.  In the case of mismatch types, an exception will be raised:
+
+.. code-block:: js
+
+        let a = 'hello world';
+        leb b = a.len;
+        print(a.len(), b());
+        [EvilCandy] Runtime Error Expected argument string but got dictionary
+
+As a basic rule, when calling a dictionary's method, and that dictionary
+is understood to be treated like an object of a certain class, do not
+pull the method into a separate variable.
+
 .. [#]
         I do not extend that compliment to the unreadable and frankly
         ugly conventions of JavaScript programming style.

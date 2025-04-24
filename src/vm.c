@@ -393,21 +393,6 @@ do_pop(Frame *fr, instruction_t ii)
         return 0;
 }
 
-/*
- * See eval8 in assemble.c.  There's a buildup of the stack each
- * time we iterate through a '.' or '[#]' dereference, unless we
- * call this in between each indirection.
- */
-static int
-do_shift_down(Frame *fr, instruction_t ii)
-{
-        Object *sav = pop(fr);
-        Object *discard = pop(fr);
-        VAR_DECR_REF(discard);
-        push(fr, sav);
-        return 0;
-}
-
 static int
 do_push_block(Frame *fr, instruction_t ii)
 {
@@ -477,10 +462,17 @@ do_call_func(Frame *fr, instruction_t ii)
          */
         argv = fr->stackptr - argc;
         func = *(fr->stackptr - argc - 1);
-        if (ii.arg1 == IARG_WITH_PARENT)
-                owner = *(fr->stackptr - argc - 2);
-        else
+
+        if (isvar_method(func)) {
+                if (methodvar_tofunc(func, &func, &owner) == RES_ERROR)
+                        return RES_ERROR;
+
+                bug_on(!func);
+                bug_on(!owner);
+                bug_on(!isvar_function(func));
+        } else {
                 owner = NULL;
+        }
 
         /* see comments to vm_exec_func: this may be NULL */
         retval = vm_exec_func(fr, func, owner, argc, argv);
@@ -501,10 +493,8 @@ do_call_func(Frame *fr, instruction_t ii)
 
         pop(fr); /* func */
         VAR_DECR_REF(func);
-        if (owner) {
-                pop(fr); /* owner */
+        if (owner)
                 VAR_DECR_REF(owner);
-        }
 
         if (retval == ErrorVar)
                 return RES_ERROR;
@@ -635,35 +625,27 @@ static int
 do_getattr(Frame *fr, instruction_t ii)
 {
         bool del = false;
-        Object *attr, *deref, *obj;
+        Object *attr, *key, *obj;
         int ret = 0;
 
         if (ii.arg1 == IARG_ATTR_STACK) {
-                deref = pop(fr);
+                key = pop(fr);
                 del = true;
         } else {
-                deref = RODATA(fr, ii);
+                key = RODATA(fr, ii);
         }
 
         obj = pop(fr);
 
-        attr = var_getattr(obj, deref);
+        attr = var_getattr(obj, key);
         if (!attr) {
-                err_attribute("get", deref, obj);
-                ret = -1;
+                err_attribute("get", key, obj);
+                ret = RES_ERROR;
         }
 
         if (del)
-                VAR_DECR_REF(deref);
+                VAR_DECR_REF(key);
 
-        /*
-         * see eval8 in assemble.c... we keep parent on GETATTR command.
-         * Reason being, attr might be a function we're about to call,
-         * in which case we need to know the parent.  We resolve the
-         * stack discrepancy with INSTR_SHIFT_DOWN, very likely to be
-         * our next opcode.
-         */
-        push(fr, obj);
         if (attr)
                 push(fr, attr);
 

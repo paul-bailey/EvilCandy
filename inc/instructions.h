@@ -23,27 +23,6 @@ enum {
         IARG_PTR_THIS   /* ""   "" */
 };
 
-/*
- * CALL_FUNC arg1 enumerations
- *
- * Stack at function call time is:
- *      SP
- *      argN
- *      ...
- *      arg1
- *      arg0
- *      function
- *      parent (if IARG_WITH_PARENT)
- *
- * XXX REVISIT: If we default parent with a swap before evaluating args,
- * then we could use the same great big stack for every frame, just each
- * function has its own FP & AP.
- */
-enum {
-        IARG_NO_PARENT       = 0,
-        IARG_WITH_PARENT     = 1,
-};
-
 /* CMP arg1 enumerations */
 enum {
         IARG_EQ,

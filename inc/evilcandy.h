@@ -170,6 +170,11 @@ extern enum result_t dict_setattr_exclusive(Object *dict,
                                 Object *key, Object *attr);
 extern char *dict_unique(Object *dict, const char *key);
 
+/* types/method.c */
+extern int methodvar_tofunc(Object *meth,
+                            Object **func, Object **owner);
+extern Object *methodvar_new(Object *func, Object *owner);
+
 /* types/range.c */
 extern Object *rangevar_new(long long start,
                         long long stop, long long step);

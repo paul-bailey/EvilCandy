@@ -193,6 +193,7 @@ moduleinit_var(void)
                 &EmptyType,
                 &FloatType,
                 &FunctionType,
+                &MethodType,
                 &IntType,
                 &XptrType,
                 &DictType,
@@ -291,16 +292,34 @@ var_getattr(Object *v, Object *key)
                 if (mpm && mpm->getitem) {
                         ret = mpm->getitem(v, key);
                         if (ret)
-                                return ret;
+                                goto found;
                 }
 
                 /* still here? try built-ins */
                 ret = dict_getattr(v->v_type->methods, key);
-                if (ret)
-                        VAR_INCR_REF(ret);
+                if (!ret)
+                        return NULL;
+                /* XXX necessary for built-in? */
+                VAR_INCR_REF(ret);
+
+found:
+                /*
+                 * Save "owner" with function, so when it's called it
+                 * knows who its "this" is.
+                 *
+                 * FIXME: Lots of Object creation/destruction going on
+                 * here.  Maybe I'm not too cool to create a class syntax
+                 * after all.  There's like less than a 50/50 chance the
+                 * function will use "this" anyway.
+                 */
+                if (isvar_function(ret)) {
+                        Object *tmp = ret;
+                        ret = methodvar_new(tmp, v);
+                        VAR_DECR_REF(tmp);
+                }
                 return ret;
         }
-
+        /* else, invalid key */
         return NULL;
 }
 

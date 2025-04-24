@@ -812,7 +812,7 @@ ainstr_load_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
 }
 
 static void
-assemble_call_func(struct assemble_t *a, bool have_parent)
+assemble_call_func(struct assemble_t *a)
 {
         int argc = 0;
         as_errlex(a, OC_LPAR);
@@ -829,15 +829,8 @@ assemble_call_func(struct assemble_t *a, bool have_parent)
 
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
 
-        /*
-         * stack from top is: argn...arg1, arg0, func, parent
-         * CALL_FUNC knows how much to pop based on parent arg
-         */
-        if (have_parent) {
-                add_instr(a, INSTR_CALL_FUNC, IARG_WITH_PARENT, argc);
-        } else {
-                add_instr(a, INSTR_CALL_FUNC, IARG_NO_PARENT, argc);
-        }
+        /* stack from top is: argn...arg1, arg0, func */
+        add_instr(a, INSTR_CALL_FUNC, 0, argc);
 }
 
 static void
@@ -895,43 +888,13 @@ assemble_eval_atomic(struct assemble_t *a)
         as_lex(a);
 }
 
-/*
- * Check for indirection: things like a.b, a['b'], a[b], a(b)...
- *
- * This part is tricky, for a number of reasons.  One, as we walk down
- * the element path of a.b.c.d..., we need to keep track of the immediate
- * parent of our current element, and for that matter keep track of
- * whether we have a parent or not.  (ie. "a(b)" instead of "a.a(b)").
- * All this is because primitive types' builtin methods do not know who
- * the parent is unless it was passed as an argument to call_func.
- *
- * Second, by function-call time, the stack will be different beneath us
- * depending on whether we have a parent or not.  So we need to include
- * this as a truth statement into the instruction for calling functions
- * (IARG_WITH_PARENT/IARG_NO_PARENT).
- *
- * Third, to keep track of the most current parent (ie. "b", not "a" when
- * we are at the "c" of "a.b.c..."), INSTR_GETATTR pushes the parent back
- * on the stack under the new attribute, therefore the stack grows by one
- * for every generation we descend.
- *
- * The best solution I could think up is to add INSTR_SHIFT_DOWN, a
- * pop-pop-push operation which effectively deletes the second-to-last
- * stack item and moves the last one down by one.  Doing this for each
- * descent ought to keep the stack properly balanced.  We use the
- * have_parent boolean to prevent us from doing this the first time.
- */
+/* Check for indirection: things like a.b, a['b'], a[b], a(b)... */
 static void
 assemble_eval8(struct assemble_t *a)
 {
 #define GETATTR_SHIFT(arg1, arg2) do {                  \
-        if (have_parent)                                \
-                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);   \
         add_instr(a, INSTR_GETATTR, arg1, arg2);        \
-        have_parent = true;                             \
 } while (0)
-
-        bool have_parent = false;
 
         assemble_eval_atomic(a);
 
@@ -978,18 +941,14 @@ assemble_eval8(struct assemble_t *a)
                         break;
 
                 case OC_LPAR:
-                        /* CALL_FUNC pops twice if have_parent */
                         as_unlex(a);
-                        assemble_call_func(a, have_parent);
-                        have_parent = false;
+                        assemble_call_func(a);
                         break;
                 default:
                         as_err(a, AE_BADTOK);
                 }
                 as_lex(a);
         }
-        if (have_parent)
-                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
 
 #undef GETATTR_SHIFT
 }
@@ -1235,8 +1194,6 @@ assemble_preassign(struct assemble_t *a, int t)
 static void
 assemble_ident_helper(struct assemble_t *a)
 {
-        /* See comment above eval8(). We're doing the same thing here. */
-        bool have_parent = false;
         int last_t = 0;
 
         if (peek_semi(a))
@@ -1256,10 +1213,7 @@ assemble_ident_helper(struct assemble_t *a)
 #define GETATTR_SHIFT(arg1, arg2)                                       \
                 do {                                                    \
                         as_unlex(a);                                    \
-                        if (have_parent)                                \
-                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);   \
                         add_instr(a, INSTR_GETATTR, arg1, arg2);        \
-                        have_parent = true;                             \
                 } while (0)
 
 #define SETATTR_SHIFT(arg1, arg2)                                       \
@@ -1270,8 +1224,6 @@ assemble_ident_helper(struct assemble_t *a)
                                 add_instr(a, INSTR_GETATTR, arg1, arg2); \
                                 assemble_preassign(a, t_);              \
                         }                                               \
-                        if (have_parent)                                \
-                                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);   \
                         add_instr(a, INSTR_SETATTR, arg1, arg2);        \
                 } while (0)
 
@@ -1357,21 +1309,13 @@ assemble_ident_helper(struct assemble_t *a)
 
                 case OC_LPAR:
                         as_unlex(a);
-                        assemble_call_func(a, have_parent);
+                        assemble_call_func(a);
                         if (peek_semi(a)) {
                                 /* discard result */
                                 add_instr(a, INSTR_POP, 0, 0);
-                                have_parent = false;
                                 goto done;
-                        } else {
-                                /*
-                                 * keep result, maybe shift down, continue
-                                 * in this loop.
-                                 */
-                                if (have_parent)
-                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
-                                have_parent = false;
                         }
+                        /* else keep result, carry on.  */
                         break;
 
                 default:
@@ -1390,8 +1334,6 @@ assemble_ident_helper(struct assemble_t *a)
         }
 
 done:
-        if (have_parent)
-                add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
         ;
 #undef GETATTR_SHIFT
 #undef SETATTR_SHIFT

@@ -168,6 +168,7 @@ extern struct type_t TupleType;
 extern struct type_t EmptyType; /* XXX should be NullType */
 extern struct type_t FloatType;
 extern struct type_t FunctionType;
+extern struct type_t MethodType;
 extern struct type_t IntType;
 extern struct type_t XptrType;
 extern struct type_t DictType;
@@ -187,6 +188,8 @@ static inline bool isvar_float(Object *v)
         { return v->v_type == &FloatType; }
 static inline bool isvar_function(Object *v)
         { return v->v_type == &FunctionType; }
+static inline bool isvar_method(Object *v)
+        { return v->v_type == &MethodType; }
 static inline bool isvar_int(Object *v)
         { return v->v_type == &IntType; }
 static inline bool isvar_xptr(Object *v)

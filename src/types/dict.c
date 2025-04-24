@@ -710,6 +710,7 @@ do_dict_hasattr(Frame *fr)
                 err_argtype("string");
                 return ErrorVar;
         }
+#warning "extra reference produced, use dict_hasattr instead"
 
         child = dict_getattr(self, name);
         /* TODO: if child == NULL, check built-in methods */

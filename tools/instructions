@@ -27,11 +27,6 @@ LOAD
 # pop last item off the stack and consume its reference.
 POP
 
-# remove second-to-last item on the stack and move the top
-# item down.  See assemble_eval8 and assemble_ident_helper
-# in assemble.c.  Used for parsing 'a.b.c[e](f).g' monsters.
-SHIFT_DOWN
-
 # Save stack position and descend into a program flow loop.
 # This is needed because the stack position is uncertain if
 # a 'break' occurs.
@@ -55,17 +50,12 @@ SYMTAB
 RETURN_VALUE
 
 # call function, of course.
-# arg1 tells whether or not a 'this' owner exists on the stack
-# for the function or not.
 # arg2 is the number arguments that have been passed.
 # The stack is, from top:
-#
 #       arg_n
 #       ...
 #       arg_0
-#       function var
-#       owner*          <- may not be there, check arg1
-#
+#       function
 CALL_FUNC
 
 # create a user-function variable and push it on the stack

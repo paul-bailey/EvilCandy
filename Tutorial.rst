@@ -1120,6 +1120,14 @@ slight speed advantage to an in-place operation, but it is far *too*
 slight to justify itself compared to the cleanliness and consistency
 with which binary operators are handled in EvilCandy.)
 
+Dictionary Insertion Order
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dictionary insertion order is not preserved, nor may its contents be
+accessed with numerical subscripts.  When iterating over the members
+of a dictionary, however, the iteration will be in alphabetical order
+of its keys.
+
 Is It a Class or a Dictionary?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1139,26 +1147,26 @@ actually requiring a syntax dedicated to creating classes.  JavaScript's
 whose minds are locked into whatever paradigm their previous programming
 language taught them.
 
-**But it comes with a hazard**.  Functions, when called, are passed as
-a hidden argument, the function's owning object.  In user code, this may
-be accessed by the shady ``this`` keyword.  But in the case of
-dictionaries (as opposed to a more specialized ``class`` data-type as
-in C++ or Python), the only way that ownership is known is based on how
-a function call is expressed.  Consider the following:
+**But it comes with a hazard**.  Functions, when called, are passed their
+owning object as a hidden argument.  In user code, this may be accessed
+by the shady ``this`` keyword.  But in the case of dictionaries (as
+opposed to a more specialized ``class`` data-type as in C++ or Python),
+the only way that ownership is known is based on how a function call is
+expressed.  Consider the following:
 
 .. code-block:: js
 
         let a = {};
         let b = a.len;
 
-        # !?!? This result!
+        // !?!? This result!
         print(a.len(), b());
         0 6
 
 In this case, ``__gbl__`` is the 'owner', or ``this``, of ``b``, not
 ``a``.  In the case of mismatch types, an exception will be raised:
 
-.. code-block:: js
+.. code::
 
         let a = 'hello world';
         leb b = a.len;
@@ -1173,14 +1181,6 @@ pull the method into a separate variable.
         I do not extend that compliment to the unreadable and frankly
         ugly conventions of JavaScript programming style.
         Its name is ``i``, not ``ThisVariableIsAnIteratorInAForLoop``!
-
-Dictionary Insertion Order
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Dictionary insertion order is not preserved, nor may its contents be
-accessed with numerical subscripts.  When iterating over the members
-of a dictionary, however, the iteration will be in alphabetical order
-of its keys.
 
 Strings and Bytes
 -----------------

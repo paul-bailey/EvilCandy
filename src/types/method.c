@@ -38,6 +38,19 @@ methodvar_tofunc(Object *meth, Object **func, Object **owner)
 }
 
 /**
+ * method_peek_self - Get owner of method
+ *
+ * This is meant for peeking, it does not produce a reference
+ * the way that methodvar_tofunc does.
+ */
+Object *
+method_peek_self(Object *meth)
+{
+        bug_on(!isvar_method(meth));
+        return V2M(meth)->owner;
+}
+
+/**
  * methodvar_new - Create a new method object
  * @func: The actual method
  * @owner: The owner of the method

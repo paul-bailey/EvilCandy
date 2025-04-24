@@ -174,6 +174,7 @@ extern char *dict_unique(Object *dict, const char *key);
 extern int methodvar_tofunc(Object *meth,
                             Object **func, Object **owner);
 extern Object *methodvar_new(Object *func, Object *owner);
+extern Object *method_peek_self(Object *meth);
 
 /* types/range.c */
 extern Object *rangevar_new(long long start,

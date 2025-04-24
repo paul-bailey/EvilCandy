@@ -597,6 +597,20 @@ setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
 
         obj = pop(fr);
 
+        /* FIXME: asymmetric var_setattr/var_getattr */
+        if (isvar_method(val) && method_peek_self(val) == obj) {
+                /*
+                 * prevent unnecessary cyclic reference,
+                 * store the function instead of the 'method'
+                 */
+                Object *towner, *tfunc;
+                methodvar_tofunc(val, &tfunc, &towner);
+                VAR_DECR_REF(val);
+                /* same as obj, we just produced another ref */
+                VAR_DECR_REF(towner);
+                val = tfunc;
+        }
+
         if ((ret = var_setattr(obj, key, val)) != 0) {
                 if (!err_occurred())
                         err_attribute("set", key, obj);

@@ -13,6 +13,24 @@ static struct {
         } opt;
 } q_;
 
+/*
+ * Global User-Type Variables
+ *
+ *      When returning NullVar to mean 'null' (as the script user sees
+ *      it), produce a reference, just as if you would for any other
+ *      variable.  Ditto with GlobalObject, this is what the user sees
+ *      as '__gbl__'.
+ *
+ *      Do not produce a reference for the ErrorVar, since it tells you
+ *      an error occurred.  You should never use ErrorVar such that it
+ *      could be 'seen' by the user, eg. never push it onto the user
+ *      stack.
+ *
+ *      The others (ParserError et al.) are visible to the user in
+ *      __gbl__._builtins.  Produce a reference if they are requested
+ *      with the SYMTAB instruction, but do not produce a reference
+ *      when passing these as the first argument to err_setstr.
+ */
 struct var_t *ErrorVar;
 struct var_t *NullVar;
 struct var_t *GlobalObject;

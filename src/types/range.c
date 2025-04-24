@@ -92,7 +92,9 @@ range_foreach(Frame *fr)
         int i, status = RES_OK;
 
         self = vm_get_this(fr);
-        bug_on(!isvar_range(self));
+        if (arg_type_check(self, &RangeType) == RES_ERROR)
+                return ErrorVar;
+
         n = RANGE_LEN(self);
 
         func = frame_get_arg(fr, 0);
@@ -135,7 +137,8 @@ static Object *
 range_len(Frame *fr)
 {
         Object *self = vm_get_this(fr);
-        bug_on(!isvar_range(self));
+        if (arg_type_check(self, &RangeType) == RES_ERROR)
+                return ErrorVar;
         return intvar_new(RANGE_LEN(self));
 }
 

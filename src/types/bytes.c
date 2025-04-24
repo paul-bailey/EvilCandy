@@ -13,7 +13,9 @@ static Object *
 bytes_len(Frame *fr)
 {
         Object *self = vm_get_this(fr);
-        bug_on(!isvar_bytes(self));
+        if (arg_type_check(self, &BytesType) == RES_ERROR)
+                return ErrorVar;
+
         return intvar_new(seqvar_size(self));
 }
 

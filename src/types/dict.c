@@ -631,7 +631,10 @@ do_dict_foreach(Frame *fr)
         int i, len, status;
 
         self = get_this(fr);
-        bug_on(!isvar_dict(self));
+
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
+
         func = frame_get_arg(fr, 0);
         if (!func) {
                 err_argtype("function");
@@ -686,7 +689,9 @@ do_dict_len(Frame *fr)
         int i;
 
         v = vm_get_this(fr);
-        bug_on(!v || !isvar_dict(v));
+        if (arg_type_check(v, &DictType) == RES_ERROR)
+                return ErrorVar;
+
         i = OBJ_SIZE(v);
         return intvar_new(i);
 }
@@ -698,7 +703,8 @@ do_dict_hasattr(Frame *fr)
         Object *name = frame_get_arg(fr, 0);
         Object *child = NULL;
 
-        bug_on(!isvar_dict(self));
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
 
         if (!name || !isvar_string(name)) {
                 err_argtype("string");
@@ -719,7 +725,8 @@ do_dict_setattr(Frame *fr)
         Object *name = frame_get_arg(fr, 0);
         Object *value = frame_get_arg(fr, 1);
 
-        bug_on(!isvar_dict(self));
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
 
         if (!name || !isvar_string(name)) {
                 err_argtype("name");
@@ -757,7 +764,9 @@ do_dict_getattr(Frame *fr)
         Object *ret;
         char *s;
 
-        bug_on(!isvar_dict(self));
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
+
         if (arg_type_check(name, &StringType) != 0)
                 return ErrorVar;
 
@@ -781,7 +790,9 @@ do_dict_delattr(Frame *fr)
         Object *self = get_this(fr);
         Object *name = vm_get_arg(fr, 0);
 
-        bug_on(!isvar_dict(self));
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
+
         if (arg_type_check(name, &StringType) != 0)
                 return ErrorVar;
 
@@ -793,7 +804,10 @@ do_dict_delattr(Frame *fr)
 static Object *
 do_dict_keys(Frame *fr)
 {
-        return dict_keys(get_this(fr));
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
+        return dict_keys(self);
 }
 
 /*
@@ -808,7 +822,8 @@ do_dict_copy(Frame *fr)
         Object *self = get_this(fr);
         Object *ret = dictvar_new();
 
-        bug_on(!isvar_dict(self));
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
 
         if (dict_copyto(ret, self) != RES_OK) {
                 VAR_DECR_REF(ret);

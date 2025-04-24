@@ -665,7 +665,9 @@ string_format2(Frame *fr)
         struct buffer_t b;
         int argi = 0;
 
-        bug_on(!isvar_string(self));
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
         s = V2CSTR(self);
 
         if (!s || *s == '\0') {
@@ -708,7 +710,8 @@ static Object *
 string_length_method(Frame *fr)
 {
         Object *self = get_this(fr);
-        bug_on(!isvar_string(self));
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
         return intvar_new(STRING_LENGTH(self));
 }
 
@@ -759,7 +762,9 @@ string_format(Frame *fr)
         Object *self = get_this(fr);
         int lastarg = 0;
         char *s, *self_s;
-        bug_on(!isvar_string(self));
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
 
         self_s = V2CSTR(self);
         if (!self_s)
@@ -787,7 +792,9 @@ string_toint(Frame *fr)
         long long i = 0LL;
         char *s;
 
-        bug_on(!isvar_string(self));
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
         s = V2CSTR(self);
         /* XXX Revisit: throw exception if not numerical? */
         if (s) {
@@ -811,7 +818,10 @@ string_tofloat(Frame *fr)
         Object *self = get_this(fr);
         double f = 0.;
         char *s;
-        bug_on(!isvar_string(self));
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
         s = V2CSTR(self);
         if (s) {
                 int errno_save = errno;
@@ -835,10 +845,12 @@ string_lstrip(Frame *fr)
         Object *arg = frame_get_arg(fr, 0);
         Object *self = get_this(fr);
         struct buffer_t b;
-        bug_on(!isvar_string(self));
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
 
         /* arg may be NULL, else it must be string */
-        if (arg && arg_type_check(arg, &StringType) != 0)
+        if (arg && arg_type_check(arg, &StringType) == RES_ERROR)
                 return ErrorVar;
 
         buffer_init(&b);
@@ -860,10 +872,12 @@ string_rstrip(Frame *fr)
         Object *arg = frame_get_arg(fr, 0);
         Object *self = get_this(fr);
         struct buffer_t b;
-        bug_on(!isvar_string(self));
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
 
         /* arg may be NULL, else it must be string */
-        if (arg && arg_type_check(arg, &StringType) != 0)
+        if (arg && arg_type_check(arg, &StringType) == RES_ERROR)
                 return ErrorVar;
 
         buffer_init(&b);
@@ -884,10 +898,11 @@ string_strip(Frame *fr)
         Object *arg = frame_get_arg(fr, 0);
         Object *self = get_this(fr);
         struct buffer_t b;
-        bug_on(!isvar_string(self));
 
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
         /* arg may be NULL, else it must be string */
-        if (arg && arg_type_check(arg, &StringType) != 0)
+        if (arg && arg_type_check(arg, &StringType) == RES_ERROR)
                 return ErrorVar;
 
         buffer_init(&b);
@@ -908,12 +923,11 @@ string_replace(Frame *fr)
         char *haystack, *needle, *end;
         size_t needle_len;
 
-        bug_on(!isvar_string(self));
-        bug_on(!vneedle || !vrepl);
-
-        if (arg_type_check(vneedle, &StringType) != 0)
+        if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(vrepl, &StringType) != 0)
+        if (arg_type_check(vneedle, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(vrepl, &StringType) == RES_ERROR)
                 return ErrorVar;
 
         buffer_init(&b);
@@ -954,7 +968,10 @@ static Object *
 string_copy(Frame *fr)
 {
         Object *self = get_this(fr);
-        bug_on(!isvar_string(self));
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
         return string_copy__(self);
 }
 
@@ -967,7 +984,9 @@ string_rjust(Frame *fr)
         size_t len;
         long long just;
 
-        if (arg_type_check(arg, &IntType) != 0)
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(arg, &IntType) == RES_ERROR)
                 return ErrorVar;
 
         just = intvar_toll(arg);
@@ -1005,7 +1024,9 @@ string_ljust(Frame *fr)
         size_t len;
         long long just;
 
-        if (arg_type_check(arg, &IntType) != 0)
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(arg, &IntType) == RES_ERROR)
                 return ErrorVar;
 
         just = intvar_toll(arg);
@@ -1055,10 +1076,13 @@ string_join(Frame *fr)
         int i;
         size_t n;
 
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
         if ((joinstr = V2CSTR(self)) == NULL)
                 joinstr = "";
 
-        if (arg_type_check(arg, &ArrayType) != 0)
+        if (arg_type_check(arg, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
         if ((n = var_len(arg)) == 0)

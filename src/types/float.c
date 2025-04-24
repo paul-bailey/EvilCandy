@@ -156,8 +156,9 @@ float_str(Object *a)
 static Object *
 float_tostr(Frame *fr)
 {
-        Object *self = get_this(fr);
-        bug_on(!isvar_float(self));
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &FloatType) == RES_ERROR)
+                return ErrorVar;
         return float_str(self);
 }
 

@@ -301,13 +301,23 @@ static Object *
 do_array_len(Frame *fr)
 {
         Object *self = get_this(fr);
-        bug_on(!isvar_array(self) && !isvar_tuple(self));
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+        return intvar_new(seqvar_size(self));
+}
+
+static Object *
+do_tuple_len(Frame *fr)
+{
+        Object *self = get_this(fr);
+        if (arg_type_check(self, &TupleType) == RES_ERROR)
+                return ErrorVar;
         return intvar_new(seqvar_size(self));
 }
 
 /* implement 'x.foreach(myfunc, mypriv)' */
 static Object *
-do_array_foreach(Frame *fr)
+array_tuple_foreach_common(Frame *fr, struct type_t *type)
 {
         Object *self, *func, *priv, *argv[3];
         unsigned int idx, lock;
@@ -315,8 +325,13 @@ do_array_foreach(Frame *fr)
         int status = RES_OK;
 
         self = get_this(fr);
+        if (arg_type_check(self, type) == RES_ERROR)
+                return ErrorVar;
+        /*
+         * If 'func' is not function, it could still be callable,
+         * so do not use arg_type_check() for it.
+         */
         func = frame_get_arg(fr, 0);
-        bug_on(!isvar_array(self) && !isvar_tuple(self));
         if (!func) {
                 err_argtype("function");
                 return ErrorVar;
@@ -364,6 +379,18 @@ out:
         return status == RES_OK ? NULL : ErrorVar;
 }
 
+static Object *
+do_array_foreach(Frame *fr)
+{
+        return array_tuple_foreach_common(fr, &ArrayType);
+}
+
+static Object *
+do_tuple_foreach(Frame *fr)
+{
+        return array_tuple_foreach_common(fr, &TupleType);
+}
+
 /* implement 'x.append(y)' */
 static Object *
 do_array_append(Frame *fr)
@@ -371,8 +398,10 @@ do_array_append(Frame *fr)
         Object *self, *arg;
         self = get_this(fr);
         arg = vm_get_arg(fr, 0);
+
         /* array only, tuples are read-only... */
-        bug_on(!isvar_array(self));
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
 
         if (!arg) {
                 /* ugh, I know what it means */
@@ -396,6 +425,8 @@ static Object *
 do_array_allocated(Frame *fr)
 {
         Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
         return intvar_new(V2ARR(self)->alloc_size
                           / sizeof(Object *));
 }
@@ -428,8 +459,8 @@ struct type_t ArrayType = {
 };
 
 static const struct type_inittbl_t tuple_cb_methods[] = {
-        V_INITTBL("len",        do_array_len,           0, 0),
-        V_INITTBL("foreach",    do_array_foreach,       0, 0),
+        V_INITTBL("len",        do_tuple_len,           0, 0),
+        V_INITTBL("foreach",    do_tuple_foreach,       0, 0),
         TBLEND,
 };
 

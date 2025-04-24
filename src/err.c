@@ -259,7 +259,7 @@ arg_type_check_failed(Object *v, struct type_t *want)
                            "Expected argument %s but got %s",
                            want->name, typestr(v));
         }
-        return -1;
+        return RES_ERROR;
 }
 
 

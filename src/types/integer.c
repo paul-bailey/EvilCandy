@@ -236,7 +236,8 @@ static Object *
 int_tostr(Frame *fr)
 {
         Object *self = get_this(fr);
-        bug_on(!isvar_int(self));
+        if (arg_type_check(self, &IntType) == RES_ERROR)
+                return ErrorVar;
         return int_str(self);
 }
 

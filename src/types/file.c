@@ -57,7 +57,8 @@ file_str(Object *v)
 }
 
 #define RETURN_IF_BAD_FILE(f_) do {                       \
-        bug_on(!isvar_file(f_));                          \
+        if (arg_type_check(f_, &FileType) == RES_ERROR)   \
+                return ErrorVar;                          \
         if (!V2F(f_)->f_fp) {                             \
                 err_setstr(RuntimeError, "File closed");  \
                 return ErrorVar;                          \

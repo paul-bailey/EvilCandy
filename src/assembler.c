@@ -15,14 +15,14 @@
  *      that gcc is taking its time to make things awesome?
  *
  * I use a recursive descent parser.
- * For an expression like
+ * For a statement like
  *              let a = (x + y.z() * 2.0);
- * the parser's entry point is assemble_expression().
+ * the parser's entry point is assemble_stmt().
  * The part to the right of the "="
  *              (x + y.z() * 2.0)
- * is evaluated starting at assemble_eval().  Since this is what can be
+ * is evaluated starting at assemble_expr().  Since this is what can be
  * evaluated and reduced to a single datum during runtime, it's what the
- * documentation refers to as VALUE.
+ * documentation refers to as EXPR.
  */
 #include <evilcandy.h>
 #include <token.h>
@@ -154,8 +154,8 @@ struct assemble_t {
         struct as_frame_t *fr;
 };
 
-static void assemble_eval(struct assemble_t *a);
-static void assemble_expression(struct assemble_t *a,
+static void assemble_expr(struct assemble_t *a);
+static void assemble_stmt(struct assemble_t *a,
                                 unsigned int flags, int skip);
 
 /*
@@ -535,10 +535,10 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                 int t = as_lex(a);
                 as_unlex(a);
                 if (t == OC_LBRACE) {
-                        assemble_expression(a, 0, -1);
+                        assemble_stmt(a, 0, -1);
                         as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                 } else {
-                        assemble_eval(a);
+                        assemble_expr(a);
                         as_lex(a);
                         as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
@@ -546,11 +546,11 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                         return;
                 }
         } else {
-                assemble_expression(a, 0, -1);
+                assemble_stmt(a, 0, -1);
         }
         /*
          * This is often unreachable to the VM,
-         * but in case expression reached end
+         * but in case statement reached end
          * without hitting "return", we need a BL.
          */
         ainstr_load_const_int(a, 0LL);
@@ -590,7 +590,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                         deflt = true;
 
                         as_frame_swap(a);
-                        assemble_eval(a);
+                        assemble_expr(a);
                         as_frame_swap(a);
 
                         as_lex(a);
@@ -636,7 +636,7 @@ assemble_arraydef(struct assemble_t *a)
         as_unlex(a);
 
         do {
-                assemble_eval(a);
+                assemble_expr(a);
                 as_lex(a);
                 n_items++;
         } while (a->oc->t == OC_COMMA);
@@ -658,7 +658,7 @@ assemble_tupledef(struct assemble_t *a)
         as_unlex(a);
 
         do {
-                assemble_eval(a);
+                assemble_expr(a);
                 as_lex(a);
                 n_items++;
         } while (a->oc->t == OC_COMMA);
@@ -692,7 +692,7 @@ assemble_objdef(struct assemble_t *a)
                         /* computed key */
                         namei = -1;
                         attrarg = IARG_ATTR_STACK;
-                        assemble_eval(a);
+                        assemble_expr(a);
                         as_errlex(a, OC_RBRACK);
                 } else if (a->oc->t == 'u' || a->oc->t == 'q') {
                         /* key is literal text */
@@ -709,16 +709,16 @@ assemble_objdef(struct assemble_t *a)
                         err_setstr(ParserError, "Expected: ':'");
                         as_err(a, AE_EXPECT);
                 }
-                assemble_eval(a);
+                assemble_expr(a);
                 add_instr(a, INSTR_ADDATTR, attrarg, namei);
                 as_lex(a);
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);
 }
 
-static void assemble_eval1(struct assemble_t *a);
+static void assemble_expr1(struct assemble_t *a);
 
-static void assemble_eval_atomic(struct assemble_t *a);
+static void assemble_expr_atomic(struct assemble_t *a);
 
 /*
  * helper to ainstr_load_symbol, @name is not in local namespace,
@@ -736,7 +736,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
          *
          * FIXME: Note the recursive nature of this.  If the variable
          * is not in the parent scope either, the call to
-         * assemble_eval_atomic will call us again for the grandparent,
+         * assemble_expr_atomic will call us again for the grandparent,
          * and so on until the highest-level scope that is still inside
          * a function.  That means if the closure is in, say, a great-
          * grandparent, and the parent/grandparent scopes don't use it,
@@ -754,7 +754,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
             clo_seek(a, name) >= 0)  {
 
                 pos = as_swap_pos(a, pos);
-                assemble_eval_atomic(a);
+                assemble_expr_atomic(a);
                 as_swap_pos(a, pos);
 
                 /* back to identifier */
@@ -821,7 +821,7 @@ assemble_call_func(struct assemble_t *a)
         if (a->oc->t != OC_RPAR) {
                 as_unlex(a);
                 do {
-                        assemble_eval(a);
+                        assemble_expr(a);
                         argc++;
                         as_lex(a);
                 } while (a->oc->t == OC_COMMA);
@@ -834,7 +834,7 @@ assemble_call_func(struct assemble_t *a)
 }
 
 static void
-assemble_eval_atomic(struct assemble_t *a)
+assemble_expr_atomic(struct assemble_t *a)
 {
         switch (a->oc->t) {
         case 'u': {
@@ -890,13 +890,13 @@ assemble_eval_atomic(struct assemble_t *a)
 
 /* Check for indirection: things like a.b, a['b'], a[b], a(b)... */
 static void
-assemble_eval8(struct assemble_t *a)
+assemble_expr8(struct assemble_t *a)
 {
 #define GETATTR_SHIFT(arg1, arg2) do {                  \
         add_instr(a, INSTR_GETATTR, arg1, arg2);        \
 } while (0)
 
-        assemble_eval_atomic(a);
+        assemble_expr_atomic(a);
 
         while (!!(a->oc->t & TF_INDIRECT)) {
                 int namei;
@@ -931,7 +931,7 @@ assemble_eval8(struct assemble_t *a)
                         case OC_LPAR:
                                 /* need to evaluate index */
                                 as_unlex(a);
-                                assemble_eval(a);
+                                assemble_expr(a);
                                 GETATTR_SHIFT(IARG_ATTR_STACK, -1);
                                 break;
                         default:
@@ -954,7 +954,7 @@ assemble_eval8(struct assemble_t *a)
 }
 
 static void
-assemble_eval7(struct assemble_t *a)
+assemble_expr7(struct assemble_t *a)
 {
         if (!!(a->oc->t & TF_UNARY)) {
                 int op, t = a->oc->t;
@@ -968,31 +968,31 @@ assemble_eval7(struct assemble_t *a)
                         op = -1;
 
                 as_lex(a);
-                assemble_eval8(a);
+                assemble_expr8(a);
 
                 if (op >= 0)
                         add_instr(a, op, 0, 0);
         } else {
-                assemble_eval8(a);
+                assemble_expr8(a);
         }
 }
 
 /* awk...ward! Added this late in the game */
 static void
-assemble_eval6_2(struct assemble_t *a)
+assemble_expr6_2(struct assemble_t *a)
 {
-        assemble_eval7(a);
+        assemble_expr7(a);
         while (a->oc->t == OC_POW) {
                 as_lex(a);
-                assemble_eval7(a);
+                assemble_expr7(a);
                 add_instr(a, INSTR_POW, 0, 0);
         }
 }
 
 static void
-assemble_eval6(struct assemble_t *a)
+assemble_expr6(struct assemble_t *a)
 {
-        assemble_eval6_2(a);
+        assemble_expr6_2(a);
         while (!!(a->oc->t & TF_MULDIVMOD)) {
                 int op;
                 if (a->oc->t == OC_MUL)
@@ -1002,15 +1002,15 @@ assemble_eval6(struct assemble_t *a)
                 else
                         op = INSTR_MOD;
                 as_lex(a);
-                assemble_eval6_2(a);
+                assemble_expr6_2(a);
                 add_instr(a, op, 0, 0);
         }
 }
 
 static void
-assemble_eval5(struct assemble_t *a)
+assemble_expr5(struct assemble_t *a)
 {
-        assemble_eval6(a);
+        assemble_expr6(a);
         while (a->oc->t == OC_PLUS || a->oc->t == OC_MINUS) {
                 int op;
                 if (a->oc->t == OC_PLUS)
@@ -1018,15 +1018,15 @@ assemble_eval5(struct assemble_t *a)
                 else
                         op = INSTR_SUB;
                 as_lex(a);
-                assemble_eval6(a);
+                assemble_expr6(a);
                 add_instr(a, op, 0, 0);
         }
 }
 
 static void
-assemble_eval4(struct assemble_t *a)
+assemble_expr4(struct assemble_t *a)
 {
-        assemble_eval5(a);
+        assemble_expr5(a);
         while (a->oc->t == OC_LSHIFT || a->oc->t == OC_RSHIFT) {
                 int op;
                 if (a->oc->t == OC_LSHIFT)
@@ -1036,15 +1036,15 @@ assemble_eval4(struct assemble_t *a)
 
                 /* TODO: peek if we can do fast eval */
                 as_lex(a);
-                assemble_eval5(a);
+                assemble_expr5(a);
                 add_instr(a, op, 0, 0);
         }
 }
 
 static void
-assemble_eval3(struct assemble_t *a)
+assemble_expr3(struct assemble_t *a)
 {
-        assemble_eval4(a);
+        assemble_expr4(a);
         while (!!(a->oc->t & TF_RELATIONAL)) {
                 int cmp;
                 switch (a->oc->t) {
@@ -1071,16 +1071,16 @@ assemble_eval3(struct assemble_t *a)
                         cmp = 0;
                 }
                 as_lex(a);
-                assemble_eval4(a);
+                assemble_expr4(a);
 
                 add_instr(a, INSTR_CMP, cmp, 0);
         }
 }
 
 static void
-assemble_eval2(struct assemble_t *a)
+assemble_expr2(struct assemble_t *a)
 {
-        assemble_eval3(a);
+        assemble_expr3(a);
         while (!!(a->oc->t & TF_BITWISE)) {
                 int op;
                 if (a->oc->t == OC_AND) {
@@ -1091,37 +1091,37 @@ assemble_eval2(struct assemble_t *a)
                         op = INSTR_BINARY_XOR;
                 }
                 as_lex(a);
-                assemble_eval3(a);
+                assemble_expr3(a);
                 add_instr(a, op, 0, 0);
         }
 }
 
 static void
-assemble_eval1(struct assemble_t *a)
+assemble_expr1(struct assemble_t *a)
 {
-        assemble_eval2(a);
+        assemble_expr2(a);
 
         while (!!(a->oc->t & TF_LOGICAL)) {
                 int code = a->oc->t == OC_OROR
                         ? INSTR_LOGICAL_OR : INSTR_LOGICAL_AND;
 
                 as_lex(a);
-                assemble_eval2(a);
+                assemble_expr2(a);
                 add_instr(a, code, 0, 0);
         }
 }
 
 /*
- * Sister function to assemble_expression.  This and its
- * assemble_evalN descendants form a recursive-descent parser that
- * builds up the instructions for evaluating the VALUE part of an
- * expression (see big comment in assemble_expression).
+ * Sister function to assemble_stmt.  This and its
+ * assemble_exprN descendants form a recursive-descent parser that
+ * builds up the instructions for evaluating the EXPR part of a
+ * statement (see big comment in assemble_stmt).
  */
 static void
-assemble_eval(struct assemble_t *a)
+assemble_expr(struct assemble_t *a)
 {
         as_lex(a);
-        assemble_eval1(a);
+        assemble_expr1(a);
         as_unlex(a);
 }
 
@@ -1164,7 +1164,7 @@ asgntok2instr(int t)
 static void
 assemble_preassign(struct assemble_t *a, int t)
 {
-        /* first check the ones that don't call assemble_eval */
+        /* first check the ones that don't call assemble_expr */
         switch (t) {
         case OC_PLUSPLUS:
                 ainstr_load_const_int(a, 1);
@@ -1178,7 +1178,7 @@ assemble_preassign(struct assemble_t *a, int t)
 
         default:
                 bug_on(t == OC_EQ || !(t & TF_ASSIGN));
-                assemble_eval(a);
+                assemble_expr(a);
                 add_instr(a, asgntok2instr(t), 0, 0);
         }
 }
@@ -1219,7 +1219,7 @@ assemble_ident_helper(struct assemble_t *a)
 #define SETATTR_SHIFT(arg1, arg2)                                       \
                 do {                                                    \
                         if (t_ == OC_EQ) {                              \
-                                assemble_eval(a);                       \
+                                assemble_expr(a);                       \
                         } else {                                        \
                                 add_instr(a, INSTR_GETATTR, arg1, arg2); \
                                 assemble_preassign(a, t_);              \
@@ -1281,7 +1281,7 @@ assemble_ident_helper(struct assemble_t *a)
                         case OC_LPAR:
                                 /* need to evaluate index */
                                 as_unlex(a);
-                                assemble_eval(a);
+                                assemble_expr(a);
 
                                 if (as_lex(a) == OC_RBRACK) {
                                         SETATTR_SHIFT_IF_ASGN(IARG_ATTR_STACK, -1);
@@ -1367,7 +1367,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * Don't load, INSTR_ASSIGN knows where from frame
                  * pointer to store 'value'
                  */
-                assemble_eval(a);
+                assemble_expr(a);
                 ainstr_load_or_assign(a, &name, INSTR_ASSIGN, pos);
         } else if (!!(a->oc->t & TF_ASSIGN)) {
                 /*
@@ -1443,7 +1443,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         /* XXX: is the extra LOAD/POP necessary? */
         ainstr_load_symbol(a, &name, pos);
-        assemble_eval(a);
+        assemble_expr(a);
         add_instr(a, INSTR_ASSIGN,
                   tok == OC_LET ? IARG_PTR_AP : IARG_PTR_SEEK, namei);
         add_instr(a, INSTR_POP, 0, 0);
@@ -1456,7 +1456,7 @@ assemble_return(struct assemble_t *a)
                 ainstr_load_const_int(a, 0);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
         } else {
-                assemble_eval(a);
+                assemble_expr(a);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
         }
 }
@@ -1469,14 +1469,14 @@ assemble_if(struct assemble_t *a, int skip)
         int jmpelse = as_next_label(a);
         /*
          * The 'if' of 'else if' is technically the start of its own
-         * expression, so we could do this recursively and more simply,
+         * statement, so we could do this recursively and more simply,
          * but let's instead be friendlier to the stack.
          */
         while (a->oc->t == OC_IF) {
                 int jmpend = as_next_label(a);
-                assemble_eval(a);
+                assemble_expr(a);
                 add_instr(a, INSTR_B_IF, 0, jmpelse);
-                assemble_expression(a, 0, skip);
+                assemble_stmt(a, 0, skip);
                 add_instr(a, INSTR_B, 0, true_jmpend);
                 as_set_label(a, jmpelse);
 
@@ -1494,7 +1494,7 @@ assemble_if(struct assemble_t *a, int skip)
         /* final else */
         as_unlex(a);
         as_set_label(a, jmpelse);
-        assemble_expression(a, 0, skip);
+        assemble_stmt(a, 0, skip);
 
 done:
         as_set_label(a, true_jmpend);
@@ -1512,11 +1512,11 @@ assemble_while(struct assemble_t *a)
         as_set_label(a, start);
 
         as_errlex(a, OC_LPAR);
-        assemble_eval(a);
+        assemble_expr(a);
         as_errlex(a, OC_RPAR);
 
         add_instr(a, INSTR_B_IF, 0, skip);
-        assemble_expression(a, 0, skip);
+        assemble_stmt(a, 0, skip);
         add_instr(a, INSTR_B, 0, start);
 
         apop_scope(a);
@@ -1535,9 +1535,9 @@ assemble_do(struct assemble_t *a)
         apush_scope(a);
 
         as_set_label(a, start);
-        assemble_expression(a, 0, skip);
+        assemble_stmt(a, 0, skip);
         as_errlex(a, OC_WHILE);
-        assemble_eval(a);
+        assemble_expr(a);
         add_instr(a, INSTR_B_IF, 1, start);
 
         apop_scope(a);
@@ -1565,7 +1565,7 @@ assemble_foreach(struct assemble_t *a)
         assemble_declare(a, &needletok, false);
 
         /* push 'haystack' onto the stack */
-        assemble_eval(a);
+        assemble_expr(a);
         as_errlex(a, OC_RPAR);
         fakestack_declare(a, NULL);
 
@@ -1580,7 +1580,7 @@ assemble_foreach(struct assemble_t *a)
 
         as_set_label(a, iter);
         add_instr(a, INSTR_FOREACH_ITER, 0, skip);
-        assemble_expression(a, 0, skip);
+        assemble_stmt(a, 0, skip);
         add_instr(a, INSTR_B, 0, iter);
 
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
@@ -1606,7 +1606,7 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
         apush_scope(a);
 
         /* initializer */
-        assemble_expression(a, 0, skip);
+        assemble_stmt(a, 0, skip);
 
         as_set_label(a, start);
         as_lex(a);
@@ -1617,18 +1617,18 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
                 add_instr(a, INSTR_B, 0, then);
         } else {
                 as_unlex(a);
-                assemble_eval(a);
+                assemble_expr(a);
                 as_errlex(a, OC_SEMI);
                 add_instr(a, INSTR_B_IF, 0, forelse);
                 add_instr(a, INSTR_B, 0, then);
         }
         as_set_label(a, iter);
-        assemble_expression(a, FE_FOR, -1);
+        assemble_stmt(a, FE_FOR, -1);
         as_errlex(a, OC_RPAR);
 
         add_instr(a, INSTR_B, 0, start);
         as_set_label(a, then);
-        assemble_expression(a, 0, skip);
+        assemble_stmt(a, 0, skip);
         add_instr(a, INSTR_B, 0, iter);
 
         as_set_label(a, forelse);
@@ -1637,7 +1637,7 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
         if (a->oc->t == OC_EOF) {
                 as_badeof(a);
         } else if (a->oc->t == OC_ELSE) {
-                assemble_expression(a, 0, skip_else);
+                assemble_stmt(a, 0, skip_else);
         } else {
                 as_unlex(a);
         }
@@ -1696,7 +1696,7 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags, int skip)
                         break;
                 as_unlex(a);
 
-                assemble_expression(a, flags, skip);
+                assemble_stmt(a, flags, skip);
         }
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
         apop_scope(a);
@@ -1708,7 +1708,7 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags, int skip)
  * we recursed into a '{...}' statement which requires no semicolon).
  */
 static void
-assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
+assemble_stmt_simple(struct assemble_t *a, unsigned int flags, int skip)
 {
         as_lex(a);
         /* cases return early if semicolon not expected at the end */
@@ -1730,11 +1730,11 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
                 break;
         case OC_LPAR:
                 /*
-                 * value expression, eg. '(x + y)' or more likely an IIFE
+                 * expression, eg. '(x + y)' or more likely an IIFE
                  * '(function() {...})'.  In both cases I evaluate the
                  * statement and throw away the result. In the IIFE case,
                  * it will likeyly be followed by an additional '(args)',
-                 * but eval8 will parse that within the assemble_eval()
+                 * but eval8 will parse that within the assemble_expr()
                  * call below, resulting in whatever side effect the
                  * function has, while in the former case, the programmer
                  * just wasted time.  Allow it, maybe a line like '(1);'
@@ -1742,7 +1742,7 @@ assemble_expression_simple(struct assemble_t *a, unsigned int flags, int skip)
                  * ways that the empty ';' statement above will not.
                  */
                 as_unlex(a);
-                assemble_eval(a);
+                assemble_expr(a);
                 /* throw result away */
                 add_instr(a, INSTR_POP, 0, 0);
                 break;
@@ -1811,45 +1811,44 @@ static int as_recursion = 0;
 } while (0)
 
 /*
- * assemble_expression - Parser for the top-level expresison
+ * assemble_stmt - Parser for the top-level statement
  * @flags: If FE_FOR, we're in the iterator part of a for loop header.
  * @skip: Jump label to add B instruction for in case of 'break'
  *
- * This covers block expressions and single-line expressions
+ * This covers block statement and single-line statements
  *
- *      single-line expr:       EXPR ';'
- *      block:                  '{' EXPR EXPR ... '}'
+ *      single-line expr:       STMT ';'
+ *      block:                  '{' STMT ';' STMT ';'... '}'
  *
- * Valid single-line expressions are
+ * Valid single-line statements are
  *
  * #1   empty declaration:      let IDENTIFIER
- * #2   assignmment:            IDENTIFIER '=' VALUE
- * #3   decl. + assign:         let IDENTIFER '=' VALUE
+ * #2   assignmment:            IDENTIFIER '=' EXPR
+ * #3   decl. + assign:         let IDENTIFER '=' EXPR
  * #4   limited eval:           IDENTIFIER '(' ARGS... ')'
- * #5     ""     "" :           '(' VALUE ')'
+ * #5     ""     "" :           '(' EXPR ')'
  * #6   emtpy expr:             IDENTIFER
- * #7   program flow:           if '(' VALUE ')' EXPR
- * #8     ""     "" :           if '(' VALUE ')' EXPR else EXPR
- * #9     ""     "" :           while '(' VALUE ')' EXPR
- * #10    ""     "" :           do EXPR while '(' VALUE ')'
- * #11    ""     "":            for '(' EXPR... ')' EXPR
+ * #7   program flow:           if '(' EXPR ')' STMT
+ * #8     ""     "" :           if '(' EXPR ')' STMT else STMT
+ * #9     ""     "" :           while '(' EXPR ')' STMT
+ * #10    ""     "" :           do STMT while '(' EXPR ')'
+ * #11    ""     "":            for '(' STMT... ')' STMT
  * #12  return nothing:         return
- * #13  return something:       return VALUE
+ * #13  return something:       return EXPR
  * #10  break:                  break
- * #11  load:                   load
  * #12  nothing:
  *
- * TODO: #13 exception          try '(' IDENTIFIER ',' VALUE* ')' EXPR
- *              handling:                   catch '(' IDENTIFIER ')' EXPR
+ * TODO: #13 exception          try '(' IDENTIFIER ',' EXPR* ')' STMT
+ *              handling:                   catch '(' IDENTIFIER ')' STMT
  *
  * See Documentation.rst for the details.
  */
 static void
-assemble_expression(struct assemble_t *a, unsigned int flags, int skip)
+assemble_stmt(struct assemble_t *a, unsigned int flags, int skip)
 {
         AS_RECURSION_INCR();
 
-        assemble_expression_simple(a, flags, skip);
+        assemble_stmt_simple(a, flags, skip);
 
         AS_RECURSION_DECR();
 }
@@ -1913,7 +1912,7 @@ static void
 assemble_first_pass(struct assemble_t *a, bool toeof)
 {
         do {
-                assemble_expression(a, 0, -1);
+                assemble_stmt(a, 0, -1);
         } while (toeof && a->oc->t != OC_EOF);
         add_instr(a, INSTR_END, 0, 0);
 

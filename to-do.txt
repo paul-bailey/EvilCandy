@@ -82,9 +82,6 @@ Mebbe/Wishlist/Low-prio bugs
 * Preserve token buffer in interactive mode so that the UP arrow will
   recall previous expressions.
 
-* Figure out how to de-chaos-ify and elegantize multiple inheritance
-  without having to add a 'class' syntax.
-
 * String data type encodes Unicode in utf-8, which is compact, but it
   makes for slower processing.  Instead do something like cpython, which
   has an array data-width variable in its meta-data.  C-string

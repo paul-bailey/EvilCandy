@@ -1097,29 +1097,6 @@ Note:
         is simultaneously one of the best and one of the most annoying
         things about JavaScript which EvilCandy nevertheless imitates.)
 
-Merging Dictionaries
-~~~~~~~~~~~~~~~~~~~~
-
-The pipe character ``|`` acts as a union operator when the left and
-right value are both dictionaries.  In the case of
-
-.. code:: js
-
-        c = a | b;
-
-``c`` will be set to a dictionary that has all of ``a``'s contents as
-well as ``b``.  If there are any matching keys between the two, the
-right-hand side will take precedence.  This may be useful for selectively
-overriding default parameters (see the ``makebox`` example in `Function
-Definition Syntax`_ below).
-
-This does not do any in-place manipulation. ``a`` and ``b`` will be
-unaffected by the operation, while ``c`` is a third dictionary
-resulting from the operation.  (As an implementation note, there is a
-slight speed advantage to an in-place operation, but it is far *too*
-slight to justify itself compared to the cleanliness and consistency
-with which binary operators are handled in EvilCandy.)
-
 Dictionary Insertion Order
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1147,10 +1124,120 @@ actually requiring a syntax dedicated to creating classes.  JavaScript's
 whose minds are locked into whatever paradigm their previous programming
 language taught them.
 
+But it comes with quirks, including some under-the-hood kluging to
+make sure ``this`` refers to the correct object (see next section).
+
 .. [#]
         I do not extend that compliment to the unreadable and frankly
         ugly conventions of JavaScript programming style.
         Its name is ``i``, not ``ThisVariableIsAnIteratorInAForLoop``!
+
+Dictionary Inheritance: The Naïve Way
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Hand-copying one dictionary's functions to another dictionary is
+not advised.  Consider the following example:
+
+.. code-block:: js
+
+        let a = {
+                'b': function() { return this.len(); }
+        };
+        let c = {
+                'd': a.b,
+                'e': 'c has length of 2'
+        };
+        print(c.d());
+
+The output will be ``1``, not ``2``, because ``c.d`` will still print the
+length of ``a`` instead of ``c``.  Whenever a function (and only a function)
+is retrieved from a dictionary, it is put inside a wrapper (called a
+"method" in the code) that binds the function to its parent [#]_.  (This is
+a little misleading, because it means that in the case of ``x = object.key``,
+it will not actually be assigned the exact function stored in ``object.key``,
+but rather it will contain a small object pointing to the function and the
+dictionary both.  I tried to write the code so that it's functionally
+equivalent, as far as the high-level user is concerned.)
+
+Dictionaries have a built-in method called ``.purloin`` which re-claims
+contained methods as its own [#]_.
+
+.. code-block:: js
+
+        c.purloin('d');
+        print(a.b(), c.d());
+
+The output will now be appropriately ``1 2``.
+
+**Consider this method dangerous**.  What if ``a.b`` references
+``this.x`` where ``x`` is contained in ``a`` but not in ``c``?  What if
+``a.b`` is a built-in function for something that isn't a dictionary at
+all?  ``purloin`` should only be used when you know exactly what the
+"purloined" function is and does.  The only reason I added ``purloin`` at
+all is because I'm certain that down the road in some dark corner of the
+programming world, the better method for inheritance (next section) will
+not be sufficient.
+
+.. [#]
+        Low-level impementation note: Checks are done to prevent cyclic
+        dependency should the method be re-inserted into the same object
+        that it's bound to.  In this case, the method will be destroyed
+        and plain unbound function will be inserted instead.  This is a
+        rare occasion, however, and the above example, which does not
+        involve cyclic dependency, is more likely.
+
+.. [#]
+        Don't worry about ``a`` in this case, c.purloin() will
+        not affect ``a``'s contents.
+
+Dictionary Inheritance: The Better Way
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The pipe character ``|`` acts as a union operator when its left and
+right values are both dictionaries.  In the case of
+
+.. code:: js
+
+        c = a | b;
+
+``c`` will be set to a dictionary that has all of ``a``'s contents as
+well as ``b``.  If there are any matching keys between the two, the
+right-hand side will take precedence.  Inheritance might look like:
+
+.. code:: js
+
+        let new_obj = base_1() | base_2() | {
+                /* ...new or overriding values... */
+        };
+
+where ``base_x()`` are base-class constructors which return dictionaries
+for  ``new_obj`` to inherit, and the dictionary on the right contains
+either additional values or overriding values which are specific for the
+newly created.  This does not perform any in-place manipulation; the
+dictionaries in the union loop will not be affected, except for the
+result, ``new_obj`` [#]_.
+
+This is also useful for selectively overriding default parameters (see
+the ``makebox`` example in `Function Definition Syntax`_ below).
+
+The ownership issue described in the previous section does not exist
+here, because a function is only bound to its owner when it is
+"gotten" from an object, such as when you type ``object.key`` (which
+puts a temporary variable on the stack) or ``x = object.key`` (which
+assigns the newly bound function ``key`` to ``x``).
+
+Warning:
+        It may be tempting to use ``purloin`` here too, as a redundant
+        step, but don't.  If any of the base classes contain 'methods'
+        bound to some other object out there, it's probably for a good
+        reason.
+
+.. [#]
+
+        As an implementation note, there is a slight speed advantage to
+        an in-place operation, but it is far *too* slight to justify
+        itself compared to the cleanliness and consistency of treating
+        all binary operators the same for every type.
 
 Strings and Bytes
 -----------------
@@ -1610,8 +1697,8 @@ list, like this:
 Here, ``size`` and ``height`` are required arguments.  The constructor
 function can also use ``opts.outline`` and ``opts.fill``, which are
 either from the caller or from the declared defaults if they were not
-provided.  (See `Merging Dictionaries`_ above for how the ``|`` operator
-is used with dictionaries.)
+provided.  (See `Dictionary Inheritance: The Better Way`_ above for how
+the ``|`` operator is used with dictionaries.)
 
 Caution!
 

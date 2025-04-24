@@ -18,7 +18,7 @@ still another third is yet to be true.
 **FIXME** April 2025.  This is beginning to look more like a specification
 than a tutorial.
 
-.. note::
+Note:
         If you're reading the raw version of this file, you may notice
         it uses the syntax highlighting for JavaScript everywhere.
         This is because I do not expect Github to support anything that
@@ -248,8 +248,7 @@ The following two examples are syntactically identical:
 
         let s = "First line\nSecond line";
 
-.. note::
-
+Note:
         In Evilcandy's current implementation, this kind of concatenation
         is quicker than using the ``+`` operator, because it occurs while
         tokenizing the input.  The ``+`` operation, on the other hand,
@@ -318,7 +317,7 @@ Specific rules of numerical interpretation:
    '1' through '9' and continuing with '0' through '9'--indicate a base 10
    (decimal) number, and they will be interpreted as an integer.
 
-.. note::
+Note:
         The Python-style ``0o`` prefix for an octal number is not
         supported in this version.  It may be added in the future.
 
@@ -341,7 +340,7 @@ Reserved Keywords
 ``while``
 ================ =========== =============
 
-.. note::
+Note:
         ``private`` and ``const`` were part of early development, but
         they are no longer supported, and may be removed from the
         list of reserved keywords.
@@ -673,8 +672,7 @@ are mutable objects (see `Dictionaries`_ below).  It has the added benefit
 of clarity.  If you see ``locals.x`` instead of just ``x``, it's clearer
 what's being manipulated.
 
-.. note:: Implementation note:
-
+Implementation note:
    Automatic variables are not, in the low-level implementation,
    accessed by name.  Rather, they are accessed as offsets from a frame
    pointer, cooked into the pseudo-assembly instructions at parsing time.
@@ -817,8 +815,7 @@ The output will be:
         ['not zero', 1, 2];
         ['not zero', 1, 2];
 
-.. note::
-
+Note:
         Tuples and functions are 'immutable' in the sense
         that write-access to their contents are forbidden.
 
@@ -922,8 +919,7 @@ Tuples are the same as lists in every way but two:
 Dictionaries
 ------------
 
-.. note:: Brief rant on terminology
-
+Brief rant on terminology
    A dictionary is referred to as an "object" in JavaScript.  There is a
    good reason to keep that terminology, since EvilCandy's JavaScript-like
    notation for dictionaries treats its members like class attributes.
@@ -1010,10 +1006,11 @@ will output
         dict1: {'key': 1}
         dict2: {'a': 1}
 
-.. note:: Although this makes it possible to runtime-generate keys, for
-          example you could express an entry as ``[k1+k2]: val``,
-          this may affect speed due to the increased probability of
-          repetitive hash calculating on later dictionary lookups.
+Note:
+        Although this makes it possible to runtime-generate keys, for
+        example you could express an entry as ``[k1+k2]: val``,
+        this may affect speed due to the increased probability of
+        repetitive hash calculating on later dictionary lookups.
 
 
 Adding Dictionary Attributes
@@ -1085,7 +1082,7 @@ use the dictionary's built-in ``.hasattr`` method.
                 ;
         }
 
-.. note::
+Note:
 
         See rant above.  EvilCandy does not distinguish between an object
         class's built-in attributes and a dictionary's entries.  Compare

@@ -1,6 +1,5 @@
 #include <evilcandy.h>
-#include <typedefs.h>
-#include "token.h"
+#include <token.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <errno.h>

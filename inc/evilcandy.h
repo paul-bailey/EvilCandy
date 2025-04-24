@@ -88,7 +88,7 @@ enum result_t {
 struct var_t;
 struct vmframe_t;
 
-#include "typedefs.h"
+#include "objtypes.h"
 #include "uarg.h"
 
 /* TODO: to stringutils.h, see comment at bottom of types/dict.c */

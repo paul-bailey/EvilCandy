@@ -27,7 +27,6 @@
 #include <evilcandy.h>
 #include <token.h>
 #include <xptr.h>
-#include <typedefs.h>
 #include <setjmp.h>
 
 /*

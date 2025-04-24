@@ -1,6 +1,9 @@
-/* quasi-internal code, shared by op.c and var.c */
-#ifndef EVILCANDY_TYPEDEFS_H
-#define EVILCANDY_TYPEDEFS_H
+/*
+ * quasi-internal code, shared by op.c, var.c, and the sources for each
+ * object class in types/
+ */
+#ifndef EVILCANDY_OBJTYPES_H
+#define EVILCANDY_OBJTYPES_H
 
 #include "var.h"
 
@@ -234,5 +237,5 @@ static inline long long numvar_toint(struct var_t *v)
 static inline double numvar_tod(struct var_t *v)
         { return isvar_float(v) ? floatvar_tod(v) : (double)intvar_toll(v); }
 
-#endif /* EVILCANDY_TYPEDEFS_H */
+#endif /* EVILCANDY_OBJTYPES_H */
 

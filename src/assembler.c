@@ -1358,15 +1358,20 @@ assemble_ident_helper(struct assemble_t *a)
                 case OC_LPAR:
                         as_unlex(a);
                         assemble_call_func(a, have_parent);
-                        /* we're not assigning anything */
-                        /*
-                         * FIXME: pop & no 'have parent' should be only
-                         * if peek_semi()==true.  Else, SHIFT_DOWN but in
-                         * reverse (ugh, another new instruction), then
-                         * continue iterating through this loop.
-                         */
-                        add_instr(a, INSTR_POP, 0, 0);
-                        have_parent = false;
+                        if (peek_semi(a)) {
+                                /* discard result */
+                                add_instr(a, INSTR_POP, 0, 0);
+                                have_parent = false;
+                                goto done;
+                        } else {
+                                /*
+                                 * keep result, maybe shift down, continue
+                                 * in this loop.
+                                 */
+                                if (have_parent)
+                                        add_instr(a, INSTR_SHIFT_DOWN, 0, 0);
+                                have_parent = false;
+                        }
                         break;
 
                 default:

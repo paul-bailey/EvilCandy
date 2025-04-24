@@ -4,16 +4,6 @@ Bugs
 * BUGs 4/2025:
 
         * All user-visible data types need a .cpmz method.
-        * ``(range(x)).foreach(y);`` works but ``range(x).foreach(y);``
-          does not, though both should behave the same.
-        * More of a flaw than a bug, but in TTY mode, 'if' and 'for'
-          statements do not execute when the closing brace is received,
-          because the parser needs to peek and check if there's an
-          'else' statement.  So to execute the statement, a user would
-          have to type an additional semicolon or else add the 'else'
-          portion.
-        * there's a VAR_INCR/DECR_REF imbalance somewhere, preventing
-          some vars from getting deleted when they should.
 
 Must Do
 -------

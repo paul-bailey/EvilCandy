@@ -701,7 +701,6 @@ do_dict_hasattr(Frame *fr)
 {
         Object *self = get_this(fr);
         Object *name = frame_get_arg(fr, 0);
-        Object *child = NULL;
 
         if (arg_type_check(self, &DictType) == RES_ERROR)
                 return ErrorVar;
@@ -710,12 +709,9 @@ do_dict_hasattr(Frame *fr)
                 err_argtype("string");
                 return ErrorVar;
         }
-#warning "extra reference produced, use dict_hasattr instead"
 
-        child = dict_getattr(self, name);
-        /* TODO: if child == NULL, check built-in methods */
-
-        return intvar_new((int)(child != NULL));
+        /* XXX if false, check DictType->methods? */
+        return intvar_new(dict_hasattr(self, name));
 }
 
 /* "obj.setattr('name', val)" is an alternative to "obj.name = val" */

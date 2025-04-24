@@ -34,14 +34,14 @@
  *
  * Check with typeof to determine success or failure
  */
-static struct var_t *
-do_open(struct vmframe_t *fr)
+static Object *
+do_open(Frame *fr)
 {
         char *name, *mode, *ps;
         unsigned int modeflags;
         FILE *fp;
-        struct var_t *vname = frame_get_arg(fr, 0);
-        struct var_t *vmode = frame_get_arg(fr, 1);
+        Object *vname = frame_get_arg(fr, 0);
+        Object *vmode = frame_get_arg(fr, 1);
 
         if (arg_type_check(vname, &StringType) != 0)
                 return ErrorVar;

@@ -49,7 +49,7 @@ enum {
 struct token_state_t {
         int lineno;
         int col;
-        struct var_t *dedup;
+        Object *dedup;
         struct buffer_t tok;
         char *s;
         size_t _slen;

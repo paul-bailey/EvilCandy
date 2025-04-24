@@ -4,7 +4,7 @@
 #define V2XP(v_)        ((struct xptrvar_t *)(v_))
 
 static void
-xptr_reset(struct var_t *v)
+xptr_reset(Object *v)
 {
         struct xptrvar_t *ex = V2XP(v);
         if (ex->instr)
@@ -20,7 +20,7 @@ xptr_reset(struct var_t *v)
 }
 
 static int
-xptr_cmp(struct var_t *a, struct var_t *b)
+xptr_cmp(Object *a, Object *b)
 {
         bug_on(!isvar_xptr(a));
         bug_on(!isvar_xptr(b));
@@ -29,8 +29,8 @@ xptr_cmp(struct var_t *a, struct var_t *b)
         return a == b ? 0 : (a > b ? 1 : -1);
 }
 
-static struct var_t *
-xptr_str(struct var_t *v)
+static Object *
+xptr_str(Object *v)
 {
         char buf[64];
         memset(buf, 0, sizeof(buf));
@@ -64,7 +64,7 @@ struct type_t XptrType = {
  * it for the argument to xptr_set_label
  */
 int
-xptr_next_label(struct var_t *v)
+xptr_next_label(Object *v)
 {
         struct xptrvar_t *x = V2XP(v);
         bug_on(!isvar_xptr(v));
@@ -83,7 +83,7 @@ xptr_next_label(struct var_t *v)
  *         for an instruction you want to jump to.
  */
 void
-xptr_set_label(struct var_t *v, int jmp)
+xptr_set_label(Object *v, int jmp)
 {
         struct xptrvar_t *x = V2XP(v);
         bug_on(!isvar_xptr(v));
@@ -105,7 +105,7 @@ xptr_set_label(struct var_t *v, int jmp)
  * does not produce a reference.
  */
 int
-xptr_add_rodata(struct var_t *v, struct var_t *new_data)
+xptr_add_rodata(Object *v, Object *new_data)
 {
         int i;
         struct xptrvar_t *x = V2XP(v);
@@ -132,7 +132,7 @@ xptr_add_rodata(struct var_t *v, struct var_t *new_data)
                  * of these per function.
                  */
                 x->rodata = erealloc(x->rodata,
-                                     (x->n_rodata + 1) * sizeof(struct var_t *));
+                                     (x->n_rodata + 1) * sizeof(Object *));
                 x->rodata[x->n_rodata] = new_data;
                 x->n_rodata++;
 #if DEBUG_MISSING_RODATA
@@ -147,7 +147,7 @@ xptr_add_rodata(struct var_t *v, struct var_t *new_data)
  * xptr_add_instr - Append an instruction to the instruction array.
  */
 void
-xptr_add_instr(struct var_t *v, instruction_t ii)
+xptr_add_instr(Object *v, instruction_t ii)
 {
         struct xptrvar_t *x = V2XP(v);
 
@@ -171,10 +171,10 @@ xptr_add_instr(struct var_t *v, instruction_t ii)
  *             function definition, or 1 if it's the start of a
  *             script.
  */
-struct var_t *
+Object *
 xptrvar_new(const char *file_name, int file_line)
 {
-        struct var_t *v = var_new(&XptrType);
+        Object *v = var_new(&XptrType);
         struct xptrvar_t *x = V2XP(v);
         x->instr        = NULL;
         x->rodata       = NULL;

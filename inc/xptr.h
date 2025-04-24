@@ -8,8 +8,6 @@
  * evilcandy.h or typedefs.h
  */
 
-struct var_t;
-
 /**
  * struct xptrvar_t - executable code of a function or a script body
  * @instr:      Opcode array
@@ -71,10 +69,10 @@ struct var_t;
  *                xptrvar
  */
 struct xptrvar_t {
-        struct var_t base;
+        Object base;
         /* hot items used by VM */
         instruction_t *instr;
-        struct var_t **rodata;
+        Object **rodata;
         /* warm items */
         int n_instr;
         int n_rodata;
@@ -95,10 +93,10 @@ struct xptrvar_t {
 };
 
 /* only serializer.c and assembler.c code should need to use these */
-extern int xptr_next_label(struct var_t *v);
-extern void xptr_set_label(struct var_t *v, int jmp);
-extern int xptr_add_rodata(struct var_t *v, struct var_t *new_data);
-extern void xptr_add_instr(struct var_t *v, instruction_t ii);
-extern struct var_t *xptrvar_new(const char *file_name, int file_line);
+extern int xptr_next_label(Object *v);
+extern void xptr_set_label(Object *v, int jmp);
+extern int xptr_add_rodata(Object *v, Object *new_data);
+extern void xptr_add_instr(Object *v, instruction_t ii);
+extern Object *xptrvar_new(const char *file_name, int file_line);
 
 #endif /* EVILCANDY_XPTR_H */

@@ -24,28 +24,28 @@ struct arrayvar_t {
         struct seqvar_t base;
         int lock;
         size_t alloc_size;
-        struct var_t **items;
+        Object **items;
 };
 
 #define V2ARR(v_)       ((struct arrayvar_t *)(v_))
 #define V2SQ(v_)        ((struct seqvar_t *)(v_))
 
 static void
-array_resize(struct var_t *array, int n_items)
+array_resize(Object *array, int n_items)
 {
         struct arrayvar_t *va = V2ARR(array);
         size_t new_size = va->alloc_size;
-        size_t needsize = n_items * sizeof(struct var_t *);
+        size_t needsize = n_items * sizeof(Object *);
 
         if (needsize == 0) {
                 /* 1-element size, just so we don't have aNULL .items */
-                new_size = sizeof(struct var_t *);
+                new_size = sizeof(Object *);
                 goto resize;
         }
 
         /* 0 times X is still 0, would spinlock algorithm below */
         if (new_size == 0)
-                new_size = sizeof(struct var_t *);
+                new_size = sizeof(Object *);
 
         /*
          * Similar to our hash table algorithm, except we don't need to
@@ -76,8 +76,8 @@ resize:
  *
  * Given extern linkage since some internal code needs it
  */
-struct var_t *
-array_getitem(struct var_t *array, int idx)
+Object *
+array_getitem(Object *array, int idx)
 {
         struct arrayvar_t *va = V2ARR(array);
 
@@ -90,19 +90,19 @@ array_getitem(struct var_t *array, int idx)
 static int
 array_sort_cmp(const void *a, const void *b)
 {
-        return var_compare(*(struct var_t **)a, *(struct var_t **)b);
+        return var_compare(*(Object **)a, *(Object **)b);
 }
 
 /* seq_methods_t .sort callback */
 static void
-array_sort(struct var_t *array)
+array_sort(Object *array)
 {
         struct arrayvar_t *a = V2ARR(array);
         if (seqvar_size(array) < 2)
                 return;
         bug_on(!a->items);
         qsort(a->items, seqvar_size(array),
-              sizeof(struct var_t *), array_sort_cmp);
+              sizeof(Object *), array_sort_cmp);
 }
 
 /**
@@ -114,7 +114,7 @@ array_sort(struct var_t *array)
  * Has extern linkage since some internal code needs it.
  */
 enum result_t
-array_setitem(struct var_t *array, int i, struct var_t *child)
+array_setitem(Object *array, int i, Object *child)
 {
         struct arrayvar_t *va = V2ARR(array);
         bug_on(!isvar_array(array) && !isvar_tuple(array));
@@ -138,7 +138,7 @@ array_setitem(struct var_t *array, int i, struct var_t *child)
  * Has extern linkage since some internal code needs it.
  */
 enum result_t
-array_append(struct var_t *array, struct var_t *child)
+array_append(Object *array, Object *child)
 {
         struct arrayvar_t *h = V2ARR(array);
         size_t size = seqvar_size(array);
@@ -156,11 +156,11 @@ array_append(struct var_t *array, struct var_t *child)
         return RES_OK;
 }
 
-static struct var_t *
+static Object *
 arrayvar_new_common(int n_items, struct type_t *type)
 {
         int i;
-        struct var_t *array = var_new(type);
+        Object *array = var_new(type);
         struct arrayvar_t *va = V2ARR(array);
         va->alloc_size = 0;
         va->items = NULL;
@@ -179,7 +179,7 @@ arrayvar_new_common(int n_items, struct type_t *type)
  *
  * Return: new array.  Each slot is filled with NullVar.
  */
-struct var_t *
+Object *
 arrayvar_new(int n_items)
 {
         return arrayvar_new_common(n_items, &ArrayType);
@@ -189,7 +189,7 @@ arrayvar_new(int n_items)
  * tuplevar_new - Create a new tuple of size @n_items
  * Return: new tuple.  Each slot is filled with NullVar.
  */
-struct var_t *
+Object *
 tuplevar_new(int n_items)
 {
         return arrayvar_new_common(n_items, &TupleType);
@@ -197,18 +197,18 @@ tuplevar_new(int n_items)
 
 /* type_t .reset callback */
 static void
-array_reset(struct var_t *a)
+array_reset(Object *a)
 {
         efree(V2ARR(a)->items);
 }
 
 /* type_t .cmp callback */
 static int
-array_cmp(struct var_t *a, struct var_t *b)
+array_cmp(Object *a, Object *b)
 {
         int i, n = seqvar_size(a);
-        struct var_t **aitems = V2ARR(a)->items;
-        struct var_t **bitems = V2ARR(b)->items;
+        Object **aitems = V2ARR(a)->items;
+        Object **bitems = V2ARR(b)->items;
         if (n > seqvar_size(b))
                 n = seqvar_size(b);
         for (i = 0; i < n; i++) {
@@ -220,11 +220,11 @@ array_cmp(struct var_t *a, struct var_t *b)
 }
 
 /* helper to array_cat and tuple_cat */
-static struct var_t *
-array_cat_common(struct var_t *a, struct var_t *b, struct type_t *type)
+static Object *
+array_cat_common(Object *a, Object *b, struct type_t *type)
 {
         size_t size_a, size_b;
-        struct var_t **ppa, **ppb, **ppc, *c;
+        Object **ppa, **ppb, **ppc, *c;
 
         if (!b)
                 return arrayvar_new_common(0, type);
@@ -236,42 +236,42 @@ array_cat_common(struct var_t *a, struct var_t *b, struct type_t *type)
         c = arrayvar_new_common(size_a + size_b, type);
         ppc = V2ARR(c)->items;
         if (size_a) {
-                memcpy(ppc, ppa, size_a * sizeof(struct var_t *));
+                memcpy(ppc, ppa, size_a * sizeof(Object *));
                 ppc += size_a;
         }
 
         if (size_b)
-                memcpy(ppc, ppb, size_b * sizeof(struct var_t *));
+                memcpy(ppc, ppb, size_b * sizeof(Object *));
 
         return c;
 }
 
 /* implement concatenation of a + b */
-static struct var_t *
-array_cat(struct var_t *a, struct var_t *b)
+static Object *
+array_cat(Object *a, Object *b)
 {
         return array_cat_common(a, b, &ArrayType);
 }
 
 /* implement concatenation of a + b */
-static struct var_t *
-tuple_cat(struct var_t *a, struct var_t *b)
+static Object *
+tuple_cat(Object *a, Object *b)
 {
         return array_cat_common(a, b, &TupleType);
 }
 
 /* type_t .str callbacks for array and tuple */
-static struct var_t *
-array_or_tuple_str(struct var_t *t, int startchar)
+static Object *
+array_or_tuple_str(Object *t, int startchar)
 {
         struct buffer_t b;
-        struct var_t *ret;
+        Object *ret;
         size_t i, n = seqvar_size(t);
         buffer_init(&b);
         buffer_putc(&b, startchar);
 
         for (i = 0; i < n; i++) {
-                struct var_t *item;
+                Object *item;
                 if (i > 0)
                         buffer_puts(&b, ", ");
                 item = var_str(V2ARR(t)->items[i]);
@@ -284,32 +284,32 @@ array_or_tuple_str(struct var_t *t, int startchar)
         return ret;
 }
 
-static struct var_t *
-array_str(struct var_t *a)
+static Object *
+array_str(Object *a)
 {
         return array_or_tuple_str(a, '[');
 }
 
-static struct var_t *
-tuple_str(struct var_t *t)
+static Object *
+tuple_str(Object *t)
 {
         return array_or_tuple_str(t, '(');
 }
 
 /* implement 'x.len()' */
-static struct var_t *
-do_array_len(struct vmframe_t *fr)
+static Object *
+do_array_len(Frame *fr)
 {
-        struct var_t *self = get_this(fr);
+        Object *self = get_this(fr);
         bug_on(!isvar_array(self) && !isvar_tuple(self));
         return intvar_new(seqvar_size(self));
 }
 
 /* implement 'x.foreach(myfunc, mypriv)' */
-static struct var_t *
-do_array_foreach(struct vmframe_t *fr)
+static Object *
+do_array_foreach(Frame *fr)
 {
-        struct var_t *self, *func, *priv, *argv[3];
+        Object *self, *func, *priv, *argv[3];
         unsigned int idx, lock;
         struct arrayvar_t *h;
         int status = RES_OK;
@@ -341,7 +341,7 @@ do_array_foreach(struct vmframe_t *fr)
                  * back-door hacks to intvar should be allowed for
                  * just the files in this directory.
                  */
-                struct var_t *retval;
+                Object *retval;
 
                 argv[0] = h->items[idx];
                 argv[1] = intvar_new(idx);
@@ -365,10 +365,10 @@ out:
 }
 
 /* implement 'x.append(y)' */
-static struct var_t *
-do_array_append(struct vmframe_t *fr)
+static Object *
+do_array_append(Frame *fr)
 {
-        struct var_t *self, *arg;
+        Object *self, *arg;
         self = get_this(fr);
         arg = vm_get_arg(fr, 0);
         /* array only, tuples are read-only... */
@@ -392,12 +392,12 @@ do_array_append(struct vmframe_t *fr)
  * to realloc(), but we don't want to have a ton of wasted real-estate
  * in RAM.
  */
-static struct var_t *
-do_array_allocated(struct vmframe_t *fr)
+static Object *
+do_array_allocated(Frame *fr)
 {
-        struct var_t *self = vm_get_this(fr);
+        Object *self = vm_get_this(fr);
         return intvar_new(V2ARR(self)->alloc_size
-                          / sizeof(struct var_t *));
+                          / sizeof(Object *));
 }
 
 static const struct type_inittbl_t array_cb_methods[] = {

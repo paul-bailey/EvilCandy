@@ -18,16 +18,16 @@
         }                                       \
 } while (0)
 
-struct var_t *
+Object *
 floatvar_new(double v)
 {
-        struct var_t *ret = var_new(&FloatType);
+        Object *ret = var_new(&FloatType);
         V2F(ret)->f = v;
         return ret;
 }
 
-static struct var_t *
-float_pow(struct var_t *a, struct var_t *b)
+static Object *
+float_pow(Object *a, Object *b)
 {
         double fa, fb;
         DOUBLE(a, fa);
@@ -37,8 +37,8 @@ float_pow(struct var_t *a, struct var_t *b)
         return floatvar_new(pow(fa, fb));
 }
 
-static struct var_t *
-float_mul(struct var_t *a, struct var_t *b)
+static Object *
+float_mul(Object *a, Object *b)
 {
         double fa, fb;
         DOUBLE(a, fa);
@@ -46,8 +46,8 @@ float_mul(struct var_t *a, struct var_t *b)
         return floatvar_new(fa * fb);
 }
 
-static struct var_t *
-float_div(struct var_t *a, struct var_t *b)
+static Object *
+float_div(Object *a, Object *b)
 {
         double fa, fb;
         DOUBLE(a, fa);
@@ -61,8 +61,8 @@ float_div(struct var_t *a, struct var_t *b)
         return floatvar_new(fa / fb);
 }
 
-static struct var_t *
-float_mod(struct var_t *a, struct var_t *b)
+static Object *
+float_mod(Object *a, Object *b)
 {
         double fa, fb;
         DOUBLE(a, fa);
@@ -76,8 +76,8 @@ float_mod(struct var_t *a, struct var_t *b)
         return floatvar_new(fmod(fa, fb));
 }
 
-static struct var_t *
-float_add(struct var_t *a, struct var_t *b)
+static Object *
+float_add(Object *a, Object *b)
 {
         double fa, fb;
         DOUBLE(a, fa);
@@ -85,8 +85,8 @@ float_add(struct var_t *a, struct var_t *b)
         return floatvar_new(fa + fb);
 }
 
-static struct var_t *
-float_sub(struct var_t *a, struct var_t *b)
+static Object *
+float_sub(Object *a, Object *b)
 {
         double fa, fb;
         DOUBLE(a, fa);
@@ -95,7 +95,7 @@ float_sub(struct var_t *a, struct var_t *b)
 }
 
 static int
-float_cmp(struct var_t *a, struct var_t *b)
+float_cmp(Object *a, Object *b)
 {
         double fa, fb;
         DOUBLE(a, fa);
@@ -104,19 +104,19 @@ float_cmp(struct var_t *a, struct var_t *b)
 }
 
 static bool
-float_cmpz(struct var_t *a)
+float_cmpz(Object *a)
 {
         return fpclassify(V2F(a)->f) == FP_ZERO;
 }
 
-static struct var_t *
-float_negate(struct var_t *a)
+static Object *
+float_negate(Object *a)
 {
         return floatvar_new(-(V2F(a)->f));
 }
 
-static struct var_t *
-float_str(struct var_t *a)
+static Object *
+float_str(Object *a)
 {
         char buf[25 + 17];
         double d = V2F(a)->f;
@@ -153,10 +153,10 @@ float_str(struct var_t *a)
         return stringvar_new(buf);
 }
 
-static struct var_t *
-float_tostr(struct vmframe_t *fr)
+static Object *
+float_tostr(Frame *fr)
 {
-        struct var_t *self = get_this(fr);
+        Object *self = get_this(fr);
         bug_on(!isvar_float(self));
         return float_str(self);
 }

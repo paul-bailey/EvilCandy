@@ -39,7 +39,7 @@ enum {
  * user.  They will eventually trickle their way back into the VM's
  * main loop, which will decide what to do next.
  *
- * For functions that must return a struct var_t (which is like half of
+ * For functions that must return a Object (which is like half of
  * them), return ErrorVar if there is an error.  (I'm trying to reduce
  * the number of points where NULL could be returned, since it's so easy
  * to accidentally de-reference them and cause a segmentation fault.)

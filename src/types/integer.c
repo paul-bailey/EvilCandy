@@ -72,8 +72,8 @@ err:
         return 0;
 }
 
-static struct var_t *
-int_pow(struct var_t *a, struct var_t *b)
+static Object *
+int_pow(Object *a, Object *b)
 {
         long long la, lb, res;
         BUGCHECK_TYPES(a, b);
@@ -87,8 +87,8 @@ int_pow(struct var_t *a, struct var_t *b)
         return intvar_new(res);
 }
 
-static struct var_t *
-int_mul(struct var_t *a, struct var_t *b)
+static Object *
+int_mul(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -97,8 +97,8 @@ int_mul(struct var_t *a, struct var_t *b)
         return intvar_new(la * lb);
 }
 
-static struct var_t *
-int_div(struct var_t *a, struct var_t *b)
+static Object *
+int_div(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -111,8 +111,8 @@ int_div(struct var_t *a, struct var_t *b)
         return intvar_new(la / lb);
 }
 
-static struct var_t *
-int_mod(struct var_t *a, struct var_t *b)
+static Object *
+int_mod(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -125,8 +125,8 @@ int_mod(struct var_t *a, struct var_t *b)
         return intvar_new(la % lb);
 }
 
-static struct var_t *
-int_add(struct var_t *a, struct var_t *b)
+static Object *
+int_add(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -135,8 +135,8 @@ int_add(struct var_t *a, struct var_t *b)
         return intvar_new(la + lb);
 }
 
-static struct var_t *
-int_sub(struct var_t *a, struct var_t *b)
+static Object *
+int_sub(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -146,7 +146,7 @@ int_sub(struct var_t *a, struct var_t *b)
 }
 
 static int
-int_cmp(struct var_t *a, struct var_t *b)
+int_cmp(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -155,8 +155,8 @@ int_cmp(struct var_t *a, struct var_t *b)
         return OP_CMP(la, lb);
 }
 
-static struct var_t *
-int_lshift(struct var_t *a, struct var_t *b)
+static Object *
+int_lshift(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -165,8 +165,8 @@ int_lshift(struct var_t *a, struct var_t *b)
         return intvar_new(la << lb);
 }
 
-static struct var_t *
-int_rshift(struct var_t *a, struct var_t *b)
+static Object *
+int_rshift(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -175,8 +175,8 @@ int_rshift(struct var_t *a, struct var_t *b)
         return intvar_new(la >> lb);
 }
 
-static struct var_t *
-int_bit_and(struct var_t *a, struct var_t *b)
+static Object *
+int_bit_and(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -185,8 +185,8 @@ int_bit_and(struct var_t *a, struct var_t *b)
         return intvar_new(la & lb);
 }
 
-static struct var_t *
-int_bit_or(struct var_t *a, struct var_t *b)
+static Object *
+int_bit_or(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -195,8 +195,8 @@ int_bit_or(struct var_t *a, struct var_t *b)
         return intvar_new(la | lb);
 }
 
-static struct var_t *
-int_xor(struct var_t *a, struct var_t *b)
+static Object *
+int_xor(Object *a, Object *b)
 {
         long long la, lb;
         BUGCHECK_TYPES(a, b);
@@ -206,25 +206,25 @@ int_xor(struct var_t *a, struct var_t *b)
 }
 
 static bool
-int_cmpz(struct var_t *a)
+int_cmpz(Object *a)
 {
         return V2I(a)->i == 0LL;
 }
 
-static struct var_t *
-int_bit_not(struct var_t *a)
+static Object *
+int_bit_not(Object *a)
 {
         return intvar_new(~(V2I(a)->i));
 }
 
-static struct var_t *
-int_negate(struct var_t *a)
+static Object *
+int_negate(Object *a)
 {
         return intvar_new(-(V2I(a)->i));
 }
 
-static struct var_t *
-int_str(struct var_t *v)
+static Object *
+int_str(Object *v)
 {
         char buf[64];
         memset(buf, 0, sizeof(buf));
@@ -232,18 +232,18 @@ int_str(struct var_t *v)
         return stringvar_new(buf);
 }
 
-static struct var_t *
-int_tostr(struct vmframe_t *fr)
+static Object *
+int_tostr(Frame *fr)
 {
-        struct var_t *self = get_this(fr);
+        Object *self = get_this(fr);
         bug_on(!isvar_int(self));
         return int_str(self);
 }
 
-struct var_t *
+Object *
 intvar_new(long long initval)
 {
-        struct var_t *ret = var_new(&IntType);
+        Object *ret = var_new(&IntType);
         V2I(ret)->i = initval;
         return ret;
 }

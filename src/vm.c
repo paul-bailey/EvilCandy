@@ -27,13 +27,13 @@
 #include <token.h>
 #include <xptr.h>
 
-static struct var_t *symbol_table = NULL;
+static Object *symbol_table = NULL;
 
 /* XXX: Need to be made per-thread */
-static struct var_t **vm_stack;
-static struct var_t **vm_stack_end;
+static Object **vm_stack;
+static Object **vm_stack_end;
 
-#define list2vmf(li) container_of(li, struct vmframe_t, list)
+#define list2vmf(li) container_of(li, Frame, list)
 
 #define PUSH_(fr, v) \
         do { *((fr)->stackptr)++ = (v); } while (0)
@@ -41,33 +41,33 @@ static struct var_t **vm_stack_end;
 
 #ifdef NDEBUG
 
-static inline void push(struct vmframe_t *fr, struct var_t *v)
+static inline void push(Frame *fr, Object *v)
         { PUSH_(fr, v); }
 
-static inline struct var_t *pop(struct vmframe_t *fr)
+static inline Object *pop(Frame *fr)
         { return POP_(fr); }
 
-static inline struct var_t *RODATA(struct vmframe_t *fr, instruction_t ii)
+static inline Object *RODATA(Frame *fr, instruction_t ii)
         { return fr->ex->rodata[ii.arg2]; }
 
 #else /* DEBUG */
 
 static void
-push(struct vmframe_t *fr, struct var_t *v)
+push(Frame *fr, Object *v)
 {
         bug_on(fr->stackptr >= vm_stack_end);
         PUSH_(fr, v);
 }
 
-static inline struct var_t *
-pop(struct vmframe_t *fr)
+static inline Object *
+pop(Frame *fr)
 {
         bug_on(fr->stackptr <= fr->stack);
         return POP_(fr);
 }
 
-static inline struct var_t *
-RODATA(struct vmframe_t *fr, instruction_t ii)
+static inline Object *
+RODATA(Frame *fr, instruction_t ii)
 {
         bug_on(ii.arg2 >= fr->ex->n_rodata);
         return fr->ex->rodata[ii.arg2];
@@ -75,10 +75,10 @@ RODATA(struct vmframe_t *fr, instruction_t ii)
 
 #endif /* DEBUG */
 
-static struct var_t *
-symbol_seek(struct var_t *name)
+static Object *
+symbol_seek(Object *name)
 {
-        struct var_t *ret;
+        Object *ret;
 
         bug_on(!isvar_string(name));
 
@@ -99,7 +99,7 @@ symbol_seek(struct var_t *name)
 }
 
 static int
-symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
+symbol_put(Frame *fr, Object *name, Object *v)
 {
         bug_on(!isvar_string(name));
         int ret = dict_setattr_replace(symbol_table, name, v);
@@ -126,16 +126,16 @@ symbol_put(struct vmframe_t *fr, struct var_t *name, struct var_t *v)
  */
 static struct list_t vframe_free_list = LIST_INIT(&vframe_free_list);
 
-static struct vmframe_t *
+static Frame *
 vmframe_alloc(void)
 {
-        struct vmframe_t *ret;
+        Frame *ret;
         struct list_t *li = vframe_free_list.next;
         if (li == &vframe_free_list) {
                 ret = ecalloc(sizeof(*ret));
                 list_init(&ret->alloc_list);
         } else {
-                ret = container_of(li, struct vmframe_t, alloc_list);
+                ret = container_of(li, Frame, alloc_list);
                 list_remove(li);
 #ifndef NDEBUG
                 bug_on(!ret->freed);
@@ -150,9 +150,9 @@ vmframe_alloc(void)
 }
 
 static void
-vmframe_free(struct vmframe_t *fr)
+vmframe_free(Frame *fr)
 {
-        struct var_t **vpp;
+        Object **vpp;
 
         bug_on(!fr);
 
@@ -187,8 +187,8 @@ vmframe_free(struct vmframe_t *fr)
         list_add_tail(&fr->alloc_list, &vframe_free_list);
 }
 
-static inline __attribute__((always_inline)) struct var_t *
-VARPTR(struct vmframe_t *fr, instruction_t ii)
+static inline __attribute__((always_inline)) Object *
+VARPTR(Frame *fr, instruction_t ii)
 {
         switch (ii.arg1) {
         case IARG_PTR_AP:
@@ -198,7 +198,7 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
         case IARG_PTR_CP:
                 return fr->clo[ii.arg2];
         case IARG_PTR_SEEK: {
-                struct var_t *name = RODATA(fr, ii);
+                Object *name = RODATA(fr, ii);
                 return symbol_seek(name);
         }
         case IARG_PTR_GBL:
@@ -212,7 +212,7 @@ VARPTR(struct vmframe_t *fr, instruction_t ii)
 }
 
 static struct block_t *
-vmframe_pop_block(struct vmframe_t *fr)
+vmframe_pop_block(Frame *fr)
 {
         /* XXX can a user error also cause this? */
         if (fr->n_blocks <= 0)
@@ -223,7 +223,7 @@ vmframe_pop_block(struct vmframe_t *fr)
 }
 
 static int
-vmframe_push_block(struct vmframe_t *fr, unsigned char reason)
+vmframe_push_block(Frame *fr, unsigned char reason)
 {
         struct block_t *bl;
         if (fr->n_blocks >= FRAME_NEST_MAX) {
@@ -238,19 +238,19 @@ vmframe_push_block(struct vmframe_t *fr, unsigned char reason)
 }
 
 static void
-vmframe_unwind_block(struct vmframe_t *fr, struct block_t *bl)
+vmframe_unwind_block(Frame *fr, struct block_t *bl)
 {
         while (fr->stackptr > bl->stack_level) {
-                struct var_t *v = pop(fr);
+                Object *v = pop(fr);
                 VAR_DECR_REF(v);
         }
 }
 
 static int
-binary_op_common(struct vmframe_t *fr,
-                 struct var_t *(*op)(struct var_t *, struct var_t *))
+binary_op_common(Frame *fr,
+                 Object *(*op)(Object *, Object *))
 {
-        struct var_t *lval, *rval, *opres;
+        Object *lval, *rval, *opres;
         int ret = 0;
         rval = pop(fr);
         lval = pop(fr);
@@ -265,11 +265,11 @@ binary_op_common(struct vmframe_t *fr,
 }
 
 static int
-unary_op_common(struct vmframe_t *fr,
-                struct var_t *(*op)(struct var_t *))
+unary_op_common(Frame *fr,
+                Object *(*op)(Object *))
 {
-        struct var_t *v = pop(fr);
-        struct var_t *opres = op(v);
+        Object *v = pop(fr);
+        Object *opres = op(v);
         if (!opres)
                 return -1;
         push(fr, opres);
@@ -278,9 +278,9 @@ unary_op_common(struct vmframe_t *fr,
 
 /* helper to assign_common and do_assign */
 static int
-assign_complete(struct vmframe_t *fr, instruction_t ii, struct var_t *from)
+assign_complete(Frame *fr, instruction_t ii, Object *from)
 {
-        struct var_t **ppto;
+        Object **ppto;
         switch (ii.arg1) {
         case IARG_PTR_AP:
                 ppto = fr->stack + fr->ap + ii.arg2;
@@ -317,8 +317,8 @@ assign_complete(struct vmframe_t *fr, instruction_t ii, struct var_t *from)
         return RES_OK;
 }
 
-static struct var_t *
-logical_or(struct var_t *a, struct var_t *b)
+static Object *
+logical_or(Object *a, Object *b)
 {
         int status;
         bool res = !var_cmpz(a, &status);
@@ -330,8 +330,8 @@ logical_or(struct var_t *a, struct var_t *b)
         return intvar_new((int)res);
 }
 
-static struct var_t *
-logical_and(struct var_t *a, struct var_t *b)
+static Object *
+logical_and(Object *a, Object *b)
 {
         int status;
         bool res = !var_cmpz(a, &status);
@@ -344,13 +344,13 @@ logical_and(struct var_t *a, struct var_t *b)
 }
 
 static int
-do_nop(struct vmframe_t *fr, instruction_t ii)
+do_nop(Frame *fr, instruction_t ii)
 {
         return 0;
 }
 
 static int
-do_push_local(struct vmframe_t *fr, instruction_t ii)
+do_push_local(Frame *fr, instruction_t ii)
 {
         VAR_INCR_REF(NullVar);
         push(fr, NullVar);
@@ -358,9 +358,9 @@ do_push_local(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_load_const(struct vmframe_t *fr, instruction_t ii)
+do_load_const(Frame *fr, instruction_t ii)
 {
-        struct var_t *v = RODATA(fr, ii);
+        Object *v = RODATA(fr, ii);
         if (!v) /* xxx bug? */
                 return -1;
         /*
@@ -376,9 +376,9 @@ do_load_const(struct vmframe_t *fr, instruction_t ii)
 
 /* ie. 'load variable', not the 'load' keyword */
 static int
-do_load(struct vmframe_t *fr, instruction_t ii)
+do_load(Frame *fr, instruction_t ii)
 {
-        struct var_t *p = VARPTR(fr, ii);
+        Object *p = VARPTR(fr, ii);
         if (!p)
                 return -1;
         VAR_INCR_REF(p);
@@ -387,7 +387,7 @@ do_load(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_pop(struct vmframe_t *fr, instruction_t ii)
+do_pop(Frame *fr, instruction_t ii)
 {
         VAR_DECR_REF(pop(fr));
         return 0;
@@ -399,30 +399,30 @@ do_pop(struct vmframe_t *fr, instruction_t ii)
  * call this in between each indirection.
  */
 static int
-do_shift_down(struct vmframe_t *fr, instruction_t ii)
+do_shift_down(Frame *fr, instruction_t ii)
 {
-        struct var_t *sav = pop(fr);
-        struct var_t *discard = pop(fr);
+        Object *sav = pop(fr);
+        Object *discard = pop(fr);
         VAR_DECR_REF(discard);
         push(fr, sav);
         return 0;
 }
 
 static int
-do_push_block(struct vmframe_t *fr, instruction_t ii)
+do_push_block(Frame *fr, instruction_t ii)
 {
         return vmframe_push_block(fr, ii.arg1);
 }
 
 static int
-do_pop_block(struct vmframe_t *fr, instruction_t ii)
+do_pop_block(Frame *fr, instruction_t ii)
 {
         vmframe_unwind_block(fr, vmframe_pop_block(fr));
         return 0;
 }
 
 static int
-do_break(struct vmframe_t *fr, instruction_t ii)
+do_break(Frame *fr, instruction_t ii)
 {
         struct block_t *bl;
         do {
@@ -433,9 +433,9 @@ do_break(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_assign(struct vmframe_t *fr, instruction_t ii)
+do_assign(Frame *fr, instruction_t ii)
 {
-        struct var_t *from = pop(fr);
+        Object *from = pop(fr);
         int ret = assign_complete(fr, ii, from);
         if (ret == RES_ERROR)
                 VAR_DECR_REF(from);
@@ -444,10 +444,10 @@ do_assign(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_symtab(struct vmframe_t *fr, instruction_t ii)
+do_symtab(Frame *fr, instruction_t ii)
 {
         int res;
-        struct var_t *name = RODATA(fr, ii);
+        Object *name = RODATA(fr, ii);
         bug_on(!isvar_string(name));
         res = dict_setattr_exclusive(symbol_table, name, NullVar);
         if (res != RES_OK) {
@@ -458,15 +458,15 @@ do_symtab(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_return_value(struct vmframe_t *fr, instruction_t ii)
+do_return_value(Frame *fr, instruction_t ii)
 {
         return RES_RETURN;
 }
 
 static int
-do_call_func(struct vmframe_t *fr, instruction_t ii)
+do_call_func(Frame *fr, instruction_t ii)
 {
-        struct var_t *func, *owner, *retval, **argv;
+        Object *func, *owner, *retval, **argv;
         int argc;
 
         argc = ii.arg2;
@@ -495,7 +495,7 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
          * so we have to do that instead.
          */
         while (argc-- != 0) {
-                struct var_t *arg = pop(fr);
+                Object *arg = pop(fr);
                 VAR_DECR_REF(arg);
         }
 
@@ -514,10 +514,10 @@ do_call_func(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_deffunc(struct vmframe_t *fr, instruction_t ii)
+do_deffunc(Frame *fr, instruction_t ii)
 {
-        struct var_t *func;
-        struct var_t *x = RODATA(fr, ii);
+        Object *func;
+        Object *x = RODATA(fr, ii);
         bug_on(!isvar_xptr(x));
         func = funcvar_new_user(x);
         push(fr, func);
@@ -525,10 +525,10 @@ do_deffunc(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_add_closure(struct vmframe_t *fr, instruction_t ii)
+do_add_closure(Frame *fr, instruction_t ii)
 {
-        struct var_t *clo = pop(fr);
-        struct var_t *func = pop(fr);
+        Object *clo = pop(fr);
+        Object *func = pop(fr);
 
         function_add_closure(func, clo);
         push(fr, func);
@@ -536,10 +536,10 @@ do_add_closure(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_add_default(struct vmframe_t *fr, instruction_t ii)
+do_add_default(Frame *fr, instruction_t ii)
 {
-        struct var_t *deflt = pop(fr);
-        struct var_t *func = pop(fr);
+        Object *deflt = pop(fr);
+        Object *func = pop(fr);
         /*
          * XXX what's a check for the reasonable size of ii.arg2 here?
          * 99% of the time, this is single-digit, but some weirdos out
@@ -552,12 +552,12 @@ do_add_default(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_deftuple(struct vmframe_t *fr, instruction_t ii)
+do_deftuple(Frame *fr, instruction_t ii)
 {
         int n = ii.arg2;
-        struct var_t *tup = tuplevar_new(n);
+        Object *tup = tuplevar_new(n);
         while (n--) {
-                struct var_t *item = pop(fr);
+                Object *item = pop(fr);
                 tuple_setitem(tup, n, item);
                 VAR_DECR_REF(item);
         }
@@ -566,12 +566,12 @@ do_deftuple(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_deflist(struct vmframe_t *fr, instruction_t ii)
+do_deflist(Frame *fr, instruction_t ii)
 {
         int n = ii.arg2;
-        struct var_t *arr = arrayvar_new(n);
+        Object *arr = arrayvar_new(n);
         while (n--) {
-                struct var_t *item = pop(fr);
+                Object *item = pop(fr);
                 array_setitem(arr, n, item);
                 VAR_DECR_REF(item);
         }
@@ -580,18 +580,18 @@ do_deflist(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_defdict(struct vmframe_t *fr, instruction_t ii)
+do_defdict(Frame *fr, instruction_t ii)
 {
-        struct var_t *obj = dictvar_new();
+        Object *obj = dictvar_new();
         push(fr, obj);
         return 0;
 }
 
 static int
-setattr_common(struct vmframe_t *fr, instruction_t ii, bool keep_parent)
+setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
 {
         bool del = false;
-        struct var_t *val, *key, *obj;
+        Object *val, *key, *obj;
         int ret = 0;
 
         val = pop(fr);
@@ -626,16 +626,16 @@ setattr_common(struct vmframe_t *fr, instruction_t ii, bool keep_parent)
  * back onto the stack.
  */
 static int
-do_addattr(struct vmframe_t *fr, instruction_t ii)
+do_addattr(Frame *fr, instruction_t ii)
 {
         return setattr_common(fr, ii, true);
 }
 
 static int
-do_getattr(struct vmframe_t *fr, instruction_t ii)
+do_getattr(Frame *fr, instruction_t ii)
 {
         bool del = false;
-        struct var_t *attr, *deref, *obj;
+        Object *attr, *deref, *obj;
         int ret = 0;
 
         if (ii.arg1 == IARG_ATTR_STACK) {
@@ -671,13 +671,13 @@ do_getattr(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_setattr(struct vmframe_t *fr, instruction_t ii)
+do_setattr(Frame *fr, instruction_t ii)
 {
         return setattr_common(fr, ii, false);
 }
 
 static int
-do_foreach_setup(struct vmframe_t *fr, instruction_t ii)
+do_foreach_setup(Frame *fr, instruction_t ii)
 {
         /*
          * Check if the item on top of the stack is iterable.
@@ -686,9 +686,9 @@ do_foreach_setup(struct vmframe_t *fr, instruction_t ii)
          * If no error, SP should be in same place as where
          * we started.
          */
-        struct var_t *v   = pop(fr); /* haystack */
+        Object *v   = pop(fr); /* haystack */
         if (!v->v_type->sqm) {
-                struct var_t *w;
+                Object *w;
                 if (!isvar_dict(v)) {
                         err_setstr(RuntimeError,
                                    "'%s' is not iterable", typestr(v));
@@ -717,9 +717,9 @@ cant:
 }
 
 static int
-do_foreach_iter(struct vmframe_t *fr, instruction_t ii)
+do_foreach_iter(Frame *fr, instruction_t ii)
 {
-        struct var_t *haystack, *iter, *needle;
+        Object *haystack, *iter, *needle;
         long long i, n;
         int res = RES_OK;
 
@@ -769,10 +769,10 @@ endloop:
 }
 
 static int
-do_b_if(struct vmframe_t *fr, instruction_t ii)
+do_b_if(Frame *fr, instruction_t ii)
 {
         int status;
-        struct var_t *v = pop(fr);
+        Object *v = pop(fr);
         bool cond = !var_cmpz(v, &status);
         if (!status && (bool)ii.arg1 == cond)
                 fr->ppii += ii.arg2;
@@ -781,82 +781,82 @@ do_b_if(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_b(struct vmframe_t *fr, instruction_t ii)
+do_b(Frame *fr, instruction_t ii)
 {
         fr->ppii += ii.arg2;
         return 0;
 }
 
 static int
-do_bitwise_not(struct vmframe_t *fr, instruction_t ii)
+do_bitwise_not(Frame *fr, instruction_t ii)
 {
         return unary_op_common(fr, qop_bit_not);
 }
 
 static int
-do_negate(struct vmframe_t *fr, instruction_t ii)
+do_negate(Frame *fr, instruction_t ii)
 {
         return unary_op_common(fr, qop_negate);
 }
 
 static int
-do_logical_not(struct vmframe_t *fr, instruction_t ii)
+do_logical_not(Frame *fr, instruction_t ii)
 {
         return unary_op_common(fr, var_lnot);
 }
 
 static int
-do_mul(struct vmframe_t *fr, instruction_t ii)
+do_mul(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_mul);
 }
 
 static int
-do_pow(struct vmframe_t *fr, instruction_t ii)
+do_pow(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_pow);
 }
 
 static int
-do_div(struct vmframe_t *fr, instruction_t ii)
+do_div(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_div);
 }
 
 static int
-do_mod(struct vmframe_t *fr, instruction_t ii)
+do_mod(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_mod);
 }
 
 static int
-do_add(struct vmframe_t *fr, instruction_t ii)
+do_add(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_add);
 }
 
 static int
-do_sub(struct vmframe_t *fr, instruction_t ii)
+do_sub(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_sub);
 }
 
 static int
-do_lshift(struct vmframe_t *fr, instruction_t ii)
+do_lshift(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_lshift);
 }
 
 static int
-do_rshift(struct vmframe_t *fr, instruction_t ii)
+do_rshift(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_rshift);
 }
 
 static int
-do_cmp(struct vmframe_t *fr, instruction_t ii)
+do_cmp(Frame *fr, instruction_t ii)
 {
-        struct var_t *rval, *lval, *res;
+        Object *rval, *lval, *res;
         int cmp;
 
         rval = pop(fr);
@@ -894,44 +894,44 @@ do_cmp(struct vmframe_t *fr, instruction_t ii)
 }
 
 static int
-do_binary_and(struct vmframe_t *fr, instruction_t ii)
+do_binary_and(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_bit_and);
 }
 
 static int
-do_binary_or(struct vmframe_t *fr, instruction_t ii)
+do_binary_or(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_bit_or);
 }
 
 static int
-do_binary_xor(struct vmframe_t *fr, instruction_t ii)
+do_binary_xor(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, qop_xor);
 }
 
 static int
-do_logical_or(struct vmframe_t *fr, instruction_t ii)
+do_logical_or(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, logical_or);
 }
 
 static int
-do_logical_and(struct vmframe_t *fr, instruction_t ii)
+do_logical_and(Frame *fr, instruction_t ii)
 {
         return binary_op_common(fr, logical_and);
 }
 
 static int
-do_end(struct vmframe_t *fr, instruction_t ii)
+do_end(Frame *fr, instruction_t ii)
 {
         /* dummy func, INSTR_END is handled in calling function */
         return 0;
 }
 
 /* return value is 0 or OPRES_* enum */
-typedef int (*callfunc_t)(struct vmframe_t *fr, instruction_t ii);
+typedef int (*callfunc_t)(Frame *fr, instruction_t ii);
 
 static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
@@ -978,11 +978,11 @@ check_ghost_errors(int res)
  */
 #define VM_RECURSION_MAX RECURSION_MAX
 
-struct var_t *
-execute_loop(struct vmframe_t *fr)
+Object *
+execute_loop(Frame *fr)
 {
         static int recursion_count = 0;
-        struct var_t *retval;
+        Object *retval;
 
         if (recursion_count >= VM_RECURSION_MAX)
                 fail("Recursion max reached: you may need to adjust VM_RECURSION_MAX");
@@ -1049,10 +1049,10 @@ out:
  *
  * Return: result returned from script or ErrorVar if there was an error.
  */
-struct var_t *
-vm_exec_script(struct var_t *top_level, struct vmframe_t *fr_old)
+Object *
+vm_exec_script(Object *top_level, Frame *fr_old)
 {
-        struct var_t *func, *ret;
+        Object *func, *ret;
 
         bug_on(!isvar_xptr(top_level));
         func = funcvar_new_user(top_level);
@@ -1076,12 +1076,12 @@ vm_exec_script(struct var_t *top_level, struct vmframe_t *fr_old)
  * Note: This has a net-zero effect on reference counters for @argv,
  *       although they will temporarily be incremented.
  */
-struct var_t *
-vm_exec_func(struct vmframe_t *fr_old, struct var_t *func,
-           struct var_t *owner, int argc, struct var_t **argv)
+Object *
+vm_exec_func(Frame *fr_old, Object *func,
+             Object *owner, int argc, Object **argv)
 {
-        struct vmframe_t *fr;
-        struct var_t *res;
+        Frame *fr;
+        Object *res;
 
         fr = vmframe_alloc();
         fr->stack = fr_old ? fr_old->stackptr : vm_stack;
@@ -1125,7 +1125,7 @@ vm_exec_func(struct vmframe_t *fr_old, struct var_t *func,
  * or literal_put().
  */
 void
-vm_add_global(struct var_t *name, struct var_t *var)
+vm_add_global(Object *name, Object *var)
 {
         /* moduleinit_vm should have been called first */
         int res;
@@ -1141,13 +1141,13 @@ vm_add_global(struct var_t *name, struct var_t *var)
  * @key: Name of the global variable.
  */
 bool
-vm_symbol_exists(struct var_t *key)
+vm_symbol_exists(Object *key)
 {
         /*
          * XXX Give dict_getattr extern linkage so I don't have to
          * waste time with reference counters on dummy variables.
          */
-        struct var_t *val;
+        Object *val;
         val = dict_getattr(symbol_table, key);
         if (val)
                 VAR_DECR_REF(val);
@@ -1159,7 +1159,7 @@ moduleinit_vm(void)
 {
         symbol_table = dictvar_new();
 
-        vm_stack = emalloc(sizeof(struct var_t *) * VM_STACK_SIZE);
+        vm_stack = emalloc(sizeof(Object *) * VM_STACK_SIZE);
         vm_stack_end = vm_stack + VM_STACK_SIZE - 1;
 }
 

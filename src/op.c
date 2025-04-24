@@ -10,7 +10,7 @@
  * point operations are used whenever one of two numbers are floats.
  */
 static const struct operator_methods_t *
-get_binop_method(struct var_t *a, struct var_t *b)
+get_binop_method(Object *a, Object *b)
 {
         if (isvar_float(a)) {
                 if (isvar_int(b) || isvar_float(b))
@@ -29,8 +29,8 @@ get_binop_method(struct var_t *a, struct var_t *b)
  * must be an integer or a float.
  */
 #define BINARY_OP_BASIC_FUNC(Field, What)               \
-struct var_t *                                          \
-qop_##Field (struct var_t *a, struct var_t *b)          \
+Object *                                          \
+qop_##Field (Object *a, Object *b)          \
 {                                                       \
         const struct operator_methods_t *opm;           \
         if ((opm = get_binop_method(a, b)) == NULL      \
@@ -52,8 +52,8 @@ BINARY_OP_BASIC_FUNC(lshift, "<<")
 BINARY_OP_BASIC_FUNC(rshift, ">>")
 
 
-struct var_t *
-qop_bit_or(struct var_t *a, struct var_t *b)
+Object *
+qop_bit_or(Object *a, Object *b)
 {
         const struct operator_methods_t *opm;
         const struct map_methods_t *mpm;
@@ -73,8 +73,8 @@ err:
         return NULL;
 }
 
-struct var_t *
-qop_add(struct var_t *a, struct var_t *b)
+Object *
+qop_add(Object *a, Object *b)
 {
         const struct operator_methods_t *opm;
 
@@ -97,11 +97,11 @@ cant:
 }
 
 #define MAY_CAT(v_)     ((v_)->v_type->sqm && (v_)->v_type->sqm->cat)
-struct var_t *
-qop_mul(struct var_t *a, struct var_t *b)
+Object *
+qop_mul(Object *a, Object *b)
 {
         const struct operator_methods_t *opm;
-        struct var_t *ret;
+        Object *ret;
         long long i;
         binary_operator_t adder;
 
@@ -112,7 +112,7 @@ qop_mul(struct var_t *a, struct var_t *b)
         }
 
         if (MAY_CAT(a)) {
-                struct var_t *tmp;
+                Object *tmp;
                 if (!isvar_int(b))
                         goto cant;
                 tmp = a;
@@ -135,7 +135,7 @@ qop_mul(struct var_t *a, struct var_t *b)
         VAR_INCR_REF(b);
         ret = b;
         while (i > 1) {
-                struct var_t *tmp = adder(b, ret);
+                Object *tmp = adder(b, ret);
                 VAR_DECR_REF(ret);
                 ret = tmp;
                 i--;
@@ -149,8 +149,8 @@ cant:
 #undef MAY_CAT
 
 /* ~v */
-struct var_t *
-qop_bit_not(struct var_t *v)
+Object *
+qop_bit_not(Object *v)
 {
         const struct operator_methods_t *p = v->v_type->opm;
         if (!p || !p->bit_not) {
@@ -161,8 +161,8 @@ qop_bit_not(struct var_t *v)
 }
 
 /* -v */
-struct var_t *
-qop_negate(struct var_t *v)
+Object *
+qop_negate(Object *v)
 {
         const struct operator_methods_t *p = v->v_type->opm;
         if (!p || !p->negate) {

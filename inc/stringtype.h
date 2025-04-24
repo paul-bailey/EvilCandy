@@ -18,14 +18,14 @@ struct stringvar_t {
 };
 
 static inline bool
-string_hash(struct var_t *v)
+string_hash(Object *v)
 {
         return ((struct stringvar_t *)v)->s_hash;
 }
 
 /* may be different from seqvar_size if not entirely ASCII */
 static inline size_t
-string_nbytes(struct var_t *v)
+string_nbytes(Object *v)
 {
         return ((struct stringvar_t *)v)->s_info.ascii_len;
 }
@@ -44,7 +44,7 @@ string_nbytes(struct var_t *v)
  * let the calling code decide whether to update the hash or not.
  */
 static inline hash_t
-string_update_hash(struct var_t *v)
+string_update_hash(Object *v)
 {
         struct stringvar_t *vs = (struct stringvar_t *)v;
         if (vs->s_hash == (hash_t)0)

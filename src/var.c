@@ -74,10 +74,10 @@ var_alloc_tell(void)
 # define REGISTER_FREE(x)  do { (void)0; } while (0)
 #endif /* NDEBUG */
 
-static struct var_t *
+static Object *
 var_alloc(struct type_t *type)
 {
-        struct var_t *ret;
+        Object *ret;
         struct var_mem_t *vm;
 
         REGISTER_ALLOC(type->size);
@@ -90,13 +90,13 @@ var_alloc(struct type_t *type)
                 type->freelist = vm->list;
         }
         vm->list = NULL;
-        ret = (struct var_t *)(vm + 1);
+        ret = (Object *)(vm + 1);
         memset(ret, 0, type->size);
         return ret;
 }
 
 static void
-var_free(struct var_t *v)
+var_free(Object *v)
 {
         struct var_mem_t *vm;
         struct type_t *type = v->v_type;
@@ -116,10 +116,10 @@ var_free(struct var_t *v)
 /**
  * var_new - Get a new empty variable
  */
-struct var_t *
+Object *
 var_new(struct type_t *type)
 {
-        struct var_t *v;
+        Object *v;
         bug_on(type->size == 0);
 
         v = var_alloc(type);
@@ -133,7 +133,7 @@ var_new(struct type_t *type)
  * @v: variable to delete.
  */
 void
-var_delete__(struct var_t *v)
+var_delete__(Object *v)
 {
         bug_on(!v);
         bug_on(v == NullVar);
@@ -147,11 +147,11 @@ var_delete__(struct var_t *v)
 
 static void
 config_builtin_methods(const struct type_inittbl_t *tbl_arr,
-                       struct var_t *dict)
+                       Object *dict)
 {
         const struct type_inittbl_t *t = tbl_arr;
         while (t->name != NULL) {
-                struct var_t *v, *k;
+                Object *v, *k;
                 enum result_t res;
 
                 v = funcvar_new_intl(t->fn, t->minargs, t->maxargs);
@@ -215,13 +215,13 @@ moduleinit_var(void)
 
 /**
  * var_bucket_delete - Hash table callback for several modules.
- * @data: Expected to be a struct var_t that was created with var_new()
+ * @data: Expected to be a Object that was created with var_new()
  */
 void
 var_bucket_delete(void *data)
 {
-        VAR_SANITY((struct var_t *)data);
-        VAR_DECR_REF((struct var_t *)data);
+        VAR_SANITY((Object *)data);
+        VAR_DECR_REF((Object *)data);
 }
 
 /*
@@ -233,7 +233,7 @@ var_bucket_delete(void *data)
  * Return: converted index or -1 if out of range.
  */
 static int
-var_realindex(struct var_t *v, long long idx)
+var_realindex(Object *v, long long idx)
 {
         int i;
         size_t n;
@@ -267,8 +267,8 @@ var_realindex(struct var_t *v, long long idx)
  * yet exist during initialization, but which will be available by the
  * time the VM is running.
  */
-struct var_t *
-var_getattr(struct var_t *v, struct var_t *key)
+Object *
+var_getattr(Object *v, Object *key)
 {
         if (isvar_int(key)) {
                 int i;
@@ -286,7 +286,7 @@ var_getattr(struct var_t *v, struct var_t *key)
                  * first check if v maps it. If failed, check the
                  * built-in methods.
                  */
-                struct var_t *ret;
+                Object *ret;
                 const struct map_methods_t *mpm = v->v_type->mpm;
                 if (mpm && mpm->getitem) {
                         ret = mpm->getitem(v, key);
@@ -315,7 +315,7 @@ var_getattr(struct var_t *v, struct var_t *key)
  * This implements x[key] = attr;
  */
 enum result_t
-var_setattr(struct var_t *v, struct var_t *key, struct var_t *attr)
+var_setattr(Object *v, Object *key, Object *attr)
 {
         if (isvar_string(key)) {
                 const char *ks = string_get_cstring(key);
@@ -351,7 +351,7 @@ var_setattr(struct var_t *v, struct var_t *key, struct var_t *attr)
  * Used for error reporting.
  */
 const char *
-attr_str(struct var_t *key)
+attr_str(Object *key)
 {
         /* FIXME: No! Just no! */
         static char numbuf[64];
@@ -379,7 +379,7 @@ attr_str(struct var_t *key)
  * has their own method of comparison.
  */
 int
-var_compare(struct var_t *a, struct var_t *b)
+var_compare(Object *a, Object *b)
 {
         if (a == b)
                 return 0;
@@ -397,7 +397,7 @@ var_compare(struct var_t *a, struct var_t *b)
 }
 
 int
-var_sort(struct var_t *v)
+var_sort(Object *v)
 {
         if (!v->v_type->sqm || !v->v_type->sqm->sort)
                 return -1;
@@ -406,8 +406,8 @@ var_sort(struct var_t *v)
 }
 
 /* Used for built-in print function to express a variable */
-struct var_t *
-var_str(struct var_t *v)
+Object *
+var_str(Object *v)
 {
         /* every data type should have this */
         bug_on(!v->v_type->str);
@@ -415,7 +415,7 @@ var_str(struct var_t *v)
 }
 
 ssize_t
-var_len(struct var_t *v)
+var_len(Object *v)
 {
         if (!hasvar_len(v))
                 return -1;
@@ -423,7 +423,7 @@ var_len(struct var_t *v)
 }
 
 const char *
-typestr(struct var_t *v)
+typestr(Object *v)
 {
         return v->v_type->name;
 }
@@ -439,7 +439,7 @@ typestr(struct var_t *v)
  *               @v is sequential and its length is zero.
  */
 bool
-var_cmpz(struct var_t *v, enum result_t *status)
+var_cmpz(Object *v, enum result_t *status)
 {
         if (!v->v_type->cmpz) {
                 err_permit("cmpz", v);
@@ -450,8 +450,8 @@ var_cmpz(struct var_t *v, enum result_t *status)
         return v->v_type->cmpz(v);
 }
 
-struct var_t *
-var_lnot(struct var_t *v)
+Object *
+var_lnot(Object *v)
 {
         int status;
         bool cond = var_cmpz(v, &status);

@@ -3,6 +3,7 @@
 #ifndef EVILCANDY_TYPEDEFS_H
 #define EVILCANDY_TYPEDEFS_H
 
+#include <stdint.h>
 
 typedef struct var_t Object;
 typedef struct vmframe_t Frame;

@@ -34,7 +34,7 @@ fnv_cstring_hash(const char *key)
  * See Wikipedia article "Fowler-Noll-Vo hash function"
  */
 hash_t
-calc_string_hash(struct var_t *key)
+calc_string_hash(Object *key)
 {
         bug_on(!isvar_string(key));
         return fnv_cstring_hash(string_get_cstring(key));

@@ -42,9 +42,9 @@ enum type_magic_t {
         NTYPES,
 };
 
-typedef struct var_t *(*binary_operator_t)(struct var_t *,
-                                           struct var_t *);
-typedef struct var_t *(*unary_operator_t)(struct var_t *);
+typedef Object *(*binary_operator_t)(Object *,
+                                           Object *);
+typedef Object *(*unary_operator_t)(Object *);
 
 /*
  * Per-type callbacks for mathematical operators, like + or -
@@ -72,10 +72,10 @@ struct operator_methods_t {
 };
 
 struct map_methods_t {
-        struct var_t *(*getitem)(struct var_t *d, struct var_t *key);
-        int (*setitem)(struct var_t *d,
-                       struct var_t *key, struct var_t *item);
-        int (*hasitem)(struct var_t *d, struct var_t *key);
+        Object *(*getitem)(Object *d, Object *key);
+        int (*setitem)(Object *d,
+                       Object *key, Object *item);
+        int (*hasitem)(Object *d, Object *key);
         /*
          * Not an in-place operation.  Make shallow copy of lval
          * and fill it--possibly overriding it--with rval.
@@ -84,11 +84,11 @@ struct map_methods_t {
 };
 
 struct seq_methods_t {
-        struct var_t *(*getitem)(struct var_t *, int);
-        enum result_t (*setitem)(struct var_t *, int, struct var_t *);
+        Object *(*getitem)(Object *, int);
+        enum result_t (*setitem)(Object *, int, Object *);
         /* new = a + b; if b is NULL, return new empty var */
         binary_operator_t cat;
-        void (*sort)(struct var_t *);
+        void (*sort)(Object *);
 };
 
 /*
@@ -101,7 +101,7 @@ struct seq_methods_t {
 /* XXX: should be called type_methods_t or something */
 struct type_inittbl_t {
         const char *name;
-        struct var_t *(*fn)(struct vmframe_t *);
+        Object *(*fn)(Frame *);
         int minargs;
         int maxargs;
 };
@@ -145,16 +145,16 @@ struct type_t {
         const char *name;
         struct var_mem_t *freelist;
         size_t n_freelist;
-        struct var_t *methods;
+        Object *methods;
         const struct operator_methods_t *opm;
         const struct type_inittbl_t *cbm;
         const struct map_methods_t *mpm;
         const struct seq_methods_t *sqm;
         size_t size;
-        struct var_t *(*str)(struct var_t *);
-        int (*cmp)(struct var_t *, struct var_t *);
-        bool (*cmpz)(struct var_t *);    /* a == 0 ? */
-        void (*reset)(struct var_t *);
+        Object *(*str)(Object *);
+        int (*cmp)(Object *, Object *);
+        bool (*cmpz)(Object *);    /* a == 0 ? */
+        void (*reset)(Object *);
 };
 
 /*
@@ -177,41 +177,41 @@ extern struct type_t RangeType;
 extern struct type_t UuidptrType;
 extern struct type_t FileType;
 
-static inline bool isvar_array(struct var_t *v)
+static inline bool isvar_array(Object *v)
         { return v->v_type == &ArrayType; }
-static inline bool isvar_tuple(struct var_t *v)
+static inline bool isvar_tuple(Object *v)
         { return v->v_type == &TupleType; }
-static inline bool isvar_empty(struct var_t *v)
+static inline bool isvar_empty(Object *v)
         { return v->v_type == &EmptyType; }
-static inline bool isvar_float(struct var_t *v)
+static inline bool isvar_float(Object *v)
         { return v->v_type == &FloatType; }
-static inline bool isvar_function(struct var_t *v)
+static inline bool isvar_function(Object *v)
         { return v->v_type == &FunctionType; }
-static inline bool isvar_int(struct var_t *v)
+static inline bool isvar_int(Object *v)
         { return v->v_type == &IntType; }
-static inline bool isvar_xptr(struct var_t *v)
+static inline bool isvar_xptr(Object *v)
         { return v->v_type == &XptrType; }
-static inline bool isvar_dict(struct var_t *v)
+static inline bool isvar_dict(Object *v)
         { return v->v_type == &DictType; }
-static inline bool isvar_string(struct var_t *v)
+static inline bool isvar_string(Object *v)
         { return v->v_type == &StringType; }
-static inline bool isvar_bytes(struct var_t *v)
+static inline bool isvar_bytes(Object *v)
         { return v->v_type == &BytesType; }
-static inline bool isvar_range(struct var_t *v)
+static inline bool isvar_range(Object *v)
         { return v->v_type == &RangeType; }
-static inline bool isvar_uuidptr(struct var_t *v)
+static inline bool isvar_uuidptr(Object *v)
         { return v->v_type == &UuidptrType; }
-static inline bool isvar_file(struct var_t *v)
+static inline bool isvar_file(Object *v)
         { return v->v_type == &FileType; }
 
 /* not 'isvar_num'... there always has to be an odd one out */
-static inline bool isnumvar(struct var_t *v)
+static inline bool isnumvar(Object *v)
         { return v->v_type->opm != NULL; }
-static inline bool isvar_seq(struct var_t *v)
+static inline bool isvar_seq(Object *v)
         { return v->v_type->sqm != NULL; }
-static inline bool isvar_map(struct var_t *v)
+static inline bool isvar_map(Object *v)
         { return v->v_type->mpm != NULL; }
-static inline bool hasvar_len(struct var_t *v)
+static inline bool hasvar_len(Object *v)
         { return isvar_seq(v) || isvar_map(v); }
 
 /*
@@ -219,22 +219,22 @@ static inline bool hasvar_len(struct var_t *v)
  * These are otherwise used privately in integer.c and float.c
  */
 struct intvar_t {
-        struct var_t base;
+        Object base;
         long long i;
 };
 struct floatvar_t {
-        struct var_t base;
+        Object base;
         double f;
 };
 
 /* Warning!! Only call these if you already type-checked @v */
-static inline double floatvar_tod(struct var_t *v)
+static inline double floatvar_tod(Object *v)
         { return ((struct floatvar_t *)v)->f; }
-static inline long long intvar_toll(struct var_t *v)
+static inline long long intvar_toll(Object *v)
         { return ((struct intvar_t *)v)->i; }
-static inline long long numvar_toint(struct var_t *v)
+static inline long long numvar_toint(Object *v)
         { return isvar_int(v) ? intvar_toll(v) : (long long)floatvar_tod(v); }
-static inline double numvar_tod(struct var_t *v)
+static inline double numvar_tod(Object *v)
         { return isvar_float(v) ? floatvar_tod(v) : (double)intvar_toll(v); }
 
 #endif /* EVILCANDY_OBJTYPES_H */

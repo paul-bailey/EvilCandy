@@ -8,7 +8,7 @@ struct json_state_t {
         struct token_t *tok;
         jmp_buf env; /* because of all the recursive-li-ness... */
         int recursion; /* ...but not too much recursive-li-ness! */
-        struct var_t *d;
+        Object *d;
 };
 
 enum {
@@ -36,13 +36,13 @@ json_unget_tok(struct json_state_t *j)
         unget_tok(j->tok_state, &j->tok);
 }
 
-static void parsedict(struct json_state_t *j, struct var_t *parent);
-static void parsearray(struct json_state_t *j, struct var_t *parent);
+static void parsedict(struct json_state_t *j, Object *parent);
+static void parsearray(struct json_state_t *j, Object *parent);
 
-static struct var_t *
+static Object *
 parseatomic(struct json_state_t *j)
 {
-        struct var_t *child;
+        Object *child;
 
         if (j->recursion > 128)
                 json_err(j, JE_RECURSION);
@@ -93,7 +93,7 @@ parseatomic(struct json_state_t *j)
 
 /* next token is first token after '[' */
 static void
-parsearray(struct json_state_t *j, struct var_t *parent)
+parsearray(struct json_state_t *j, Object *parent)
 {
         int t = json_get_tok(j);
         if (t == OC_RBRACK)
@@ -101,7 +101,7 @@ parsearray(struct json_state_t *j, struct var_t *parent)
 
         json_unget_tok(j);
         do {
-                struct var_t *child;
+                Object *child;
                 json_get_tok(j);
                 child = parseatomic(j);
                 if (array_append(parent, child) != RES_OK)
@@ -114,7 +114,7 @@ parsearray(struct json_state_t *j, struct var_t *parent)
 
 /* next token is first token after '{' */
 static void
-parsedict(struct json_state_t *j, struct var_t *parent)
+parsedict(struct json_state_t *j, Object *parent)
 {
         int t;
 
@@ -126,7 +126,7 @@ parsedict(struct json_state_t *j, struct var_t *parent)
         json_unget_tok(j);
         do {
                 char *name;
-                struct var_t *child, *key;
+                Object *child, *key;
                 int res;
                 json_get_tok(j);
                 if (j->tok->t != 'q')
@@ -218,13 +218,13 @@ parsedict(struct json_state_t *j, struct var_t *parent)
  *      ...the _idea_ of JSON is a hundred times better than the as-is
  *      strict standards of json.
  */
-struct var_t *
+Object *
 dict_from_json(const char *filename)
 {
         struct json_state_t jstate;
         FILE *fp = fopen(filename, "r");
         int status;
-        struct var_t *ret;
+        Object *ret;
         if (!fp) {
                 err_setstr(SystemError,
                            "Could not open JSON file '%s'\n", filename);

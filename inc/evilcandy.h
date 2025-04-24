@@ -31,39 +31,39 @@
 #include "debug.h"
 
 /* main.c */
-extern struct var_t *ErrorVar;
-extern struct var_t *NullVar;
-extern struct var_t *GlobalObject;
-extern struct var_t *ParserError;
-extern struct var_t *RuntimeError;
-extern struct var_t *SystemError;
+extern Object *ErrorVar;
+extern Object *NullVar;
+extern Object *GlobalObject;
+extern Object *ParserError;
+extern Object *RuntimeError;
+extern Object *SystemError;
 
 /* assembler.c */
-extern struct var_t *assemble(const char *filename,
+extern Object *assemble(const char *filename,
                               FILE *fp, bool toeof, int *status);
 
 /* err.c */
 extern void fail(const char *msg, ...);
-extern void err_setstr(struct var_t *exc, const char *msg, ...);
-extern void err_get(struct var_t **exc, char **msg);
+extern void err_setstr(Object *exc, const char *msg, ...);
+extern void err_get(Object **exc, char **msg);
 extern bool err_exists(void);
-extern void err_print(FILE *fp, struct var_t *exc, char *msg);
+extern void err_print(FILE *fp, Object *exc, char *msg);
 extern void err_print_last(FILE *fp);
 extern bool err_occurred(void);
 extern void err_clear(void);
 extern void err_attribute(const char *getorset,
-                          struct var_t *deref, struct var_t *obj);
+                          Object *deref, Object *obj);
 extern void err_argtype(const char *what);
 extern void err_locked(void);
-extern void err_permit(const char *op, struct var_t *var);
+extern void err_permit(const char *op, Object *var);
 extern void err_permit2(const char *op,
-                        struct var_t *a, struct var_t *b);
+                        Object *a, Object *b);
 extern void err_errno(const char *msg, ...);
 
 /* disassemble.c */
-extern void disassemble(FILE *fp, struct var_t *ex,
+extern void disassemble(FILE *fp, Object *ex,
                         const char *sourcefile_name);
-extern void disassemble_lite(FILE *fp, struct var_t *ex);
+extern void disassemble_lite(FILE *fp, Object *ex);
 
 /* ewrappers.c */
 extern char *estrdup(const char *s);
@@ -74,25 +74,25 @@ extern void *ememdup(void *buf, size_t size);
 extern void efree(void *ptr);
 
 /* hash.c */
-extern hash_t calc_string_hash(struct var_t *key);
+extern hash_t calc_string_hash(Object *key);
 
 /* json.c */
-struct var_t *dict_from_json(const char *filename);
+Object *dict_from_json(const char *filename);
 
 /* op.c */
-extern struct var_t *qop_mul(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_pow(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_div(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_mod(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_add(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_sub(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_lshift(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_rshift(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_bit_and(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_bit_or(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_xor(struct var_t *a, struct var_t *b);
-extern struct var_t *qop_bit_not(struct var_t *v);
-extern struct var_t *qop_negate(struct var_t *v);
+extern Object *qop_mul(Object *a, Object *b);
+extern Object *qop_pow(Object *a, Object *b);
+extern Object *qop_div(Object *a, Object *b);
+extern Object *qop_mod(Object *a, Object *b);
+extern Object *qop_add(Object *a, Object *b);
+extern Object *qop_sub(Object *a, Object *b);
+extern Object *qop_lshift(Object *a, Object *b);
+extern Object *qop_rshift(Object *a, Object *b);
+extern Object *qop_bit_and(Object *a, Object *b);
+extern Object *qop_bit_or(Object *a, Object *b);
+extern Object *qop_xor(Object *a, Object *b);
+extern Object *qop_bit_not(Object *v);
+extern Object *qop_negate(Object *v);
 
 /* find_import.c */
 extern FILE *find_import(const char *cur_path, const char *file_name,
@@ -102,36 +102,32 @@ extern FILE *find_import(const char *cur_path, const char *file_name,
 extern void pop_path(FILE *fp);
 extern FILE *push_path(const char *filename);
 
-/* range.c */
-extern struct var_t *rangevar_new(long long start,
-                        long long stop, long long step);
-
 /* var.c */
 #include "var.h"
 
 /* serializer.c */
-extern int serialize_write(FILE *fp, struct var_t *ex);
-extern struct var_t *serialize_read(FILE *fp, const char *file_name);
+extern int serialize_write(FILE *fp, Object *ex);
+extern Object *serialize_read(FILE *fp, const char *file_name);
 
 /* types/array.c */
-extern struct var_t *arrayvar_new(int n_items);
-extern struct var_t *tuplevar_new(int n_items);
-extern enum result_t array_setitem(struct var_t *array,
-                                   int i, struct var_t *child);
+extern Object *arrayvar_new(int n_items);
+extern Object *tuplevar_new(int n_items);
+extern enum result_t array_setitem(Object *array,
+                                   int i, Object *child);
 /* user doesn't have access to this but internal code needs it */
 #define tuple_setitem   array_setitem
-extern struct var_t *array_getitem(struct var_t *array, int idx);
-extern enum result_t array_append(struct var_t *array,
-                                  struct var_t *child);
+extern Object *array_getitem(Object *array, int idx);
+extern enum result_t array_append(Object *array,
+                                  Object *child);
 
 /* types/bytes.c */
-extern struct var_t *bytesvar_new(unsigned char *buf, size_t len);
-extern struct var_t *bytesvar_from_source(char *src);
-extern const unsigned char *bytes_getbuf(struct var_t *v);
-extern struct var_t *bytesvar_nocopy(unsigned char *buf, size_t len);
+extern Object *bytesvar_new(unsigned char *buf, size_t len);
+extern Object *bytesvar_from_source(char *src);
+extern const unsigned char *bytes_getbuf(Object *v);
+extern Object *bytesvar_nocopy(unsigned char *buf, size_t len);
 
 /* types/empty.c */
-extern struct var_t *emptyvar_new(void);
+extern Object *emptyvar_new(void);
 
 /* types/file.c */
 enum {
@@ -139,50 +135,52 @@ enum {
         FMODE_READ      = 0x02,
         FMODE_WRITE     = 0x04,
 };
-struct var_t *filevar_new(FILE *fp,
-                        struct var_t *name, unsigned int mode);
+extern Object *filevar_new(FILE *fp, Object *name, unsigned int mode);
 
 /* types/float.c */
-extern struct var_t *floatvar_new(double value);
+extern Object *floatvar_new(double value);
 
 /* types/function.c */
-extern struct var_t *funcvar_new_user(struct var_t *ex);
-struct var_t *funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
+extern Object *funcvar_new_user(Object *ex);
+extern Object *funcvar_new_intl(Object *(*cb)(Frame *),
                                int minargs, int maxargs);
-extern struct var_t *function_prep_frame(struct var_t *fn,
-                        struct vmframe_t *fr, struct var_t *owner);
-extern struct var_t *call_function(struct vmframe_t *fr, struct var_t *fn);
-extern void function_add_closure(struct var_t *func, struct var_t *clo);
-extern void function_add_default(struct var_t *func,
-                        struct var_t *deflt, int argno);
+extern Object *function_prep_frame(Object *fn,
+                        Frame *fr, Object *owner);
+extern Object *call_function(Frame *fr, Object *fn);
+extern void function_add_closure(Object *func, Object *clo);
+extern void function_add_default(Object *func,
+                        Object *deflt, int argno);
 
 /* types/integer.c */
-extern struct var_t *intvar_new(long long value);
+extern Object *intvar_new(long long value);
 
 /* types/intl.c */
-extern struct var_t *uuidptrvar_new(char *uuid);
-extern char *uuidptr_get_cstring(struct var_t *v);
+extern Object *uuidptrvar_new(char *uuid);
+extern char *uuidptr_get_cstring(Object *v);
 
 /* types/dict.c */
-extern struct var_t *dictvar_new(void);
-extern struct var_t *dict_keys(struct var_t *obj);
-extern struct var_t *dict_getattr(struct var_t *o, struct var_t *key);
-extern enum result_t dict_setattr(struct var_t *o,
-                                    struct var_t *key, struct var_t *attr);
-extern void dict_add_to_globals(struct var_t *obj);
-extern enum result_t dict_setattr_replace(struct var_t *dict,
-                                struct var_t *key, struct var_t *attr);
-extern enum result_t dict_setattr_exclusive(struct var_t *dict,
-                                struct var_t *key, struct var_t *attr);
-extern char *dict_unique(struct var_t *dict, const char *key);
+extern Object *dictvar_new(void);
+extern Object *dict_keys(Object *obj);
+extern Object *dict_getattr(Object *o, Object *key);
+extern enum result_t dict_setattr(Object *o, Object *key, Object *attr);
+extern void dict_add_to_globals(Object *obj);
+extern enum result_t dict_setattr_replace(Object *dict,
+                                Object *key, Object *attr);
+extern enum result_t dict_setattr_exclusive(Object *dict,
+                                Object *key, Object *attr);
+extern char *dict_unique(Object *dict, const char *key);
+
+/* types/range.c */
+extern Object *rangevar_new(long long start,
+                        long long stop, long long step);
 
 /* types/string.c */
-extern void string_assign_cstring(struct var_t *str, const char *s);
-extern char *string_get_cstring(struct var_t *str);
-extern struct var_t *stringvar_new(const char *cstr);
-extern struct var_t *stringvar_from_buffer(struct buffer_t *b);
-extern struct var_t *stringvar_from_source(const char *tokenstr, bool imm);
-extern struct var_t *stringvar_nocopy(const char *cstr);
+extern void string_assign_cstring(Object *str, const char *s);
+extern char *string_get_cstring(Object *str);
+extern Object *stringvar_new(const char *cstr);
+extern Object *stringvar_from_buffer(struct buffer_t *b);
+extern Object *stringvar_from_source(const char *tokenstr, bool imm);
+extern Object *stringvar_nocopy(const char *cstr);
 
 /* uuid.c */
 extern char *uuidstr(void);

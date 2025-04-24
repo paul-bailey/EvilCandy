@@ -8,16 +8,16 @@
 #define V2F(v_) ((struct filevar_t *)(v_))
 
 struct filevar_t {
-        struct var_t base;
+        Object base;
         FILE *f_fp;
-        struct var_t *f_name;
+        Object *f_name;
         unsigned int f_mode;
         bool f_binary;
         bool f_eof;
 };
 
 static int
-file_cmp(struct var_t *a, struct var_t *b)
+file_cmp(Object *a, Object *b)
 {
         FILE *fpa, *fpb;
         bug_on(!isvar_file(a) || !isvar_file(b));
@@ -27,13 +27,13 @@ file_cmp(struct var_t *a, struct var_t *b)
 }
 
 static bool
-file_cmpz(struct var_t *v)
+file_cmpz(Object *v)
 {
         return 0;
 }
 
 static void
-file_reset(struct var_t *v)
+file_reset(Object *v)
 {
         struct filevar_t *f = V2F(v);
         bug_on(!isvar_file(v));
@@ -42,8 +42,8 @@ file_reset(struct var_t *v)
         VAR_DECR_REF(f->f_name);
 }
 
-static struct var_t *
-file_str(struct var_t *v)
+static Object *
+file_str(Object *v)
 {
         struct buffer_t b;
         struct filevar_t *f = V2F(v);
@@ -64,10 +64,10 @@ file_str(struct var_t *v)
         }                                                 \
 } while (0)
 
-static struct var_t *
-do_close(struct vmframe_t *fr)
+static Object *
+do_close(Frame *fr)
 {
-        struct var_t *self;
+        Object *self;
         struct filevar_t *f;
 
         self = vm_get_this(fr);
@@ -83,10 +83,10 @@ do_close(struct vmframe_t *fr)
         return NULL;
 }
 
-static struct var_t *
-do_clearerr(struct vmframe_t *fr)
+static Object *
+do_clearerr(Frame *fr)
 {
-        struct var_t *self;
+        Object *self;
         struct filevar_t *f;
 
         self = vm_get_this(fr);
@@ -99,10 +99,10 @@ do_clearerr(struct vmframe_t *fr)
         return NULL;
 }
 
-static struct var_t *
-do_eof(struct vmframe_t *fr)
+static Object *
+do_eof(Frame *fr)
 {
-        struct var_t *self;
+        Object *self;
         struct filevar_t *f;
         int res;
 
@@ -114,11 +114,11 @@ do_eof(struct vmframe_t *fr)
         return intvar_new(res);
 }
 
-static struct var_t *
-do_read(struct vmframe_t *fr)
+static Object *
+do_read(Frame *fr)
 {
-        struct var_t *self;
-        struct var_t *len;
+        Object *self;
+        Object *len;
         struct filevar_t *f;
 
         self = vm_get_this(fr);
@@ -135,7 +135,7 @@ do_read(struct vmframe_t *fr)
 
         if (f->f_binary) {
                 long long len_i;
-                struct var_t *ret;
+                Object *ret;
                 unsigned char *buf, *pbuf;
                 if (!len) {
                         err_setstr(RuntimeError, "Expected: length");
@@ -200,11 +200,11 @@ do_read(struct vmframe_t *fr)
         }
 }
 
-static struct var_t *
-do_write(struct vmframe_t *fr)
+static Object *
+do_write(Frame *fr)
 {
-        struct var_t *self;
-        struct var_t *data;
+        Object *self;
+        Object *data;
         struct filevar_t *f;
         const unsigned char *s;
         size_t size;
@@ -294,10 +294,10 @@ struct type_t FileType = {
         .reset  = file_reset,
 };
 
-struct var_t *
-filevar_new(FILE *fp, struct var_t *name, unsigned int mode)
+Object *
+filevar_new(FILE *fp, Object *name, unsigned int mode)
 {
-        struct var_t *v = var_new(&FileType);
+        Object *v = var_new(&FileType);
         struct filevar_t *f = V2F(v);
         bug_on(!isvar_string(name));
         VAR_INCR_REF(name);

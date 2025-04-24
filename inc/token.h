@@ -3,6 +3,8 @@
 
 #include <stdio.h> /* for FILE */
 
+#include "typedefs.h"
+
 #define TO_TOK(c1_, c2_)        ((c1_) | ((c2_) << 8))
 #define TO_DTOK(c_)             TO_TOK('d', c_)
 #define TO_KTOK(c_)             TO_TOK('k', c_)
@@ -187,7 +189,7 @@ struct token_t {
         unsigned int t;
         unsigned int line;
         char *s;
-        struct var_t *v;
+        Object *v;
 };
 
 /* opaque struct, used only in token.c */

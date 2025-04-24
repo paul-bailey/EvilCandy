@@ -1,28 +1,28 @@
 #include <evilcandy.h>
 
 static bool
-empty_cmpz(struct var_t *v)
+empty_cmpz(Object *v)
 {
         return true;
 }
 
 static int
-empty_cmp(struct var_t *a, struct var_t *b)
+empty_cmp(Object *a, Object *b)
 {
         return isvar_empty(b) ? 0 : -1;
 }
 
-struct var_t *
+Object *
 emptyvar_new(void)
 {
         return var_new(&EmptyType);
 }
 
 /* says 'null' -- no use creating this more than once */
-static struct var_t *emptystr = NULL;
+static Object *emptystr = NULL;
 
-struct var_t *
-empty_str(struct var_t *v)
+Object *
+empty_str(Object *v)
 {
         if (emptystr == NULL)
                 emptystr = stringvar_new("null");
@@ -37,7 +37,7 @@ struct type_t EmptyType = {
         .cbm    = NULL,
         .mpm    = NULL,
         .sqm    = NULL,
-        .size   = sizeof(struct var_t),
+        .size   = sizeof(Object),
         .str    = empty_str,
         .cmp    = empty_cmp,
         .cmpz   = empty_cmpz,

@@ -6,9 +6,9 @@
 
 /* XXX easier to just return NAN for bad? */
 static double
-get_floatarg(struct vmframe_t *fr, int argno, int *status)
+get_floatarg(Frame *fr, int argno, int *status)
 {
-        struct var_t *x = frame_get_arg(fr, argno);
+        Object *x = frame_get_arg(fr, argno);
         bug_on(!x);
         if (!isnumvar(x)) {
                 *status = -1;
@@ -19,8 +19,8 @@ get_floatarg(struct vmframe_t *fr, int argno, int *status)
         }
 }
 
-static struct var_t *
-do_pow(struct vmframe_t *fr)
+static Object *
+do_pow(Frame *fr)
 {
         double x, y;
         int status;
@@ -38,8 +38,8 @@ bad:
         return ErrorVar;
 }
 
-static struct var_t *
-do_sqrt(struct vmframe_t *fr)
+static Object *
+do_sqrt(Frame *fr)
 {
         int status;
         double x = get_floatarg(fr, 0, &status);

@@ -514,7 +514,7 @@ read_rodata(struct serial_rstate_t *state, struct xptrvar_t *ex)
                 size_t len; /* dummy for now */
                 char *s;
                 unsigned char magic = rbyte(state);
-                struct var_t *v = NULL;
+                Object *v = NULL;
                 switch (magic) {
                 case TYPE_EMPTY:
                         VAR_INCR_REF(NullVar);
@@ -558,7 +558,7 @@ read_rodata(struct serial_rstate_t *state, struct xptrvar_t *ex)
         if (err_occurred() || i < ex->n_rodata) {
                 /* had an error, need to unwind and free */
                 for (i = 0; i < ex->n_rodata; i++) {
-                        struct var_t *v = ex->rodata[i];
+                        Object *v = ex->rodata[i];
                         if (!v)
                                 break;
 
@@ -645,7 +645,7 @@ resolve_uuid(struct xptrvar_t *ex, struct xptrvar_t **xa, int n)
 {
         int i;
         for (i = 0; i < ex->n_rodata; i++) {
-                struct var_t *v = ex->rodata[i];
+                Object *v = ex->rodata[i];
                 struct xptrvar_t *ref;
 
                 if (!isvar_uuidptr(v))
@@ -666,7 +666,7 @@ resolve_uuid(struct xptrvar_t *ex, struct xptrvar_t **xa, int n)
                 }
 
                 VAR_DECR_REF(v);
-                ex->rodata[i] = (struct var_t *)ref;
+                ex->rodata[i] = (Object *)ref;
 
                 /* do recursively for each child found */
                 if (resolve_uuid(ref, xa, n) != RES_OK)
@@ -683,7 +683,7 @@ resolve_uuid(struct xptrvar_t *ex, struct xptrvar_t **xa, int n)
  * Return: entry-point struct executable, which is ready to run,
  *         or ErrorVar if there was an error.
  */
-struct var_t *
+Object *
 serialize_read(FILE *fp, const char *file_name)
 {
         enum {
@@ -777,13 +777,13 @@ serialize_read(FILE *fp, const char *file_name)
         /* no longer need array, ret's .rodata can reference the rest */
         efree(exarray);
         efree(state.buf);
-        return (struct var_t *)ret;
+        return (Object *)ret;
 
 err_have_ex:
         for (i = 0; i < hdr.nexec; i++) {
                 if (exarray[i] == NULL)
                         break;
-                VAR_DECR_REF((struct var_t *)exarray[i]);
+                VAR_DECR_REF((Object *)exarray[i]);
         }
         efree(exarray);
 
@@ -946,7 +946,7 @@ write_exec(struct serial_wstate_t *state, struct xptrvar_t *ex)
         wbyte(state, RODATA_MAGIC);
         wlong(state, ex->n_rodata);
         for (i = 0; i < ex->n_rodata; i++) {
-                struct var_t *v = ex->rodata[i];
+                Object *v = ex->rodata[i];
 
                 if (isvar_empty(v))
                         wbyte(state, TYPE_EMPTY);
@@ -1000,7 +1000,7 @@ write_exec(struct serial_wstate_t *state, struct xptrvar_t *ex)
          * not at all how it is used.
          */
         for (i = 0; i < ex->n_rodata; i++) {
-                struct var_t *v = ex->rodata[i];
+                Object *v = ex->rodata[i];
                 if (isvar_xptr(v)) {
                         int res = write_exec(state, (struct xptrvar_t *)v);
                         if (res != RES_OK)
@@ -1018,7 +1018,7 @@ n_exec(struct xptrvar_t *node)
         int count = 1; /* start with me */
 
         for (i = 0; i < node->n_rodata; i++) {
-                struct var_t *v = node->rodata[i];
+                Object *v = node->rodata[i];
                 if (isvar_xptr(v))
                         count += n_exec((struct xptrvar_t *)(v));
         }
@@ -1034,7 +1034,7 @@ n_exec(struct xptrvar_t *node)
  * Return RES_OK if successful, RES_ERROR if not.
  */
 int
-serialize_write(FILE *fp, struct var_t *v)
+serialize_write(FILE *fp, Object *v)
 {
         struct xptrvar_t *ex = (struct xptrvar_t *)v;
         struct serial_wstate_t state;

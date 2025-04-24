@@ -74,7 +74,7 @@ spaces(FILE *fp, int n)
 static void
 print_rodata_str(FILE *fp, struct xptrvar_t *ex, unsigned int i)
 {
-        struct var_t *v;
+        Object *v;
 
         if (i >= ex->n_rodata) {
                 /*
@@ -213,7 +213,7 @@ disassemble_recursive(FILE *fp, struct xptrvar_t *ex, int verbose)
         fprintf(fp, ".end\n\n\n");
 
         for (i = 0; i < ex->n_rodata; i++) {
-                struct var_t *v = ex->rodata[i];
+                Object *v = ex->rodata[i];
                 if (isvar_xptr(v)) {
                         disassemble_recursive(fp,
                                         (struct xptrvar_t *)v, verbose);
@@ -222,7 +222,7 @@ disassemble_recursive(FILE *fp, struct xptrvar_t *ex, int verbose)
 }
 
 void
-disassemble(FILE *fp, struct var_t *ex, const char *sourcefile_name)
+disassemble(FILE *fp, Object *ex, const char *sourcefile_name)
 {
         bug_on(!isvar_xptr(ex));
         disassemble_start(fp, sourcefile_name);
@@ -234,7 +234,7 @@ disassemble(FILE *fp, struct var_t *ex, const char *sourcefile_name)
  * Used for debugging in interactive TTY mode.
  */
 void
-disassemble_lite(FILE *fp, struct var_t *ex)
+disassemble_lite(FILE *fp, Object *ex)
 {
         bug_on(!isvar_xptr(ex));
         disassemble_recursive(fp, (struct xptrvar_t *)ex, false);

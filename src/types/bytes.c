@@ -9,10 +9,10 @@ struct bytesvar_t {
 
 #define V2B(v_) ((struct bytesvar_t *)(v_))
 
-static struct var_t *
-bytes_len(struct vmframe_t *fr)
+static Object *
+bytes_len(Frame *fr)
 {
-        struct var_t *self = vm_get_this(fr);
+        Object *self = vm_get_this(fr);
         bug_on(!isvar_bytes(self));
         return intvar_new(seqvar_size(self));
 }
@@ -21,8 +21,8 @@ bytes_len(struct vmframe_t *fr)
  * TODO REVISIT: Policy decision.  Return datum as an integer,
  * or as another bytes array of size 1?
  */
-static struct var_t *
-bytes_getitem(struct var_t *a, int idx)
+static Object *
+bytes_getitem(Object *a, int idx)
 {
         unsigned char *ba = V2B(a)->b_buf;
         unsigned int u;
@@ -38,8 +38,8 @@ bytes_getitem(struct var_t *a, int idx)
         return intvar_new(u);
 }
 
-static struct var_t *
-bytes_cat(struct var_t *a, struct var_t *b)
+static Object *
+bytes_cat(Object *a, Object *b)
 {
         unsigned char *ba, *bb, *bc;
         size_t a_len, b_len, c_len;
@@ -59,10 +59,10 @@ bytes_cat(struct var_t *a, struct var_t *b)
         return bytesvar_new(bc, c_len);
 }
 
-static struct var_t *
-bytes_str(struct var_t *v)
+static Object *
+bytes_str(Object *v)
 {
-        struct var_t *ret;
+        Object *ret;
         struct buffer_t b;
         unsigned char *s = V2B(v)->b_buf;
         size_t i, n = seqvar_size(v);
@@ -119,7 +119,7 @@ bytes_str(struct var_t *v)
 }
 
 static int
-bytes_cmp(struct var_t *a, struct var_t *b)
+bytes_cmp(Object *a, Object *b)
 {
         bug_on(a->v_type != b->v_type);
         int ret;
@@ -139,13 +139,13 @@ bytes_cmp(struct var_t *a, struct var_t *b)
 }
 
 static bool
-bytes_cmpz(struct var_t *v)
+bytes_cmpz(Object *v)
 {
         return seqvar_size(v) == 0;
 }
 
 static void
-bytes_reset(struct var_t *v)
+bytes_reset(Object *v)
 {
         unsigned char *b = V2B(v)->b_buf;
         if (b)
@@ -156,10 +156,10 @@ enum {
         BF_COPY = 1,
 };
 
-static struct var_t *
+static Object *
 bytesvar_newf(unsigned char *buf, size_t len, unsigned int flags)
 {
-        struct var_t *v = var_new(&BytesType);
+        Object *v = var_new(&BytesType);
         /* REVISIT: allow immortal bytes vars? */
         if (!!(flags & BF_COPY))
                 V2B(v)->b_buf = ememdup(buf, len);
@@ -174,7 +174,7 @@ bytesvar_newf(unsigned char *buf, size_t len, unsigned int flags)
  * seqvar_size(v) will return its length in bytes
  */
 const unsigned char *
-bytes_getbuf(struct var_t *v)
+bytes_getbuf(Object *v)
 {
         bug_on(!isvar_bytes(v));
         return V2B(v)->b_buf;
@@ -187,7 +187,7 @@ bytes_getbuf(struct var_t *v)
  *
  * Return: New immutable bytes var
  */
-struct var_t *
+Object *
 bytesvar_new(unsigned char *buf, size_t len)
 {
         return bytesvar_newf(buf, len, BF_COPY);
@@ -197,7 +197,7 @@ bytesvar_new(unsigned char *buf, size_t len)
  * bytesvar_nocopy - Same relation to bytesvar_new that stringvar_nocopy
  *                   has to stringvar_new
  */
-struct var_t *
+Object *
 bytesvar_nocopy(unsigned char *buf, size_t len)
 {
         return bytesvar_newf(buf, len, 0);
@@ -211,7 +211,7 @@ bytesvar_nocopy(unsigned char *buf, size_t len)
  *       exist, eg. "b'\x12x34'b'\x56\x78'".  No characters may exist
  *       between these concatenated tokens.
  */
-struct var_t *
+Object *
 bytesvar_from_source(char *src)
 {
         unsigned char c;

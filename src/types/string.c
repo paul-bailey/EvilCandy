@@ -31,11 +31,11 @@ enum { SF_COPY = 1, };
  *      0               use @cstr exactly and free on reset
  * There used to be more, but they went obsolete.
  */
-static struct var_t *
+static Object *
 stringvar_newf(char *cstr, unsigned int flags)
 {
         struct stringvar_t *vs;
-        struct var_t *ret;
+        Object *ret;
 
         if (!cstr) {
                 cstr = "";
@@ -61,8 +61,8 @@ stringvar_newf(char *cstr, unsigned int flags)
         return ret;
 }
 
-static inline struct var_t *
-string_copy__(struct var_t *str)
+static inline Object *
+string_copy__(Object *str)
 {
         VAR_INCR_REF(str);
         return str;
@@ -302,7 +302,7 @@ format2_i_helper(struct buffer_t *buf, unsigned long long ival, int base, int xc
 }
 
 static void
-format2_i(struct buffer_t *buf, struct var_t *arg,
+format2_i(struct buffer_t *buf, Object *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
         int base;
@@ -374,7 +374,7 @@ format2_f_ihelper(struct buffer_t *buf, unsigned int v)
 }
 
 static void
-format2_e(struct buffer_t *buf, struct var_t *arg,
+format2_e(struct buffer_t *buf, Object *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
         int exp = 0;
@@ -459,7 +459,7 @@ format2_e(struct buffer_t *buf, struct var_t *arg,
 }
 
 static void
-format2_f(struct buffer_t *buf, struct var_t *arg,
+format2_f(struct buffer_t *buf, Object *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
         double v = numvar_tod(arg);
@@ -513,7 +513,7 @@ format2_f(struct buffer_t *buf, struct var_t *arg,
 }
 
 static void
-format2_s(struct buffer_t *buf, struct var_t *arg,
+format2_s(struct buffer_t *buf, Object *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
         const char *src;
@@ -543,14 +543,14 @@ format2_s(struct buffer_t *buf, struct var_t *arg,
 }
 
 static size_t
-format2_helper(struct vmframe_t *fr, struct buffer_t *buf, const char *s, int argi)
+format2_helper(Frame *fr, struct buffer_t *buf, const char *s, int argi)
 {
         const char *ssave = s;
         bool rjust = true;
         int padc = ' ';
         size_t padlen = 0;
         int precision = 6;
-        struct var_t *v = vm_get_arg(fr, argi);
+        Object *v = vm_get_arg(fr, argi);
         int conv;
 
         /*
@@ -655,12 +655,12 @@ format2_helper(struct vmframe_t *fr, struct buffer_t *buf, const char *s, int ar
  *              s Insert arg string here.  pad is for Unicode characters,
  *                not necessarily bytes.
  */
-static struct var_t *
-string_format2(struct vmframe_t *fr)
+static Object *
+string_format2(Frame *fr)
 {
         char cbuf[5];
         size_t size;
-        struct var_t *ret, *self = get_this(fr);
+        Object *ret, *self = get_this(fr);
         const char *s;
         struct buffer_t b;
         int argi = 0;
@@ -704,21 +704,21 @@ string_format2(struct vmframe_t *fr)
  *
  * Gotta call it something different, "string_length" already taken
  */
-static struct var_t *
-string_length_method(struct vmframe_t *fr)
+static Object *
+string_length_method(Frame *fr)
 {
-        struct var_t *self = get_this(fr);
+        Object *self = get_this(fr);
         bug_on(!isvar_string(self));
         return intvar_new(STRING_LENGTH(self));
 }
 
 static bool
-string_format_helper(struct vmframe_t *fr, char **src,
+string_format_helper(Frame *fr, char **src,
                      struct buffer_t *t, int *lastarg)
 {
         char *s = *src;
         int la = *lastarg;
-        struct var_t *q = NULL;
+        Object *q = NULL;
         ++s;
         if (*s == '}') {
                 q = frame_get_arg(fr, la++);
@@ -738,7 +738,7 @@ string_format_helper(struct vmframe_t *fr, char **src,
                 buffer_puts(t, string_get_cstring(q));
         } else {
                 /* not a string, so we'll just use q's .str method. */
-                struct var_t *xpr = var_str(q);
+                Object *xpr = var_str(q);
                 buffer_puts(t, string_get_cstring(xpr));
                 VAR_DECR_REF(xpr);
         }
@@ -752,11 +752,11 @@ string_format_helper(struct vmframe_t *fr, char **src,
  * format(...)
  * returns type string
  */
-static struct var_t *
-string_format(struct vmframe_t *fr)
+static Object *
+string_format(Frame *fr)
 {
         struct buffer_t t;
-        struct var_t *self = get_this(fr);
+        Object *self = get_this(fr);
         int lastarg = 0;
         char *s, *self_s;
         bug_on(!isvar_string(self));
@@ -780,10 +780,10 @@ string_format(struct vmframe_t *fr)
 /* toint() (no args)
  * returns int
  */
-static struct var_t *
-string_toint(struct vmframe_t *fr)
+static Object *
+string_toint(Frame *fr)
 {
-        struct var_t *self = get_this(fr);
+        Object *self = get_this(fr);
         long long i = 0LL;
         char *s;
 
@@ -805,10 +805,10 @@ string_toint(struct vmframe_t *fr)
  * tofloat()  (no args)
  * returns float
  */
-static struct var_t *
-string_tofloat(struct vmframe_t *fr)
+static Object *
+string_tofloat(Frame *fr)
 {
-        struct var_t *self = get_this(fr);
+        Object *self = get_this(fr);
         double f = 0.;
         char *s;
         bug_on(!isvar_string(self));
@@ -828,12 +828,12 @@ string_tofloat(struct vmframe_t *fr)
  * lstrip()             no args implies whitespace
  * lstrip(charset)      charset is string
  */
-static struct var_t *
-string_lstrip(struct vmframe_t *fr)
+static Object *
+string_lstrip(Frame *fr)
 {
         const char *charset;
-        struct var_t *arg = frame_get_arg(fr, 0);
-        struct var_t *self = get_this(fr);
+        Object *arg = frame_get_arg(fr, 0);
+        Object *self = get_this(fr);
         struct buffer_t b;
         bug_on(!isvar_string(self));
 
@@ -853,12 +853,12 @@ string_lstrip(struct vmframe_t *fr)
  * rstrip()             no args implies whitespace
  * rstrip(charset)      charset is string
  */
-static struct var_t *
-string_rstrip(struct vmframe_t *fr)
+static Object *
+string_rstrip(Frame *fr)
 {
         const char *charset;
-        struct var_t *arg = frame_get_arg(fr, 0);
-        struct var_t *self = get_this(fr);
+        Object *arg = frame_get_arg(fr, 0);
+        Object *self = get_this(fr);
         struct buffer_t b;
         bug_on(!isvar_string(self));
 
@@ -877,12 +877,12 @@ string_rstrip(struct vmframe_t *fr)
  *  strip()             no args implies whitespace
  *  strip(charset)      charset is string
  */
-static struct var_t *
-string_strip(struct vmframe_t *fr)
+static Object *
+string_strip(Frame *fr)
 {
         const char *charset;
-        struct var_t *arg = frame_get_arg(fr, 0);
-        struct var_t *self = get_this(fr);
+        Object *arg = frame_get_arg(fr, 0);
+        Object *self = get_this(fr);
         struct buffer_t b;
         bug_on(!isvar_string(self));
 
@@ -898,13 +898,13 @@ string_strip(struct vmframe_t *fr)
         return stringvar_newf(buffer_trim(&b), 0);
 }
 
-static struct var_t *
-string_replace(struct vmframe_t *fr)
+static Object *
+string_replace(Frame *fr)
 {
         struct buffer_t b;
-        struct var_t *self    = get_this(fr);
-        struct var_t *vneedle = frame_get_arg(fr, 0);
-        struct var_t *vrepl   = frame_get_arg(fr, 1);
+        Object *self    = get_this(fr);
+        Object *vneedle = frame_get_arg(fr, 0);
+        Object *vrepl   = frame_get_arg(fr, 1);
         char *haystack, *needle, *end;
         size_t needle_len;
 
@@ -950,20 +950,20 @@ done:
 }
 
 /* XXX Superfluous, the way we do things now, remove? */
-static struct var_t *
-string_copy(struct vmframe_t *fr)
+static Object *
+string_copy(Frame *fr)
 {
-        struct var_t *self = get_this(fr);
+        Object *self = get_this(fr);
         bug_on(!isvar_string(self));
         return string_copy__(self);
 }
 
 /* rjust(amt)   integer arg */
-static struct var_t *
-string_rjust(struct vmframe_t *fr)
+static Object *
+string_rjust(Frame *fr)
 {
-        struct var_t *self = get_this(fr);
-        struct var_t *arg = vm_get_arg(fr, 0);
+        Object *self = get_this(fr);
+        Object *arg = vm_get_arg(fr, 0);
         size_t len;
         long long just;
 
@@ -997,11 +997,11 @@ string_rjust(struct vmframe_t *fr)
 }
 
 /* rjust(amt)    integer arg */
-static struct var_t *
-string_ljust(struct vmframe_t *fr)
+static Object *
+string_ljust(Frame *fr)
 {
-        struct var_t *self = get_this(fr);
-        struct var_t *arg = vm_get_arg(fr, 0);
+        Object *self = get_this(fr);
+        Object *arg = vm_get_arg(fr, 0);
         size_t len;
         long long just;
 
@@ -1029,10 +1029,10 @@ string_ljust(struct vmframe_t *fr)
 }
 
 /* helper to string_join below */
-static struct var_t *
-join_next_str(struct var_t *arr, int i)
+static Object *
+join_next_str(Object *arr, int i)
 {
-        struct var_t *ret = array_getitem(arr, i);
+        Object *ret = array_getitem(arr, i);
         /* see string_join below, we already checked that i is ok */
         bug_on(!ret);
         if (!isvar_string(ret)) {
@@ -1044,14 +1044,14 @@ join_next_str(struct var_t *arr, int i)
         return ret;
 }
 
-static struct var_t *
-string_join(struct vmframe_t *fr)
+static Object *
+string_join(Frame *fr)
 {
         struct buffer_t b;
-        struct var_t *self = get_this(fr);
-        struct var_t *arg = vm_get_arg(fr, 0);
+        Object *self = get_this(fr);
+        Object *arg = vm_get_arg(fr, 0);
         char *joinstr;
-        struct var_t *elem;
+        Object *elem;
         int i;
         size_t n;
 
@@ -1112,8 +1112,8 @@ static struct type_inittbl_t string_methods[] = {
  * but we could only use that one if we use mktemp or something crazy
  * like that.
  */
-static struct var_t *
-string_str(struct var_t *v)
+static Object *
+string_str(Object *v)
 {
         struct buffer_t b;
         const char *s;
@@ -1167,14 +1167,14 @@ string_str(struct var_t *v)
 }
 
 static void
-string_reset(struct var_t *str)
+string_reset(Object *str)
 {
         struct stringvar_t *vs = V2STR(str);
         efree(vs->s);
 }
 
-static struct var_t *
-string_cat(struct var_t *a, struct var_t *b)
+static Object *
+string_cat(Object *a, Object *b)
 {
         char *catstr;
         char *lval, *rval;
@@ -1211,7 +1211,7 @@ compare_strings(const char *a, const char *b)
 }
 
 static int
-string_cmp(struct var_t *a, struct var_t *b)
+string_cmp(Object *a, Object *b)
 {
         if (isvar_string(b)) {
                 if (V2CSTR(a) == V2CSTR(b))
@@ -1225,7 +1225,7 @@ string_cmp(struct var_t *a, struct var_t *b)
 }
 
 static bool
-string_cmpz(struct var_t *a)
+string_cmpz(Object *a)
 {
         char *s = V2CSTR(a);
         /* treat "" same as NULL in comparisons */
@@ -1233,8 +1233,8 @@ string_cmpz(struct var_t *a)
 }
 
 /* .getitem sequence method for string  */
-static struct var_t *
-string_getitem(struct var_t *str, int idx)
+static Object *
+string_getitem(Object *str, int idx)
 {
         char cbuf[5];
         char *src;
@@ -1271,7 +1271,7 @@ string_getitem(struct var_t *str, int idx)
  *
  * Return: new string var containing a copy of @cstr.
  */
-struct var_t *
+Object *
 stringvar_new(const char *cstr)
 {
         return stringvar_newf((char *)cstr, SF_COPY);
@@ -1284,7 +1284,7 @@ stringvar_new(const char *cstr)
  * Calling function is 'handing over' the pointer; it must have been
  * allocated on the heap.
  */
-struct var_t *
+Object *
 stringvar_nocopy(const char *cstr)
 {
         return stringvar_newf((char *)cstr, 0);
@@ -1298,7 +1298,7 @@ stringvar_nocopy(const char *cstr)
  *
  * Return: The newly created string variable.
  */
-struct var_t *
+Object *
 stringvar_from_buffer(struct buffer_t *b)
 {
         char *s = buffer_trim(b);
@@ -1327,7 +1327,7 @@ stringvar_from_buffer(struct buffer_t *b)
  *         permitted for string data types.  (Users should use bytes
  *         instead.)
  */
-struct var_t *
+Object *
 stringvar_from_source(const char *tokenstr, bool imm)
 {
         char *s = string_parse(tokenstr);
@@ -1344,7 +1344,7 @@ stringvar_from_source(const char *tokenstr, bool imm)
  * solution.
  */
 char *
-string_get_cstring(struct var_t *str)
+string_get_cstring(Object *str)
 {
         bug_on(!isvar_string(str));
         return V2CSTR(str);

@@ -287,7 +287,7 @@ as_delete_frame_list(struct list_t *parent_list, int err)
                 struct as_frame_t *fr = list2frame(li);
                 list_remove(&fr->list);
                 if (err && fr->x)
-                        VAR_DECR_REF((struct var_t *)fr->x);
+                        VAR_DECR_REF((Object *)fr->x);
                 efree(fr);
         }
 }
@@ -404,7 +404,7 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
         ii.arg1 = arg1;
         ii.arg2 = arg2;
 
-        xptr_add_instr((struct var_t *)a->fr->x, ii);
+        xptr_add_instr((Object *)a->fr->x, ii);
 }
 
 static void
@@ -438,13 +438,13 @@ apop_scope(struct assemble_t *a)
 static void
 as_set_label(struct assemble_t *a, int jmp)
 {
-        xptr_set_label((struct var_t *)a->fr->x, jmp);
+        xptr_set_label((Object *)a->fr->x, jmp);
 }
 
 static int
 as_next_label(struct assemble_t *a)
 {
-        return xptr_next_label((struct var_t *)a->fr->x);
+        return xptr_next_label((Object *)a->fr->x);
 }
 
 /*
@@ -457,8 +457,8 @@ as_next_label(struct assemble_t *a)
 static int
 seek_or_add_const_xptr(struct assemble_t *a, struct xptrvar_t *p)
 {
-        return xptr_add_rodata((struct var_t *)a->fr->x,
-                               (struct var_t *)p);
+        return xptr_add_rodata((Object *)a->fr->x,
+                               (Object *)p);
 }
 
 /* completes seek_or_add_const/seek_or..._int */
@@ -473,7 +473,7 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
         /* oc->t can only be a sort that would have filled in oc->v */
         bug_on(oc->v == NULL);
         VAR_INCR_REF(oc->v);
-        return xptr_add_rodata((struct var_t *)x, oc->v);
+        return xptr_add_rodata((Object *)x, oc->v);
 }
 
 static void
@@ -489,7 +489,7 @@ ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 static void
 ainstr_load_const_int(struct assemble_t *a, long long ival)
 {
-        int idx = xptr_add_rodata((struct var_t *)a->fr->x,
+        int idx = xptr_add_rodata((Object *)a->fr->x,
                                   intvar_new(ival));
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
@@ -2047,7 +2047,7 @@ static void
 assemble_splash_error(struct assemble_t *a)
 {
         char *emsg;
-        struct var_t *exc;
+        Object *exc;
         int col;
         char *line = NULL;
 
@@ -2173,7 +2173,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
  *      b) NULL if the input is already at EOF or if there was an error
  *         (check status).
  */
-struct var_t *
+Object *
 assemble(const char *filename, FILE *fp, bool toeof, int *status)
 {
         int localstatus;
@@ -2194,6 +2194,6 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
 
         free_assembler(a, localstatus == RES_ERROR);
 
-        return (struct var_t *)ret;
+        return (Object *)ret;
 }
 

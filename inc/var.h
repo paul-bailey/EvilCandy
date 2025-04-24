@@ -1,5 +1,5 @@
 /*
- * var.h - definitions for the generic struct var_t, and var.c API
+ * var.h - definitions for the generic Object, and var.c API
  *
  * Included by evilcandy.h so you shouldn't need to include this directly
  */
@@ -50,23 +50,23 @@ struct var_t {
  *      See typedef.h - If a type's struct type_t has either of its
  *      .sqm or .mpm fields set, then:
  *        1. it MUST embed this struct at the top of its internal-use
- *           struct instead of just struct var_t.
+ *           struct instead of just Object.
  *        2. it must maintain this v_size field and keep it updated
  */
 struct seqvar_t {
-        struct var_t base;
+        Object base;
         size_t v_size;
 };
 
 /* only call these if you already know @v's type */
-static inline size_t seqvar_size(struct var_t *v)
+static inline size_t seqvar_size(Object *v)
         { return ((struct seqvar_t *)v)->v_size; }
-static inline void seqvar_set_size(struct var_t *v, size_t size)
+static inline void seqvar_set_size(Object *v, size_t size)
         { ((struct seqvar_t *)v)->v_size = size; }
 
 #define VAR_INCR_REF(v) do { (v)->v_refcnt++; } while (0)
 #define VAR_DECR_REF(v) do {      \
-        struct var_t *v_ = (v);   \
+        Object *v_ = (v);   \
         v_->v_refcnt--;           \
         if (v_->v_refcnt <= 0)    \
                 var_delete__(v_); \
@@ -79,7 +79,7 @@ static inline void seqvar_set_size(struct var_t *v, size_t size)
  */
 #ifndef NDEBUG
 # define VAR_SANITY(v_) do {                            \
-        struct var_t *v__ = (v_);                       \
+        Object *v__ = (v_);                       \
         if (!v__) {                                     \
                 DBUG1("unexpected NULL var");           \
                 bug();                                  \
@@ -93,26 +93,23 @@ static inline void seqvar_set_size(struct var_t *v, size_t size)
 # define VAR_SANITY(v_) do { (void)0; } while (0)
 #endif
 
-extern struct var_t *var_new(struct type_t *type);
+extern Object *var_new(struct type_t *type);
 extern void var_initialize_type(struct type_t *tp);
-extern struct var_t *var_getattr(struct var_t *v,
-                                 struct var_t *deref);
-extern enum result_t var_setattr(struct var_t *v,
-                                 struct var_t *deref,
-                                 struct var_t *attr);
-extern int var_compare(struct var_t *a, struct var_t *b);
-extern int var_sort(struct var_t *v);
-extern struct var_t *var_str(struct var_t *v);
-extern ssize_t var_len(struct var_t *v);
-extern bool var_cmpz(struct var_t *v, enum result_t *status);
-extern struct var_t *var_lnot(struct var_t *v);
-extern const char *typestr(struct var_t *v);
+extern Object *var_getattr(Object *v, Object *deref);
+extern enum result_t var_setattr(Object *v, Object *deref, Object *attr);
+extern int var_compare(Object *a, Object *b);
+extern int var_sort(Object *v);
+extern Object *var_str(Object *v);
+extern ssize_t var_len(Object *v);
+extern bool var_cmpz(Object *v, enum result_t *status);
+extern Object *var_lnot(Object *v);
+extern const char *typestr(Object *v);
 extern const char *typestr_(int magic);
-extern const char *attr_str(struct var_t *deref);
+extern const char *attr_str(Object *deref);
 /* common hashtable callback for var-storing hashtables */
 extern void var_bucket_delete(void *data);
 /* note: v only evaluated once in VAR_*_REF() */
-extern void var_delete__(struct var_t *v);
+extern void var_delete__(Object *v);
 
 
 #endif /* EVILCANDY_VAR_H */

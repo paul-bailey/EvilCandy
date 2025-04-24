@@ -31,12 +31,12 @@ static struct {
  *      with the SYMTAB instruction, but do not produce a reference
  *      when passing these as the first argument to err_setstr.
  */
-struct var_t *ErrorVar;
-struct var_t *NullVar;
-struct var_t *GlobalObject;
-struct var_t *ParserError;
-struct var_t *RuntimeError;
-struct var_t *SystemError;
+Object *ErrorVar;
+Object *NullVar;
+Object *GlobalObject;
+Object *ParserError;
+Object *RuntimeError;
+Object *SystemError;
 
 static void
 init_lib(void)
@@ -138,14 +138,14 @@ er:
 }
 
 static void
-run_script(const char *filename, FILE *fp, struct vmframe_t *fr)
+run_script(const char *filename, FILE *fp, Frame *fr)
 {
-        struct var_t *ex;
+        Object *ex;
         int status;
 
         ex = assemble(filename, fp, true, &status);
         if (ex != NULL && status == RES_OK) {
-                struct var_t *retval;
+                Object *retval;
                 if (q_.opt.disassemble) {
                         static bool once = false;
                         FILE *dfp;
@@ -218,7 +218,7 @@ run_tty(void)
 
         while (!feof(stdin)) {
                 int status;
-                struct var_t *ex;
+                Object *ex;
 
                 ex = assemble("<stdin>", stdin, false, &status);
                 if (ex == NULL) {
@@ -233,7 +233,7 @@ run_tty(void)
                         if (dfp)
                                 disassemble_lite(dfp, ex);
                         if (!q_.opt.disassemble_only) {
-                                struct var_t *res;
+                                Object *res;
                                 res = vm_exec_script(ex, NULL);
                                 if (res == ErrorVar)
                                         err_print_last(stderr);

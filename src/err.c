@@ -18,7 +18,7 @@
 #define COLOR(what, str)      COLOR_##what str COLOR_DEF
 
 static char *msg_last = NULL;
-static struct var_t *exception_last = NULL;
+static Object *exception_last = NULL;
 
 /* helper to bug__ and breakpoint__ */
 static void
@@ -71,7 +71,7 @@ fail(const char *msg, ...)
 }
 
 static void
-err_vsetstr(struct var_t *exc, const char *msg, va_list ap)
+err_vsetstr(Object *exc, const char *msg, va_list ap)
 {
         char msg_buf[100];
         size_t len = sizeof(msg_buf);
@@ -85,7 +85,7 @@ err_vsetstr(struct var_t *exc, const char *msg, va_list ap)
 }
 
 void
-err_setstr(struct var_t *exc, const char *msg, ...)
+err_setstr(Object *exc, const char *msg, ...)
 {
         va_list ap;
         /*
@@ -105,7 +105,7 @@ err_setstr(struct var_t *exc, const char *msg, ...)
  * If *msg is non-NULL, calling code is responsible for calling free().
  */
 void
-err_get(struct var_t **exc, char **msg)
+err_get(Object **exc, char **msg)
 {
         *exc = exception_last;
         *msg = msg_last;
@@ -124,7 +124,7 @@ err_exists(void)
 }
 
 void
-err_print(FILE *fp, struct var_t *exc, char *msg)
+err_print(FILE *fp, Object *exc, char *msg)
 {
         char *errtype;
         bool tty;
@@ -148,7 +148,7 @@ void
 err_print_last(FILE *fp)
 {
         char *emsg;
-        struct var_t *exc;
+        Object *exc;
         err_get(&exc, &emsg);
         err_print(fp, exc, emsg);
         if (emsg)
@@ -161,7 +161,7 @@ err_print_last(FILE *fp)
 
 /* @getorset: either "get" or "set" */
 void
-err_attribute(const char *getorset, struct var_t *deref, struct var_t *obj)
+err_attribute(const char *getorset, Object *deref, Object *obj)
 {
         err_setstr(RuntimeError, "Cannot %s attribute '%s' of type %s",
                    getorset, attr_str(deref), typestr(obj));
@@ -183,7 +183,7 @@ err_locked(void)
 
 /* @op: string expression of operation, eg "*", "+", "<<", etc. */
 void
-err_permit(const char *op, struct var_t *var)
+err_permit(const char *op, Object *var)
 {
         err_setstr(RuntimeError,
                    "%s operator not permitted for type %s",
@@ -192,7 +192,7 @@ err_permit(const char *op, struct var_t *var)
 
 /* @op same as with err_permit */
 void
-err_permit2(const char *op, struct var_t *a, struct var_t *b)
+err_permit2(const char *op, Object *a, Object *b)
 {
         err_setstr(RuntimeError,
                    "%s operator not permitted between %s and %s",
@@ -246,7 +246,7 @@ err_clear(void)
  * figure out what error message to print and return an error value
  */
 int
-arg_type_check_failed(struct var_t *v, struct type_t *want)
+arg_type_check_failed(Object *v, struct type_t *want)
 {
         if (!v) {
                 /* XXX trapped at function_prepare_frame() time? */

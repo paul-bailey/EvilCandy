@@ -25,7 +25,7 @@ struct inittbl_t {
         const char *name;
         union {
                 struct {
-                        struct var_t *(*cb)(struct vmframe_t *);
+                        Object *(*cb)(Frame *);
                         int minargs;
                         int maxargs;
                 };
@@ -39,7 +39,7 @@ struct inittbl_t {
 /* builtin.c */
 extern void bi_init_type_methods__(const struct inittbl_t *tbl,
                                    int magic);
-extern void bi_build_internal_object__(struct var_t *parent,
+extern void bi_build_internal_object__(Object *parent,
                                        const struct inittbl_t *tbl);
 
 /* string.c */

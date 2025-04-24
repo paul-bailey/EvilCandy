@@ -8,11 +8,11 @@
 #include "var.h"
 
 /* err.c */
-extern int arg_type_check_failed(struct var_t *v,
+extern int arg_type_check_failed(Object *v,
                                  struct type_t *want);
 
 static inline int
-arg_type_check(struct var_t *v, struct type_t *want)
+arg_type_check(Object *v, struct type_t *want)
 {
         if (v && v->v_type == want)
                 return 0;

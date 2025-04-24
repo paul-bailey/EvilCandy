@@ -2,29 +2,29 @@
 #include <evilcandy.h>
 
 struct uuidptrvar_t {
-        struct var_t base;
+        Object base;
         char *uuid;
 };
 
 /* struct (uuid/x)ptrvar_t forward-defined in typedefs.h */
 
 char *
-uuidptr_get_cstring(struct var_t *v)
+uuidptr_get_cstring(Object *v)
 {
         bug_on(v->v_type != &UuidptrType);
         return ((struct uuidptrvar_t *)v)->uuid;
 }
 
-struct var_t *
+Object *
 uuidptrvar_new(char *uuid)
 {
-        struct var_t *v = var_new(&UuidptrType);
+        Object *v = var_new(&UuidptrType);
         ((struct uuidptrvar_t *)v)->uuid = uuid;
         return v;
 }
 
 static void
-uuidptr_reset(struct var_t *v)
+uuidptr_reset(Object *v)
 {
         /*
          * low-level alert -- we happen to know that @uuid arg to
@@ -34,8 +34,8 @@ uuidptr_reset(struct var_t *v)
         efree(((struct uuidptrvar_t *)v)->uuid);
 }
 
-static struct var_t *
-uuidptr_str(struct var_t *v)
+static Object *
+uuidptr_str(Object *v)
 {
         char buf[64];
         memset(buf, 0, sizeof(buf));

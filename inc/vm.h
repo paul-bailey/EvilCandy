@@ -5,7 +5,7 @@
 #include "instructions.h"
 
 struct block_t {
-        struct var_t **stack_level;
+        Object **stack_level;
         unsigned char type;
 };
 
@@ -36,15 +36,15 @@ struct block_t {
  * Its fields should only be used by vm.c and (for now) types/function.c
  */
 struct vmframe_t {
-        struct var_t *owner, *func;
-        struct var_t **stackptr;
-        struct var_t **stack;
+        Object *owner, *func;
+        Object **stackptr;
+        Object **stack;
         struct xptrvar_t *ex;
         int ap;
         int n_blocks;
         struct block_t blocks[FRAME_NEST_MAX];
         instruction_t *ppii;
-        struct var_t **clo;
+        Object **clo;
         struct list_t alloc_list;
 #ifndef NDEBUG
         bool freed;
@@ -52,21 +52,19 @@ struct vmframe_t {
 };
 
 /* vm.c */
-extern struct var_t *vm_exec_script(struct var_t *top_level,
-                                struct vmframe_t *fr);
-extern struct var_t *vm_exec_func(struct vmframe_t *fr, struct var_t *func,
-                                struct var_t *owner, int argc,
-                                struct var_t **argv);
-extern void vm_add_global(struct var_t *name, struct var_t *var);
-extern bool vm_symbol_exists(struct var_t *key);
-static inline struct var_t *vm_get_this(struct vmframe_t *fr)
+extern Object *vm_exec_script(Object *top_level, Frame *fr);
+extern Object *vm_exec_func(Frame *fr, Object *func,
+                            Object *owner, int argc, Object **argv);
+extern void vm_add_global(Object *name, Object *var);
+extern bool vm_symbol_exists(Object *key);
+static inline Object *vm_get_this(Frame *fr)
         { return fr->owner; }
-static inline struct var_t *vm_get_arg(struct vmframe_t *fr, unsigned int idx)
+static inline Object *vm_get_arg(Frame *fr, unsigned int idx)
         { return idx >= fr->ap ? NULL : fr->stack[idx]; }
-static inline int vm_get_argc(struct vmframe_t *fr)
+static inline int vm_get_argc(Frame *fr)
         { return fr->ap; }
 /* execute_loop shared between vm.c and function.c, else private */
-extern struct var_t *execute_loop(struct vmframe_t *fr);
+extern Object *execute_loop(Frame *fr);
 
 /* TODO: Get rid of references to frame_get_arg */
 # define frame_get_arg(fr, i)   vm_get_arg(fr, i)

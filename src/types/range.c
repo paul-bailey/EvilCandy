@@ -16,11 +16,11 @@ struct rangevar_t {
 #define RANGE_LEN(v_)           seqvar_size(v_)
 #define RANGE_SETLEN(v_, n_)    do { seqvar_set_size(v_, (n_)); } while (0)
 
-struct var_t *
+Object *
 rangevar_new(long long start, long long stop, long long step)
 {
         ssize_t len;
-        struct var_t *ret = var_new(&RangeType);
+        Object *ret = var_new(&RangeType);
         struct rangevar_t *r = V2R(ret);
         r->start = start;
         r->stop = stop;
@@ -43,8 +43,8 @@ rangevar_new(long long start, long long stop, long long step)
         return ret;
 }
 
-static struct var_t *
-range_getitem(struct var_t *rng, int idx)
+static Object *
+range_getitem(Object *rng, int idx)
 {
         long long resi;
         struct rangevar_t *r = V2R(rng);
@@ -62,7 +62,7 @@ range_getitem(struct var_t *rng, int idx)
 }
 
 static int
-range_cmp(struct var_t *a, struct var_t *b)
+range_cmp(Object *a, Object *b)
 {
         /* calling code already took care of the obvious
          * a==b or typeof(a) != typeof(b)
@@ -73,8 +73,8 @@ range_cmp(struct var_t *a, struct var_t *b)
                 && ra->step == rb->step;
 }
 
-static struct var_t *
-range_str(struct var_t *v)
+static Object *
+range_str(Object *v)
 {
         char buf[128];
         struct rangevar_t *r = V2R(v);
@@ -84,10 +84,10 @@ range_str(struct var_t *v)
         return stringvar_new(buf);
 }
 
-static struct var_t *
-range_foreach(struct vmframe_t *fr)
+static Object *
+range_foreach(Frame *fr)
 {
-        struct var_t *self, *func, *priv;
+        Object *self, *func, *priv;
         size_t n;
         int i, status = RES_OK;
 
@@ -111,8 +111,8 @@ range_foreach(struct vmframe_t *fr)
 
         bug_on(n > INT_MAX);
         for (i = 0; i < n; i++) {
-                struct var_t *argv[3];
-                struct var_t *retval;
+                Object *argv[3];
+                Object *retval;
                 argv[0] = intvar_new(i);
                 argv[1] = range_getitem(self, i);
                 argv[2] = priv;
@@ -131,10 +131,10 @@ range_foreach(struct vmframe_t *fr)
         return status == RES_OK ? NULL : ErrorVar;
 }
 
-static struct var_t *
-range_len(struct vmframe_t *fr)
+static Object *
+range_len(Frame *fr)
 {
-        struct var_t *self = vm_get_this(fr);
+        Object *self = vm_get_this(fr);
         bug_on(!isvar_range(self));
         return intvar_new(RANGE_LEN(self));
 }

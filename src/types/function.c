@@ -1,7 +1,7 @@
 /*
  * function.c - two part module
  *      1. Code that calls a function (call_function() & family)
- *      2. Code dealing specifically with struct var_t with
+ *      2. Code dealing specifically with Object with
  *         function-like magic number
  */
 #include <evilcandy.h>
@@ -32,12 +32,12 @@
  *      sure I'm even still using maxargs
  */
 struct funcvar_t {
-        struct var_t base;
+        Object base;
         enum {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
         } f_magic;
-        struct var_t **f_argv;
+        Object **f_argv;
         size_t f_arg_alloc;
         int f_argc;
         union {
@@ -45,12 +45,12 @@ struct funcvar_t {
                         /* FUNC_INTERNAL exclusives */
                         int f_minargs;
                         int f_maxargs;
-                        struct var_t *(*f_cb)(struct vmframe_t *);
+                        Object *(*f_cb)(Frame *);
                 };
                 struct {
                         /* FUNC_USER exclusives */
                         struct xptrvar_t *f_ex;
-                        struct var_t **f_clov;
+                        Object **f_clov;
                         int f_cloc;
                         size_t f_clo_alloc;
                 };
@@ -64,10 +64,10 @@ struct funcvar_t {
         assert_array_pos((fh)->f_##arr##c + 1, \
                          (void **)&(fh)->f_##arr##v, \
                          &(fh)->f_##arr##_alloc, \
-                         sizeof(struct var_t *))
+                         sizeof(Object *))
 
 static void
-remove_args(struct var_t **arr, int count)
+remove_args(Object **arr, int count)
 {
         int i;
         if (!arr)
@@ -88,11 +88,11 @@ remove_args(struct var_t **arr, int count)
  *      update @owner accordingly.
  * If @fn is anything else, return NULL and report an error.
  */
-static struct var_t *
-function_of(struct var_t *fn, struct var_t **owner)
+static Object *
+function_of(Object *fn, Object **owner)
 {
-        static struct var_t *callable_key = NULL;
-        struct var_t *new_owner = *owner;
+        static Object *callable_key = NULL;
+        Object *new_owner = *owner;
 
         /*
          * If @fn is a callable object, don't just get the first child.
@@ -125,9 +125,9 @@ done:
  *         to call_function()
  *         If error or not callable: ErrorVar
  */
-struct var_t *
-function_prep_frame(struct var_t *fn,
-                    struct vmframe_t *fr, struct var_t *owner)
+Object *
+function_prep_frame(Object *fn,
+                    Frame *fr, Object *owner)
 {
         struct funcvar_t *fh;
         int i, argc;
@@ -140,7 +140,7 @@ function_prep_frame(struct var_t *fn,
         argc = (fh->f_magic == FUNC_INTERNAL)
                ? fh->f_minargs : fh->f_argc;
         for (i = fr->ap; i < argc; i++) {
-                struct var_t *v;
+                Object *v;
 
                 /*
                  * XXX shouldn't this be caught earlier?  f_minargs
@@ -191,8 +191,8 @@ er:
  * Return:      ErrorVar if error encountered
  *              Return value of function otherwise
  */
-struct var_t *
-call_function(struct vmframe_t *fr, struct var_t *fn)
+Object *
+call_function(Frame *fr, Object *fn)
 {
         struct funcvar_t *fh = V2FUNC(fn);
 
@@ -209,7 +209,7 @@ call_function(struct vmframe_t *fr, struct var_t *fn)
 }
 
 void
-function_add_closure(struct var_t *func, struct var_t *clo)
+function_add_closure(Object *func, Object *clo)
 {
         struct funcvar_t *fh = V2FUNC(func);
         bug_on(!isvar_function(func));
@@ -222,8 +222,8 @@ function_add_closure(struct var_t *func, struct var_t *clo)
 }
 
 void
-function_add_default(struct var_t *func,
-                        struct var_t *deflt, int argno)
+function_add_default(Object *func,
+                        Object *deflt, int argno)
 {
         struct funcvar_t *fh = V2FUNC(func);
         size_t needsize;
@@ -244,7 +244,7 @@ function_add_default(struct var_t *func,
                 fh->f_argv = ecalloc(needsize);
                 fh->f_arg_alloc = needsize;
         } else if (fh->f_arg_alloc < needsize) {
-                struct var_t **new_arr;
+                Object **new_arr;
                 size_t new_alloc = fh->f_arg_alloc;
                 while (new_alloc < needsize)
                         new_alloc *= 2;
@@ -259,10 +259,10 @@ function_add_default(struct var_t *func,
         fh->f_argc = argno + 1;
 }
 
-static struct var_t *
+static Object *
 funcvar_alloc(int magic)
 {
-        struct var_t *func = var_new(&FunctionType);
+        Object *func = var_new(&FunctionType);
         struct funcvar_t *fh = V2FUNC(func);
         fh->f_argv = NULL;
         fh->f_arg_alloc = 0;
@@ -273,10 +273,10 @@ funcvar_alloc(int magic)
 
 /**
  * funcvar_new_intl - create a builtin function var
- * @cb: Callback that executes the function.  It may pass the vmframe_t
+ * @cb: Callback that executes the function.  It may pass the Frame
  *      to vm_get_this and vm_get_arg to retrieve its "this" and
  *      arguments.  It must return ErrorVar if it encountered an error,
- *      or some other struct var_t return value.  If there's nothing
+ *      or some other Object return value.  If there's nothing
  *      to return, return NULL; this saves us the double-task of
  *      creating and destroying a return value that won't be used;
  *      the wrapping function will change it to NullVar for
@@ -284,11 +284,11 @@ funcvar_alloc(int magic)
  * @minargs: Minimum number of args used by the function
  * @maxargs: Maximum number of args used by the function
  */
-struct var_t *
-funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
+Object *
+funcvar_new_intl(Object *(*cb)(Frame *),
                  int minargs, int maxargs)
 {
-        struct var_t *func = funcvar_alloc(FUNC_INTERNAL);
+        Object *func = funcvar_alloc(FUNC_INTERNAL);
         struct funcvar_t *fh = V2FUNC(func);
         fh->f_cb = cb;
         fh->f_minargs = minargs;
@@ -300,19 +300,19 @@ funcvar_new_intl(struct var_t *(*cb)(struct vmframe_t *),
  * funcvar_new_user - create a user function var
  * @ex:         Executable code to assign to function
  */
-struct var_t *
-funcvar_new_user(struct var_t *ex)
+Object *
+funcvar_new_user(Object *ex)
 {
-        struct var_t *func = funcvar_alloc(FUNC_USER);
+        Object *func = funcvar_alloc(FUNC_USER);
         struct funcvar_t *fh = V2FUNC(func);
         bug_on(!isvar_xptr(ex));
         fh->f_ex = (struct xptrvar_t *)ex;
-        VAR_INCR_REF((struct var_t *)ex);
+        VAR_INCR_REF((Object *)ex);
         return func;
 }
 
 static int
-func_cmp(struct var_t *a, struct var_t *b)
+func_cmp(Object *a, Object *b)
 {
         if (!isvar_function(b))
                 return -1;
@@ -320,8 +320,8 @@ func_cmp(struct var_t *a, struct var_t *b)
         return 1;
 }
 
-static struct var_t *
-func_str(struct var_t *a)
+static Object *
+func_str(Object *a)
 {
         char buf[72];
         struct funcvar_t *f = V2FUNC(a);
@@ -338,19 +338,19 @@ func_str(struct var_t *a)
 }
 
 static bool
-func_cmpz(struct var_t *func)
+func_cmpz(Object *func)
 {
         return false;
 }
 
 static void
-func_reset(struct var_t *func)
+func_reset(Object *func)
 {
         struct funcvar_t *fh = V2FUNC(func);
         remove_args(fh->f_argv, fh->f_argc);
         remove_args(fh->f_clov, fh->f_cloc);
         if (fh->f_magic == FUNC_USER && fh->f_ex)
-                VAR_DECR_REF((struct var_t *)fh->f_ex);
+                VAR_DECR_REF((Object *)fh->f_ex);
 }
 
 struct type_t FunctionType = {

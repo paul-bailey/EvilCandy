@@ -15,10 +15,10 @@ static struct gbl_private_t {
         char nl[NLMAX];
 } gbl;
 
-static struct var_t *
-do_typeof(struct vmframe_t *fr)
+static Object *
+do_typeof(Frame *fr)
 {
-        struct var_t *p = frame_get_arg(fr, 0);
+        Object *p = frame_get_arg(fr, 0);
         if (!p) {
                 err_setstr(RuntimeError, "Expected: any data type");
                 return ErrorVar;
@@ -34,8 +34,8 @@ print_nl(void)
                 putchar((int)*s);
 }
 
-static struct var_t *
-do_print(struct vmframe_t *fr)
+static Object *
+do_print(Frame *fr)
 {
         int argc = vm_get_argc(fr);
         int i;
@@ -45,7 +45,7 @@ do_print(struct vmframe_t *fr)
                 return ErrorVar;
         }
         for (i = 0; i < argc; i++) {
-                struct var_t *p = vm_get_arg(fr, i);
+                Object *p = vm_get_arg(fr, i);
                 if (i > 0)
                         putchar(' ');
                 bug_on(!p);
@@ -54,7 +54,7 @@ do_print(struct vmframe_t *fr)
                         while (*s)
                                 putchar((int)*s++);
                 } else {
-                        struct var_t *xpr = var_str(p);
+                        Object *xpr = var_str(p);
                         printf("%s", string_get_cstring(xpr));
                         VAR_DECR_REF(xpr);
                 }
@@ -63,13 +63,13 @@ do_print(struct vmframe_t *fr)
         return NULL;
 }
 
-static struct var_t *
-do_import(struct vmframe_t *fr)
+static Object *
+do_import(Frame *fr)
 {
-        struct var_t *file_name = frame_get_arg(fr, 0);
-        struct var_t *mode      = frame_get_arg(fr, 1);
-        struct var_t *res;
-        struct var_t *ex;
+        Object *file_name = frame_get_arg(fr, 0);
+        Object *mode      = frame_get_arg(fr, 1);
+        Object *res;
+        Object *ex;
         const char *modestr, *fnamestr;
         enum { R, X } how;
         FILE *fp;
@@ -115,7 +115,7 @@ do_import(struct vmframe_t *fr)
 
         res = funcvar_new_user(ex);
         if (how == X) {
-                struct var_t *func = res;
+                Object *func = res;
                 res = vm_exec_func(fr, func, NULL, 0, NULL);
                 VAR_DECR_REF(func);
         }
@@ -123,10 +123,10 @@ do_import(struct vmframe_t *fr)
         return res;
 }
 
-static struct var_t *
-do_exit(struct vmframe_t *fr)
+static Object *
+do_exit(Frame *fr)
 {
-        struct var_t *p = frame_get_arg(fr, 0);
+        Object *p = frame_get_arg(fr, 0);
         if (p && isvar_string(p))
                 printf("%s\n", string_get_cstring(p));
         exit(0);
@@ -138,10 +138,10 @@ do_exit(struct vmframe_t *fr)
         return NULL;
 }
 
-static struct var_t *
-do_setnl(struct vmframe_t *fr)
+static Object *
+do_setnl(Frame *fr)
 {
-        struct var_t *nl = frame_get_arg(fr, 0);
+        Object *nl = frame_get_arg(fr, 0);
         char *s;
         if (!isvar_string(nl)) {
                 err_argtype("string");
@@ -153,10 +153,10 @@ do_setnl(struct vmframe_t *fr)
         return NULL;
 }
 
-static struct var_t *
-do_exists(struct vmframe_t *fr)
+static Object *
+do_exists(Frame *fr)
 {
-        struct var_t *key = vm_get_arg(fr, 0);
+        Object *key = vm_get_arg(fr, 0);
         bool exists;
         if (!key || !isvar_string(key)) {
                 err_setstr(RuntimeError, "Expected: string");
@@ -166,12 +166,12 @@ do_exists(struct vmframe_t *fr)
         return intvar_new((int)exists);
 }
 
-static struct var_t *
-do_range(struct vmframe_t *fr)
+static Object *
+do_range(Frame *fr)
 {
         int argc = vm_get_argc(fr);
         long long start, stop, step;
-        struct var_t *arg;
+        Object *arg;
         if (argc < 1 || argc > 3) {
                 err_setstr(RuntimeError, "Expected: 1 to 3 args");
                 return ErrorVar;
@@ -254,13 +254,13 @@ static const struct inittbl_t gblinit[] = {
  *       of this table.
  */
 void
-bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
+bi_build_internal_object__(Object *parent, const struct inittbl_t *tbl)
 {
         const struct inittbl_t *t;
         if (!tbl)
                 return;
         for (t = tbl; t->name != NULL; t++) {
-                struct var_t *child, *key;
+                Object *child, *key;
                 switch (t->magic) {
                 case TYPE_DICT:
                         child = dictvar_new();
@@ -296,11 +296,11 @@ bi_build_internal_object__(struct var_t *parent, const struct inittbl_t *tbl)
         }
 }
 
-static struct var_t *
+static Object *
 gblobject(const char *ks)
 {
-        struct var_t *key = stringvar_new(ks);
-        struct var_t *ret = dict_getattr(GlobalObject, key);
+        Object *key = stringvar_new(ks);
+        Object *ret = dict_getattr(GlobalObject, key);
         VAR_DECR_REF(key);
         return ret;
 }
@@ -309,7 +309,7 @@ gblobject(const char *ks)
 void
 moduleinit_builtin(void)
 {
-        struct var_t *o, *k;
+        Object *o, *k;
 
         /* Do this first.  bi_build_internal_object__ de-references it. */
         GlobalObject = dictvar_new();

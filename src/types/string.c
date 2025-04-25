@@ -1113,8 +1113,8 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("len",     string_length_method, 0, 0),
         V_INITTBL("format",  string_format, 0, -1),
         V_INITTBL("format2", string_format2, 0, -1),
-        V_INITTBL("ljust",   string_ljust, 1, 0),
-        V_INITTBL("rjust",   string_rjust, 1, 0),
+        V_INITTBL("ljust",   string_ljust, 1, 1),
+        V_INITTBL("rjust",   string_rjust, 1, 1),
         V_INITTBL("toint",   string_toint, 0, 0),
         V_INITTBL("tofloat", string_tofloat, 0, 0),
         V_INITTBL("lstrip",  string_lstrip, 0, 1),
@@ -1122,7 +1122,7 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("replace", string_replace, 2, 2),
         V_INITTBL("strip",   string_strip, 0, 1),
         V_INITTBL("copy",    string_copy, 0, 0),
-        V_INITTBL("join",    string_join, 1, 0),
+        V_INITTBL("join",    string_join, 1, 1),
         TBLEND,
 };
 

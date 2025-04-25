@@ -53,6 +53,12 @@ enum {
         IARG_TRY,
 };
 
+/* FUNC_SETATTR args */
+enum {
+        IARG_FUNC_MINARGS,
+        IARG_FUNC_MAXARGS,
+};
+
 /**
  * DOC: Instructions
  *

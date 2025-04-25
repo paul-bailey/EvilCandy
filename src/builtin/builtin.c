@@ -226,7 +226,7 @@ static const struct inittbl_t builtin_inittbl[] = {
         /* XXX: maybe exit should be a method of __gbl__._sys */
         TOFTBL("exit",   do_exit,   0, -1),
         TOFTBL("exists", do_exists, 1, 1),
-        TOFTBL("import", do_import, 0, 2),
+        TOFTBL("import", do_import, 1, 2),
         { .name = NULL },
 };
 

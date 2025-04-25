@@ -1,8 +1,15 @@
 /*
- * function.c - two part module
- *      1. Code that calls a function (call_function() & family)
- *      2. Code dealing specifically with Object with
- *         function-like magic number
+ * function.c - FunctionType stuff
+ *
+ * function_prep_frame and call_function are part of same function
+ * call (see vm_exec_func).
+ *
+ * funcvar_new_user, function_add_default, function_add_closure, and
+ * function_setattr are called from VM when executing code that builds
+ * user-defined functions.
+ *
+ * funcvar_new_intl is called during early initialization when creating
+ * variables for built-in functions.
  */
 #include <evilcandy.h>
 #include <xptr.h>
@@ -12,24 +19,17 @@
  * @f_magic:    If FUNC_INTERNAL, function is an internal function
  *              If FUNC_USER, function is in the user's script
  * @f_minargs:  Minimum number of args that may be passed to the
- *              function, if internal function.  (TODO: need to set
- *              this for FUNC_USER too.)
+ *              function, if internal function.
  * @f_maxargs:  Maximum number of args that may be passed to the
  *              function (if it's FUNC_INTERNAL), or -1 if no maximum
  * @f_cb:       If @magic is FUNC_INTERNAL, pointer to the builtin
  *              callback
- * @f_mk:       If @magic is FUNC_USER, pointer to the user callback
- * @f_argv:     Array of defaults to fill in where arguments are not
- *              provided by the caller.  Blank slots mean the argument
- *              is mandatory.
- * @f_clov:     Array of closures.
- * @f_argc:     Highest argument number that has a default
- *
- * TODO: Some cleanup and simplification is in order:
- *      f_argv and f_clov could be ArrayType vars now, since list
- *      no longer requires its members to all be the same type.
- *      f_minargs/f_maxargs/f_argc are all confusing, and I'm not
- *      sure I'm even still using maxargs
+ * @f_ex:       If @magic is FUNC_USER, pointer to code to execute
+ * @f_closures: If @magic is FUNC_USER, ArrayType object containing
+ *              closures.
+ * @f_defaults: If @magic is FUNC_USER, ArrayType object containing
+ *              defaults to fill in where arguments are not provided by
+ *              the caller.  Blank slots mean the argument is mandatory.
  */
 struct funcvar_t {
         Object base;
@@ -37,49 +37,22 @@ struct funcvar_t {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
         } f_magic;
-        Object **f_argv;
-        size_t f_arg_alloc;
-        int f_argc;
+        int f_minargs;
+        int f_maxargs;
         union {
+                /* FUNC_INTERNAL exclusives */
+                Object *(*f_cb)(Frame *);
+
+                /* FUNC_USER exclusives */
                 struct {
-                        /* FUNC_INTERNAL exclusives */
-                        int f_minargs;
-                        int f_maxargs;
-                        Object *(*f_cb)(Frame *);
-                };
-                struct {
-                        /* FUNC_USER exclusives */
                         struct xptrvar_t *f_ex;
-                        Object **f_clov;
-                        int f_cloc;
-                        size_t f_clo_alloc;
+                        Object *f_closures;
+                        Object *f_defaults;
                 };
         };
 };
 
 #define V2FUNC(v)       ((struct funcvar_t *)(v))
-
-/* @arr is either 'arg' or 'clo' */
-#define GROW_ARG_ARRAY(fh, arr) \
-        assert_array_pos((fh)->f_##arr##c + 1, \
-                         (void **)&(fh)->f_##arr##v, \
-                         &(fh)->f_##arr##_alloc, \
-                         sizeof(Object *))
-
-static void
-remove_args(Object **arr, int count)
-{
-        int i;
-        if (!arr)
-                return;
-
-        for (i = 0; i < count; i++) {
-                /* these arrays may have unset fields */
-                if (arr[i])
-                        VAR_DECR_REF(arr[i]);
-        }
-        efree(arr);
-}
 
 /*
  * Helper to function_prep_frame
@@ -120,6 +93,26 @@ done:
         return fn;
 }
 
+static int
+function_argc_check(struct funcvar_t *fh, int argc)
+{
+        int min = fh->f_minargs;
+        int max = fh->f_maxargs;
+        if (argc < min) {
+                err_setstr(RuntimeError,
+                           "Expected at least %d args but got %d",
+                           min, argc);
+                return RES_ERROR;
+        }
+        if (max >= 0 && argc > max) {
+                err_setstr(RuntimeError,
+                           "Expected at most %d args but got %d",
+                           max, argc);
+                return RES_ERROR;
+        }
+        return RES_OK;
+}
+
 /*
  * return: If success: either @fn or the callable descendant of @fn to pass
  *         to call_function()
@@ -130,40 +123,30 @@ function_prep_frame(Object *fn,
                     Frame *fr, Object *owner)
 {
         struct funcvar_t *fh;
-        int i, argc;
 
         fn = function_of(fn, &owner);
         if (!fn)
                 return ErrorVar;
+
         fh = V2FUNC(fn);
 
-        argc = (fh->f_magic == FUNC_INTERNAL)
-               ? fh->f_minargs : fh->f_argc;
-        for (i = fr->ap; i < argc; i++) {
-                Object *v;
+        if (function_argc_check(fh, fr->ap) != RES_OK)
+                return ErrorVar;
 
-                /*
-                 * XXX shouldn't this be caught earlier?  f_minargs
-                 * should never be larger than f_argc.  I put this
-                 * trap here because if no optional args exist,
-                 * f_argv/f_argc will never get initialized.  But it's
-                 * sloppy...
-                 */
-                if (i > fh->f_argc)
-                        goto er;
-                /* see wrapping call. This is never set if no args provided */
-                if (!fh->f_argv)
-                        goto er;
-                v = fh->f_argv[i];
-                if (!v)
-                        goto er;
-
-                fr->stack[fr->ap++] = v;
-                VAR_INCR_REF(v);
+        if (fh->f_magic == FUNC_USER && fh->f_defaults) {
+                /* Fill in default args. */
+                int i, n = seqvar_size(fh->f_defaults);
+                for (i = fr->ap; i < n; i++) {
+                        Object *v = array_getitem(fh->f_defaults, i);
+                        bug_on(v == NULL || v == ErrorVar);
+                        fr->stack[fr->ap++] = v;
+                }
         }
+
         fr->owner = owner;
         fr->func  = fn;
-        fr->clo   = fh->f_clov;
+        fr->clo   = fh->f_closures ?
+                        array_get_data(fh->f_closures) : NULL;
 
         VAR_INCR_REF(owner);
         VAR_INCR_REF(fn);
@@ -171,16 +154,10 @@ function_prep_frame(Object *fn,
         if (fh->f_magic == FUNC_USER)
                 fr->ex = fh->f_ex;
         return fr->func;
-
-er:
-        err_setstr(RuntimeError, "Missing non-optional arg #%d", i + 1);
-        return ErrorVar;
 }
 
 /**
- * call_function - Call a function if it's a builtin C function,
- *                 otherwise just finish setting up the frame
- *                 (started with function_prep_frame) and return
+ * call_function - Call a function
  * @fr: Frame to pass to execute_loop if it's a user-defined
  *      function.
  * @fn: Function to call.
@@ -212,51 +189,49 @@ void
 function_add_closure(Object *func, Object *clo)
 {
         struct funcvar_t *fh = V2FUNC(func);
+
         bug_on(!isvar_function(func));
         bug_on(fh->f_magic != FUNC_USER);
 
-        if (GROW_ARG_ARRAY(fh, clo) < 0)
-                fail("OOM");
-        fh->f_clov[fh->f_cloc] = clo;
-        fh->f_cloc++;
+        if (!fh->f_closures)
+                fh->f_closures = arrayvar_new(0);
+        array_append(fh->f_closures, clo);
 }
 
+/**
+ * function_add_default - Add a default argument to a function
+ * @func: Function to add default to
+ * @deflt: Default value
+ * @argno: Argument's place in function calls, indexed from zero.
+ */
 void
 function_add_default(Object *func,
-                        Object *deflt, int argno)
+                     Object *deflt, int argno)
 {
         struct funcvar_t *fh = V2FUNC(func);
-        size_t needsize;
+
         bug_on(!isvar_function(func));
         bug_on(!fh);
         bug_on(fh->f_magic != FUNC_USER);
         bug_on(argno < 0);
 
         /*
-         * Do this manually, since not every impl. of realloc
-         * zeros the array, and NULL is meaningful here.
-         *
-         * FIXME: non-sparse array for usu. sparse fields,
-         * not very mem. efficient.
+         * Fill in mandatory slots with 'this is not a default'.  Array
+         * is filled to size with NullVar upon creation.  Since NullVar
+         * could be interpreted as a valid user-default, replace it with
+         * ErrorVar instead.
          */
-        needsize = (argno + 1) * sizeof(void *);
-        if (!fh->f_argv) {
-                fh->f_argv = ecalloc(needsize);
-                fh->f_arg_alloc = needsize;
-        } else if (fh->f_arg_alloc < needsize) {
-                Object **new_arr;
-                size_t new_alloc = fh->f_arg_alloc;
-                while (new_alloc < needsize)
-                        new_alloc *= 2;
-                new_arr = ecalloc(new_alloc);
-                memcpy(new_arr, fh->f_argv,
-                       fh->f_argc * sizeof(void *));
-                efree(fh->f_argv);
-                fh->f_argv = new_arr;
-                fh->f_arg_alloc = new_alloc;
+        if (!fh->f_defaults) {
+                int i;
+                fh->f_defaults = arrayvar_new(argno);
+                for (i = 0; i < argno; i++)
+                        array_setitem(fh->f_defaults, i, ErrorVar);
+        } else while (seqvar_size(fh->f_defaults) < argno) {
+                array_append(fh->f_defaults, ErrorVar);
         }
-        fh->f_argv[argno] = deflt;
-        fh->f_argc = argno + 1;
+
+        array_append(fh->f_defaults, deflt);
+        bug_on(seqvar_size(fh->f_defaults) != argno + 1);
 }
 
 static Object *
@@ -264,9 +239,8 @@ funcvar_alloc(int magic)
 {
         Object *func = var_new(&FunctionType);
         struct funcvar_t *fh = V2FUNC(func);
-        fh->f_argv = NULL;
-        fh->f_arg_alloc = 0;
-        fh->f_argc = 0;
+        fh->f_minargs = 0;
+        fh->f_maxargs = -1;
         fh->f_magic = magic;
         return func;
 }
@@ -282,7 +256,8 @@ funcvar_alloc(int magic)
  *      the wrapping function will change it to NullVar for
  *      callers that must receive a return value.
  * @minargs: Minimum number of args used by the function
- * @maxargs: Maximum number of args used by the function
+ * @maxargs: Maximum number of args used by the function, or -1 if
+ *      number of args is variable
  */
 Object *
 funcvar_new_intl(Object *(*cb)(Frame *),
@@ -297,6 +272,39 @@ funcvar_new_intl(Object *(*cb)(Frame *),
 }
 
 /**
+ * function_setattr - Set a function attribute
+ * @attr: An IARG_FUNC_xxx enum
+ * @value: The value to set the attribute to
+ */
+int
+function_setattr(Object *func, int attr, int value)
+{
+        struct funcvar_t *fh = V2FUNC(func);
+
+        if (!isvar_function(func)) {
+                err_setstr(RuntimeError,
+                           "Cannot set function attribute for type %s",
+                           typestr(func));
+                return RES_ERROR;
+        }
+
+        switch (attr) {
+        case IARG_FUNC_MINARGS:
+                fh->f_minargs = value;
+                break;
+        case IARG_FUNC_MAXARGS:
+                fh->f_maxargs = value;
+                break;
+        default:
+                err_setstr(RuntimeError,
+                           "Type funcion does not have enumerated attribute %d",
+                           attr);
+                return RES_ERROR;
+        }
+        return RES_OK;
+}
+
+/**
  * funcvar_new_user - create a user function var
  * @ex:         Executable code to assign to function
  */
@@ -307,6 +315,8 @@ funcvar_new_user(Object *ex)
         struct funcvar_t *fh = V2FUNC(func);
         bug_on(!isvar_xptr(ex));
         fh->f_ex = (struct xptrvar_t *)ex;
+        fh->f_closures = NULL;
+        fh->f_defaults = NULL;
         VAR_INCR_REF((Object *)ex);
         return func;
 }
@@ -347,10 +357,14 @@ static void
 func_reset(Object *func)
 {
         struct funcvar_t *fh = V2FUNC(func);
-        remove_args(fh->f_argv, fh->f_argc);
-        remove_args(fh->f_clov, fh->f_cloc);
-        if (fh->f_magic == FUNC_USER && fh->f_ex)
-                VAR_DECR_REF((Object *)fh->f_ex);
+        if (fh->f_magic == FUNC_USER) {
+                if (fh->f_defaults)
+                        VAR_DECR_REF(fh->f_defaults);
+                if (fh->f_closures)
+                        VAR_DECR_REF(fh->f_closures);
+                if (fh->f_ex)
+                        VAR_DECR_REF((Object *)fh->f_ex);
+        }
 }
 
 struct type_t FunctionType = {

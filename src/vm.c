@@ -196,6 +196,7 @@ VARPTR(Frame *fr, instruction_t ii)
         case IARG_PTR_FP:
                 return fr->stack[ii.arg2];
         case IARG_PTR_CP:
+                bug_on(!fr->clo);
                 return fr->clo[ii.arg2];
         case IARG_PTR_SEEK: {
                 Object *name = RODATA(fr, ii);
@@ -290,6 +291,7 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
                 ppto = fr->stack + ii.arg2;
                 break;
         case IARG_PTR_CP:
+                bug_on(!fr->clo);
                 ppto = fr->clo + ii.arg2;
                 break;
         case IARG_PTR_SEEK:
@@ -569,6 +571,15 @@ do_add_default(Frame *fr, instruction_t ii)
          * number of args to something than can easily fit into ii.arg2.
          */
         function_add_default(func, deflt, ii.arg2);
+        push(fr, func);
+        return 0;
+}
+
+static int
+do_func_setattr(Frame *fr, instruction_t ii)
+{
+        Object *func = pop(fr);
+        function_setattr(func, ii.arg1, ii.arg2);
         push(fr, func);
         return 0;
 }

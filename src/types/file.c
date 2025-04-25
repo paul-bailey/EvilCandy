@@ -276,7 +276,7 @@ etype:
 static const struct type_inittbl_t file_cb_methods[] = {
         V_INITTBL("eof",        do_eof,         0, 0),
         V_INITTBL("clearerr",   do_clearerr,    0, 0),
-        V_INITTBL("read",       do_read,        0, 0),
+        V_INITTBL("read",       do_read,        0, 1),
         V_INITTBL("write",      do_write,       1, 1),
         V_INITTBL("close",      do_close,       0, 0),
         TBLEND,

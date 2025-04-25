@@ -145,6 +145,7 @@ extern Object *floatvar_new(double value);
 extern Object *funcvar_new_user(Object *ex);
 extern Object *funcvar_new_intl(Object *(*cb)(Frame *),
                                int minargs, int maxargs);
+extern int function_setattr(Object *func, int attr, int value);
 extern Object *function_prep_frame(Object *fn,
                         Frame *fr, Object *owner);
 extern Object *call_function(Frame *fr, Object *fn);

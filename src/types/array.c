@@ -11,22 +11,6 @@
  */
 #include <evilcandy.h>
 
-/**
- * struct arrayvar_t - Handle to a numerical array
- * @lock:    Lock to prevent add/remove during foreach
- * @alloc_size: Size of allocated array for @items, in bytes
- * @items:   Array of pointers to variables stored in it
- *
- * Arrays and tuples share the same data struct.  Tuples do not need @lock,
- * but four bytes is not reason enough to invent a whole new data struct.
- */
-struct arrayvar_t {
-        struct seqvar_t base;
-        int lock;
-        size_t alloc_size;
-        Object **items;
-};
-
 #define V2ARR(v_)       ((struct arrayvar_t *)(v_))
 #define V2SQ(v_)        ((struct seqvar_t *)(v_))
 
@@ -109,7 +93,7 @@ array_sort(Object *array)
  * array_setitem - Callback for sequence .setitem method
  * @array: Array to set an item in.
  * @i:     Index into the array to set the item
- * @child: New item to set into @array
+ * @child: New item to set into @array.  WARNING!! DO NOT let @child be NULL.
  *
  * Has extern linkage since some internal code needs it.
  */
@@ -133,7 +117,7 @@ array_setitem(Object *array, int i, Object *child)
 /**
  * array_append - Append an item to the tail of an array
  * @array: Array to append to
- * @child: Item to append to array
+ * @child: Item to append to array WARNING!! DO NOT let @child be NULL.
  *
  * Has extern linkage since some internal code needs it.
  */
@@ -432,9 +416,9 @@ do_array_allocated(Frame *fr)
 }
 
 static const struct type_inittbl_t array_cb_methods[] = {
-        V_INITTBL("append",     do_array_append,   0, 0),
+        V_INITTBL("append",     do_array_append,   1, 1),
         V_INITTBL("len",        do_array_len,      0, 0),
-        V_INITTBL("foreach",    do_array_foreach,  0, 0),
+        V_INITTBL("foreach",    do_array_foreach,  1, 2),
         V_INITTBL("allocated",  do_array_allocated, 0, 0),
         TBLEND,
 };
@@ -460,7 +444,7 @@ struct type_t ArrayType = {
 
 static const struct type_inittbl_t tuple_cb_methods[] = {
         V_INITTBL("len",        do_tuple_len,           0, 0),
-        V_INITTBL("foreach",    do_tuple_foreach,       0, 0),
+        V_INITTBL("foreach",    do_tuple_foreach,       1, 2),
         TBLEND,
 };
 

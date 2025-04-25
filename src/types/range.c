@@ -151,7 +151,7 @@ static const struct seq_methods_t range_seq_methods = {
 
 static const struct type_inittbl_t range_cb_methods[] = {
         V_INITTBL("len",     range_len,     0, 0),
-        V_INITTBL("foreach", range_foreach, 0, 0),
+        V_INITTBL("foreach", range_foreach, 1, 2),
         TBLEND,
 };
 

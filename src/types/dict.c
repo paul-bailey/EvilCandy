@@ -897,12 +897,12 @@ do_dict_purloin(Frame *fr)
 
 static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("len",       do_dict_len,       0, 0),
-        V_INITTBL("foreach",   do_dict_foreach,   1, 1),
+        V_INITTBL("foreach",   do_dict_foreach,   1, 2),
         V_INITTBL("hasattr",   do_dict_hasattr,   1, 1),
         V_INITTBL("setattr",   do_dict_setattr,   2, 2),
         V_INITTBL("getattr",   do_dict_getattr,   1, 1),
         V_INITTBL("delattr",   do_dict_delattr,   1, 1),
-        V_INITTBL("purloin",   do_dict_purloin,   0, 0),
+        V_INITTBL("purloin",   do_dict_purloin,   0, 1),
         V_INITTBL("keys",      do_dict_keys,      0, 0),
         V_INITTBL("copy",      do_dict_copy,      0, 0),
         TBLEND,

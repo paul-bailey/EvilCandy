@@ -566,6 +566,7 @@ static void
 assemble_funcdef(struct assemble_t *a, bool lambda)
 {
         int funcno = a->func++;
+        int minargs = 0;
 
         /* need to be corrected later */
         add_instr(a, INSTR_DEFFUNC, 0, funcno);
@@ -618,6 +619,8 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                                 as_frame_swap(a);
                                 add_instr(a, INSTR_ADD_DEFAULT, 0, a->fr->argc);
                                 as_frame_swap(a);
+                        } else {
+                                minargs = a->fr->argc + 1;
                         }
 
                         as_err_if(a, a->fr->argc >= FRAME_ARG_MAX, AE_OVERFLOW);
@@ -627,6 +630,10 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
 
         assemble_function(a, lambda, funcno);
+
+        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, minargs);
+        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, a->fr->argc);
+
         as_frame_pop(a);
 }
 

@@ -218,7 +218,7 @@ static inline bool hasvar_len(Object *v)
         { return isvar_seq(v) || isvar_map(v); }
 
 /*
- * Made public so intvar_toll and floatvar_tod can be inline.
+ * Some objects made public so some functions can be inline.
  * These are otherwise used privately in integer.c and float.c
  */
 struct intvar_t {
@@ -229,6 +229,14 @@ struct floatvar_t {
         Object base;
         double f;
 };
+/* Arrays and tuples share the same data struct */
+struct arrayvar_t {
+        struct seqvar_t base;
+        int lock;
+        size_t alloc_size;
+        Object **items;
+};
+
 
 /* Warning!! Only call these if you already type-checked @v */
 static inline double floatvar_tod(Object *v)
@@ -239,6 +247,9 @@ static inline long long numvar_toint(Object *v)
         { return isvar_int(v) ? intvar_toll(v) : (long long)floatvar_tod(v); }
 static inline double numvar_tod(Object *v)
         { return isvar_float(v) ? floatvar_tod(v) : (double)intvar_toll(v); }
+static inline Object **array_get_data(Object *v)
+        { return ((struct arrayvar_t *)v)->items; }
+#define tuple_get_data(v) array_get_data(v)
 
 #endif /* EVILCANDY_OBJTYPES_H */
 

@@ -4,6 +4,7 @@ import("io.evc", "x");
 
 // Print myself
 (function(name) {
+    try {
         let f = Io.open(name, "r");
         let s;
         while (true) {
@@ -13,6 +14,9 @@ import("io.evc", "x");
             // currently print always adds a newline
             print(s.rstrip("\n"));
         }
+    } catch (e) {
+        print('Got a', e[0], ':', e[1]);
+    }
 })("demos/cat.egq");
 
 // : vim: set syntax=javascript :

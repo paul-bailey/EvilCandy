@@ -1522,6 +1522,8 @@ assemble_try(struct assemble_t *a)
         if (a->oc->t == OC_FINALLY) {
                 /* block of the finally { ... } statement */
                 assemble_stmt(a, 0, 0);
+        } else {
+                as_unlex(a);
         }
 }
 
@@ -1856,7 +1858,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 break;
         case OC_TRY:
                 assemble_try(a);
-                break;
+                return;
         case OC_IF:
                 assemble_if(a);
                 return;

@@ -280,8 +280,8 @@ main(int argc, char **argv)
                 }
         }
 
-        moduledeinit_vm();
         VAR_DECR_REF(ErrorVar);
+        moduledeinit_vm();
         moduledeinit_builtin();
         /* must be last */
         moduledeinit_var();

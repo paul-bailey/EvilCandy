@@ -62,11 +62,6 @@ static size_t var_nalloc = 0;
 static void
 var_alloc_tell(void)
 {
-#if 0
-        DBUG("%s: __gbl__ refcnt:     %d",  __FILE__, GlobalObject->v_refcnt);
-        DBUG("%s: 'null' refcnt:      %d",  __FILE__, NullVar->v_refcnt);
-        DBUG("%s: ErrorVar refcnt:    %d",  __FILE__, NullVar->v_refcnt);
-#endif
         DBUG("%s: #bytes outstanding: %lu", __FILE__, (long)var_alloc_size);
         DBUG("%s: #vars outstanding:  %lu", __FILE__, (long)var_nalloc);
 }

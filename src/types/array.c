@@ -183,7 +183,14 @@ tuplevar_new(int n_items)
 static void
 array_reset(Object *a)
 {
-        efree(V2ARR(a)->items);
+        if (V2ARR(a)->items) {
+                int i;
+                Object **data = array_get_data(a);
+                for (i = 0; i < seqvar_size(a); i++) {
+                        VAR_DECR_REF(data[i]);
+                }
+                efree(V2ARR(a)->items);
+        }
 }
 
 /* type_t .cmp callback */

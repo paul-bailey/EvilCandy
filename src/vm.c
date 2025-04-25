@@ -1056,7 +1056,6 @@ execute_loop(Frame *fr)
                         }
 
                         if (!bl || bl->type != IARG_TRY) {
-                                err_print_last(stderr);
                                 retval = ErrorVar;
                                 goto out;
                         }

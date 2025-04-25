@@ -77,10 +77,8 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
 * It has the skeleton of a math and IO library, but these are mainly
   as they were when I threw them together just to see if something works.
 
-* I have implemented most of the basic language features, but I have
-  not implemented try/catch and a couple others which I have
-  put off... I want to rewrite the parser before I finish that stuff.
-  Others I have not yet decided what I want.  These include things
+* I want to rewrite the parser before I finish some language basics.
+  I have not yet decided on everything I want.  These include things
   like functions' keyword arguments vs. default arguments, policy
   regarding 'else' statement in a 'for' loop (I really want it, but
   it would be a bad idea to call it 'else')... that kind of stuff.
@@ -129,8 +127,8 @@ But here are some major differences...
 
 * There is no ``var`` keyword.  There are only ``let`` and ``global``.
 
-* So far, there is no ``try`` and ``catch``.  However, I intend to add
-  this in the future.
+* So far, there is no ``throw``.  However, I intend to add this in the
+  future.
 
 * The ``for`` loop may either be like JS's verbose C-like for-loop,
   or it may be like Python's eye-friendly for-loop. Depends on how it's

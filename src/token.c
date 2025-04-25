@@ -548,6 +548,7 @@ tok_kw_seek(const char *key)
         } KEYWORDS[] = {
                 { "break",      OC_BREAK },
                 { "const",      OC_CONST },
+                { "continue",   OC_CONTINUE },
                 { "do",         OC_DO },
                 { "else",       OC_ELSE },
                 { "false",      OC_FALSE },

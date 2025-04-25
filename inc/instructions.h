@@ -49,6 +49,7 @@ enum {
 enum {
         IARG_BLOCK,
         IARG_LOOP,
+        IARG_CONTINUE,
 };
 
 /**

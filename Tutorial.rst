@@ -1224,7 +1224,8 @@ The ownership issue described in the previous section does not exist
 here, because a function is only bound to its owner when it is
 "gotten" from an object, such as when you type ``object.key`` (which
 puts a temporary variable on the stack) or ``x = object.key`` (which
-assigns the newly bound function ``key`` to ``x``).
+assigns the newly bound function ``key`` to ``x``).  The union operator
+bypasses that.
 
 Warning:
         It may be tempting to use ``purloin`` here too, as a redundant
@@ -1237,7 +1238,7 @@ Warning:
         As an implementation note, there is a slight speed advantage to
         an in-place operation, but it is far *too* slight to justify
         itself compared to the cleanliness and consistency of treating
-        all binary operators the same for every type.
+        all binary operators in the same way for every type.
 
 Strings and Bytes
 -----------------

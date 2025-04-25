@@ -406,6 +406,10 @@ do_pop_block(Frame *fr, instruction_t ii)
         return 0;
 }
 
+/*
+ * Implements both 'break' and 'continue'.
+ * This just manages the stack; next instr does the jump
+ */
 static int
 do_break(Frame *fr, instruction_t ii)
 {
@@ -413,6 +417,17 @@ do_break(Frame *fr, instruction_t ii)
         do {
                 bl = vmframe_pop_block(fr);
         } while (bl->type != IARG_LOOP);
+        vmframe_unwind_block(fr, bl);
+        return 0;
+}
+
+static int
+do_continue(Frame *fr, instruction_t ii)
+{
+        struct block_t *bl;
+        do {
+                bl = vmframe_pop_block(fr);
+        } while (bl->type != IARG_CONTINUE);
         vmframe_unwind_block(fr, bl);
         return 0;
 }

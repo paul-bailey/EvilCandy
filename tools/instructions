@@ -34,6 +34,7 @@ PUSH_BLOCK
 POP_BLOCK
 
 BREAK
+CONTINUE
 
 # Pop top of stack and store its value in a declared variable.
 #     - arg2 is an offset index

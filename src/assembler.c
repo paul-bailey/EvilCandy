@@ -33,9 +33,14 @@
  * The @flags arg used in some of the functions below.
  * @FE_FOR: We're in that middle part of a for loop between two
  *          semicolons.  Only used by assembler.
+ * @FE_CONTINUE: We're the start of a loop where 'continue' may
+ *          break us out of.
  * There used to be more, but they went obsolete.
  */
-enum { FE_FOR = 0x01 };
+enum {
+        FE_FOR = 0x01,
+        FE_CONTINUE = 0x02,
+};
 
 /* TODO: define instr_t and use sizeof() here */
 #define INSTR_SIZE      sizeof(instruction_t)
@@ -155,8 +160,8 @@ struct assemble_t {
 };
 
 static void assemble_expr(struct assemble_t *a);
-static void assemble_stmt(struct assemble_t *a,
-                                unsigned int flags, int skip);
+static void assemble_stmt(struct assemble_t *a, unsigned int flags,
+                          int breakto, int continueto);
 
 /*
  * See comments above get_tok().
@@ -535,7 +540,7 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                 int t = as_lex(a);
                 as_unlex(a);
                 if (t == OC_LBRACE) {
-                        assemble_stmt(a, 0, -1);
+                        assemble_stmt(a, 0, -1, -1);
                         as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                 } else {
                         assemble_expr(a);
@@ -546,7 +551,7 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                         return;
                 }
         } else {
-                assemble_stmt(a, 0, -1);
+                assemble_stmt(a, 0, -1, -1);
         }
         /*
          * This is often unreachable to the VM,
@@ -1461,9 +1466,9 @@ assemble_return(struct assemble_t *a)
         }
 }
 
-/* skip provided, because 'break' goes outside 'if' scope */
+/* breakto provided, because 'break' goes outside 'if' scope */
 static void
-assemble_if(struct assemble_t *a, int skip)
+assemble_if(struct assemble_t *a, int breakto, int continueto)
 {
         int true_jmpend = as_next_label(a);
         int jmpelse = as_next_label(a);
@@ -1476,7 +1481,7 @@ assemble_if(struct assemble_t *a, int skip)
                 int jmpend = as_next_label(a);
                 assemble_expr(a);
                 add_instr(a, INSTR_B_IF, 0, jmpelse);
-                assemble_stmt(a, 0, skip);
+                assemble_stmt(a, 0, breakto, continueto);
                 add_instr(a, INSTR_B, 0, true_jmpend);
                 as_set_label(a, jmpelse);
 
@@ -1494,7 +1499,7 @@ assemble_if(struct assemble_t *a, int skip)
         /* final else */
         as_unlex(a);
         as_set_label(a, jmpelse);
-        assemble_stmt(a, 0, skip);
+        assemble_stmt(a, 0, breakto, continueto);
 
 done:
         as_set_label(a, true_jmpend);
@@ -1504,7 +1509,7 @@ static void
 assemble_while(struct assemble_t *a)
 {
         int start = as_next_label(a);
-        int skip  = as_next_label(a);
+        int breakto = as_next_label(a);
 
         add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
         apush_scope(a);
@@ -1515,27 +1520,27 @@ assemble_while(struct assemble_t *a)
         assemble_expr(a);
         as_errlex(a, OC_RPAR);
 
-        add_instr(a, INSTR_B_IF, 0, skip);
-        assemble_stmt(a, 0, skip);
+        add_instr(a, INSTR_B_IF, 0, breakto);
+        assemble_stmt(a, FE_CONTINUE, breakto, start);
         add_instr(a, INSTR_B, 0, start);
 
         apop_scope(a);
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
 
-        as_set_label(a, skip);
+        as_set_label(a, breakto);
 }
 
 static void
 assemble_do(struct assemble_t *a)
 {
         int start = as_next_label(a);
-        int skip  = as_next_label(a);
+        int breakto = as_next_label(a);
 
         add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
         apush_scope(a);
 
         as_set_label(a, start);
-        assemble_stmt(a, 0, skip);
+        assemble_stmt(a, FE_CONTINUE, breakto, start);
         as_errlex(a, OC_WHILE);
         assemble_expr(a);
         add_instr(a, INSTR_B_IF, 1, start);
@@ -1543,16 +1548,18 @@ assemble_do(struct assemble_t *a)
         apop_scope(a);
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
 
-        as_set_label(a, skip);
+        as_set_label(a, breakto);
 }
 
 static void
-assemble_foreach(struct assemble_t *a)
+assemble_foreach(struct assemble_t *a, int breakto_else, int continueto_else)
 {
         struct token_t needletok;
-        int skip    = as_next_label(a);
+        int breakto = as_next_label(a);
+        int forelse = as_next_label(a);
         int iter    = as_next_label(a);
 
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
         apush_scope(a);
 
         /* save name of the 'needle' in 'for(needle, haystack)' */
@@ -1576,29 +1583,41 @@ assemble_foreach(struct assemble_t *a)
         ainstr_load_const_int(a, 0LL);
         fakestack_declare(a, NULL);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
-
         as_set_label(a, iter);
-        add_instr(a, INSTR_FOREACH_ITER, 0, skip);
-        assemble_stmt(a, 0, skip);
+        add_instr(a, INSTR_FOREACH_ITER, 0, forelse);
+
+        assemble_stmt(a, FE_CONTINUE, breakto, iter);
+
         add_instr(a, INSTR_B, 0, iter);
+
+        as_set_label(a, forelse);
+
+        as_lex(a);
+        if (a->oc->t == OC_EOF) {
+                as_badeof(a);
+        } else if (a->oc->t == OC_ELSE) {
+                assemble_stmt(a, 0, breakto_else, continueto_else);
+        } else {
+                as_unlex(a);
+        }
 
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
         apop_scope(a);
 
-        as_set_label(a, skip);
+        as_set_label(a, breakto);
 }
 
 /*
- * skip_else here is for the unusual case if break is encountered inside
+ * breakto_else here is for the unusual case if break is encountered inside
  * in the `else' of a `for...else' block, otherwise it isn't used.
  */
 static void
-assemble_for_cstyle(struct assemble_t *a, int skip_else)
+assemble_for_cstyle(struct assemble_t *a,
+                    int breakto_else, int continueto_else)
 {
         int start   = as_next_label(a);
         int then    = as_next_label(a);
-        int skip    = as_next_label(a);
+        int breakto = as_next_label(a);
         int iter    = as_next_label(a);
         int forelse = as_next_label(a);
 
@@ -1606,7 +1625,7 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
         apush_scope(a);
 
         /* initializer */
-        assemble_stmt(a, 0, skip);
+        assemble_stmt(a, 0, breakto, continueto_else);
 
         as_set_label(a, start);
         as_lex(a);
@@ -1623,12 +1642,12 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
                 add_instr(a, INSTR_B, 0, then);
         }
         as_set_label(a, iter);
-        assemble_stmt(a, FE_FOR, -1);
+        assemble_stmt(a, FE_FOR, -1, -1);
         as_errlex(a, OC_RPAR);
 
         add_instr(a, INSTR_B, 0, start);
         as_set_label(a, then);
-        assemble_stmt(a, 0, skip);
+        assemble_stmt(a, FE_CONTINUE, breakto, iter);
         add_instr(a, INSTR_B, 0, iter);
 
         as_set_label(a, forelse);
@@ -1637,7 +1656,7 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
         if (a->oc->t == OC_EOF) {
                 as_badeof(a);
         } else if (a->oc->t == OC_ELSE) {
-                assemble_stmt(a, 0, skip_else);
+                assemble_stmt(a, 0, breakto_else, continueto_else);
         } else {
                 as_unlex(a);
         }
@@ -1645,11 +1664,11 @@ assemble_for_cstyle(struct assemble_t *a, int skip_else)
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
         apop_scope(a);
 
-        as_set_label(a, skip);
+        as_set_label(a, breakto);
 }
 
 static void
-assemble_for(struct assemble_t *a, int skip_else)
+assemble_for(struct assemble_t *a, int breakto_else, int continueto_else)
 {
         /* do some peeking to see which kind of 'for'
          * statement this is.
@@ -1665,7 +1684,7 @@ assemble_for(struct assemble_t *a, int skip_else)
                          */
                         as_unlex(a);
                         as_unlex(a);
-                        assemble_foreach(a);
+                        assemble_foreach(a, breakto_else, continueto_else);
                         return;
                 }
                 as_unlex(a);
@@ -1676,7 +1695,7 @@ assemble_for(struct assemble_t *a, int skip_else)
          * for ( ???...
          *      it's the C-style for loop
          */
-        assemble_for_cstyle(a, skip_else);
+        assemble_for_cstyle(a, breakto_else, continueto_else);
 }
 
 /*
@@ -1684,10 +1703,14 @@ assemble_for(struct assemble_t *a, int skip_else)
  * The first '{' has already been read.
  */
 static void
-assemble_block_stmt(struct assemble_t *a, unsigned int flags, int skip)
+assemble_block_stmt(struct assemble_t *a, unsigned int flags, int breakto, int continueto)
 {
+        int iarg = !!(flags & FE_CONTINUE) ? IARG_CONTINUE : IARG_BLOCK;
         apush_scope(a);
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
+        add_instr(a, INSTR_PUSH_BLOCK, iarg, 0);
+
+        /* don't pass this down */
+        flags &= ~FE_CONTINUE;
 
         for (;;) {
                 /* peek for end of compound statement */
@@ -1696,7 +1719,7 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags, int skip)
                         break;
                 as_unlex(a);
 
-                assemble_stmt(a, flags, skip);
+                assemble_stmt(a, flags, breakto, continueto);
         }
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
         apop_scope(a);
@@ -1708,13 +1731,13 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags, int skip)
  * we recursed into a '{...}' statement which requires no semicolon).
  */
 static void
-assemble_stmt_simple(struct assemble_t *a, unsigned int flags, int skip)
+assemble_stmt_simple(struct assemble_t *a, unsigned int flags, int breakto, int continueto)
 {
         as_lex(a);
         /* cases return early if semicolon not expected at the end */
         switch (a->oc->t) {
         case OC_EOF:
-                if (skip >= 0)
+                if (breakto >= 0)
                         as_badeof(a);
                 return;
         case 'u':
@@ -1761,24 +1784,32 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags, int skip)
                 assemble_return(a);
                 break;
         case OC_BREAK:
-                if (skip < 0) {
+                if (breakto < 0) {
                         err_setstr(ParserError, "Unexpected break");
                         as_err(a, AE_GEN);
                 }
                 add_instr(a, INSTR_BREAK, 0, 0);
-                add_instr(a, INSTR_B, 0, skip);
+                add_instr(a, INSTR_B, 0, breakto);
+                break;
+        case OC_CONTINUE:
+                if (continueto < 0) {
+                        err_setstr(ParserError, "Unexpected continue");
+                        as_err(a, AE_GEN);
+                }
+                add_instr(a, INSTR_CONTINUE, 0, 0);
+                add_instr(a, INSTR_B, 0, continueto);
                 break;
         case OC_IF:
-                assemble_if(a, skip);
+                assemble_if(a, breakto, continueto);
                 return;
         case OC_WHILE:
                 assemble_while(a);
                 return;
         case OC_FOR:
-                assemble_for(a, skip);
+                assemble_for(a, breakto, continueto);
                 return;
         case OC_LBRACE:
-                assemble_block_stmt(a, flags, skip);
+                assemble_block_stmt(a, flags, breakto, continueto);
                 return;
         case OC_DO:
                 assemble_do(a);
@@ -1813,7 +1844,7 @@ static int as_recursion = 0;
 /*
  * assemble_stmt - Parser for the top-level statement
  * @flags: If FE_FOR, we're in the iterator part of a for loop header.
- * @skip: Jump label to add B instruction for in case of 'break'
+ * @breakto: Jump label to add B instruction for in case of 'break'
  *
  * This covers block statement and single-line statements
  *
@@ -1844,11 +1875,11 @@ static int as_recursion = 0;
  * See Documentation.rst for the details.
  */
 static void
-assemble_stmt(struct assemble_t *a, unsigned int flags, int skip)
+assemble_stmt(struct assemble_t *a, unsigned int flags, int breakto, int continueto)
 {
         AS_RECURSION_INCR();
 
-        assemble_stmt_simple(a, flags, skip);
+        assemble_stmt_simple(a, flags, breakto, continueto);
 
         AS_RECURSION_DECR();
 }
@@ -1912,7 +1943,7 @@ static void
 assemble_first_pass(struct assemble_t *a, bool toeof)
 {
         do {
-                assemble_stmt(a, 0, -1);
+                assemble_stmt(a, 0, -1, -1);
         } while (toeof && a->oc->t != OC_EOF);
         add_instr(a, INSTR_END, 0, 0);
 

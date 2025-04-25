@@ -408,6 +408,29 @@ do_pop_block(Frame *fr, instruction_t ii)
         return 0;
 }
 
+static int
+break_or_continue(Frame *fr, int type)
+{
+        struct block_t *bl = NULL;
+        while (fr->n_blocks > 0) {
+                bl = vmframe_pop_block(fr);
+                if (bl->type == type)
+                        break;
+        }
+
+        if (!bl || bl->type != type) {
+                const char *what = (type == IARG_LOOP)
+                                   ? "break" : "continue";
+                err_setstr(RuntimeError,
+                        "%s not in a control loop", what);
+                return RES_ERROR;
+        }
+
+        vmframe_unwind_block(fr, bl);
+        fr->ppii = bl->jmpto;
+        return RES_OK;
+}
+
 /*
  * Implements both 'break' and 'continue'.
  * This just manages the stack; next instr does the jump
@@ -415,23 +438,13 @@ do_pop_block(Frame *fr, instruction_t ii)
 static int
 do_break(Frame *fr, instruction_t ii)
 {
-        struct block_t *bl;
-        do {
-                bl = vmframe_pop_block(fr);
-        } while (bl->type != IARG_LOOP);
-        vmframe_unwind_block(fr, bl);
-        return 0;
+        return break_or_continue(fr, IARG_LOOP);
 }
 
 static int
 do_continue(Frame *fr, instruction_t ii)
 {
-        struct block_t *bl;
-        do {
-                bl = vmframe_pop_block(fr);
-        } while (bl->type != IARG_CONTINUE);
-        vmframe_unwind_block(fr, bl);
-        return 0;
+        return break_or_continue(fr, IARG_CONTINUE);
 }
 
 static int

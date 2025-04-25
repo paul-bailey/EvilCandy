@@ -784,7 +784,8 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
  * @name:  name of symbol, token assumed to be saved from a->oc already.
  */
 static void
-ainstr_load_or_assign(struct assemble_t *a, struct token_t *name, int instr, token_pos_t pos)
+ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
+                      int instr, token_pos_t pos)
 {
         int idx;
         /*
@@ -1552,7 +1553,8 @@ assemble_do(struct assemble_t *a)
 }
 
 static void
-assemble_foreach(struct assemble_t *a, int breakto_else, int continueto_else)
+assemble_foreach(struct assemble_t *a,
+                 int breakto_else, int continueto_else)
 {
         struct token_t needletok;
         int breakto = as_next_label(a);
@@ -1684,7 +1686,8 @@ assemble_for(struct assemble_t *a, int breakto_else, int continueto_else)
                          */
                         as_unlex(a);
                         as_unlex(a);
-                        assemble_foreach(a, breakto_else, continueto_else);
+                        assemble_foreach(a, breakto_else,
+                                         continueto_else);
                         return;
                 }
                 as_unlex(a);
@@ -1703,7 +1706,8 @@ assemble_for(struct assemble_t *a, int breakto_else, int continueto_else)
  * The first '{' has already been read.
  */
 static void
-assemble_block_stmt(struct assemble_t *a, unsigned int flags, int breakto, int continueto)
+assemble_block_stmt(struct assemble_t *a, unsigned int flags,
+                    int breakto, int continueto)
 {
         int iarg = !!(flags & FE_CONTINUE) ? IARG_CONTINUE : IARG_BLOCK;
         apush_scope(a);
@@ -1731,7 +1735,8 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags, int breakto, int c
  * we recursed into a '{...}' statement which requires no semicolon).
  */
 static void
-assemble_stmt_simple(struct assemble_t *a, unsigned int flags, int breakto, int continueto)
+assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
+                     int breakto, int continueto)
 {
         as_lex(a);
         /* cases return early if semicolon not expected at the end */
@@ -1875,7 +1880,8 @@ static int as_recursion = 0;
  * See Documentation.rst for the details.
  */
 static void
-assemble_stmt(struct assemble_t *a, unsigned int flags, int breakto, int continueto)
+assemble_stmt(struct assemble_t *a, unsigned int flags,
+              int breakto, int continueto)
 {
         AS_RECURSION_INCR();
 

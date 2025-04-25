@@ -117,6 +117,27 @@ err_get(Object **exc, char **msg)
         msg_last = NULL;
 }
 
+/**
+ * Get error as a tuple res[0] is the exception value, res[1] is the message
+ */
+Object *
+err_get_tup(void)
+{
+        Object *tup, *msg;
+
+        if (!err_occurred())
+                return NULL;
+
+        msg = msg_last ? stringvar_nocopy(msg_last) : stringvar_new("");
+        tup = tuplevar_new(2);
+        array_setitem(tup, 0, exception_last);
+        array_setitem(tup, 1, msg);
+
+        exception_last = NULL;
+        msg_last = NULL;
+        return tup;
+}
+
 bool
 err_exists(void)
 {

@@ -6,6 +6,7 @@
 
 struct block_t {
         Object **stack_level;
+        instruction_t *jmpto;
         unsigned char type;
 };
 

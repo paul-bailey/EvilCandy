@@ -223,7 +223,7 @@ vmframe_pop_block(Frame *fr)
 }
 
 static int
-vmframe_push_block(Frame *fr, unsigned char reason)
+vmframe_push_block(Frame *fr, unsigned char reason, short where)
 {
         struct block_t *bl;
         if (fr->n_blocks >= FRAME_NEST_MAX) {
@@ -233,6 +233,7 @@ vmframe_push_block(Frame *fr, unsigned char reason)
         bl = &fr->blocks[fr->n_blocks];
         bl->stack_level = fr->stackptr;
         bl->type = reason;
+        bl->jmpto = fr->ppii + where;
         fr->n_blocks++;
         return 0;
 }
@@ -396,7 +397,8 @@ do_pop(Frame *fr, instruction_t ii)
 static int
 do_push_block(Frame *fr, instruction_t ii)
 {
-        return vmframe_push_block(fr, ii.arg1);
+        /* note: arg2 is don't-care if arg1 is IARG_BLOCK */
+        return vmframe_push_block(fr, ii.arg1, ii.arg2);
 }
 
 static int
@@ -1022,23 +1024,40 @@ execute_loop(Frame *fr)
                          */
                         goto out;
                 } else {
+                        Object *tup;
+                        struct block_t *bl;
+
                         if (!err_occurred()) {
                                 err_setstr(RuntimeError,
                                            "instruction %hhd:%hhd:%hd unreported error",
                                            ii.code, ii.arg1, ii.arg2);
                         }
 
+                        /* res neither 0 nor RES_RETURN, it's an error or exception */
+
+                        bl = NULL;
+                        while (fr->n_blocks > 0) {
+                                bl = vmframe_pop_block(fr);
+                                if (bl->type == IARG_TRY)
+                                        break;
+                        }
+
+                        if (!bl || bl->type != IARG_TRY) {
+                                err_print_last(stderr);
+                                retval = ErrorVar;
+                                goto out;
+                        }
+
                         /*
-                         * res neither 0 nor RES_RETURN, it's an error or exception.
-                         *
-                         * TODO: Need to know if we gotta exit, unwind an exception
-                         * (if we're in a try/catch loop), or just return an error
-                         * value if in TTY mode.  Right now we just print error and
-                         * return result.
+                         * still here, we have an exception handler
+                         * Unwind stack, push exception onto it, branch
+                         * to handler.
                          */
-                        err_print_last(stderr);
-                        retval = ErrorVar;
-                        goto out;
+                        vmframe_unwind_block(fr, bl);
+                        tup = err_get_tup();
+                        bug_on(!tup);
+                        push(fr, tup);
+                        fr->ppii = bl->jmpto;
                 }
         }
         /*

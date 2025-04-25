@@ -25,8 +25,6 @@ Must Do
 Library/Language Features
 -------------------------
 
-* Add try/catch
-
 * Support array slicing
 
 * Add sets
@@ -49,6 +47,10 @@ Library/Language Features
 
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* Change to struct block_t when adding try/catch renders a lot of the
+  breakto/continueto argument passing in assemble.c unnecessary.  Get
+  rid of all that and clean it up.
 
 * Replace setjmp in assemble.c with normal stack unwinding.  May need
   to replace EOF with OC_EOF so that a <0 check will always mean

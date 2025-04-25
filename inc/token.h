@@ -95,6 +95,9 @@ enum {
         KW_PRIV,
         KW_TRUE,
         KW_FALSE,
+        KW_TRY,
+        KW_CATCH,
+        KW_FINALLY,
         KW_NULL,
         N_KW,
 };
@@ -171,6 +174,9 @@ enum {
         OC_PRIV         = TO_KTOK(KW_PRIV),
         OC_TRUE         = TO_KTOK(KW_TRUE),
         OC_FALSE        = TO_KTOK(KW_FALSE),
+        OC_TRY          = TO_KTOK(KW_TRY),
+        OC_CATCH        = TO_KTOK(KW_CATCH),
+        OC_FINALLY      = TO_KTOK(KW_FINALLY),
         OC_NULL         = TO_KTOK(KW_NULL),
 
         OC_EOF          = TO_TOK('!', TD_ERROR),
@@ -184,8 +190,8 @@ enum {
  *              XXX Wasteful, this is only used for disassembly, and for
  *              only the first opcode of an executable, nowhere else.
  * @s:          Content of the token parsed
- * @f:          Value of the token, if @t is 'f'
- * @i:          Value of the token, if @t is 'i'
+ * @v:          Value of the token, if @t is for a literal expression
+ *              of a user variable.
  */
 struct token_t {
         unsigned int t;

@@ -1467,6 +1467,64 @@ assemble_return(struct assemble_t *a)
         }
 }
 
+static void
+assemble_try(struct assemble_t *a, int breakto, int continueto)
+{
+        int finally = as_next_label(a);
+        int catch = as_next_label(a);
+
+        apush_scope(a);
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_TRY, catch);
+
+        /* block of the try { ... } statement */
+        assemble_stmt(a, 0, breakto, continueto);
+        add_instr(a, INSTR_B, 0, finally);
+
+        add_instr(a, INSTR_POP_BLOCK, 0, 0);
+        apop_scope(a);
+
+        as_lex(a);
+
+        as_set_label(a, catch);
+        if (a->oc->t == OC_CATCH) {
+                /* block of the catch(x) { ... } statement */
+                struct token_t exctok;
+
+                /*
+                 * extra block push to prevent stack confusion about
+                 * declared stack exception below.
+                 * XXX Overkill? is it not safe to just add a POP below?
+                 */
+                add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
+                apush_scope(a);
+
+                as_errlex(a, OC_LPAR);
+                as_errlex(a, 'u');
+                as_savetok(a, &exctok);
+                as_errlex(a, OC_RPAR);
+                /*
+                 * No instructions for pushing this on the stack.
+                 * The exception handler will do that for us in
+                 * execute loop.
+                 */
+                fakestack_declare(a, exctok.s);
+
+                assemble_stmt(a, 0, breakto, continueto);
+
+                add_instr(a, INSTR_POP_BLOCK, 0, 0);
+                apop_scope(a);
+
+                as_lex(a);
+        }
+
+        as_set_label(a, finally);
+
+        if (a->oc->t == OC_FINALLY) {
+                /* block of the finally { ... } statement */
+                assemble_stmt(a, 0, breakto, continueto);
+        }
+}
+
 /* breakto provided, because 'break' goes outside 'if' scope */
 static void
 assemble_if(struct assemble_t *a, int breakto, int continueto)
@@ -1512,7 +1570,7 @@ assemble_while(struct assemble_t *a)
         int start = as_next_label(a);
         int breakto = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, breakto);
         apush_scope(a);
 
         as_set_label(a, start);
@@ -1537,7 +1595,7 @@ assemble_do(struct assemble_t *a)
         int start = as_next_label(a);
         int breakto = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, breakto);
         apush_scope(a);
 
         as_set_label(a, start);
@@ -1561,7 +1619,7 @@ assemble_foreach(struct assemble_t *a,
         int forelse = as_next_label(a);
         int iter    = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, breakto);
         apush_scope(a);
 
         /* save name of the 'needle' in 'for(needle, haystack)' */
@@ -1623,7 +1681,7 @@ assemble_for_cstyle(struct assemble_t *a,
         int iter    = as_next_label(a);
         int forelse = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, 0);
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, breakto);
         apush_scope(a);
 
         /* initializer */
@@ -1709,9 +1767,17 @@ static void
 assemble_block_stmt(struct assemble_t *a, unsigned int flags,
                     int breakto, int continueto)
 {
-        int iarg = !!(flags & FE_CONTINUE) ? IARG_CONTINUE : IARG_BLOCK;
+        int arg1, arg2;
+        if (!!(flags & FE_CONTINUE)) {
+                arg1 = IARG_CONTINUE;
+                arg2 = continueto;
+        } else {
+                arg1 = IARG_BLOCK;
+                arg2 = 0;
+        }
+
         apush_scope(a);
-        add_instr(a, INSTR_PUSH_BLOCK, iarg, 0);
+        add_instr(a, INSTR_PUSH_BLOCK, arg1, arg2);
 
         /* don't pass this down */
         flags &= ~FE_CONTINUE;
@@ -1803,6 +1869,9 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 }
                 add_instr(a, INSTR_CONTINUE, 0, 0);
                 add_instr(a, INSTR_B, 0, continueto);
+                break;
+        case OC_TRY:
+                assemble_try(a, breakto, continueto);
                 break;
         case OC_IF:
                 assemble_if(a, breakto, continueto);
@@ -1923,10 +1992,16 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
                 instruction_t *ii = &fr->x->instr[i];
                 if (ii->code == INSTR_B
                     || ii->code == INSTR_B_IF
-                    || ii->code == INSTR_FOREACH_ITER) {
+                    || ii->code == INSTR_FOREACH_ITER
+                    || ii->code == INSTR_PUSH_BLOCK) {
                         int arg2 = ii->arg2 - JMP_INIT;
 
-                        bug_on(ii->arg1 != 0 && ii->arg1 != 1);
+                        if (ii->code == INSTR_PUSH_BLOCK
+                            && ii->arg1 == IARG_BLOCK) {
+                                /* ignore labels for this one */
+                                continue;
+                        }
+
                         bug_on(arg2 >= fr->x->n_label);
                         /*
                          * minus one because pc will have already

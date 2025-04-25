@@ -78,7 +78,7 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
   as they were when I threw them together just to see if something works.
 
 * I have implemented most of the basic language features, but I have
-  not implemented try/catch, continue, and a couple others which I have
+  not implemented try/catch and a couple others which I have
   put off... I want to rewrite the parser before I finish that stuff.
   Others I have not yet decided what I want.  These include things
   like functions' keyword arguments vs. default arguments, policy

@@ -808,8 +808,6 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
                 add_instr(a, instr, IARG_PTR_FP, idx);
         } else if ((idx = clo_seek(a, name->s)) >= 0) {
                 add_instr(a, instr, IARG_PTR_CP, idx);
-        } else if (!strcmp(name->s, "__gbl__")) {
-                add_instr(a, instr, IARG_PTR_GBL, 0);
         } else if ((idx = maybe_closure(a, name->s, pos)) >= 0) {
                 add_instr(a, instr, IARG_PTR_CP, idx);
         } else {

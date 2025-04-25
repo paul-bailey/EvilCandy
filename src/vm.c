@@ -202,8 +202,6 @@ VARPTR(Frame *fr, instruction_t ii)
                 Object *name = RODATA(fr, ii);
                 return symbol_seek(name);
         }
-        case IARG_PTR_GBL:
-                return GlobalObject;
         case IARG_PTR_THIS:
                 bug_on(!fr || !fr->owner);
                 return fr->owner;
@@ -297,10 +295,6 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
         case IARG_PTR_SEEK:
                 /* Global variable or attribute in namespace */
                 return symbol_put(fr, RODATA(fr, ii), from);
-        case IARG_PTR_GBL:
-                /* bug? should have been caught be assembler */
-                err_setstr(RuntimeError, "You may not assign __gbl__");
-                return RES_ERROR;
         case IARG_PTR_THIS:
                 err_setstr(RuntimeError, "You may not assign `this'");
                 return RES_ERROR;

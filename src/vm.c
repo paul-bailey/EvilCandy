@@ -1219,7 +1219,7 @@ moduleinit_vm(void)
 }
 
 void
-vm_cleanup(void)
+moduledeinit_vm(void)
 {
         VAR_DECR_REF(symbol_table);
         /* XXX: any way to clear the stack vars? */

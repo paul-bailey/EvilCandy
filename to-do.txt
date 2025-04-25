@@ -35,7 +35,9 @@ Library/Language Features
 
 * Support soft keywords
 
-* Support complex numbers.
+* Support complex numbers. ***Requires re-write of parser, an expression
+  like '1 + 2j' would tokenize to three tokens, and I don't want the
+  addition for a literal expression like that to happen during runtime.
 
 * Add a Matrix/DSP module, something like NumPy for Python
 

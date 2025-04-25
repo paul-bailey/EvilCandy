@@ -250,7 +250,9 @@ run_tty(void)
         }
 }
 
-extern void vm_cleanup(void);
+extern void moduledeinit_vm(void);
+extern void moduledeinit_var(void);
+extern void moduledeinit_builtin(void);
 
 int
 main(int argc, char **argv)
@@ -278,14 +280,11 @@ main(int argc, char **argv)
                 }
         }
 
-        /*
-         * TODO: Before this, if debug mode, atexit() some function that
-         * will scan through GlobalObject and count how many entries have
-         * a refcount > 1.  The only ones ought to be 'XxxError'.
-         */
-        vm_cleanup();
-        VAR_DECR_REF(GlobalObject);
+        moduledeinit_vm();
         VAR_DECR_REF(ErrorVar);
+        moduledeinit_builtin();
+        /* must be last */
+        moduledeinit_var();
         return 0;
 }
 

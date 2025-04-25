@@ -324,6 +324,7 @@ moduleinit_builtin(void)
         o = gblobject("_builtins");
         bug_on(!o);
         dict_add_to_globals(o);
+        VAR_DECR_REF(o);
 
         k = stringvar_new("__gbl__");
         vm_add_global(k, GlobalObject);
@@ -331,5 +332,14 @@ moduleinit_builtin(void)
 
         /* Set up gbl private data */
         strcpy(gbl.nl, "\n");
+}
+
+void
+moduledeinit_builtin(void)
+{
+        VAR_DECR_REF(GlobalObject);
+        VAR_DECR_REF(RuntimeError);
+        VAR_DECR_REF(ParserError);
+        VAR_DECR_REF(SystemError);
 }
 

@@ -62,9 +62,11 @@ static size_t var_nalloc = 0;
 static void
 var_alloc_tell(void)
 {
+#if 0
         DBUG("%s: __gbl__ refcnt:     %d",  __FILE__, GlobalObject->v_refcnt);
         DBUG("%s: 'null' refcnt:      %d",  __FILE__, NullVar->v_refcnt);
         DBUG("%s: ErrorVar refcnt:    %d",  __FILE__, NullVar->v_refcnt);
+#endif
         DBUG("%s: #bytes outstanding: %lu", __FILE__, (long)var_alloc_size);
         DBUG("%s: #vars outstanding:  %lu", __FILE__, (long)var_nalloc);
 }
@@ -171,7 +173,7 @@ config_builtin_methods(const struct type_inittbl_t *tbl_arr,
  * data types which don't need to be visible outside their little
  * corner of the interpreter.
  * The major players are forward-declared in typedefs.h and added
- * to init_tbl[] below in moduleinit_var.
+ * to VAR_TYPES_TBL[] below in moduleinit_var.
  */
 void
 var_initialize_type(struct type_t *tp)
@@ -181,6 +183,23 @@ var_initialize_type(struct type_t *tp)
                 config_builtin_methods(tp->cbm, tp->methods);
 }
 
+static struct type_t *const VAR_TYPES_TBL[] = {
+        &ArrayType,
+        &EmptyType,
+        &FloatType,
+        &FunctionType,
+        &MethodType,
+        &IntType,
+        &XptrType,
+        &DictType,
+        &StringType,
+        &BytesType,
+        &RangeType,
+        &UuidptrType,
+        &FileType,
+        NULL,
+};
+
 /*
  * see main.c - this must be after all the typedef code
  * has had their moduleinit functions called, or it will fail.
@@ -188,30 +207,39 @@ var_initialize_type(struct type_t *tp)
 void
 moduleinit_var(void)
 {
-        static struct type_t *const init_tbl[] = {
-                &ArrayType,
-                &EmptyType,
-                &FloatType,
-                &FunctionType,
-                &MethodType,
-                &IntType,
-                &XptrType,
-                &DictType,
-                &StringType,
-                &BytesType,
-                &RangeType,
-                &UuidptrType,
-                &FileType,
-                NULL,
-        };
-
         int i;
-        for (i = 0; init_tbl[i] != NULL; i++)
-                var_initialize_type(init_tbl[i]);
+        for (i = 0; VAR_TYPES_TBL[i] != NULL; i++)
+                var_initialize_type(VAR_TYPES_TBL[i]);
 
 #if REPORT_VARS_ON_EXIT
         atexit(var_alloc_tell);
 #endif
+}
+
+void
+moduledeinit_var(void)
+{
+        int i;
+        for (i = 0; VAR_TYPES_TBL[i] != NULL; i++) {
+                struct type_t *tp = VAR_TYPES_TBL[i];
+                VAR_DECR_REF(tp->methods);
+                tp->methods = NULL;
+        }
+
+        /*
+         * Do this outside of above pass, since some vars may
+         * get added to freelist on later 'i'
+         */
+        for (i = 0; VAR_TYPES_TBL[i] != NULL; i++) {
+                struct type_t *tp = VAR_TYPES_TBL[i];
+                while (tp->freelist != NULL) {
+                        struct var_mem_t *vm = tp->freelist;
+                        tp->freelist = vm->list;
+                        efree(vm);
+                        tp->n_freelist--;
+                }
+                bug_on(tp->n_freelist != 0);
+        }
 }
 
 /**

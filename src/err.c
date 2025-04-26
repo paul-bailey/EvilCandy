@@ -17,25 +17,67 @@
  */
 #define COLOR(what, str)      COLOR_##what str COLOR_DEF
 
-static char *msg_last = NULL;
 static Object *exception_last = NULL;
 
-static void
-replace_exception(Object *newexc, char *newmsg)
+static bool
+isvar_exception(Object *v)
 {
-        if (msg_last)
-                efree(msg_last);
+        return isvar_tuple(v) && seqvar_size(v) == 2;
+}
+
+/*
+ * XXX: I should just create an ExceptionType object,
+ * but is that overkill?
+ */
+/* this consume references for args if they are Objects */
+static Object *
+mkexception(char *fmt, void *exc_arg, void *msg_arg)
+{
+        Object *tup;
+        int i;
+        void *args[2] = { exc_arg, msg_arg };
+
+        bug_on(strlen(fmt) != 2);
+        tup = tuplevar_new(2);
+        for (i = 0; i < 2; i++) {
+                Object *tmp;
+                switch (fmt[i]) {
+                case 's':
+                        tmp = stringvar_new((char *)args[i]);
+                        array_setitem(tup, i, tmp);
+                        VAR_DECR_REF(tmp);
+                        break;
+                case 'S':
+                        array_setitem(tup, i, (Object *)args[i]);
+                        VAR_DECR_REF((Object *)args[i]);
+                        break;
+                case 'O':
+                        tmp = (Object *)args[i];
+                        if (!isvar_string(tmp))
+                                tmp = var_str(tmp);
+
+                        array_setitem(tup, i, tmp);
+                        VAR_DECR_REF(tmp);
+                        if (tmp != (Object *)args[i])
+                                VAR_DECR_REF((Object *)args[i]);
+                        break;
+                default:
+                        bug();
+                }
+        }
+        return tup;
+}
+
+static void
+replace_exception(Object *newexc)
+{
         if (exception_last)
                 VAR_DECR_REF(exception_last);
 
-        /* make sure these persist */
-        if (newmsg)
-                newmsg = estrdup(newmsg);
         if (newexc)
                 VAR_INCR_REF(newexc);
 
         exception_last = newexc;
-        msg_last = newmsg;
 }
 
 /* helper to bug__ and breakpoint__ */
@@ -93,11 +135,13 @@ err_vsetstr(Object *exc, const char *msg, va_list ap)
 {
         char msg_buf[100];
         size_t len = sizeof(msg_buf);
+        Object *new_exc;
         memset(msg_buf, 0, len);
 
         vsnprintf(msg_buf, len - 1, msg, ap);
 
-        replace_exception(exc, msg_buf);
+        new_exc = mkexception("Os", exc, msg_buf);
+        replace_exception(new_exc);
 }
 
 void
@@ -126,48 +170,39 @@ err_setstr(Object *exc, const char *msg, ...)
  *       in which RuntimeError is assumed to be the value).
  */
 void
-err_setexc(Object *exc)
+err_set_from_user(Object *exc)
 {
         if (!isvar_tuple(exc)) {
-                Object *tmp = tuplevar_new(2);
+                Object *tmp;
                 if (isvar_int(exc)) {
-                        array_setitem(tmp, 0, exc);
-                        array_setitem(tmp, 0, NullVar);
+                        VAR_INCR_REF(NullVar);
+                        tmp = mkexception("OO", exc, NullVar);
                 } else if (isvar_string(exc)) {
                         /*
                          * XXX more likely 'throw "some message"',
                          *     but possible 'throw RuntimeError',
                          *     which is also a string.
                          */
-                        array_setitem(tmp, 0, RuntimeError);
-                        array_setitem(tmp, 1, exc);
+                        VAR_INCR_REF(RuntimeError);
+                        tmp = mkexception("SS", RuntimeError, exc);
                 } else {
                         goto invalid;
                 }
                 VAR_DECR_REF(exc);
                 exc = tmp;
-        }
-
-        if (seqvar_size(exc) != 2)
+        } else if (seqvar_size(exc) != 2) {
                 goto invalid;
-
-        Object *v = array_getitem(exc, 0);
-        Object *s = array_getitem(exc, 1);
-        if (!isvar_string(v)) {
-                Object *vs = var_str(v);
-                VAR_DECR_REF(v);
-                v = vs;
-        }
-        if (!isvar_string(s)) {
-                Object *vs = var_str(s);
-                VAR_DECR_REF(s);
-                s = vs;
+        } else {
+                /* exc might not be all strings, stringify it */
+                Object *tmp;
+                Object *v1 = array_getitem(exc, 0);
+                Object *v2 = array_getitem(exc, 1);
+                tmp = mkexception("OO", v1, v2);
+                VAR_DECR_REF(exc);
+                exc = tmp;
         }
 
-        replace_exception(v, string_get_cstring(s));
-
-        VAR_DECR_REF(s);
-        VAR_DECR_REF(exc);
+        replace_exception(exc);
         return;
 
 invalid:
@@ -178,65 +213,55 @@ invalid:
 /*
  * If *msg is non-NULL, calling code is responsible for calling free().
  */
-void
-err_get(Object **exc, char **msg)
-{
-        *exc = exception_last;
-        *msg = estrdup(msg_last);
-        VAR_INCR_REF(exception_last);
-        replace_exception(NULL, NULL);
-}
-
-/**
- * Get error as a tuple res[0] is the exception value, res[1] is the message
- */
 Object *
-err_get_tup(void)
+err_get(void)
 {
-        Object *tup, *msg, *exc;
-        char *cmsg;
-
-        if (!err_occurred())
-                return NULL;
-
-        err_get(&exc, &cmsg);
-        msg = cmsg ? stringvar_nocopy(cmsg) : stringvar_new("");
-        tup = tuplevar_new(2);
-        array_setitem(tup, 0, exc);
-        array_setitem(tup, 1, msg);
-        return tup;
+        Object *ret = exception_last;
+        VAR_INCR_REF(exception_last);
+        replace_exception(NULL);
+        return ret;
 }
 
 void
-err_print(FILE *fp, Object *exc, char *msg)
+err_print(FILE *fp, Object *exc)
 {
-        char *errtype;
+        char *errval, *errmsg;
         bool tty;
+        Object *v, *msg;
 
-        if (!exc || !msg)
+        if (!exc)
                 return;
 
-        errtype = string_get_cstring(exc);
-        bug_on(!errtype);
+        bug_on(!isvar_exception(exc));
+
+        v   = array_getitem(exc, 0);
+        msg = array_getitem(exc, 1);
+
+        bug_on(!isvar_string(v));
+        bug_on(!isvar_string(msg));
+
+        errval = string_get_cstring(v);
+        errmsg = string_get_cstring(msg);
+
         tty = !!isatty(fileno(fp));
 
         fprintf(fp, "[EvilCandy] %s%s%s %s\n",
-                tty ? COLOR_RED : "",
-                errtype,
-                tty ? COLOR_DEF : "",
-                msg);
+                tty ? COLOR_RED : "", errval,
+                tty ? COLOR_DEF : "", errmsg);
 }
 
-/* print last error and clear it */
+/* get last error, print it, then clear it */
 void
 err_print_last(FILE *fp)
 {
-        char *emsg;
         Object *exc;
-        err_get(&exc, &emsg);
-        err_print(fp, exc, emsg);
-        if (emsg)
-                efree(emsg);
+
+        if(!err_occurred())
+                return;
+
+        exc = err_get();
+        err_print(fp, exc);
+        VAR_DECR_REF(exc);
 }
 
 /*
@@ -319,7 +344,7 @@ err_occurred(void)
 void
 err_clear(void)
 {
-        replace_exception(NULL, NULL);
+        replace_exception(NULL);
 }
 
 /*

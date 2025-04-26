@@ -45,10 +45,9 @@ extern Object *assemble(const char *filename,
 /* err.c */
 extern void fail(const char *msg, ...);
 extern void err_setstr(Object *exc, const char *msg, ...);
-extern void err_setexc(Object *exc);
-extern void err_get(Object **exc, char **msg);
-extern Object *err_get_tup(void);
-extern void err_print(FILE *fp, Object *exc, char *msg);
+extern void err_set_from_user(Object *exc);
+extern Object *err_get(void);
+extern void err_print(FILE *fp, Object *exc);
 extern void err_print_last(FILE *fp);
 extern bool err_occurred(void);
 extern void err_clear(void);

@@ -824,7 +824,7 @@ static int
 do_throw(Frame *fr, instruction_t ii)
 {
         Object *exc = pop(fr);
-        err_setexc(exc);
+        err_set_from_user(exc);
         return RES_EXCEPTION;
 }
 
@@ -1078,7 +1078,7 @@ execute_loop(Frame *fr)
                          * to handler.
                          */
                         vmframe_unwind_block(fr, bl);
-                        tup = err_get_tup();
+                        tup = err_get();
                         bug_on(!tup);
                         push(fr, tup);
                         fr->ppii = bl->jmpto;

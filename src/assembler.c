@@ -2107,15 +2107,12 @@ free_assembler(struct assemble_t *a, int err)
 static void
 assemble_splash_error(struct assemble_t *a)
 {
-        char *emsg;
-        Object *exc;
         int col;
         char *line = NULL;
 
-        err_get(&exc, &emsg);
-        bug_on(!exc || !emsg);
-        err_print(stderr, exc, emsg);
-        efree(emsg);
+        bug_on(!err_occurred());
+
+        err_print_last(stderr);
         fprintf(stderr, "in file '%s' near line '%d'\n",
                 a->file_name, a->oc->line);
         line = token_get_this_line(a->prog, &col);

@@ -278,7 +278,7 @@ get_tok_number(struct token_state_t *state)
         int ret;
 
         if (get_tok_int_hdr(state))
-                return 'i';
+                return OC_INTEGER;
 
         pc = start = state->s;
 
@@ -288,9 +288,9 @@ get_tok_number(struct token_state_t *state)
         if (pc == start)
                 return 0;
 
-        ret = 'i';
+        ret = OC_INTEGER;
         if (*pc == '.' || *pc == 'e' || *pc == 'E') {
-                ret = 'f';
+                ret = OC_FLOAT;
                 if (*pc == '.')
                         ++pc;
                 while (isdigit(*pc))
@@ -647,16 +647,16 @@ tokenize_helper(struct token_state_t *state)
                         do {
                                 ret = skip_whitespace(state);
                         } while (ret != OC_EOF && get_tok_string(state));
-                        return 'q';
+                        return OC_STRING;
                 } else if (get_tok_bytes(state)) {
                         do {
                                 ret = skip_whitespace(state);
                         } while (ret != OC_EOF && get_tok_bytes(state));
-                        return 'b';
+                        return OC_BYTES;
                 } else if (get_tok_identifier(state)) {
                         if ((ret = tok_kw_seek(tok->s)) >= 0)
                                 return ret;
-                        return 'u';
+                        return OC_IDENTIFIER;
                 } else if ((ret = get_tok_number(state)) != 0) {
                         return ret;
                 }
@@ -706,7 +706,7 @@ tokenize(struct token_state_t *state)
                         oc.v = intvar_new(0);
                         intern = true;
                         break;
-                case 'b':
+                case OC_BYTES:
                         oc.v = bytesvar_from_source(state->tok.s);
                         if (oc.v == ErrorVar) {
                                 err_setstr(ParserError,
@@ -716,23 +716,23 @@ tokenize(struct token_state_t *state)
                                 ret = RES_ERROR;
                         }
                         break;
-                case 'i':
+                case OC_INTEGER:
                     {
                         long long i = strtoul(state->tok.s, NULL, 0);
                         oc.v = intvar_new(i);
                         break;
                     }
-                case 'f':
+                case OC_FLOAT:
                     {
                         double f = strtod(state->tok.s, NULL);
                         oc.v = floatvar_new(f);
                         break;
                     }
-                case 'u':
+                case OC_IDENTIFIER:
                         /* FIXME: will need to de-dup this */
                         oc.v = stringvar_new(state->tok.s);
                         break;
-                case 'q':
+                case OC_STRING:
                         oc.v = stringvar_from_source(state->tok.s, true);
                         if (oc.v == ErrorVar) {
                                 err_setstr(ParserError,
@@ -818,6 +818,7 @@ get_tok(struct token_state_t *state, struct token_t **tok)
 
 done:
         *tok = cur;
+        bug_on(cur->t == 0 || (cur->t >= OC_NTOK));
         return cur->t;
 }
 

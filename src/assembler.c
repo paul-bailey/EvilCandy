@@ -585,7 +585,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                         closure = true;
                         as_lex(a);
                 }
-                if (a->oc->t != 'u') {
+                if (a->oc->t != OC_IDENTIFIER) {
                         err_setstr(ParserError,
                                 "Function argument is not an identifier");
                         as_err(a, AE_GEN);
@@ -706,7 +706,8 @@ assemble_objdef(struct assemble_t *a)
                         attrarg = IARG_ATTR_STACK;
                         assemble_expr(a);
                         as_errlex(a, OC_RBRACK);
-                } else if (a->oc->t == 'u' || a->oc->t == 'q') {
+                } else if (a->oc->t == OC_IDENTIFIER
+                           || a->oc->t == OC_STRING) {
                         /* key is literal text */
                         attrarg = IARG_ATTR_CONST;
                         namei = seek_or_add_const(a, a->oc);
@@ -848,17 +849,17 @@ static void
 assemble_expr_atomic(struct assemble_t *a)
 {
         switch (a->oc->t) {
-        case 'u': {
+        case OC_IDENTIFIER: {
                 struct token_t namesav;
                 token_pos_t pos = as_savetok(a, &namesav);
                 ainstr_load_symbol(a, &namesav, pos);
                 break;
         }
 
-        case 'i':
-        case 'b':
-        case 'f':
-        case 'q':
+        case OC_INTEGER:
+        case OC_BYTES:
+        case OC_FLOAT:
+        case OC_STRING:
         case OC_TRUE:
         case OC_FALSE:
                 ainstr_load_const(a, a->oc);
@@ -909,13 +910,15 @@ assemble_expr8(struct assemble_t *a)
 
         assemble_expr_atomic(a);
 
-        while (!!(a->oc->t & TF_INDIRECT)) {
+        while (a->oc->t == OC_PER ||
+               a->oc->t == OC_LPAR ||
+               a->oc->t == OC_LBRACK) {
                 int namei;
                 struct token_t name;
 
                 switch (a->oc->t) {
                 case OC_PER:
-                        as_errlex(a, 'u');
+                        as_errlex(a, OC_IDENTIFIER);
                         namei = seek_or_add_const(a, a->oc);
                         GETATTR_SHIFT(IARG_ATTR_CONST, namei);
                         break;
@@ -923,8 +926,8 @@ assemble_expr8(struct assemble_t *a)
                 case OC_LBRACK:
                         as_lex(a);
                         switch (a->oc->t) {
-                        case 'q':
-                        case 'i':
+                        case OC_STRING:
+                        case OC_INTEGER:
                                 /*
                                  * same optimization check as in
                                  * assemble_ident_helper
@@ -938,7 +941,7 @@ assemble_expr8(struct assemble_t *a)
                                 }
                                 as_unlex(a);
                                 /* expression, fall through */
-                        case 'u':
+                        case OC_IDENTIFIER:
                         case OC_LPAR:
                                 /* need to evaluate index */
                                 as_unlex(a);
@@ -967,7 +970,10 @@ assemble_expr8(struct assemble_t *a)
 static void
 assemble_expr7(struct assemble_t *a)
 {
-        if (!!(a->oc->t & TF_UNARY)) {
+        if (a->oc->t == OC_PLUS ||
+            a->oc->t == OC_MINUS ||
+            a->oc->t == OC_EXCLAIM ||
+            a->oc->t == OC_TILDE) {
                 int op, t = a->oc->t;
                 if (t == OC_TILDE)
                         op = INSTR_BITWISE_NOT;
@@ -1004,7 +1010,9 @@ static void
 assemble_expr6(struct assemble_t *a)
 {
         assemble_expr6_2(a);
-        while (!!(a->oc->t & TF_MULDIVMOD)) {
+        while (a->oc->t == OC_MUL ||
+               a->oc->t == OC_DIV ||
+               a->oc->t == OC_MOD) {
                 int op;
                 if (a->oc->t == OC_MUL)
                         op = INSTR_MUL;
@@ -1056,7 +1064,12 @@ static void
 assemble_expr3(struct assemble_t *a)
 {
         assemble_expr4(a);
-        while (!!(a->oc->t & TF_RELATIONAL)) {
+        while (a->oc->t == OC_GT ||
+               a->oc->t == OC_LT ||
+               a->oc->t == OC_EQEQ ||
+               a->oc->t == OC_LEQ ||
+               a->oc->t == OC_GEQ ||
+               a->oc->t == OC_NEQ) {
                 int cmp;
                 switch (a->oc->t) {
                 case OC_EQEQ:
@@ -1092,7 +1105,9 @@ static void
 assemble_expr2(struct assemble_t *a)
 {
         assemble_expr3(a);
-        while (!!(a->oc->t & TF_BITWISE)) {
+        while (a->oc->t == OC_AND ||
+               a->oc->t == OC_OR ||
+               a->oc->t == OC_XOR) {
                 int op;
                 if (a->oc->t == OC_AND) {
                         op = INSTR_BINARY_AND;
@@ -1112,7 +1127,8 @@ assemble_expr1(struct assemble_t *a)
 {
         assemble_expr2(a);
 
-        while (!!(a->oc->t & TF_LOGICAL)) {
+        while (a->oc->t == OC_ANDAND ||
+               a->oc->t == OC_OROR) {
                 int code = a->oc->t == OC_OROR
                         ? INSTR_LOGICAL_OR : INSTR_LOGICAL_AND;
 
@@ -1188,7 +1204,7 @@ assemble_preassign(struct assemble_t *a, int t)
                 break;
 
         default:
-                bug_on(t == OC_EQ || !(t & TF_ASSIGN));
+                bug_on(t == OC_EQ || !isassign_tok(t));
                 assemble_expr(a);
                 add_instr(a, asgntok2instr(t), 0, 0);
         }
@@ -1241,7 +1257,7 @@ assemble_ident_helper(struct assemble_t *a)
 #define SETATTR_SHIFT_IF_ASGN(arg1, arg2)                               \
                 do {                                                    \
                         int t_ = as_lex(a);                             \
-                        if (!!(t_ & TF_ASSIGN)) {                       \
+                        if (isassign_tok(t_)) {                         \
                                 SETATTR_SHIFT(arg1, arg2);              \
                                 goto done;                              \
                         }                                               \
@@ -1255,7 +1271,7 @@ assemble_ident_helper(struct assemble_t *a)
 
                 switch (a->oc->t) {
                 case OC_PER:
-                        as_errlex(a, 'u');
+                        as_errlex(a, OC_IDENTIFIER);
                         namei = seek_or_add_const(a, a->oc);
                         GETSETATTR_SHIFT(IARG_ATTR_CONST, namei);
                         break;
@@ -1263,8 +1279,8 @@ assemble_ident_helper(struct assemble_t *a)
                 case OC_LBRACK:
                         as_lex(a);
                         switch (a->oc->t) {
-                        case 'q':
-                        case 'i':
+                        case OC_STRING:
+                        case OC_INTEGER:
                                 /*
                                  * Try to optimize... "[" + LITERAL could
                                  * hypothetically be something weird like
@@ -1288,7 +1304,7 @@ assemble_ident_helper(struct assemble_t *a)
                                 as_unlex(a);
                                 /* ...the 1% scenario, fall through and eval */
 
-                        case 'u':
+                        case OC_IDENTIFIER:
                         case OC_LPAR:
                                 /* need to evaluate index */
                                 as_unlex(a);
@@ -1303,7 +1319,7 @@ assemble_ident_helper(struct assemble_t *a)
                         default:
                                 /*
                                  * XXX REVISIT:
-                                 *    - I don't allow 'f', because subscript must
+                                 *    - I don't allow OC_FLOAT, because subscript must
                                  *      be an integer (if array) or string (if a
                                  *      dictionary).  A float's .toint method cannot
                                  *      be accessed from the literal expression
@@ -1380,7 +1396,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 assemble_expr(a);
                 ainstr_load_or_assign(a, &name, INSTR_ASSIGN, pos);
-        } else if (!!(a->oc->t & TF_ASSIGN)) {
+        } else if (isassign_tok(a->oc->t)) {
                 /*
                  * x++;
                  * x += value;
@@ -1436,7 +1452,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         }
 
         as_lex(a);
-        if (a->oc->t != 'u') {
+        if (a->oc->t != OC_IDENTIFIER) {
                 char *what = tok == OC_LET ? "let" : "global";
                 err_setstr(ParserError,
                            "'%s' must be followed by an identifier", what);
@@ -1504,7 +1520,7 @@ assemble_try(struct assemble_t *a)
                 apush_scope(a);
 
                 as_errlex(a, OC_LPAR);
-                as_errlex(a, 'u');
+                as_errlex(a, OC_IDENTIFIER);
                 as_savetok(a, &exctok);
                 as_errlex(a, OC_RPAR);
                 /*
@@ -1628,7 +1644,7 @@ assemble_foreach(struct assemble_t *a)
         apush_scope(a);
 
         /* save name of the 'needle' in 'for(needle, haystack)' */
-        as_errlex(a, 'u');
+        as_errlex(a, OC_IDENTIFIER);
         as_savetok(a, &needletok);
 
         as_errlex(a, OC_COMMA);
@@ -1739,7 +1755,7 @@ assemble_for(struct assemble_t *a)
          */
         as_errlex(a, OC_LPAR);
         as_lex(a);
-        if (a->oc->t == 'u') {
+        if (a->oc->t == OC_IDENTIFIER) {
                 as_lex(a);
                 if (a->oc->t == OC_COMMA) {
                         /*
@@ -1812,7 +1828,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         switch (a->oc->t) {
         case OC_EOF:
                 return;
-        case 'u':
+        case OC_IDENTIFIER:
                 assemble_identifier(a, flags);
                 break;
         case OC_THIS:

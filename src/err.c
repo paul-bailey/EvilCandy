@@ -195,7 +195,10 @@ err_set_from_user(Object *exc)
                 } else {
                         goto invalid;
                 }
-                VAR_DECR_REF(exc);
+                /*
+                 * Do not consume @exc's reference here.
+                 * The mkexception calls above did that for us.
+                 */
                 exc = tmp;
         } else if (exception_validate(exc) != RES_OK) {
                 if (seqvar_size(exc) != 2)

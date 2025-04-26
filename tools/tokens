@@ -1,3 +1,20 @@
+#
+# Tokens definition for EvilCandy
+# Each line is 1 to 3 expressions:  ENUM [REPRESENTATION] [TAGS]
+#
+# ENUM  is the enueration of the token, minus the OC_ prefix
+# REPRESENTATION is how the token is literally written.  Wrap this in
+#       single quotes if it's a 1-3 character token.  Wrap it in double
+#       quotes if it's a keyword.  Leave blank for anything else
+# TAGS takes the form of 'tag1|tag2|tag3...'  Do not leave spaces in the
+#       middle; tokgen will not know how to parse that.  These are used
+#       to group tokens into families, for generating helper functions
+#       of the form 'int istok_XXXX(int t);' where XXXX is the name of
+#       the tag.  Use the '|' for any entries that have more than one tag.
+#
+#         (''=delim ""=keyword)
+# ENUM      REPRESENTATION        TAGS
+# ----    ---------------------   ----
 PLUS            '+'             unarypre
 MINUS           '-'             unarypre
 GT              '>'             compare
@@ -61,6 +78,7 @@ TRY             "try"
 CATCH           "catch"
 FINALLY         "finally"
 NULL            "null"
+THROW           "throw"
 EOF
 STRING
 BYTES

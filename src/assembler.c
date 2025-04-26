@@ -1766,6 +1766,13 @@ assemble_for(struct assemble_t *a)
         assemble_for_cstyle(a);
 }
 
+static void
+assemble_throw(struct assemble_t *a)
+{
+        assemble_expr(a);
+        add_instr(a, INSTR_THROW, 0, 0);
+}
+
 /*
  * parse '{' stmt; stmt;... '}'
  * The first '{' has already been read.
@@ -1864,6 +1871,9 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 break;
         case OC_CONTINUE:
                 add_instr(a, INSTR_CONTINUE, 0, 0);
+                break;
+        case OC_THROW:
+                assemble_throw(a);
                 break;
         case OC_TRY:
                 assemble_try(a);

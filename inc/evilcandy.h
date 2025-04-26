@@ -45,9 +45,9 @@ extern Object *assemble(const char *filename,
 /* err.c */
 extern void fail(const char *msg, ...);
 extern void err_setstr(Object *exc, const char *msg, ...);
+extern void err_setexc(Object *exc);
 extern void err_get(Object **exc, char **msg);
 extern Object *err_get_tup(void);
-extern bool err_exists(void);
 extern void err_print(FILE *fp, Object *exc, char *msg);
 extern void err_print_last(FILE *fp);
 extern bool err_occurred(void);

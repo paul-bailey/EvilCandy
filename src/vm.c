@@ -821,6 +821,14 @@ do_b(Frame *fr, instruction_t ii)
 }
 
 static int
+do_throw(Frame *fr, instruction_t ii)
+{
+        Object *exc = pop(fr);
+        err_setexc(exc);
+        return RES_EXCEPTION;
+}
+
+static int
 do_bitwise_not(Frame *fr, instruction_t ii)
 {
         return unary_op_common(fr, qop_bit_not);
@@ -1042,6 +1050,7 @@ execute_loop(Frame *fr)
                          */
                         goto out;
                 } else {
+                        /* res should be either RES_ERROR or RES_EXCEPTION */
                         Object *tup;
                         struct block_t *bl;
 
@@ -1050,8 +1059,6 @@ execute_loop(Frame *fr)
                                            "instruction %hhd:%hhd:%hd unreported error",
                                            ii.code, ii.arg1, ii.arg2);
                         }
-
-                        /* res neither 0 nor RES_RETURN, it's an error or exception */
 
                         bl = NULL;
                         while (fr->n_blocks > 0) {
@@ -1066,7 +1073,7 @@ execute_loop(Frame *fr)
                         }
 
                         /*
-                         * still here, we have an exception handler
+                         * Still here, we have an exception handler.
                          * Unwind stack, push exception onto it, branch
                          * to handler.
                          */

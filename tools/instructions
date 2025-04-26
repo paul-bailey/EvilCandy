@@ -140,6 +140,9 @@ SETATTR
 FOREACH_SETUP
 FOREACH_ITER
 
+# Stack top should have either a tuple, integer, or string.
+THROW
+
 # The usu. branching instructions.  arg2. is (signed) how far to branch.
 # since arg2 is 16 bits, instruction may only jump forward 32767
 # instructions and backward -32768 instructions.  If that's not enough,

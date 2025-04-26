@@ -20,6 +20,24 @@
 static char *msg_last = NULL;
 static Object *exception_last = NULL;
 
+static void
+replace_exception(Object *newexc, char *newmsg)
+{
+        if (msg_last)
+                efree(msg_last);
+        if (exception_last)
+                VAR_DECR_REF(exception_last);
+
+        /* make sure these persist */
+        if (newmsg)
+                newmsg = estrdup(newmsg);
+        if (newexc)
+                VAR_INCR_REF(newexc);
+
+        exception_last = newexc;
+        msg_last = newmsg;
+}
+
 /* helper to bug__ and breakpoint__ */
 static void
 trap(const char *what, const char *file, int line)
@@ -78,10 +96,8 @@ err_vsetstr(Object *exc, const char *msg, va_list ap)
         memset(msg_buf, 0, len);
 
         vsnprintf(msg_buf, len - 1, msg, ap);
-        if (msg_last)
-                efree(msg_last);
-        msg_last = estrdup(msg_buf);
-        exception_last = exc;
+
+        replace_exception(exc, msg_buf);
 }
 
 void
@@ -102,19 +118,73 @@ err_setstr(Object *exc, const char *msg, ...)
 }
 
 /*
+ * err_setexc - Like err_setstr, except pass a tuple
+ * @exc: Exception to set.  (The reference for this will be consumed.)
+ *       This must be either a tuple containing two printable objects
+ *       (to interpret as value and message, in that order), an integer
+ *       (which will be regarded as the value), or a string (the message,
+ *       in which RuntimeError is assumed to be the value).
+ */
+void
+err_setexc(Object *exc)
+{
+        if (!isvar_tuple(exc)) {
+                Object *tmp = tuplevar_new(2);
+                if (isvar_int(exc)) {
+                        array_setitem(tmp, 0, exc);
+                        array_setitem(tmp, 0, NullVar);
+                } else if (isvar_string(exc)) {
+                        /*
+                         * XXX more likely 'throw "some message"',
+                         *     but possible 'throw RuntimeError',
+                         *     which is also a string.
+                         */
+                        array_setitem(tmp, 0, RuntimeError);
+                        array_setitem(tmp, 1, exc);
+                } else {
+                        goto invalid;
+                }
+                VAR_DECR_REF(exc);
+                exc = tmp;
+        }
+
+        if (seqvar_size(exc) != 2)
+                goto invalid;
+
+        Object *v = array_getitem(exc, 0);
+        Object *s = array_getitem(exc, 1);
+        if (!isvar_string(v)) {
+                Object *vs = var_str(v);
+                VAR_DECR_REF(v);
+                v = vs;
+        }
+        if (!isvar_string(s)) {
+                Object *vs = var_str(s);
+                VAR_DECR_REF(s);
+                s = vs;
+        }
+
+        replace_exception(v, string_get_cstring(s));
+
+        VAR_DECR_REF(s);
+        VAR_DECR_REF(exc);
+        return;
+
+invalid:
+        err_setstr(RuntimeError, "Throwing invalid exception");
+        VAR_DECR_REF(exc);
+}
+
+/*
  * If *msg is non-NULL, calling code is responsible for calling free().
  */
 void
 err_get(Object **exc, char **msg)
 {
         *exc = exception_last;
-        *msg = msg_last;
-        /*
-         * Don't decrement the reference.
-         * exc is a global exception object
-         */
-        exception_last = NULL;
-        msg_last = NULL;
+        *msg = estrdup(msg_last);
+        VAR_INCR_REF(exception_last);
+        replace_exception(NULL, NULL);
 }
 
 /**
@@ -123,25 +193,18 @@ err_get(Object **exc, char **msg)
 Object *
 err_get_tup(void)
 {
-        Object *tup, *msg;
+        Object *tup, *msg, *exc;
+        char *cmsg;
 
         if (!err_occurred())
                 return NULL;
 
-        msg = msg_last ? stringvar_nocopy(msg_last) : stringvar_new("");
+        err_get(&exc, &cmsg);
+        msg = cmsg ? stringvar_nocopy(cmsg) : stringvar_new("");
         tup = tuplevar_new(2);
-        array_setitem(tup, 0, exception_last);
+        array_setitem(tup, 0, exc);
         array_setitem(tup, 1, msg);
-
-        exception_last = NULL;
-        msg_last = NULL;
         return tup;
-}
-
-bool
-err_exists(void)
-{
-        return exception_last != NULL;
 }
 
 void
@@ -256,10 +319,7 @@ err_occurred(void)
 void
 err_clear(void)
 {
-        if (msg_last)
-                efree(msg_last);
-        exception_last = NULL;
-        msg_last = NULL;
+        replace_exception(NULL, NULL);
 }
 
 /*

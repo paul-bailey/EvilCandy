@@ -16,11 +16,16 @@ src/builtin/.*.swp
 /configure
 /config.status
 /config.log
+
+# generated programs
 /evilcandy
 /tools/gen
+/tools/tokgen
 
 # files created by tools/gen
 /*/*_gen.c.h
+/inc/*_gen.h
+/src/*_gen.c
 /inc/instruction_defs.h
 
 # Stuff I sometimes want to keep in local copy

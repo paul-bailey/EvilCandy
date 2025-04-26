@@ -1001,3 +1001,4 @@ token_get_this_line(struct token_state_t *state, int *col)
         *col = state->col;
         return state->line;
 }
+

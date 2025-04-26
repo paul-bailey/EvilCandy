@@ -326,8 +326,8 @@ as_errlex(struct assemble_t *a, int exp)
         if (a->oc->t != exp) {
                 /* TODO: replace 'exp' with a string representation */
                 err_setstr(ParserError,
-                           "file '%s' line '%d': expected %X-class token but got '%s'",
-                           a->file_name, a->oc->line, exp, a->oc->s);
+                           "file '%s' line '%d': expected %s but got '%s'",
+                           a->file_name, a->oc->line, token_name(exp), a->oc->s);
                 as_err(a, AE_EXPECT);
         }
         return a->oc->t;

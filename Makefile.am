@@ -21,6 +21,7 @@ evilcandy_SOURCES = \
         src/path.c \
         src/serializer.c \
         src/token.c \
+        src/token_name.c \
         src/uuid.c \
         src/var.c \
         src/vm.c \

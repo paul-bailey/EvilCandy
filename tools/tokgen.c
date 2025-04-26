@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define CHECK_TRIE_ALLOC 0
+
 /* XXX: Why so stingy? We're not building this on a Casio */
 #define MAX_TOKENS      256
 #define MAX_TAGS        128
@@ -24,7 +26,16 @@ struct token_t {
         enum { KEYWORD, DELIMITER, OTHER } kind;
 };
 
-/* not even kidding */
+/*
+ * Not even kidding!!
+ *
+ * Since delimiter-type tokens can be up to three characters long, and
+ * since we aren't doing any bitwise tricks or breaking it down into
+ * nybbles or things like that, this could hypothetically explode into
+ * a panic-inducing >3 gigabytes!! (((128-32) * 16) ** 3).
+ *
+ * But in practice it's a rather pedestrian 20-30kB.
+ */
 struct trie_t {
         struct trie_t **next;
         char *value;
@@ -36,6 +47,10 @@ enum {
         MIN_DELIM       = 32,
         N_TRIES_PER     = 128 - MIN_DELIM,
 };
+
+#if CHECK_TRIE_ALLOC
+static unsigned long trie_alloc = 0;
+#endif
 
 static char *token_tags[MAX_TAGS];
 static int token_ntags = 0;
@@ -59,6 +74,9 @@ insert_delimtrie(char *tokname, char *repr)
                 }
 
                 if (!trie->next) {
+#if CHECK_TRIE_ALLOC
+                        trie_alloc += N_TRIES_PER;
+#endif
                         trie->next = calloc(N_TRIES_PER, sizeof(*trie));
                         if (!trie->next)
                                 oom();
@@ -66,6 +84,9 @@ insert_delimtrie(char *tokname, char *repr)
 
                 nexttrie = trie->next[i];
                 if (!nexttrie) {
+#if CHECK_TRIE_ALLOC
+                        trie_alloc++;
+#endif
                         nexttrie = malloc(sizeof(*nexttrie));
                         if (!nexttrie)
                                 oom();
@@ -251,6 +272,10 @@ get_token_defs(FILE *fp)
                         continue;
                 insert_delimtrie(t->tokname, t->repr);
         }
+#if CHECK_TRIE_ALLOC
+        fprintf(stderr, "#bytes allocated for trie: %llu\n",
+                (long long)trie_alloc * sizeof(struct trie_t));
+#endif /* CHECK_TRIE_ALLOC */
 }
 
 static bool

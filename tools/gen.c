@@ -1,3 +1,4 @@
+#include "gen.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -7,17 +8,11 @@
 
 static char buf[1024];
 
-static int
+static inline int
 istokchar(int c)
 {
         /* isdigit in case we add things like PUSH_3 */
         return isupper(c) || isdigit(c) || c == '_';
-}
-
-static int
-iseol(int c)
-{
-        return c == '#' || c == '\n' || c == '\0';
 }
 
 static char *

@@ -326,8 +326,8 @@ as_errlex(struct assemble_t *a, int exp)
         if (a->oc->t != exp) {
                 /* TODO: replace 'exp' with a string representation */
                 err_setstr(ParserError,
-                           "file '%s' line '%d': expected %s but got '%s'",
-                           a->file_name, a->oc->line, token_name(exp), a->oc->s);
+                           "expected '%s' but got '%s' ('%s')",
+                           token_name(exp), token_name(a->oc->t), a->oc->s);
                 as_err(a, AE_EXPECT);
         }
         return a->oc->t;
@@ -729,8 +729,6 @@ assemble_objdef(struct assemble_t *a)
         as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);
 }
 
-static void assemble_expr1(struct assemble_t *a);
-
 static void assemble_expr_atomic(struct assemble_t *a);
 
 /*
@@ -910,9 +908,7 @@ assemble_expr8(struct assemble_t *a)
 
         assemble_expr_atomic(a);
 
-        while (a->oc->t == OC_PER ||
-               a->oc->t == OC_LPAR ||
-               a->oc->t == OC_LBRACK) {
+        while (istok_indirection(a->oc->t)) {
                 int namei;
                 struct token_t name;
 
@@ -970,10 +966,7 @@ assemble_expr8(struct assemble_t *a)
 static void
 assemble_expr7(struct assemble_t *a)
 {
-        if (a->oc->t == OC_PLUS ||
-            a->oc->t == OC_MINUS ||
-            a->oc->t == OC_EXCLAIM ||
-            a->oc->t == OC_TILDE) {
+        if (istok_unarypre(a->oc->t)) {
                 int op, t = a->oc->t;
                 if (t == OC_TILDE)
                         op = INSTR_BITWISE_NOT;
@@ -1064,12 +1057,7 @@ static void
 assemble_expr3(struct assemble_t *a)
 {
         assemble_expr4(a);
-        while (a->oc->t == OC_GT ||
-               a->oc->t == OC_LT ||
-               a->oc->t == OC_EQEQ ||
-               a->oc->t == OC_LEQ ||
-               a->oc->t == OC_GEQ ||
-               a->oc->t == OC_NEQ) {
+        while (istok_compare(a->oc->t)) {
                 int cmp;
                 switch (a->oc->t) {
                 case OC_EQEQ:
@@ -1204,7 +1192,7 @@ assemble_preassign(struct assemble_t *a, int t)
                 break;
 
         default:
-                bug_on(t == OC_EQ || !isassign_tok(t));
+                bug_on(t == OC_EQ || !istok_assign(t));
                 assemble_expr(a);
                 add_instr(a, asgntok2instr(t), 0, 0);
         }
@@ -1257,7 +1245,7 @@ assemble_ident_helper(struct assemble_t *a)
 #define SETATTR_SHIFT_IF_ASGN(arg1, arg2)                               \
                 do {                                                    \
                         int t_ = as_lex(a);                             \
-                        if (isassign_tok(t_)) {                         \
+                        if (istok_assign(t_)) {                         \
                                 SETATTR_SHIFT(arg1, arg2);              \
                                 goto done;                              \
                         }                                               \
@@ -1396,7 +1384,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 assemble_expr(a);
                 ainstr_load_or_assign(a, &name, INSTR_ASSIGN, pos);
-        } else if (isassign_tok(a->oc->t)) {
+        } else if (istok_assign(a->oc->t)) {
                 /*
                  * x++;
                  * x += value;

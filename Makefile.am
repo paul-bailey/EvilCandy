@@ -1,7 +1,8 @@
 ACLOCAL_AMFLAGS = -I build/m4
 
-bin_PROGRAMS = tools/gen evilcandy
+bin_PROGRAMS = tools/tokgen tools/gen evilcandy
 
+tools_tokgen_SOURCES = tools/tokgen.c tools/genutil.c
 tools_gen_SOURCES = tools/gen.c
 tools_gen_CPPFLAGS = -I$(top_srcdir)/inc
 
@@ -21,7 +22,6 @@ evilcandy_SOURCES = \
         src/path.c \
         src/serializer.c \
         src/token.c \
-        src/token_name.c \
         src/uuid.c \
         src/var.c \
         src/vm.c \
@@ -54,17 +54,23 @@ evilcandy_DATA= \
 
 nodist_evilcandy_SOURCES = \
         inc/instruction_defs.h \
+        inc/token_gen.h \
         src/disassemble_gen.c.h \
+        src/tokutils_gen.c \
         src/vm_gen.c.h
 
 BUILT_SOURCES= \
         inc/instruction_defs.h \
+        inc/token_gen.h \
         src/disassemble_gen.c.h \
+        src/tokutils_gen.c \
         src/vm_gen.c.h
 
 CLEANFILES = \
         inc/instruction_defs.h \
+        inc/token_gen.h \
         src/disassemble_gen.c.h \
+        src/tokutils_gen.c \
         src/vm_gen.c.h
 
 src/disassemble_gen.c.h: tools/instructions tools/gen
@@ -72,6 +78,12 @@ src/disassemble_gen.c.h: tools/instructions tools/gen
 
 inc/instruction_defs.h: tools/instructions tools/gen
 	cat tools/instructions | tools/gen def > $@
+
+inc/token_gen.h: tools/tokens tools/tokgen
+	cat tools/tokens | tools/tokgen enum > $@
+
+src/tokutils_gen.c: tools/tokens tools/tokgen
+	cat tools/tokens | tools/tokgen util > $@
 
 src/vm_gen.c.h: tools/instructions tools/gen
 	cat tools/instructions | tools/gen jump > $@

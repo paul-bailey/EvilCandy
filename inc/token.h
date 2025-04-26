@@ -4,7 +4,9 @@
 #include <stdio.h> /* for FILE */
 
 #include "typedefs.h"
+#include "token_gen.h"
 
+#if 0
 enum {
         /*
          * If the token is not one of "fiuq",
@@ -83,7 +85,7 @@ enum {
         OC_FLOAT,       /* used to be 'f' */
         OC_NTOK
 };
-
+#endif /* 0 */
 /**
  * struct token_t - Token metadata
  * @t:          Type of token, an OC_* enum, or one of "fiuq"
@@ -107,28 +109,6 @@ struct token_state_t;
 
 typedef int token_pos_t;
 
-/*
- * our largest family of tokens, so just make an inline
- * function to check them all.
- */
-static inline int
-isassign_tok(int t)
-{
-        return t == OC_EQ ||
-               t == OC_PLUSPLUS ||
-               t == OC_MINUSMINUS ||
-               t == OC_PLUSEQ ||
-               t == OC_MINUSEQ ||
-               t == OC_MULEQ ||
-               t == OC_DIVEQ ||
-               t == OC_MODEQ ||
-               t == OC_XOREQ ||
-               t == OC_LSEQ ||
-               t == OC_RSEQ ||
-               t == OC_OREQ ||
-               t == OC_ANDEQ;
-}
-
 /* token.c */
 extern void token_state_trim(struct token_state_t *state);
 extern void token_state_free(struct token_state_t *state);
@@ -139,9 +119,6 @@ extern void unget_tok(struct token_state_t *state, struct token_t **tok);
 extern token_pos_t token_get_pos(struct token_state_t *state);
 extern token_pos_t token_swap_pos(struct token_state_t *state, token_pos_t pos);
 extern char *token_get_this_line(struct token_state_t *state, int *col);
-
-/* token_name.c */
-extern const char *token_name(int t);
 
 #endif /* EGQ_OPCODES_H */
 

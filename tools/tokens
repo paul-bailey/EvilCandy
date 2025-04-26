@@ -1,0 +1,69 @@
+PLUS            '+'             unarypre
+MINUS           '-'             unarypre
+GT              '>'             compare
+LT              '<'             compare
+EQ              '='             assign
+AND             '&'
+OR              '|'
+PER             '.'             indirection
+EXCLAIM         '!'             unarypre
+SEMI            ';'
+COMMA           ','
+DIV             '/'
+MUL             '*'
+POW             '**'
+MOD             '%'
+XOR             '^'
+LPAR            '('             indirection
+RPAR            ')'
+LBRACK          '['             indirection
+RBRACK          ']'
+LBRACE          '{'
+RBRACE          '}'
+COLON           ':'
+TILDE           '~'             unarypre
+PLUSPLUS        '++'            assign
+MINUSMINUS      '--'            assign
+LSHIFT          '<<'
+RSHIFT          '>>'
+EQEQ            '=='            compare
+ANDAND          '&&'
+OROR            '||'
+LEQ             '<='            compare
+GEQ             '>='            compare
+NEQ             '!='            compare
+LAMBDA          '``'
+PLUSEQ          '+='            assign
+MINUSEQ         '-='            assign
+MULEQ           '*='            assign
+DIVEQ           '/='            assign
+MODEQ           '%='            assign
+XOREQ           '^='            assign
+LSEQ            '<<='           assign
+RSEQ            '>>='           assign
+OREQ            '|='            assign
+ANDEQ           '&='            assign
+FUNC            "function"
+LET             "let"
+THIS            "this"
+RETURN          "return"
+BREAK           "break"
+CONTINUE        "continue"
+IF              "if"
+WHILE           "while"
+ELSE            "else"
+DO              "do"
+FOR             "for"
+GBL             "global"
+TRUE            "true"
+FALSE           "false"
+TRY             "try"
+CATCH           "catch"
+FINALLY         "finally"
+NULL            "null"
+EOF
+STRING
+BYTES
+IDENTIFIER
+INTEGER
+FLOAT

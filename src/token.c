@@ -539,43 +539,6 @@ skip_whitespace(struct token_state_t *state)
         return 0;
 }
 
-static int
-tok_kw_seek(const char *key)
-{
-        static const struct kw_tbl_t {
-                const char *name;
-                int v;
-        } KEYWORDS[] = {
-                { "break",      OC_BREAK },
-                { "const",      OC_CONST },
-                { "catch",      OC_CATCH },
-                { "continue",   OC_CONTINUE },
-                { "do",         OC_DO },
-                { "else",       OC_ELSE },
-                { "false",      OC_FALSE },
-                { "finally",    OC_FINALLY },
-                { "for",        OC_FOR },
-                { "global",     OC_GBL },
-                { "if",         OC_IF },
-                { "let",        OC_LET },
-                { "function",   OC_FUNC },
-                { "null",       OC_NULL },
-                { "private",    OC_PRIV },
-                { "return",     OC_RETURN },
-                { "this",       OC_THIS },
-                { "true",       OC_TRUE },
-                { "try",        OC_TRY },
-                { "while",      OC_WHILE },
-                { NULL, 0 }
-        };
-        const struct kw_tbl_t *tkw;
-        for (tkw = KEYWORDS; tkw->name != NULL; tkw++) {
-                if (!strcmp(tkw->name, key))
-                        return tkw->v;
-        }
-        return -1;
-}
-
 /*
  * returns:
  * 'd' OR'd with ((delim<<8)|flags) if token was a delimiter
@@ -654,7 +617,7 @@ tokenize_helper(struct token_state_t *state)
                         } while (ret != OC_EOF && get_tok_bytes(state));
                         return OC_BYTES;
                 } else if (get_tok_identifier(state)) {
-                        if ((ret = tok_kw_seek(tok->s)) >= 0)
+                        if ((ret = token_kw_seek__(tok->s)) >= 0)
                                 return ret;
                         return OC_IDENTIFIER;
                 } else if ((ret = get_tok_number(state)) != 0) {

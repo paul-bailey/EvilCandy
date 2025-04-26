@@ -270,8 +270,7 @@ array_or_tuple_str(Object *t, int startchar)
                 VAR_DECR_REF(item);
         }
         buffer_putc(&b, startchar == '(' ? ')' : ']');
-        ret = stringvar_new(b.s);
-        buffer_free(&b);
+        ret = stringvar_from_buffer(&b);
         return ret;
 }
 

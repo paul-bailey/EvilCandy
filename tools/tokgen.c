@@ -24,11 +24,68 @@ struct token_t {
         enum { KEYWORD, DELIMITER, OTHER } kind;
 };
 
+/* not even kidding */
+struct trie_t {
+        struct trie_t **next;
+        char *value;
+};
+
+static struct trie_t delimtok_trie;
+enum {
+        /* for trie diving */
+        MIN_DELIM       = 32,
+        N_TRIES_PER     = 128 - MIN_DELIM,
+};
+
 static char *token_tags[MAX_TAGS];
 static int token_ntags = 0;
 static int token_value = MIN_TOKEN_VALUE;
 static struct token_t *tokens[MAX_TOKENS];
 static int n_tokens = 0;
+
+static void
+insert_delimtrie(char *tokname, char *repr)
+{
+        struct trie_t *trie = &delimtok_trie;
+        int depth = 0;
+        while (*repr) {
+                struct trie_t *nexttrie;
+                int i;
+
+                i = *repr - MIN_DELIM;
+                if (i < 0 || i >= N_TRIES_PER) {
+                        fprintf(stderr, "Unexpected delim char '%c'\n", *repr);
+                        exit(1);
+                }
+
+                if (!trie->next) {
+                        trie->next = calloc(N_TRIES_PER, sizeof(*trie));
+                        if (!trie->next)
+                                oom();
+                }
+
+                nexttrie = trie->next[i];
+                if (!nexttrie) {
+                        nexttrie = malloc(sizeof(*nexttrie));
+                        if (!nexttrie)
+                                oom();
+                        memset(nexttrie, 0, sizeof(*nexttrie));
+                        trie->next[i] = nexttrie;
+                }
+                trie = nexttrie;
+                repr++;
+                depth++;
+        }
+        if (depth > 3) {
+                fprintf(stderr, "suspicious insert, depth=%d\n", depth);
+                exit(1);
+        }
+        if (trie->value) {
+                fprintf(stderr, "suspicious insert, value already exists\n");
+                exit(1);
+        }
+        trie->value = tokname;
+}
 
 static char *
 addtag(char *start, char *end)
@@ -173,6 +230,7 @@ static void
 get_token_defs(FILE *fp)
 {
         struct token_t *tok;
+        int i;
         while ((tok = next_token(fp)) != NULL) {
                 if (n_tokens >= MAX_TOKENS) {
                         fprintf(stderr, "Too many tokens to define!\n");
@@ -185,6 +243,13 @@ get_token_defs(FILE *fp)
         if (n_tokens == 0) {
                 fprintf(stderr, "Expected: at least one token\n");
                 exit(1);
+        }
+
+        for (i = 0; i < n_tokens; i++) {
+                struct token_t *t = tokens[i];
+                if (t->kind != DELIMITER)
+                        continue;
+                insert_delimtrie(t->tokname, t->repr);
         }
 }
 
@@ -226,6 +291,7 @@ print_tag_helper(char *tag)
 
 #define TOK_KW_SEEK_PROTO "int token_kw_seek__(const char *key)"
 #define TOKEN_NAME_PROTO  "const char *token_name(int t)"
+#define TOK_DELIM_SEEK_PROTO "int token_delim_seek__(char *s, int *tok)"
 
 static void
 print_enumerations(void)
@@ -256,9 +322,69 @@ print_enumerations(void)
         putchar('\n');
         printf("/* should be used only by token.c */\n");
         printf("extern %s;\n", TOK_KW_SEEK_PROTO);
+        printf("extern %s;\n", TOK_DELIM_SEEK_PROTO);
 
         putchar('\n');
         printf("%s", FOOTER);
+}
+
+static void
+prtabs(int n)
+{
+        while (n-- > 0)
+                putchar('\t');
+}
+
+static void
+trie_case(struct trie_t *trie, int c, int depth)
+{
+        int i;
+        if (!trie) {
+                fprintf(stderr, "NULL trie, invalid\n");
+                exit(1);
+        }
+        if (depth > 3) {
+                fprintf(stderr, "Suspicious trie, depth=%d\n", depth);
+                exit(1);
+        }
+
+        if (!trie->next) {
+                if (trie->value) {
+                        prtabs(depth + 1);
+                        printf("*tok = OC_%s;\n", trie->value);
+                } else {
+                        fprintf(stderr, "Suspicious retrieval, hit end without value\n");
+                        exit(1);
+                }
+                prtabs(depth + 1);
+                printf("return %d;\n", depth);
+                return;
+        }
+
+        prtabs(depth + 1);
+        printf("switch(s[%d]) {\n", depth);
+
+        for (i = 0; i < N_TRIES_PER; i++) {
+                if (!trie->next[i])
+                        continue;
+                prtabs(depth + 1);
+                printf("case '%c':\n", i + MIN_DELIM);
+                trie_case(trie->next[i], i + MIN_DELIM, depth + 1);
+        }
+
+        prtabs(depth + 1);
+        printf("default:\n");
+        if (trie->value) {
+                prtabs(depth + 2);
+                printf("*tok = OC_%s;\n", trie->value);
+                prtabs(depth + 2);
+                printf("return %d;\n", depth);
+        } else {
+                prtabs(depth + 2);
+                printf("return 0;\n");
+        }
+        prtabs(depth + 1);
+        printf("}\n");
 }
 
 static void
@@ -315,6 +441,13 @@ print_utils(void)
                        t->repr, t->tokname);
         }
         printf("%s", KW_SEEK_BOTTOM);
+
+        if (delimtok_trie.next == NULL)
+                return;
+
+        printf(TOK_DELIM_SEEK_PROTO "\n{\n");
+        trie_case(&delimtok_trie, 0, 0);
+        printf("}\n\n");
 }
 
 int

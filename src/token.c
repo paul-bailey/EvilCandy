@@ -324,183 +324,12 @@ malformed:
 }
 
 /*
- * Return size of delimiter token, or 0 if token is not a
- * known delimiter
- */
-static int
-get_tok_delim_helper(int *ret, const char *s)
-{
-        switch (*s++) {
-        case '+':
-                switch (*s) {
-                case '+':
-                        *ret = OC_PLUSPLUS;
-                        return 2;
-                case '=':
-                        *ret = OC_PLUSEQ;
-                        return 2;
-                }
-                *ret = OC_PLUS;
-                return 1;
-        case '-':
-                switch (*s) {
-                case '-':
-                        *ret = OC_MINUSMINUS;
-                        return 2;
-                case '=':
-                        *ret = OC_MINUSEQ;
-                        return 2;
-                }
-                *ret = OC_MINUS;
-                return 1;
-        case '<':
-                switch (*s) {
-                case '<': {
-                        if (s[1] == '=') {
-                                *ret = OC_LSEQ;
-                                return 3;
-                        }
-                        *ret = OC_LSHIFT;
-                        return 2;
-                }
-                case '=':
-                        *ret = OC_LEQ;
-                        return 2;
-                }
-                *ret = OC_LT;
-                return 1;
-        case '>':
-                switch (*s) {
-                case '>':
-                        if (s[1] == '=') {
-                                *ret = OC_RSEQ;
-                                return 3;
-                        }
-                        *ret = OC_RSHIFT;
-                        return 2;
-                case '=':
-                        *ret = OC_GEQ;
-                        return 2;
-                }
-                *ret = OC_GT;
-                return 1;
-        case '=':
-                switch (*s) {
-                case '=':
-                        *ret=  OC_EQEQ;
-                        return 2;
-                }
-                *ret = OC_EQ;
-                return 1;
-        case '&':
-                switch (*s) {
-                case '&':
-                        *ret = OC_ANDAND;
-                        return 2;
-                case '=':
-                        *ret = OC_ANDEQ;
-                        return 2;
-                }
-                *ret = OC_AND;
-                return 1;
-        case '|':
-                switch (*s) {
-                case '|':
-                        *ret = OC_OROR;
-                        return 2;
-                case '=':
-                        *ret = OC_OREQ;
-                        return 2;
-                }
-                *ret = OC_OR;
-                return 1;
-        case '.':
-                if (!isdigit((int)*s)) {
-                        *ret = OC_PER;
-                        return 1;
-                }
-                break;
-        case '!':
-                if (*s == '=') {
-                        *ret = OC_NEQ;
-                        return 2;
-                }
-                *ret = OC_EXCLAIM;
-                return 1;
-        case ';':
-                *ret = OC_SEMI;
-                return 1;
-        case ',':
-                *ret = OC_COMMA;
-                return 1;
-        case '/':
-                *ret = OC_DIV;
-                return 1;
-        case '*':
-                switch (*s) {
-                case '=':
-                        *ret = OC_MULEQ;
-                        return 2;
-                case '*':
-                        *ret = OC_POW;
-                        return 2;
-                }
-                *ret = OC_MUL;
-                return 1;
-        case '%':
-                if (*s == '=') {
-                        *ret = OC_MODEQ;
-                        return 2;
-                }
-                *ret = OC_MOD;
-                return 1;
-        case '^':
-                if (*s == '=') {
-                        *ret = OC_XOREQ;
-                        return 2;
-                }
-                *ret = OC_XOR;
-                return 1;
-        case '(':
-                *ret = OC_LPAR;
-                return 1;
-        case ')':
-                *ret = OC_RPAR;
-                return 1;
-        case '[':
-                *ret = OC_LBRACK;
-                return 1;
-        case ']':
-                *ret = OC_RBRACK;
-                return 1;
-        case '{':
-                *ret = OC_LBRACE;
-                return 1;
-        case '}':
-                *ret = OC_RBRACE;
-                return 1;
-        case ':':
-                *ret = OC_COLON;
-                return 1;
-        case '~':
-                *ret = OC_TILDE;
-                return 1;
-        case '`':
-                if (*s != '`')
-                        return 0;
-                *ret = OC_LAMBDA;
-                return 2;
-        }
-        return 0;
-}
-
-/*
  * Get delimiter token, or return false if token is not a delimiter
  */
 static bool
 get_tok_delim(int *ret, struct token_state_t *state)
 {
-        int count = get_tok_delim_helper(ret, state->s);
+        int count = token_delim_seek__(state->s, ret);
         if (count) {
                 char *s = state->s;
                 state->s += count;
@@ -599,7 +428,10 @@ tokenize_helper(struct token_state_t *state)
                 if ((ret = skip_whitespace(state)) == OC_EOF)
                         return ret;
 
-                if (get_tok_delim(&ret, state)) {
+                /* get number before delim, '.' could not be delim */
+                if ((ret = get_tok_number(state)) != 0) {
+                        return ret;
+                } else if (get_tok_delim(&ret, state)) {
                         return ret;
                 } else if (get_tok_string(state)) {
                         /*
@@ -620,8 +452,6 @@ tokenize_helper(struct token_state_t *state)
                         if ((ret = token_kw_seek__(tok->s)) >= 0)
                                 return ret;
                         return OC_IDENTIFIER;
-                } else if ((ret = get_tok_number(state)) != 0) {
-                        return ret;
                 }
                 token_errset(state, TE_UNRECOGNIZED);
         }

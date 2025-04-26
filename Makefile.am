@@ -1,6 +1,7 @@
 ACLOCAL_AMFLAGS = -I build/m4
 
-bin_PROGRAMS = tools/tokgen tools/gen evilcandy
+bin_PROGRAMS = evilcandy
+check_PROGRAMS = tools/tokgen tools/gen
 
 tools_tokgen_SOURCES = tools/tokgen.c tools/genutil.c
 tools_gen_SOURCES = tools/gen.c
@@ -42,13 +43,31 @@ evilcandy_SOURCES = \
         src/types/string.c \
         src/types/xptr.c
 
+noinst_HEADERS = \
+        inc/debug.h \
+        inc/evcenums.h \
+        inc/evilcandy.h \
+        inc/instructions.h \
+        inc/objtypes.h \
+        inc/stringtype.h \
+        inc/token.h \
+        inc/typedefs.h \
+        inc/uarg.h \
+        inc/var.h \
+        inc/vm.h \
+        inc/xptr.h \
+        inc/lib/buffer.h \
+        inc/lib/helpers.h \
+        inc/lib/list.h \
+        tools/gen.h
+
 evilcandydir=${datadir}/evilcandy
 evilcandy_CPPFLAGS=\
  -I$(top_srcdir)/inc \
  -DRCDATADIR=\"$(evilcandydir)\" \
  -Wall
 
-evilcandy_DATA= \
+dist_evilcandy_DATA= \
         lib/io.evc \
         lib/math.evc
 
@@ -88,5 +107,17 @@ src/tokutils_gen.c: tools/tokens tools/tokgen
 src/vm_gen.c.h: tools/instructions tools/gen
 	cat tools/instructions | tools/gen jump > $@
 
-dist_doc_DATA = README Tutorial.rst
+EXTRA_DIST = \
+        tools/instructions \
+        tools/tokens \
+        source_tree_layout.txt \
+        to-do.txt \
+        AUTHORS \
+        COPYING \
+        README \
+        Tutorial.rst \
+        etc/thought_bucket.txt
+
+
+dist_doc_DATA = Tutorial.rst
 

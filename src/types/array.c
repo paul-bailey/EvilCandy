@@ -179,6 +179,112 @@ tuplevar_new(int n_items)
         return arrayvar_new_common(n_items, &TupleType);
 }
 
+/**
+ * tuple_valide - Ensure a certain tuple length
+ *                              and arrangement of contents.
+ * @tup: Tuple to validate
+ * @descr: Description of contents, explained below.
+ * @map_function: If true, then 'x' in @descr could be either for a
+ *              function or for a method object.  If false, then 'x' is
+ *              strictly for functions.
+ *
+ * Return: RES_OK if contents match, RES_ERROR if either the tuple size
+ *      is not the length of @descr or if any of its contents do not
+ *      match.
+ *
+ * tuples make for some useful pseudo-class objects.  tuple_validate can
+ * be used to make sure its contents are the right type in the right order.
+ *
+ * As a general rule, upper-case letters in @descr are for internal-use
+ * types or types the user does not normally deal with, while lower-case
+ * letters are for types that user is most involved with.  Specifically,
+ * @descr must contain a sequence of the following letters:
+ *      letter:      Type:
+ *      -------      -----
+ *        F         Filetype
+ *        U         UuidptrType
+ *        X         XptrType
+ *        a         ArrayType
+ *        b         BytesType
+ *        d         DictType
+ *        e         EmptyType (ie NullVar)
+ *        f         FloatType
+ *        i         IntType
+ *        m         MethodType
+ *        r         RangeType
+ *        s         StringType
+ *        x         FunctionType
+ */
+enum result_t
+tuple_validate(Object *tup, const char *descr, bool map_function)
+{
+        Object **data;
+        if (!isvar_tuple(tup))
+                goto nope;
+        if (seqvar_size(tup) != strlen(descr))
+                goto nope;
+
+        data = tuple_get_data(tup);
+        while (*descr) {
+                struct type_t *check = NULL;
+                switch (*descr) {
+                case 'F':
+                        check = &FileType;
+                        break;
+                case 'U':
+                        check = &UuidptrType;
+                        break;
+                case 'X':
+                        check = &XptrType;
+                        break;
+                case 'a':
+                        check = &ArrayType;
+                        break;
+                case 'b':
+                        check = &BytesType;
+                        break;
+                case 'd':
+                        check = &DictType;
+                        break;
+                case 'e':
+                        check = &EmptyType;
+                        break;
+                case 'f':
+                        check = &FloatType;
+                        break;
+                case 'i':
+                        check = &IntType;
+                        break;
+                case 'm':
+                        check = &MethodType;
+                        break;
+                case 'r':
+                        check = &RangeType;
+                        break;
+                case 's':
+                        check = &StringType;
+                        break;
+                case 'x':
+                        check = &FunctionType;
+                        break;
+                }
+                if ((*data)->v_type != check) {
+                        if (!map_function)
+                                goto nope;
+                        if (*descr != 'x')
+                                goto nope;
+                        if ((*data)->v_type != &MethodType)
+                                goto nope;
+                }
+                descr++;
+                data++;
+        }
+        return RES_OK;
+
+nope:
+        return RES_ERROR;
+}
+
 /* type_t .reset callback */
 static void
 array_reset(Object *a)

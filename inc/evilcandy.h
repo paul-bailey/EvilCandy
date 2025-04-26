@@ -119,6 +119,8 @@ extern enum result_t array_setitem(Object *array,
 extern Object *array_getitem(Object *array, int idx);
 extern enum result_t array_append(Object *array,
                                   Object *child);
+extern enum result_t tuple_validate(Object *tup, const char *descr,
+                                    bool map_function);
 
 /* types/bytes.c */
 extern Object *bytesvar_new(unsigned char *buf, size_t len);

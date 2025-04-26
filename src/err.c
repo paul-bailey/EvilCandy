@@ -19,11 +19,7 @@
 
 static Object *exception_last = NULL;
 
-static bool
-isvar_exception(Object *v)
-{
-        return isvar_tuple(v) && seqvar_size(v) == 2;
-}
+#define exception_validate(X) tuple_validate(X, "ss", 0)
 
 /*
  * XXX: I should just create an ExceptionType object,
@@ -190,9 +186,10 @@ err_set_from_user(Object *exc)
                 }
                 VAR_DECR_REF(exc);
                 exc = tmp;
-        } else if (seqvar_size(exc) != 2) {
-                goto invalid;
-        } else {
+        } else if (exception_validate(exc) != RES_OK) {
+                if (seqvar_size(exc) != 2)
+                        goto invalid;
+
                 /* exc might not be all strings, stringify it */
                 Object *tmp;
                 Object *v1 = array_getitem(exc, 0);
@@ -232,7 +229,7 @@ err_print(FILE *fp, Object *exc)
         if (!exc)
                 return;
 
-        bug_on(!isvar_exception(exc));
+        bug_on(exception_validate(exc) != RES_OK);
 
         v   = array_getitem(exc, 0);
         msg = array_getitem(exc, 1);

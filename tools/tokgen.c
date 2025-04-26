@@ -305,7 +305,7 @@ print_tag_helper(char *tag)
                         if (count > 0) {
                                 if ((count % 3) == 0)
                                         printf("\n\t");
-                                printf(" | ");
+                                printf(" || ");
                         }
                         count++;
                         printf("t == OC_%s", t->tokname);

@@ -21,10 +21,6 @@ static Object *exception_last = NULL;
 
 #define exception_validate(X) tuple_validate(X, "ss", 0)
 
-/*
- * XXX: I should just create an ExceptionType object,
- * but is that overkill?
- */
 /* this consume references for args if they are Objects */
 static Object *
 mkexception(char *fmt, void *exc_arg, void *msg_arg)
@@ -40,22 +36,22 @@ mkexception(char *fmt, void *exc_arg, void *msg_arg)
                 switch (fmt[i]) {
                 case 's':
                         tmp = stringvar_new((char *)args[i]);
-                        array_setitem(tup, i, tmp);
+                        tuple_setitem(tup, i, tmp);
                         VAR_DECR_REF(tmp);
                         break;
                 case 'S':
-                        array_setitem(tup, i, (Object *)args[i]);
+                        tuple_setitem(tup, i, (Object *)args[i]);
                         VAR_DECR_REF((Object *)args[i]);
                         break;
                 case 'O':
                         tmp = (Object *)args[i];
-                        if (!isvar_string(tmp))
-                                tmp = var_str(tmp);
-
-                        array_setitem(tup, i, tmp);
+                        if (!isvar_string(tmp)) {
+                                Object *tmp2 = var_str(tmp);
+                                VAR_DECR_REF(tmp);
+                                tmp = tmp2;
+                        }
+                        tuple_setitem(tup, i, tmp);
                         VAR_DECR_REF(tmp);
-                        if (tmp != (Object *)args[i])
-                                VAR_DECR_REF((Object *)args[i]);
                         break;
                 default:
                         bug();
@@ -136,10 +132,25 @@ err_vsetstr(Object *exc, const char *msg, va_list ap)
 
         vsnprintf(msg_buf, len - 1, msg, ap);
 
+        /*
+         * @exc is not from the user stack.  It's a meant-to-be-immortal
+         * 'XxxxError' exception value, provided by internal code.  For
+         * convenience, the caller did not produce a reference.  So we
+         * produce a reference here to keep it from getting destroyed when
+         * err_get consumes it next.
+         */
+        VAR_INCR_REF(exc);
+
         new_exc = mkexception("Os", exc, msg_buf);
         replace_exception(new_exc);
+        VAR_DECR_REF(new_exc);
 }
 
+/**
+ * err_setstr - Set an exception by value and string
+ * @exc: Value, a XxxxError object, like RuntimeError
+ * @msg: Formatted text to write to the exception message
+ */
 void
 err_setstr(Object *exc, const char *msg, ...)
 {
@@ -192,14 +203,15 @@ err_set_from_user(Object *exc)
 
                 /* exc might not be all strings, stringify it */
                 Object *tmp;
-                Object *v1 = array_getitem(exc, 0);
-                Object *v2 = array_getitem(exc, 1);
+                Object *v1 = tuple_getitem(exc, 0);
+                Object *v2 = tuple_getitem(exc, 1);
                 tmp = mkexception("OO", v1, v2);
                 VAR_DECR_REF(exc);
                 exc = tmp;
         }
 
         replace_exception(exc);
+        VAR_DECR_REF(exc);
         return;
 
 invalid:
@@ -231,8 +243,8 @@ err_print(FILE *fp, Object *exc)
 
         bug_on(exception_validate(exc) != RES_OK);
 
-        v   = array_getitem(exc, 0);
-        msg = array_getitem(exc, 1);
+        v   = tuple_getitem(exc, 0);
+        msg = tuple_getitem(exc, 1);
 
         bug_on(!isvar_string(v));
         bug_on(!isvar_string(msg));
@@ -245,6 +257,9 @@ err_print(FILE *fp, Object *exc)
         fprintf(fp, "[EvilCandy] %s%s%s %s\n",
                 tty ? COLOR_RED : "", errval,
                 tty ? COLOR_DEF : "", errmsg);
+
+        VAR_DECR_REF(v);
+        VAR_DECR_REF(msg);
 }
 
 /* get last error, print it, then clear it */

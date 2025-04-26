@@ -116,6 +116,7 @@ extern enum result_t array_setitem(Object *array,
                                    int i, Object *child);
 /* user doesn't have access to this but internal code needs it */
 #define tuple_setitem   array_setitem
+#define tuple_getitem   array_getitem
 extern Object *array_getitem(Object *array, int idx);
 extern enum result_t array_append(Object *array,
                                   Object *child);

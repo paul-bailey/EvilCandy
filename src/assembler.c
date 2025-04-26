@@ -1479,6 +1479,7 @@ assemble_return(struct assemble_t *a)
 static void
 assemble_try(struct assemble_t *a)
 {
+        struct token_t exctok;
         int finally = as_next_label(a);
         int catch = as_next_label(a);
 
@@ -1492,39 +1493,36 @@ assemble_try(struct assemble_t *a)
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
         apop_scope(a);
 
-        as_lex(a);
-
+        as_errlex(a, OC_CATCH);
         as_set_label(a, catch);
-        if (a->oc->t == OC_CATCH) {
-                /* block of the catch(x) { ... } statement */
-                struct token_t exctok;
 
-                /*
-                 * extra block push to prevent stack confusion about
-                 * declared stack exception below.
-                 * XXX Overkill? is it not safe to just add a POP below?
-                 */
-                add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
-                apush_scope(a);
+        /*
+         * block of the catch(x) { ... } statement
+         *
+         * extra block push to prevent stack confusion about
+         * declared stack exception below.
+         * XXX Overkill? is it not safe to just add a POP below?
+         */
+        add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
+        apush_scope(a);
 
-                as_errlex(a, OC_LPAR);
-                as_errlex(a, OC_IDENTIFIER);
-                as_savetok(a, &exctok);
-                as_errlex(a, OC_RPAR);
-                /*
-                 * No instructions for pushing this on the stack.
-                 * The exception handler will do that for us in
-                 * execute loop.
-                 */
-                fakestack_declare(a, exctok.s);
+        as_errlex(a, OC_LPAR);
+        as_errlex(a, OC_IDENTIFIER);
+        as_savetok(a, &exctok);
+        as_errlex(a, OC_RPAR);
+        /*
+         * No instructions for pushing this on the stack.
+         * The exception handler will do that for us in
+         * execute loop.
+         */
+        fakestack_declare(a, exctok.s);
 
-                assemble_stmt(a, 0, 0);
+        assemble_stmt(a, 0, 0);
 
-                add_instr(a, INSTR_POP_BLOCK, 0, 0);
-                apop_scope(a);
+        add_instr(a, INSTR_POP_BLOCK, 0, 0);
+        apop_scope(a);
 
-                as_lex(a);
-        }
+        as_lex(a);
 
         as_set_label(a, finally);
 

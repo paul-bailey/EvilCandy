@@ -2107,12 +2107,14 @@ assemble_splash_error(struct assemble_t *a)
 {
         int col;
         char *line = NULL;
+        int lineno;
 
         bug_on(!err_occurred());
 
         err_print_last(stderr);
+        lineno = a->oc ? a->oc->line : 1;
         fprintf(stderr, "in file '%s' near line '%d'\n",
-                a->file_name, a->oc->line);
+                a->file_name, lineno);
         line = token_get_this_line(a->prog, &col);
         if (line) {
                 fprintf(stderr, "Expected error location:\n");

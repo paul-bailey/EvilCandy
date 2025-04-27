@@ -574,8 +574,7 @@ dict_str(Object *o)
         }
 
         buffer_putc(&b, '}');
-        ret = stringvar_new(b.s);
-        buffer_free(&b);
+        ret = stringvar_from_buffer(&b);
         return ret;
 }
 

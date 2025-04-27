@@ -49,13 +49,6 @@ enum {
 #define PAD_ALIGN(x) \
         (DATA_ALIGN_SIZE - (((x) * INSTR_SIZE) & (DATA_ALIGN_SIZE-1)))
 
-#define as_assert_array_pos(a, idx, arr, alloc_bytes) do { \
-        if (assert_array_pos(idx, (void **)arr, \
-                             alloc_bytes, sizeof(**arr)) < 0) { \
-                as_err(a, AE_OVERFLOW); \
-        } \
-} while (0)
-
 #define as_err(a, e) longjmp((a)->env, e)
 #define as_err_if(a, cond, e) \
         do { if (cond) as_err(a, e); } while (0)

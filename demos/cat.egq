@@ -1,6 +1,6 @@
 #!./evilcandy
 
-import("io.evc", "x");
+let Io = import("io.evc", "x");
 
 // Print myself
 (function(name) {

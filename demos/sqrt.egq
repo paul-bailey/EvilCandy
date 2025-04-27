@@ -35,7 +35,7 @@
 // having more gotos and an extra frame push).  So clearly
 // what's mssing is more optimized byte code.
 
-import("math.evc", "x");
+let Math = import("math.evc", "x");
 
 let sqrt = function(x) {
     let y = 10.;

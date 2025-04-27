@@ -355,7 +355,7 @@ var_hasattr(Object *haystack, Object *needle)
                 return sqm->hasitem(haystack, needle);
         if (mpm && mpm->hasitem)
                 return mpm->hasitem(haystack, needle);
-        return NULL;
+        return false;
 }
 
 /**

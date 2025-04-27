@@ -114,6 +114,23 @@ array_setitem(Object *array, int i, Object *child)
         return RES_OK;
 }
 
+static bool
+array_hasitem(Object *array, Object *item)
+{
+        size_t i, n;
+        Object **data;
+
+        bug_on(!isvar_array(array) && !isvar_tuple(array));
+        n = seqvar_size(array);
+        data = array_get_data(array);
+
+        for (i = 0; i < n; i++) {
+                if (var_compare(data[i], item) == 0)
+                        return true;
+        }
+        return false;
+}
+
 /**
  * array_append - Append an item to the tail of an array
  * @array: Array to append to
@@ -538,6 +555,7 @@ static const struct type_inittbl_t array_cb_methods[] = {
 static const struct seq_methods_t array_seq_methods = {
         .getitem        = array_getitem,
         .setitem        = array_setitem,
+        .hasitem        = array_hasitem,
         .cat            = array_cat,
         .sort           = array_sort,
 };
@@ -563,6 +581,7 @@ static const struct type_inittbl_t tuple_cb_methods[] = {
 static const struct seq_methods_t tuple_seq_methods = {
         .getitem        = array_getitem,
         .setitem        = NULL,
+        .hasitem        = array_hasitem,
         .cat            = tuple_cat,
         .sort           = NULL,
 };

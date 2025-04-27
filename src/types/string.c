@@ -1284,6 +1284,20 @@ string_getitem(Object *str, int idx)
         return stringvar_newf(cbuf, SF_COPY);
 }
 
+static bool
+string_hasitem(Object *str, Object *substr)
+{
+        char *haystack, *needle;
+        bug_on(!isvar_string(str));
+        /* XXX policy, throw error instead? */
+        if (!isvar_string(substr))
+                return false;
+
+        haystack = string_get_cstring(str);
+        needle = string_get_cstring(substr);
+        return strstr(haystack, needle) != NULL;
+}
+
 
 /* **********************************************************************
  *                           API functions
@@ -1377,6 +1391,7 @@ string_get_cstring(Object *str)
 struct seq_methods_t string_seq_methods = {
         .getitem        = string_getitem,
         .setitem        = NULL,
+        .hasitem        = string_hasitem,
         .cat            = string_cat,
         .sort           = NULL,
 };

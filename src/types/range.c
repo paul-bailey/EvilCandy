@@ -61,6 +61,32 @@ range_getitem(Object *rng, int idx)
         return intvar_new(resi);
 }
 
+static bool
+range_hasitem(Object *rng, Object *item)
+{
+        struct rangevar_t *r;
+        long long ival;
+
+        bug_on(!isvar_range(rng));
+
+        r = V2R(rng);
+
+        /* TODO: error for non-integers? */
+        if (!isvar_int(item))
+                return false;
+
+        ival = intvar_toll(item);
+
+        if (ival < r->start || ival >= r->stop)
+                return false;
+
+        /* need to figure out if ival would be stepped over */
+        /* XXX arbitrary modulo, is there a faster way? */
+        if (((ival - r->start) % r->step) != 0)
+                return false;
+        return true;
+}
+
 static int
 range_cmp(Object *a, Object *b)
 {
@@ -145,6 +171,7 @@ range_len(Frame *fr)
 static const struct seq_methods_t range_seq_methods = {
         .getitem        = range_getitem,
         .setitem        = NULL,
+        .hasitem        = range_hasitem,
         .cat            = NULL,
         .sort           = NULL,
 };

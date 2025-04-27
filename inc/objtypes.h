@@ -75,6 +75,7 @@ struct map_methods_t {
         Object *(*getitem)(Object *d, Object *key);
         int (*setitem)(Object *d,
                        Object *key, Object *item);
+        /* @d is this type; @key must be type-checked */
         int (*hasitem)(Object *d, Object *key);
         /*
          * Not an in-place operation.  Make shallow copy of lval
@@ -85,6 +86,8 @@ struct map_methods_t {
 
 struct seq_methods_t {
         Object *(*getitem)(Object *, int);
+        /* @haystack is this type; @needle must be type-checked */
+        bool (*hasitem)(Object *haystack, Object *needle);
         enum result_t (*setitem)(Object *, int, Object *);
         /* new = a + b; if b is NULL, return new empty var */
         binary_operator_t cat;

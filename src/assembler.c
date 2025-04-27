@@ -1047,9 +1047,21 @@ assemble_expr4(struct assemble_t *a)
 }
 
 static void
-assemble_expr3(struct assemble_t *a)
+assemble_expr3_2(struct assemble_t *a)
 {
         assemble_expr4(a);
+        if (a->oc->t == OC_HAS) {
+                as_lex(a);
+                assemble_expr4(a);
+
+                add_instr(a, INSTR_HAS, 0, 0);
+        }
+}
+
+static void
+assemble_expr3(struct assemble_t *a)
+{
+        assemble_expr3_2(a);
         while (istok_compare(a->oc->t)) {
                 int cmp;
                 switch (a->oc->t) {
@@ -1076,7 +1088,7 @@ assemble_expr3(struct assemble_t *a)
                         cmp = 0;
                 }
                 as_lex(a);
-                assemble_expr4(a);
+                assemble_expr3_2(a);
 
                 add_instr(a, INSTR_CMP, cmp, 0);
         }
@@ -1108,10 +1120,19 @@ assemble_expr1(struct assemble_t *a)
 {
         assemble_expr2(a);
 
-        while (a->oc->t == OC_ANDAND ||
-               a->oc->t == OC_OROR) {
-                int code = a->oc->t == OC_OROR
-                        ? INSTR_LOGICAL_OR : INSTR_LOGICAL_AND;
+        while (istok_logical(a->oc->t)) {
+                int code;
+                switch (a->oc->t) {
+                case OC_ANDAND:
+                        code = INSTR_LOGICAL_AND;
+                        break;
+                case OC_OROR:
+                        code = INSTR_LOGICAL_OR;
+                        break;
+                default:
+                        code = 0;
+                        bug();
+                }
 
                 as_lex(a);
                 assemble_expr2(a);

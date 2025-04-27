@@ -895,6 +895,25 @@ do_rshift(Frame *fr, instruction_t ii)
 }
 
 static int
+do_has(Frame *fr, instruction_t ii)
+{
+        Object *needle, *haystack, *res;
+        bool ires;
+
+        needle = pop(fr);
+        haystack = pop(fr);
+
+        ires = var_hasattr(haystack, needle);
+        res = intvar_new((int)ires);
+
+        VAR_DECR_REF(needle);
+        VAR_DECR_REF(haystack);
+
+        push(fr, res);
+        return RES_OK;
+}
+
+static int
 do_cmp(Frame *fr, instruction_t ii)
 {
         Object *rval, *lval, *res;

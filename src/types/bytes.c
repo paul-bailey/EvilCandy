@@ -40,6 +40,30 @@ bytes_getitem(Object *a, int idx)
         return intvar_new(u);
 }
 
+static bool
+bytes_hasitem(Object *bytes, Object *ival)
+{
+        long long x;
+        size_t i, n;
+        unsigned char *data;
+        bug_on(!isvar_bytes(bytes));
+        if (!isvar_int(ival)) {
+                /* TODO: Should this be an error? */
+                return false;
+        }
+        x = intvar_toll(ival);
+        if (x < 0 || x > 255)
+                return false;
+
+        n = seqvar_size(bytes);
+        data = V2B(bytes)->b_buf;
+        for (i = 0; i < n; i++) {
+                if (data[i] == (unsigned char)x)
+                        return true;
+        }
+        return false;
+}
+
 static Object *
 bytes_cat(Object *a, Object *b)
 {
@@ -336,6 +360,7 @@ static const struct type_inittbl_t bytes_cb_methods[] = {
 static const struct seq_methods_t bytes_seq_methods = {
         .getitem        = bytes_getitem,
         .setitem        = NULL, /* like string, immutable */
+        .hasitem        = bytes_hasitem,
         .cat            = bytes_cat,
         .sort           = NULL,
 };

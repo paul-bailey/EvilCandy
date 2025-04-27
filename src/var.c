@@ -346,6 +346,18 @@ found:
         return NULL;
 }
 
+bool
+var_hasattr(Object *haystack, Object *needle)
+{
+        const struct seq_methods_t *sqm = haystack->v_type->sqm;
+        const struct map_methods_t *mpm = haystack->v_type->mpm;
+        if (sqm && sqm->hasitem)
+                return sqm->hasitem(haystack, needle);
+        if (mpm && mpm->hasitem)
+                return mpm->hasitem(haystack, needle);
+        return NULL;
+}
+
 /**
  * var_set_attr - Generalized set-attribute
  * @v:          Variable whose attribute we're setting
@@ -419,6 +431,9 @@ attr_str(Object *key)
  * Return: -1 if "a < b", 1 if "a > b", and 0 if "a == b".
  * This is not (necessarily) a pointer comparison.  Each typedef
  * has their own method of comparison.
+ *
+ * Note: this is not strict w/r/t ints and floats.  1.0 == 1 in this
+ * function.
  */
 int
 var_compare(Object *a, Object *b)

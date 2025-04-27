@@ -96,6 +96,7 @@ static inline void seqvar_set_size(Object *v, size_t size)
 extern Object *var_new(struct type_t *type);
 extern void var_initialize_type(struct type_t *tp);
 extern Object *var_getattr(Object *v, Object *deref);
+extern bool var_hasattr(Object *haystack, Object *needle);
 extern enum result_t var_setattr(Object *v, Object *deref, Object *attr);
 extern int var_compare(Object *a, Object *b);
 extern int var_sort(Object *v);

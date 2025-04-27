@@ -44,8 +44,8 @@ MINUSMINUS      '--'            assign
 LSHIFT          '<<'
 RSHIFT          '>>'
 EQEQ            '=='            compare
-ANDAND          '&&'
-OROR            '||'
+ANDAND          '&&'            logical
+OROR            '||'            logical
 LEQ             '<='            compare
 GEQ             '>='            compare
 NEQ             '!='            compare
@@ -79,6 +79,7 @@ CATCH           "catch"
 FINALLY         "finally"
 NULL            "null"
 THROW           "throw"
+HAS             "has"
 EOF
 STRING
 BYTES

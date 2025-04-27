@@ -246,15 +246,15 @@ static const struct inittbl_t gblinit[] = {
 };
 
 /**
- * bi_build_internal_object__ - build up a C-defined object with a
+ * build_internal_object - build up a C-defined object with a
  *                              linear table
  * @parent: The object to add new children to.  This is already set
  *          to be an object, and may or may not have children already
  * @tbl: Table to scan.  A unique child will be created for each member
  *       of this table.
  */
-void
-bi_build_internal_object__(Object *parent, const struct inittbl_t *tbl)
+static void
+build_internal_object(Object *parent, const struct inittbl_t *tbl)
 {
         const struct inittbl_t *t;
         if (!tbl)
@@ -264,7 +264,7 @@ bi_build_internal_object__(Object *parent, const struct inittbl_t *tbl)
                 switch (t->magic) {
                 case TYPE_DICT:
                         child = dictvar_new();
-                        bi_build_internal_object__(child, t->tbl);
+                        build_internal_object(child, t->tbl);
                         break;
                 case TYPE_FUNCTION:
                         child = funcvar_new_intl(t->cb,
@@ -311,9 +311,9 @@ moduleinit_builtin(void)
 {
         Object *o, *k;
 
-        /* Do this first.  bi_build_internal_object__ de-references it. */
+        /* Do this first.  build_internal_object de-references it. */
         GlobalObject = dictvar_new();
-        bi_build_internal_object__(GlobalObject, gblinit);
+        build_internal_object(GlobalObject, gblinit);
 
         ParserError  = gblobject("ParserError");
         RuntimeError = gblobject("RuntimeError");

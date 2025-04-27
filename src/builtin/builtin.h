@@ -37,10 +37,6 @@ struct inittbl_t {
 };
 
 /* builtin.c */
-extern void bi_init_type_methods__(const struct inittbl_t *tbl,
-                                   int magic);
-extern void bi_build_internal_object__(Object *parent,
-                                       const struct inittbl_t *tbl);
 
 /* string.c */
 extern void bi_moduleinit_string__(void);

@@ -52,17 +52,17 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
+* Add way to pass arguments to imported scripts, and a way for the
+  script to access them.  Maybe a special identifier token like ``$0``.
+
+* Add keyword arguments, esp. useful for things like ``print``.
+
 * Replace setjmp in assemble.c with normal stack unwinding.  May need
   to replace EOF with OC_EOF so that a <0 check will always mean
   'error'.
 
 * Add way to mark current location while parsing, so that token.c and
   main.c aren't making their own separate and different error splashes.
-
-* To cast an int to a float, user has to do something like
-  ``x = 1.0 * x``.  Add something like ``float(x)`` and ``int(x)``
-  instead.  Make these be keywords/instructions instead of built-in
-  functions, to keep it fast.
 
 * vm.c and types/function.c, as well as the structs they manipulate
   (vmframe_t, function_handle_t, executable_t) are very tangled up

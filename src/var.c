@@ -396,34 +396,6 @@ var_setattr(Object *v, Object *key, Object *attr)
 }
 
 /**
- * Get the name or subscript (as text) of an attribute.
- * @key: Variable storing the name or subscript
- *
- * Return:
- * C string naming the attribute.
- * This may point to a buffer whose contents could change later.
- * Used for error reporting.
- */
-const char *
-attr_str(Object *key)
-{
-        /* FIXME: No! Just no! */
-        static char numbuf[64];
-
-        memset(numbuf, 0, sizeof(numbuf));
-
-        if (isvar_string(key)) {
-                strncpy(numbuf, string_get_cstring(key),
-                        sizeof(numbuf)-1);
-        } else if (isvar_int(key)) {
-                sprintf(numbuf, "%lld", intvar_toll(key));
-        } else {
-                strcpy(numbuf, "<!bug>");
-        }
-        return numbuf;
-}
-
-/**
  * var_compare - Compare two variables, used for sorting et al.
  * @a: First variable to compare.
  * @b: Second variable to compare.

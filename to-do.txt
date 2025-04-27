@@ -52,6 +52,9 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
+* Change ``catch`` so that it's less like JS and more like Python:
+  let it specify which exceptions it wants to catch.
+
 * Add way to pass arguments to imported scripts, and a way for the
   script to access them.  Maybe a special identifier token like ``$0``.
 

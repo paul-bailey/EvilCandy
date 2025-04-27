@@ -287,8 +287,10 @@ err_print_last(FILE *fp)
 void
 err_attribute(const char *getorset, Object *deref, Object *obj)
 {
-        err_setstr(RuntimeError, "Cannot %s attribute '%s' of type %s",
-                   getorset, attr_str(deref), typestr(obj));
+        Object *key = var_str(deref);
+        err_setstr(RuntimeError, "Cannot %s attribute %s of type %s",
+                   getorset, string_get_cstring(key), typestr(obj));
+        VAR_DECR_REF(key);
 }
 
 /* @what: name of expected argument type */

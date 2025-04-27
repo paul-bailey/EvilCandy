@@ -106,7 +106,6 @@ extern bool var_cmpz(Object *v, enum result_t *status);
 extern Object *var_lnot(Object *v);
 extern const char *typestr(Object *v);
 extern const char *typestr_(int magic);
-extern const char *attr_str(Object *deref);
 /* common hashtable callback for var-storing hashtables */
 extern void var_bucket_delete(void *data);
 /* note: v only evaluated once in VAR_*_REF() */

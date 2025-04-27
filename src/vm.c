@@ -690,7 +690,8 @@ do_getattr(Frame *fr, instruction_t ii)
 
         attr = var_getattr(obj, key);
         if (!attr) {
-                err_attribute("get", key, obj);
+                if (!err_occurred())
+                        err_attribute("get", key, obj);
                 ret = RES_ERROR;
         }
 

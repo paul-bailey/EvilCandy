@@ -8,6 +8,8 @@ Bugs
 Must Do
 -------
 
+* Replace RuntimeError with JavaScript exceptions like TypeError &al.
+
 * Integers are too recessive now; we need a way to int-ify a float
   without using a slow built-in function.
 

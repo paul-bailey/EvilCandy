@@ -305,6 +305,16 @@ gblobject(const char *ks)
         return ret;
 }
 
+#define MAKE_EXCEPTION(X) do {                  \
+        /*                                      \
+         * Do not consume reference.            \
+         * There's one in global vars for user  \
+         * and one in C for us.                 \
+         */                                     \
+        X = stringvar_new(#X);                  \
+        vm_add_global(X, X);                    \
+} while (0)
+
 /* initialize the builtin/ C file modules */
 void
 moduleinit_builtin(void)
@@ -315,12 +325,9 @@ moduleinit_builtin(void)
         GlobalObject = dictvar_new();
         build_internal_object(GlobalObject, gblinit);
 
-        ParserError  = gblobject("ParserError");
-        RuntimeError = gblobject("RuntimeError");
-        SystemError  = gblobject("SystemError");
-        if (!ParserError || !RuntimeError || !SystemError) {
-                fail("Could not create error objects");
-        }
+        MAKE_EXCEPTION(ParserError);
+        MAKE_EXCEPTION(RuntimeError);
+        MAKE_EXCEPTION(SystemError);
         o = gblobject("_builtins");
         bug_on(!o);
         dict_add_to_globals(o);

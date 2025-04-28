@@ -66,7 +66,7 @@ static inline void seqvar_set_size(Object *v, size_t size)
 
 #define VAR_INCR_REF(v) do { (v)->v_refcnt++; } while (0)
 #define VAR_DECR_REF(v) do {      \
-        Object *v_ = (v);   \
+        Object *v_ = (v);         \
         v_->v_refcnt--;           \
         if (v_->v_refcnt <= 0)    \
                 var_delete__(v_); \
@@ -79,7 +79,7 @@ static inline void seqvar_set_size(Object *v, size_t size)
  */
 #ifndef NDEBUG
 # define VAR_SANITY(v_) do {                            \
-        Object *v__ = (v_);                       \
+        Object *v__ = (v_);                             \
         if (!v__) {                                     \
                 DBUG1("unexpected NULL var");           \
                 bug();                                  \

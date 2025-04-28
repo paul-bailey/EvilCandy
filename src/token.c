@@ -309,6 +309,11 @@ get_tok_number(struct token_state_t *state)
                 }
         }
 
+        if (*pc == 'j' || *pc == 'J') {
+                ret = OC_COMPLEX;
+                pc++;
+        }
+
         /* We don't allow suffixes like f, u, ul, etc. */
         if (!tokc_isdelim(*pc))
                 goto malformed;
@@ -519,6 +524,12 @@ tokenize(struct token_state_t *state)
                     {
                         double f = strtod(state->tok.s, NULL);
                         oc.v = floatvar_new(f);
+                        break;
+                    }
+                case OC_COMPLEX:
+                    {
+                        double im = strtod(state->tok.s, NULL);
+                        oc.v = complexvar_new(0.0, im);
                         break;
                     }
                 case OC_IDENTIFIER:

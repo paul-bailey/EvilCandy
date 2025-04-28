@@ -40,9 +40,8 @@ float_pow(Object *a, Object *b)
          * was shockingly unhelpful here.
          */
         if (fa < 0.0 && fb != floor(fb)) {
-                err_setstr(NotImplementedError,
-                        "Result would be a complex number");
-                return NULL;
+                bug_on(!ComplexType.opm || !ComplexType.opm->pow);
+                return ComplexType.opm->pow(a, b);
         }
 
         if (fa == 0.0) {

@@ -182,6 +182,7 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &ArrayType,
         &EmptyType,
         &FloatType,
+        &ComplexType,
         &FunctionType,
         &MethodType,
         &IntType,

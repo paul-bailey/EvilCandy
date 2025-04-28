@@ -12,16 +12,24 @@
 static const struct operator_methods_t *
 get_binop_method(Object *a, Object *b)
 {
-        if (isvar_float(a)) {
-                if (isvar_int(b) || isvar_float(b))
-                        return a->v_type->opm;
-        } else if (isvar_int(a)) {
-                if (isvar_float(b))
-                        return b->v_type->opm;
-                if (isvar_int(b))
-                        return a->v_type->opm;
-        }
-        return NULL;
+        struct type_t *at = a->v_type;
+        struct type_t *bt = b->v_type;
+
+        if (at->opm == NULL || bt->opm == NULL)
+                return NULL;
+
+        /*
+         * XXX Almost pointless to have a .opm field since low-level
+         * knowledge of the types is needed anyway.
+         */
+        if (at == &ComplexType)
+                return at->opm;
+        if (bt == &ComplexType)
+                return bt->opm;
+        if (bt == &FloatType)
+                return bt->opm;
+        /* else, a is float or both are integers */
+        return at->opm;
 }
 
 /*
@@ -29,8 +37,8 @@ get_binop_method(Object *a, Object *b)
  * must be an integer or a float.
  */
 #define BINARY_OP_BASIC_FUNC(Field, What)               \
-Object *                                          \
-qop_##Field (Object *a, Object *b)          \
+Object *                                                \
+qop_##Field (Object *a, Object *b)                      \
 {                                                       \
         const struct operator_methods_t *opm;           \
         if ((opm = get_binop_method(a, b)) == NULL      \

@@ -850,6 +850,7 @@ assemble_expr_atomic(struct assemble_t *a)
         case OC_INTEGER:
         case OC_BYTES:
         case OC_FLOAT:
+        case OC_COMPLEX:
         case OC_STRING:
         case OC_TRUE:
         case OC_FALSE:

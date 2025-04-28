@@ -122,7 +122,8 @@ struct type_inittbl_t {
  *              initialization time.
  * @opm:        Callbacks for performing primitive operations like
  *              + or - on type.  This is for numerical operations only.
- *              ('+' for 'cat' is in @sqm.)
+ *              ('+' for 'cat' is in @sqm.)  DO NOT SET THIS UNLESS YOU
+ *              CAN ADD, SUBTRACT, ETC., WITH FLOAT, INTEGERS, ETC.
  * @cbm:        Array of built-in methods that var_config_type will
  *              put into @methods, or NULL if no such methods exist.
  *              In-language, this looks something like like 'x.method()'.
@@ -170,6 +171,7 @@ extern struct type_t ArrayType;
 extern struct type_t TupleType;
 extern struct type_t EmptyType; /* XXX should be NullType */
 extern struct type_t FloatType;
+extern struct type_t ComplexType;
 extern struct type_t FunctionType;
 extern struct type_t MethodType;
 extern struct type_t IntType;
@@ -189,6 +191,8 @@ static inline bool isvar_empty(Object *v)
         { return v->v_type == &EmptyType; }
 static inline bool isvar_float(Object *v)
         { return v->v_type == &FloatType; }
+static inline bool isvar_complex(Object *v)
+        { return v->v_type == &ComplexType; }
 static inline bool isvar_function(Object *v)
         { return v->v_type == &FunctionType; }
 static inline bool isvar_method(Object *v)

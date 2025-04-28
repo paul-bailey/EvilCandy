@@ -282,6 +282,7 @@ buffer_vprintf(struct buffer_t *buf, const char *msg, va_list ap)
                 buffer_maybe_realloc(buf, need_size + 1);
                 vsnprintf(&buf->s[buf->p], need_size + 1, msg, ap);
         }
+        buf->p += need_size;
 }
 
 void

@@ -37,10 +37,6 @@ Library/Language Features
 
 * Support soft keywords
 
-* Support complex numbers. ***Requires re-write of parser, an expression
-  like '1 + 2j' would tokenize to three tokens, and I don't want the
-  addition for a literal expression like that to happen during runtime.
-
 * Add a Matrix/DSP module, something like NumPy for Python
 
 * ^^ also add Tensor module, why not?
@@ -53,6 +49,13 @@ Library/Language Features
 
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* Add way to get/set types' built-in attributes without having to call
+  a function, ie let user say 'x = y.real' instead of 'x = y.real()'.
+
+* (requires parser rewrite) Optimize parsing of complex-number
+  expressions like '2 + 2j' so that they evaluate to a single complex
+  number at compile time instead of runtime.
 
 * Change ``catch`` so that it's less like JS and more like Python:
   let it specify which exceptions it wants to catch.

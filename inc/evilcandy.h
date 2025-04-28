@@ -141,6 +141,9 @@ extern Object *bytesvar_from_source(char *src);
 extern const unsigned char *bytes_getbuf(Object *v);
 extern Object *bytesvar_nocopy(unsigned char *buf, size_t len);
 
+/* types/comlex.c */
+extern Object *complexvar_new(double real, double imag);
+
 /* types/empty.c */
 extern Object *emptyvar_new(void);
 

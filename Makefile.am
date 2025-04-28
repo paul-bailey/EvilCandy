@@ -31,6 +31,7 @@ evilcandy_SOURCES = \
         src/builtin/math.c \
         src/types/array.c \
         src/types/bytes.c \
+        src/types/complex.c \
         src/types/dict.c \
         src/types/empty.c \
         src/types/file.c \

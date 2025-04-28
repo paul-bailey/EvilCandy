@@ -101,21 +101,6 @@ do_clearerr(Frame *fr)
 }
 
 static Object *
-do_eof(Frame *fr)
-{
-        Object *self;
-        struct filevar_t *f;
-        int res;
-
-        self = vm_get_this(fr);
-        RETURN_IF_BAD_FILE(self);
-        f = V2F(self);
-
-        res = f->f_eof || feof(f->f_fp);
-        return intvar_new(res);
-}
-
-static Object *
 do_read(Frame *fr)
 {
         Object *self;
@@ -273,8 +258,25 @@ etype:
         return ErrorVar;
 }
 
+static Object *
+file_getattr(Object *file, const char *name)
+{
+        struct filevar_t *f = V2F(file);
+        bug_on(!isvar_file(file));
+        if (!strcmp(name, "eof")) {
+                int res = f->f_eof || !f->f_fp ||
+                          (f->f_fp && feof(f->f_fp));
+                return intvar_new(res);
+        } else if (!strcmp(name, "closed")) {
+                int res = f->f_fp == NULL;
+                return intvar_new(res);
+        } else {
+                /* TODO: mode string, needs API change w/ open */
+                return NULL;
+        }
+}
+
 static const struct type_inittbl_t file_cb_methods[] = {
-        V_INITTBL("eof",        do_eof,         0, 0),
         V_INITTBL("clearerr",   do_clearerr,    0, 0),
         V_INITTBL("read",       do_read,        0, 1),
         V_INITTBL("write",      do_write,       1, 1),
@@ -293,6 +295,7 @@ struct type_t FileType = {
         .cmp    = file_cmp,
         .cmpz   = file_cmpz,
         .reset  = file_reset,
+        .getattr = file_getattr,
 };
 
 Object *

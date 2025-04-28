@@ -143,7 +143,14 @@ struct type_inittbl_t {
  *              a number which may be either int or float; @cmp will have
  *              to check and make a conversion.
  * @cmpz:       Returns 1 if some kind of zero.
- * reset:       May be NULL.  Destructor for a variable's private data.
+ * @reset:      May be NULL.  Destructor for a variable's private data.
+ * @getattr:    May be NULL.  Return an attribute, not counting built-in
+ *              functions or sequence/map members.  Retur NULL, not ErrorVar,
+ *              if @name is not an attribute.
+ * @setattr:    May be NULL.  Like getattr, but to set them, if they are
+ *              not read-only.  Return RES_OK if set, RES_ERROR if not.
+ *              Report an error if @name is found but it's read-only,
+ *              otherwise let calling code handle error reporting.
  */
 struct type_t {
         const char *name;
@@ -159,6 +166,8 @@ struct type_t {
         int (*cmp)(Object *, Object *);
         bool (*cmpz)(Object *);    /* a == 0 ? */
         void (*reset)(Object *);
+        Object *(*getattr)(Object *, const char *name);
+        enum result_t (*setattr)(Object *, const char *name, Object *attr);
 };
 
 /*

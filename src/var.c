@@ -325,13 +325,17 @@ var_getattr(Object *v, Object *key)
 
                 /* still here? try built-ins */
                 ret = dict_getattr(v->v_type->methods, key);
+                if (ret)
+                        goto found;
+
+                if (v->v_type->getattr)
+                        ret = v->v_type->getattr(v, string_get_cstring(key));
+
                 if (!ret) {
                         err_setstr(KeyError, "Object has no attribute %s",
                                    string_get_cstring(key));
                         return ErrorVar;
                 }
-                /* XXX necessary for built-in? */
-                VAR_INCR_REF(ret);
 
 found:
                 /*

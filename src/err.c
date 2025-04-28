@@ -19,7 +19,7 @@
 
 static Object *exception_last = NULL;
 
-#define exception_validate(X) tuple_validate(X, "ss", 0)
+#define exception_validate(X) tuple_validate(X, "*s", 0)
 
 /* this consume references for args if they are Objects */
 static Object *
@@ -40,18 +40,9 @@ mkexception(char *fmt, void *exc_arg, void *msg_arg)
                         VAR_DECR_REF(tmp);
                         break;
                 case 'S':
+                case 'O':
                         tuple_setitem(tup, i, (Object *)args[i]);
                         VAR_DECR_REF((Object *)args[i]);
-                        break;
-                case 'O':
-                        tmp = (Object *)args[i];
-                        if (!isvar_string(tmp)) {
-                                Object *tmp2 = var_str(tmp);
-                                VAR_DECR_REF(tmp);
-                                tmp = tmp2;
-                        }
-                        tuple_setitem(tup, i, tmp);
-                        VAR_DECR_REF(tmp);
                         break;
                 default:
                         bug();
@@ -169,48 +160,26 @@ err_setstr(Object *exc, const char *msg, ...)
 }
 
 /*
- * err_setexc - Like err_setstr, except pass a tuple
+ * err_set_from_user - Like err_setstr, except pass a tuple
  * @exc: Exception to set.  (The reference for this will be consumed.)
  *       This must be either a tuple containing two printable objects
- *       (to interpret as value and message, in that order), an integer
- *       (which will be regarded as the value), or a string (the message,
- *       in which RuntimeError is assumed to be the value).
+ *       ('value' and 'message', in that order), an integer (which will
+ *       be regarded as the value), or a string (the message, in which
+ *       RuntimeError is assumed to be the value).
  */
 void
 err_set_from_user(Object *exc)
 {
         if (!isvar_tuple(exc)) {
                 Object *tmp;
-                if (isvar_int(exc)) {
-                        VAR_INCR_REF(NullVar);
-                        tmp = mkexception("OO", exc, NullVar);
-                } else if (isvar_string(exc)) {
-                        /*
-                         * XXX more likely 'throw "some message"',
-                         *     but possible 'throw RuntimeError',
-                         *     which is also a string.
-                         */
-                        VAR_INCR_REF(RuntimeError);
-                        tmp = mkexception("SS", RuntimeError, exc);
-                } else {
-                        goto invalid;
-                }
+                tmp = mkexception("Os", exc, "(no message provided)");
                 /*
                  * Do not consume @exc's reference here.
                  * The mkexception calls above did that for us.
                  */
                 exc = tmp;
         } else if (exception_validate(exc) != RES_OK) {
-                if (seqvar_size(exc) != 2)
-                        goto invalid;
-
-                /* exc might not be all strings, stringify it */
-                Object *tmp;
-                Object *v1 = tuple_getitem(exc, 0);
-                Object *v2 = tuple_getitem(exc, 1);
-                tmp = mkexception("OO", v1, v2);
-                VAR_DECR_REF(exc);
-                exc = tmp;
+                goto invalid;
         }
 
         replace_exception(exc);
@@ -218,7 +187,7 @@ err_set_from_user(Object *exc)
         return;
 
 invalid:
-        err_setstr(RuntimeError, "Throwing invalid exception");
+        err_setstr(TypeError, "Throwing invalid exception");
         VAR_DECR_REF(exc);
 }
 
@@ -246,13 +215,10 @@ err_print(FILE *fp, Object *exc)
 
         bug_on(exception_validate(exc) != RES_OK);
 
-        v   = tuple_getitem(exc, 0);
-        msg = tuple_getitem(exc, 1);
-
-        bug_on(!isvar_string(v));
-        bug_on(!isvar_string(msg));
-
+        v = var_str_swap(tuple_getitem(exc, 0));
         errval = string_get_cstring(v);
+
+        msg = var_str_swap(tuple_getitem(exc, 1));
         errmsg = string_get_cstring(msg);
 
         tty = !!isatty(fileno(fp));
@@ -288,8 +254,17 @@ void
 err_attribute(const char *getorset, Object *deref, Object *obj)
 {
         Object *key = var_str(deref);
-        err_setstr(RuntimeError, "Cannot %s attribute %s of type %s",
+        err_setstr(TypeError, "Cannot %s attribute %s of type %s",
                    getorset, string_get_cstring(key), typestr(obj));
+        VAR_DECR_REF(key);
+}
+
+void
+err_index(Object *index)
+{
+        Object *key = var_str(index);
+        err_setstr(IndexError, "Subscript %s out of range",
+                   string_get_cstring(key));
         VAR_DECR_REF(key);
 }
 
@@ -297,7 +272,7 @@ err_attribute(const char *getorset, Object *deref, Object *obj)
 void
 err_argtype(const char *what)
 {
-        err_setstr(RuntimeError, "Expected argument: %s", what);
+        err_setstr(TypeError, "Expected argument type: %s", what);
 }
 
 void
@@ -311,7 +286,7 @@ err_locked(void)
 void
 err_permit(const char *op, Object *var)
 {
-        err_setstr(RuntimeError,
+        err_setstr(TypeError,
                    "%s operator not permitted for type %s",
                    op, typestr(var));
 }
@@ -320,7 +295,7 @@ err_permit(const char *op, Object *var)
 void
 err_permit2(const char *op, Object *a, Object *b)
 {
-        err_setstr(RuntimeError,
+        err_setstr(TypeError,
                    "%s operator not permitted between %s and %s",
                    op, typestr(a), typestr(b));
 }
@@ -373,12 +348,12 @@ arg_type_check_failed(Object *v, struct type_t *want)
 {
         if (!v) {
                 /* XXX trapped at function_prepare_frame() time? */
-                err_setstr(RuntimeError,
+                err_setstr(ArgumentError,
                            "%s argument missing",
                            want->name);
         } else {
                 bug_on(v->v_type == want);
-                err_setstr(RuntimeError,
+                err_setstr(TypeError,
                            "Expected argument %s but got %s",
                            want->name, typestr(v));
         }

@@ -20,7 +20,7 @@ do_typeof(Frame *fr)
 {
         Object *p = frame_get_arg(fr, 0);
         if (!p) {
-                err_setstr(RuntimeError, "Expected: any data type");
+                err_setstr(ArgumentError, "Expected: any data type");
                 return ErrorVar;
         }
         return stringvar_new(typestr(p));
@@ -40,7 +40,7 @@ do_print(Frame *fr)
         int argc = vm_get_argc(fr);
         int i;
         if (!argc) {
-                err_setstr(RuntimeError,
+                err_setstr(ArgumentError,
                            "Expected: at least one argument to print");
                 return ErrorVar;
         }
@@ -76,11 +76,11 @@ do_import(Frame *fr)
         int status;
 
         if (!file_name || !mode) {
-                err_setstr(RuntimeError, "Expected: import(MODULE, MODE)");
+                err_setstr(ArgumentError, "Expected: import(MODULE, MODE)");
                 return ErrorVar;
         }
         if (!isvar_string(file_name) || !isvar_string(mode)) {
-                err_setstr(RuntimeError, "import: file name and mode should be strings");
+                err_setstr(TypeError, "import: file name and mode should be strings");
                 return ErrorVar;
         }
 
@@ -90,7 +90,7 @@ do_import(Frame *fr)
         } else if (!strcmp(modestr, "x")) {
                 how = X; /* execute script and return its results */
         } else {
-                err_setstr(RuntimeError, "import: incorrect MODE argument");
+                err_setstr(ValueError, "import: incorrect MODE argument");
                 return ErrorVar;
         }
 
@@ -108,8 +108,10 @@ do_import(Frame *fr)
         bug_on(status != RES_OK && ex != NULL);
 
         if (!ex) {
-                err_setstr(RuntimeError,
-                           "Failed to import module '%s'", fnamestr);
+                if (!err_occurred()) {
+                        err_setstr(RuntimeError,
+                                   "Failed to import module '%s'", fnamestr);
+                }
                 return ErrorVar;
         }
 
@@ -159,7 +161,7 @@ do_exists(Frame *fr)
         Object *key = vm_get_arg(fr, 0);
         bool exists;
         if (!key || !isvar_string(key)) {
-                err_setstr(RuntimeError, "Expected: string");
+                err_setstr(TypeError, "Expected: string");
                 return ErrorVar;
         }
         exists = vm_symbol_exists(key);
@@ -173,7 +175,7 @@ do_range(Frame *fr)
         long long start, stop, step;
         Object *arg;
         if (argc < 1 || argc > 3) {
-                err_setstr(RuntimeError, "Expected: 1 to 3 args");
+                err_setstr(ArgumentError, "Expected: 1 to 3 args");
                 return ErrorVar;
         }
         /* defaults */
@@ -207,7 +209,7 @@ do_range(Frame *fr)
         if (start < INT_MIN || start > INT_MAX
                 || stop < INT_MIN || stop > INT_MAX
                 || step < INT_MIN || step > INT_MAX) {
-                err_setstr(RuntimeError,
+                err_setstr(ValueError,
                            "Range values currently must fit in type 'int'");
                 return ErrorVar;
         }
@@ -232,16 +234,8 @@ static const struct inittbl_t builtin_inittbl[] = {
 
 static const struct inittbl_t gblinit[] = {
         TOOTBL("_builtins", builtin_inittbl),
-        TOOTBL("_math",  bi_math_inittbl__),
-        TOOTBL("_io",    bi_io_inittbl__),
-        TOSTBL("ParserError", "Parser Error"),
-        TOSTBL("RuntimeError",  "Runtime Error"),
-        /*
-         * these are for non-fatal errors. Things like bug traps
-         * or failed malloc calls result in a stderr message and exit(),
-         * so no fancy error handling for that.
-         */
-        TOSTBL("SystemError",   "System error"),
+        TOOTBL("_math",     bi_math_inittbl__),
+        TOOTBL("_io",       bi_io_inittbl__),
         { .name = NULL },
 };
 
@@ -325,9 +319,20 @@ moduleinit_builtin(void)
         GlobalObject = dictvar_new();
         build_internal_object(GlobalObject, gblinit);
 
-        MAKE_EXCEPTION(ParserError);
+
+        MAKE_EXCEPTION(ArgumentError);
+        MAKE_EXCEPTION(KeyError);
+        MAKE_EXCEPTION(IndexError);
+        MAKE_EXCEPTION(NameError);
+        MAKE_EXCEPTION(NumberError);
+        MAKE_EXCEPTION(RangeError);
+        MAKE_EXCEPTION(RecursionError);
         MAKE_EXCEPTION(RuntimeError);
+        MAKE_EXCEPTION(SyntaxError);
         MAKE_EXCEPTION(SystemError);
+        MAKE_EXCEPTION(TypeError);
+        MAKE_EXCEPTION(ValueError);
+
         o = gblobject("_builtins");
         bug_on(!o);
         dict_add_to_globals(o);
@@ -345,8 +350,18 @@ void
 moduledeinit_builtin(void)
 {
         VAR_DECR_REF(GlobalObject);
+
+        VAR_DECR_REF(ArgumentError);
+        VAR_DECR_REF(KeyError);
+        VAR_DECR_REF(IndexError);
+        VAR_DECR_REF(NameError);
+        VAR_DECR_REF(NumberError);
+        VAR_DECR_REF(RangeError);
+        VAR_DECR_REF(RecursionError);
         VAR_DECR_REF(RuntimeError);
-        VAR_DECR_REF(ParserError);
+        VAR_DECR_REF(SyntaxError);
         VAR_DECR_REF(SystemError);
+        VAR_DECR_REF(TypeError);
+        VAR_DECR_REF(ValueError);
 }
 

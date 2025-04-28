@@ -34,9 +34,19 @@
 extern Object *ErrorVar;
 extern Object *NullVar;
 extern Object *GlobalObject;
-extern Object *ParserError;
+
+extern Object *ArgumentError;
+extern Object *KeyError;
+extern Object *IndexError;
+extern Object *NameError;
+extern Object *NumberError;
+extern Object *RangeError;
+extern Object *RecursionError;
 extern Object *RuntimeError;
+extern Object *SyntaxError;
 extern Object *SystemError;
+extern Object *TypeError;
+extern Object *ValueError;
 
 /* assembler.c */
 extern Object *assemble(const char *filename,
@@ -53,6 +63,7 @@ extern bool err_occurred(void);
 extern void err_clear(void);
 extern void err_attribute(const char *getorset,
                           Object *deref, Object *obj);
+extern void err_index(Object *index);
 extern void err_argtype(const char *what);
 extern void err_locked(void);
 extern void err_permit(const char *op, Object *var);

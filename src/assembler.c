@@ -54,7 +54,7 @@ enum {
         do { if (cond) as_err(a, e); } while (0)
 #define as_badeof(a) do { \
         DBUG("Bad EOF, trapped in assembly.c line %d", __LINE__); \
-        err_setstr(ParserError, "Unexpected termination"); \
+        err_setstr(SyntaxError, "Unexpected termination"); \
         as_err(a, AE_GEN); \
 } while (0)
 
@@ -318,7 +318,7 @@ as_errlex(struct assemble_t *a, int exp)
         as_lex(a);
         if (a->oc->t != exp) {
                 /* TODO: replace 'exp' with a string representation */
-                err_setstr(ParserError,
+                err_setstr(SyntaxError,
                            "expected '%s' but got '%s' ('%s')",
                            token_name(exp), token_name(a->oc->t), a->oc->s);
                 as_err(a, AE_EXPECT);
@@ -520,7 +520,7 @@ fakestack_declare(struct assemble_t *a, char *name)
         return a->fr->sp - 1;
 
 redef:
-        err_setstr(ParserError, "Redefining variable ('%s')", name);
+        err_setstr(SyntaxError, "Redefining variable ('%s')", name);
         as_err(a, AE_GEN);
         return 0;
 }
@@ -579,7 +579,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                         as_lex(a);
                 }
                 if (a->oc->t != OC_IDENTIFIER) {
-                        err_setstr(ParserError,
+                        err_setstr(SyntaxError,
                                 "Function argument is not an identifier");
                         as_err(a, AE_GEN);
                 }
@@ -596,7 +596,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                 }
                 if (closure) {
                         if (!deflt) {
-                                err_setstr(ParserError, "Malformed argument name");
+                                err_setstr(SyntaxError, "Malformed argument name");
                                 as_err(a, AE_GEN);
                         }
 
@@ -706,13 +706,13 @@ assemble_objdef(struct assemble_t *a)
                         namei = seek_or_add_const(a, a->oc);
                 } else {
                         attrarg = 0;
-                        err_setstr(ParserError,
+                        err_setstr(SyntaxError,
                                 "Dictionary key must be either an identifier or string");
                         as_err(a, AE_EXPECT);
                 }
                 as_lex(a);
                 if (a->oc->t != OC_COLON) {
-                        err_setstr(ParserError, "Expected: ':'");
+                        err_setstr(SyntaxError, "Expected: ':'");
                         as_err(a, AE_EXPECT);
                 }
                 assemble_expr(a);
@@ -1447,7 +1447,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         if (!!(flags & FE_FOR)) {
                 char *what = tok == OC_LET ? "let" : "global";
-                err_setstr(ParserError,
+                err_setstr(SyntaxError,
                         "'%s' not allowed as third part of 'for' statement",
                         what);
                 as_err(a, AE_BADTOK);
@@ -1456,7 +1456,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         as_lex(a);
         if (a->oc->t != OC_IDENTIFIER) {
                 char *what = tok == OC_LET ? "let" : "global";
-                err_setstr(ParserError,
+                err_setstr(SyntaxError,
                            "'%s' must be followed by an identifier", what);
                 as_err(a, AE_EXPECT);
         }
@@ -2207,7 +2207,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                 }
 
                 if (msg && !err_occurred())
-                        err_setstr(ParserError, "%s", msg);
+                        err_setstr(SyntaxError, "%s", msg);
 
                 assemble_splash_error(a);
 

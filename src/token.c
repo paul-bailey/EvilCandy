@@ -418,7 +418,7 @@ tokenize_helper(struct token_state_t *state)
                         break;
                 }
 
-                err_setstr(ParserError, msg);
+                err_setstr(SyntaxError, msg);
         } else {
                 struct buffer_t *tok = &state->tok;
 
@@ -502,7 +502,7 @@ tokenize(struct token_state_t *state)
                 case OC_BYTES:
                         oc.v = bytesvar_from_source(state->tok.s);
                         if (oc.v == ErrorVar) {
-                                err_setstr(ParserError,
+                                err_setstr(SyntaxError,
                                         "Error in bytes literal %s",
                                         state->tok.s);
                                 oc.v = NULL;
@@ -528,7 +528,7 @@ tokenize(struct token_state_t *state)
                 case OC_STRING:
                         oc.v = stringvar_from_source(state->tok.s, true);
                         if (oc.v == ErrorVar) {
-                                err_setstr(ParserError,
+                                err_setstr(SyntaxError,
                                         "Error in string literal %s",
                                         state->tok.s);
                                 ret = RES_ERROR;

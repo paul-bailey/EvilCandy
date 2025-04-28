@@ -295,16 +295,20 @@ Object *
 var_getattr(Object *v, Object *key)
 {
         if (isvar_int(key)) {
+                Object *ret;
                 int i;
                 const struct seq_methods_t *sqm = v->v_type->sqm;
-                if (!sqm || !sqm->getitem) {
-                        /* not a sequential type */
-                        return NULL;
-                }
+                if (!sqm || !sqm->getitem)
+                        goto badtype;
+
                 i = var_realindex(v, intvar_toll(key));
-                if (i < 0)
-                        return NULL;
-                return sqm->getitem(v, i);
+                if (i < 0) {
+                        err_index(key);
+                        return ErrorVar;
+                }
+                ret = sqm->getitem(v, i);
+                bug_on(!ret);
+                return ret;
         } else if (isvar_string(key)) {
                 /*
                  * first check if v maps it. If failed, check the
@@ -320,8 +324,11 @@ var_getattr(Object *v, Object *key)
 
                 /* still here? try built-ins */
                 ret = dict_getattr(v->v_type->methods, key);
-                if (!ret)
-                        return NULL;
+                if (!ret) {
+                        err_setstr(KeyError, "Object has no attribute %s",
+                                   string_get_cstring(key));
+                        return ErrorVar;
+                }
                 /* XXX necessary for built-in? */
                 VAR_INCR_REF(ret);
 
@@ -342,8 +349,11 @@ found:
                 }
                 return ret;
         }
-        /* else, invalid key */
-        return NULL;
+
+        /* else, invalid key, fall through */
+badtype:
+        err_attribute("get", key, v);
+        return ErrorVar;
 }
 
 bool
@@ -375,24 +385,32 @@ var_setattr(Object *v, Object *key, Object *attr)
                 const char *ks = string_get_cstring(key);
                 const struct map_methods_t *map = v->v_type->mpm;
                 if (!map || !map->setitem)
+                        goto badtype;
+                if (!ks || ks[0] == '\0') {
+                        err_setstr(KeyError, "key may not be empty");
                         return RES_ERROR;
-                if (!ks || ks[0] == '\0')
-                        return RES_ERROR;
+                }
                 return map->setitem(v, key, attr);
         } else if (isvar_int(key)) {
                 int i;
                 const struct seq_methods_t *seq = v->v_type->sqm;
                 if (!seq || !seq->setitem)
-                        return RES_ERROR;
+                        goto badtype;
 
                 i = var_realindex(v, intvar_toll(key));
-                if (i < 0)
+                if (i < 0) {
+                        err_index(key);
                         return RES_ERROR;
+                }
 
                 return seq->setitem(v, i, attr);
         } else {
-                return RES_ERROR;
+                goto badtype;
         }
+
+badtype:
+        err_attribute("set", key, v);
+        return RES_ERROR;
 }
 
 /**
@@ -441,6 +459,21 @@ var_str(Object *v)
         /* every data type should have this */
         bug_on(!v->v_type->str);
         return v->v_type->str(v);
+}
+
+/**
+ * var_str_swap - Return @v if it's a string, otherwise consume its
+ *                reference and return its string representation.
+ */
+Object *
+var_str_swap(Object *v)
+{
+        if (!isvar_string(v)) {
+                Object *s = var_str(v);
+                VAR_DECR_REF(v);
+                v = s;
+        }
+        return v;
 }
 
 ssize_t

@@ -768,7 +768,7 @@ do_dict_getattr(Frame *fr)
 
         s = string_get_cstring(name);
         if (!s) {
-                err_setstr(RuntimeError, "getattr: name may not be empty");
+                err_setstr(ArgumentError, "getattr: name may not be empty");
                 return ErrorVar;
         }
 
@@ -884,7 +884,7 @@ do_dict_purloin(Frame *fr)
                 hash = string_update_hash(key);
                 b = seek_helper(d, key, hash, &i);
                 if (!b) {
-                        err_setstr(RuntimeError,
+                        err_setstr(KeyError,
                                 "Cannot purloin %s: does not exist",
                                 string_get_cstring(key));
                         return ErrorVar;

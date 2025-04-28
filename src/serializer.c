@@ -216,7 +216,7 @@ struct serial_rstate_t {
 static void
 bad_checksum(void)
 {
-        err_setstr(RuntimeError, "byte code file bad checksum");
+        err_setstr(SyntaxError, "byte code file bad checksum");
 }
 
 /* return file size, or zero if we can't determine it */
@@ -253,7 +253,7 @@ rbuf(struct serial_rstate_t *state, size_t nbytes)
                  * occasions, it means we have a bug.
                  */
                 bug_on(state->ran_csum);
-                err_setstr(RuntimeError, "malformed byte-code file");
+                err_setstr(SyntaxError, "malformed byte-code file");
                 return NULL;
         }
 
@@ -368,7 +368,7 @@ rstring(struct serial_rstate_t *state, size_t *n)
                 return NULL;
 
         if (str[len-1] != '\0' || strlen(str) != len-1) {
-                err_setstr(RuntimeError, "malformed string");
+                err_setstr(SyntaxError, "malformed string");
                 return NULL;
         }
         ret = emalloc(len);
@@ -400,7 +400,7 @@ read_header(struct serial_rstate_t *state, struct serial_header_t *hdr)
 
         /* currently only support the version I'm on */
         if (hdr->version != EVILCANDY_SERIAL_VERSION) {
-                err_setstr(RuntimeError,
+                err_setstr(SyntaxError,
                            "Cannot parse byte code version %u",
                            hdr->version);
                 return RES_ERROR;
@@ -443,7 +443,7 @@ read_footer(struct serial_rstate_t *state)
                  */
         } else {
                 if (state->tail != state->head) {
-                        err_setstr(RuntimeError,
+                        err_setstr(SyntaxError,
                                    "Excess elements in byte code file");
                 }
         }
@@ -467,7 +467,7 @@ read_xinstructions(struct serial_rstate_t *state, struct xptrvar_t *ex)
                 x.ul = rlong(state);
                 ex->instr[i] = x.ii;
                 if (ex->instr[i].code >= N_INSTR) {
-                        err_setstr(RuntimeError,
+                        err_setstr(SyntaxError,
                                    "byte code error: malformed instruction %u",
                                    ex->instr[i].code);
                         goto err;
@@ -660,7 +660,7 @@ resolve_uuid(struct xptrvar_t *ex, struct xptrvar_t **xa, int n)
                         return RES_ERROR;
                 }
                 if (ref == NULL) {
-                        err_setstr(RuntimeError,
+                        err_setstr(SyntaxError,
                                 "Byte code references executable not in script");
                         return RES_ERROR;
                 }

@@ -49,8 +49,10 @@ do_open(Frame *fr)
                 return ErrorVar;
         name = string_get_cstring(vname);
         mode = string_get_cstring(vmode);
-        if (name == NULL || mode == NULL)
-                goto argbad;
+        if (name == NULL || mode == NULL) {
+                err_setstr(ArgumentError, "Expected: NAME MODE");
+                return ErrorVar;
+        }
 
         modeflags = 0;
         for (ps = mode; *ps != '\0'; ps++) {
@@ -65,29 +67,26 @@ do_open(Frame *fr)
                         modeflags |= FMODE_BINARY;
                         continue;
                 default:
-                        goto argbad;
+                        err_setstr(ValueError, "Invalid mode '%c'", *ps);
+                        return ErrorVar;
                 }
         }
 
-        if (!(modeflags & (FMODE_READ | FMODE_WRITE)))
-                goto argbad;
+        if (!(modeflags & (FMODE_READ | FMODE_WRITE))) {
+                err_setstr(ValueError, "Mode must have at least 'r' or 'w' set");
+                return ErrorVar;
+        }
 
         bug_on(!name || !mode);
         bug_on(name[0] == '\0' || mode[0] == '\0');
         fp = fopen(name, mode);
-        if (!fp)
-                goto sysbad;
+        if (!fp) {
+                err_errno("open failed");
+                return ErrorVar;
+        }
 
         /* filevar_new will produce ref for name */
         return filevar_new(fp, vname, modeflags);
-
-sysbad:
-        /* User should be able to retrieve this from sys.errno */
-        err_errno("open failed");
-        return ErrorVar;
-argbad:
-        err_setstr(RuntimeError, "open failed: bad arguments");
-        return ErrorVar;
 }
 
 const struct inittbl_t bi_io_inittbl__[] = {

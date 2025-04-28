@@ -26,7 +26,7 @@ static struct {
  *      could be 'seen' by the user, eg. never push it onto the user
  *      stack.
  *
- *      The others (ParserError et al.) are visible to the user in
+ *      The others (SyntaxError et al.) are visible to the user in
  *      __gbl__._builtins.  Produce a reference if they are requested
  *      with the SYMTAB instruction, but do not produce a reference
  *      when passing these as the first argument to err_setstr.
@@ -34,9 +34,19 @@ static struct {
 Object *ErrorVar;
 Object *NullVar;
 Object *GlobalObject;
-Object *ParserError;
+
+Object *ArgumentError;
+Object *KeyError;
+Object *IndexError;
+Object *NameError;
+Object *NumberError;
+Object *RangeError;
+Object *RecursionError;
 Object *RuntimeError;
+Object *SyntaxError;
 Object *SystemError;
+Object *TypeError;
+Object *ValueError;
 
 static void
 init_lib(void)

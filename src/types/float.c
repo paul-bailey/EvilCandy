@@ -54,7 +54,7 @@ float_div(Object *a, Object *b)
         DOUBLE(b, fb);
 
         if (fb == 0.0) {
-                err_setstr(RuntimeError, "Divide by zero");
+                err_setstr(NumberError, "Divide by zero");
                 return NULL;
         }
 
@@ -69,7 +69,7 @@ float_mod(Object *a, Object *b)
         DOUBLE(b, fb);
 
         if (fb == 0.0) {
-                err_setstr(RuntimeError, "Modulo by zero");
+                err_setstr(NumberError, "Modulo by zero");
                 return NULL;
         }
 

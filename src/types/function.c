@@ -85,7 +85,7 @@ function_of(Object *fn, Object **owner)
                         fn = NULL;
                 }
         }
-        err_setstr(RuntimeError, "Object is not callable");
+        err_setstr(TypeError, "Object is not callable");
         return NULL;
 
 done:
@@ -99,13 +99,13 @@ function_argc_check(struct funcvar_t *fh, int argc)
         int min = fh->f_minargs;
         int max = fh->f_maxargs;
         if (argc < min) {
-                err_setstr(RuntimeError,
+                err_setstr(ArgumentError,
                            "Expected at least %d args but got %d",
                            min, argc);
                 return RES_ERROR;
         }
         if (max >= 0 && argc > max) {
-                err_setstr(RuntimeError,
+                err_setstr(ArgumentError,
                            "Expected at most %d args but got %d",
                            max, argc);
                 return RES_ERROR;
@@ -282,7 +282,7 @@ function_setattr(Object *func, int attr, int value)
         struct funcvar_t *fh = V2FUNC(func);
 
         if (!isvar_function(func)) {
-                err_setstr(RuntimeError,
+                err_setstr(TypeError,
                            "Cannot set function attribute for type %s",
                            typestr(func));
                 return RES_ERROR;
@@ -296,7 +296,7 @@ function_setattr(Object *func, int attr, int value)
                 fh->f_maxargs = value;
                 break;
         default:
-                err_setstr(RuntimeError,
+                err_setstr(TypeError,
                            "Type funcion does not have enumerated attribute %d",
                            attr);
                 return RES_ERROR;

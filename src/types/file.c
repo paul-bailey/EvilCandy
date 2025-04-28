@@ -127,7 +127,7 @@ do_read(Frame *fr)
         f = V2F(self);
         if (!(f->f_mode & FMODE_READ)) {
                 err_setstr(RuntimeError, "You may not read in this mode");
-                return RuntimeError;
+                return ErrorVar;
         }
         if (f->f_eof)
                 return NULL;
@@ -139,16 +139,16 @@ do_read(Frame *fr)
                 Object *ret;
                 unsigned char *buf, *pbuf;
                 if (!len) {
-                        err_setstr(RuntimeError, "Expected: length");
+                        err_setstr(ArgumentError, "Expected: length");
                         return ErrorVar;
                 }
                 if (!isvar_int(len)) {
-                        err_setstr(RuntimeError, "Read length must be an integer");
+                        err_setstr(TypeError, "Read length must be an integer");
                         return ErrorVar;
                 }
                 len_i = intvar_toll(len);
                 if (len_i < 0 || len_i > INT_MAX) {
-                        err_setstr(RuntimeError, "Invalid read length");
+                        err_setstr(ValueError, "Invalid read length");
                         return ErrorVar;
                 }
 
@@ -220,7 +220,7 @@ do_write(Frame *fr)
         }
         data = vm_get_arg(fr, 0);
         if (!data) {
-                err_setstr(RuntimeError, "Expected: data to write");
+                err_setstr(ArgumentError, "Expected: data to write");
                 return ErrorVar;
         }
 
@@ -268,7 +268,7 @@ do_write(Frame *fr)
         return NULL;
 
 etype:
-        err_setstr(RuntimeError, "Cannot write '%s' type to %s stream",
+        err_setstr(TypeError, "Cannot write '%s' type to %s stream",
                    typestr(data), f->f_binary ? "binary" : "text");
         return ErrorVar;
 }

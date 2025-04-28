@@ -197,8 +197,8 @@ tuplevar_new(int n_items)
 }
 
 /**
- * tuple_valide - Ensure a certain tuple length
- *                              and arrangement of contents.
+ * tuple_validate - Ensure a certain tuple length
+ *                  and arrangement of contents.
  * @tup: Tuple to validate
  * @descr: Description of contents, explained below.
  * @map_function: If true, then 'x' in @descr could be either for a
@@ -218,6 +218,7 @@ tuplevar_new(int n_items)
  * @descr must contain a sequence of the following letters:
  *      letter:      Type:
  *      -------      -----
+ *        *         wildcard (any type is valid)
  *        F         Filetype
  *        U         UuidptrType
  *        X         XptrType
@@ -243,8 +244,11 @@ tuple_validate(Object *tup, const char *descr, bool map_function)
 
         data = tuple_get_data(tup);
         while (*descr) {
-                struct type_t *check = NULL;
+                struct type_t *check;
                 switch (*descr) {
+                case '*':
+                        check = NULL;
+                        break;
                 case 'F':
                         check = &FileType;
                         break;
@@ -284,8 +288,11 @@ tuple_validate(Object *tup, const char *descr, bool map_function)
                 case 'x':
                         check = &FunctionType;
                         break;
+                default:
+                        check = NULL;
+                        bug();
                 }
-                if ((*data)->v_type != check) {
+                if (check && (*data)->v_type != check) {
                         if (!map_function)
                                 goto nope;
                         if (*descr != 'x')

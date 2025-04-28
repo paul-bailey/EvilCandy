@@ -84,7 +84,7 @@ symbol_seek(Object *name)
 
         ret = dict_getattr(symbol_table, name);
         if (!ret) {
-                err_setstr(RuntimeError, "Symbol %s not found",
+                err_setstr(NameError, "Symbol %s not found",
                            string_get_cstring(name));
         } else {
                 /*
@@ -104,7 +104,7 @@ symbol_put(Frame *fr, Object *name, Object *v)
         bug_on(!isvar_string(name));
         int ret = dict_setattr_replace(symbol_table, name, v);
         if (ret != RES_OK && !err_occurred()) {
-                err_setstr(RuntimeError,
+                err_setstr(NameError,
                            "Symbol '%s' does not exist or is unassignable",
                            string_get_cstring(name));
         }
@@ -226,7 +226,7 @@ vmframe_push_block(Frame *fr, unsigned char reason, short where)
 {
         struct block_t *bl;
         if (fr->n_blocks >= FRAME_NEST_MAX) {
-                err_setstr(RuntimeError, "Frame stack overflow");
+                err_setstr(RecursionError, "Frame stack overflow");
                 return -1;
         }
         bl = &fr->blocks[fr->n_blocks];
@@ -296,7 +296,7 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
                 /* Global variable or attribute in namespace */
                 return symbol_put(fr, RODATA(fr, ii), from);
         case IARG_PTR_THIS:
-                err_setstr(RuntimeError, "You may not assign `this'");
+                err_setstr(TypeError, "You may not assign `this'");
                 return RES_ERROR;
         default:
                 /*
@@ -462,7 +462,7 @@ do_symtab(Frame *fr, instruction_t ii)
         bug_on(!isvar_string(name));
         res = dict_setattr_exclusive(symbol_table, name, NullVar);
         if (res != RES_OK) {
-                err_setstr(RuntimeError, "Symbol %s already exists",
+                err_setstr(NameError, "Symbol %s already exists",
                                 string_get_cstring(name));
         }
         return res;
@@ -689,7 +689,7 @@ do_getattr(Frame *fr, instruction_t ii)
         obj = pop(fr);
 
         attr = var_getattr(obj, key);
-        if (!attr) {
+        if (attr == ErrorVar) {
                 if (!err_occurred())
                         err_attribute("get", key, obj);
                 ret = RES_ERROR;
@@ -698,7 +698,7 @@ do_getattr(Frame *fr, instruction_t ii)
         if (del)
                 VAR_DECR_REF(key);
 
-        if (attr)
+        if (attr != ErrorVar)
                 push(fr, attr);
 
         return ret;
@@ -723,11 +723,8 @@ do_foreach_setup(Frame *fr, instruction_t ii)
         Object *v   = pop(fr); /* haystack */
         if (!v->v_type->sqm) {
                 Object *w;
-                if (!isvar_dict(v)) {
-                        err_setstr(RuntimeError,
-                                   "'%s' is not iterable", typestr(v));
+                if (!isvar_dict(v))
                         goto cant;
-                }
 
                 /* Dictionary, use its keys instead */
                 w = dict_keys(v);
@@ -736,16 +733,14 @@ do_foreach_setup(Frame *fr, instruction_t ii)
         }
 
         /* now it's sequential, check if iterable too */
-        if (!v->v_type->sqm->getitem) {
-                err_setstr(RuntimeError,
-                           "'%s' is not iterable", typestr(v));
+        if (!v->v_type->sqm->getitem)
                 goto cant;
-        }
 
         push(fr, v);
         return RES_OK;
 
 cant:
+        err_setstr(TypeError, "'%s' is not iterable", typestr(v));
         VAR_DECR_REF(v);
         return RES_ERROR;
 }
@@ -775,7 +770,7 @@ do_foreach_iter(Frame *fr, instruction_t ii)
         }
 
         needle = var_getattr(haystack, iter);
-        if (!needle) {
+        if (needle == ErrorVar) {
                 /* Can happen if item removed in middle of loop */
                 res = RES_ERROR;
                 VAR_DECR_REF(haystack);

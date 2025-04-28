@@ -68,7 +68,7 @@ ipow(long long x, long long y)
         return (x * a) * sign;
 
 err:
-        err_setstr(RuntimeError, "boundary error for ** operator");
+        err_setstr(NumberError, "boundary error for ** operator");
         return 0;
 }
 
@@ -105,7 +105,7 @@ int_div(Object *a, Object *b)
         la = intvar_toll(a);
         lb = intvar_toll(b);
         if (lb == 0LL) {
-                err_setstr(RuntimeError, "Divide by zero");
+                err_setstr(NumberError, "Divide by zero");
                 return NULL;
         }
         return intvar_new(la / lb);
@@ -119,7 +119,7 @@ int_mod(Object *a, Object *b)
         la = intvar_toll(a);
         lb = intvar_toll(b);
         if (lb == 0LL) {
-                err_setstr(RuntimeError, "Modulo zero");
+                err_setstr(NumberError, "Modulo zero");
                 return NULL;
         }
         return intvar_new(la % lb);

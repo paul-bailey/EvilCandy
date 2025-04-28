@@ -246,15 +246,15 @@ dict_from_json(const char *filename)
                         /* error string already set */
                         break;
                 case JE_SYNTAX:
-                        err_setstr(RuntimeError,
+                        err_setstr(SyntaxError,
                                    "JSON file has improper syntax");
                         break;
                 case JE_EXCESS:
-                        err_setstr(RuntimeError,
+                        err_setstr(SyntaxError,
                                    "Excess tokens in JSON file");
                         break;
                 case JE_RECURSION:
-                        err_setstr(RuntimeError,
+                        err_setstr(RecursionError,
                                    "JSON elements nested too deeply");
                         break;
                 default:

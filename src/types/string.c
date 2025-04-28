@@ -991,7 +991,7 @@ string_rjust(Frame *fr)
 
         just = intvar_toll(arg);
         if (just < 0 || just >= JUST_MAX) {
-                err_setstr(RuntimeError, "Range limit error");
+                err_setstr(ValueError, "Range limit error");
                 return ErrorVar;
         }
 
@@ -1031,7 +1031,7 @@ string_ljust(Frame *fr)
 
         just = intvar_toll(arg);
         if (just < 0 || just >= JUST_MAX) {
-                err_setstr(RuntimeError, "Range limit error");
+                err_setstr(ValueError, "Range limit error");
                 return ErrorVar;
         }
 
@@ -1057,7 +1057,7 @@ join_next_str(Object *arr, int i)
         /* see string_join below, we already checked that i is ok */
         bug_on(!ret);
         if (!isvar_string(ret)) {
-                err_setstr(RuntimeError,
+                err_setstr(TypeError,
                            "string.join method may only join lists of strings");
                 VAR_DECR_REF(ret);
                 return NULL;
@@ -1208,7 +1208,7 @@ string_cat(Object *a, Object *b)
                 return stringvar_new("");
 
         if (!isvar_string(b)) {
-                err_setstr(RuntimeError,
+                err_setstr(TypeError,
                            "Mismatched types for + operation");
                 return NULL;
         }

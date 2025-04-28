@@ -80,7 +80,7 @@ function_of(Object *fn, Object **owner)
                                 callable_key = stringvar_new("__callable__");
 
                         new_owner = fn;
-                        fn = dict_getattr(fn, callable_key);
+                        fn = dict_getitem(fn, callable_key);
                 } else {
                         fn = NULL;
                 }

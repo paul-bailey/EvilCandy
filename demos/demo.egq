@@ -100,12 +100,12 @@ if (false) {
 
 (function(s) {
     print("Does gbl have child '{}'?".format(s));
-    if (__gbl__.hasattr(s))
+    if (__gbl__ has s)
         print("\t...yes!");
     else
         print("\t...no :(");
-    print("Does gbl have child 'Io'?");
-    if (__gbl__.hasattr('Io'))
+    print("Does gbl have child '_builtins'?");
+    if (__gbl__ has '_builtins')
         print("\t...yes!");
     else
         print("\t...nope");

@@ -285,7 +285,7 @@ dictvar_new(void)
 }
 
 /**
- * dict_getattr - Get object attribute
+ * dict_getitem - Get object attribute
  * @o:  Me
  * @s:  Key
  *
@@ -293,7 +293,7 @@ dictvar_new(void)
  *      Calling code must decide whether NULL is an error or not
  */
 Object *
-dict_getattr(Object *o, Object *key)
+dict_getitem(Object *o, Object *key)
 {
         struct dictvar_t *d;
         unsigned int i;
@@ -381,7 +381,7 @@ dict_insert(Object *dict, Object *key,
 }
 
 /**
- * dict_setattr - Insert an attribute to dictionary if it doesn't exist,
+ * dict_setitem - Insert an attribute to dictionary if it doesn't exist,
  *                  or change the existing attribute if it does.
  * @self:       Dictionary object
  * @key:        Name of attribute key
@@ -392,18 +392,18 @@ dict_insert(Object *dict, Object *key,
  * Return: RES_OK or RES_ERROR.
  */
 enum result_t
-dict_setattr(Object *dict, Object *key, Object *attr)
+dict_setitem(Object *dict, Object *key, Object *attr)
 {
         return dict_insert(dict, key, attr, 0);
 }
 
 /*
- * like dict_setattr, but throw error if @key already exists.
+ * like dict_setitem, but throw error if @key already exists.
  * Used by the symbol table to prevent duplicate declarations.
  * @attr may not be NULL this time.
  */
 enum result_t
-dict_setattr_exclusive(Object *dict,
+dict_setitem_exclusive(Object *dict,
                          Object *key, Object *attr)
 {
         return dict_insert(dict, key, attr, DF_EXCL);
@@ -446,12 +446,12 @@ dict_unique(Object *dict, const char *key)
 }
 
 /*
- * like dict_setattr, but throw error if @key does not exist.
+ * like dict_setitem, but throw error if @key does not exist.
  * Used by the symbol table to change global variable values.
  * @attr may not be NULL.
  */
 enum result_t
-dict_setattr_replace(Object *dict,
+dict_setitem_replace(Object *dict,
                        Object *key, Object *attr)
 {
         return dict_insert(dict, key, attr, DF_SWAP);
@@ -459,7 +459,7 @@ dict_setattr_replace(Object *dict,
 
 
 static int
-dict_hasattr(Object *dict, Object *key)
+dict_hasitem(Object *dict, Object *key)
 {
         unsigned int i;
         if (!key)
@@ -588,7 +588,7 @@ dict_copyto(Object *to, Object *from)
                 struct bucket_t *b = d->d_bucket[i];
                 if (b == NULL || b == BUCKET_DEAD)
                         continue;
-                if (dict_setattr(to, b->b_key, b->b_data) != RES_OK)
+                if (dict_setitem(to, b->b_key, b->b_data) != RES_OK)
                         return RES_ERROR;
         }
         return RES_OK;
@@ -653,7 +653,7 @@ do_dict_foreach(Frame *fr)
 
                 key = array_getitem(keys, i);
                 bug_on(!key || key == ErrorVar);
-                val = dict_getattr(self, key);
+                val = dict_getitem(self, key);
                 if (!val) /* user shenanigans in foreach loop */
                         continue;
 
@@ -696,92 +696,7 @@ do_dict_len(Frame *fr)
 }
 
 static Object *
-do_dict_hasattr(Frame *fr)
-{
-        Object *self = get_this(fr);
-        Object *name = frame_get_arg(fr, 0);
-
-        if (arg_type_check(self, &DictType) == RES_ERROR)
-                return ErrorVar;
-
-        if (!name || !isvar_string(name)) {
-                err_argtype("string");
-                return ErrorVar;
-        }
-
-        /* XXX if false, check DictType->methods? */
-        return intvar_new(dict_hasattr(self, name));
-}
-
-/* "obj.setattr('name', val)" is an alternative to "obj.name = val" */
-static Object *
-do_dict_setattr(Frame *fr)
-{
-        Object *self = get_this(fr);
-        Object *name = frame_get_arg(fr, 0);
-        Object *value = frame_get_arg(fr, 1);
-
-        if (arg_type_check(self, &DictType) == RES_ERROR)
-                return ErrorVar;
-
-        if (!name || !isvar_string(name)) {
-                err_argtype("name");
-                return ErrorVar;
-        }
-        if (!value) {
-                err_argtype("value");
-                return ErrorVar;
-        }
-        if (dict_setattr(self, name, value) != RES_OK)
-                return ErrorVar;
-
-        return NULL;
-}
-
-/*
- *      let x = obj.getattr('name')"
- *
- * is a faster alternative to:
- *
- *      let x;
- *      if (obj.hasattr('name'))
- *              x = obj.name;
- *
- * The difference is that in the case of "x = obj.name", an error
- * will be thrown if 'name' does not exist, but in the case of
- * "x = obj.getattr('name')", x will be set to the empty variable
- * if 'name' does not exist.
- */
-static Object *
-do_dict_getattr(Frame *fr)
-{
-        Object *self = get_this(fr);
-        Object *name = frame_get_arg(fr, 0);
-        Object *ret;
-        char *s;
-
-        if (arg_type_check(self, &DictType) == RES_ERROR)
-                return ErrorVar;
-
-        if (arg_type_check(name, &StringType) != 0)
-                return ErrorVar;
-
-        s = string_get_cstring(name);
-        if (!s) {
-                err_setstr(ArgumentError, "getattr: name may not be empty");
-                return ErrorVar;
-        }
-
-        ret = dict_getattr(self, name);
-        /* XXX: If NULL, check built-in methods */
-        /* XXX: VAR_INCR_REF? Who's taking this? */
-        if (!ret)
-                ret = ErrorVar;
-        return ret;
-}
-
-static Object *
-do_dict_delattr(Frame *fr)
+do_dict_delitem(Frame *fr)
 {
         Object *self = get_this(fr);
         Object *name = vm_get_arg(fr, 0);
@@ -792,7 +707,7 @@ do_dict_delattr(Frame *fr)
         if (arg_type_check(name, &StringType) != 0)
                 return ErrorVar;
 
-        if (dict_setattr(self, name, NULL) != RES_OK)
+        if (dict_setitem(self, name, NULL) != RES_OK)
                 return ErrorVar;
         return NULL;
 }
@@ -897,10 +812,7 @@ do_dict_purloin(Frame *fr)
 static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("len",       do_dict_len,       0, 0),
         V_INITTBL("foreach",   do_dict_foreach,   1, 2),
-        V_INITTBL("hasattr",   do_dict_hasattr,   1, 1),
-        V_INITTBL("setattr",   do_dict_setattr,   2, 2),
-        V_INITTBL("getattr",   do_dict_getattr,   1, 1),
-        V_INITTBL("delattr",   do_dict_delattr,   1, 1),
+        V_INITTBL("delitem",   do_dict_delitem,   1, 1),
         V_INITTBL("purloin",   do_dict_purloin,   0, 1),
         V_INITTBL("keys",      do_dict_keys,      0, 0),
         V_INITTBL("copy",      do_dict_copy,      0, 0),
@@ -908,9 +820,9 @@ static const struct type_inittbl_t dict_cb_methods[] = {
 };
 
 static const struct map_methods_t dict_map_methods = {
-        .getitem = dict_getattr,
-        .setitem = dict_setattr,
-        .hasitem = dict_hasattr,
+        .getitem = dict_getitem,
+        .setitem = dict_setitem,
+        .hasitem = dict_hasitem,
         .mpunion = dict_union,
 };
 

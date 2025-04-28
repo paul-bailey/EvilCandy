@@ -180,12 +180,12 @@ extern char *uuidptr_get_cstring(Object *v);
 /* types/dict.c */
 extern Object *dictvar_new(void);
 extern Object *dict_keys(Object *obj);
-extern Object *dict_getattr(Object *o, Object *key);
-extern enum result_t dict_setattr(Object *o, Object *key, Object *attr);
+extern Object *dict_getitem(Object *o, Object *key);
+extern enum result_t dict_setitem(Object *o, Object *key, Object *attr);
 extern void dict_add_to_globals(Object *obj);
-extern enum result_t dict_setattr_replace(Object *dict,
+extern enum result_t dict_setitem_replace(Object *dict,
                                 Object *key, Object *attr);
-extern enum result_t dict_setattr_exclusive(Object *dict,
+extern enum result_t dict_setitem_exclusive(Object *dict,
                                 Object *key, Object *attr);
 extern char *dict_unique(Object *dict, const char *key);
 

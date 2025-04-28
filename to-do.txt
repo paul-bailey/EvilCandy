@@ -33,8 +33,6 @@ Library/Language Features
 
 * Add sets
 
-* Add union operator for dicts
-
 * Support soft keywords
 
 * Add a Matrix/DSP module, something like NumPy for Python
@@ -47,20 +45,17 @@ Library/Language Features
 
 * Add stdin and shell environment to Io module
 
+* Add way to pass arguments to imported scripts, and a way for the
+  script to access them.  Maybe a special identifier token like ``$0``.
+
+* Add keyword arguments, esp. useful for things like ``print``.
+
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
 * (requires parser rewrite) Optimize parsing of complex-number
   expressions like '2 + 2j' so that they evaluate to a single complex
   number at compile time instead of runtime.
-
-* Change ``catch`` so that it's less like JS and more like Python:
-  let it specify which exceptions it wants to catch.
-
-* Add way to pass arguments to imported scripts, and a way for the
-  script to access them.  Maybe a special identifier token like ``$0``.
-
-* Add keyword arguments, esp. useful for things like ``print``.
 
 * Replace setjmp in assemble.c with normal stack unwinding.  May need
   to replace EOF with OC_EOF so that a <0 check will always mean

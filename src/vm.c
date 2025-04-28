@@ -82,13 +82,13 @@ symbol_seek(Object *name)
 
         bug_on(!isvar_string(name));
 
-        ret = dict_getattr(symbol_table, name);
+        ret = dict_getitem(symbol_table, name);
         if (!ret) {
                 err_setstr(NameError, "Symbol %s not found",
                            string_get_cstring(name));
         } else {
                 /*
-                 * See where used below.  dict_getattr produced a
+                 * See where used below.  dict_getitem produced a
                  * reference, but so will do_load, since VARPTR might
                  * give it something from the stack instead of here.
                  * So consume one reference to keep it balanced.
@@ -102,7 +102,7 @@ static int
 symbol_put(Frame *fr, Object *name, Object *v)
 {
         bug_on(!isvar_string(name));
-        int ret = dict_setattr_replace(symbol_table, name, v);
+        int ret = dict_setitem_replace(symbol_table, name, v);
         if (ret != RES_OK && !err_occurred()) {
                 err_setstr(NameError,
                            "Symbol '%s' does not exist or is unassignable",
@@ -460,7 +460,7 @@ do_symtab(Frame *fr, instruction_t ii)
         int res;
         Object *name = RODATA(fr, ii);
         bug_on(!isvar_string(name));
-        res = dict_setattr_exclusive(symbol_table, name, NullVar);
+        res = dict_setitem_exclusive(symbol_table, name, NullVar);
         if (res != RES_OK) {
                 err_setstr(NameError, "Symbol %s already exists",
                                 string_get_cstring(name));
@@ -1202,7 +1202,7 @@ vm_add_global(Object *name, Object *var)
         int res;
         bug_on(!symbol_table);
         bug_on(!isvar_string(name));
-        res = dict_setattr_exclusive(symbol_table, name, var);
+        res = dict_setitem_exclusive(symbol_table, name, var);
         bug_on(res != RES_OK);
         (void)res;
 }
@@ -1215,11 +1215,11 @@ bool
 vm_symbol_exists(Object *key)
 {
         /*
-         * XXX Give dict_getattr extern linkage so I don't have to
+         * XXX Give dict_getitem extern linkage so I don't have to
          * waste time with reference counters on dummy variables.
          */
         Object *val;
-        val = dict_getattr(symbol_table, key);
+        val = dict_getitem(symbol_table, key);
         if (val)
                 VAR_DECR_REF(val);
         return val != NULL;

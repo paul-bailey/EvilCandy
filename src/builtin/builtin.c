@@ -278,7 +278,7 @@ build_internal_object(Object *parent, const struct inittbl_t *tbl)
                         bug();
                 }
                 key = stringvar_new(t->name);
-                if (dict_setattr(parent, key, child) != 0) {
+                if (dict_setitem(parent, key, child) != 0) {
                         /*
                          * Whether this is a "bug" or not is philosophical.
                          * Anyway, it can't be user error, so something
@@ -294,7 +294,7 @@ static Object *
 gblobject(const char *ks)
 {
         Object *key = stringvar_new(ks);
-        Object *ret = dict_getattr(GlobalObject, key);
+        Object *ret = dict_getitem(GlobalObject, key);
         VAR_DECR_REF(key);
         return ret;
 }

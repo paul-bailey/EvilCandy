@@ -139,7 +139,7 @@ parsedict(struct json_state_t *j, Object *parent)
                 json_get_tok(j);
                 child = parseatomic(j);
                 key = stringvar_new(name);
-                res = dict_setattr(parent, key, child);
+                res = dict_setitem(parent, key, child);
                 VAR_DECR_REF(key);
                 if (res != RES_OK)
                         json_err(j, JE_ADDATTR);

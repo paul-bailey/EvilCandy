@@ -129,7 +129,7 @@ complex_cmpz(Object *x)
 }
 
 static Object *
-complex_getattr(Object *self, const char *name)
+complex_getprop(Object *self, const char *name)
 {
         Object *ret;
         struct complexvar_t *cv = V2C(self);
@@ -164,7 +164,7 @@ struct type_t ComplexType = {
         .str    = complex_str,
         .cmp    = complex_cmp,
         .cmpz   = complex_cmpz,
-        .getattr = complex_getattr,
+        .getprop = complex_getprop,
 };
 
 Object *

@@ -153,7 +153,7 @@ config_builtin_methods(const struct type_inittbl_t *tbl_arr,
 
                 v = funcvar_new_intl(t->fn, t->minargs, t->maxargs);
                 k = stringvar_new(t->name);
-                res = dict_setattr_exclusive(dict, k, v);
+                res = dict_setitem_exclusive(dict, k, v);
                 VAR_DECR_REF(k);
 
                 bug_on(res != RES_OK);
@@ -324,12 +324,12 @@ var_getattr(Object *v, Object *key)
                 }
 
                 /* still here? try built-ins */
-                ret = dict_getattr(v->v_type->methods, key);
+                ret = dict_getitem(v->v_type->methods, key);
                 if (ret)
                         goto found;
 
-                if (v->v_type->getattr)
-                        ret = v->v_type->getattr(v, string_get_cstring(key));
+                if (v->v_type->getprop)
+                        ret = v->v_type->getprop(v, string_get_cstring(key));
 
                 if (!ret) {
                         err_setstr(KeyError, "Object has no attribute %s",
@@ -341,11 +341,6 @@ found:
                 /*
                  * Save "owner" with function, so when it's called it
                  * knows who its "this" is.
-                 *
-                 * FIXME: Lots of Object creation/destruction going on
-                 * here.  Maybe I'm not too cool to create a class syntax
-                 * after all.  There's like less than a 50/50 chance the
-                 * function will use "this" anyway.
                  */
                 if (isvar_function(ret)) {
                         Object *tmp = ret;

@@ -259,7 +259,7 @@ etype:
 }
 
 static Object *
-file_getattr(Object *file, const char *name)
+file_getprop(Object *file, const char *name)
 {
         struct filevar_t *f = V2F(file);
         bug_on(!isvar_file(file));
@@ -295,7 +295,7 @@ struct type_t FileType = {
         .cmp    = file_cmp,
         .cmpz   = file_cmpz,
         .reset  = file_reset,
-        .getattr = file_getattr,
+        .getprop = file_getprop,
 };
 
 Object *

@@ -33,7 +33,26 @@ float_pow(Object *a, Object *b)
         DOUBLE(a, fa);
         DOUBLE(b, fb);
 
-        /* XXX: 'Just call pow.'  Wow!  Are we ok with this? */
+        /*
+         * Try to preven any 'nan' answers.
+         *
+         * Cody & Waite, _Software Manual for the Elementary Functions_
+         * was shockingly unhelpful here.
+         */
+        if (fa < 0.0 && fb != floor(fb)) {
+                err_setstr(NotImplementedError,
+                        "Result would be a complex number");
+                return NULL;
+        }
+
+        if (fa == 0.0) {
+                if (fb < 0.0) {
+                        err_setstr(NumberError,
+                                "0 ** Negative number would divide by zero");
+                        return NULL;
+                }
+        }
+
         return floatvar_new(pow(fa, fb));
 }
 
@@ -100,6 +119,11 @@ float_cmp(Object *a, Object *b)
         double fa, fb;
         DOUBLE(a, fa);
         DOUBLE(b, fb);
+        /*
+         * FIXME: double has a 52-bit mantissa (53 bits of precision),
+         * so when comparing a double with any integer <= (1ull << 53),
+         * we could get a false match.
+         */
         return OP_CMP(fa, fb);
 }
 
@@ -123,6 +147,20 @@ float_str(Object *a)
         int i, len;
 
         memset(buf, 0, sizeof(buf));
+
+        /* Handle some picky stuff first */
+        if (isnan(d)) {
+                strcpy(buf, "nan");
+                goto done;
+        } else if (isinf(d)) {
+                double dab = fabs(d);
+                if (dab == d)
+                        strcpy(buf, "inf");
+                else
+                        strcpy(buf, "-inf");
+                goto done;
+        }
+
         len = snprintf(buf, sizeof(buf)-1, "%.17g", d);
         bug_on(len >= sizeof(buf));
 
@@ -136,6 +174,8 @@ float_str(Object *a)
          * The only pitfall of '%g' is that if nothing is beyond the
          * decimal, the result could be interpreted back as an integer.
          * So check if that's the case and add '.0' to the end if needed.
+         * The '#' **should** take care of it for me, but I don't trust
+         * that.
          */
         for (i = 0; i < len; i++) {
                 if (buf[i] == '.' || buf[i] == 'e' || buf[i] == 'E')
@@ -150,6 +190,7 @@ float_str(Object *a)
                 bug_on(i > sizeof(buf));
         }
 
+done:
         return stringvar_new(buf);
 }
 

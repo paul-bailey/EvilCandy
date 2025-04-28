@@ -324,6 +324,7 @@ moduleinit_builtin(void)
         MAKE_EXCEPTION(KeyError);
         MAKE_EXCEPTION(IndexError);
         MAKE_EXCEPTION(NameError);
+        MAKE_EXCEPTION(NotImplementedError);
         MAKE_EXCEPTION(NumberError);
         MAKE_EXCEPTION(RangeError);
         MAKE_EXCEPTION(RecursionError);
@@ -355,6 +356,7 @@ moduledeinit_builtin(void)
         VAR_DECR_REF(KeyError);
         VAR_DECR_REF(IndexError);
         VAR_DECR_REF(NameError);
+        VAR_DECR_REF(NotImplementedError);
         VAR_DECR_REF(NumberError);
         VAR_DECR_REF(RangeError);
         VAR_DECR_REF(RecursionError);

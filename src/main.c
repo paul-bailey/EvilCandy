@@ -40,6 +40,7 @@ Object *KeyError;
 Object *IndexError;
 Object *NameError;
 Object *NumberError;
+Object *NotImplementedError;
 Object *RangeError;
 Object *RecursionError;
 Object *RuntimeError;

@@ -39,6 +39,7 @@ extern Object *ArgumentError;
 extern Object *KeyError;
 extern Object *IndexError;
 extern Object *NameError;
+extern Object *NotImplementedError;
 extern Object *NumberError;
 extern Object *RangeError;
 extern Object *RecursionError;

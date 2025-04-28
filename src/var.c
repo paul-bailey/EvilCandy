@@ -328,11 +328,27 @@ var_getattr(Object *v, Object *key)
                 if (ret)
                         goto found;
 
-                if (v->v_type->getprop)
-                        ret = v->v_type->getprop(v, string_get_cstring(key));
+                /* try property getters */
+                if (v->v_type->prop_getsets) {
+                        const char *skey = string_get_cstring(key);
+                        const struct type_prop_t *prp = v->v_type->prop_getsets;
+                        while (prp->name != NULL) {
+                                if (!strcmp(prp->name, skey)) {
+                                        /* bingo! */
+                                        if (!prp->getprop) {
+                                                err_setstr(TypeError,
+                                                        "Property %s is write-only",
+                                                        skey);
+                                                return ErrorVar;
+                                        }
+                                        return prp->getprop(v);
+                                }
+                                prp++;
+                        }
+                }
 
                 if (!ret) {
-                        err_setstr(KeyError, "Object has no attribute %s",
+                        err_setstr(KeyError, "%s Object has no attribute %s",
                                    string_get_cstring(key));
                         return ErrorVar;
                 }

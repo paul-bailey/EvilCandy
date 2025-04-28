@@ -259,22 +259,32 @@ etype:
 }
 
 static Object *
-file_getprop(Object *file, const char *name)
+file_geteof(Object *file)
 {
         struct filevar_t *f = V2F(file);
+        int res;
+
         bug_on(!isvar_file(file));
-        if (!strcmp(name, "eof")) {
-                int res = f->f_eof || !f->f_fp ||
-                          (f->f_fp && feof(f->f_fp));
-                return intvar_new(res);
-        } else if (!strcmp(name, "closed")) {
-                int res = f->f_fp == NULL;
-                return intvar_new(res);
-        } else {
-                /* TODO: mode string, needs API change w/ open */
-                return NULL;
-        }
+        res = f->f_eof || !f->f_fp || (f->f_fp && feof(f->f_fp));
+        return intvar_new(res);
 }
+
+static Object *
+file_getclosed(Object *file)
+{
+        struct filevar_t *f = V2F(file);
+        int res;
+
+        bug_on(!isvar_file(file));
+        res = f->f_fp == NULL;
+        return intvar_new(res);
+}
+
+static const struct type_prop_t file_prop_getsets[] = {
+        { .name = "eof",        .getprop = file_geteof,         .setprop = NULL },
+        { .name = "closed",     .getprop = file_getclosed,      .setprop = NULL },
+        { .name = NULL },
+};
 
 static const struct type_inittbl_t file_cb_methods[] = {
         V_INITTBL("clearerr",   do_clearerr,    0, 0),
@@ -295,7 +305,7 @@ struct type_t FileType = {
         .cmp    = file_cmp,
         .cmpz   = file_cmpz,
         .reset  = file_reset,
-        .getprop = file_getprop,
+        .prop_getsets = file_prop_getsets,
 };
 
 Object *

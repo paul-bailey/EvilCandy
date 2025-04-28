@@ -109,6 +109,13 @@ struct type_inittbl_t {
         int maxargs;
 };
 
+/* see struct type_t below, @prop_getsets */
+struct type_prop_t {
+        const char *name;
+        Object *(*getprop)(Object *self);
+        enum result_t (*setprop)(Object *self, Object *value);
+};
+
 /**
  * struct type_t - Used to get info about a typedef
  * @name:       Name of the type
@@ -144,12 +151,11 @@ struct type_inittbl_t {
  *              to check and make a conversion.
  * @cmpz:       Returns 1 if some kind of zero.
  * @reset:      May be NULL.  Destructor for a variable's private data.
- * @getprop:    May be NULL.  Return a property.  Retur NULL, not ErrorVar,
- *              if @name is not a valid property.
- * @setprop:    May be NULL.  Set a property, if it is not read-only.
- *              Return RES_OK if set, RES_ERROR if not.  Report an error
- *              if @name is found but it's read-only, otherwise let calling
- *              code handle error reporting.
+ * @prop_getsets: Array of property getters/setters.  Its .setprop or
+ *              .getprop fields may be NULL in the case of read-only or
+ *              write-only properties.  This may be NULL if there are no
+ *              built-in properties for the type; if not NULL, the array
+ *              must be terminated with an item whose .name is NULL.
  */
 struct type_t {
         const char *name;
@@ -165,8 +171,7 @@ struct type_t {
         int (*cmp)(Object *, Object *);
         bool (*cmpz)(Object *);    /* a == 0 ? */
         void (*reset)(Object *);
-        Object *(*getprop)(Object *, const char *name);
-        enum result_t (*setprop)(Object *, const char *name, Object *prop);
+        const struct type_prop_t *prop_getsets;
 };
 
 /*

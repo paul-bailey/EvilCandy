@@ -129,19 +129,26 @@ complex_cmpz(Object *x)
 }
 
 static Object *
-complex_getprop(Object *self, const char *name)
+complex_getreal(Object *self)
 {
-        Object *ret;
         struct complexvar_t *cv = V2C(self);
-        if (!strcmp(name, "real")) {
-                ret = floatvar_new(creal(cv->c));
-        } else if (!strcmp(name, "imag")) {
-                ret = floatvar_new(cimag(cv->c));
-        } else {
-                ret = NULL;
-        }
-        return ret;
+        bug_on(!isvar_complex(self));
+        return floatvar_new(creal(cv->c));
 }
+
+static Object *
+complex_getimag(Object *self)
+{
+        struct complexvar_t *cv = V2C(self);
+        bug_on(!isvar_complex(self));
+        return floatvar_new(cimag(cv->c));
+}
+
+static const struct type_prop_t complex_prop_getsets[] = {
+        { .name = "real", .getprop = complex_getreal, .setprop = NULL },
+        { .name = "imag", .getprop = complex_getimag, .setprop = NULL },
+        { .name = NULL },
+};
 
 static const struct type_inittbl_t complex_methods[] = {
         TBLEND,
@@ -164,7 +171,7 @@ struct type_t ComplexType = {
         .str    = complex_str,
         .cmp    = complex_cmp,
         .cmpz   = complex_cmpz,
-        .getprop = complex_getprop,
+        .prop_getsets = complex_prop_getsets,
 };
 
 Object *

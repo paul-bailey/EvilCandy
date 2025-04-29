@@ -4,6 +4,69 @@ Thought Bucket
 These are not bugs, though they may address design flaws.
 Instead they are a more verbose version of to-do.txt.
 
+Inheritance vs Encapsulation
+----------------------------
+
+:date: 2025-04-29
+
+I've thought up two methods for one user class (or rather, a dictionary
+that's being treated like a class) to inherit another.  One favors
+the principle of inheritance greatly while the other favors encapulation
+more.  I can't seem to get either to play nicely with each other.
+
+Method 1 (Inheritance-friendly)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code::
+
+        let new_class = base_constructor() | { /* new defs */ };
+
+Here the dictionary union operator ``|`` bypasses the practice of
+wrapping functions from one dictionary into a MethodType object before
+putting them in another.  ``new_class`` will become the owner of any
+function contained by the return value of ``base_constructor()``.
+
+Superficially this looks beautifully elegant, since you could turn
+multiple-inheritance into a single-line pipeline, but that's just an
+illusion caused by its visual similarity to the Bourne shell.
+
+The problem with it is that the base class may contain private data
+whose names collide with ``new defs``.  The Python practice of "just
+add underscores" is brain-dead, especially since that's probably what
+``base_constructor()`` did too.
+
+Method 2 (Encapsulation-friendly)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code::
+
+        let new_class = { /* new defs */ } ^ base_constructor();
+
+The carat ``^`` operator (which I am not set on) is a sort of pseudo
+union.  It takes *only* the functions from ``base_constructor()``'s
+return value, and it *does* wrap them in MethodType objects before
+inserting them into the result.
+
+The return value of ``base_constructor()`` was not assigned to a
+user-accessible variable in this example, so it exists as untouchable
+private data to the method objects stored in ``new_class``.  When it is
+popped off the stack before the end of this line it will not be
+garbage-collected, not until ``new_class`` goes out of scope.  This is
+encapsulation at its purest!
+
+The problem here is that although ``new_class``'s inherited methods can
+access their own private data without conflicting with its uninherited
+methods, there is no true interaction between the two groups of methods.
+
+Unsolvable?
+~~~~~~~~~~~
+
+This might be the most frustrating problem of them all, just because
+the very quality that makes each solution extremely elegant is also
+putting the two so much at odds with each other that neither solution
+can really work.  Most user-class definitions probably require a middle
+ground between pure encapsulation and pure inheritance.
+
 Rethinking Dictinaries
 ----------------------
 

@@ -42,8 +42,7 @@ enum type_magic_t {
         NTYPES,
 };
 
-typedef Object *(*binary_operator_t)(Object *,
-                                           Object *);
+typedef Object *(*binary_operator_t)(Object *, Object *);
 typedef Object *(*unary_operator_t)(Object *);
 
 /*

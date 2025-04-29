@@ -98,6 +98,14 @@ complex_negate(Object *self)
 }
 
 static Object *
+complex_abs(Object *self)
+{
+        complex double c;
+        COMPLEX(self, c);
+        return floatvar_new(cabs(c));
+}
+
+static Object *
 complex_str(Object *self)
 {
         struct complexvar_t *cv = V2C(self);
@@ -161,6 +169,7 @@ static const struct operator_methods_t complex_primitives = {
         .add    = complex_add,
         .sub    = complex_sub,
         .negate = complex_negate,
+        .abs    = complex_abs,
 };
 
 struct type_t ComplexType = {

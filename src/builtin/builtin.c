@@ -220,7 +220,26 @@ needint:
         return ErrorVar;
 }
 
+static Object *
+do_abs(Frame *fr)
+{
+        const struct operator_methods_t *opm;
+        Object *v = vm_get_arg(fr, 0);
+        if (!v) {
+                err_setstr(ArgumentError, "Expected: number");
+                return ErrorVar;
+        }
+        opm = v->v_type->opm;
+        if (!opm || !opm->abs) {
+                err_setstr(TypeError, "Wrong type for abs() '%s'",
+                           typestr(v));
+                return ErrorVar;
+        }
+        return opm->abs(v);
+}
+
 static const struct inittbl_t builtin_inittbl[] = {
+        TOFTBL("abs",    do_abs,    1, 1),
         TOFTBL("print",  do_print,  1, -1),
         TOFTBL("setnl",  do_setnl,  1, 1),
         TOFTBL("typeof", do_typeof, 1, 1),

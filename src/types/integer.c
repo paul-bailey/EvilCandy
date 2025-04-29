@@ -224,6 +224,15 @@ int_negate(Object *a)
 }
 
 static Object *
+int_abs(Object *a)
+{
+        long long v = intvar_toll(a);
+        if (v < 0)
+                v = -v;
+        return intvar_new(v);
+}
+
+static Object *
 int_str(Object *v)
 {
         char buf[64];
@@ -268,6 +277,7 @@ static const struct operator_methods_t int_primitives = {
         .xor            = int_xor,
         .bit_not        = int_bit_not,
         .negate         = int_negate,
+        .abs            = int_abs,
 };
 
 struct type_t IntType = {

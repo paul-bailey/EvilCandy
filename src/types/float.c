@@ -139,6 +139,12 @@ float_negate(Object *a)
 }
 
 static Object *
+float_abs(Object *a)
+{
+        return floatvar_new(fabs(V2F(a)->f));
+}
+
+static Object *
 float_str(Object *a)
 {
         char buf[25 + 17];
@@ -215,6 +221,7 @@ static const struct operator_methods_t float_primitives = {
         .add            = float_add,
         .sub            = float_sub,
         .negate         = float_negate,
+        .abs            = float_abs,
 };
 
 struct type_t FloatType = {

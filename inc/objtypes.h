@@ -68,6 +68,7 @@ struct operator_methods_t {
         binary_operator_t xor;     /* new = a ^ b (binary not logical) */
         unary_operator_t bit_not;  /* new = ~a */
         unary_operator_t negate;   /* new = -a */
+        unary_operator_t abs;      /* new = abs(a) */
 };
 
 struct map_methods_t {

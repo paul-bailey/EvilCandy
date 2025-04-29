@@ -192,6 +192,7 @@ extern struct type_t XptrType;
 extern struct type_t DictType;
 extern struct type_t StringType;
 extern struct type_t BytesType;
+extern struct type_t PropertyType;
 extern struct type_t RangeType;
 extern struct type_t UuidptrType;
 extern struct type_t FileType;
@@ -226,6 +227,8 @@ static inline bool isvar_uuidptr(Object *v)
         { return v->v_type == &UuidptrType; }
 static inline bool isvar_file(Object *v)
         { return v->v_type == &FileType; }
+static inline bool isvar_property(Object *v)
+        { return v->v_type == &PropertyType; }
 
 /* not 'isvar_num'... there always has to be an odd one out */
 static inline bool isnumvar(Object *v)

@@ -142,12 +142,21 @@ var_delete__(Object *v)
         var_free(v);
 }
 
-static void
-config_builtin_methods(const struct type_inittbl_t *tbl_arr,
-                       Object *dict)
+/*
+ * Given extern linkage so it can be called for modules that have
+ * data types which don't need to be visible outside their little
+ * corner of the interpreter.
+ * The major players are forward-declared in typedefs.h and added
+ * to VAR_TYPES_TBL[] below in moduleinit_var.
+ */
+void
+var_initialize_type(struct type_t *tp)
 {
-        const struct type_inittbl_t *t = tbl_arr;
-        while (t->name != NULL) {
+        tp->methods = dictvar_new();
+
+        Object *dict = tp->methods;
+        const struct type_inittbl_t *t = tp->cbm;
+        if (t) while (t->name != NULL) {
                 Object *v, *k;
                 enum result_t res;
 
@@ -161,21 +170,22 @@ config_builtin_methods(const struct type_inittbl_t *tbl_arr,
 
                 t++;
         }
-}
 
-/*
- * Given extern linkage so it can be called for modules that have
- * data types which don't need to be visible outside their little
- * corner of the interpreter.
- * The major players are forward-declared in typedefs.h and added
- * to VAR_TYPES_TBL[] below in moduleinit_var.
- */
-void
-var_initialize_type(struct type_t *tp)
-{
-        tp->methods = dictvar_new();
-        if (tp->cbm)
-                config_builtin_methods(tp->cbm, tp->methods);
+        const struct type_prop_t *p = tp->prop_getsets;
+        if (p) while (p->name != NULL) {
+                Object *v, *k;
+                enum result_t res;
+
+                v = propertyvar_new(p);
+                k = stringvar_new(p->name);
+                res = dict_setitem_exclusive(dict, k, v);
+                VAR_DECR_REF(k);
+
+                bug_on(res != RES_OK);
+                (void)res;
+
+                p++;
+        }
 }
 
 static struct type_t *const VAR_TYPES_TBL[] = {
@@ -288,6 +298,11 @@ var_realindex(Object *v, long long idx)
  *
  * This gets the equivalent to the EvilCandy expression: v[key]
  *
+ * If @key is an integer, it gets the indexed item @v.
+ * If @key is a string, it first checks if @v is a dictionary storing
+ * @key, then it checks if @v is any type with a property or built-in
+ * method named @key.
+ *
  * ONLY vm.c SHOULD USE THIS!  It accesses a dictionary which may not
  * yet exist during initialization, but which will be available by the
  * time the VM is running.
@@ -323,35 +338,21 @@ var_getattr(Object *v, Object *key)
                                 goto found;
                 }
 
-                /* still here? try built-ins */
+                /* still here? try built-in methods or properties */
                 ret = dict_getitem(v->v_type->methods, key);
-                if (ret)
-                        goto found;
-
-                /* try property getters */
-                if (v->v_type->prop_getsets) {
-                        const char *skey = string_get_cstring(key);
-                        const struct type_prop_t *prp = v->v_type->prop_getsets;
-                        while (prp->name != NULL) {
-                                if (!strcmp(prp->name, skey)) {
-                                        /* bingo! */
-                                        if (!prp->getprop) {
-                                                err_setstr(TypeError,
-                                                        "Property %s is write-only",
-                                                        skey);
-                                                return ErrorVar;
-                                        }
-                                        return prp->getprop(v);
-                                }
-                                prp++;
+                if (ret) {
+                        if (isvar_property(ret)) {
+                                Object *tmp = property_get(ret, v);
+                                VAR_DECR_REF(ret);
+                                /* XXX if prop is func, swap below? */
+                                return tmp;
                         }
+                        goto found;
                 }
 
-                if (!ret) {
-                        err_setstr(KeyError, "%s Object has no attribute %s",
-                                   string_get_cstring(key));
-                        return ErrorVar;
-                }
+                err_setstr(KeyError, "%s Object has no attribute %s",
+                           string_get_cstring(key));
+                return ErrorVar;
 
 found:
                 /*

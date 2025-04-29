@@ -37,9 +37,10 @@ evilcandy_SOURCES = \
         src/types/file.c \
         src/types/float.c \
         src/types/function.c \
-        src/types/method.c \
         src/types/integer.c \
         src/types/intl.c \
+        src/types/method.c \
+        src/types/property.c \
         src/types/range.c \
         src/types/string.c \
         src/types/xptr.c

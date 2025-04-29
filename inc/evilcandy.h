@@ -195,6 +195,12 @@ extern int methodvar_tofunc(Object *meth,
 extern Object *methodvar_new(Object *func, Object *owner);
 extern Object *method_peek_self(Object *meth);
 
+/* types/property.c */
+extern Object *propertyvar_new(const struct type_prop_t *props);
+extern Object *property_get(Object *prop, Object *owner);
+extern enum result_t property_set(Object *prop,
+                                  Object *owner, Object *value);
+
 /* types/range.c */
 extern Object *rangevar_new(long long start,
                         long long stop, long long step);

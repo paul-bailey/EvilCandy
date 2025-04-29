@@ -281,8 +281,8 @@ file_getclosed(Object *file)
 }
 
 static const struct type_prop_t file_prop_getsets[] = {
-        { .name = "eof",        .getprop = file_geteof,         .setprop = NULL },
-        { .name = "closed",     .getprop = file_getclosed,      .setprop = NULL },
+        { .name = "eof", .getprop = file_geteof, .setprop = NULL },
+        { .name = "closed", .getprop = file_getclosed, .setprop = NULL },
         { .name = NULL },
 };
 

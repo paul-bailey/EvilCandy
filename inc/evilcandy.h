@@ -124,6 +124,8 @@ extern Object *serialize_read(FILE *fp, const char *file_name);
 /* types/array.c */
 extern Object *arrayvar_new(int n_items);
 extern Object *tuplevar_new(int n_items);
+extern Object *arrayvar_from_stack(Object **items, int n_items, bool consume);
+extern Object *tuplevar_from_stack(Object **items, int n_items, bool consume);
 extern enum result_t array_setitem(Object *array,
                                    int i, Object *child);
 /* user doesn't have access to this but internal code needs it */

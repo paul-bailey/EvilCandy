@@ -569,12 +569,8 @@ static int
 do_deftuple(Frame *fr, instruction_t ii)
 {
         int n = ii.arg2;
-        Object *tup = tuplevar_new(n);
-        while (n--) {
-                Object *item = pop(fr);
-                tuple_setitem(tup, n, item);
-                VAR_DECR_REF(item);
-        }
+        Object *tup = tuplevar_from_stack(fr->stackptr - n, n, true);
+        fr->stackptr -= n;
         push(fr, tup);
         return 0;
 }
@@ -583,12 +579,8 @@ static int
 do_deflist(Frame *fr, instruction_t ii)
 {
         int n = ii.arg2;
-        Object *arr = arrayvar_new(n);
-        while (n--) {
-                Object *item = pop(fr);
-                array_setitem(arr, n, item);
-                VAR_DECR_REF(item);
-        }
+        Object *arr = arrayvar_from_stack(fr->stackptr - n, n, true);
+        fr->stackptr -= n;
         push(fr, arr);
         return 0;
 }

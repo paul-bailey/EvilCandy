@@ -108,10 +108,11 @@ function_prep_frame(Object *fn,
         } else if (fh->f_kwind >= 0) {
                 dict = dictvar_new();
         }
+        /* else, leave dict NULL */
 
         if (fh->f_optind >= 0) {
                 Object *opts, **start;
-                int i, n;
+                int n;
                 n = fr->ap - fh->f_optind;
                 if (n < 0) {
                         err_setstr(ArgumentError, "Missing argument");
@@ -121,17 +122,16 @@ function_prep_frame(Object *fn,
                 }
 
                 start = &fr->stack[fh->f_optind];
-                opts = arrayvar_new(n);
-                for (i = 0; i < n; i++) {
-                        array_setitem(opts, i, start[i]);
-                        VAR_DECR_REF(start[i]);
-                }
+                opts = arrayvar_from_stack(start, n, true);
+
                 fr->ap -= n;
                 fr->stack[fr->ap++] = opts;
         }
 
-        if (dict)
+        if (dict) {
+                bug_on(fr->ap != fh->f_kwind);
                 fr->stack[fr->ap++] = dict;
+        }
 
         if (function_argc_check(fh, fr->ap) != RES_OK)
                 return ErrorVar;

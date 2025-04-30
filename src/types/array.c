@@ -158,7 +158,7 @@ array_append(Object *array, Object *child)
 }
 
 static Object *
-arrayvar_new_common(int n_items, struct type_t *type)
+arrayvar_new_common(int n_items, struct type_t *type, Object **src, bool consume)
 {
         int i;
         Object *array = var_new(type);
@@ -166,11 +166,16 @@ arrayvar_new_common(int n_items, struct type_t *type)
         va->alloc_size = 0;
         va->items = NULL;
 
+        bug_on(consume && src == NULL);
+
         array_resize(array, n_items);
         seqvar_set_size(array, n_items);
         for (i = 0; i < n_items; i++) {
-                VAR_INCR_REF(NullVar);
-                va->items[i] = NullVar;
+                Object *item = src ? src[i] : NullVar;
+                /* effectively the same thing as consume */
+                if (!consume)
+                        VAR_INCR_REF(item);
+                va->items[i] = item;
         }
         return array;
 }
@@ -183,7 +188,7 @@ arrayvar_new_common(int n_items, struct type_t *type)
 Object *
 arrayvar_new(int n_items)
 {
-        return arrayvar_new_common(n_items, &ArrayType);
+        return arrayvar_new_common(n_items, &ArrayType, NULL, false);
 }
 
 /**
@@ -193,7 +198,28 @@ arrayvar_new(int n_items)
 Object *
 tuplevar_new(int n_items)
 {
-        return arrayvar_new_common(n_items, &TupleType);
+        return arrayvar_new_common(n_items, &TupleType, NULL, false);
+}
+
+/**
+ * arrayvar_from_stack - Create a new array from the stack
+ * @items: Pointer into the stack.  It doesn't have to be *the* stack,
+ *         but the name implies that this array of pointers will be
+ *         copied into a new array.
+ * @n_items: Number of @items to add
+ * @consume: True to consume references to @items.
+ */
+Object *
+arrayvar_from_stack(Object **items, int n_items, bool consume)
+{
+        return arrayvar_new_common(n_items, &ArrayType, items, consume);
+}
+
+/* like arrayvar_from_stack... but for tuples! */
+Object *
+tuplevar_from_stack(Object **items, int n_items, bool consume)
+{
+        return arrayvar_new_common(n_items, &TupleType, items, consume);
 }
 
 /**
@@ -348,13 +374,13 @@ array_cat_common(Object *a, Object *b, struct type_t *type)
         Object **ppa, **ppb, **ppc, *c;
 
         if (!b)
-                return arrayvar_new_common(0, type);
+                return arrayvar_new_common(0, type, NULL, false);
 
         size_a = seqvar_size(a);
         size_b = seqvar_size(b);
         ppa = V2ARR(a)->items;
         ppb = V2ARR(b)->items;
-        c = arrayvar_new_common(size_a + size_b, type);
+        c = arrayvar_new_common(size_a + size_b, type, NULL, false);
         ppc = V2ARR(c)->items;
         if (size_a) {
                 memcpy(ppc, ppa, size_a * sizeof(Object *));

@@ -273,6 +273,7 @@ static inline double numvar_tod(Object *v)
 static inline Object **array_get_data(Object *v)
         { return ((struct arrayvar_t *)v)->items; }
 #define tuple_get_data(v) array_get_data(v)
+extern int intvar_toi(Object *v);
 
 #endif /* EVILCANDY_OBJTYPES_H */
 

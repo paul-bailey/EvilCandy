@@ -258,6 +258,22 @@ intvar_new(long long initval)
         return ret;
 }
 
+/**
+ * intvar_toi - Like intvar_toll, but set an exception if result
+ *              does not fit in an integer
+ * @v: A variable already confirmed to be an IntType var.
+ * Return: Integer value of @v, or undefined if out of integer range.
+ *      If err_occurred() is false, then return value is valid.
+ */
+int
+intvar_toi(Object *v)
+{
+        long long lli = intvar_toll(v);
+        if (lli < INT_MIN || lli > INT_MAX)
+                err_setstr(ValueError, "Integer overflow");
+        return (int)lli;
+}
+
 static const struct type_inittbl_t int_methods[] = {
         V_INITTBL("tostr", int_tostr, 0, 0),
         TBLEND,

@@ -173,7 +173,7 @@ static Object *
 do_range(Frame *fr)
 {
         int argc = vm_get_argc(fr);
-        long long start, stop, step;
+        int start, stop, step;
         Object *arg;
         if (argc < 1 || argc > 3) {
                 err_setstr(ArgumentError, "Expected: 1 to 3 args");
@@ -187,29 +187,28 @@ do_range(Frame *fr)
                 arg = vm_get_arg(fr, 0);
                 if (!isvar_int(arg))
                         goto needint;
-                stop  = intvar_toll(arg);
+                stop  = intvar_toi(arg);
                 break;
         case 3:
         case 2:
                 arg = vm_get_arg(fr, 0);
                 if (!isvar_int(arg))
                         goto needint;
-                start = intvar_toll(arg);
+                start = intvar_toi(arg);
                 arg = vm_get_arg(fr, 1);
                 if (!isvar_int(arg))
                         goto needint;
-                stop = intvar_toll(arg);
+                stop = intvar_toi(arg);
                 if (argc == 2)
                         break;
                 /* case 3, fall through */
                 arg = vm_get_arg(fr, 2);
                 if (!isvar_int(arg))
                         goto needint;
-                step = intvar_toll(arg);
+                step = intvar_toi(arg);
         }
-        if (start < INT_MIN || start > INT_MAX
-                || stop < INT_MIN || stop > INT_MAX
-                || step < INT_MIN || step > INT_MAX) {
+        if (err_occurred()) {
+                err_clear();
                 err_setstr(ValueError,
                            "Range values currently must fit in type 'int'");
                 return ErrorVar;
@@ -305,20 +304,19 @@ do_int(Frame *fr)
                 long long ival;
 
                 if (b) {
-                        long long llbase;
                         if (!isvar_int(b)) {
                                 err_setstr(TypeError,
                                         "base argument must be an integer");
                                 return ErrorVar;
                         }
-                        llbase = intvar_toll(b);
-                        if (llbase < 0 || llbase > INT_MAX) {
+                        base = intvar_toi(b);
+                        if (base < 0 || err_occurred()) {
+                                err_clear();
                                 err_setstr(ValueError,
                                            "Base argument %lld out of range",
-                                           llbase);
+                                           intvar_toll(b));
                                 return ErrorVar;
                         }
-                        base = (int)llbase;
                 } else {
                         base = 10;
                 }

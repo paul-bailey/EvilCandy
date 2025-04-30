@@ -13,7 +13,7 @@ let Math = import("math.evc", "x");
     iterator.toten(4);
     print("Who am I?");
     iterator.whoami();
-    print("iterator.len()=={}".format(iterator.len()));
+    print("length(iterator)=={}".format(length(iterator)));
     print("iterator['✓'] = {}".format(iterator['✓']));
 })({
     tonine: function(x) {
@@ -63,7 +63,7 @@ let Math = import("math.evc", "x");
 })();
 
 (function(s) {
-    print("length '{}' for '{}'".format(s.len(), s));
+    print("length '{}' for '{}'".format(length(s), s));
     print("Replace 'is' with 'at':");
     print("\tOld text: '{}'\n\tNew text: '{}'"
           .format(s, s.replace("is", "at")));
@@ -115,7 +115,7 @@ print("UTF-8/ANSI escape test");
 print("\tValues of \u03b2 will give rise to dom!");
 let s = "Be \U0001f600!";
 print("\tLength of '{}' is {}, idx#3='{}', idx#4='{}'"
-      .format(s, s.len(), s[3], s[4]));
+      .format(s, length(s), s[3], s[4]));
 let COLOR_BLUE = '\e[36m';
 let COLOR_DEF = '\e[39m';
 print("\tAm I " + COLOR_BLUE + 'BLUE' + COLOR_DEF + "???");

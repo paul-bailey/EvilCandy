@@ -529,6 +529,89 @@ var_cmpz(Object *v, enum result_t *status)
         return v->v_type->cmpz(v);
 }
 
+enum {
+        V_ANY, V_ALL
+};
+
+/*
+ * all(x) - return true if every element in x is true.
+ */
+static bool
+var_all_or_any(Object *v, enum result_t *status, int which)
+{
+        size_t i, n;
+        bool res;
+        Object *dict = NULL;
+        Object *(*get)(Object *, int);
+
+        VAR_INCR_REF(v);
+        if (isvar_dict(v)) {
+                Object *keys = dict_keys(v);
+                bug_on(!keys);
+                dict = v;
+                v = keys;
+        } else if (!isvar_seq(v)) {
+                goto err;
+        }
+
+        get = v->v_type->sqm->getitem;
+        if (!get)
+                goto err;
+
+        n = seqvar_size(v);
+        res = false;
+        for (i = 0; i < n; i++) {
+                Object *item = get(v, i);
+                bug_on(!item);
+                if (dict) {
+                        Object *tmp;
+                        bug_on(!isvar_string(item));
+                        tmp = dict_getitem(dict, item);
+                        bug_on(!tmp);
+                        VAR_DECR_REF(item);
+                        item = tmp;
+                }
+                res = !var_cmpz(item, status);
+                VAR_DECR_REF(item);
+                if (*status != RES_OK) {
+                        goto err;
+                }
+                if (res && which == V_ANY)
+                        break;
+                if (!res && which == V_ALL)
+                        break;
+        }
+
+        if (dict)
+                VAR_DECR_REF(dict);
+        VAR_DECR_REF(v);
+        *status = RES_OK;
+        return res;
+
+err:
+        if (!err_occurred()) {
+                err_setstr(TypeError, "Invalid type '%s' for all()",
+                           typestr(v));
+        }
+        VAR_DECR_REF(v);
+        if (dict)
+                VAR_DECR_REF(dict);
+        *status = RES_ERROR;
+        return false;
+}
+
+bool
+var_all(Object *v, enum result_t *status)
+{
+        return var_all_or_any(v, status, V_ALL);
+}
+
+bool
+var_any(Object *v, enum result_t *status)
+{
+        return var_all_or_any(v, status, V_ANY);
+}
+
 Object *
 var_lnot(Object *v)
 {

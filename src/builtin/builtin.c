@@ -2,6 +2,7 @@
 #include "builtin.h"
 #include <evilcandy.h>
 #include <stdlib.h> /* exit */
+#include <errno.h>  /* strtol errno check */
 
 #define NLMAX 8
 
@@ -238,8 +239,142 @@ do_abs(Frame *fr)
         return opm->abs(v);
 }
 
+static Object *
+do_all(Frame *fr)
+{
+        enum result_t status;
+        bool result;
+        Object *v = vm_get_arg(fr, 0);
+        if (!v) {
+                err_setstr(ArgumentError, "Expected: sequential object");
+                return ErrorVar;
+        }
+        result = var_all(v, &status);
+        if (status != RES_OK)
+                return ErrorVar;
+        return intvar_new((int)result);
+}
+
+static Object *
+do_any(Frame *fr)
+{
+        enum result_t status;
+        bool result;
+        Object *v = vm_get_arg(fr, 0);
+        if (!v) {
+                err_setstr(ArgumentError, "Expected: sequential object");
+                return ErrorVar;
+        }
+        result = var_any(v, &status);
+        if (status != RES_OK)
+                return ErrorVar;
+        return intvar_new((int)result);
+}
+
+static Object *
+do_int(Frame *fr)
+{
+        Object *v = vm_get_arg(fr, 0);
+        Object *b = vm_get_arg(fr, 1);
+
+        if (isvar_complex(v)) {
+                err_setstr(TypeError,
+                           "%s type invalid for int().  Did you mean abs()?",
+                           typestr(v));
+                return ErrorVar;
+        }
+
+        if (isvar_int(v) || isvar_float(v)) {
+                if (b) {
+                        err_setstr(ArgumentError,
+                                "base argument invalid when converting type %s",
+                                typestr(v));
+                        return ErrorVar;
+                }
+                if (isvar_int(v)) {
+                        VAR_INCR_REF(v);
+                        return v;
+                }
+                return intvar_new((long long)floatvar_tod(v));
+        }
+
+        if (isvar_string(v)) {
+                int base;
+                const char *s = string_get_cstring(v);
+                char *endptr;
+                long long ival;
+
+                if (b) {
+                        long long llbase;
+                        if (!isvar_int(b)) {
+                                err_setstr(TypeError,
+                                        "base argument must be an integer");
+                                return ErrorVar;
+                        }
+                        llbase = intvar_toll(b);
+                        if (llbase < 0 || llbase > INT_MAX) {
+                                err_setstr(ValueError,
+                                           "Base argument %lld out of range",
+                                           llbase);
+                                return ErrorVar;
+                        }
+                        base = (int)llbase;
+                } else {
+                        base = 10;
+                }
+                errno = 0;
+                while (*s != '\0' && isspace((int)(*s)))
+                        s++;
+                ival = strtoll(s, &endptr, base);
+                if (errno || endptr == s)
+                        goto bad;
+                s = endptr;
+                while (*s != '\0' && isspace((int)(*s)))
+                        s++;
+                if (*s != '\0')
+                        goto bad;
+
+                return intvar_new(ival);
+
+bad:
+                if (!errno)
+                        errno = EINVAL;
+                err_setstr(ValueError,
+                          "Cannot convert string '%s' base %d to int (%s)",
+                          string_get_cstring(v), base, strerror(errno));
+                return ErrorVar;
+        }
+
+        err_setstr(TypeError,
+                "Invalid type '%s' for int()", typestr(v));
+        return ErrorVar;
+}
+
+static Object *
+do_length(Frame *fr)
+{
+        Object *v = vm_get_arg(fr, 0);
+        bug_on(!v);
+
+        if (isvar_seq(v) || isvar_dict(v)) {
+                return intvar_new(seqvar_size(v));
+        } else if (isvar_map(v)) {
+                err_setstr(NotImplementedError,
+                        "length() for non-dict mappable objects not yet supported");
+                return ErrorVar;
+        } else {
+                err_setstr(TypeError, "Invalid type '%s' for length()",
+                           typestr(v));
+                return ErrorVar;
+        }
+}
+
 static const struct inittbl_t builtin_inittbl[] = {
         TOFTBL("abs",    do_abs,    1, 1),
+        TOFTBL("all",    do_all,    1, 1),
+        TOFTBL("any",    do_any,    1, 1),
+        TOFTBL("int",    do_int,    1, 2),
+        TOFTBL("length", do_length, 1, 1),
         TOFTBL("print",  do_print,  1, -1),
         TOFTBL("setnl",  do_setnl,  1, 1),
         TOFTBL("typeof", do_typeof, 1, 1),

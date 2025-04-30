@@ -196,6 +196,7 @@ extern struct type_t PropertyType;
 extern struct type_t RangeType;
 extern struct type_t UuidptrType;
 extern struct type_t FileType;
+extern struct type_t FloatsType;
 
 static inline bool isvar_array(Object *v)
         { return v->v_type == &ArrayType; }
@@ -229,6 +230,8 @@ static inline bool isvar_file(Object *v)
         { return v->v_type == &FileType; }
 static inline bool isvar_property(Object *v)
         { return v->v_type == &PropertyType; }
+static inline bool isvar_floats(Object *v)
+        { return v->v_type == &FloatsType; }
 
 /* not 'isvar_num'... there always has to be an odd one out */
 static inline bool isnumvar(Object *v)
@@ -260,6 +263,19 @@ struct arrayvar_t {
         Object **items;
 };
 
+/*
+ * Do not confuse 'floats' with 'float'!
+ * This is the array, the one above is the single item.
+ */
+struct floatsvar_t {
+        struct seqvar_t base;
+        double *data;
+};
+
+struct bytesvar_t {
+        struct seqvar_t base;
+        unsigned char *b_buf;
+};
 
 /* Warning!! Only call these if you already type-checked @v */
 static inline double floatvar_tod(Object *v)
@@ -273,6 +289,10 @@ static inline double numvar_tod(Object *v)
 static inline Object **array_get_data(Object *v)
         { return ((struct arrayvar_t *)v)->items; }
 #define tuple_get_data(v) array_get_data(v)
+static inline double *floats_get_data(Object *v)
+        { return ((struct floatsvar_t *)v)->data; }
+static inline unsigned char *bytes_get_data(Object *v)
+        { return ((struct bytesvar_t *)v)->b_buf; }
 extern int intvar_toi(Object *v);
 
 #endif /* EVILCANDY_OBJTYPES_H */

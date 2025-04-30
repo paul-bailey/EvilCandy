@@ -158,6 +158,16 @@ extern Object *filevar_new(FILE *fp, Object *name, unsigned int mode);
 /* types/float.c */
 extern Object *floatvar_new(double value);
 
+/* types/floats.c */
+enum floats_enc_t {
+        FLOATS_BINARY64, FLOATS_BINARY32,
+        FLOATS_UINT64, FLOATS_UINT32, FLOATS_UINT16, FLOATS_UINT8,
+        FLOATS_INT64, FLOATS_INT32, FLOATS_INT16, FLOATS_INT8
+};
+extern Object *floatsvar_from_bytes(Object *v,
+                                    enum floats_enc_t enc, int le);
+extern Object *floatsvar_from_list(Object *v);
+
 /* types/function.c */
 extern Object *funcvar_new_user(Object *ex);
 extern Object *funcvar_new_intl(Object *(*cb)(Frame *),

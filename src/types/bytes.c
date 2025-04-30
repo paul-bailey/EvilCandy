@@ -2,11 +2,6 @@
 
 #include <evilcandy.h>
 
-struct bytesvar_t {
-        struct seqvar_t base;
-        unsigned char *b_buf; /* the actual byte array */
-};
-
 #define V2B(v_) ((struct bytesvar_t *)(v_))
 
 static Object *

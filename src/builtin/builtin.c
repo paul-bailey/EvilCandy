@@ -431,10 +431,104 @@ do_min(Frame *fr)
         return res;
 }
 
+struct str2enum_t {
+        const char *s;
+        int v;
+};
+
+/* XXX: This seems basic enough to put in helpers.c */
+static const struct str2enum_t *
+str2enum(const struct str2enum_t *t, const char *s)
+{
+        while (t->s != NULL) {
+                if (!strcmp(t->s, s))
+                        return t;
+                t++;
+        }
+        return NULL;
+}
+
+static Object *
+do_floats(Frame *fr)
+{
+        static const struct str2enum_t floats_enc_strs[] = {
+                { .s = "binary64", .v = FLOATS_BINARY64 },
+                { .s = "binary32", .v = FLOATS_BINARY32 },
+                { .s = "uint64",   .v = FLOATS_UINT64 },
+                { .s = "uint32",   .v = FLOATS_UINT32 },
+                { .s = NULL }
+        };
+        static const struct str2enum_t floats_endian_strs[] = {
+                { .s = "network",       .v = 0 },
+                { .s = "bigendian",     .v = 0 },
+                { .s = "big-endian",    .v = 0 },
+                { .s = "be",            .v = 0 },
+                { .s = "littleendian",  .v = 1 },
+                { .s = "little-endian", .v = 1 },
+                { .s = "le",            .v = 1 },
+                { NULL }
+        };
+
+        Object *v, *enc_arg, *le_arg;
+        const char *s_enc, *s_le;
+        enum floats_enc_t enc;
+        int le, argc;
+        const struct str2enum_t *t;
+
+        argc = vm_get_argc(fr);
+        bug_on(argc == 0);
+        v = vm_get_arg(fr, 0);
+        if (isvar_array(v)) {
+                if (argc > 1) {
+                        err_setstr(ArgumentError,
+                                   "floats() accepts only one argument if list");
+                        return ErrorVar;
+                }
+                return floatsvar_from_list(v);
+        } else if (!isvar_bytes(v)) {
+                err_setstr(TypeError,
+                           "Invalid type '%s' for floats()",
+                           typestr(v));
+                return ErrorVar;
+        }
+
+        /* bytes version */
+        enc_arg = vm_get_arg(fr, 1);
+        le_arg = vm_get_arg(fr, 2);
+        bug_on(!enc_arg);
+        if (!le_arg) {
+                err_setstr(TypeError,
+                        "Required: endianness argument for floats(bytes)");
+                return ErrorVar;
+        }
+        if (arg_type_check(enc_arg, &StringType) != RES_OK)
+                return ErrorVar;
+        if (arg_type_check(le_arg, &StringType) != RES_OK)
+                return ErrorVar;
+        s_enc = string_get_cstring(enc_arg);
+        s_le  = string_get_cstring(le_arg);
+
+        t = str2enum(floats_enc_strs, s_enc);
+        if (!t) {
+                err_setstr(ValueError, "Invalid encoding '%s'", s_enc);
+                return ErrorVar;
+        }
+        enc = t->v;
+
+        t = str2enum(floats_endian_strs, s_le);
+        if (!t) {
+                err_setstr(ValueError, "Invalid endianness '%s'", s_le);
+                return ErrorVar;
+        }
+        le = t->v;
+        return floatsvar_from_bytes(v, enc, le);
+}
+
 static const struct inittbl_t builtin_inittbl[] = {
         TOFTBL("abs",    do_abs,    1, 1),
         TOFTBL("all",    do_all,    1, 1),
         TOFTBL("any",    do_any,    1, 1),
+        TOFTBL("floats", do_floats, 1, 3),
         TOFTBL("int",    do_int,    1, 2),
         TOFTBL("length", do_length, 1, 1),
         TOFTBL("min",    do_min,    1, -1),

@@ -73,9 +73,6 @@ DEFFUNC
 # when called can de-reference them
 ADD_CLOSURE
 
-# like 'add closure', but for default-value args
-ADD_DEFAULT
-
 # arg1 is IARG_FUNC_xxx, arg2 is a count, such as minimum
 # number of args for function.  Function is on the top of the
 # stack.

@@ -541,22 +541,6 @@ do_add_closure(Frame *fr, instruction_t ii)
 }
 
 static int
-do_add_default(Frame *fr, instruction_t ii)
-{
-        Object *deflt = pop(fr);
-        Object *func = pop(fr);
-        /*
-         * XXX what's a check for the reasonable size of ii.arg2 here?
-         * 99% of the time, this is single-digit, but some weirdos out
-         * there love breaking weak programs. FRAME_STACK_MAX limits
-         * number of args to something than can easily fit into ii.arg2.
-         */
-        function_add_default(func, deflt, ii.arg2);
-        push(fr, func);
-        return 0;
-}
-
-static int
 do_func_setattr(Frame *fr, instruction_t ii)
 {
         Object *func = pop(fr);

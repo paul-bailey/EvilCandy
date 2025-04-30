@@ -30,9 +30,6 @@
  * @f_ex:       If @magic is FUNC_USER, pointer to code to execute
  * @f_closures: If @magic is FUNC_USER, ArrayType object containing
  *              closures.
- * @f_defaults: If @magic is FUNC_USER, ArrayType object containing
- *              defaults to fill in where arguments are not provided by
- *              the caller.  Blank slots mean the argument is mandatory.
  */
 struct funcvar_t {
         Object base;
@@ -52,7 +49,6 @@ struct funcvar_t {
                 struct {
                         struct xptrvar_t *f_ex;
                         Object *f_closures;
-                        Object *f_defaults;
                 };
         };
 };
@@ -136,16 +132,6 @@ function_prep_frame(Object *fn,
         if (function_argc_check(fh, fr->ap) != RES_OK)
                 return ErrorVar;
 
-        if (fh->f_magic == FUNC_USER && fh->f_defaults) {
-                /* Fill in default args. */
-                int i, n = seqvar_size(fh->f_defaults);
-                for (i = fr->ap; i < n; i++) {
-                        Object *v = array_getitem(fh->f_defaults, i);
-                        bug_on(v == NULL || v == ErrorVar);
-                        fr->stack[fr->ap++] = v;
-                }
-        }
-
         fr->owner = owner;
         fr->func  = fn;
         fr->clo   = fh->f_closures ?
@@ -201,41 +187,7 @@ function_add_closure(Object *func, Object *clo)
         array_append(fh->f_closures, clo);
 }
 
-/**
- * function_add_default - Add a default argument to a function
- * @func: Function to add default to
- * @deflt: Default value
- * @argno: Argument's place in function calls, indexed from zero.
- */
-void
-function_add_default(Object *func,
-                     Object *deflt, int argno)
-{
-        struct funcvar_t *fh = V2FUNC(func);
 
-        bug_on(!isvar_function(func));
-        bug_on(!fh);
-        bug_on(fh->f_magic != FUNC_USER);
-        bug_on(argno < 0);
-
-        /*
-         * Fill in mandatory slots with 'this is not a default'.  Array
-         * is filled to size with NullVar upon creation.  Since NullVar
-         * could be interpreted as a valid user-default, replace it with
-         * ErrorVar instead.
-         */
-        if (!fh->f_defaults) {
-                int i;
-                fh->f_defaults = arrayvar_new(argno);
-                for (i = 0; i < argno; i++)
-                        array_setitem(fh->f_defaults, i, ErrorVar);
-        } else while (seqvar_size(fh->f_defaults) < argno) {
-                array_append(fh->f_defaults, ErrorVar);
-        }
-
-        array_append(fh->f_defaults, deflt);
-        bug_on(seqvar_size(fh->f_defaults) != argno + 1);
-}
 
 static Object *
 funcvar_alloc(int magic)
@@ -327,7 +279,6 @@ funcvar_new_user(Object *ex)
         bug_on(!isvar_xptr(ex));
         fh->f_ex = (struct xptrvar_t *)ex;
         fh->f_closures = NULL;
-        fh->f_defaults = NULL;
         VAR_INCR_REF((Object *)ex);
         return func;
 }
@@ -369,8 +320,6 @@ func_reset(Object *func)
 {
         struct funcvar_t *fh = V2FUNC(func);
         if (fh->f_magic == FUNC_USER) {
-                if (fh->f_defaults)
-                        VAR_DECR_REF(fh->f_defaults);
                 if (fh->f_closures)
                         VAR_DECR_REF(fh->f_closures);
                 if (fh->f_ex)

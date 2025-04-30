@@ -84,6 +84,28 @@ struct map_methods_t {
         binary_operator_t mpunion;
 };
 
+/**
+ * struct seq_fastiter_t - Specialized implementations for min(), max(),
+ *                         any(), and all().
+ *
+ * If the .fast_iter field in a type's .sqm field is non-NULL, then all
+ * of these fields must be non-NULL, even if the procedure would be
+ * trivial.  This is intended for sequential classes which have large
+ * arrays of raw data (eg. bytes and 'floats' arrays) rather than small
+ * arrays of pointers to Objects (eg. lists and tuples), and therefore
+ * can run these algorithms much more quickly than the general-purpose
+ * algorithm in var.c.  It comes at the cost of a slight DRY violation,
+ * so most classes will not use this.
+ */
+struct seq_fastiter_t {
+        /* set error if size=0 */
+        Object *(*max)(Object *);
+        Object *(*min)(Object *);
+        /* return true or false regardless of size */
+        bool (*any)(Object *);
+        bool (*all)(Object *);
+};
+
 struct seq_methods_t {
         Object *(*getitem)(Object *, int);
         /* @haystack is this type; @needle must be type-checked */
@@ -92,6 +114,7 @@ struct seq_methods_t {
         /* new = a + b; if b is NULL, return new empty var */
         binary_operator_t cat;
         void (*sort)(Object *);
+        const struct seq_fastiter_t *fast_iter;
 };
 
 /*

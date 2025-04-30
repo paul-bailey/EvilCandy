@@ -95,6 +95,86 @@ floats_cat(Object *a, Object *b)
         return c;
 }
 
+static Object *
+floats_minmax(Object *self, int ismin)
+{
+        double resd, *data;
+        size_t i, n;
+        bug_on(!isvar_floats(self));
+
+        n = seqvar_size(self);
+        if (n == 0) {
+                err_setstr(ValueError, "Size is zero");
+                return ErrorVar;
+        }
+        data = floats_get_data(self);
+        resd = data[0];
+        for (i = 1; i < n; i++) {
+                if (ismin && data[i] < resd)
+                        resd = data[i];
+                else if (!ismin && data[i] > resd)
+                        resd = data[i];
+        }
+        return floatvar_new(resd);
+}
+
+static bool
+floats_allany(Object *self, int isall)
+{
+        bool res;
+        size_t i, n;
+        double *data;
+        bug_on(!isvar_floats(self));
+        n = seqvar_size(self);
+        /*
+         * Be like Python when size is zero:
+         * false for any(), true for all()
+         */
+        if (n == 0)
+                return isall;
+
+        data = floats_get_data(self);
+        res = false;
+        for (i = 0; i < n; i++) {
+                res = data[i] != 0.0;
+                if (isall && !res)
+                        break;
+                if (!isall && res)
+                        break;
+        }
+        return res;
+}
+
+static Object *
+floats_min(Object *self)
+{
+        return floats_minmax(self, true);
+}
+
+static Object *
+floats_max(Object *self)
+{
+        return floats_minmax(self, false);
+}
+
+static bool
+floats_all(Object *self)
+{
+        return floats_allany(self, true);
+}
+
+static bool
+floats_any(Object *self)
+{
+        return floats_allany(self, false);
+}
+
+static const struct seq_fastiter_t floats_fast_iter = {
+        .max    = floats_max,
+        .min    = floats_min,
+        .any    = floats_any,
+        .all    = floats_all,
+};
 
 static const struct seq_methods_t floats_seq_methods = {
         .getitem        = floats_getitem,
@@ -102,6 +182,7 @@ static const struct seq_methods_t floats_seq_methods = {
         .hasitem        = floats_hasitem,
         .cat            = floats_cat,
         .sort           = NULL,
+        .fast_iter      = &floats_fast_iter,
 };
 
 struct type_t FloatsType = {

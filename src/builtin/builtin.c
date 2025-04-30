@@ -119,7 +119,7 @@ do_import(Frame *fr)
         res = funcvar_new_user(ex);
         if (how == X) {
                 Object *func = res;
-                res = vm_exec_func(fr, func, NULL, 0, NULL, false);
+                res = vm_exec_func(fr, func, 0, NULL, false);
                 VAR_DECR_REF(func);
         }
         /* else, how == R */

@@ -145,7 +145,7 @@ range_foreach(Frame *fr)
                 argv[1] = range_getitem(self, i);
                 argv[2] = priv;
 
-                retval = vm_exec_func(fr, func, NULL, 3, argv, false);
+                retval = vm_exec_func(fr, func, 3, argv, false);
                 VAR_DECR_REF(argv[0]);
                 VAR_DECR_REF(argv[1]);
                 if (retval == ErrorVar) {

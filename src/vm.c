@@ -477,7 +477,7 @@ do_return_value(Frame *fr, instruction_t ii)
 static int
 do_call_func(Frame *fr, instruction_t ii)
 {
-        Object *func, *owner, *retval, **argv;
+        Object *func, *retval, **argv;
         int argc;
 
         argc = ii.arg2;
@@ -490,21 +490,8 @@ do_call_func(Frame *fr, instruction_t ii)
         argv = fr->stackptr - argc;
         func = *(fr->stackptr - argc - 1);
 
-        if (isvar_method(func)) {
-                Object *meth = func;
-                if (methodvar_tofunc(meth, &func, &owner) == RES_ERROR)
-                        return RES_ERROR;
-                VAR_DECR_REF(meth);
-
-                bug_on(!func);
-                bug_on(!owner);
-                bug_on(!isvar_function(func));
-        } else {
-                owner = NULL;
-        }
-
         /* see comments to vm_exec_func: this may be NULL */
-        retval = vm_exec_func(fr, func, owner, argc, argv,
+        retval = vm_exec_func(fr, func, argc, argv,
                               ii.arg1 == IARG_HAVE_DICT);
         if (!retval) {
                 VAR_INCR_REF(NullVar);
@@ -523,8 +510,6 @@ do_call_func(Frame *fr, instruction_t ii)
 
         pop(fr); /* func */
         VAR_DECR_REF(func);
-        if (owner)
-                VAR_DECR_REF(owner);
 
         if (retval == ErrorVar)
                 return RES_ERROR;
@@ -1129,7 +1114,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
 
         bug_on(!isvar_xptr(top_level));
         func = funcvar_new_user(top_level);
-        ret = vm_exec_func(fr_old, func, NULL, 0, NULL, false);
+        ret = vm_exec_func(fr_old, func, 0, NULL, false);
         VAR_DECR_REF(func);
         return ret;
 }
@@ -1152,10 +1137,25 @@ vm_exec_script(Object *top_level, Frame *fr_old)
  */
 Object *
 vm_exec_func(Frame *fr_old, Object *func,
-             Object *owner, int argc, Object **argv, bool have_dict)
+             int argc, Object **argv, bool have_dict)
 {
         Frame *fr;
-        Object *res;
+        Object *res, *owner;
+
+        if (isvar_method(func)) {
+                Object *meth = func;
+                if (methodvar_tofunc(meth, &func, &owner) == RES_ERROR)
+                        return ErrorVar;
+
+                bug_on(!func);
+                bug_on(!owner);
+                bug_on(!isvar_function(func));
+        } else {
+                owner = fr_old ? vm_get_this(fr_old) : GlobalObject;
+                /* Keep references balanced here & above part of 'if' */
+                VAR_INCR_REF(owner);
+                VAR_INCR_REF(func);
+        }
 
         fr = vmframe_alloc();
         fr->stack = fr_old ? fr_old->stackptr : vm_stack;
@@ -1166,9 +1166,6 @@ vm_exec_func(Frame *fr_old, Object *func,
                 VAR_INCR_REF(argv[argc]);
                 fr->stack[argc] = argv[argc];
         }
-
-        if (!owner)
-                owner = fr_old ? vm_get_this(fr_old) : GlobalObject;
 
         if (function_prep_frame(func, fr, owner, have_dict) == ErrorVar) {
                 /* frame only partly set up, we need to set this */
@@ -1189,6 +1186,9 @@ vm_exec_func(Frame *fr_old, Object *func,
                 VAR_INCR_REF(NullVar);
                 res = NullVar;
         }
+
+        VAR_DECR_REF(func);
+        VAR_DECR_REF(owner);
 
         return res;
 }

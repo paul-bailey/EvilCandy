@@ -59,45 +59,6 @@ struct funcvar_t {
 
 #define V2FUNC(v)       ((struct funcvar_t *)(v))
 
-/*
- * Helper to function_prep_frame
- * If @fn is a function, return that.
- * If @fn is a callable object, return the callable function, and
- *      update @owner accordingly.
- * If @fn is anything else, return NULL and report an error.
- */
-static Object *
-function_of(Object *fn, Object **owner)
-{
-        static Object *callable_key = NULL;
-        Object *new_owner = *owner;
-
-        /*
-         * If @fn is a callable object, don't just get the first child.
-         * __callable__ may be a function or another callable object.
-         * Descend until we get to the function.
-         */
-        while (fn) {
-                if (isvar_function(fn)) {
-                        goto done;
-                } else if (isvar_dict(fn)) {
-                        if (!callable_key)
-                                callable_key = stringvar_new("__callable__");
-
-                        new_owner = fn;
-                        fn = dict_getitem(fn, callable_key);
-                } else {
-                        fn = NULL;
-                }
-        }
-        err_setstr(TypeError, "Object is not callable");
-        return NULL;
-
-done:
-        *owner = new_owner;
-        return fn;
-}
-
 static int
 function_argc_check(struct funcvar_t *fh, int argc)
 {
@@ -130,8 +91,7 @@ function_prep_frame(Object *fn,
         Object *dict;
         struct funcvar_t *fh;
 
-        fn = function_of(fn, &owner);
-        if (!fn)
+        if (!isvar_function(fn))
                 return ErrorVar;
 
         fh = V2FUNC(fn);

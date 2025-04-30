@@ -1,10 +1,12 @@
 #!./evilcandy
 // Expect output "1 + 2 is 3"
 let a = (function(a, b) { return a + b; })(1, 2);
-print("1 + 2 is {}".format(a));
+print("1 + 2 is", a);
 
 // Expect output "args are alice and bob"
-(function(a, b) { print("args are {} and {}".format(a, b)); })("alice", "bob");
+(function(a, b) {
+    print("args are", a, "and", b);
+})("alice", "bob");
 
 // Test closure
 (function() {
@@ -14,40 +16,16 @@ print("1 + 2 is {}".format(a));
 
     let doubler = multer(2);
     let tripler = multer(3);
+    let quadler = multer(4);
+    let quintler = multer(5);
+    let sextler = multer(6);
+    let septler = multer(7);
 
     print("testing simple closure");
     print("\t11 times 2 is {}".format(doubler(11)));
     print("\t11 times 3 is {}".format(tripler(11)));
-})();
-
-// Test ugly closure
-(function() {
-    let multer2 = function(n) {
-        return {
-            n: n,
-            __callable__: ``(x) x * n``
-        };
-    };
-
-    let quadler = multer2(4);
-    let quintler = multer2(5);
-
-    print("testing ugly-but-more-correct closure");
     print("\t11 times 4 is {}".format(quadler(11)));
     print("\t11 times 5 is {}".format(quintler(11)));
-})();
-
-
-// Test traditional closure
-(function() {
-    let multer3 = function(n) {
-        return ``(x) x * n``;
-    };
-
-    let sextler = multer3(6);
-    let septler = multer3(7);
-
-    print("testing traditional closure");
     print("\t11 times 6 is {}".format(sextler(11)));
     print("\t11 times 7 is {}".format(septler(11)));
 })();

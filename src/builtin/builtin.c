@@ -310,7 +310,7 @@ do_int(Frame *fr)
                                 return ErrorVar;
                         }
                         base = intvar_toi(b);
-                        if (base < 0 || err_occurred()) {
+                        if (base < 2 || err_occurred()) {
                                 err_clear();
                                 err_setstr(ValueError,
                                            "Base argument %lld out of range",

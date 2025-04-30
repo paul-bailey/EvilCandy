@@ -74,6 +74,9 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
   execute scripts.  However, I am not settled on its method for doing
   so.
 
+* I have not yet added in any code for cyclic GC, so there's a hazard
+  of accidentally immortalizing data with cyclic references.
+
 * It has the skeleton of a math and IO library, but these are mainly
   as they were when I threw them together just to see if something works.
 
@@ -92,7 +95,7 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
   like values that are too big for the width of the variable that will
   store them.
 
-* I have thus far only ran this on Darwin, and compiled it with...
+* I have thus far only run this on Darwin, and compiled it with...
   well I *think* it's gcc, but I think that clang and xcode like to
   lie and call themselves gcc and gmake, I'm not really sure.  But
   I have not yet done much to make it portable besides a recent
@@ -127,9 +130,6 @@ But here are some major differences...
 
 * There is no ``var`` keyword.  There are only ``let`` and ``global``.
 
-* So far, there is no ``throw``.  However, I intend to add this in the
-  future.
-
 * The ``for`` loop may either be like JS's verbose C-like for-loop,
   or it may be like Python's eye-friendly for-loop. Depends on how it's
   expressed.  See documentation for details.  This also means that where
@@ -160,7 +160,7 @@ But here are some major differences...
     functions.
 
   * I really like the ``else`` clause to Python's ``for`` loop, so I
-    implemented a JavaScript/C-looking ``for`` loop that has an
+    implemented a ``for`` loop that has an
     optional ``else`` statement.  (**But I might change it** because I
     have found that this feature is not as well-suited to JS-like syntax
     as it is to Python, considering how easy it is for a statement with
@@ -182,7 +182,7 @@ But here are some major differences...
 How Fast Is EvilCandy?
 ----------------------
 
-As of December 2023 the project is in early development and hasn't been
+As of April 2025 the project is in early development and hasn't been
 tested much for speed.  The only testing I've done thus far is in
 ``demos/sqrt.egq``, a brute-force square root algorithm that iterates over
 input values 1.0 to 1000000.0.  An equivalent algorithm in Python takes
@@ -193,10 +193,13 @@ But one, that only speed-tests basic execution of assembled instructions.
 It doesn't stress test any worst-case scenarios, like abusively long
 lists or strings, large quantities of small variables, things like that.
 
-And two, the Python-like speed is mostly an illusion. I could only get it
+Two, the Python-like speed is mostly an illusion. I could only get it
 to run that fast when compiling ``-O3 -DNDEBUG``, which the program is
 not ready for.  With all the debug hooks and bug traps left in, it's
 about a third as fast.
+
+And three, EvilCandy is very lightweight.  Things may change when I
+start adding in more features.
 
 Still, this is not embarrassing, and I'm quite proud of how fast it runs.
 

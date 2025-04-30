@@ -369,12 +369,78 @@ do_length(Frame *fr)
         }
 }
 
+static Object *
+do_max(Frame *fr)
+{
+        Object *res, *v;
+        int i, argc = vm_get_argc(fr);
+        bug_on(argc == 0);
+        if (argc == 1) {
+                v = vm_get_arg(fr, 0);
+                bug_on(!v);
+                return var_max(v);
+        }
+
+        res = NULL;
+        for (i = 0; i < argc; i++) {
+                int cmp;
+                v = vm_get_arg(fr, i);
+                bug_on(!v);
+
+                if (!res) {
+                        res = v;
+                        continue;
+                }
+
+                cmp = var_compare(v, res);
+                if (cmp > 0)
+                        res = v;
+        }
+        bug_on(!res);
+        VAR_INCR_REF(res);
+        return res;
+}
+
+static Object *
+do_min(Frame *fr)
+{
+        Object *res, *v;
+        int i, argc = vm_get_argc(fr);
+        bug_on(argc == 0);
+        if (argc == 1) {
+                v = vm_get_arg(fr, 0);
+                bug_on(!v);
+                return var_min(v);
+        }
+
+        res = NULL;
+        for (i = 0; i < argc; i++) {
+                int cmp;
+                v = vm_get_arg(fr, i);
+                bug_on(!v);
+
+                if (!res) {
+                        res = v;
+                        continue;
+                }
+
+                cmp = var_compare(v, res);
+                if (cmp < 0)
+                        res = v;
+        }
+        bug_on(!res);
+        VAR_INCR_REF(res);
+        return res;
+}
+
 static const struct inittbl_t builtin_inittbl[] = {
         TOFTBL("abs",    do_abs,    1, 1),
         TOFTBL("all",    do_all,    1, 1),
         TOFTBL("any",    do_any,    1, 1),
         TOFTBL("int",    do_int,    1, 2),
         TOFTBL("length", do_length, 1, 1),
+        TOFTBL("min",    do_min,    1, -1),
+        TOFTBL("max",    do_max,    1, -1),
         TOFTBL("print",  do_print,  1, -1),
         TOFTBL("setnl",  do_setnl,  1, 1),
         TOFTBL("typeof", do_typeof, 1, 1),

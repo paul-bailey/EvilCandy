@@ -533,69 +533,111 @@ enum {
         V_ANY, V_ALL
 };
 
+struct iterable_t {
+        Object *v;
+        Object *dict;
+        Object *(*get)(Object *, int);
+        size_t i;
+        size_t n;
+};
+
+static enum result_t
+iterable_setup(Object *v, struct iterable_t *iter)
+{
+        VAR_INCR_REF(v);
+        if (isvar_dict(v)) {
+                Object *keys = dict_keys(v);
+                bug_on(!keys);
+                iter->dict = v;
+                iter->v = keys;
+        } else {
+                iter->dict = NULL;
+                if (!isvar_seq(v))
+                        return RES_ERROR;
+                iter->v = v;
+        }
+        iter->get = iter->v->v_type->sqm->getitem;
+        if (!iter->get) {
+                bug_on(iter->dict);
+                return RES_ERROR;
+        }
+        iter->i = 0;
+        iter->n = seqvar_size(iter->v);
+        return RES_OK;
+}
+
+static void
+iterable_cleanup(struct iterable_t *iter)
+{
+        VAR_DECR_REF(iter->v);
+        if (iter->dict)
+                VAR_DECR_REF(iter->dict);
+        memset(iter, 0, sizeof(*iter));
+}
+
+/* reference is produced if return value is valid */
+static Object *
+iterable_next(struct iterable_t *iter)
+{
+        Object *ret;
+        if (iter->i >= iter->n)
+                return NULL;
+        ret = iter->get(iter->v, iter->i);
+        if (!ret)
+                return ErrorVar;
+        if (iter->dict) {
+                Object *tmp;
+                bug_on(!isvar_string(ret));
+                tmp = dict_getitem(iter->dict, ret);
+                bug_on(!tmp);
+                VAR_DECR_REF(ret);
+                ret = tmp;
+        }
+        iter->i++;
+        return ret;
+}
+
+#define foreach_iterable(e_, iter_) \
+        for (e_ = iterable_next(iter_); \
+             e_ != NULL && e_ != ErrorVar; \
+             e_ = iterable_next(iter_))
+
 /*
  * all(x) - return true if every element in x is true.
  */
 static bool
 var_all_or_any(Object *v, enum result_t *status, int which)
 {
-        size_t i, n;
+        struct iterable_t iter;
+        Object *e;
         bool res;
-        Object *dict = NULL;
-        Object *(*get)(Object *, int);
 
-        VAR_INCR_REF(v);
-        if (isvar_dict(v)) {
-                Object *keys = dict_keys(v);
-                bug_on(!keys);
-                dict = v;
-                v = keys;
-        } else if (!isvar_seq(v)) {
-                goto err;
-        }
-
-        get = v->v_type->sqm->getitem;
-        if (!get)
+        if (iterable_setup(v, &iter) == RES_ERROR)
                 goto err;
 
-        n = seqvar_size(v);
         res = false;
-        for (i = 0; i < n; i++) {
-                Object *item = get(v, i);
-                bug_on(!item);
-                if (dict) {
-                        Object *tmp;
-                        bug_on(!isvar_string(item));
-                        tmp = dict_getitem(dict, item);
-                        bug_on(!tmp);
-                        VAR_DECR_REF(item);
-                        item = tmp;
-                }
-                res = !var_cmpz(item, status);
-                VAR_DECR_REF(item);
-                if (*status != RES_OK) {
+        foreach_iterable(e, &iter) {
+                res = !var_cmpz(e, status);
+                VAR_DECR_REF(e);
+                if (*status != RES_OK)
                         goto err;
-                }
                 if (res && which == V_ANY)
                         break;
                 if (!res && which == V_ALL)
                         break;
         }
-
-        if (dict)
-                VAR_DECR_REF(dict);
-        VAR_DECR_REF(v);
+        if (e == ErrorVar)
+                goto err;
+        iterable_cleanup(&iter);
         *status = RES_OK;
         return res;
 
 err:
         if (!err_occurred()) {
-                err_setstr(TypeError, "Invalid type '%s' for all()",
-                           typestr(v));
+                err_setstr(TypeError, "Invalid type '%s' for %s()",
+                           typestr(v), which == V_ALL ? "all" : "any");
         }
-        VAR_DECR_REF(v);
-        if (dict)
-                VAR_DECR_REF(dict);
+        iterable_cleanup(&iter);
         *status = RES_ERROR;
         return false;
 }
@@ -610,6 +652,65 @@ bool
 var_any(Object *v, enum result_t *status)
 {
         return var_all_or_any(v, status, V_ANY);
+}
+
+enum { V_MIN, V_MAX };
+
+static Object *
+var_min_or_max(Object *v, int minmax)
+{
+        struct iterable_t iter;
+        Object *e;
+        Object *res;
+
+        if (iterable_setup(v, &iter) == RES_ERROR)
+                goto err;
+
+        res = NULL;
+        foreach_iterable(e, &iter) {
+                int cmp;
+
+                if (res == NULL) {
+                        res = e;
+                        continue;
+                }
+
+                cmp = var_compare(e, res);
+                if ((minmax == V_MIN && cmp < 0)
+                    || (minmax == V_MAX && cmp > 0)) {
+                        VAR_DECR_REF(res);
+                        res = e;
+                        continue;
+                }
+                VAR_DECR_REF(e);
+        }
+        iterable_cleanup(&iter);
+        if (e == ErrorVar)
+                goto err;
+        if (!res) {
+                err_setstr(ValueError, "Object is empty");
+                goto err;
+        }
+        return res;
+
+err:
+        if (!err_occurred()) {
+                err_setstr(TypeError, "Invalid type '%s' for %s()",
+                           typestr(v), minmax == V_MIN ? "min" : "max");
+        }
+        return ErrorVar;
+}
+
+Object *
+var_min(Object *v)
+{
+        return var_min_or_max(v, V_MIN);
+}
+
+Object *
+var_max(Object *v)
+{
+        return var_min_or_max(v, V_MAX);
 }
 
 Object *

@@ -106,6 +106,8 @@ extern ssize_t var_len(Object *v);
 extern bool var_cmpz(Object *v, enum result_t *status);
 extern bool var_all(Object *v, enum result_t *status);
 extern bool var_any(Object *v, enum result_t *status);
+extern Object *var_min(Object *v);
+extern Object *var_max(Object *v);
 extern Object *var_lnot(Object *v);
 extern const char *typestr(Object *v);
 extern const char *typestr_(int magic);

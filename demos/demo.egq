@@ -78,7 +78,7 @@ print("");
 print("Now here's a test of foreach:");
 if (false) {
     (function() {
-        let prtypeof = function(o, str) {
+        let prtypeof = function(o, str, p) {
             print("typeof(e) for each e in {}".format(str));
             for (k, o) {
                 print("\tType={}, name={}".format(typeof(o[k]), k));
@@ -89,11 +89,11 @@ if (false) {
     })();
 } else {
     print("typeof(e) for each e in __gbl__");
-    __gbl__.foreach(function (e, name) {
+    __gbl__.foreach(function (e, name, p) {
         print("\tType={}, name={}".format(typeof(e), name));
     });
     print("typeof(e) for each e in __gbl__._builtins");
-    __gbl__._builtins.foreach(function (e, name) {
+    __gbl__._builtins.foreach(function (e, name, p) {
         print("\tType={}, name={}".format(typeof(e), name));
     });
 }

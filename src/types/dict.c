@@ -660,7 +660,7 @@ do_dict_foreach(Frame *fr)
                 argv[0] = val;
                 argv[1] = key;
                 argv[2] = priv;
-                cbret = vm_exec_func(fr, func, NULL, 3, argv);
+                cbret = vm_exec_func(fr, func, NULL, 3, argv, false);
 
                 VAR_DECR_REF(key);
                 VAR_DECR_REF(val);

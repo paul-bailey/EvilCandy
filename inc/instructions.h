@@ -56,6 +56,14 @@ enum {
 enum {
         IARG_FUNC_MINARGS,
         IARG_FUNC_MAXARGS,
+        IARG_FUNC_OPTIND,
+        IARG_FUNC_KWIND,
+};
+
+/* CALL arg1 */
+enum {
+        IARG_NO_DICT,
+        IARG_HAVE_DICT,
 };
 
 /**

@@ -481,6 +481,7 @@ do_call_func(Frame *fr, instruction_t ii)
         int argc;
 
         argc = ii.arg2;
+
         /*
          * Low-level hack alert!!
          * It would be cleaner to allocate an array and fill
@@ -503,7 +504,8 @@ do_call_func(Frame *fr, instruction_t ii)
         }
 
         /* see comments to vm_exec_func: this may be NULL */
-        retval = vm_exec_func(fr, func, owner, argc, argv);
+        retval = vm_exec_func(fr, func, owner, argc, argv,
+                              ii.arg1 == IARG_HAVE_DICT);
         if (!retval) {
                 VAR_INCR_REF(NullVar);
                 retval = NullVar;
@@ -1127,7 +1129,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
 
         bug_on(!isvar_xptr(top_level));
         func = funcvar_new_user(top_level);
-        ret = vm_exec_func(fr_old, func, NULL, 0, NULL);
+        ret = vm_exec_func(fr_old, func, NULL, 0, NULL, false);
         VAR_DECR_REF(func);
         return ret;
 }
@@ -1140,6 +1142,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
  * @owner:      ``this'' to set
  * @arc:        Number of arguments being passed to the function
  * @argv:       Array of arguments
+ * @have_dict:  True if last item in argv is dictionary
  *
  * Return: Return value of function being called or ErrorVar if execution
  *         failed.
@@ -1149,7 +1152,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
  */
 Object *
 vm_exec_func(Frame *fr_old, Object *func,
-             Object *owner, int argc, Object **argv)
+             Object *owner, int argc, Object **argv, bool have_dict)
 {
         Frame *fr;
         Object *res;
@@ -1167,7 +1170,7 @@ vm_exec_func(Frame *fr_old, Object *func,
         if (!owner)
                 owner = fr_old ? vm_get_this(fr_old) : GlobalObject;
 
-        if (function_prep_frame(func, fr, owner) == ErrorVar) {
+        if (function_prep_frame(func, fr, owner, have_dict) == ErrorVar) {
                 /* frame only partly set up, we need to set this */
                 fr->stackptr = fr->stack + fr->ap;
                 vmframe_free(fr);

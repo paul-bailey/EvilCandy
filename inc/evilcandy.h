@@ -174,7 +174,7 @@ extern Object *funcvar_new_intl(Object *(*cb)(Frame *),
                                int minargs, int maxargs);
 extern int function_setattr(Object *func, int attr, int value);
 extern Object *function_prep_frame(Object *fn,
-                        Frame *fr, Object *owner);
+                        Frame *fr, Object *owner, bool have_dict);
 extern Object *call_function(Frame *fr, Object *fn);
 extern void function_add_closure(Object *func, Object *clo);
 extern void function_add_default(Object *func,

@@ -27,8 +27,15 @@ static const char *PTR_NAMES[] = {
 };
 
 static const char *FUNCARG_NAMES[] = {
-        "NO_PARENT",
-        "WITH_PARENT"
+        IARG(HAVE_DICT),
+        IARG(NO_DICT),
+};
+
+static const char *FUNC_ATTRARG_NAMES[] = {
+        IARG(FUNC_MINARGS),
+        IARG(FUNC_MAXARGS),
+        IARG(FUNC_OPTIND),
+        IARG(FUNC_KWIND),
 };
 
 static const char *CMP_NAMES[] = {
@@ -117,6 +124,8 @@ disassemble_start(FILE *fp, const char *sourcefile_name)
         putc('\n', fp);
         fprintf(fp, "# enumerations for CALL_FUNC arg1\n");
         ADD_DEFINES(FUNCARG_NAMES);
+        fprintf(fp, "# enumerations for FUNC_SETATTR arg1\n");
+        ADD_DEFINES(FUNC_ATTRARG_NAMES);
         putc('\n', fp);
         fprintf(fp, "# enumerations for CMP arg1\n");
         ADD_DEFINES(CMP_NAMES);
@@ -160,6 +169,10 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
                         SAFE_NAME(PTR, ii->arg1), ii->arg2);
                 break;
 
+        case INSTR_FUNC_SETATTR:
+                fprintf(fp, "%s, %hd\n",
+                        SAFE_NAME(FUNC_ATTRARG, ii->arg1), ii->arg2);
+                break;
         case INSTR_CALL_FUNC:
                 fprintf(fp, "%s, %hd\n",
                         SAFE_NAME(FUNCARG, ii->arg1), ii->arg2);

@@ -9,7 +9,7 @@ print("1 + 2 is {}".format(a));
 // Test closure
 (function() {
     let multer = function(n) {
-        return ``(x, :n=n) x * n``;
+        return ``(x) x * n``;
     };
 
     let doubler = multer(2);

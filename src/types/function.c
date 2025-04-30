@@ -22,6 +22,9 @@
  *              function, if internal function.
  * @f_maxargs:  Maximum number of args that may be passed to the
  *              function (if it's FUNC_INTERNAL), or -1 if no maximum
+ * @f_optind:   If >0, argument index of optional args.  Not used for
+ *              built-in functions.
+ * @f_kwind:    If >0, argument index of keyword args.
  * @f_cb:       If @magic is FUNC_INTERNAL, pointer to the builtin
  *              callback
  * @f_ex:       If @magic is FUNC_USER, pointer to code to execute
@@ -37,8 +40,10 @@ struct funcvar_t {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
         } f_magic;
-        int f_minargs;
-        int f_maxargs;
+        short f_minargs;
+        short f_maxargs;
+        short f_optind;
+        short f_kwind;
         union {
                 /* FUNC_INTERNAL exclusives */
                 Object *(*f_cb)(Frame *);
@@ -120,8 +125,9 @@ function_argc_check(struct funcvar_t *fh, int argc)
  */
 Object *
 function_prep_frame(Object *fn,
-                    Frame *fr, Object *owner)
+                    Frame *fr, Object *owner, bool have_dict)
 {
+        Object *dict;
         struct funcvar_t *fh;
 
         fn = function_of(fn, &owner);
@@ -129,6 +135,43 @@ function_prep_frame(Object *fn,
                 return ErrorVar;
 
         fh = V2FUNC(fn);
+
+        dict = NULL;
+        if (have_dict){
+                if (fh->f_kwind < 0) {
+                        err_setstr(ArgumentError,
+                                   "Keyword arguments not supported for this function");
+                        return ErrorVar;
+                }
+                dict = fr->stack[fr->ap - 1];
+                fr->ap--;
+        } else if (fh->f_kwind >= 0) {
+                dict = dictvar_new();
+        }
+
+        if (fh->f_optind >= 0) {
+                Object *opts, **start;
+                int i, n;
+                n = fr->ap - fh->f_optind;
+                if (n < 0) {
+                        err_setstr(ArgumentError, "Missing argument");
+                        if (dict && !have_dict)
+                                VAR_DECR_REF(dict);
+                        return ErrorVar;
+                }
+
+                start = &fr->stack[fh->f_optind];
+                opts = arrayvar_new(n);
+                for (i = 0; i < n; i++) {
+                        array_setitem(opts, i, start[i]);
+                        VAR_DECR_REF(start[i]);
+                }
+                fr->ap -= n;
+                fr->stack[fr->ap++] = opts;
+        }
+
+        if (dict)
+                fr->stack[fr->ap++] = dict;
 
         if (function_argc_check(fh, fr->ap) != RES_OK)
                 return ErrorVar;
@@ -241,6 +284,8 @@ funcvar_alloc(int magic)
         struct funcvar_t *fh = V2FUNC(func);
         fh->f_minargs = 0;
         fh->f_maxargs = -1;
+        fh->f_optind = -1;
+        fh->f_kwind = -1;
         fh->f_magic = magic;
         return func;
 }
@@ -295,9 +340,15 @@ function_setattr(Object *func, int attr, int value)
         case IARG_FUNC_MAXARGS:
                 fh->f_maxargs = value;
                 break;
+        case IARG_FUNC_OPTIND:
+                fh->f_optind = value;
+                break;
+        case IARG_FUNC_KWIND:
+                fh->f_kwind = value;
+                break;
         default:
                 err_setstr(TypeError,
-                           "Type funcion does not have enumerated attribute %d",
+                           "Type function does not have enumerated attribute %d",
                            attr);
                 return RES_ERROR;
         }

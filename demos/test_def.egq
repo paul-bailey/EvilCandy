@@ -1,6 +1,9 @@
 // See how default args handle byref values
 
-let f = function(a="hello") {
+let f = function(*args) {
+    let a = "hello";
+    if (length(args)>0)
+        a = args[0];
     return a + " world";
 };
 
@@ -12,7 +15,11 @@ print("These *should* be different...");
 print("\t{}\n\t{}".format(helloworld, helloagain));
 
 (function() {
-    let o = function(a=null) {
+    let o = function(*args) {
+        let a=null;
+        if (length(args) > 0)
+            a = args[0];
+
         let old_or_new = function(a) {
             if (a == null)
                 return {};
@@ -27,7 +34,7 @@ print("\t{}\n\t{}".format(helloworld, helloagain));
 
     let printobj = function(obj) {
         print("Printing object");
-        obj.foreach(function(e, s) {
+        obj.foreach(function(e, s, priv) {
             print("\t{}: {}".format(s, e));
         });
     };
@@ -46,5 +53,15 @@ print("\t{}\n\t{}".format(helloworld, helloagain));
     print("C (should be same as D)");
     printobj(c);
 })();
+
+let g = function(**args) {
+    let a = { 'name': 'billy', 'age': 12 } | args;
+    print(a.name, 'age', a.age);
+};
+
+print("Expect: billy age 12:");
+g();
+print("Expect: me age 45:");
+g(name='me', age=45);
 
 // : vim: set syntax=javascript :

@@ -482,7 +482,7 @@ array_tuple_foreach_common(Frame *fr, struct type_t *type)
                 argv[1] = intvar_new(idx);
                 argv[2] = priv;
 
-                retval = vm_exec_func(fr, func, NULL, 3, argv);
+                retval = vm_exec_func(fr, func, NULL, 3, argv, false);
                 VAR_DECR_REF(argv[1]);
 
                 if (retval == ErrorVar) {

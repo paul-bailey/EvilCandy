@@ -560,6 +560,8 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
 {
         int funcno = a->func++;
         int minargs = 0;
+        int optarg = -1;
+        int kwarg = -1;
 
         /* need to be corrected later */
         add_instr(a, INSTR_DEFFUNC, 0, funcno);
@@ -568,64 +570,74 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
         as_frame_push(a, funcno);
 
         do {
-                bool closure = false;
-                bool deflt = false;
-                char *name;
+                enum { NORMAL, OPTIND, KWIND } kind;
                 as_lex(a);
                 if (a->oc->t == OC_RPAR)
                         break;
-                if (a->oc->t == OC_COLON) {
-                        closure = true;
-                        as_lex(a);
+
+                if (kwarg >= 0) {
+                        err_setstr(SyntaxError,
+                                "You may not declare arguments after keyword argument");
+                        as_err(a, AE_GEN);
                 }
+
+                if (a->oc->t == OC_MUL) {
+                        kind = OPTIND;
+                        if (optarg >= 0) {
+                                err_setstr(SyntaxError,
+                                        "You may only declare one variadic argument");
+                                as_err(a, AE_GEN);
+                        }
+                        optarg = a->fr->argc;
+                        as_lex(a);
+                } else if (a->oc->t == OC_POW) {
+                        kind = KWIND;
+                        kwarg = a->fr->argc;
+                        as_lex(a);
+                } else {
+                        kind = NORMAL;
+                        if (optarg >= 0) {
+                                err_setstr(SyntaxError,
+                                        "You may not declare normal argument after variadic argument");
+                                as_err(a, AE_GEN);
+                        }
+                        minargs++;
+                }
+
                 if (a->oc->t != OC_IDENTIFIER) {
                         err_setstr(SyntaxError,
                                 "Function argument is not an identifier");
                         as_err(a, AE_GEN);
                 }
-                name = a->oc->s;
+
+                if (kind == OPTIND) {
+                        as_frame_swap(a);
+                        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_OPTIND, optarg);
+                        as_frame_swap(a);
+                } else if (kind == KWIND) {
+                        as_frame_swap(a);
+                        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_KWIND, kwarg);
+                        as_frame_swap(a);
+                }
+
+                char *name = a->oc->s;
                 as_lex(a);
-                if (a->oc->t == OC_EQ) {
-                        deflt = true;
-
-                        as_frame_swap(a);
-                        assemble_expr(a);
-                        as_frame_swap(a);
-
-                        as_lex(a);
-                }
-                if (closure) {
-                        if (!deflt) {
-                                err_setstr(SyntaxError, "Malformed argument name");
-                                as_err(a, AE_GEN);
-                        }
-
-                        /* pop-pop-push, need to balance here */
-                        as_frame_swap(a);
-                        add_instr(a, INSTR_ADD_CLOSURE, 0, 0);
-                        as_frame_swap(a);
-
-                        as_err_if(a, a->fr->cp >= FRAME_CLOSURE_MAX, AE_OVERFLOW);
-                        a->fr->clo[a->fr->cp++] = name;
-                } else {
-                        if (deflt) {
-                                as_frame_swap(a);
-                                add_instr(a, INSTR_ADD_DEFAULT, 0, a->fr->argc);
-                                as_frame_swap(a);
-                        } else {
-                                minargs = a->fr->argc + 1;
-                        }
-
-                        as_err_if(a, a->fr->argc >= FRAME_ARG_MAX, AE_OVERFLOW);
-                        a->fr->argv[a->fr->argc++] = name;
-                }
+                minargs = a->fr->argc + 1;
+                as_err_if(a, a->fr->argc >= FRAME_ARG_MAX, AE_OVERFLOW);
+                a->fr->argv[a->fr->argc++] = name;
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
 
-        assemble_function(a, lambda, funcno);
+        bug_on(kwarg == optarg && kwarg >= 0);
+        bug_on(minargs < a->fr->argc);
 
+        assemble_function(a, lambda, funcno);
+        int maxargs = a->fr->argc;
+
+as_frame_swap(a);
         add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, minargs);
-        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, a->fr->argc);
+        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, maxargs);
+as_frame_swap(a);
 
         as_frame_pop(a);
 }
@@ -818,22 +830,59 @@ static void
 assemble_call_func(struct assemble_t *a)
 {
         int argc = 0;
+        int kwind = -1;
         as_errlex(a, OC_LPAR);
-        as_lex(a);
 
-        if (a->oc->t != OC_RPAR) {
+        do {
+                as_lex(a);
+                if (a->oc->t == OC_RPAR)
+                        break;
+                if (a->oc->t == OC_IDENTIFIER) {
+                        as_lex(a);
+                        if (a->oc->t == OC_EQ) {
+                                kwind = argc;
+                                as_unlex(a);
+                                as_unlex(a);
+                                break;
+                        }
+                        as_unlex(a);
+                }
                 as_unlex(a);
+                assemble_expr(a);
+                argc++;
+                as_lex(a);
+        } while (a->oc->t == OC_COMMA);
+
+        if (kwind >= 0) {
+                add_instr(a, INSTR_DEFDICT, 0, 0);
                 do {
+                        int namei;
+                        as_lex(a);
+                        if (a->oc->t == OC_RPAR)
+                                break;
+                        if (a->oc->t != OC_IDENTIFIER) {
+                                err_setstr(SyntaxError, "Malformed keyword argument");
+                                as_err(a, AE_GEN);
+                        }
+                        namei = seek_or_add_const(a, a->oc);
+                        as_lex(a);
+                        if (a->oc->t != OC_EQ) {
+                                err_setstr(SyntaxError,
+                                           "Normal arguments may not follow keyword arguments");
+                                as_err(a, AE_GEN);
+                        }
                         assemble_expr(a);
-                        argc++;
+                        add_instr(a, INSTR_ADDATTR, IARG_ATTR_CONST, namei);
                         as_lex(a);
                 } while (a->oc->t == OC_COMMA);
+                argc++;
         }
 
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
 
         /* stack from top is: argn...arg1, arg0, func */
-        add_instr(a, INSTR_CALL_FUNC, 0, argc);
+        add_instr(a, INSTR_CALL_FUNC,
+                  kwind >= 0 ? IARG_HAVE_DICT : IARG_NO_DICT, argc);
 }
 
 static void

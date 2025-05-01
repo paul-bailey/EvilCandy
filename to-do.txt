@@ -8,10 +8,20 @@ Bugs
 Must Do
 -------
 
-* Replace RuntimeError with JavaScript exceptions like TypeError &al.
+* Interactive mode problem: token state machine is created and destroyed
+  by a wrapping call from assemble().  So if it's interactive mode and
+  someone types "a = 1; b = 2;" all on the same line, the first part
+  ("a = 1;") will be executed and the second part ("b = 2;") will be
+  discarded and never parsed.
 
 * Integers are too recessive now; we need a way to int-ify a float
   without using a slow built-in function.
+
+* ``demos`` folder is a joke.  Write a real suite of demos, split into
+  two groups: demos that are indeed demos and present meaningful examples
+  of the language; and demos that are either stress-tests or sanity
+  tests, which can be run in one go to check things before pushing a
+  commit onto the repository.
 
 * ``this`` keyword barely tested; it will probably break a lot of
   stuff that seems to work without it.  Logically it should not work

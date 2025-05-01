@@ -336,22 +336,23 @@ as_swap_pos(struct assemble_t *a, token_pos_t pos)
         return ret;
 }
 
+static int
+as_peek(struct assemble_t *a, bool may_be_eof)
+{
+        int res;
+        as_lex(a);
+        res = a->oc->t;
+        if (!may_be_eof && a->oc->t == OC_EOF)
+                as_badeof(a);
+        as_unlex(a);
+        return res;
+}
+
 /* check if next token is semicolon but do not take it. */
 static int
 peek_semi(struct assemble_t *a)
 {
-        int res;
-        as_lex(a);
-        res = a->oc->t == OC_SEMI;
-        /*
-         * Prevent unlex from doubling back on older token in case of
-         * EOF.  Since no one calls peek_semi() unless they expect either
-         * a semicolon or more input, this is an error.
-         */
-        if (a->oc->t == OC_EOF)
-                as_badeof(a);
-        as_unlex(a);
-        return res;
+        return as_peek(a, false) == OC_SEMI;
 }
 
 static int
@@ -524,6 +525,63 @@ redef:
         err_setstr(SyntaxError, "Redefining variable ('%s')", name);
         as_err(a, AE_GEN);
         return 0;
+}
+
+/*
+ * Parse either "i" of "x[i]" or "i:j:k" of "x[i:j:k]".
+ * Return token state such that next as_lex() ought to point at
+ * closing right bracket "]".
+ */
+static void
+assemble_slice(struct assemble_t *a)
+{
+        /*
+         * This could become an argument if I expand the ways to
+         * express a slice.
+         */
+        int endmarker = OC_RBRACK;
+        int i;
+
+        for (i = 0; i < 3; i++) {
+                as_lex(a);
+                if (a->oc->t == OC_COLON || a->oc->t == endmarker) {
+                        /*
+                         * ie. something like [:j] instead of [i:j:k]
+                         * Use default for unprovided values:
+                         *      i=0, j=null k=1
+                         * where 'null' is interpreted as "length(x)"
+                         */
+                        if (i == 0) {
+                                if (a->oc->t == endmarker) {
+                                        err_setstr(SyntaxError,
+                                                   "Empty subscript");
+                                        as_err(a, AE_GEN);
+                                }
+                                ainstr_load_const_int(a, 0);
+                        } else if (i == 1) {
+                                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+                        } else {
+                                ainstr_load_const_int(a, 1);
+                        }
+                } else {
+                        /* value provided */
+                        as_unlex(a);
+                        assemble_expr(a);
+                        as_lex(a);
+                }
+
+                if (a->oc->t == endmarker) {
+                        as_unlex(a);
+                        if (i == 0) /* not a slice, just a subscript */
+                                return;
+                } else if (i != 2 && a->oc->t != OC_COLON) {
+                        err_setstr(SyntaxError,
+                                   "Expected: either ':' or '%s'",
+                                   token_name(endmarker));
+                        as_err(a, AE_GEN);
+                }
+        }
+        add_instr(a, INSTR_DEFTUPLE, 0, 3);
 }
 
 static void
@@ -975,10 +1033,11 @@ assemble_expr8(struct assemble_t *a)
                                 as_unlex(a);
                                 /* expression, fall through */
                         case OC_IDENTIFIER:
+                        case OC_COLON:
                         case OC_LPAR:
                                 /* need to evaluate index */
                                 as_unlex(a);
-                                assemble_expr(a);
+                                assemble_slice(a);
                                 GETATTR_SHIFT(0, 0);
                                 break;
                         default:
@@ -1349,11 +1408,11 @@ assemble_ident_helper(struct assemble_t *a)
                                 /* ...the 1% scenario, fall through and eval */
 
                         case OC_IDENTIFIER:
+                        case OC_COLON:
                         case OC_LPAR:
                                 /* need to evaluate index */
                                 as_unlex(a);
-                                assemble_expr(a);
-
+                                assemble_slice(a);
                                 if (as_lex(a) == OC_RBRACK) {
                                         SETATTR_SHIFT_IF_ASGN(0, 0);
                                         as_unlex(a);
@@ -2295,6 +2354,13 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
         if (status)
                 *status = localstatus;
 
+        /*
+         * FIXME: Interactive mode issue.  This clears the token state
+         * machine even if it still contains unread data on the same
+         * line, eg. someone typed: "a = 1; b = 2;"... the second
+         * statement will not be preserved to be executed in the next
+         * pass to assemble().
+         */
         free_assembler(a, localstatus == RES_ERROR);
         return (Object *)ret;
 }

@@ -330,6 +330,14 @@ var_getattr(Object *v, Object *key)
                 ret = sqm->getitem(v, i);
                 bug_on(!ret);
                 return ret;
+        } else if (isvar_tuple(key)) {
+#ifndef DEBUG
+                Object *keystr = var_str(key);
+                DBUG("Array slice was '%s'", string_get_cstring(keystr));
+#endif
+                err_setstr(NotImplementedError,
+                           "Array slicing not yet supported");
+                return ErrorVar;
         } else if (isvar_string(key)) {
                 /*
                  * first check if v maps it. If failed, check the

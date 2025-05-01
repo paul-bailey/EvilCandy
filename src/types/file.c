@@ -109,8 +109,12 @@ file_reset(Object *v)
 {
         struct filevar_t *f = V2F(v);
         bug_on(!isvar_file(v));
-        if (f->f_fp)
-                fclose(f->f_fp);
+        if (f->f_fp) {
+                if (!f->f_binary)
+                        fflush(f->f_fp);
+                if (!(f->f_mode & FMODE_PROTECT))
+                        fclose(f->f_fp);
+        }
         VAR_DECR_REF(f->f_name);
 }
 
@@ -149,9 +153,11 @@ do_close(Frame *fr)
 
         if (!f->f_binary)
                 fflush(f->f_fp);
-        fclose(f->f_fp);
-        f->f_fp = NULL;
-        f->f_eof = false;
+        if (!(f->f_mode & FMODE_PROTECT))
+                fclose(f->f_fp);
+        f->f_mode   = 0;
+        f->f_fp     = NULL;
+        f->f_eof    = false;
         f->f_binary = false;
         return NULL;
 }

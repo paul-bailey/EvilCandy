@@ -154,6 +154,7 @@ enum {
         FMODE_BINARY    = 0x01,
         FMODE_READ      = 0x02,
         FMODE_WRITE     = 0x04,
+        FMODE_PROTECT   = 0x08, /* "don't truly close on 'close'" */
 };
 extern Object *filevar_new(FILE *fp, Object *name, unsigned int mode);
 extern enum result_t file_write(Object *file, Object *data);

@@ -635,15 +635,11 @@ add_stdio(FILE *fp, const char *name, unsigned int mode)
         Object *o, *k;
         bug_on(strlen(name) >= sizeof(buf));
         sprintf(buf, "<%s>", name);
-        o = var_from_format("/fnsmi/", fp, buf, mode);
+        o = var_from_format("/fnsmi/", fp, buf, mode | FMODE_PROTECT);
         k = stringvar_new(name);
         vm_add_global(k, o);
         VAR_DECR_REF(k);
-
-        /*
-         * Don't decr-ref o, or std{in/out/err} it will close
-         * before the debug atexit calls.
-         */
+        VAR_DECR_REF(o);
 }
 
 /* initialize the builtin/ C file modules */

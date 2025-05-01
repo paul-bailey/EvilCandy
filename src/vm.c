@@ -965,7 +965,7 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 static void
 check_ghost_errors(int res)
 {
-        bool e = err_exists();
+        bool e = err_occurred();
 
         if (e && res == RES_OK)
                 fprintf(stderr, "EvilCandy: Ghost error slipped by\n");

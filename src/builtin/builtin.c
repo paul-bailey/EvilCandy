@@ -37,33 +37,90 @@ do_typeof(Frame *fr)
 static Object *
 do_print(Frame *fr)
 {
+        static Object *sep_key     = NULL;
+        static Object *file_key    = NULL;
+        static Object *end_key     = NULL;
+        static Object *sep_default = NULL;
+
         size_t i, n;
-        Object *arg;
+        Object *arg, *kw, *file, *sep, *end;
+        enum result_t status;
+        Object *res = NULL;
+
+        if (sep_key == NULL) {
+                /*
+                 * Need to initialize these the first time.
+                 * FIXME: These will never get cleaned on exit.
+                 * They could mask memory-leak bugs elsewhere.
+                 */
+                sep_key  = stringvar_new("sep");
+                file_key = stringvar_new("file");
+                end_key  = stringvar_new("end");
+                sep_default = stringvar_new(" ");
+        }
 
         arg = vm_get_arg(fr, 0);
-        bug_on(!arg);
-        bug_on(!isvar_array(arg));
+        kw = vm_get_arg(fr, 1);
+        bug_on(!arg || !isvar_array(arg));
+        bug_on(!kw || !isvar_dict(kw));
+
+        sep = dict_getitem(kw, sep_key);
+        if (!sep) {
+                sep = sep_default;
+                VAR_INCR_REF(sep);
+        }
+        file = dict_getitem(kw, file_key);
+        if (!file) {
+                file = gbl.stdout_file;
+                VAR_INCR_REF(file);
+        }
+        end = dict_getitem(kw, end_key);
+        if (!end) {
+                end = gbl.nl;
+                VAR_INCR_REF(end);
+        }
 
         n = seqvar_size(arg);
         if (n == 0)
                 err_varargs(1, 0);
 
         for (i = 0; i < n; i++) {
-                Object *p = array_getitem(arg, i);
-                if (i > 0)
-                        putchar(' ');
+                Object *p;
+
+                if (i > 0) {
+                        if (file_write(file, sep) != RES_OK) {
+                                res = ErrorVar;
+                                break;
+                        }
+                }
+
+                p = array_getitem(arg, i);
                 bug_on(!p);
+
                 if (isvar_string(p)) {
-                        file_write(gbl.stdout_file, p);
+                        status = file_write(file, p);
                 } else {
                         Object *xpr = var_str(p);
-                        file_write(gbl.stdout_file, xpr);
+                        status = file_write(file, xpr);
                         VAR_DECR_REF(xpr);
                 }
                 VAR_DECR_REF(p);
+                if (status != RES_OK) {
+                        res = ErrorVar;
+                        break;
+                }
         }
-        file_write(gbl.stdout_file, gbl.nl);
-        return NULL;
+
+        if (res != ErrorVar) {
+                status = file_write(file, end);
+                if (status != RES_OK)
+                        res = ErrorVar;
+        }
+
+        VAR_DECR_REF(sep);
+        VAR_DECR_REF(file);
+        VAR_DECR_REF(end);
+        return res;
 }
 
 static Object *
@@ -564,7 +621,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("length", do_length, 1, 1, -1, -1),
         V_INITTBL("min",    do_min,    1, 1,  0, -1),
         V_INITTBL("max",    do_max,    1, 1,  0, -1),
-        V_INITTBL("print",  do_print,  1, 1,  0, -1),
+        V_INITTBL("print",  do_print,  2, 2,  0,  1),
         V_INITTBL("setnl",  do_setnl,  1, 1, -1, -1),
         V_INITTBL("typeof", do_typeof, 1, 1, -1, -1),
         V_INITTBL("range",  do_range,  1, 3, -1, -1),

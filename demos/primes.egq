@@ -1,20 +1,18 @@
-#!evilcandy
+#!./evilcandy
 
 // basically a test of for-else and break
 let primes_to = function(bound) {
-        for (let n = 2; n < bound; n++) {
-                for (let x = 2; x < n; x++) {
+        for (n, range(2, bound)) {
+                for (x, range(2, n)) {
                         if ((n % x) == 0)
                                 break;
                 } else {
-                        print(n);
+                        print(n, end=' ');
                 }
         }
 };
 
-setnl(" ");
 primes_to(20);
-setnl("\n");
-print("");
+print('');
 
 // : vim: set syntax=javascript :

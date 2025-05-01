@@ -699,25 +699,17 @@ assemble_objdef(struct assemble_t *a)
                 return;
         as_unlex(a);
         do {
-                /* arg2 of opcode, will be zerof if unused */
-                int namei = 0;
-                int attrarg;
-
                 as_lex(a);
 
                 if (a->oc->t == OC_LBRACK) {
                         /* computed key */
-                        namei = -1;
-                        attrarg = IARG_ATTR_STACK;
                         assemble_expr(a);
                         as_errlex(a, OC_RBRACK);
                 } else if (a->oc->t == OC_IDENTIFIER
                            || a->oc->t == OC_STRING) {
                         /* key is literal text */
-                        attrarg = IARG_ATTR_CONST;
-                        namei = seek_or_add_const(a, a->oc);
+                        ainstr_load_const(a, a->oc);
                 } else {
-                        attrarg = 0;
                         err_setstr(SyntaxError,
                                 "Dictionary key must be either an identifier or string");
                         as_err(a, AE_EXPECT);
@@ -728,7 +720,7 @@ assemble_objdef(struct assemble_t *a)
                         as_err(a, AE_EXPECT);
                 }
                 assemble_expr(a);
-                add_instr(a, INSTR_ADDATTR, attrarg, namei);
+                add_instr(a, INSTR_ADDATTR, 0, 0);
                 as_lex(a);
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);
@@ -856,7 +848,6 @@ assemble_call_func(struct assemble_t *a)
         if (kwind >= 0) {
                 add_instr(a, INSTR_DEFDICT, 0, 0);
                 do {
-                        int namei;
                         as_lex(a);
                         if (a->oc->t == OC_RPAR)
                                 break;
@@ -864,7 +855,7 @@ assemble_call_func(struct assemble_t *a)
                                 err_setstr(SyntaxError, "Malformed keyword argument");
                                 as_err(a, AE_GEN);
                         }
-                        namei = seek_or_add_const(a, a->oc);
+                        ainstr_load_const(a, a->oc);
                         as_lex(a);
                         if (a->oc->t != OC_EQ) {
                                 err_setstr(SyntaxError,
@@ -872,7 +863,7 @@ assemble_call_func(struct assemble_t *a)
                                 as_err(a, AE_GEN);
                         }
                         assemble_expr(a);
-                        add_instr(a, INSTR_ADDATTR, IARG_ATTR_CONST, namei);
+                        add_instr(a, INSTR_ADDATTR, 0, 0);
                         as_lex(a);
                 } while (a->oc->t == OC_COMMA);
                 argc++;
@@ -952,14 +943,11 @@ assemble_expr8(struct assemble_t *a)
         assemble_expr_atomic(a);
 
         while (istok_indirection(a->oc->t)) {
-                int namei;
-                struct token_t name;
-
                 switch (a->oc->t) {
                 case OC_PER:
                         as_errlex(a, OC_IDENTIFIER);
-                        namei = seek_or_add_const(a, a->oc);
-                        GETATTR_SHIFT(IARG_ATTR_CONST, namei);
+                        ainstr_load_const(a, a->oc);
+                        GETATTR_SHIFT(0, 0);
                         break;
 
                 case OC_LBRACK:
@@ -971,11 +959,10 @@ assemble_expr8(struct assemble_t *a)
                                  * same optimization check as in
                                  * assemble_ident_helper
                                  */
-                                as_savetok(a, &name);
                                 if (as_lex(a) == OC_RBRACK) {
-                                        namei = seek_or_add_const(a, &name);
                                         as_unlex(a);
-                                        GETATTR_SHIFT(IARG_ATTR_CONST, namei);
+                                        ainstr_load_const(a, a->oc);
+                                        GETATTR_SHIFT(0, 0);
                                         break;
                                 }
                                 as_unlex(a);
@@ -985,7 +972,7 @@ assemble_expr8(struct assemble_t *a)
                                 /* need to evaluate index */
                                 as_unlex(a);
                                 assemble_expr(a);
-                                GETATTR_SHIFT(IARG_ATTR_STACK, -1);
+                                GETATTR_SHIFT(0, 0);
                                 break;
                         default:
                                 as_err(a, AE_BADTOK);
@@ -1280,7 +1267,6 @@ assemble_ident_helper(struct assemble_t *a)
 
         as_lex(a);
         for (;;) {
-                int namei;
                 struct token_t name;
 
                 /*
@@ -1324,8 +1310,8 @@ assemble_ident_helper(struct assemble_t *a)
                 switch (a->oc->t) {
                 case OC_PER:
                         as_errlex(a, OC_IDENTIFIER);
-                        namei = seek_or_add_const(a, a->oc);
-                        GETSETATTR_SHIFT(IARG_ATTR_CONST, namei);
+                        ainstr_load_const(a, a->oc);
+                        GETSETATTR_SHIFT(0, 0);
                         break;
 
                 case OC_LBRACK:
@@ -1349,8 +1335,8 @@ assemble_ident_helper(struct assemble_t *a)
                                 as_savetok(a, &name);
                                 if (as_lex(a) == OC_RBRACK) {
                                         /* ...the 99% scenario */
-                                        namei = seek_or_add_const(a, &name);
-                                        GETSETATTR_SHIFT(IARG_ATTR_CONST, namei);
+                                        ainstr_load_const(a, &name);
+                                        GETSETATTR_SHIFT(0, 0);
                                         break;
                                 }
                                 as_unlex(a);
@@ -1363,10 +1349,10 @@ assemble_ident_helper(struct assemble_t *a)
                                 assemble_expr(a);
 
                                 if (as_lex(a) == OC_RBRACK) {
-                                        SETATTR_SHIFT_IF_ASGN(IARG_ATTR_STACK, -1);
+                                        SETATTR_SHIFT_IF_ASGN(0, 0);
                                         as_unlex(a);
                                 }
-                                GETATTR_SHIFT(IARG_ATTR_STACK, -1);
+                                GETATTR_SHIFT(0, 0);
                                 break;
                         default:
                                 /*

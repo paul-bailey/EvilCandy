@@ -578,14 +578,7 @@ setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
         int ret = 0;
 
         val = pop(fr);
-
-        if (ii.arg1 == IARG_ATTR_STACK) {
-                key = pop(fr);
-        } else {
-                key = RODATA(fr, ii);
-                VAR_INCR_REF(key);
-        }
-
+        key = pop(fr);
         obj = pop(fr);
 
         /* FIXME: asymmetric var_setattr/var_getattr */
@@ -631,13 +624,7 @@ do_getattr(Frame *fr, instruction_t ii)
         Object *attr, *key, *obj;
         int ret = 0;
 
-        if (ii.arg1 == IARG_ATTR_STACK) {
-                key = pop(fr);
-        } else {
-                key = RODATA(fr, ii);
-                VAR_INCR_REF(key);
-        }
-
+        key = pop(fr);
         obj = pop(fr);
 
         attr = var_getattr(obj, key);

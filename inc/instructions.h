@@ -5,14 +5,6 @@
 #include <lib/list.h>
 #include <stdint.h>
 
-/* GETATTR, SETATTR, arg1 enumerations */
-enum {
-        /* do not confuse with IARG_FLAG_CONST! */
-        IARG_ATTR_CONST = 0,
-
-        IARG_ATTR_STACK = 1,
-};
-
 /* PUSH_PTR/PUSH_COPY arg1 enumerations */
 enum {
         IARG_PTR_AP = 0,
@@ -32,19 +24,7 @@ enum {
         IARG_GT
 };
 
-/*
- * ASSIGN, ADDATTR arg1 enumerations
- * (these are flags, not a sequence)
- */
-enum {
-        IARG_FLAG_CONST = 0x01,
-        /* ADDATR only */
-        IARG_FLAG_PRIV = 0x02,
-};
-
-/*
- * PUSH/POP_BLOCK args
- */
+/* PUSH/POP_BLOCK args */
 enum {
         IARG_BLOCK,
         IARG_LOOP,
@@ -60,7 +40,7 @@ enum {
         IARG_FUNC_KWIND,
 };
 
-/* CALL arg1 */
+/* CALL arg1 (needed because func could be variadic) */
 enum {
         IARG_NO_DICT,
         IARG_HAVE_DICT,

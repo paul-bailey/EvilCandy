@@ -150,19 +150,6 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
 
         fprintf(fp, "%8s%-16s", "", SAFE_NAME(INSTR, ii->code));
         switch (ii->code) {
-        case INSTR_GETATTR:
-        case INSTR_SETATTR:
-                len = fprintf(fp, "%s, %hd",
-                              SAFE_NAME(ATTR, ii->arg1), ii->arg2);
-                if (len < 16)
-                        spaces(fp, 16 - len);
-                if (ii->arg1 != IARG_ATTR_STACK) {
-                        fprintf(fp, "# ");
-                        print_rodata_str(fp, ex, ii->arg2);
-                }
-                putc('\n', fp);
-                break;
-
         case INSTR_ASSIGN:
         case INSTR_LOAD:
                 fprintf(fp, "%s, %hd\n",

@@ -574,7 +574,9 @@ do_defdict(Frame *fr, instruction_t ii)
         for (i = 0; i < (2 * n); i += 2) {
                 Object *k = arr[i];
                 Object *v = arr[i+1];
+                bug_on(!isvar_string(k));
                 if (dict_setitem(obj, k, v) != RES_OK) {
+                        /* unwind the rest and fail */
                         while (i < n) {
                                 VAR_DECR_REF(arr[i]);
                                 i++;
@@ -590,6 +592,7 @@ do_defdict(Frame *fr, instruction_t ii)
         return RES_OK;
 
 fail:
+        fr->stackptr -= 2 * n;
         VAR_DECR_REF(obj);
         return RES_ERROR;
 }
@@ -1129,6 +1132,11 @@ vm_exec_func(Frame *fr_old, Object *func,
                 return ErrorVar;
         }
 
+        /*
+         * XXX If this is all there is between function_prep_frame
+         * and call_function, then it ought to all be in the same
+         * function.  function.c needs low-level access to fr anyway.
+         */
         fr->stackptr = fr->stack + fr->ap;
 
         if (fr->ex)

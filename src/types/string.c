@@ -543,22 +543,25 @@ format2_s(struct buffer_t *buf, Object *arg,
 }
 
 static size_t
-format2_helper(Frame *fr, struct buffer_t *buf, const char *s, int argi)
+format2_helper(Object *list, struct buffer_t *buf, const char *s, int argi)
 {
         const char *ssave = s;
         bool rjust = true;
         int padc = ' ';
         size_t padlen = 0;
         int precision = 6;
-        Object *v = vm_get_arg(fr, argi);
+        Object *v;
         int conv;
 
         /*
          * XXX should warn, but if this is in a user loop or function,
          * I don't want to flood the output.
          */
-        if (!v)
+        if (argi >= seqvar_size(list))
                 return 0;
+
+        v = array_getitem(list, argi);
+        bug_on(!v);
 
         /* get flags.  @cbuf already filled with next char */
         for (;;) {
@@ -660,13 +663,18 @@ string_format2(Frame *fr)
 {
         char cbuf[5];
         size_t size;
-        Object *ret, *self = get_this(fr);
+        Object *ret, *list, *self;
         const char *s;
         struct buffer_t b;
         int argi = 0;
 
+        self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
+
+        list = vm_get_arg(fr, 0);
+        bug_on(!list);
+        bug_on(!isvar_array(list));
 
         s = V2CSTR(self);
 
@@ -686,7 +694,7 @@ string_format2(Frame *fr)
                                 s++;
                                 buffer_putc(&b, '%');
                         } else {
-                                s += format2_helper(fr, &b, s, argi++);
+                                s += format2_helper(list, &b, s, argi++);
                         }
                 } else  {
                         buffer_putc(&b, cbuf[0]);
@@ -716,20 +724,24 @@ string_length_method(Frame *fr)
 }
 
 static bool
-string_format_helper(Frame *fr, char **src,
-                     struct buffer_t *t, int *lastarg)
+string_format_helper(Object *list, char **src,
+                     struct buffer_t *t, int *lastarg,
+                     size_t list_size)
 {
         char *s = *src;
         int la = *lastarg;
         Object *q = NULL;
         ++s;
         if (*s == '}') {
-                q = frame_get_arg(fr, la++);
+                int i = la++;
+                if (i < list_size)
+                        q = array_getitem(list, i);
         } else if (isdigit(*s)) {
                 char *endptr;
                 int i = strtoul(s, &endptr, 10);
                 if (*endptr == '}') {
-                        q = frame_get_arg(fr, i);
+                        if (i < list_size)
+                                q = array_getitem(list, i);
                         la = i + 1;
                         s = endptr;
                 }
@@ -759,12 +771,16 @@ static Object *
 string_format(Frame *fr)
 {
         struct buffer_t t;
-        Object *self = get_this(fr);
+        Object *self = vm_get_this(fr);
+        Object *list = vm_get_arg(fr, 0);
         int lastarg = 0;
+        size_t list_size;
         char *s, *self_s;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
+        bug_on(!isvar_array(list));
+        list_size = seqvar_size(list);
 
         self_s = V2CSTR(self);
         if (!self_s)
@@ -773,7 +789,7 @@ string_format(Frame *fr)
         buffer_init(&t);
         for (s = self_s; *s != '\0'; s++) {
                 if (*s == '{' &&
-                    string_format_helper(fr, &s, &t, &lastarg)) {
+                    string_format_helper(list, &s, &t, &lastarg, list_size)) {
                         continue;
                 }
                 buffer_putc(&t, *s);
@@ -1110,19 +1126,19 @@ string_join(Frame *fr)
 }
 
 static struct type_inittbl_t string_methods[] = {
-        V_INITTBL("len",     string_length_method, 0, 0),
-        V_INITTBL("format",  string_format, 0, -1),
-        V_INITTBL("format2", string_format2, 0, -1),
-        V_INITTBL("ljust",   string_ljust, 1, 1),
-        V_INITTBL("rjust",   string_rjust, 1, 1),
-        V_INITTBL("toint",   string_toint, 0, 0),
-        V_INITTBL("tofloat", string_tofloat, 0, 0),
-        V_INITTBL("lstrip",  string_lstrip, 0, 1),
-        V_INITTBL("rstrip",  string_rstrip, 0, 1),
-        V_INITTBL("replace", string_replace, 2, 2),
-        V_INITTBL("strip",   string_strip, 0, 1),
-        V_INITTBL("copy",    string_copy, 0, 0),
-        V_INITTBL("join",    string_join, 1, 1),
+        V_INITTBL("len",     string_length_method, 0, 0, -1, -1),
+        V_INITTBL("format",  string_format,        1, 1,  0, -1),
+        V_INITTBL("format2", string_format2,       1, 1,  0, -1),
+        V_INITTBL("ljust",   string_ljust,         1, 1, -1, -1),
+        V_INITTBL("rjust",   string_rjust,         1, 1, -1, -1),
+        V_INITTBL("toint",   string_toint,         0, 0, -1, -1),
+        V_INITTBL("tofloat", string_tofloat,       0, 0, -1, -1),
+        V_INITTBL("lstrip",  string_lstrip,        0, 1, -1, -1),
+        V_INITTBL("rstrip",  string_rstrip,        0, 1, -1, -1),
+        V_INITTBL("replace", string_replace,       2, 2, -1, -1),
+        V_INITTBL("strip",   string_strip,         0, 1, -1, -1),
+        V_INITTBL("copy",    string_copy,          0, 0, -1, -1),
+        V_INITTBL("join",    string_join,          1, 1, -1, -1),
         TBLEND,
 };
 

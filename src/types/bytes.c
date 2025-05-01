@@ -347,7 +347,7 @@ err:
 }
 
 static const struct type_inittbl_t bytes_cb_methods[] = {
-        V_INITTBL("len",        bytes_len, 0, 0),
+        V_INITTBL("len",        bytes_len, 0, 0, -1, -1),
         /* TODO: lstrip, just, etc. */
         TBLEND,
 };

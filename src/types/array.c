@@ -578,10 +578,10 @@ do_array_allocated(Frame *fr)
 }
 
 static const struct type_inittbl_t array_cb_methods[] = {
-        V_INITTBL("append",     do_array_append,   1, 1),
-        V_INITTBL("len",        do_array_len,      0, 0),
-        V_INITTBL("foreach",    do_array_foreach,  1, 2),
-        V_INITTBL("allocated",  do_array_allocated, 0, 0),
+        V_INITTBL("append",     do_array_append,    1, 1, -1, -1),
+        V_INITTBL("len",        do_array_len,       0, 0, -1, -1),
+        V_INITTBL("foreach",    do_array_foreach,   1, 2, -1, -1),
+        V_INITTBL("allocated",  do_array_allocated, 0, 0, -1, -1),
         TBLEND,
 };
 
@@ -606,8 +606,8 @@ struct type_t ArrayType = {
 };
 
 static const struct type_inittbl_t tuple_cb_methods[] = {
-        V_INITTBL("len",        do_tuple_len,           0, 0),
-        V_INITTBL("foreach",    do_tuple_foreach,       1, 2),
+        V_INITTBL("len",        do_tuple_len,           0, 0, -1, -1),
+        V_INITTBL("foreach",    do_tuple_foreach,       1, 2, -1, -1),
         TBLEND,
 };
 

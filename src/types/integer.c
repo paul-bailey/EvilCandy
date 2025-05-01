@@ -275,7 +275,7 @@ intvar_toi(Object *v)
 }
 
 static const struct type_inittbl_t int_methods[] = {
-        V_INITTBL("tostr", int_tostr, 0, 0),
+        V_INITTBL("tostr", int_tostr, 0, 0, -1, -1),
         TBLEND,
 };
 

@@ -160,7 +160,7 @@ var_initialize_type(struct type_t *tp)
                 Object *v, *k;
                 enum result_t res;
 
-                v = funcvar_new_intl(t->fn, t->minargs, t->maxargs);
+                v = funcvar_from_lut(t);
                 k = stringvar_new(t->name);
                 res = dict_setitem_exclusive(dict, k, v);
                 VAR_DECR_REF(k);

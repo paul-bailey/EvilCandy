@@ -4,17 +4,24 @@
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
 
-#define NLMAX 8
+/* XXX bad name for this, it should go into io.c */
+static struct gbl_private_t {
+        Object *nl;
+        Object *stdout_file;
+} gbl;
 
 /*
- * FIXME: this is Windows-level of 'who does this?'
- * Replace it with more professional-looking locale
- * interface with user.
+ * function.c does not trap too small var-args, some callbacks do not
+ * consider 0 args an error, others do.
  */
-/* Private data for the global object */
-static struct gbl_private_t {
-        char nl[NLMAX];
-} gbl;
+/* XXX: move to var.c, consolidate with types/function.c */
+static void
+err_varargs(int expect, int got)
+{
+        err_setstr(ArgumentError,
+                   "Missing argument: expected at least %d but got %d",
+                   expect, got);
+}
 
 static Object *
 do_typeof(Frame *fr)
@@ -27,47 +34,35 @@ do_typeof(Frame *fr)
         return stringvar_new(typestr(p));
 }
 
-static void
-print_nl(void)
-{
-        char *s;
-        for (s = gbl.nl; *s; s++)
-                putchar((int)*s);
-}
-
 static Object *
 do_print(Frame *fr)
 {
-        static Object *stdout_obj = NULL;
-        int argc = vm_get_argc(fr);
-        int i;
-        if (!argc) {
-                err_setstr(ArgumentError,
-                           "Expected: at least one argument to print");
-                return ErrorVar;
-        }
+        size_t i, n;
+        Object *arg;
 
-        if (!stdout_obj) {
-                stdout_obj = vm_get_global("stdout");
-                bug_on(!stdout_obj);
-        }
+        arg = vm_get_arg(fr, 0);
+        bug_on(!arg);
+        bug_on(!isvar_array(arg));
 
-        for (i = 0; i < argc; i++) {
-                Object *p = vm_get_arg(fr, i);
+        n = seqvar_size(arg);
+        if (n == 0)
+                err_varargs(1, 0);
+
+        for (i = 0; i < n; i++) {
+                Object *p = array_getitem(arg, i);
                 if (i > 0)
                         putchar(' ');
                 bug_on(!p);
                 if (isvar_string(p)) {
-                        file_write(stdout_obj, p);
+                        file_write(gbl.stdout_file, p);
                 } else {
                         Object *xpr = var_str(p);
-                        file_write(stdout_obj, xpr);
+                        file_write(gbl.stdout_file, xpr);
                         VAR_DECR_REF(xpr);
                 }
+                VAR_DECR_REF(p);
         }
-        Object *nl = stringvar_new(gbl.nl);
-        file_write(stdout_obj, nl);
-        VAR_DECR_REF(nl);
+        file_write(gbl.stdout_file, gbl.nl);
         return NULL;
 }
 
@@ -152,14 +147,14 @@ static Object *
 do_setnl(Frame *fr)
 {
         Object *nl = frame_get_arg(fr, 0);
-        char *s;
         if (!isvar_string(nl)) {
                 err_argtype("string");
                 return ErrorVar;
         }
-        s = string_get_cstring(nl);
-        memset(gbl.nl, 0, NLMAX);
-        strncpy(gbl.nl, s, NLMAX-1);
+        if (gbl.nl)
+                VAR_DECR_REF(gbl.nl);
+        VAR_INCR_REF(nl);
+        gbl.nl = nl;
         return NULL;
 }
 
@@ -377,19 +372,29 @@ do_length(Frame *fr)
 static Object *
 do_max(Frame *fr)
 {
-        Object *res, *v;
-        int i, argc = vm_get_argc(fr);
-        bug_on(argc == 0);
-        if (argc == 1) {
-                v = vm_get_arg(fr, 0);
-                bug_on(!v);
-                return var_max(v);
+        Object *res, *arg;
+        size_t i, n;
+
+        arg = vm_get_arg(fr, 0);
+        bug_on(!arg);
+        bug_on(!isvar_array(arg));
+        n = seqvar_size(arg);
+        if (n == 0) {
+                err_varargs(1, 0);
+                return ErrorVar;
+        }
+        if (n == 1) {
+                /* caller provided one arg, an object to min() */
+                Object *obj = array_getitem(arg, 0);
+                res = var_max(obj);
+                VAR_DECR_REF(obj);
+                return res;
         }
 
         res = NULL;
-        for (i = 0; i < argc; i++) {
+        for (i = 0; i < n; i++) {
                 int cmp;
-                v = vm_get_arg(fr, i);
+                Object *v = array_getitem(arg, i);
                 bug_on(!v);
 
                 if (!res) {
@@ -398,30 +403,44 @@ do_max(Frame *fr)
                 }
 
                 cmp = var_compare(v, res);
-                if (cmp > 0)
+                if (cmp > 0) {
+                        if (res)
+                                VAR_DECR_REF(res);
                         res = v;
+                } else {
+                        VAR_DECR_REF(v);
+                }
         }
         bug_on(!res);
-        VAR_INCR_REF(res);
         return res;
 }
 
 static Object *
 do_min(Frame *fr)
 {
-        Object *res, *v;
-        int i, argc = vm_get_argc(fr);
-        bug_on(argc == 0);
-        if (argc == 1) {
-                v = vm_get_arg(fr, 0);
-                bug_on(!v);
-                return var_min(v);
+        Object *res, *arg;
+        size_t i, n;
+
+        arg = vm_get_arg(fr, 0);
+        bug_on(!arg);
+        bug_on(!isvar_array(arg));
+        n = seqvar_size(arg);
+        if (n == 0) {
+                err_varargs(1, 0);
+                return ErrorVar;
+        }
+        if (n == 1) {
+                /* caller provided one arg, an object to min() */
+                Object *obj = array_getitem(arg, 0);
+                res = var_min(obj);
+                VAR_DECR_REF(obj);
+                return res;
         }
 
         res = NULL;
-        for (i = 0; i < argc; i++) {
+        for (i = 0; i < n; i++) {
                 int cmp;
-                v = vm_get_arg(fr, i);
+                Object *v = array_getitem(arg, i);
                 bug_on(!v);
 
                 if (!res) {
@@ -430,11 +449,15 @@ do_min(Frame *fr)
                 }
 
                 cmp = var_compare(v, res);
-                if (cmp < 0)
+                if (cmp < 0) {
+                        if (res)
+                                VAR_DECR_REF(res);
                         res = v;
+                } else {
+                        VAR_DECR_REF(v);
+                }
         }
         bug_on(!res);
-        VAR_INCR_REF(res);
         return res;
 }
 
@@ -531,30 +554,24 @@ do_floats(Frame *fr)
         return floatsvar_from_bytes(v, enc, le);
 }
 
-static const struct inittbl_t builtin_inittbl[] = {
-        TOFTBL("abs",    do_abs,    1, 1),
-        TOFTBL("all",    do_all,    1, 1),
-        TOFTBL("any",    do_any,    1, 1),
-        TOFTBL("floats", do_floats, 1, 3),
-        TOFTBL("int",    do_int,    1, 2),
-        TOFTBL("length", do_length, 1, 1),
-        TOFTBL("min",    do_min,    1, -1),
-        TOFTBL("max",    do_max,    1, -1),
-        TOFTBL("print",  do_print,  1, -1),
-        TOFTBL("setnl",  do_setnl,  1, 1),
-        TOFTBL("typeof", do_typeof, 1, 1),
-        TOFTBL("range",  do_range,  1, 3),
+static const struct type_inittbl_t builtin_inittbl[] = {
+        /*         name     callback  min max opt kw */
+        V_INITTBL("abs",    do_abs,    1, 1, -1, -1),
+        V_INITTBL("all",    do_all,    1, 1, -1, -1),
+        V_INITTBL("any",    do_any,    1, 1, -1, -1),
+        V_INITTBL("floats", do_floats, 1, 3, -1, -1),
+        V_INITTBL("int",    do_int,    1, 2, -1, -1),
+        V_INITTBL("length", do_length, 1, 1, -1, -1),
+        V_INITTBL("min",    do_min,    1, 1,  0, -1),
+        V_INITTBL("max",    do_max,    1, 1,  0, -1),
+        V_INITTBL("print",  do_print,  1, 1,  0, -1),
+        V_INITTBL("setnl",  do_setnl,  1, 1, -1, -1),
+        V_INITTBL("typeof", do_typeof, 1, 1, -1, -1),
+        V_INITTBL("range",  do_range,  1, 3, -1, -1),
         /* XXX: maybe exit should be a method of __gbl__._sys */
-        TOFTBL("exit",   do_exit,   0, -1),
-        TOFTBL("exists", do_exists, 1, 1),
-        TOFTBL("import", do_import, 1, 2),
-        { .name = NULL },
-};
-
-static const struct inittbl_t gblinit[] = {
-        TOOTBL("_builtins", builtin_inittbl),
-        TOOTBL("_math",     bi_math_inittbl__),
-        TOOTBL("_io",       bi_io_inittbl__),
+        V_INITTBL("exit",   do_exit,   0, 0, -1, -1),
+        V_INITTBL("exists", do_exists, 1, 1, -1, -1),
+        V_INITTBL("import", do_import, 1, 2, -1, -1),
         { .name = NULL },
 };
 
@@ -567,56 +584,23 @@ static const struct inittbl_t gblinit[] = {
  *       of this table.
  */
 static void
-build_internal_object(Object *parent, const struct inittbl_t *tbl)
+build_internal_object(Object *parent, const struct type_inittbl_t *tbl)
 {
-        const struct inittbl_t *t;
+        const struct type_inittbl_t *t;
         if (!tbl)
                 return;
         for (t = tbl; t->name != NULL; t++) {
-                Object *child, *key;
-                switch (t->magic) {
-                case TYPE_DICT:
-                        child = dictvar_new();
-                        build_internal_object(child, t->tbl);
-                        break;
-                case TYPE_FUNCTION:
-                        child = funcvar_new_intl(t->cb,
-                                                 t->minargs, t->maxargs);
-                        break;
-                case TYPE_STRING:
-                        child = stringvar_new(t->s);
-                        break;
-                case TYPE_INT:
-                        child = intvar_new(t->i);
-                        break;
-                case TYPE_FLOAT:
-                        child = floatvar_new(t->f);
-                        break;
-                default:
-                        child = NULL;
-                        bug();
-                }
+                /* TODO: add 'ok', optind, kwargs */
+                Object *func, *key;
+                func = funcvar_from_lut(t);
                 key = stringvar_new(t->name);
-                if (dict_setitem(parent, key, child) != 0) {
-                        /*
-                         * Whether this is a "bug" or not is philosophical.
-                         * Anyway, it can't be user error, so something
-                         * internal failed this operation.
-                         */
-                        bug();
-                }
+                dict_setitem(parent, key, func);
+                VAR_DECR_REF(func);
                 VAR_DECR_REF(key);
         }
 }
 
-static Object *
-gblobject(const char *ks)
-{
-        Object *key = stringvar_new(ks);
-        Object *ret = dict_getitem(GlobalObject, key);
-        VAR_DECR_REF(key);
-        return ret;
-}
+#define gblobject(ks) dict_getitem_cstr(GlobalObject, ks)
 
 #define MAKE_EXCEPTION(X) do {                  \
         /*                                      \
@@ -629,17 +613,59 @@ gblobject(const char *ks)
 } while (0)
 
 static void
-add_stdio(FILE *fp, const char *name, unsigned int mode)
+initialize_global_object(void)
 {
-        char buf[64];
+        const struct gblinit_t {
+                const char *name;
+                const struct type_inittbl_t *tbl;
+        } GLOBAL_MODULES[] = {
+                { "_builtins",  builtin_inittbl },
+                { "_math",      bi_math_inittbl__ },
+                { "_io",        bi_io_inittbl__ },
+                { NULL }
+        };
+        const struct gblinit_t *t = GLOBAL_MODULES;
         Object *o, *k;
-        bug_on(strlen(name) >= sizeof(buf));
-        sprintf(buf, "<%s>", name);
-        o = var_from_format("/fnsmi/", fp, buf, mode | FMODE_PROTECT);
-        k = stringvar_new(name);
-        vm_add_global(k, o);
+
+        GlobalObject = dictvar_new();
+
+        for (t = GLOBAL_MODULES; t->name != NULL; t++) {
+                k = stringvar_new(t->name);
+                o = dictvar_new();
+                build_internal_object(o, t->tbl);
+                dict_setitem(GlobalObject, k, o);
+                VAR_DECR_REF(k);
+                VAR_DECR_REF(o);
+        }
+
+        /*
+         * sys is mostly data, so build it differently than above modules
+         */
+
+#define STDIO_FMT          "s/fnsmi/"
+#define STDIO_ARGS(X, Y)   #X, X, "<" #X ">", FMODE_##Y | FMODE_PROTECT
+
+        o = var_from_format("{ss" STDIO_FMT STDIO_FMT STDIO_FMT "}",
+                        "nl", "\n",
+                        STDIO_ARGS(stdin, READ),
+                        STDIO_ARGS(stdout, WRITE),
+                        STDIO_ARGS(stderr, WRITE));
+
+#undef STDIO_ARGS
+
+        k = stringvar_new("_sys");
+        dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
+}
+
+static Object *
+sysget(const char *name)
+{
+        Object *sys = gblobject("_sys");
+        Object *res = dict_getitem_cstr(sys, name);
+        VAR_DECR_REF(sys);
+        return res;
 }
 
 /* initialize the builtin/ C file modules */
@@ -649,8 +675,7 @@ moduleinit_builtin(void)
         Object *o, *k;
 
         /* Do this first.  build_internal_object de-references it. */
-        GlobalObject = dictvar_new();
-        build_internal_object(GlobalObject, gblinit);
+        initialize_global_object();
 
         MAKE_EXCEPTION(ArgumentError);
         MAKE_EXCEPTION(KeyError);
@@ -675,18 +700,20 @@ moduleinit_builtin(void)
         vm_add_global(k, GlobalObject);
         VAR_DECR_REF(k);
 
-        add_stdio(stdin,  "stdin",  FMODE_READ);
-        add_stdio(stdout, "stdout", FMODE_WRITE);
-        add_stdio(stderr, "stderr", FMODE_WRITE);
-
         /* Set up gbl private data */
-        strcpy(gbl.nl, "\n");
+        gbl.nl = sysget("nl");
+        gbl.stdout_file = sysget("stdout");
+        bug_on(!gbl.nl);
+        bug_on(!gbl.stdout_file);
 }
 
 void
 moduledeinit_builtin(void)
 {
         VAR_DECR_REF(GlobalObject);
+
+        VAR_DECR_REF(gbl.stdout_file);
+        VAR_DECR_REF(gbl.nl);
 
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);

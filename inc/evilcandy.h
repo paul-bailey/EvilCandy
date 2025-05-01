@@ -176,6 +176,7 @@ extern Object *floatsvar_from_list(Object *v);
 extern Object *funcvar_new_user(Object *ex);
 extern Object *funcvar_new_intl(Object *(*cb)(Frame *),
                                int minargs, int maxargs);
+extern Object *funcvar_from_lut(const struct type_inittbl_t *tbl);
 extern int function_setattr(Object *func, int attr, int value);
 extern Object *function_prep_frame(Object *fn,
                         Frame *fr, Object *owner, bool have_dict);
@@ -195,6 +196,7 @@ extern char *uuidptr_get_cstring(Object *v);
 extern Object *dictvar_new(void);
 extern Object *dict_keys(Object *obj);
 extern Object *dict_getitem(Object *o, Object *key);
+extern Object *dict_getitem_cstr(Object *o, const char *cstr_key);
 extern enum result_t dict_setitem(Object *o, Object *key, Object *attr);
 extern void dict_add_to_globals(Object *obj);
 extern enum result_t dict_setitem_replace(Object *dict,

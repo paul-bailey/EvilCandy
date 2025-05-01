@@ -49,13 +49,9 @@ do_sqrt(Frame *fr)
         return floatvar_new(sqrt(x));
 }
 
-/*
- * hmm... I need there to be consts too,
- * but I have no way of supporting it safely.
- */
-const struct inittbl_t bi_math_inittbl__[] = {
-        TOFTBL("sqrt",  do_sqrt,        1, 1),
-        TOFTBL("pow",   do_pow,         2, 2),
+const struct type_inittbl_t bi_math_inittbl__[] = {
+        V_INITTBL("sqrt",  do_sqrt, 1, 1, -1, -1),
+        V_INITTBL("pow",   do_pow,  2, 2, -1, -1),
         TBLEND,
 };
 

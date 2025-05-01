@@ -209,7 +209,7 @@ float_tostr(Frame *fr)
 }
 
 static const struct type_inittbl_t float_methods[] = {
-        V_INITTBL("tostr", float_tostr, 0, 0),
+        V_INITTBL("tostr", float_tostr, 0, 0, -1, -1),
         TBLEND,
 };
 

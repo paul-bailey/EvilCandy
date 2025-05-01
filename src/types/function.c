@@ -232,6 +232,23 @@ funcvar_new_intl(Object *(*cb)(Frame *),
         return func;
 }
 
+/*
+ * funcvar_from_lut - Create a built-in function from an initialization
+ *                    table
+ */
+Object *
+funcvar_from_lut(const struct type_inittbl_t *tbl)
+{
+        Object *func;
+
+        func = funcvar_new_intl(tbl->fn, tbl->minargs, tbl->maxargs);
+        if (tbl->optind >= 0)
+                function_setattr(func, IARG_FUNC_OPTIND, tbl->optind);
+        if (tbl->kwind >= 0)
+                function_setattr(func, IARG_FUNC_KWIND, tbl->kwind);
+        return func;
+}
+
 /**
  * function_setattr - Set a function attribute
  * @attr: An IARG_FUNC_xxx enum

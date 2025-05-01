@@ -89,8 +89,8 @@ do_open(Frame *fr)
         return filevar_new(fp, vname, modeflags);
 }
 
-const struct inittbl_t bi_io_inittbl__[] = {
-        TOFTBL("open", do_open, 2, 2),
+const struct type_inittbl_t bi_io_inittbl__[] = {
+        V_INITTBL("open", do_open, 2, 2, -1, -1),
         TBLEND,
 };
 

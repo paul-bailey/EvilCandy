@@ -313,6 +313,20 @@ dict_getitem(Object *o, Object *key)
         return b->b_data;
 }
 
+/*
+ * Sloppy slow way to get an entry with only a C string.
+ * Don't use this if you can help it.  It forces a hash calculation
+ * every time.
+ */
+Object *
+dict_getitem_cstr(Object *o, const char *cstr_key)
+{
+        Object *key = stringvar_new(cstr_key);
+        Object *res = dict_getitem(o, key);
+        VAR_DECR_REF(key);
+        return res;
+}
+
 enum {
         /* throw error if key does not exist */
         DF_SWAP = 1,
@@ -810,12 +824,12 @@ do_dict_purloin(Frame *fr)
 }
 
 static const struct type_inittbl_t dict_cb_methods[] = {
-        V_INITTBL("len",       do_dict_len,       0, 0),
-        V_INITTBL("foreach",   do_dict_foreach,   1, 2),
-        V_INITTBL("delitem",   do_dict_delitem,   1, 1),
-        V_INITTBL("purloin",   do_dict_purloin,   0, 1),
-        V_INITTBL("keys",      do_dict_keys,      0, 0),
-        V_INITTBL("copy",      do_dict_copy,      0, 0),
+        V_INITTBL("len",       do_dict_len,       0, 0, -1, -1),
+        V_INITTBL("foreach",   do_dict_foreach,   1, 2, -1, -1),
+        V_INITTBL("delitem",   do_dict_delitem,   1, 1, -1, -1),
+        V_INITTBL("purloin",   do_dict_purloin,   0, 1, -1, -1),
+        V_INITTBL("keys",      do_dict_keys,      0, 0, -1, -1),
+        V_INITTBL("copy",      do_dict_copy,      0, 0, -1, -1),
         TBLEND,
 };
 

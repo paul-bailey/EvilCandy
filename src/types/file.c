@@ -26,6 +26,78 @@ file_cmp(Object *a, Object *b)
         return OP_CMP((uintptr_t)fpa, (uintptr_t)fpb);
 }
 
+/**
+ * file_write - Write to a file
+ * @file: File to write to
+ * @data: Data to write, either bytes if @file is binary, or string if
+ *        file is text
+ *
+ * Return: RES_OK or RES_ERROR
+ *
+ * This does not bother itself with EOL or such.  Calling code must
+ * figure that out when configuring @data.
+ */
+enum result_t
+file_write(Object *file, Object *data)
+{
+        struct filevar_t *f;
+        const unsigned char *s;
+        size_t size;
+
+        if (!isvar_file(file)) {
+                err_setstr(NotImplementedError,
+                        "User-defined 'writer' not implemented yet");
+                return RES_ERROR;
+        }
+
+        f = V2F(file);
+        if (f->f_fp == NULL) {
+                err_setstr(ValueError, "File closed");
+                return RES_ERROR;
+        }
+        if (!(f->f_mode & FMODE_WRITE)) {
+                err_setstr(ValueError, "File does not have write privileges");
+                return RES_ERROR;
+        }
+        if (isvar_bytes(data)) {
+                s = bytes_getbuf(data);
+                size = seqvar_size(data);
+                fwrite(data, 1, size, f->f_fp);
+        } else if (isvar_string(data)) {
+                s = (unsigned char *)string_get_cstring(data);
+                size = strlen((char *)s);
+        } else {
+                err_setstr(TypeError, "Cannot write '%s' type to %s stream",
+                        typestr(data), f->f_binary ? "binary" : "text");
+                return RES_ERROR;
+        }
+
+        if (f->f_binary) {
+                while (size) {
+                        ssize_t nwritten = write(fileno(f->f_fp), s, size);
+                        if (nwritten <= 0) {
+                                /* XXX error should be if < 0 */
+                                f->f_eof = true;
+                                err_errno("Write failed");
+                                return RES_ERROR;
+                        }
+                        size -= nwritten;
+                        s += nwritten;
+                }
+        } else {
+                /* TODO: error handling, encoding, etc. */
+                /*
+                 * putc instead of puts because I'm not sure it's standard
+                 * what happens if EOL before '\0'
+                 */
+                int c;
+                while ((c = *s++) != '\0')
+                        fputc(c, f->f_fp);
+                fflush(f->f_fp);
+        }
+        return RES_OK;
+}
+
 static bool
 file_cmpz(Object *v)
 {
@@ -189,73 +261,11 @@ do_read(Frame *fr)
 static Object *
 do_write(Frame *fr)
 {
-        Object *self;
-        Object *data;
-        struct filevar_t *f;
-        const unsigned char *s;
-        size_t size;
-
-        self = vm_get_this(fr);
-        RETURN_IF_BAD_FILE(self);
-        f = V2F(self);
-
-        if (!(f->f_mode & FMODE_WRITE)) {
-                err_setstr(RuntimeError, "You may not write in this mode");
-                return ErrorVar;
-        }
-        data = vm_get_arg(fr, 0);
-        if (!data) {
-                err_setstr(ArgumentError, "Expected: data to write");
-                return ErrorVar;
-        }
-
-        if (!isvar_seq(data))
-                goto etype;
-
-        if (f->f_binary && !isvar_bytes(data))
-                goto etype;
-
-        if (isvar_bytes(data)) {
-                s = bytes_getbuf(data);
-                size = seqvar_size(data);
-                fwrite(data, 1, size, f->f_fp);
-        } else if (isvar_string(data)) {
-                s = (unsigned char *)string_get_cstring(data);
-                size = strlen((char *)s);
-        } else {
-                goto etype;
-        }
-
-        if (f->f_binary) {
-                while (size) {
-                        ssize_t nwritten = write(fileno(f->f_fp), s, size);
-                        if (nwritten <= 0) {
-                                /* XXX error should be if < 0 */
-                                f->f_eof = true;
-                                err_errno("Write failed");
-                                return ErrorVar;
-                        }
-                        size -= nwritten;
-                        s += nwritten;
-                }
-        } else {
-                /* TODO: clear definition what to do about eol */
-                /* TODO: error handling, encoding, etc. */
-                /*
-                 * putc instead of puts because I'm not sure it's standard
-                 * what happens if EOL before '\0'
-                 */
-                int c;
-                while ((c = *s++) != '\0')
-                        fputc(c, f->f_fp);
-                fflush(f->f_fp);
-        }
-        return NULL;
-
-etype:
-        err_setstr(TypeError, "Cannot write '%s' type to %s stream",
-                   typestr(data), f->f_binary ? "binary" : "text");
-        return ErrorVar;
+        Object *self = vm_get_this(fr);
+        Object *data = vm_get_arg(fr, 0);
+        bug_on(!data || !self);
+        enum result_t res = file_write(self, data);
+        return res == RES_OK ? NULL : ErrorVar;
 }
 
 static Object *

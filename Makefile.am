@@ -25,6 +25,7 @@ evilcandy_SOURCES = \
         src/token.c \
         src/uuid.c \
         src/var.c \
+        src/var_from_format.c \
         src/vm.c \
         src/builtin/builtin.c \
         src/builtin/io.c \

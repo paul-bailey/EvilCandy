@@ -38,6 +38,7 @@ print_nl(void)
 static Object *
 do_print(Frame *fr)
 {
+        static Object *stdout_obj = NULL;
         int argc = vm_get_argc(fr);
         int i;
         if (!argc) {
@@ -45,22 +46,28 @@ do_print(Frame *fr)
                            "Expected: at least one argument to print");
                 return ErrorVar;
         }
+
+        if (!stdout_obj) {
+                stdout_obj = vm_get_global("stdout");
+                bug_on(!stdout_obj);
+        }
+
         for (i = 0; i < argc; i++) {
                 Object *p = vm_get_arg(fr, i);
                 if (i > 0)
                         putchar(' ');
                 bug_on(!p);
                 if (isvar_string(p)) {
-                        char *s = string_get_cstring(p);
-                        while (*s)
-                                putchar((int)*s++);
+                        file_write(stdout_obj, p);
                 } else {
                         Object *xpr = var_str(p);
-                        printf("%s", string_get_cstring(xpr));
+                        file_write(stdout_obj, xpr);
                         VAR_DECR_REF(xpr);
                 }
         }
-        print_nl();
+        Object *nl = stringvar_new(gbl.nl);
+        file_write(stdout_obj, nl);
+        VAR_DECR_REF(nl);
         return NULL;
 }
 
@@ -621,6 +628,24 @@ gblobject(const char *ks)
         vm_add_global(X, X);                    \
 } while (0)
 
+static void
+add_stdio(FILE *fp, const char *name, unsigned int mode)
+{
+        char buf[64];
+        Object *o, *k;
+        bug_on(strlen(name) >= sizeof(buf));
+        sprintf(buf, "<%s>", name);
+        o = var_from_format("/fnsmi/", fp, buf, mode);
+        k = stringvar_new(name);
+        vm_add_global(k, o);
+        VAR_DECR_REF(k);
+
+        /*
+         * Don't decr-ref o, or std{in/out/err} it will close
+         * before the debug atexit calls.
+         */
+}
+
 /* initialize the builtin/ C file modules */
 void
 moduleinit_builtin(void)
@@ -630,7 +655,6 @@ moduleinit_builtin(void)
         /* Do this first.  build_internal_object de-references it. */
         GlobalObject = dictvar_new();
         build_internal_object(GlobalObject, gblinit);
-
 
         MAKE_EXCEPTION(ArgumentError);
         MAKE_EXCEPTION(KeyError);
@@ -654,6 +678,10 @@ moduleinit_builtin(void)
         k = stringvar_new("__gbl__");
         vm_add_global(k, GlobalObject);
         VAR_DECR_REF(k);
+
+        add_stdio(stdin,  "stdin",  FMODE_READ);
+        add_stdio(stdout, "stdout", FMODE_WRITE);
+        add_stdio(stderr, "stderr", FMODE_WRITE);
 
         /* Set up gbl private data */
         strcpy(gbl.nl, "\n");

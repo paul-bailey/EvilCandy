@@ -116,5 +116,8 @@ extern void var_bucket_delete(void *data);
 /* note: v only evaluated once in VAR_*_REF() */
 extern void var_delete__(Object *v);
 
+/* var_from_format.c */
+extern Object *var_from_format(const char *fmt, ...);
+
 
 #endif /* EVILCANDY_VAR_H */

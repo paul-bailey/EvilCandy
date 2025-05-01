@@ -37,6 +37,10 @@ struct funcvar_t {
                 FUNC_INTERNAL = 1,
                 FUNC_USER,
         } f_magic;
+        /*
+         * I'd make these char to save space, but <0 means something,
+         * and signed-char is not 100% portable.
+         */
         short f_minargs;
         short f_maxargs;
         short f_optind;

@@ -156,6 +156,7 @@ enum {
         FMODE_WRITE     = 0x04,
 };
 extern Object *filevar_new(FILE *fp, Object *name, unsigned int mode);
+extern enum result_t file_write(Object *file, Object *data);
 
 /* types/float.c */
 extern Object *floatvar_new(double value);

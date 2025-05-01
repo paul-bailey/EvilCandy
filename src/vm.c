@@ -1186,6 +1186,15 @@ vm_add_global(Object *name, Object *var)
         (void)res;
 }
 
+Object *
+vm_get_global(const char *name)
+{
+        Object *k = stringvar_new(name);
+        Object *res = dict_getitem(symbol_table, k);
+        VAR_DECR_REF(k);
+        return res;
+}
+
 /**
  * vm_symbol_exists - Check if a global variable exists
  * @key: Name of the global variable.

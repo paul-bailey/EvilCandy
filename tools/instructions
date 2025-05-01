@@ -83,36 +83,22 @@ FUNC_SETATTR
 # then push the list back onto the stack.
 DEFLIST
 
-# Create a new empty dictionary and push it onto the stack
+# Create a new dictionary, arg2 has #of key/value pairs on the
+# stack waiting to be added to it.
 DEFDICT
 
 # like DEFLIST... but in tuple form!
 DEFTUPLE
 
 ##
-#   ADD/GET/SETATTR
+#   GET/SETATTR
 #
-# 'Attribute' is a little misleading, I know, but it keeps the
-# instruction set small.
+# GETATTR pops the key off the stack, pops the containing object off the
+# stack, gets the subscript or mapped item out of the containing object.
 #
-# ADDATTR is used only when building a dictionary from an expressed
-# literal. arg2 is an .rodata offset pointing to the name to use.
-# pop item to add, then pop dictionary to store item in, insert the
-# item into the dictionary, then push dictionary back onto the stack.
-#
-# GETATTR either pops the key off the stack or gets it from .rodata
-# (depending on arg1), then pops the containing object off the stack,
-# gets the subscript or mapped item out of the containing object.
-# Unlike with a typical stack machine, here it pushes both items
-# back onto the stack, actually growing it by one.  SHIFT_DOWN will
-# fix that later.  See comments in assemble.c why this is needed.
-#
-# SETATTR pops the item (the 'attribute') off the stack, then either
-# pops the key off the stack or gets it from .rodata (depending on arg1),
-# then pops the soon-to-be-containing object off the stack, and inserts
-# the item into the containing object, and leaves all three off the
-# stack, consuming a reference for all but the .rodata.
-ADDATTR
+# SETATTR pops the item (the 'attribute') off the stack, pops the key off
+# the tack, pops the soon-to-be-containing object off the stack, inserts
+# the item into the containing object.  Nothing is pushed back on.
 GETATTR
 SETATTR
 

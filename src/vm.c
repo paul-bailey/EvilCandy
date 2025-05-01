@@ -566,13 +566,36 @@ do_deflist(Frame *fr, instruction_t ii)
 static int
 do_defdict(Frame *fr, instruction_t ii)
 {
+        Object **arr;
         Object *obj = dictvar_new();
+        int i, n = ii.arg2;
+
+        arr = fr->stackptr - (2 * n);
+        for (i = 0; i < (2 * n); i += 2) {
+                Object *k = arr[i];
+                Object *v = arr[i+1];
+                if (dict_setitem(obj, k, v) != RES_OK) {
+                        while (i < n) {
+                                VAR_DECR_REF(arr[i]);
+                                i++;
+                        }
+                        goto fail;
+                }
+                VAR_DECR_REF(k);
+                VAR_DECR_REF(v);
+        }
+
+        fr->stackptr -= 2 * n;
         push(fr, obj);
-        return 0;
+        return RES_OK;
+
+fail:
+        VAR_DECR_REF(obj);
+        return RES_ERROR;
 }
 
 static int
-setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
+do_setattr(Frame *fr, instruction_t ii)
 {
         Object *val, *key, *obj;
         int ret = 0;
@@ -584,8 +607,8 @@ setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
         /* FIXME: asymmetric var_setattr/var_getattr */
         if (isvar_method(val) && method_peek_self(val) == obj) {
                 /*
-                 * prevent unnecessary cyclic reference,
-                 * store the function instead of the 'method'
+                 * Prevent unnecessary cyclic reference.
+                 * Store the function instead of the 'method'.
                  */
                 Object *towner, *tfunc;
                 methodvar_tofunc(val, &tfunc, &towner);
@@ -601,28 +624,15 @@ setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
 
         VAR_DECR_REF(key);
         VAR_DECR_REF(val);
-        if (keep_parent)
-                push(fr, obj);
-        else
-                VAR_DECR_REF(obj);
+        VAR_DECR_REF(obj);
         return ret;
-}
-
-/*
- * subtle difference from INSTR_SETATTR: push the dictionary
- * back onto the stack.
- */
-static int
-do_addattr(Frame *fr, instruction_t ii)
-{
-        return setattr_common(fr, ii, true);
 }
 
 static int
 do_getattr(Frame *fr, instruction_t ii)
 {
         Object *attr, *key, *obj;
-        int ret = 0;
+        int ret;
 
         key = pop(fr);
         obj = pop(fr);
@@ -632,21 +642,14 @@ do_getattr(Frame *fr, instruction_t ii)
                 if (!err_occurred())
                         err_attribute("get", key, obj);
                 ret = RES_ERROR;
+        } else {
+                push(fr, attr);
+                ret = RES_OK;
         }
 
         VAR_DECR_REF(key);
         VAR_DECR_REF(obj);
-
-        if (attr != ErrorVar)
-                push(fr, attr);
-
         return ret;
-}
-
-static int
-do_setattr(Frame *fr, instruction_t ii)
-{
-        return setattr_common(fr, ii, false);
 }
 
 static int

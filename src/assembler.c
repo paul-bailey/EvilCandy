@@ -634,10 +634,10 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
         assemble_function(a, lambda, funcno);
         int maxargs = a->fr->argc;
 
-as_frame_swap(a);
+        as_frame_swap(a);
         add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, minargs);
         add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, maxargs);
-as_frame_swap(a);
+        as_frame_swap(a);
 
         as_frame_pop(a);
 }
@@ -693,10 +693,12 @@ static void
 assemble_objdef(struct assemble_t *a)
 {
         /* TODO: not too hard to support `set' notation here */
-        add_instr(a, INSTR_DEFDICT, 0, 0);
+        int count = 0;
         as_lex(a);
         if (a->oc->t == OC_RBRACE) /* empty dict */
-                return;
+                goto skip;
+
+        count = 0;
         as_unlex(a);
         do {
                 as_lex(a);
@@ -720,10 +722,13 @@ assemble_objdef(struct assemble_t *a)
                         as_err(a, AE_EXPECT);
                 }
                 assemble_expr(a);
-                add_instr(a, INSTR_ADDATTR, 0, 0);
+                count++;
                 as_lex(a);
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);
+
+skip:
+        add_instr(a, INSTR_DEFDICT, 0, count);
 }
 
 static void assemble_expr_atomic(struct assemble_t *a);
@@ -846,7 +851,7 @@ assemble_call_func(struct assemble_t *a)
         } while (a->oc->t == OC_COMMA);
 
         if (kwind >= 0) {
-                add_instr(a, INSTR_DEFDICT, 0, 0);
+                int count = 0;
                 do {
                         as_lex(a);
                         if (a->oc->t == OC_RPAR)
@@ -863,9 +868,10 @@ assemble_call_func(struct assemble_t *a)
                                 as_err(a, AE_GEN);
                         }
                         assemble_expr(a);
-                        add_instr(a, INSTR_ADDATTR, 0, 0);
+                        count++;
                         as_lex(a);
                 } while (a->oc->t == OC_COMMA);
+                add_instr(a, INSTR_DEFDICT, 0, count);
                 argc++;
         }
 

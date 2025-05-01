@@ -543,7 +543,7 @@ format2_s(struct buffer_t *buf, Object *arg,
 }
 
 static size_t
-format2_helper(Object *list, struct buffer_t *buf, const char *s, int argi)
+format2_helper(Object **args, struct buffer_t *buf, const char *s, int argi, int argc)
 {
         const char *ssave = s;
         bool rjust = true;
@@ -557,10 +557,10 @@ format2_helper(Object *list, struct buffer_t *buf, const char *s, int argi)
          * XXX should warn, but if this is in a user loop or function,
          * I don't want to flood the output.
          */
-        if (argi >= seqvar_size(list))
+        if (argi >= argc)
                 return 0;
 
-        v = array_getitem(list, argi);
+        v = args[argi];
         bug_on(!v);
 
         /* get flags.  @cbuf already filled with next char */
@@ -662,11 +662,11 @@ static Object *
 string_format2(Frame *fr)
 {
         char cbuf[5];
-        size_t size;
-        Object *ret, *list, *self;
+        size_t size, argc;
+        Object *ret, *list, *self, **args;
         const char *s;
         struct buffer_t b;
-        int argi = 0;
+        size_t argi = 0;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
@@ -675,6 +675,12 @@ string_format2(Frame *fr)
         list = vm_get_arg(fr, 0);
         bug_on(!list);
         bug_on(!isvar_array(list));
+        /*
+         * This is so format2 can return from whereever without having
+         * to fuss over reference counters.
+         */
+        args = array_get_data(list);
+        argc = seqvar_size(list);
 
         s = V2CSTR(self);
 
@@ -694,7 +700,7 @@ string_format2(Frame *fr)
                                 s++;
                                 buffer_putc(&b, '%');
                         } else {
-                                s += format2_helper(list, &b, s, argi++);
+                                s += format2_helper(args, &b, s, argi++, argc);
                         }
                 } else  {
                         buffer_putc(&b, cbuf[0]);
@@ -724,9 +730,9 @@ string_length_method(Frame *fr)
 }
 
 static bool
-string_format_helper(Object *list, char **src,
+string_format_helper(Object **args, char **src,
                      struct buffer_t *t, int *lastarg,
-                     size_t list_size)
+                     size_t argc)
 {
         char *s = *src;
         int la = *lastarg;
@@ -734,14 +740,14 @@ string_format_helper(Object *list, char **src,
         ++s;
         if (*s == '}') {
                 int i = la++;
-                if (i < list_size)
-                        q = array_getitem(list, i);
+                if (i < argc)
+                        q = args[i];
         } else if (isdigit(*s)) {
                 char *endptr;
                 int i = strtoul(s, &endptr, 10);
                 if (*endptr == '}') {
-                        if (i < list_size)
-                                q = array_getitem(list, i);
+                        if (i < argc)
+                                q = args[i];
                         la = i + 1;
                         s = endptr;
                 }
@@ -773,6 +779,7 @@ string_format(Frame *fr)
         struct buffer_t t;
         Object *self = vm_get_this(fr);
         Object *list = vm_get_arg(fr, 0);
+        Object **args;
         int lastarg = 0;
         size_t list_size;
         char *s, *self_s;
@@ -781,6 +788,7 @@ string_format(Frame *fr)
                 return ErrorVar;
         bug_on(!isvar_array(list));
         list_size = seqvar_size(list);
+        args = array_get_data(list);
 
         self_s = V2CSTR(self);
         if (!self_s)
@@ -789,7 +797,7 @@ string_format(Frame *fr)
         buffer_init(&t);
         for (s = self_s; *s != '\0'; s++) {
                 if (*s == '{' &&
-                    string_format_helper(list, &s, &t, &lastarg, list_size)) {
+                    string_format_helper(args, &s, &t, &lastarg, list_size)) {
                         continue;
                 }
                 buffer_putc(&t, *s);

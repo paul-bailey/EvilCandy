@@ -47,11 +47,14 @@ struct var_mem_t {
 };
 
 #ifndef NDEBUG
+static size_t var_max_alloc_size = 0;
 static size_t var_alloc_size = 0;
 static size_t var_nalloc = 0;
-# define REGISTER_ALLOC(n_) do {        \
-        var_nalloc++;                   \
-        var_alloc_size += (n_);         \
+# define REGISTER_ALLOC(n_) do {                        \
+        var_nalloc++;                                   \
+        var_alloc_size += (n_);                         \
+        if (var_alloc_size > var_max_alloc_size)        \
+                var_max_alloc_size = var_alloc_size;    \
 } while (0)
 # define REGISTER_FREE(n_)  do {        \
         bug_on((int)var_nalloc <= 0);   \
@@ -64,6 +67,7 @@ var_alloc_tell(void)
 {
         DBUG("%s: #bytes outstanding: %lu", __FILE__, (long)var_alloc_size);
         DBUG("%s: #vars outstanding:  %lu", __FILE__, (long)var_nalloc);
+        DBUG("%s: max #bytes alloc'd: %lu", __FILE__, (long)var_max_alloc_size);
 }
 # endif /* REPORT_VARS_ON_EXIT */
 #else /* NDEBUG */

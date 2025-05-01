@@ -1,9 +1,7 @@
 #!./evilcandy
 
-let Io = import("io.evc", "x");
-
 // Print myself
-(function(name) {
+(function(name, Io) {
     try {
         let f = Io.open(name, "r");
         let s;
@@ -11,12 +9,12 @@ let Io = import("io.evc", "x");
             s = f.read();
             if (s == null)
                 break;
-            // currently print always adds a newline
-            print(s.rstrip("\n"));
+            // each line should have its own nl
+            print(s, end='');
         }
     } catch (e) {
         print('Got a', e[0], ':', e[1]);
     }
-})("demos/cat.egq");
+})("demos/cat.egq", import("io.evc", "x"));
 
 // : vim: set syntax=javascript :

@@ -152,8 +152,6 @@ vmframe_alloc(void)
 static void
 vmframe_free(Frame *fr)
 {
-        Object **vpp;
-
         bug_on(!fr);
 
 #ifndef NDEBUG
@@ -162,19 +160,14 @@ vmframe_free(Frame *fr)
 #endif
 
         /*
-         * XXX REVISIT: if (fr->stackptr != &fr->stack[fr->ap]),
-         * there is a stack imbalance.  But how to tell if this
-         * is due to an abrubt 'return' (which would cause this),
-         * or a bug (which also cause this)?
-         */
-
-        /*
          * Note: fr->clo are the actual closures, not copied.
          * They're managed by their owning function object,
-         * so we don't delete them here.
+         * so we don't consume their references here.
          */
-        for (vpp = fr->stack; vpp < fr->stackptr; vpp++)
-                VAR_DECR_REF(*vpp);
+        while (fr->stackptr > fr->stack) {
+                Object *v = pop(fr);
+                VAR_DECR_REF(v);
+        }
 
         /*
          * XXX REVISIT: Not at all obvious that these DECR's are parallel
@@ -536,6 +529,7 @@ do_add_closure(Frame *fr, instruction_t ii)
         Object *func = pop(fr);
 
         function_add_closure(func, clo);
+        VAR_DECR_REF(clo);
         push(fr, func);
         return 0;
 }
@@ -580,7 +574,6 @@ do_defdict(Frame *fr, instruction_t ii)
 static int
 setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
 {
-        bool del = false;
         Object *val, *key, *obj;
         int ret = 0;
 
@@ -588,9 +581,9 @@ setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
 
         if (ii.arg1 == IARG_ATTR_STACK) {
                 key = pop(fr);
-                del = true;
         } else {
                 key = RODATA(fr, ii);
+                VAR_INCR_REF(key);
         }
 
         obj = pop(fr);
@@ -603,9 +596,8 @@ setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
                  */
                 Object *towner, *tfunc;
                 methodvar_tofunc(val, &tfunc, &towner);
-                VAR_DECR_REF(val);
-                /* same as obj, we just produced another ref */
                 VAR_DECR_REF(towner);
+                VAR_DECR_REF(val);
                 val = tfunc;
         }
 
@@ -614,9 +606,7 @@ setattr_common(Frame *fr, instruction_t ii, bool keep_parent)
                         err_attribute("set", key, obj);
         }
 
-        if (del)
-                VAR_DECR_REF(key);
-
+        VAR_DECR_REF(key);
         VAR_DECR_REF(val);
         if (keep_parent)
                 push(fr, obj);
@@ -638,15 +628,14 @@ do_addattr(Frame *fr, instruction_t ii)
 static int
 do_getattr(Frame *fr, instruction_t ii)
 {
-        bool del = false;
         Object *attr, *key, *obj;
         int ret = 0;
 
         if (ii.arg1 == IARG_ATTR_STACK) {
                 key = pop(fr);
-                del = true;
         } else {
                 key = RODATA(fr, ii);
+                VAR_INCR_REF(key);
         }
 
         obj = pop(fr);
@@ -658,8 +647,8 @@ do_getattr(Frame *fr, instruction_t ii)
                 ret = RES_ERROR;
         }
 
-        if (del)
-                VAR_DECR_REF(key);
+        VAR_DECR_REF(key);
+        VAR_DECR_REF(obj);
 
         if (attr != ErrorVar)
                 push(fr, attr);

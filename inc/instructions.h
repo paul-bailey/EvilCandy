@@ -46,6 +46,11 @@ enum {
         IARG_HAVE_DICT,
 };
 
+enum {
+        IARG_POP_NORMAL,
+        IARG_POP_PRINT, /* print me if in interactive */
+};
+
 /**
  * DOC: Instructions
  *

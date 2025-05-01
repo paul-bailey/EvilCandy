@@ -38,8 +38,9 @@
  * There used to be more, but they went obsolete.
  */
 enum {
-        FE_FOR = 0x01,
-        FE_CONTINUE = 0x02,
+        FE_FOR          = 0x01,
+        FE_CONTINUE     = 0x02,
+        FE_TOP          = 0x04
 };
 
 /* TODO: define instr_t and use sizeof() here */
@@ -1263,13 +1264,12 @@ assemble_preassign(struct assemble_t *a, int t)
  * "x".  But as-is, there is no 'value' for "x = y;", and we
  * do not even 'evaluate' until after the '='.
  */
-static void
+/* return 1 if evaluated item dangling on the stack, 0 if not */
+static int
 assemble_ident_helper(struct assemble_t *a)
 {
-        int last_t = 0;
-
         if (peek_semi(a))
-                return;
+                return 1;
 
         as_lex(a);
         for (;;) {
@@ -1303,7 +1303,7 @@ assemble_ident_helper(struct assemble_t *a)
                         int t_ = as_lex(a);                             \
                         if (istok_assign(t_)) {                         \
                                 SETATTR_SHIFT(arg1, arg2);              \
-                                goto done;                              \
+                                return 0;                               \
                         }                                               \
                 } while (0)
 
@@ -1381,38 +1381,29 @@ assemble_ident_helper(struct assemble_t *a)
                 case OC_LPAR:
                         as_unlex(a);
                         assemble_call_func(a);
-                        if (peek_semi(a)) {
-                                /* discard result */
-                                add_instr(a, INSTR_POP, 0, 0);
-                                goto done;
-                        }
-                        /* else keep result, carry on.  */
+                        if (peek_semi(a))
+                                return 1;
+
                         break;
 
                 default:
                         as_err(a, AE_BADTOK);
                 }
 
-                last_t = a->oc->t;
-
-                if (peek_semi(a)) {
-                        if (last_t != OC_RPAR)
-                                as_err(a, AE_BADTOK);
-                        goto done;
-                }
+                if (peek_semi(a))
+                        return 1;
 
                 as_lex(a);
         }
-
-done:
-        ;
+        return 0;
 #undef GETATTR_SHIFT
 #undef SETATTR_SHIFT
 #undef SETATTR_SHIFT_IF_ASGN
 #undef GETSETATTR_SHIFT
 }
 
-static void
+/* return 1 if item left on the stack, 0 if not */
+static int
 assemble_this(struct assemble_t *a, unsigned int flags)
 {
         /*
@@ -1421,10 +1412,11 @@ assemble_this(struct assemble_t *a, unsigned int flags)
          *      this = value...
          */
         add_instr(a, INSTR_LOAD, IARG_PTR_THIS, 0);
-        assemble_ident_helper(a);
+        return assemble_ident_helper(a);
 }
 
-static void
+/* return 1 if item left on the stack, 0 if not */
+static int
 assemble_identifier(struct assemble_t *a, unsigned int flags)
 {
         struct token_t name;
@@ -1440,6 +1432,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 assemble_expr(a);
                 ainstr_load_or_assign(a, &name, INSTR_ASSIGN, pos);
+                return 0;
         } else if (istok_assign(a->oc->t)) {
                 /*
                  * x++;
@@ -1449,6 +1442,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                 ainstr_load_symbol(a, &name, pos);
                 assemble_preassign(a, a->oc->t);
                 ainstr_load_or_assign(a, &name, INSTR_ASSIGN, pos);
+                return 0;
         } else {
                 /*
                  * x(args);
@@ -1460,7 +1454,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 as_unlex(a);
                 ainstr_load_symbol(a, &name, pos);
-                assemble_ident_helper(a);
+                return assemble_ident_helper(a);
         }
 }
 
@@ -1872,39 +1866,26 @@ static void
 assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                      int continueto)
 {
+        int need_pop = 0;
+        int pop_arg = !!(flags & FE_TOP) ? IARG_POP_PRINT : IARG_POP_NORMAL;
+
+        flags &= ~FE_TOP;
+
         as_lex(a);
         /* cases return early if semicolon not expected at the end */
         switch (a->oc->t) {
         case OC_EOF:
                 return;
         case OC_IDENTIFIER:
-                assemble_identifier(a, flags);
+                need_pop = assemble_identifier(a, flags);
                 break;
         case OC_THIS:
                 /* not a saucy challenge */
-                assemble_this(a, flags);
+                need_pop = assemble_this(a, flags);
                 break;
         case OC_SEMI:
                 /* empty statement */
                 as_unlex(a);
-                break;
-        case OC_LPAR:
-                /*
-                 * expression, eg. '(x + y)' or more likely an IIFE
-                 * '(function() {...})'.  In both cases I evaluate the
-                 * statement and throw away the result. In the IIFE case,
-                 * it will likeyly be followed by an additional '(args)',
-                 * but eval8 will parse that within the assemble_expr()
-                 * call below, resulting in whatever side effect the
-                 * function has, while in the former case, the programmer
-                 * just wasted time.  Allow it, maybe a line like '(1);'
-                 * could come in handy to someone as a sort of NOP, in
-                 * ways that the empty ';' statement above will not.
-                 */
-                as_unlex(a);
-                assemble_expr(a);
-                /* throw result away */
-                add_instr(a, INSTR_POP, 0, 0);
                 break;
         case OC_RPAR:
                 /* in case for loop ends with empty ";)" */
@@ -1948,9 +1929,17 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 assemble_do(a);
                 return;
         default:
-                DBUG("Got token %X ('%s')\n", a->oc->t, a->oc->s);
-                as_err(a, AE_BADTOK);
+                /* value expression */
+                as_unlex(a);
+                assemble_expr(a);
+                need_pop = 1;
+                break;
         }
+
+        /* Throw result away */
+        if (need_pop)
+                add_instr(a, INSTR_POP, pop_arg, 0);
+
         if (!(flags & FE_FOR))
                 as_errlex(a, OC_SEMI);
 }
@@ -2081,7 +2070,7 @@ static void
 assemble_first_pass(struct assemble_t *a, bool toeof)
 {
         do {
-                assemble_stmt(a, 0, -1);
+                assemble_stmt(a, toeof ? 0 : FE_TOP, -1);
         } while (toeof && a->oc->t != OC_EOF);
         add_instr(a, INSTR_END, 0, 0);
 
@@ -2307,7 +2296,6 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
                 *status = localstatus;
 
         free_assembler(a, localstatus == RES_ERROR);
-
         return (Object *)ret;
 }
 

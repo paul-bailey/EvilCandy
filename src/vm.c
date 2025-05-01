@@ -379,7 +379,13 @@ do_load(Frame *fr, instruction_t ii)
 static int
 do_pop(Frame *fr, instruction_t ii)
 {
-        VAR_DECR_REF(pop(fr));
+        Object *p = pop(fr);
+        if (ii.arg1 == IARG_POP_PRINT) {
+                Object *str = var_str(p);
+                fprintf(stderr, "%s\n", string_get_cstring(str));
+                VAR_DECR_REF(str);
+        }
+        VAR_DECR_REF(p);
         return 0;
 }
 

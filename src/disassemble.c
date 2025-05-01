@@ -31,6 +31,18 @@ static const char *FUNCARG_NAMES[] = {
         IARG(NO_DICT),
 };
 
+static const char *POP_NAMES[] = {
+        IARG(POP_PRINT),
+        IARG(POP_NORMAL),
+};
+
+static const char *BLOCK_NAMES[] = {
+        IARG(BLOCK),
+        IARG(LOOP),
+        IARG(CONTINUE),
+        IARG(TRY),
+};
+
 static const char *FUNC_ATTRARG_NAMES[] = {
         IARG(FUNC_MINARGS),
         IARG(FUNC_MAXARGS),
@@ -124,11 +136,18 @@ disassemble_start(FILE *fp, const char *sourcefile_name)
         putc('\n', fp);
         fprintf(fp, "# enumerations for CALL_FUNC arg1\n");
         ADD_DEFINES(FUNCARG_NAMES);
+        putc('\n', fp);
         fprintf(fp, "# enumerations for FUNC_SETATTR arg1\n");
         ADD_DEFINES(FUNC_ATTRARG_NAMES);
         putc('\n', fp);
         fprintf(fp, "# enumerations for CMP arg1\n");
         ADD_DEFINES(CMP_NAMES);
+        putc('\n', fp);
+        fprintf(fp, "# enumerations for PUSH_BLOCK arg1\n");
+        ADD_DEFINES(BLOCK_NAMES);
+        putc('\n', fp);
+        fprintf(fp, "# enumerations for POP arg1\n");
+        ADD_DEFINES(POP_NAMES);
         putc('\n', fp);
         fprintf(fp, "# enumerations for LOAD/ASSIGN_xxx arg1\n");
         ADD_DEFINES(PTR_NAMES);
@@ -170,6 +189,16 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
                         SAFE_NAME(CMP, ii->arg1), ii->arg2);
                 break;
 
+        case INSTR_PUSH_BLOCK:
+                fprintf(fp, "%s, %hd\n",
+                        SAFE_NAME(BLOCK, ii->arg1), ii->arg2);
+                break;
+
+        case INSTR_POP:
+                fprintf(fp, "%s, %hd\n",
+                        SAFE_NAME(POP, ii->arg1), ii->arg2);
+                break;
+
         case INSTR_B:
         case INSTR_B_IF:
                 len = fprintf(fp, "%d, %hd", ii->arg1, ii->arg2);
@@ -177,6 +206,15 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
                         spaces(fp, 16 - len);
                 fprintf(fp, "# label %d\n",
                         line_to_label(i + ii->arg2 + 1, ex));
+                break;
+
+        case INSTR_LOAD_CONST:
+                len = fprintf(fp, "%d, %hd", ii->arg1, ii->arg2);
+                if (len < 16)
+                        spaces(fp, 16 - len);
+                fprintf(fp, "# ");
+                print_rodata_str(fp, ex, ii->arg2);
+                putc('\n', fp);
                 break;
 
         case INSTR_SYMTAB:

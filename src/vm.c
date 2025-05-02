@@ -768,6 +768,26 @@ do_b(Frame *fr, instruction_t ii)
 }
 
 static int
+do_ternary(Frame *fr, instruction_t ii)
+{
+        int status;
+        Object *choice;
+        Object *b = pop(fr);
+        Object *a = pop(fr);
+        Object *sel = pop(fr);
+        if (!var_cmpz(sel, &status)) {
+                choice = a;
+                VAR_DECR_REF(b);
+        } else {
+                choice = b;
+                VAR_DECR_REF(a);
+        }
+        VAR_DECR_REF(sel);
+        push(fr, choice);
+        return status;
+}
+
+static int
 do_throw(Frame *fr, instruction_t ii)
 {
         Object *exc = pop(fr);

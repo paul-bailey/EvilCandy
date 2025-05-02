@@ -133,6 +133,10 @@ THROW
 B_IF
 B
 
+# if stackptr-3 is true, select stackptr-2, else select stackptr-1.
+# pop all 3 and push selected back on.
+TERNARY
+
 # The usu. unary operators.  None of these are in-place.  Replace
 # variable on stack with a new variable that is the result of the
 # operation.

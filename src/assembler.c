@@ -1242,6 +1242,25 @@ assemble_expr1(struct assemble_t *a)
         }
 }
 
+static void
+assemble_expr05(struct assemble_t *a)
+{
+        assemble_expr1(a);
+        if (a->oc->t == OC_QUEST) {
+                as_lex(a);
+                assemble_expr1(a);
+                if (a->oc->t != OC_COLON) {
+                        err_setstr(SyntaxError,
+                                   "Expected: ':' in ternary expression");
+                        as_err(a, AE_GEN);
+                }
+                as_lex(a);
+                assemble_expr1(a);
+
+                add_instr(a, INSTR_TERNARY, 0, 0);
+        }
+}
+
 /*
  * Sister function to assemble_stmt.  This and its
  * assemble_exprN descendants form a recursive-descent parser that
@@ -1252,7 +1271,7 @@ static void
 assemble_expr(struct assemble_t *a)
 {
         as_lex(a);
-        assemble_expr1(a);
+        assemble_expr05(a);
         as_unlex(a);
 }
 

@@ -39,6 +39,7 @@ LBRACE          '{'
 RBRACE          '}'
 COLON           ':'
 TILDE           '~'             unarypre
+QUEST           '?'
 PLUSPLUS        '++'            assign
 MINUSMINUS      '--'            assign
 LSHIFT          '<<'

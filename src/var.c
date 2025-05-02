@@ -293,6 +293,66 @@ var_realindex(Object *v, long long idx)
         return i < n ? i : -1;
 }
 
+static enum result_t
+tup2slice(Object *obj, Object *tup, int *start, int *stop, int *step)
+{
+        Object **src;
+        int i, j, k;
+        size_t size;
+        if (tuple_validate(tup, "i*i", false) != RES_OK)
+                goto malformed;
+        src = tuple_get_data(tup);
+        if (src[1] != NullVar && !isvar_int(src[1]))
+                goto malformed;
+
+        size = seqvar_size(obj);
+
+        i = intvar_toi(src[0]);
+        j = src[1] == NullVar ? size : intvar_toi(src[1]);
+        k = intvar_toi(src[2]);
+        if (err_occurred())
+                return RES_ERROR;
+
+        if (i < 0) {
+                i += size;
+                if (i < 0)
+                        i = 0;
+        } else if (i >= size) {
+                i = size - 1;
+        }
+
+        if (j < 0) {
+                j += size;
+                if (j < -1)
+                        j = -1;
+        } else if (j > size) {
+                j = size;
+        }
+
+        if (k == 0) {
+                err_setstr(ValueError, "Slice step may not be zero");
+                return RES_ERROR;
+        }
+
+        if ((i < j && k < 0)
+            || (i > j && k > 0)) {
+                /* Length zero.  Still pass to callback, since
+                 * only it knows what zero-length object to create.
+                 */
+                i = j = 0;
+        }
+
+        *start = i;
+        *stop  = j;
+        *step  = k;
+
+        return RES_OK;
+
+malformed:
+        err_setstr(TypeError, "Slice has invalid tuple format");
+        return RES_ERROR;
+}
+
 /**
  * var_getattr - Generalized get-attribute
  * @v:  Variable whose attribute we're seeking
@@ -331,13 +391,15 @@ var_getattr(Object *v, Object *key)
                 bug_on(!ret);
                 return ret;
         } else if (isvar_tuple(key)) {
-#ifndef DEBUG
-                Object *keystr = var_str(key);
-                DBUG("Array slice was '%s'", string_get_cstring(keystr));
-#endif
-                err_setstr(NotImplementedError,
-                           "Array slicing not yet supported");
-                return ErrorVar;
+                int start, stop, step;
+                const struct seq_methods_t *sqm = v->v_type->sqm;
+                if (!sqm || !sqm->getslice)
+                        goto badtype;
+                if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {
+                        bug_on(!err_occurred());
+                        return ErrorVar;
+                }
+                return sqm->getslice(v, start, stop, step);
         } else if (isvar_string(key)) {
                 /*
                  * first check if v maps it. If failed, check the

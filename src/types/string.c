@@ -1293,21 +1293,14 @@ compare_strings(const char *a, const char *b)
 {
         if (!a || !b)
                 return a != b;
-        return !!strcmp(a, b);
+        return strcmp(a, b);
 }
 
 static int
 string_cmp(Object *a, Object *b)
 {
-        if (isvar_string(b)) {
-                if (V2CSTR(a) == V2CSTR(b))
-                        return 0;
-                if (STRING_NBYTES(a) != STRING_NBYTES(b))
-                        return 1;
-                return compare_strings(V2CSTR(a), V2CSTR(b));
-        } else {
-                return 1;
-        }
+        bug_on(!isvar_string(a) || !isvar_string(b));
+        return compare_strings(V2CSTR(a), V2CSTR(b));
 }
 
 static bool

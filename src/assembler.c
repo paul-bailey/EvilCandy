@@ -1421,6 +1421,7 @@ assemble_ident_helper(struct assemble_t *a)
                                         /* ...the 99% scenario */
                                         ainstr_load_const(a, &name);
                                         GETSETATTR_SHIFT(0, 0);
+                                        as_unlex(a);
                                         break;
                                 }
                                 as_unlex(a);

@@ -1035,13 +1035,12 @@ assemble_expr8(struct assemble_t *a)
                         case OC_IDENTIFIER:
                         case OC_COLON:
                         case OC_LPAR:
+                        default:
                                 /* need to evaluate index */
                                 as_unlex(a);
                                 assemble_slice(a);
                                 GETATTR_SHIFT(0, 0);
                                 break;
-                        default:
-                                as_err(a, AE_BADTOK);
                         }
                         as_errlex(a, OC_RBRACK);
                         break;
@@ -1410,6 +1409,7 @@ assemble_ident_helper(struct assemble_t *a)
                         case OC_IDENTIFIER:
                         case OC_COLON:
                         case OC_LPAR:
+                        default:
                                 /* need to evaluate index */
                                 as_unlex(a);
                                 assemble_slice(a);
@@ -1419,20 +1419,6 @@ assemble_ident_helper(struct assemble_t *a)
                                 }
                                 GETATTR_SHIFT(0, 0);
                                 break;
-                        default:
-                                /*
-                                 * XXX REVISIT:
-                                 *    - I don't allow OC_FLOAT, because subscript must
-                                 *      be an integer (if array) or string (if a
-                                 *      dictionary).  A float's .toint method cannot
-                                 *      be accessed from the literal expression
-                                 *      itself, eg. "1.0.toint()", because the
-                                 *      parser perceives a double decimal and
-                                 *      throws an error.
-                                 *      But I may not be so strict in the future,
-                                 *      since I noticed that Python isn't.
-                                 */
-                                as_err(a, AE_BADTOK);
                         }
                         as_errlex(a, OC_RBRACK);
                         break;

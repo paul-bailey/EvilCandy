@@ -1350,8 +1350,9 @@ assemble_ident_helper(struct assemble_t *a)
                         if (t_ == OC_EQ) {                              \
                                 assemble_expr(a);                       \
                         } else {                                        \
-                                add_instr(a, INSTR_GETATTR, arg1, arg2); \
-                                assemble_preassign(a, t_);              \
+                                err_setstr(NotImplementedError,         \
+                                       "In-place assignment for primary elements not yet supported"); \
+                                as_err(a, AE_GEN);                      \
                         }                                               \
                         add_instr(a, INSTR_SETATTR, arg1, arg2);        \
                 } while (0)
@@ -2207,7 +2208,7 @@ assemble_splash_error(struct assemble_t *a)
                 a->file_name, lineno);
         line = token_get_this_line(a->prog, &col);
         if (line) {
-                fprintf(stderr, "Expected error location:\n");
+                fprintf(stderr, "Suspected error location:\n");
                 fprintf(stderr, "\t%s\t", line);
                 while (col-- > 0)
                         fputc(' ', stderr);

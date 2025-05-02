@@ -1,66 +1,66 @@
 #!./evilcandy
-
-// only needed in one wrapper spot, but it's bad practice
-// to use 'load' in a function.
-let Math = import("math.evc", "x");
+// Just some random stuff thrown in.  Most of it is meaningless.  It's
+// left-over from when I was debugging the most basic features of the
+// program.  I'm keeping it for now, because when refactoring code, its
+// makes a useful, quick-and-dirty way to check if whatever changes I
+// just made totally broke the program.
 
 (function(iterator) {
     iterator['whoami'] = function() {
         print("me, of course!");
     };
+    print('Expect: 4 to 9:');
     iterator.tonine(4);
-    print("That was to nine. This is to ten:");
-    iterator.toten(4);
+    print('Expect: 2 to 10:');
+    iterator.toten(2);
     print("Who am I?");
     iterator.whoami();
-    print("length(iterator)=={}".format(length(iterator)));
-    print("iterator['✓'] = {}".format(iterator['✓']));
-})({
-    tonine: function(x) {
-        for (let n = 10; x < n; x++)
-                print("\titerator.tonine: x is {}".format(x));
-    },
+    print("length(iterator) is", length(iterator));
+    print("iterator['✓'] is", iterator['✓']);
+})((function (){
+    let mkiter = function(stop) {
+        return function(start) {
+            print('\t', end='');
+            for (i, range(start, stop)) {
+                print(i, end=' ');
+            }
+            print('');
+        };
+    };
 
-    toten: function(x) {
-        let n = 11;
-        do {
-            print("\titerator.toten: x is {}".format(x));
-            x++;
-        } while (x < n);
+    return {
+        tonine: mkiter(10),
+        toten: mkiter(11),
+        "✓": "check"
+    };
+})());
 
-    },
-    "✓": "check"
-});
-
-
-(function() {
+(function(Math) {
     print("Some mathy stuff:");
     print("\tpi is: %13.10f".format2(Math.pi));
     print("\te is:  %13.10f".format2(Math.e));
     (function(mypow) {
         print("\tMy Pow: 4^4 = {}".format(mypow(4, 4)));
     })(function(x, y) {
-        if (typeof(x) != "integer" || typeof(y) != "integer") {
-            print("wrong type!");
-            return 0.0;
-        }
-        if (y <= 0) {
-            // these are ints, so negative powers always
-            // evaluate to zero.
+        if (typeof(x) != "integer" || typeof(y) != "integer")
+            throw "wrong type!";
+
+        // these are ints, so negative powers always
+        // evaluate to zero.
+        if (y <= 0)
             return 0;
-        }
+
         let res = x;
         while (y > 1) {
-            res = res * x;
-            y = y - 1;
+            res *= x;
+            y--;
         }
         return res;
     });
 
-    (function(pow) {
-        print("\tLib Pow: 4^4 = {}".format(pow(4, 4)));
-    })(``(x, y) Math.pow(x, y)``);
-})();
+    print("\tLib Pow: 4^4 =", Math.pow(4, 4));
+    print("\tBuiltin Pow: 4^4 =", 4**4);
+})(import("math.evc", "x"));
 
 (function(s) {
     print("length '{}' for '{}'".format(length(s), s));
@@ -73,50 +73,39 @@ print("");
 print("~0xfffffffffffffffa is {}".format(~0xfffffffffffffffa));
 print("~0 is {}".format(~0));
 
-
-print("");
-print("Now here's a test of foreach:");
-if (false) {
-    (function() {
-        let prtypeof = function(o, str, p) {
-            print("typeof(e) for each e in {}".format(str));
-            for (k, o) {
-                print("\tType={}, name={}".format(typeof(o[k]), k));
-            }
-        };
-        prtypeof(__gbl__, "__gbl__");
-        prtypeof(__gbl__._builtins, "__gbl__._builtins");
-    })();
-} else {
-    print("typeof(e) for each e in __gbl__");
-    __gbl__.foreach(function (e, name, p) {
-        print("\tType={}, name={}".format(typeof(e), name));
-    });
-    print("typeof(e) for each e in __gbl__._builtins");
-    __gbl__._builtins.foreach(function (e, name, p) {
-        print("\tType={}, name={}".format(typeof(e), name));
-    });
+{
+    print("");
+    print("Now here's a demo of foreach:");
+    let prtypeof = function(o, str) {
+        print("typeof(e) for each e in {}".format(str));
+        // XXX need to add enumerate function
+        let i = 0;
+        for (k, o) {
+            if (i && !(i & 3))
+                print('');
+            print('\t', typeof(o[k]), k, end='');
+            i++;
+        }
+        print('');
+    };
+    prtypeof(__gbl__, "__gbl__");
+    prtypeof(__gbl__._builtins, "__gbl__._builtins");
 }
 
-(function(s) {
-    print("Does gbl have child '{}'?".format(s));
-    if (__gbl__ has s)
-        print("\t...yes!");
-    else
-        print("\t...no :(");
-    print("Does gbl have child '_builtins'?");
-    if (__gbl__ has '_builtins')
-        print("\t...yes!");
-    else
-        print("\t...nope");
-})('MarioBros');
+(function(ahasb) {
+    ahasb(__gbl__, '__gbl__', 'MarioBros');
+    ahasb(__gbl__, '__gbl__', '_builtins');
+})(function (obj, objname, key) {
+    print("Does", objname, "have child '{}'?".format(key));
+    print("\t...", obj has key ? "yes!" : "no :(");
+});
 
-print("UTF-8/ANSI escape test");
-print("\tValues of \u03b2 will give rise to dom!");
-let s = "Be \U0001f600!";
-print("\tLength of '{}' is {}, idx#3='{}', idx#4='{}'"
-      .format(s, length(s), s[3], s[4]));
-let COLOR_BLUE = '\e[36m';
-let COLOR_DEF = '\e[39m';
-print("\tAm I " + COLOR_BLUE + 'BLUE' + COLOR_DEF + "???");
+(function(**kw) {
+    print("UTF-8/ANSI escape test");
+    print("\tValues of", kw.beeta, "will give rise to dom!");
+    let s = "Be \U0001f600!";
+    print("\tLength of '{}' is {}, idx#3='{}', idx#4='{}'"
+          .format(s, length(s), s[3], s[4]));
+    print("\tAm I ", kw.COLOR_BLUE, 'BLUE', kw.COLOR_DEF, "???", sep="");
+})(beeta='\u03b2', COLOR_BLUE='\e[36m', COLOR_DEF='\e[39m');
 // : vim: set syntax=javascript :

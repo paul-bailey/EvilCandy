@@ -141,7 +141,7 @@ if (1) {
 
     box2.print('NO YOU DON\'T LOOK AT MEEEEE', borderchar='!');
 
-    box1.borderchar = '?';
+    box1.borderchar = '.';
 
     box1.print('bruh', width=20);
 } else {

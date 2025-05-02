@@ -928,6 +928,7 @@ string_split(Frame *fr)
         for (;;) {
                 char *start, *end, *newbuf;
                 size_t size;
+                Object *item;
 
                 start = str;
                 while (*start != '\0' && isspace((int)(*start)))
@@ -941,7 +942,9 @@ string_split(Frame *fr)
                 newbuf = emalloc(size + 1);
                 memcpy(newbuf, start, size);
                 newbuf[size] = '\0';
-                array_append(ret, stringvar_nocopy(newbuf));
+                item = stringvar_nocopy(newbuf);
+                array_append(ret, item);
+                VAR_DECR_REF(item);
 
                 str = end;
         }

@@ -172,6 +172,14 @@ do_import(Frame *fr)
                 VAR_DECR_REF(func);
         }
         /* else, how == R */
+
+        /*
+         * @res may or may not keep a reference to 'ex' alive depending
+         * on the 'mode' arg and on how the imported file implements
+         * things, but we still have our own separate reference that we
+         * need to consume.
+         */
+        VAR_DECR_REF(ex);
         return res;
 }
 

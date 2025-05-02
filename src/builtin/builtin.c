@@ -59,27 +59,17 @@ do_print(Frame *fr)
                 sep_default = stringvar_new(" ");
         }
 
+
         arg = vm_get_arg(fr, 0);
         kw = vm_get_arg(fr, 1);
         bug_on(!arg || !isvar_array(arg));
         bug_on(!kw || !isvar_dict(kw));
 
-        sep = dict_getitem(kw, sep_key);
-        if (!sep) {
-                sep = sep_default;
-                VAR_INCR_REF(sep);
-        }
-        file = dict_getitem(kw, file_key);
-        if (!file) {
-                file = gbl.stdout_file;
-                VAR_INCR_REF(file);
-        }
-        end = dict_getitem(kw, end_key);
-        if (!end) {
-                end = gbl.nl;
-                VAR_INCR_REF(end);
-        }
-
+        dict_unpack(kw,
+                    sep_key,  &sep,  sep_default,
+                    file_key, &file, gbl.stdout_file,
+                    end_key,  &end,  gbl.nl,
+                    NULL);
         n = seqvar_size(arg);
         if (n == 0)
                 err_varargs(1, 0);

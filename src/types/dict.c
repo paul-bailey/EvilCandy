@@ -234,6 +234,71 @@ insert_common(struct dictvar_t *dict, Object *key,
  ***********************************************************************/
 
 /**
+ * dict_unpack - Unpack a dictionary's contents into args; intended for
+ *               keyword-argument unpacking.
+ * @obj: Dictionary to unpack from
+ *
+ * Args are key followed by a pointer to a value followed by a default
+ * value to set if the key is not found.  A NULL in the key's place
+ * terminates the args. value and default may not be NULL.
+ *
+ * This is best shown by example...
+ *
+ *      Object *key1 = stringvar_new("alice");
+ *      Object *key2 = stringvar_new("bob");
+ *      Object *val1;
+ *
+ *      Object *deflt1 = intvar_new(1);
+ *      Object *val2;
+ *      Object *deflt2 = intvar_new(2);
+ *
+ *      dict_unpack(mydict,
+ *                  key1, &val1, deflt1,
+ *                  key2, &val2, deflt2,
+ *                  NULL);
+ *
+ * Now val1 stores value for 'alice' and val2 stores value for 'bob'.
+ * A reference was produced for each of these values.
+ *
+ * No exceptions will be thrown.  Malformed key/value arguments may
+ * trigger a bug trap.
+ *
+ * XXX: Specialized, shouldn't be a 'dict' function at all.
+ */
+void
+dict_unpack(Object *obj, ...)
+{
+        va_list ap;
+        Object **ppv;
+
+        bug_on(!isvar_dict(obj));
+        va_start(ap, obj);
+
+        for (;;) {
+                Object *k, *v, *deflt;
+
+                k = va_arg(ap, Object *);
+                if (!k)
+                        break;
+                bug_on(!isvar_string(k));
+                ppv = va_arg(ap, Object **);
+                bug_on(!ppv);
+                deflt = va_arg(ap, Object *);
+                bug_on(!deflt);
+
+                v = dict_getitem(obj, k);
+                if (v) {
+                        *ppv = v;
+                } else {
+                        VAR_INCR_REF(deflt);
+                        *ppv = deflt;
+                }
+        }
+
+        va_end(ap);
+}
+
+/**
  * dict_keys - Get an alphabetically sorted list of all the keys
  *               currently in the dictionary.
  */

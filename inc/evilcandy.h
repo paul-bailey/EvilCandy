@@ -204,6 +204,7 @@ extern enum result_t dict_setitem_replace(Object *dict,
 extern enum result_t dict_setitem_exclusive(Object *dict,
                                 Object *key, Object *attr);
 extern char *dict_unique(Object *dict, const char *key);
+extern void dict_unpack(Object *obj, ...);
 
 /* types/method.c */
 extern int methodvar_tofunc(Object *meth,

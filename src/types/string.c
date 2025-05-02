@@ -911,6 +911,43 @@ string_rstrip(Frame *fr)
         return stringvar_newf(buffer_trim(&b), 0);
 }
 
+static Object *
+string_split(Frame *fr)
+{
+        Object *self = get_this(fr);
+        Object *ret;
+        bug_on(!isvar_string(self));
+        char *str;
+
+        ret = arrayvar_new(0);
+        str = string_get_cstring(self);
+
+        if (!str || seqvar_size(self) == 0)
+                return ret;
+
+        for (;;) {
+                char *start, *end, *newbuf;
+                size_t size;
+
+                start = str;
+                while (*start != '\0' && isspace((int)(*start)))
+                        ++start;
+                if (*start == '\0')
+                        break;
+                end = start;
+                while (*end != '\0' && !isspace((int)(*end)))
+                        ++end;
+                size = (end - start);
+                newbuf = emalloc(size + 1);
+                memcpy(newbuf, start, size);
+                newbuf[size] = '\0';
+                array_append(ret, stringvar_nocopy(newbuf));
+
+                str = end;
+        }
+        return ret;
+}
+
 /*
  *  strip()             no args implies whitespace
  *  strip(charset)      charset is string
@@ -1144,6 +1181,7 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("lstrip",  string_lstrip,        0, 1, -1, -1),
         V_INITTBL("rstrip",  string_rstrip,        0, 1, -1, -1),
         V_INITTBL("replace", string_replace,       2, 2, -1, -1),
+        V_INITTBL("split",   string_split,         0, 0, -1, -1),
         V_INITTBL("strip",   string_strip,         0, 1, -1, -1),
         V_INITTBL("copy",    string_copy,          0, 0, -1, -1),
         V_INITTBL("join",    string_join,          1, 1, -1, -1),

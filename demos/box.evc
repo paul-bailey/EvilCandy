@@ -1,0 +1,154 @@
+#!./evilcandy
+
+// This is not the best class in the world, it's just to half-test,
+// half-demonstrate the features of the language.  All kinds of bad
+// input are possible, especially abusively long words.
+let Box = function(**kwargs) {
+    let err_border = 100;
+
+    let priv = {
+        'padleft':    4,
+        'maxwidth':   73,
+        'padtop':     1,
+        'padbottom':  1,
+        'borderchar': '*'
+    } | kwargs;
+
+    let test_borderchar = function(c) {
+        if (typeof(c) != 'string'){
+            throw (err_border, 'borderchar not a string');
+        } if (length(c) != 1) {
+            throw (err_border, 'borderchar must be 1 char');
+        }
+    };
+
+    if (priv has 'pad') {
+        // padright is meaningless, we'll use width
+        priv.padleft    = priv.pad;
+        priv.padtop     = priv.pad;
+        priv.padbottom  = priv.pad;
+    } else {
+        if (priv has 'hpad') {
+            priv.padleft  = priv.hpad;
+            priv.padright = priv.hpad;
+        }
+        if (priv has 'vpad') {
+            priv.padtop    = priv.vpad;
+            priv.padbottom = priv.vpad;
+        }
+    }
+
+    // Just to sanity check that priv will be unique between instances
+    // but shared between methods of the same instance.  It's a
+    // dictionary, so using it as a closure should not prevent printme
+    // and showcount from having access to the same 'count'.
+    priv.count = 0;
+
+    test_borderchar(priv.borderchar);
+
+    let box_print = function(longstr, **kw) {
+        let maxwidth = priv.maxwidth;
+        let borderchar;
+        let a;
+        let topbottom;
+
+        if (kw has 'borderchar') {
+            test_borderchar(kw.borderchar);
+            borderchar = kw.borderchar;
+        } else {
+            borderchar = this.borderchar;
+        }
+        if (kw has 'width') {
+            maxwidth = kw.width;
+        }
+
+        // Quite hacky yet, still need find(), enumerate(), built-ins
+        // to make this cleaner.  Use IIFE to keep ns from cluttering up.
+        a = (function(old_arr, maxwidth) {
+            let na = [];
+            let str = '';
+            let curlen = 0;
+            for (word, old_arr) {
+                let len;
+                if (curlen > 0) {
+                    str += ' ';
+                    curlen++;
+                }
+                len = length(word);
+                if (curlen + len >= maxwidth) {
+                    na.append(str.strip());
+                    str = '';
+                    curlen = 0;
+                }
+
+                str += word;
+                curlen += len;
+            } else {
+                if (length(str) > 0) {
+                    na.append(str.strip());
+                }
+            }
+            return na;
+        })(longstr.split(), maxwidth - priv.padleft - 1);
+
+        // Now print it all.
+        topbottom = ''.join([borderchar,
+                             (maxwidth-2) * ' ',
+                             borderchar]);
+        print(maxwidth * borderchar);
+        for (i, range(priv.padtop))
+            print(topbottom);
+        for (line, a) {
+            let padright;
+            line = ''.join([borderchar,
+                           priv.padleft * ' ',
+                           line]);
+            padright = maxwidth - length(line) - 1;
+            if (padright < 0)
+                padright = 0;
+
+            print(line + padright * ' ' + borderchar);
+        }
+        for (i, range(priv.padbottom))
+            print(topbottom);
+        print(maxwidth * borderchar);
+        priv.count = priv.count + 1;
+    };
+
+    let box_count = ``() priv.count``;
+
+    return {
+        'borderchar': priv.borderchar,
+        'print': box_print,
+        'count': box_count
+    };
+};
+
+let box1 = Box(padleft=2, borderchar='#');
+let box2 = Box(maxwidth=80, pad=2);
+
+if (1) {
+    box1.print('hello world! I\'m box1! '
+               'Does my string wrap nicely from one line to the next? '
+               'Is there a nice border around me?');
+
+    box2.print('...And I am box2!  Is my box bigger than box1?');
+
+    box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
+
+    if (box1.count() != 2 || box2.count() != 1)
+        throw "something suspicious with the box counts";
+
+    box2.print('NO YOU DON\'T LOOK AT MEEEEE', borderchar='!');
+
+    box1.borderchar = '?';
+
+    box1.print('bruh', width=20);
+} else {
+    box1.print('hello world!');
+    box2.print('hello world!');
+    box1.print('hello back!');
+    if (box1.count() != 2 || box2.count() != 1)
+        throw "something suspicious with the box counts";
+    box2.print('same!');
+}

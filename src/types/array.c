@@ -70,6 +70,43 @@ array_getitem(Object *array, int idx)
         return va->items[idx];
 }
 
+/* comparisons, helpers to array_getslice */
+static bool slice_cmp_lt(int a, int b) { return a < b; }
+static bool slice_cmp_gt(int a, int b) { return a > b; }
+
+#define GETSLICE(X)                                             \
+                                                                \
+static Object *                                                 \
+X##_getslice(Object *obj, int start, int stop, int step)        \
+{                                                               \
+        Object *ret, **src;                                     \
+        bool (*cmp)(int, int);                                  \
+                                                                \
+        bug_on(!isvar_##X(obj));                                \
+                                                                \
+        ret = X##var_new(0);                                    \
+                                                                \
+        if (start == stop)                                      \
+                return ret;                                     \
+                                                                \
+        cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;       \
+        src = X##_get_data(obj);                                \
+                                                                \
+        while (cmp(start, stop)) {                              \
+                /*                                              \
+                 * XXX: there is no 'tuple_append',             \
+                 * and for good reason.                         \
+                 */                                             \
+                array_append(ret, src[start]);                  \
+                start += step;                                  \
+        }                                                       \
+        return ret;                                             \
+}
+
+GETSLICE(array)
+GETSLICE(tuple)
+#undef GETSLICE
+
 /* helper to array_sort */
 static int
 array_sort_cmp(const void *a, const void *b)
@@ -233,7 +270,7 @@ tuplevar_from_stack(Object **items, int n_items, bool consume)
  *
  * Return: RES_OK if contents match, RES_ERROR if either the tuple size
  *      is not the length of @descr or if any of its contents do not
- *      match.
+ *      match.  tuple_validate() will not set any exceptions.
  *
  * tuples make for some useful pseudo-class objects.  tuple_validate can
  * be used to make sure its contents are the right type in the right order.
@@ -589,6 +626,7 @@ static const struct seq_methods_t array_seq_methods = {
         .getitem        = array_getitem,
         .setitem        = array_setitem,
         .hasitem        = array_hasitem,
+        .getslice       = array_getslice,
         .cat            = array_cat,
         .sort           = array_sort,
 };
@@ -615,6 +653,7 @@ static const struct seq_methods_t tuple_seq_methods = {
         .getitem        = array_getitem,
         .setitem        = NULL,
         .hasitem        = array_hasitem,
+        .getslice       = tuple_getslice,
         .cat            = tuple_cat,
         .sort           = NULL,
 };

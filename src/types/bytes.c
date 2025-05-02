@@ -14,10 +14,6 @@ bytes_len(Frame *fr)
         return intvar_new(seqvar_size(self));
 }
 
-/*
- * TODO REVISIT: Policy decision.  Return datum as an integer,
- * or as another bytes array of size 1?
- */
 static Object *
 bytes_getitem(Object *a, int idx)
 {
@@ -33,6 +29,37 @@ bytes_getitem(Object *a, int idx)
          */
         u = ((unsigned int)ba[idx]) & 0xffu;
         return intvar_new(u);
+}
+
+/* comparisons, helpers to array_getslice */
+static bool slice_cmp_lt(int a, int b) { return a < b; }
+static bool slice_cmp_gt(int a, int b) { return a > b; }
+
+static Object *
+bytes_getslice(Object *bytes, int start, int stop, int step)
+{
+        unsigned char *src, *dst;
+        bool (*cmp)(int, int);
+        struct buffer_t b;
+        size_t count;
+
+        bug_on(!isvar_bytes(bytes));
+        if (start == stop)
+                return bytesvar_new((unsigned char *)"", 0);
+
+        cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;
+        src = bytes_get_data(bytes);
+        buffer_init(&b);
+
+        count = 0;
+        while (cmp(start, stop)) {
+                buffer_putd(&b, &src[start], 1);
+                start += step;
+                count++;
+        }
+        bug_on(buffer_size(&b) != count);
+        dst = (unsigned char *)buffer_trim(&b);
+        return bytesvar_nocopy(dst, count);
 }
 
 static bool
@@ -356,6 +383,7 @@ static const struct seq_methods_t bytes_seq_methods = {
         .getitem        = bytes_getitem,
         .setitem        = NULL, /* like string, immutable */
         .hasitem        = bytes_hasitem,
+        .getslice       = bytes_getslice,
         .cat            = bytes_cat,
         .sort           = NULL,
 };

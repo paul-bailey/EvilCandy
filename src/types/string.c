@@ -1280,6 +1280,43 @@ string_cmpz(Object *a)
         return s ? s[0] == '\0' : true;
 }
 
+/* comparisons, helpers to string_getslice */
+static bool slice_cmp_lt(int a, int b) { return a < b; }
+static bool slice_cmp_gt(int a, int b) { return a > b; }
+
+static Object *
+string_getslice(Object *str, int start, int stop, int step)
+{
+        char *src;
+        struct buffer_t b;
+        bool (*cmp)(int, int);
+
+        if (start == stop)
+                return stringvar_new("");
+
+        buffer_init(&b);
+        src = string_get_cstring(str);
+        cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
+
+        if (V2STR(str)->s_info.enc != STRING_ENC_UTF8) {
+                /* thank god */
+                while (cmp(start, stop)) {
+                        buffer_putc(&b, src[start]);
+                        start += step;
+                }
+        } else {
+                char cbuf[5];
+                while (cmp(start, stop)) {
+                        if (utf8_subscr_str(src, start, cbuf) < 0) {
+                                bug();
+                        }
+                        buffer_puts(&b, cbuf);
+                        start += step;
+                }
+        }
+        return stringvar_from_buffer(&b);
+}
+
 /* .getitem sequence method for string  */
 static Object *
 string_getitem(Object *str, int idx)
@@ -1416,6 +1453,7 @@ struct seq_methods_t string_seq_methods = {
         .getitem        = string_getitem,
         .setitem        = NULL,
         .hasitem        = string_hasitem,
+        .getslice       = string_getslice,
         .cat            = string_cat,
         .sort           = NULL,
 };

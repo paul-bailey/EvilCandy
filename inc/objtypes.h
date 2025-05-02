@@ -111,6 +111,7 @@ struct seq_methods_t {
         /* @haystack is this type; @needle must be type-checked */
         bool (*hasitem)(Object *haystack, Object *needle);
         enum result_t (*setitem)(Object *, int, Object *);
+        Object *(*getslice)(Object *, int start, int stop, int step);
         /* new = a + b; if b is NULL, return new empty var */
         binary_operator_t cat;
         void (*sort)(Object *);

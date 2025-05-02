@@ -568,20 +568,6 @@ var_str_swap(Object *v)
         return v;
 }
 
-ssize_t
-var_len(Object *v)
-{
-        if (!hasvar_len(v))
-                return -1;
-        return seqvar_size(v);
-}
-
-const char *
-typestr(Object *v)
-{
-        return v->v_type->name;
-}
-
 /**
  * var_cmpz - Compare @v to zero, NULL, or something like it
  * @status:  To be set to RES_ERROR if cmpz not permitted,

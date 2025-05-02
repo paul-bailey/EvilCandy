@@ -205,6 +205,12 @@ struct type_t {
 };
 
 /*
+ * Syntactic sugar to get the name of the XxxType, useful for
+ * debugging and error messages.
+ */
+static inline const char *typestr(Object *v) { return v->v_type->name; }
+
+/*
  * Declared in type C modules in types/xxx.c
  * Only put these here and give them extern linkage if they are meaningful
  * outside of whatever module that uses them.  Otherwise, keep them local

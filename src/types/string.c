@@ -1149,7 +1149,7 @@ string_join(Frame *fr)
         if (arg_type_check(arg, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
-        if ((n = var_len(arg)) == 0)
+        if ((n = seqvar_size(arg)) == 0)
                 return stringvar_newf("", 0);
 
         elem = join_next_str(arg, 0);

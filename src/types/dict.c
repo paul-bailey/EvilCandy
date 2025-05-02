@@ -723,7 +723,7 @@ do_dict_foreach(Frame *fr)
                 priv = NullVar;
 
         keys = dict_keys(self);
-        len = var_len(keys);
+        len = seqvar_size(keys);
         bug_on(len < 0);
 
         status = RES_OK;

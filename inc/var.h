@@ -102,7 +102,6 @@ extern int var_compare(Object *a, Object *b);
 extern int var_sort(Object *v);
 extern Object *var_str(Object *v);
 extern Object *var_str_swap(Object *v);
-extern ssize_t var_len(Object *v);
 extern bool var_cmpz(Object *v, enum result_t *status);
 extern bool var_all(Object *v, enum result_t *status);
 extern bool var_any(Object *v, enum result_t *status);

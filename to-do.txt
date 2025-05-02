@@ -3,9 +3,6 @@ Bugs
 
 * BUGs 5/2025:
 
-        * .rodata is beginning to blow up; duplicates are not getting
-          de-duplicated.
-
         * See line near end of box_print() in demos/box.evc (line ~115).
           When it's ``priv.count = priv.count + 1``, the program works.
           The disassembly is:
@@ -15,7 +12,7 @@ Bugs
                 LOAD            CP, 0   # here 'priv' closure is loaded
                 LOAD_CONST      0, 33   # "count"
                 LOAD            CP, 0   #
-                LOAD_CONST      0, 34   # "count" (duplicate! unrelated bug)
+                LOAD_CONST      0, 34   # "count"
                 GETATTR         0, 0
                 LOAD_CONST      0, 35   # 1
                 ADD             0, 0

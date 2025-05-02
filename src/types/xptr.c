@@ -116,7 +116,7 @@ xptr_add_rodata(Object *v, Object *new_data)
                  * careful, var_compare will think 2.0 == 2,
                  * but we want to preserve number types in rodata.
                  */
-                if (new_data->v_type != v->v_type)
+                if (new_data->v_type != x->rodata[i]->v_type)
                         continue;
                 if (var_compare(new_data, x->rodata[i]) == 0) {
                         VAR_DECR_REF(new_data);

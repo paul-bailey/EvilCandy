@@ -127,28 +127,20 @@ let Box = function(**kwargs) {
 let box1 = Box(padleft=2, borderchar='#');
 let box2 = Box(maxwidth=80, pad=2);
 
-if (1) {
-    box1.print('hello world! I\'m box1! '
-               'Does my string wrap nicely from one line to the next? '
-               'Is there a nice border around me?');
+box1.print('hello world! I\'m box1! '
+           'Does my string wrap nicely from one line to the next? '
+           'Is there a nice border around me?');
 
-    box2.print('...And I am box2!  Is my box bigger than box1?');
+box2.print('...And I am box2!  Is my box bigger than box1?');
 
-    box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
+box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
 
-    if (box1.count() != 2 || box2.count() != 1)
-        throw "something suspicious with the box counts";
+if (box1.count() != 2 || box2.count() != 1)
+    throw "something suspicious with the box counts";
 
-    box2.print('NO YOU DON\'T LOOK AT MEEEEE', borderchar='!');
+box2.print('NO YOU DON\'T! LOOK AT MEEEEE!!!', borderchar='!');
 
-    box1.borderchar = '.';
+box1.borderchar = '.';
 
-    box1.print('bruh', width=20);
-} else {
-    box1.print('hello world!');
-    box2.print('hello world!');
-    box1.print('hello back!');
-    if (box1.count() != 2 || box2.count() != 1)
-        throw "something suspicious with the box counts";
-    box2.print('same!');
-}
+box1.print('bruh', width=20);
+

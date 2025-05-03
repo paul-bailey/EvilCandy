@@ -108,4 +108,15 @@ print("~0 is {}".format(~0));
           .format(s, length(s), s[3], s[4]));
     print("\tAm I ", kw.COLOR_BLUE, 'BLUE', kw.COLOR_DEF, "???", sep="");
 })(beeta='\u03b2', COLOR_BLUE='\e[36m', COLOR_DEF='\e[39m');
+
+{
+    let dbl_min = 2.2250738585072014e-308;
+    let dbl_max = 1.7976931348623157e+308;
+    print('Testing if float extremes can be parsed');
+    print('\tDBL_MIN (2.2250738585072014e-308):');
+    print('\t         ', dbl_min, sep='');
+    print('\tDBL_MAX (1.7976931348623157e+308):');
+    print('\t         ', dbl_max, sep='');
+}
+
 // : vim: set syntax=javascript :

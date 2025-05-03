@@ -994,59 +994,14 @@ assemble_expr_atomic(struct assemble_t *a)
         as_lex(a);
 }
 
+static int assemble_primary_elements(struct assemble_t *a, bool may_assign);
+
 /* Check for indirection: things like a.b, a['b'], a[b], a(b)... */
 static void
 assemble_expr8(struct assemble_t *a)
 {
         assemble_expr_atomic(a);
-
-        while (istok_indirection(a->oc->t)) {
-                switch (a->oc->t) {
-                case OC_PER:
-                        as_errlex(a, OC_IDENTIFIER);
-                        ainstr_load_const(a, a->oc);
-                        add_instr(a, INSTR_GETATTR, 0, 0);
-                        break;
-
-                case OC_LBRACK:
-                        as_lex(a);
-                        switch (a->oc->t) {
-                        case OC_STRING:
-                        case OC_INTEGER:
-                                /*
-                                 * same optimization check as in
-                                 * assemble_ident_helper
-                                 */
-                                if (as_lex(a) == OC_RBRACK) {
-                                        as_unlex(a);
-                                        ainstr_load_const(a, a->oc);
-                                        add_instr(a, INSTR_GETATTR, 0, 0);
-                                        break;
-                                }
-                                as_unlex(a);
-                                /* expression, fall through */
-                        case OC_IDENTIFIER:
-                        case OC_COLON:
-                        case OC_LPAR:
-                        default:
-                                /* need to evaluate index */
-                                as_unlex(a);
-                                assemble_slice(a);
-                                add_instr(a, INSTR_GETATTR, 0, 0);
-                                break;
-                        }
-                        as_errlex(a, OC_RBRACK);
-                        break;
-
-                case OC_LPAR:
-                        as_unlex(a);
-                        assemble_call_func(a);
-                        break;
-                default:
-                        as_err(a, AE_BADTOK);
-                }
-                as_lex(a);
-        }
+        assemble_primary_elements(a, false);
 }
 
 static void
@@ -1325,7 +1280,7 @@ assemble_preassign(struct assemble_t *a, int t)
 }
 
 /*
- * Helper to assemble_ident_helper
+ * Helper to assemble_primary_elements
  * return value of true means "done, return zero"
  * false means "carry on"
  */
@@ -1347,30 +1302,24 @@ setattr_if_assign(struct assemble_t *a)
         return 0;
 }
 
-/* FIXME: huge DRY violation w/ eval8 */
 /*
- * TODO: mild lift, but this should be wrapped within the eval
- * stage as well.  A line like "x = y;" should evaluate to the
- * value of "y" while also having the side-effect of assigning
- * "x".  But as-is, there is no 'value' for "x = y;", and we
- * do not even 'evaluate' until after the '='.
+ * Descend the rabbit hole of 'a.b[c].d().e' monsters.
+ * @may_assign: false if we are in the assemble_exprN() loop above
+ *              true if called from assemble_ident|this() below
+ *
+ * Return: 1 if an evaluated item is dangling on the stack, 0 if not
  */
-/* return 1 if an evaluated item is dangling on the stack, 0 if not */
 static int
-assemble_ident_helper(struct assemble_t *a)
+assemble_primary_elements(struct assemble_t *a, bool may_assign)
 {
-        if (peek_semi(a))
-                return 1;
-
-        as_lex(a);
-        for (;;) {
+        while (istok_indirection(a->oc->t)) {
                 struct token_t name;
 
                 switch (a->oc->t) {
                 case OC_PER:
                         as_errlex(a, OC_IDENTIFIER);
                         ainstr_load_const(a, a->oc);
-                        if (setattr_if_assign(a))
+                        if (may_assign && setattr_if_assign(a))
                                 return 0;
                         add_instr(a, INSTR_GETATTR, 0, 0);
                         break;
@@ -1397,7 +1346,7 @@ assemble_ident_helper(struct assemble_t *a)
                                 if (as_lex(a) == OC_RBRACK) {
                                         /* ...the 99% scenario */
                                         ainstr_load_const(a, &name);
-                                        if (setattr_if_assign(a))
+                                        if (may_assign && setattr_if_assign(a))
                                                 return 0;
                                         add_instr(a, INSTR_GETATTR, 0, 0);
                                         as_unlex(a);
@@ -1406,15 +1355,12 @@ assemble_ident_helper(struct assemble_t *a)
                                 as_unlex(a);
                                 /* ...the 1% scenario, fall through and eval */
 
-                        case OC_IDENTIFIER:
-                        case OC_COLON:
-                        case OC_LPAR:
                         default:
                                 /* need to evaluate index */
                                 as_unlex(a);
                                 assemble_slice(a);
                                 if (as_lex(a) == OC_RBRACK) {
-                                        if (setattr_if_assign(a))
+                                        if (may_assign && setattr_if_assign(a))
                                                 return 0;
                                         as_unlex(a);
                                 }
@@ -1427,21 +1373,30 @@ assemble_ident_helper(struct assemble_t *a)
                 case OC_LPAR:
                         as_unlex(a);
                         assemble_call_func(a);
-                        if (peek_semi(a))
-                                return 1;
-
                         break;
 
                 default:
                         as_err(a, AE_BADTOK);
                 }
 
-                if (peek_semi(a))
-                        return 1;
-
                 as_lex(a);
         }
-        return 0;
+
+        if (may_assign && a->oc->t == OC_SEMI)
+                as_unlex(a);
+
+        return 1;
+}
+
+static int
+assemble_primary_elements__(struct assemble_t *a)
+{
+        as_lex(a);
+        if (a->oc->t == OC_SEMI) {
+                as_unlex(a);
+                return 1;
+        }
+        return assemble_primary_elements(a, true);
 }
 
 /* return 1 if item left on the stack, 0 if not */
@@ -1454,7 +1409,7 @@ assemble_this(struct assemble_t *a, unsigned int flags)
          *      this = value...
          */
         add_instr(a, INSTR_LOAD, IARG_PTR_THIS, 0);
-        return assemble_ident_helper(a);
+        return assemble_primary_elements__(a);
 }
 
 /* return 1 if item left on the stack, 0 if not */
@@ -1496,7 +1451,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 as_unlex(a);
                 ainstr_load_symbol(a, &name, pos);
-                return assemble_ident_helper(a);
+                return assemble_primary_elements__(a);
         }
 }
 

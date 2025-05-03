@@ -755,6 +755,11 @@ do_foreach_iter(Frame *fr, instruction_t ii)
         VAR_DECR_REF(pop(fr));
 
         /* replace old iter */
+        /*
+         * FIXME Much more efficient if I turn the iterator struct in
+         * var.c into an object and use that, rather than creating and
+         * destroying like a gazillion integers here.
+         */
         VAR_DECR_REF(iter);
         iter = intvar_new(i + 1LL);
 

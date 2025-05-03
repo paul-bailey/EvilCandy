@@ -4,16 +4,21 @@
  * JavaScript calls these "objects".  Python calls them "dictionaries".
  * Calling one kind of an object an 'object' to distinguish it from another
  * kind of object is kind of janky, so I'm going with Python on this one.
+ *
+ * Still, EvilCandy takes JavaScript's Middle Way:  Internal code which
+ * accesses dictionaries using these API functions directly can treat a
+ * dictionary like a pure associative array, while dictionaries accessed
+ * by user code are assumed to be using these like class instantiations
+ * (for example see how var_getattr intercepts retrieving functions from
+ * a dictionary).  The code in this file plays dumb to either case.
  */
 #include <evilcandy.h>
 #include <stringtype.h>
 
 struct bucket_t {
         /*
-         * TODO: move b_hash to string data type.  Strings are immutable,
-         * so their hash should only need to be calculated once during
-         * their lifetime.  Do this when we start storing string data types
-         * instead of C strings for the keys
+         * TODO: b_key has hash already, get rid of need for b_hash and
+         * save some space.
          */
         hash_t b_hash;
         Object *b_key;
@@ -48,7 +53,6 @@ struct dictvar_t {
  *                      Hash table helpers
  ***********************************************************************/
 
-#define GROW_SIZE(x)    (((x) * 2) / 3)
 #define BUCKET_DEAD     ((void *)-1)
 
 /*

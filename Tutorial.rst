@@ -87,8 +87,8 @@ The semicolon is needed; it marks the end of the expression.
 EvilCandy does not look for a function called ``main``.
 It executes statements in the order they are written,
 starting from the top level of the file.  (A function definition
-is a kind of partial statement called an "expression", more on that
-in `Expressions and statements`_).
+is a kind of partial statement called an
+"`expression <Expressions and statements_>`_".
 
 Syntax
 ======
@@ -129,7 +129,10 @@ The whitespace characters are space, horizontal tab, vertical tab,
 form-feed, newline, and carriage return.  Do not use non-ASCII whitespace.
 
 EvilCandy ignores whitespace, except for some bookkeeping on the line
-number to facilitate more helpful error messages.
+number to facilitate more helpful error messages.  Also some adjacent
+tokens may need whitespace to separate each other.  For example, ``1- -2``
+is valid (though poorly written) and means "one minus negative two",
+but ``1--2`` is invalid, because ``--`` is a token meaning "decrement".
 
 Identifier Tokens
 ~~~~~~~~~~~~~~~~~
@@ -193,8 +196,7 @@ is not to be escaped.
 
 Backslash escapes that attempt to insert a nulchar, such as ``"\x00"`` or
 ``"\u0000"``, will be rejected.  If you must have a value of zero in the
-middle, choose a bytes data type instead of a string, (see `Bytes
-Literals`_ below).
+middle, choose a `bytes <Bytes Literals_>`_ data type instead of a string.
 
 Unsupported backslash escape sequences will result in a parsing error,
 and the script will not be executed.
@@ -282,13 +284,15 @@ and 98 (ASCII ``'b'``).
 Numerical Tokens
 ~~~~~~~~~~~~~~~~
 
-EvilCandy interprets two kinds of numbers--integer and float.
+EvilCandy interprets three kinds of numbers--integer, float, and complex.
 See `Integers and Floats`_ how these are stored internally.
-Complex numbers may become supported in the future.
 
 Literal expressions of these numbers follow the convention used by C,
-except that you must not use numerical suffixes.
-Write ``12``, not ``12ul``; write ``12.0``, not ``12f``.
+except that you must not use numerical suffixes for integers or floats
+Write ``12``, not ``12ul``; write ``12.0``, not ``12f``.  For complex
+numbers, use only ``j`` or ``J`` as a numerical suffix for the imaginary
+portion.  Do not use ``I``.  (Pretend like you're an engineer instead of
+a computer scientist.)
 
 The following table demonstrates various ways to express the number 12:
 
@@ -297,13 +301,18 @@ The following table demonstrates various ways to express the number 12:
 ---------------------------------------
 Decimal     ``12``
 Hexadecimal ``0xC``
-Octal       ``014``
+Octal       ``014`` [#]_
 Binary      ``0b1100``
 ----------- ---------------------------
 **float expressions**
 ---------------------------------------
 Decimal     ``12.``, ``12.000``, *etc.*
 Exponential ``12e1``, ``1.2e2``, *etc.*
+----------- ---------------------------
+**complex expressions**
+---------------------------------------
+Decimal     ``12 + 0j`` [#]_
+Exponential ``12e1 + 0j``
 =========== ===========================
 
 Specific rules of numerical interpretation:
@@ -313,6 +322,9 @@ Specific rules of numerical interpretation:
    and it will be interpreted as an integer.
  * A number that has a period or an 'E' or 'e' at a position appropriate
    for an exponent indicates a base 10 float.
+ * A number with an upper or lower-case ``j`` will be interpreted as an
+   imaginary component of a complex number, whose value will be
+   interpreted as a base 10 float [#]_.
  * A number beginning with a '0' otherwise indicates a base 8 (octal)
    number, and it will be interpreted as an integer.
  * The remaining valid numerical representations--those beginning with
@@ -321,9 +333,23 @@ Specific rules of numerical interpretation:
 
 Note:
 
+.. [#]
         The Python-style ``0o`` prefix for an octal number is not
         supported in this version.  It may be added in the future.
 
+.. [#]
+        There is no need to use decimals to "force" a complex number's
+        components to be stored as floating-point values.  The 'j' suffix
+        does that sufficiently enough
+
+.. [#]
+        Currently, there is no literal expression for a full real/complex
+        value pair in a complex number.  An expression like ``1 + 1j``
+        will actually be interpreted as two numbers: the integer 1 and
+        the complex number (0 + 1j).  The addition will take place during
+        runtime to convert the expression into a single complex number.
+        Syntactically this is all the same thing, but speed improvements
+        can be made in the future.
 
 Keyword Tokens
 ~~~~~~~~~~~~~~
@@ -332,22 +358,17 @@ The following keywords are reserved for EvilCandy:
 
 **Table 1**
 
-================ =========== =============
+============ ============ =============
 Reserved Keywords
-==========================================
-``break``        ``const`` *  ``do``
-``else``         ``false``   ``for``
-``global``       ``if``      ``let``
-``function``     ``null``    ``private`` *
-``return``       ``this``    ``true``
-``while``
-================ =========== =============
-
-Note:
-
-        ``private`` and ``const`` were part of early development, but
-        they are no longer supported, and may be removed from the
-        list of reserved keywords.
+=======================================
+``break``    ``continue`` ``catch``
+``do``       ``else``     ``let``
+``false``    ``finally``  ``for``
+``function`` ``global``   ``has``
+``if``       ``null``     ``return``
+``this``     ``throw``    ``true``
+``try``      ``while``
+============ ============ =============
 
 All keywords in EvilCandy are case-sensitive.  None are "soft"; you
 cannot, for example, declare a variable named ``function``.  (Built-in
@@ -366,7 +387,7 @@ EvilCandy uses the following operators:
 +---------+-------------------------+
 | Operator| Operation               |
 +=========+=========================+
-| *Binary Operators*                |
+| *Binary Operators* A OPERATOR B   |
 +---------+-------------------------+
 | ``+``   | add, concatenation [#]_ |
 +---------+-------------------------+
@@ -394,7 +415,7 @@ EvilCandy uses the following operators:
 +---------+-------------------------+
 | ``^``   | bitwise XOR             |
 +---------+-------------------------+
-| *Unary Operators* (before var)    |
+| *Unary Operators* (before operand)|
 +---------+-------------------------+
 | ``!``   | logical NOT             |
 +---------+-------------------------+
@@ -402,35 +423,41 @@ EvilCandy uses the following operators:
 +---------+-------------------------+
 | ``-``   | negate (multiply by -1) |
 +---------+-------------------------+
-| *Unary Operators* (after var)     |
+| *Unary Operators* (after operand) |
 +---------+-------------------------+
 | ``++``  | Increment by one [#]_   |
 +---------+-------------------------+
 | ``--``  | Decrement by one        |
 +---------+-------------------------+
+| *Ternary Operators* [#]_          |
++---------+-------------------------+
+| ``?``   |                         |
++---------+-------------------------+
+| ``:``   |                         |
++---------+-------------------------+
 | *Assignment Operators* [#]_       |
 +---------+-------------------------+
-| ``=``   | lval = rval             |
+| ``=``   | res = rval              |
 +---------+-------------------------+
-| ``+=``  | lval = lval ``+`` rval  |
+| ``+=``  | res = lval ``+`` rval   |
 +---------+-------------------------+
-| ``-=``  | lval = lval ``-`` rval  |
+| ``-=``  | res = lval ``-`` rval   |
 +---------+-------------------------+
-| ``*=``  | lval = lval ``*`` rval  |
+| ``*=``  | res = lval ``*`` rval   |
 +---------+-------------------------+
-| ``/=``  | lval = lval ``/`` rval  |
+| ``/=``  | res = lval ``/`` rval   |
 +---------+-------------------------+
-| ``%=``  | lval = lval ``%`` rval  |
+| ``%=``  | res = lval ``%`` rval   |
 +---------+-------------------------+
-| ``&=``  | lval = lval ``&`` rval  |
+| ``&=``  | res = lval ``&`` rval   |
 +---------+-------------------------+
-| ``|=``  | lval = lval ``|`` rval  |
+| ``|=``  | res = lval ``|`` rval   |
 +---------+-------------------------+
-| ``<<=`` | lval = lval ``<<`` rval |
+| ``<<=`` | res = lval ``<<`` rval  |
 +---------+-------------------------+
-| ``>>=`` | lval = lval ``>>`` rval |
+| ``>>=`` | res = lval ``>>`` rval  |
 +---------+-------------------------+
-| ``^=``  | lval = lval ``^`` rval  |
+| ``^=``  | res = lval ``^`` rval   |
 +---------+-------------------------+
 
 .. [#] For string and bytes data types, the plus operator concatenates
@@ -443,10 +470,15 @@ EvilCandy uses the following operators:
        undefined for EvilCandy.  Currently increment and decrement
        operations must be their own expressions.
 
-.. [#] Currently ``lval OP= rval`` is not only syntactically the same as
-       ``lval = lval OP rval``, but it is the same implementation-wise as
-       well, so do not express it this way if the normal way is clearer;
-       you will not gain any speed advantage from it.
+.. [#] The C-like ternary ``y ? a : b`` will evaluate to ``a`` if ``y``
+       is true and ``b`` if ``y`` is false.  Currently, however, both
+       ``a`` and ``b`` will be evaluated, so do not use this if there
+       are side effects.
+
+.. [#] In-place assignment operators (ie. ``+=`` instead of just ``=``
+       are currently only permitted for primary variables, not their
+       elements.  ``x += 2;`` is permitted, but not ``x.y += 2;``.  In the
+       latter case, you need to express ``x.y = x.y + 2;``.
 
 
 Expressions and statements
@@ -462,40 +494,77 @@ A *statement* may contain expressions.  Statements take two forms:
 
 Blocks may be nested, thus each *stmt* above may be a block instead
 of a single-line statement, in which case the semicolon is not required.
-Braces also define a new `Scope`_, see below.
+Braces can also be used to prevent `namespace clutter <Scope_>`_ when temporary
+variables are needed.
 
 Valid statements are:
 
-**Table 3**
+Declaration
+     ``let`` | ``global`` *identifier* [``=`` *expr*]
 
-=== ======================== =============================================
-1.  Empty declaration        ``let`` *identifier*
-... ...                      ``global`` *identifier*
-2.  Assignment               *identifier* ``=`` *expr*
-3.  Declaration + assignment ``let`` *identifier* ``=`` *expr*
-... ...                      ``global`` *identifier* ``=`` *expr*
-4.  Eval [#]_                *identifier* ``(`` *args* ... ``)``
-5.  Eval                     ``(`` *expr* ``)``
-6.  Empty expression         *identifier*
-7.  Program flow             ``if (`` *expr* ``)`` *stmt*
-8.  Program flow             ``if (`` *expr* ``)`` *stmt* ``else`` *stmt*
-9.  Program flow             ``while (`` *expr* ``)`` *stmt*
-10. Program flow             ``do`` *stmt* ``while (`` *expr* ``)``
-11. Program flow             ``for (`` *stmt* ... ``)`` *stmt*
-12. Return nothing           ``return``
-13. Return something         ``return`` *expr*
-14. Break                    ``break``
-15. Nothing [#]_
-=== ======================== =============================================
+Assignment
+     *identifier* | *expr* ``=`` *expr*
 
-.. [#] *Eval* has limitations here, see below.
+Expression [#]_
+     *expr*
 
-.. [#] ie. a line that's just a semicolon ``;``
+Program flow
+     ``if (`` *expr* ``)`` *stmt* [``else`` *stmt*]
 
-Syntax Limitations Regarding Evaluation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Program flow
+     ``while (`` *expr* ``)`` *stmt*
 
-In Table 3, *expr* means "thing that can be evaluated and stored in a
+Program flow
+     ``do`` *stmt* ``while (`` *expr* ``)``
+
+Program flow
+     ``for (`` *stmt* ... ``)`` *stmt* [``else`` *stmt*]
+
+Return
+     ``return`` [*expr*]
+
+Break
+     ``break``
+
+Continue
+     ``continue``
+
+Throw Exception
+     ``throw`` *expr*
+
+Handle Exception
+     ``try`` *stmt*
+     ``catch (`` *identifier* ``)`` *stmt*
+     [``finally`` *stmt*]
+
+Nothing [#]_
+
+.. === ======================== ===================================================
+.. 1.  Declaration              ``let`` | ``global`` *identifier* [``=`` *expr*]
+.. 2.  Assignment               *identifier* ``=`` *expr*
+.. 3.  Expression [#]_          *expr*
+.. 4.  Program flow             ``if (`` *expr* ``)`` *stmt* [``else`` *stmt*]
+.. 5.  Program flow             ``while (`` *expr* ``)`` *stmt*
+.. 6.  Program flow             ``do`` *stmt* ``while (`` *expr* ``)``
+.. 7.  Program flow             ``for (`` *stmt* ... ``)`` *stmt* [``else`` *stmt*]
+.. 8.  Return                   ``return`` [*expr*]
+.. 9.  Break                    ``break``
+.. 10. Continue                 ``continue``
+.. 11. Throw Exception          ``throw`` *expr*
+.. 12. Handle Exception         ``try`` *stmt*
+..                              ``catch (`` *identifier* ``)`` *stmt*
+..                              [``finally`` *stmt*]
+.. 13. Nothing [#]_
+.. === ======================== ===================================================
+
+.. [#] *expr* has limitations when starting a statement, see below.
+
+.. [#] ie. a line that's just a semicolon ``;`` or a block that's just ``{}``.
+
+Expressions
+~~~~~~~~~~~
+
+Above, *expr* means "thing that can be evaluated and stored in a
 single variable". Some examples:
 
 * Combination of literals and identifiers:
@@ -524,59 +593,65 @@ single variable". Some examples:
 
         { 'a': 1, 'b': 2 }
 
-Statements may not begin with an expression, with two exceptions:
+Some expressions are not permitted at the beginning of a statement.
+A dictionary literal will be interpreted as the start of a block statement
+(and will very shortly result in a syntax error).  Expressions beginning
+with an *identifier* may not start a statement unless they are function
+calls.  Otherwise EvilCandy will assume they are assignments (``x = y;``)
+or empty expressions (``x;``), and throw a SyntaxError if the statement
+does not match these patterns.  Outside of interactive mode, it makes
+little sense anyway to make a statement with only an expression, unless
+it has side effects (such as function calls).
 
-1. The expression is wrapped in parentheses.  This makes immediately-invoked
-   function expressions possible in EvilCandy.  The result will be discarded.
+But, for the sake of interactive mode, you can work around this by
+wrapping the expression in parentheses.  So while this won't work:
 
-   .. code-block:: js
+.. code-block:: js
 
+        // will cause a SyntaxError
+        x + 1;
+
+this will:
+
+.. code-block:: js
+
+        // will work
+        (x + 1);
+
+When parentheses surround only one expression this way, it will not
+evaluate to a tuple.  It also has the benefit of making clear that the
+statement is an expression.  Although EvilCandy will allow a statement
+like:
+
+.. code-block:: js
+
+        // bad style  :(
+        function(arg) {
+                do_something();
+        }(my_arg);
+
+the better way to express it is
+
+.. code-block:: js
+
+        // better style :)
         (function(arg) {
                 do_something();
         })(my_arg);
 
-2. A named function is called but the return value is not assigned to a
-   variable.
+In the former case, it is not as obvious that the anonymous function
+is being invoked as an IIFE.
 
-   .. code-block:: js
+let and global statements
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        do_something();
+``let`` and ``global`` are used for declaring primary variables, but not
+their elements.  In an expression like ``big.giant['mess'].of().stuff``,
+the first element, ``big``, is the primary variable, ``giant`` is an
+element belonging to ``big``, and the rest are descendents.  ``let`` and
+``global`` are only used for ``big`` in this case.
 
-All other expressions must either be on the right-hand side of an
-assignment operator or else be as described in table 3, such as within
-the parentheses of function arguments or program-flow statements.
-Note that this restricts the ways to express IIFEs.  Some JavaScript
-implementations might allow something like:
-
-.. code-block:: js
-
-        // bad style, doesn't work on EvilCandy :(
-        function(arg) {
-                thing();
-        }(my_arg);
-
-but EvilCandy does not, because no good programmer writes that way
-unless they're trying to hide something.  Instead they write:
-
-.. code-block:: js
-
-        // better style, does work on EvilCandy :)
-        (function(arg) {
-                thing();
-        })(my_arg);
-
-
-Identifier Limitations
-~~~~~~~~~~~~~~~~~~~~~~
-
-While you must declare every new variable with either ``let`` or
-``global`` (#1 and #3 in Table 3), you may not use these to declare
-primary elements.  "Primary elements" refers to the sort of dereferencing
-expressions like ``big.damn['mess'].of(stuff)``.  In this case ``big``
-would need to be declared, and its descendant elements would all need
-to exist for the expression to be valid.
-
-Put more simply, you may state:
+You may state:
 
 .. code-block:: js
 
@@ -676,6 +751,17 @@ are mutable objects (see `Dictionaries`_ below).  It has the added benefit
 of clarity.  If you see ``locals.x`` instead of just ``x``, it's clearer
 what's being manipulated.
 
+If a script at any level tries to access a variable that has not yet been
+declared, the global-variables will be searched, even if no ``global``
+declaration has been made.  (Implementation-wise, global variables are
+entries in a dictionary.)  This is because the parser cannot tell if a
+symbol is expected to have been added by an imported script or not.  So
+if the symbol truly does not exist, it will be a runtime error instead of
+a load-time error.  To catch these mistakes sooner, at parsing time,
+instead of later, global variables are generally to be avoided.  See
+`Importing Modules`_ below how a source-tree of EvilCandy scripts can be
+run from the top level without having to add global variables.
+
 Implementation note:
 
    Automatic variables are not, in the low-level implementation,
@@ -692,7 +778,9 @@ Implementation note:
    unnecessary global variables at the file scope is not speed; it's
    just to prevent namespace clutter.
 
-There are two instances where global variables are useful:
+:TODO: niche topic, move these elsewhere
+
+There are two instances where global variables can be quite useful:
 
 1. Prevent cyclic importing of the same script.  When EvilCandy detects
    runaway recursion, it will not raise an exception.  Instead it will
@@ -723,7 +811,7 @@ There are two instances where global variables are useful:
 
         let a = 1;
         print(a);
-        [EvilCandy] Runtime Error Symbol a not found
+        [EvilCandy] NameError Symbol a not found
 
         # need a to be global
         global a = 1;
@@ -737,18 +825,6 @@ There are two instances where global variables are useful:
         }
         1
 
-If a script at any level tries to access a variable that has not yet been
-declared, the global-variables will be searched, even if no ``global``
-declaration has been made.  (Implementation-wise, global variables are
-entries in a dictionary.)  This is because the parser cannot tell if a
-symbol is expected to have been added by an imported script or not.  So
-if the symbol truly does not exist, it will be a runtime error instead of
-a load-time error.  To catch these mistakes sooner, at parsing time,
-instead of later, global variables are generally to be avoided.  See
-`Importing Modules`_ below how a source-tree of EvilCandy scripts can be
-run from the top level without having to add global variables.
-
-
 Variable Classes
 ----------------
 
@@ -756,8 +832,8 @@ Besides storage class, variables also have their own properties,
 attributes, behavior, etc., usually called "class", but which
 I'll usually call "type" (a consequence of writing too much C).
 
-The default class of variable is ``null``.  All variables that
-have been declared without an initializer are set to this.
+The default class of variable is ``null``, whose type is "empty".
+When declaring a variable without an initializer, it is set to this.
 The table below lists the other main types.  More exist, but these
 are the ones that can be initialized with a literal expression
 or sequence of literal expressions.  Others require at least a
@@ -772,19 +848,37 @@ integer    ``let x = 0;``             no
 float      ``let x = 0.;``            no
 list       ``lex x = [];``            yes
 dictionary ``let x = {};``            yes
-tuple      ``let x = ();``            no
+tuple      ``let x = ();`` [#]_       no
 string     ``let x = "";``            no
 bytes      ``let x = b"";``           no
 function   ``let x = function() {;}`` no
 ========== ========================== =========
 
-"Mutable" is a commonly-used expression, and unfortunately so, since it
-is only true from a low-level implementation point of view.  At the
-high-level point of view, "mutable" classes ought to be called
-"pass-by-reference" and "immutable" classes ought to be called
-"pass-by-value".  There are no "pointers" in EvilCandy.  Instead we use
-the abstract concept of a "handle" when discussing mutable variables.
-The best way of explaining this is by example in code.
+.. [#]
+        When expressing a tuple literally, it may have two or more
+        elements, or none.  Parentheses wrapped around exactly one
+        element will cause the expression to evaluate to that element
+        rather than a tuple.
+
+*Mutable* and *immutable* are terms I am borrowing from Python.
+I would prefer to use "pass-by-reference" or "pass-by-value",
+but that would confuse anyone trying to develop the interpreter's C code,
+since under the hood *everything* is pass-by-reference.
+But at the script level, there are no
+"pointers" in EvilCandy; there are only the *names* of variables (another
+term I'm borrowing from Python).  When modifying an "immutable" variable
+like an integer named, say, "x", it means that "x" will no longer point
+at the old variable and will instead point at the new variable.
+
+"Mutable" variables, on the other hand, are murkier.  A list could undergo
+an operation that modifies itself, and thus all *names* pointing at it
+will simultaneously have a variable that was modified under their feet.
+But any assignment to a *name* will still replace the old handle with
+the new one (unless, by chance, the *name* is merely getting assigned to
+the same variable it is pointing at).
+
+Since I can't think of a less confusing way to put it, I will
+just demonstrate in code by example.
 
 Immutable example (strings, integers, floats, bytes):
 
@@ -820,23 +914,44 @@ The output will be:
         ['not zero', 1, 2];
         ['not zero', 1, 2];
 
-Note:
+This mutability of lists and dictionaries is preferable in many cases
+(for example, when multiple methods of the same instance need to
+manipulate the same private data, a mutable closure is essential).
+But there are ways to make shallow copies.
 
-        Tuples and functions are 'immutable' in the sense
-        that write-access to their contents are forbidden.
+.. code-block:: js
 
-These variables are dynamically typed.  That is, if you declare ``x`` to
-be an integer and later assign the value ``"some string"`` to it, then it
-will now become a string.  This does not require you to re-declare the
-variable; doing so will result in an error if it is in scope.
+        let d1 = { 'a': 1, 'b': 2 };
+        let a1 = [ 'a', 'b', 'c' ];
 
+        // use .copy() for dictionary or just slicing for list
+        // to get a shallow copy of a1 and d1
+        let d2 = d1.copy();
+        let a2 = a1[:];
+
+        // these will not affect d1 or a1
+        d2.a = 'not 1';
+        a2[0] = 'z';
+
+All *names* in EvilCandy are dynamically typed.  That is, if you declare
+``x`` to be an integer and later assign the value ``"some string"`` to
+it, then it will now become a string.  This does not require you to
+re-declare the variable; doing so will result in an error if it is in
+scope.
 
 Integers and Floats
 -------------------
 
 All integers are stored as *signed* 64-bit values.
+The highest positive integer that can be processed by EvilCandy
+is 9223372036854775807.  The lowest negative integer that can
+be processed by EvilCandy is -9223372036854775808.
+
 All floats are stored as IEEE-754 double-precision floating point
-numbers.
+numbers.  The largest-magnitude finite value of a float in EvilCandy
+is positive or negative 1.7976931348623157e+308.  The
+smallest-magnitude non-zero value is 2.2250738585072014e-308.
+
 The literal expression of integers and floats are discussed
 in `Numerical Tokens`_.
 
@@ -855,8 +970,9 @@ Lists and Tuples
 
 Lists are rudimentary forms of numerical arrays.  These are not
 efficient at managing large amounts of data.
-Use bytes for that.  (The implementation of a Matrix data type
-is in the "wishlist" section of my to-do list.)
+Use bytes for that.  (There is also a "floats" data type in
+development for manipulation of large arrays of numbers,
+such as for DSP or statistics.)
 
 Once created, lists may not be indexed outside of their bounds.
 Lists have a built-in method ``.append`` that may be used to
@@ -878,6 +994,22 @@ In the above example, ``3`` may be a variable or more complex expression,
 but it **must** evaluate to an integer.  It may not be floating point or
 string.
 
+Slices are also permitted, however the value will be another list, even
+if the resulting size is one:
+
+.. code-block:: js
+
+        let x = [1, 2, 3];
+        print(x[1]);
+        print(x[1:2]);
+
+will produce an output of:
+
+.. code::
+
+        2
+        [2]
+
 Declare a list containing multiple entries with commas between them,
 like so:
 
@@ -898,42 +1030,38 @@ Lists are mutable.  In the example:
         y[0] = 0;
 
 The last line will change the contents of ``x`` as well as ``y``.
+However, slices create new lists, so if you prefer that ``y`` receive
+a shallow copy of ``x``, you can do the following:
 
-Tuples are the same as lists in every way but two:
+.. code-block:: js
+
+        let x = [1, 2, 4];
+        let y = x[:];
+        y[0] = 0;
+
+Setting ``y[0]`` in this way will not affect ``x``.
+
+Tuples are the same as lists in every way but three:
 
 1. Tuples expressions use parentheses instead of square brackets.
+2. Tuples are immutable, while lists are not.
+3. Tuples cannot be expressed literally with a single value, or the
+   expression will be the value contained, not a tuple.  ``(1)``
+   will evaluate to the integer 1, not a tuple containing 1 [#]_
 
-   .. code-block:: js
-
-        let mytuple = (1, 3, 4);
-
-2. Tuples are immutable, while lists are not
-
-   .. code::
-
-        let mytuple = (1, 1, 2);
-        let mylist = [1, 1, 2];
-        mylist[0] = 0;          // this is ok
-        mytuple[0] = 0;         // this is not!
-
-   will result in an error:
-
-   .. code::
-
-        [EvilCandy] Runtime Error Cannot set attribute '0' of type tuple
+.. [#]  I'm working on a built-in function that can create a tuple
+        of any size.
 
 Dictionaries
 ------------
 
-Brief rant on terminology
-   A dictionary is referred to as an "object" in JavaScript.  There is a
-   good reason to keep that terminology, since EvilCandy's JavaScript-like
-   notation for dictionaries treats its members like class attributes.
-   This is the data class for building up user-defined object classes.
-   However, I chose the Python terminology, because calling one object an
-   "object" to distinguish it from other "objects" is just plain confusing.
-   Regardless of what you can do with it, this data type is an associative
-   array, nothing more.
+A dictionary is referred to as an "object" in JavaScript.  There are
+good reasons to keep that terminology, since EvilCandy's
+JavaScript-like notation for dictionaries treats its members like class
+attributes.  This is the data class for building up user-defined object
+classes.  However, I chose the Python terminology, because calling one
+object an "object" to distinguish it from other objects is just plain
+confusing.
 
 A dictionary is an associative array--an array where you may de-reference
 it by enumeration instead of by index number.
@@ -963,9 +1091,9 @@ Note the lack of a comma between the last attribute and the closing
 brace.  Unlike with most JavaScript interpreters, this is strictly
 enforced with EvilCandy.
 
-KEY_i may be either an identifier token or quoted text.  This could be
+A **key** may be either an identifier token or quoted text.  This could be
 useful if you want keys that have non-ASCII characters or characters
-that violate the rules of identifier tokens:
+that violate the rules of identifier tokens [#]_:
 
 .. code-block:: js
 
@@ -983,11 +1111,13 @@ Currently EvilCandy does not perform NFKC normalization on Unicode
 characters.
 Bytes expressions are not allowed for dictionary keys.
 
-VALUE_i may be any data type the user has access to.  Since these
+.. [#]
+        Currently keys may not be bytes objects, but that may change
+        in the future.
+
+A **value** may be any data type the user has access to.  Since these
 could be functions, dictionaries are useful for object-oriented
-programming.  A function that sets up a dictionary, possibly with
-closures for some of its fields, and then returns that dictionary,
-is basically a class constructor, just as in JavaScript.
+programming (see Classes_ below).
 
 While expressing dictionary literals, its values and keys need
 not be literals; they may be computed in runtime instead.  However,
@@ -1097,6 +1227,11 @@ Note:
         is simultaneously one of the best and one of the most annoying
         things about JavaScript which EvilCandy nevertheless imitates.)
 
+:TODO:
+        The remaining subsections for "Dictionaries" are out of date
+        and don't belong here anyway.  Move them to a section on
+        user-defined classes and rewrite them there.
+
 Dictionary Insertion Order
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1105,93 +1240,8 @@ accessed with numerical subscripts.  When iterating over the members
 of a dictionary, however, the iteration will be in alphabetical order
 of its keys.
 
-Is It a Class or a Dictionary?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-In a word...yes.
-
-It depends on what you want it to be. Dictionaries are the most mutable of
-EvilCandy's data types.  EvilCandy permits dot notation on dictionaries
-specifically for the purpose of making them be object classes, with a
-user-defined set of named methods and private data.
-
-Part of my motivation for imitating JavaScript's model of data types and
-tokens (as opposed to Python's or--god forbid--PHP's or Visual Basic's)
-is the beautiful elegance [#]_ with which JavaScript allows you to use
-dictionaries, closures, and lambdas to invent an object class without
-actually requiring a syntax dedicated to creating classes.  JavaScript's
-"class" notation is superfluous, and seems to mollycoddle programmers
-whose minds are locked into whatever paradigm their previous programming
-language taught them.
-
-But it comes with quirks, including some under-the-hood kluging to
-make sure ``this`` refers to the correct object (see next section).
-
-.. [#]
-        I do not extend that compliment to the unreadable and frankly
-        ugly conventions of JavaScript programming style.
-        Its name is ``i``, not ``ThisVariableIsAnIteratorInAForLoop``!
-
-Dictionary Inheritance: The Naïve Way
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Hand-copying one dictionary's functions to another dictionary is
-not advised.  Consider the following example:
-
-.. code-block:: js
-
-        let a = {
-                'b': function() { return this.len(); }
-        };
-        let c = {
-                'd': a.b,
-                'e': 'c has length of 2'
-        };
-        print(c.d());
-
-The output will be ``1``, not ``2``, because ``c.d`` will still print the
-length of ``a`` instead of ``c``.  Whenever a function (and only a function)
-is retrieved from a dictionary, it is put inside a wrapper (called a
-"method" in the code) that binds the function to its parent [#]_.  (This is
-a little misleading, because it means that in the case of ``x = object.key``,
-it will not actually be assigned the exact function stored in ``object.key``,
-but rather it will contain a small object pointing to the function and the
-dictionary both.  I tried to write the code so that it's functionally
-equivalent, as far as the high-level user is concerned.)
-
-Dictionaries have a built-in method called ``.purloin`` which re-claims
-contained methods as its own [#]_.
-
-.. code-block:: js
-
-        c.purloin('d');
-        print(a.b(), c.d());
-
-The output will now be appropriately ``1 2``.
-
-**Consider this method dangerous**.  What if ``a.b`` references
-``this.x`` where ``x`` is contained in ``a`` but not in ``c``?  What if
-``a.b`` is a built-in function for something that isn't a dictionary at
-all?  ``purloin`` should only be used when you know exactly what the
-"purloined" function is and does.  The only reason I added ``purloin`` at
-all is because I'm certain that down the road in some dark corner of the
-programming world, the better method for inheritance (next section) will
-not be sufficient.
-
-.. [#]
-        Low-level impementation note: Checks are done to prevent cyclic
-        reference should the method be re-inserted into the same object
-        that it's bound to.  In this case, the method will be destroyed
-        and plain unbound function will be inserted instead.  This is a
-        rare occasion, however, and the above example, which does not
-        involve cyclic reference, is more likely.
-
-.. [#]
-        Don't worry about ``a`` in this case, c.purloin() will
-        not affect ``a``'s contents.
-
-Dictionary Inheritance: The Better Way
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dictionary Union Operator
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The pipe character ``|`` acts as a union operator when its left and
 right values are both dictionaries.  In the case of
@@ -1202,7 +1252,7 @@ right values are both dictionaries.  In the case of
 
 ``c`` will be set to a dictionary that has all of ``a``'s contents as
 well as ``b``.  If there are any matching keys between the two, the
-right-hand side will take precedence.  Inheritance might look like:
+right-hand side will take precedence.  `Inheritance`_ might look like:
 
 .. code:: js
 
@@ -1219,19 +1269,6 @@ result, ``new_obj`` [#]_.
 
 This is also useful for selectively overriding default parameters (see
 the ``makebox`` example in `Function Definition Syntax`_ below).
-
-The ownership issue described in the previous section does not exist
-here, because a function is only bound to its owner when it is
-"gotten" from an object, such as when you type ``object.key`` (which
-puts a temporary variable on the stack) or ``x = object.key`` (which
-assigns the newly bound function ``key`` to ``x``).  The union operator
-bypasses that.
-
-Warning:
-        It may be tempting to use ``purloin`` here too, as a redundant
-        step, but don't.  If any of the base classes contain 'methods'
-        bound to some other object out there, it's probably for a good
-        reason.
 
 .. [#]
 
@@ -1259,6 +1296,7 @@ integer and strings return a single-character string.
         let mybytes  = b'hello';
         let mystring = 'hello';
         print(mybytes[0]);
+        print(mybytes[0:1]);
         print(mystring[0]);
 
 will output:
@@ -1266,13 +1304,14 @@ will output:
 .. code-block:: js
 
         104
+        b'h'
         h
 
 Bytes and strings are both immutable.  You may read a subscript but you
 may not assign a subscript.
 
-Functions
----------
+Function Data Types
+-------------------
 
 A function executes code and returns either a value or an empty variable.
 
@@ -1290,8 +1329,8 @@ to a variable:
 
         let foo = function() {...
 
-(More on this later when I get into the weeds of IIFE's, lambdas,
-closures, and the like...)
+(More on this `later <Functions_>`_ when I get into the weeds of
+IIFE's, lambdas, closures, and the like...)
 
 The ``typeof`` Builtin Function
 -------------------------------
@@ -1331,7 +1370,11 @@ Condition Testing
 
    *expr* OPERATOR *expr*
 
-2. Testing a single object for truthiness:
+2. Comparison using the ternary operators
+
+   *expr* ``?`` *expr* ``:`` *expr*
+
+3. Testing a single object for truthiness:
 
    *expr*
 
@@ -1357,6 +1400,7 @@ Operator Meaning
 >=       Greater than or equal to
 <        Less than
 >        Greater than
+``has``  Contains as an element
 ======== ========================
 
 If the two values are an integer and a float (in either order), then
@@ -1364,13 +1408,42 @@ the integer's floating point conversion will be used for the comparison.
 In all other occasions where the left and right values are **different
 types**, the result will be a string comparison of their type names.
 
+The **has** keyword is a special kind of binary operator.  The expression
+``a has b`` is true if ``b`` is an element contained by ``a`` [#]_.
+This keyword is for stored element only, not built-in attributes or
+properties of the class.
+``'abc' has 'ab'`` will be true but ``'abc' has 'rstrip'`` will be false.
+This can be used to prevent exceptions before dereferencing a dictionary
+in case the key is not found.
+
+.. code-block:: js
+
+        if (arg has 'sep')
+                sep = arg.sep;
+        else
+                sep = my_default_sep;
+
+However, there are far more efficient ways of doing this rather than
+using ``has``.  In cases of keyword-argument unpacking, use a dictionary
+union operator ``|`` to let users overrule a dictionary of defaults whose
+keys are certain to exist.  In cases where a key is considered
+non-optional or a missing key is considered an error, wrap the code in a
+``try``/``catch`` statement, so that the slow path occurs only when a
+dictionary's key is missing, and the normal path wastes no time with
+checking.
+
 Do not compare one object to ``true`` or ``false`` directly.  Instead,
-use the single-object method:
+use the single-object method.
+
+.. [#]
+
+        I would have used Python's ``in`` keyword, which is just the
+        same thing but with the object and subject swapped, but that
+        would encourage users to use the wrong format for ``for`` loops
+        and then get frustrated with the syntax errors.
 
 Testing a single object for truthiness
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-If a conditional test contains a single expression,
 
 Boolean expressions ``true`` and ``false`` are actually integer types.
 They are aliases for 1 and 0, respectively.  They were intended for
@@ -1382,7 +1455,7 @@ to 'true'?".
 
 The following conditions result in a variable evaluating to *true*:
 
-:FIXME: This table is what it **should** be, I need to update code (see to-do.txt)
+:FIXME: This table is what it **should** be, I need to update code (see `to-do <./to-do.txt>`_)
 
 **Table 7**
 
@@ -1391,7 +1464,7 @@ Type         Condition
 ============ ==================================================
 empty (null) false always
 integer      true if != 0
-float        true if not subnormal or != 0.0
+float        true if != 0.0
 list         true if its size is greater than zero
 bytes        true if its size is greater than zero
 tuple        true if its size is greater than zero
@@ -1642,8 +1715,8 @@ function--is still in scope:
                         let a = 2; // local a still in scope
                         ...
 
-Function Syntax
-===============
+Functions
+=========
 
 Function Definition Syntax
 --------------------------
@@ -1653,102 +1726,128 @@ Function definitions take the form::
         function(ARGS)
                 STATEMENT
 
-*statement* should have braces even if it's a single-line expression
-(it's just good practice), but EvilCandy does not enforce that.
+**statement** should be a block statement (ie. have braces) even if it's a
+single-line expression (it's just good practice), but EvilCandy does not
+enforce that.  **args** is a group of identifiers, delimited by commas,
+which will be used to identify the caller's parameters.
 
-*args* is a group of identifiers, delimited by commas, which will be
-used to identify the caller's parameters, e.g.:
+Unlike JavaScript, EvilCandy enforces mandatory argument passing, and
+will throw an ArgumentError exception if too many or too few arguments
+are passed.  However, there are a couple of exceptions:
 
-.. code-block:: js
-
-        function(x, y, z)
-
-An *optional argument* may be designated as::
-
-        ARG = DEFAULT
-
-where *default* is an expression that evaluates to a default value for
-the argument should one not be provided by the caller, e.g.:
+A function prototype may contain a 'starred' argument on the right:
 
 .. code-block:: js
 
-        let makebox = function(size, height, outline=false, fill=false);
+        let foo = function(a, b, *c) { ...
 
-This example is actually poor function design.  What if the caller wanted
-to override the default for ``fill`` but not for ``outline``?  These are
-not keyword arguments: **the order in which arguments are defined
-matters**, for optional arguments and mandatory arguments alike.  (For
-that reason, it makes no sense to place the optional arguments at the
-front of the argument list.) Better practice is to always have at most
-one default argument, which can substitute as a sort of keyword-arguments
-list, like this:
+``foo`` is, in this example, a *variadic* function.  Here ``a`` and ``b``
+are mandatory arguments.  ``c`` will be a list (whose size may be zero),
+containing any additional arguments the caller passed beyond ``a`` and
+``b``.
+
+A function prototype may contain a 'double-starred' argument on the
+right:
 
 .. code-block:: js
 
-        let makebox = function(size, height, useropts={}) {
+        let foo = function(a, b, **kw) { ...
+
+In this example, the caller again must explicitly pass arguments for
+``a`` and ``b``, but it may also pass keyword arguments, which will then
+be put into the dictionary ``kw``.  If no keywords were provided, ``kw``
+will be an empty dictionary.
+
+.. note::
+
+        This might change, since it's more efficient to pass 'null'
+        to functions if no keywords or surplus arguments were passed.
+
+Arguments must be defined in the following order, left to right:
+
+#. Mandatory arguments
+#. Argument for variadic functions
+#. Keyword arguments
+
+As a more full example, EvilCandy's ``print`` function would have
+the following prototype (except that it's actually a built-in C function):
+
+.. code-block:: js
+
+        global print = function(*args, **kw) { ...
+
+Since EvilCandy will throw an exception when de-referencing a dictionary
+with keys that do not exist, safely unpacking the keyword arguments can
+take a couple of forms:
+
+1. The clunky way:
+
+   .. code-block:: js
+
+        let makebox = function(size, height, **kw) {
+                let outline = false;
+                let fill    = false;
+                if (kw has 'outline')
+                        outline = kw.outline;
+                if (kw has 'fill')
+                        fill = kw.fill;
+                /* ...the rest of the function... */
+
+2. The elegant way:
+
+   .. code-block:: js
+
+        let makebox = function(size, height, **kw) {
                 let opts = {
                         /* default opts */
                         'outline': false,
                         'fill':    false,
-                } | useropts;
+                } | kw;
+                /*
+                 * Now we *know* that opts has outline and fill, which
+                 * are either the defaults or overwritten by kw.
+                 */
+                /* ...the rest of the function... */
 
-                /* ...the function def... */
-        };
-
-Here, ``size`` and ``height`` are required arguments.  The constructor
-function can also use ``opts.outline`` and ``opts.fill``, which are
-either from the caller or from the declared defaults if they were not
-provided.  (See `Dictionary Inheritance: The Better Way`_ above for how
-the ``|`` operator is used with dictionaries.)
-
-Caution!
-
-        Be aware that the caller could send any data type, not necessarily
-        the type defined as the default.  If the function does not want an
-        exception to be raised due to operators used on improper types, it
-        should check the argument's type itself.
+Although dictionaries are mutable, the union operator ``|`` does not
+actually affect the literal expression in the second example.  Instead
+it assigns a third dictionary to ``opts``, letting the intermediate
+"default" dictionary go out of scope by the completion of the statement.
+This--compared to an in-place operator--is not as inefficient as it may
+seem, and it causes fewer bugs.  Overall, it is quicker than the first
+example unless there are just one or two keyword arguments.
 
 Function Call Syntax
 --------------------
 
-The number of arguments provided must be at least as many as the number
-of parameters defined in the function definition up to the last mandatory
-argument defined--that is, the right-most parameter that does not have a
-default value.  No error will be thrown in the case of excess arguments,
-however it will result in wasted stack space.
-
-The arguments are not type-checked.  If the wrong type was provided to
-the function, that will likely be discovered soon enough while the
-function itself is executing.
-
-A function may not always return the same type.  For example, a file
-object's ``read`` method will return a string if it's in text mode
-or a bytes object if it's in binary mode.  If a caller ever gets into
-a state where it isn't sure which type to expect, it can use the
-``typeof`` builtin function to check it.
-
-Callable Dictionaries
----------------------
-
-A dictionary can be called like a function if it has an attribute
-named ``__callable__`` which evaluates to a function handle.
-
-For example, given the dictionary:
+Functions are called with the same order of arguments as the prototypes.
+For variadic functions, however, the additional arguments are passed in the same
+fashion as the mandatory arguments; you do not need to put them in a list.
+Using the ``foo = function(a, b, *c)`` example above, you could call
+``foo`` like this:
 
 .. code-block:: js
 
-        let mydict = {
-                a: 1,
-                b: 3,
-                __callable__: function () {
-                        foo(this.a, this.b);
-                }
-        };
+        foo(arg1, arg2, arg3, arg4, arg5, arg6);
 
-then a call to ``mydict()`` is equivalent to calling
-``mydict.__callable__()``.  The number and type of arguments for
-``__callable__`` may be entirely user-defined.  Note that this
-is a trivial example, however, and a simpler way is to use Closures_.
+``arg1`` and ``arg2`` will map to ``a``, while the remaining arguments
+will be put into a list (``arg3`` being at subscript zero) which will
+map to ``c``.
+
+All keyword arguments must be expressed to the right of any non-keyword
+arguments, but they may themselves be in any order.  They take a
+"KEY = VALUE" form. Given the ``makebox`` example above, you could call
+it like this:
+
+.. code-block:: js
+
+        makebox(my_size, my_height, outline=true);
+
+.. note::
+
+        Using an asterisk in function-call syntax to unload an array
+        onto the stack for argument passing is not yet supported, but
+        I intend to add that in the future.
 
 Lambda Functions
 ----------------
@@ -1830,10 +1929,7 @@ it is evaluated at the time of the function's creation, it can be
 unique for each instantiation (note that ``doubler`` and ``tripler``
 maintain their own values of ``n``).
 
-Implicit Closure Declaration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-To implicitly declare a closure, simply reference a variable in an
+To declare a closure, simply reference a variable in an
 ancestor function's scope, as in the ``multer`` example:
 
 .. code-block:: js
@@ -1855,48 +1951,241 @@ variable is global, then a closure will not be created.  In the example:
 Since ``n`` is global, a closure will not be created, and ``foo`` will
 not have unique access to its own instantiation of ``n``.
 
-Explicit Closure Declaration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Classes
+=======
 
-Closures may also be declared in a function's parameter heading with
-the syntax::
+EvilCandy has no explicit syntax for creating user-defined classes.
+But like JavaScript, it doesn't need to.  Part of my motivation for
+imitating JavaScript in the first place is the beautiful elegance [#]_
+with which JavaScript allows you to use
+dictionaries, closures, and lambdas to invent an object class without
+actually requiring a syntax dedicated to creating classes.  JavaScript's
+"class" notation is superfluous, and seems to mollycoddle programmers
+whose minds are locked into whatever paradigm their previous programming
+language taught them.
 
-        : NAME = VALUE
+.. [#]
+        I do not extend that compliment to the unreadable and frankly
+        ugly conventions of JavaScript programming style.
+        Its name is ``i``, not ``ThisVariableIsAnIteratorInAForLoop``!
 
-To use the ``multer`` example again:
+But it comes with quirks, including some under-the-hood kluging to
+make sure ``this`` refers to the correct object, as we'll see shortly.
+
+Class Constructor
+-----------------
+
+A typical class constructor is a function returning a dictionary.
 
 .. code-block:: js
 
-        let multer = function(n) {
-                return ``(x, :a=n) x * a``;
+        let TokenState = function(file) {
+                return {
+                        'file': file,
+                        'toks': [],
+                        'add': function(t) {
+                                /*
+                                 * along with code that
+                                 * verifies t of course...
+                                 */
+                                this.toks.append(t);
+                        }
+                };
         };
 
-Here, the ``a`` of ``:a=n`` is the name given to the parameter,
-and ``n`` is the value to set it to [#]_.
+Given this example, it may be useful for a string representation
+for token names.
 
-This is **not** an argument to the function!  Unlike with default
-arguments, this value cannot be overridden by a caller's own argument,
-nor does it shift the placement of the actual arguments.
-For the sake of readability, however, placing explicit closure
-declarations like this at the end of the parameter list is
-good practice.
+.. code-block:: js
+
+        /* ...inside the return dictionary... */
+        'names': { 'NUMBER', 'NAME', 'DELIMITER' },
+        'getname': function(t) {
+                if (t.type >= length(this.names))
+                        throw (TypeError, 'Invalid token');
+                return this.names[t.type];
+        }
+
+Class Private Data
+------------------
+
+In the above example, ``names`` is exposed to calling code, which
+may not be the class's intention.  A closure can be used to prevent
+users from changing ``names``.
+
+.. code-block:: js
+
+        let TokenState = function(file) {
+                let names = { 'NUMBER', 'NAME', 'DELIMITER' },
+                return {
+                        ...
+                        'getname': function(t) {
+                                ...
+                                return names[t.type];
+                        }
+                };
+        };
+
+Be careful, however, with closures.  The following will **not** work
+as intended:
+
+.. code-block:: js
+
+       let status = 0; // zero meaning no errors
+       return {
+                'getname': function(t) {
+                        if (t.type >= length(names)) {
+                                status = 1;
+                                throw (TypeError, 'Invalid token');
+                        }
+                        ...
+                },
+
+                /* Wrong!! This will always return 0! */
+                'getstatus': function() { return status; }
+                ...
+        }
+
+If any immutable types are intended to be manipulated by multiple
+functions in the same instantiation, use a mutable object, such as
+a list or dictionary, even if it is for just a single datum.
+(Lists are faster, but dictionaries are easier to program with.)
+
+.. code-block:: js
+
+        let priv = {
+                'status': 0,
+                /*
+                 * technically not necessary to put names here,
+                 * since it is also mutable (and probably being
+                 * treated as constant), but let's be consistent.
+                 */
+                'names': { 'NUMBER', 'NAME', 'DELIMITER' }
+        };
+
+        return {
+                'getname': function(t) {
+                        if (t.type >= length(priv.names)) {
+                                priv.status = 1;
+                                throw (TypeError, 'Invalid token');
+                        }
+                        ...
+                'getstatus': function() { return priv.status; }
+                ...
+        };
+
+Inheritance
+-----------
+
+Suppose you wish ``TokenState`` to inherit from a base class.
+The union operator can be used for that.
+
+.. code-block:: js
+
+        let TokenState = function(file, TokenBase) {
+                return TokenBase() | {
+                        /* ...all _our_ stuff here... */
+                        ...
+                };
+        };
+
+Here ``TokenBase()`` is a constructor function for some base class.
+The return value of ``TokenState`` will now contain all of the methods
+and public data of the return value of ``TokenBase()``.  It will also
+(at least in memory) contain the private data, but not in a way that
+can collide with ``TokenState()``'s private data, so long as
+``TokenBase()`` also declared its private data in the same careful way,
+using closures.
+
+Inheritance The Naïve (Wrong) Way
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Hand-copying one dictionary's functions to another dictionary is
+not advised.  Consider the following example:
+
+.. code-block:: js
+
+        let a = {
+                'b': function() { return this.len(); }
+        };
+        let c = {
+                'd': a.b,
+                'e': 'c has length of 2'
+        };
+        print(c.d());
+
+The output will be ``1``, not ``2``, because ``c.d`` will still print the
+length of ``a`` instead of ``c``.  (This is not the case when using the
+union operator ``|``, because the union operator internally bypasses the
+issue as follows...)
+
+This is the compromise EvilCandy has made under the hood to preclude the
+need for a ``class`` syntax: dictionaries are not pure dictionaries.
+When retrieving an item from a dictionary, EvilCandy (rather inelegantly)
+checks if the item is a function, and if it is, it puts the function inside
+a wrapper (called a "method" in the code) which binds the function to its
+parent dictionary [#]_ [#]_.  That makes the ``a.b`` de-reference a little
+deceitful, because in the above example, ``d`` is not being assigned
+directly with the actual ``b`` stored in ``a``.  I have tried to write the
+code so that it's functionally equivalent (think of it as getting ``b``
+along with some unasked-for TrueCoat).  It's a necessary measure, in order
+to ensure that a reference to ``this`` always points to the correct object.
+
+Dictionaries have a built-in method called ``.purloin`` which re-claims
+contained methods as its own [#]_.  If you follow up the above example
+with these two lines:
+
+.. code-block:: js
+
+        c.purloin('d');
+        print(a.b(), c.d());
+
+The output will now be appropriately ``1 2``.
+
+**Consider this method dangerous**.  What if ``a.b`` references
+``this.x`` where ``x`` is contained in ``a`` but not in ``c``?  What if
+``a.b`` is a built-in function for something that isn't a dictionary at
+all?  What if ``b`` has a closure created from ``a``'s constructor?
+``purloin`` should only be used when you know exactly what the
+"purloined" function is and does.
+It may be tempting to use ``purloin`` in tandem with the union operator,
+as a redundant step, but don't.  If any of the base classes contain
+'methods' bound to some other object out there, it's probably for a good
+reason.  The only reason I added ``purloin`` at
+all is because I'm certain that down the road in some dark corner of the
+programming world, the previously-discussed better method for inheritance
+will not be sufficient.
+
 
 .. [#]
-        Since it will be in a new scope, you could also reuse the
-        name n for consistency, thus the declaration would be
-        ``:n=n``.  I renamed it ``a`` in the example to be clearer
-        what's going on.
+        This practice has an unfortunate side-effect in that it extends
+        the lifespan of the dictionary to last as long as the function
+        retrieved from it.  That's absolutely necessary if the function
+        uses the ``this`` keyword, but it's a waste of RAM if the
+        function does not.  EvilCandy makes the assumption that you will
+        more often than not put functions in dictionaries because you
+        intend to use them as object methods.
 
-Explicit closure declarations are a consequence of early development
-when I had the stupid idea of making strings be mutable objects which
-could be duplicated with a call to a built-in ``.copy`` method.  This
-causes a nuance where the ``.copy`` call would in one case be called
-when the closure is created and in another case be called each time
-the function containing the closure is called.  But since then,
-strings are now immutable, so explicit closures hardly matter.
+.. [#]
+        Low-level impementation note: Checks are done to prevent cyclic
+        reference should the method be re-inserted into the same object
+        that it's bound to.  In this case, the method will be destroyed
+        and plain unbound function will be inserted instead.  This is a
+        rare occasion, however, and the above example, which does not
+        involve cyclic reference, is more likely.
+
+.. [#]
+        Don't worry about ``a`` in this case, c.purloin() will
+        not affect ``a``'s contents.  It will improve memory, because
+        it allows ``a`` to be garbage collected.
+
+
 
 Importing Modules
 =================
+
+Exception Handling
+==================
 
 Interactive Mode
 ================

@@ -47,7 +47,7 @@ struct var_t {
  *              which is the typedef's fixed allocation size in bytes.)
  *
  * IMPORTANT!
- *      See typedef.h - If a type's struct type_t has either of its
+ *      See objtypes.h - If a type's struct type_t has either of its
  *      .sqm or .mpm fields set, then:
  *        1. it MUST embed this struct at the top of its internal-use
  *           struct instead of just Object.
@@ -108,8 +108,6 @@ extern bool var_any(Object *v, enum result_t *status);
 extern Object *var_min(Object *v);
 extern Object *var_max(Object *v);
 extern Object *var_lnot(Object *v);
-extern const char *typestr(Object *v);
-extern const char *typestr_(int magic);
 /* common hashtable callback for var-storing hashtables */
 extern void var_bucket_delete(void *data);
 /* note: v only evaluated once in VAR_*_REF() */

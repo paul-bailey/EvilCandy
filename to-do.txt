@@ -8,6 +8,10 @@ Bugs
 Must Do
 -------
 
+* Make sure all built-in types have a .cmpz method.
+
+* Make sure all .cmpz methods match documentation.
+
 * Interactive mode problem: token state machine is created and destroyed
   by a wrapping call from assemble().  So if it's interactive mode and
   someone types "a = 1; b = 2;" all on the same line, the first part

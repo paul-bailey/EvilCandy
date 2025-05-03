@@ -435,7 +435,7 @@ EvilCandy uses the following operators:
 +---------+-------------------------+
 | ``:``   |                         |
 +---------+-------------------------+
-| *Assignment Operators* [#]_       |
+| *Assignment Operators*            |
 +---------+-------------------------+
 | ``=``   | res = rval              |
 +---------+-------------------------+
@@ -474,12 +474,6 @@ EvilCandy uses the following operators:
        is true and ``b`` if ``y`` is false.  Currently, however, both
        ``a`` and ``b`` will be evaluated, so do not use this if there
        are side effects.
-
-.. [#] In-place assignment operators (ie. ``+=`` instead of just ``=``
-       are currently only permitted for primary variables, not their
-       elements.  ``x += 2;`` is permitted, but not ``x.y += 2;``.  In the
-       latter case, you need to express ``x.y = x.y + 2;``.
-
 
 Expressions and statements
 --------------------------
@@ -1145,9 +1139,11 @@ will output
 Note:
 
         Although this makes it possible to runtime-generate keys, for
-        example you could express an entry as ``[k1+k2]: val``,
-        this may affect speed due to the increased probability of
-        repetitive hash calculating on later dictionary lookups.
+        example you could express an entry as ``[k1+k2]: val``, this may
+        adversely affect performance, due to the increased frequency of
+        newly-created strings being used for dictionary lookups.  Since
+        strings are immutable, their hash is calculated at most one time
+        during their lifetime; this greatly speeds up future lookups.
 
 
 Adding Dictionary Attributes
@@ -1207,30 +1203,20 @@ an entry unless it already exists.
         let y = a.b;    // invalid! You will receive an error.
 
 To be sure a dictionary has an entry before accessing it,
-use the dictionary's built-in ``.hasattr`` method.
+use the ``has`` keyword.
 
 .. code-block:: js
 
         let y;
-        if (a.hasattr('b')) {
+        if (a has 'b') {
                 y = a.b;
         } else {
                 // do some error handling
                 ;
         }
 
-Note:
-
-        See rant above.  EvilCandy does not distinguish between an object
-        class's built-in attributes and a dictionary's entries.  Compare
-        this to Python's distinct ``hasattr`` and ``in`` keywords.  This
-        is simultaneously one of the best and one of the most annoying
-        things about JavaScript which EvilCandy nevertheless imitates.)
-
-:TODO:
-        The remaining subsections for "Dictionaries" are out of date
-        and don't belong here anyway.  Move them to a section on
-        user-defined classes and rewrite them there.
+But as noted `elsewhere <has_keyword_>`_, there are more efficient ways to
+do this than using ``has``.
 
 Dictionary Insertion Order
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1408,6 +1394,8 @@ the integer's floating point conversion will be used for the comparison.
 In all other occasions where the left and right values are **different
 types**, the result will be a string comparison of their type names.
 
+.. _has_keyword:
+
 The **has** keyword is a special kind of binary operator.  The expression
 ``a has b`` is true if ``b`` is an element contained by ``a`` [#]_.
 This keyword is for stored element only, not built-in attributes or
@@ -1422,6 +1410,7 @@ in case the key is not found.
                 sep = arg.sep;
         else
                 sep = my_default_sep;
+
 
 However, there are far more efficient ways of doing this rather than
 using ``has``.  In cases of keyword-argument unpacking, use a dictionary
@@ -1605,7 +1594,7 @@ you.  This is based on Python's range object.  As with Python, a
 but rather they are retrieved algorithmically upon request; considering
 that only three parameters (start, stop, and step) constitute all the
 necessary computation, this is actually faster in EvilCandy than its C-style for loop.
-the built-in ``range()`` function takes 1 to three arguments, all integers.
+The built-in ``range()`` function takes 1 to three arguments, all integers.
 The prototype is:
 
 .. code::
@@ -1667,8 +1656,8 @@ surrounded by braces ``{`` and ``}``, or if it is inside a program flow
 statement like a ``for`` loop, any automatic variables declared in that
 scope will be visible only until program flow leaves that scope.  The
 code in these blocks still have full access to their functions' local
-variables also in scope--they have not become closures--so new variables
-still may not violate he namespace.
+variables also in scope--they have not become closures--so these new
+variable declarations must still not violate the namespace.
 
 In the following example, ``x`` is only visible inside the ``if`` statement.
 
@@ -1726,9 +1715,9 @@ Function definitions take the form::
         function(ARGS)
                 STATEMENT
 
-**statement** should be a block statement (ie. have braces) even if it's a
+**Statement** should be a block statement (ie. have braces) even if it's a
 single-line expression (it's just good practice), but EvilCandy does not
-enforce that.  **args** is a group of identifiers, delimited by commas,
+enforce that.  **Args** is a group of identifiers, delimited by commas,
 which will be used to identify the caller's parameters.
 
 Unlike JavaScript, EvilCandy enforces mandatory argument passing, and
@@ -1830,9 +1819,9 @@ Using the ``foo = function(a, b, *c)`` example above, you could call
 
         foo(arg1, arg2, arg3, arg4, arg5, arg6);
 
-``arg1`` and ``arg2`` will map to ``a``, while the remaining arguments
-will be put into a list (``arg3`` being at subscript zero) which will
-map to ``c``.
+``arg1`` and ``arg2`` will map to ``a`` and ``b`` respectively, while the
+remaining arguments will be put into a list (``arg3`` being at subscript
+zero) which will map to ``c``.
 
 All keyword arguments must be expressed to the right of any non-keyword
 arguments, but they may themselves be in any order.  They take a

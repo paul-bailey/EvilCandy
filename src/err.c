@@ -192,7 +192,8 @@ invalid:
 }
 
 /*
- * If *msg is non-NULL, calling code is responsible for calling free().
+ * Calling code is responsible for consuming reference on return value
+ * when their done with it.
  */
 Object *
 err_get(void)

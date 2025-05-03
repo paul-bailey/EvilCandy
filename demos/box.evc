@@ -112,7 +112,7 @@ let Box = function(**kwargs) {
         for (i, range(priv.padbottom))
             print(topbottom);
         print(maxwidth * borderchar);
-        priv.count = priv.count + 1;
+        priv.count++;
     };
 
     let box_count = ``() priv.count``;

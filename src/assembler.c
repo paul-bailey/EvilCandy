@@ -43,7 +43,6 @@ enum {
         FE_TOP          = 0x04
 };
 
-/* TODO: define instr_t and use sizeof() here */
 #define INSTR_SIZE      sizeof(instruction_t)
 #define DATA_ALIGN_SIZE 8
 
@@ -106,7 +105,7 @@ enum {
  * be thrown away when we're done, leaving only @x remaining.
  *
  * One of these frames is allocated for each function, and one for the
- * top-levle script.  Internal scope (if, while, anything in a {...}
+ * top-level script.  Internal scope (if, while, anything in a {...}
  * block) is managed by scope[].
  */
 struct as_frame_t {
@@ -457,11 +456,8 @@ as_next_label(struct assemble_t *a)
 static int
 seek_or_add_const_xptr(struct assemble_t *a, struct xptrvar_t *p)
 {
-        return xptr_add_rodata((Object *)a->fr->x,
-                               (Object *)p);
+        return xptr_add_rodata((Object *)a->fr->x, (Object *)p);
 }
-
-/* completes seek_or_add_const/seek_or..._int */
 
 /* const from a token literal in the script */
 static int
@@ -489,8 +485,7 @@ ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 static void
 ainstr_load_const_int(struct assemble_t *a, long long ival)
 {
-        int idx = xptr_add_rodata((Object *)a->fr->x,
-                                  intvar_new(ival));
+        int idx = xptr_add_rodata((Object *)a->fr->x, intvar_new(ival));
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
@@ -847,8 +842,10 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
 
 /*
  * ainstr_load_or_assign - common to ainstr_load_symbol and ainstr_assign
- * @instr: either INSTR_LOAD, INSTR_INCR, INSTR_DECR, or INSTR_ASSIGN(_XXX)
  * @name:  name of symbol, token assumed to be saved from a->oc already.
+ * @instr: either INSTR_LOAD, or INSTR_ASSIGN
+ * @pos:   Saved token position when saving name; needed to maybe pass to
+ *         seek_or_add const
  */
 static void
 ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
@@ -936,7 +933,7 @@ assemble_call_func(struct assemble_t *a)
 
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
 
-        /* stack from top is: argn...arg1, arg0, func */
+        /* stack from top is: [kw], argn...arg1, arg0, func */
         add_instr(a, INSTR_CALL_FUNC,
                   kwind >= 0 ? IARG_HAVE_DICT : IARG_NO_DICT, argc);
 }
@@ -1001,10 +998,6 @@ assemble_expr_atomic(struct assemble_t *a)
 static void
 assemble_expr8(struct assemble_t *a)
 {
-#define GETATTR_SHIFT(arg1, arg2) do {                  \
-        add_instr(a, INSTR_GETATTR, arg1, arg2);        \
-} while (0)
-
         assemble_expr_atomic(a);
 
         while (istok_indirection(a->oc->t)) {
@@ -1012,7 +1005,7 @@ assemble_expr8(struct assemble_t *a)
                 case OC_PER:
                         as_errlex(a, OC_IDENTIFIER);
                         ainstr_load_const(a, a->oc);
-                        GETATTR_SHIFT(0, 0);
+                        add_instr(a, INSTR_GETATTR, 0, 0);
                         break;
 
                 case OC_LBRACK:
@@ -1027,7 +1020,7 @@ assemble_expr8(struct assemble_t *a)
                                 if (as_lex(a) == OC_RBRACK) {
                                         as_unlex(a);
                                         ainstr_load_const(a, a->oc);
-                                        GETATTR_SHIFT(0, 0);
+                                        add_instr(a, INSTR_GETATTR, 0, 0);
                                         break;
                                 }
                                 as_unlex(a);
@@ -1039,7 +1032,7 @@ assemble_expr8(struct assemble_t *a)
                                 /* need to evaluate index */
                                 as_unlex(a);
                                 assemble_slice(a);
-                                GETATTR_SHIFT(0, 0);
+                                add_instr(a, INSTR_GETATTR, 0, 0);
                                 break;
                         }
                         as_errlex(a, OC_RBRACK);
@@ -1054,8 +1047,6 @@ assemble_expr8(struct assemble_t *a)
                 }
                 as_lex(a);
         }
-
-#undef GETATTR_SHIFT
 }
 
 static void
@@ -1333,6 +1324,29 @@ assemble_preassign(struct assemble_t *a, int t)
         }
 }
 
+/*
+ * Helper to assemble_ident_helper
+ * return value of true means "done, return zero"
+ * false means "carry on"
+ */
+static int
+setattr_if_assign(struct assemble_t *a)
+{
+        int t = as_lex(a);
+        if (istok_assign(t)) {
+                if (t == OC_EQ) {
+                        assemble_expr(a);
+                } else {
+                        add_instr(a, INSTR_LOADATTR, 0, 0);
+                        assemble_preassign(a, t);
+                }
+                add_instr(a, INSTR_SETATTR, 0, 0);
+                return 1;
+        }
+        as_unlex(a);
+        return 0;
+}
+
 /* FIXME: huge DRY violation w/ eval8 */
 /*
  * TODO: mild lift, but this should be wrapped within the eval
@@ -1341,7 +1355,7 @@ assemble_preassign(struct assemble_t *a, int t)
  * "x".  But as-is, there is no 'value' for "x = y;", and we
  * do not even 'evaluate' until after the '='.
  */
-/* return 1 if evaluated item dangling on the stack, 0 if not */
+/* return 1 if an evaluated item is dangling on the stack, 0 if not */
 static int
 assemble_ident_helper(struct assemble_t *a)
 {
@@ -1352,50 +1366,13 @@ assemble_ident_helper(struct assemble_t *a)
         for (;;) {
                 struct token_t name;
 
-                /*
-                 * These macros sorta bury the program flow, but the code
-                 * is repetitive and barely readable anyway.  I could
-                 * probably simplify it greatly with some recursion, but
-                 * we've recursion enough.
-                 */
-#define GETATTR_SHIFT(arg1, arg2)                                       \
-                do {                                                    \
-                        as_unlex(a);                                    \
-                        add_instr(a, INSTR_GETATTR, arg1, arg2);        \
-                } while (0)
-
-#define SETATTR_SHIFT(arg1, arg2)                                       \
-                do {                                                    \
-                        if (t_ == OC_EQ) {                              \
-                                assemble_expr(a);                       \
-                        } else {                                        \
-                                err_setstr(NotImplementedError,         \
-                                       "In-place assignment for primary elements not yet supported"); \
-                                as_err(a, AE_GEN);                      \
-                        }                                               \
-                        add_instr(a, INSTR_SETATTR, arg1, arg2);        \
-                } while (0)
-
-#define SETATTR_SHIFT_IF_ASGN(arg1, arg2)                               \
-                do {                                                    \
-                        int t_ = as_lex(a);                             \
-                        if (istok_assign(t_)) {                         \
-                                SETATTR_SHIFT(arg1, arg2);              \
-                                return 0;                               \
-                        }                                               \
-                } while (0)
-
-#define GETSETATTR_SHIFT(arg1, arg2)                            \
-                do {                                            \
-                        SETATTR_SHIFT_IF_ASGN(arg1, arg2);      \
-                        GETATTR_SHIFT(arg1, arg2);              \
-                } while (0)
-
                 switch (a->oc->t) {
                 case OC_PER:
                         as_errlex(a, OC_IDENTIFIER);
                         ainstr_load_const(a, a->oc);
-                        GETSETATTR_SHIFT(0, 0);
+                        if (setattr_if_assign(a))
+                                return 0;
+                        add_instr(a, INSTR_GETATTR, 0, 0);
                         break;
 
                 case OC_LBRACK:
@@ -1420,7 +1397,9 @@ assemble_ident_helper(struct assemble_t *a)
                                 if (as_lex(a) == OC_RBRACK) {
                                         /* ...the 99% scenario */
                                         ainstr_load_const(a, &name);
-                                        GETSETATTR_SHIFT(0, 0);
+                                        if (setattr_if_assign(a))
+                                                return 0;
+                                        add_instr(a, INSTR_GETATTR, 0, 0);
                                         as_unlex(a);
                                         break;
                                 }
@@ -1435,10 +1414,11 @@ assemble_ident_helper(struct assemble_t *a)
                                 as_unlex(a);
                                 assemble_slice(a);
                                 if (as_lex(a) == OC_RBRACK) {
-                                        SETATTR_SHIFT_IF_ASGN(0, 0);
+                                        if (setattr_if_assign(a))
+                                                return 0;
                                         as_unlex(a);
                                 }
-                                GETATTR_SHIFT(0, 0);
+                                add_instr(a, INSTR_GETATTR, 0, 0);
                                 break;
                         }
                         as_errlex(a, OC_RBRACK);
@@ -1462,10 +1442,6 @@ assemble_ident_helper(struct assemble_t *a)
                 as_lex(a);
         }
         return 0;
-#undef GETATTR_SHIFT
-#undef SETATTR_SHIFT
-#undef SETATTR_SHIFT_IF_ASGN
-#undef GETSETATTR_SHIFT
 }
 
 /* return 1 if item left on the stack, 0 if not */

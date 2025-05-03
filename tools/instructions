@@ -91,7 +91,7 @@ DEFDICT
 DEFTUPLE
 
 ##
-#   GET/SETATTR
+#   GET/SET/LOADATTR
 #
 # GETATTR pops the key off the stack, pops the containing object off the
 # stack, gets the subscript or mapped item out of the containing object.
@@ -99,8 +99,13 @@ DEFTUPLE
 # SETATTR pops the item (the 'attribute') off the stack, pops the key off
 # the tack, pops the soon-to-be-containing object off the stack, inserts
 # the item into the containing object.  Nothing is pushed back on.
+#
+# LOADATTR is like GETATTR, except that it keeps the parent object and
+# key on the stack, pushing the item on top of it.  For cases where
+# item is both the operand and something getting assigned, eg. '+='
 GETATTR
 SETATTR
+LOADATTR
 
 ##
 #   'for' loop stuff

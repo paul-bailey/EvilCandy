@@ -67,9 +67,6 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
-* (requires parser rewrite) Support in-place assignment operators
-  (eg. '++', '+=', instead of just '=') for primary elements.
-
 * (requires parser rewrite) Optimize parsing of complex-number
   expressions like '2 + 2j' so that they evaluate to a single complex
   number at compile time instead of runtime.

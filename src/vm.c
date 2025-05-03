@@ -662,6 +662,28 @@ do_getattr(Frame *fr, instruction_t ii)
 }
 
 static int
+do_loadattr(Frame *fr, instruction_t ii)
+{
+        Object *attr, *key, *obj;
+
+        key = pop(fr);
+        obj = pop(fr);
+        attr = var_getattr(obj, key);
+        if (attr == ErrorVar) {
+                if (!err_occurred())
+                        err_attribute("load", key, obj);
+                VAR_DECR_REF(key);
+                VAR_DECR_REF(obj);
+                return RES_ERROR;
+        }
+
+        push(fr, obj);
+        push(fr, key);
+        push(fr, attr);
+        return RES_OK;
+}
+
+static int
 do_foreach_setup(Frame *fr, instruction_t ii)
 {
         /*

@@ -5,9 +5,9 @@
 #include <evilcandy.h>
 
 /*
- * Return true if @a and @b are both numerical types.
- * If @a is an integer and @b is a float, swap them, so that the floating
- * point operations are used whenever one of two numbers are floats.
+ * Return proper methods if @a and @b are both numerical types.
+ * return NULL otherwise.
+ * Precedence is (high to low) complex, float, integer.
  */
 static const struct operator_methods_t *
 get_binop_method(Object *a, Object *b)
@@ -18,10 +18,6 @@ get_binop_method(Object *a, Object *b)
         if (at->opm == NULL || bt->opm == NULL)
                 return NULL;
 
-        /*
-         * XXX Almost pointless to have a .opm field since low-level
-         * knowledge of the types is needed anyway.
-         */
         if (at == &ComplexType)
                 return at->opm;
         if (bt == &ComplexType)
@@ -33,8 +29,8 @@ get_binop_method(Object *a, Object *b)
 }
 
 /*
- * used for operations where left and right values absolutely
- * must be an integer or a float.
+ * For operations where left and right values absolutely must be a number.
+ * (Some of these operators, however, have non-numerical meaning.)
  */
 #define BINARY_OP_BASIC_FUNC(Field, What)               \
 Object *                                                \

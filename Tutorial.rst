@@ -495,43 +495,32 @@ Valid statements are:
 
 Declaration
      ``let`` | ``global`` *identifier* [``=`` *expr*]
-
 Assignment
      *identifier* | *expr* ``=`` *expr*
-
 Expression [#]_
      *expr*
-
 Program flow
      ``if (`` *expr* ``)`` *stmt* [``else`` *stmt*]
-
 Program flow
      ``while (`` *expr* ``)`` *stmt*
-
 Program flow
      ``do`` *stmt* ``while (`` *expr* ``)``
-
 Program flow
      ``for (`` *stmt* ... ``)`` *stmt* [``else`` *stmt*]
-
 Return
      ``return`` [*expr*]
-
 Break
      ``break``
-
 Continue
      ``continue``
-
 Throw Exception
      ``throw`` *expr*
-
 Handle Exception
      ``try`` *stmt*
      ``catch (`` *identifier* ``)`` *stmt*
      [``finally`` *stmt*]
-
-Nothing [#]_
+Nothing
+     *nothing* [#]_
 
 .. === ======================== ===================================================
 .. 1.  Declaration              ``let`` | ``global`` *identifier* [``=`` *expr*]
@@ -586,6 +575,20 @@ single variable". Some examples:
 .. code-block:: js
 
         { 'a': 1, 'b': 2 }
+
+With the single exception of a function call, expressions may not
+have side effects.  A statement like ``item = arr[i++];`` is **not**
+permitted.  Instead you must put the increment operation on a separate
+line, like:
+
+.. code-block:: js
+
+        item = arr[i];
+        i++;
+
+The full statement ``i++;`` permitted because it is not regarded as an
+expression. Intead, it's regarded as a convenient abbreviation for the
+assignment statement: ``i = i + 1``.
 
 Some expressions are not permitted at the beginning of a statement.
 A dictionary literal will be interpreted as the start of a block statement

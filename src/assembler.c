@@ -34,7 +34,8 @@
  * @FE_FOR: We're in that middle part of a for loop between two
  *          semicolons.  Only used by assembler.
  * @FE_CONTINUE: We're the start of a loop where 'continue' may
- *          break us out of.
+ *          break us out.
+ * @FE_TOP: We're the top-level statement in interactive mode.
  * There used to be more, but they went obsolete.
  */
 enum {
@@ -155,6 +156,9 @@ struct assemble_t {
 static void assemble_expr(struct assemble_t *a);
 static void assemble_stmt(struct assemble_t *a, unsigned int flags,
                           int continueto);
+static void assemble_expr5_atomic(struct assemble_t *a);
+static int assemble_primary_elements(struct assemble_t *a,
+                                     bool may_assign);
 
 /*
  * See comments above get_tok().
@@ -276,27 +280,6 @@ as_frame_pop(struct assemble_t *a)
         a->fr = list2frame(prev);
 }
 
-/* if err, delete executable too, all that work for nothing */
-static void
-as_delete_frame_list(struct list_t *parent_list, int err)
-{
-        struct list_t *li, *tmp;
-        list_foreach_safe(li, tmp, parent_list) {
-                struct as_frame_t *fr = list2frame(li);
-                list_remove(&fr->list);
-                if (err && fr->x)
-                        VAR_DECR_REF((Object *)fr->x);
-                efree(fr);
-        }
-}
-
-static void
-as_delete_frames(struct assemble_t *a, int err)
-{
-        as_delete_frame_list(&a->active_frames, err);
-        as_delete_frame_list(&a->finished_frames, err);
-}
-
 static void
 as_unlex(struct assemble_t *a)
 {
@@ -317,7 +300,6 @@ as_errlex(struct assemble_t *a, int exp)
 {
         as_lex(a);
         if (a->oc->t != exp) {
-                /* TODO: replace 'exp' with a string representation */
                 err_setstr(SyntaxError,
                            "expected '%s' but got '%s' ('%s')",
                            token_name(exp), token_name(a->oc->t), a->oc->s);
@@ -406,27 +388,6 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
         xptr_add_instr((Object *)a->fr->x, ii);
 }
 
-static void
-apush_scope(struct assemble_t *a)
-{
-        struct as_frame_t *fr = a->fr;
-        if (fr->nest >= FRAME_NEST_MAX)
-                as_err(a, AE_OVERFLOW);
-        fr->scope[fr->nest++] = fr->fp;
-        fr->fp = fr->sp;
-}
-
-static void
-apop_scope(struct assemble_t *a)
-{
-        /* Don't add the instructions, that's implicit in POP_BLOCK */
-        bug_on(a->fr->nest <= 0);
-        while (a->fr->sp > a->fr->fp)
-                a->fr->sp--;
-        a->fr->nest--;
-        a->fr->fp = a->fr->scope[a->fr->nest];
-}
-
 /*
  * The assumption here is:
  *      1. @jmp is a return value from a prev. call to as_next_label
@@ -489,6 +450,29 @@ ainstr_load_const_int(struct assemble_t *a, long long ival)
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
+static void
+ainstr_push_block(struct assemble_t *a, int arg1, int arg2)
+{
+        struct as_frame_t *fr = a->fr;
+        if (fr->nest >= FRAME_NEST_MAX)
+                as_err(a, AE_OVERFLOW);
+        fr->scope[fr->nest++] = fr->fp;
+        fr->fp = fr->sp;
+        add_instr(a, INSTR_PUSH_BLOCK, arg1, arg2);
+}
+
+static void
+ainstr_pop_block(struct assemble_t *a)
+{
+        /* Don't add the instructions, that's implicit in POP_BLOCK */
+        bug_on(a->fr->nest <= 0);
+        while (a->fr->sp > a->fr->fp)
+                a->fr->sp--;
+        a->fr->nest--;
+        a->fr->fp = a->fr->scope[a->fr->nest];
+        add_instr(a, INSTR_POP_BLOCK, 0, 0);
+}
+
 /*
  * Make sure our assembler SP matches what the VM will see,
  * so instruction args that de-reference stack variables will
@@ -530,10 +514,6 @@ redef:
 static void
 assemble_slice(struct assemble_t *a)
 {
-        /*
-         * This could become an argument if I expand the ways to
-         * express a slice.
-         */
         int endmarker = OC_RBRACK;
         int i;
 
@@ -785,8 +765,6 @@ skip:
         add_instr(a, INSTR_DEFDICT, 0, count);
 }
 
-static void assemble_expr_atomic(struct assemble_t *a);
-
 /*
  * helper to ainstr_load_symbol, @name is not in local namespace,
  * check enclosing function before resorting to IARG_PTR_SEEK
@@ -803,7 +781,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
          *
          * FIXME: Note the recursive nature of this.  If the variable
          * is not in the parent scope either, the call to
-         * assemble_expr_atomic will call us again for the grandparent,
+         * assemble_expr5_atomic will call us again for the grandparent,
          * and so on until the highest-level scope that is still inside
          * a function.  That means if the closure is in, say, a great-
          * grandparent, and the parent/grandparent scopes don't use it,
@@ -821,7 +799,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
             clo_seek(a, name) >= 0)  {
 
                 pos = as_swap_pos(a, pos);
-                assemble_expr_atomic(a);
+                assemble_expr5_atomic(a);
                 as_swap_pos(a, pos);
 
                 /* back to identifier */
@@ -841,7 +819,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
 }
 
 /*
- * ainstr_load_or_assign - common to ainstr_load_symbol and ainstr_assign
+ * ainstr_load_or_assign - common to ainstr_load_symbol and ainstr_assign_symbol
  * @name:  name of symbol, token assumed to be saved from a->oc already.
  * @instr: either INSTR_LOAD, or INSTR_ASSIGN
  * @pos:   Saved token position when saving name; needed to maybe pass to
@@ -877,6 +855,12 @@ static void
 ainstr_load_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
 {
         ainstr_load_or_assign(a, name, INSTR_LOAD, pos);
+}
+
+static void
+ainstr_assign_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
+{
+        ainstr_load_or_assign(a, name, INSTR_ASSIGN, pos);
 }
 
 static void
@@ -939,7 +923,7 @@ assemble_call_func(struct assemble_t *a)
 }
 
 static void
-assemble_expr_atomic(struct assemble_t *a)
+assemble_expr5_atomic(struct assemble_t *a)
 {
         switch (a->oc->t) {
         case OC_IDENTIFIER: {
@@ -994,18 +978,16 @@ assemble_expr_atomic(struct assemble_t *a)
         as_lex(a);
 }
 
-static int assemble_primary_elements(struct assemble_t *a, bool may_assign);
-
 /* Check for indirection: things like a.b, a['b'], a[b], a(b)... */
 static void
-assemble_expr8(struct assemble_t *a)
+assemble_expr4_elems(struct assemble_t *a)
 {
-        assemble_expr_atomic(a);
+        assemble_expr5_atomic(a);
         assemble_primary_elements(a, false);
 }
 
 static void
-assemble_expr7(struct assemble_t *a)
+assemble_expr3_unarypre(struct assemble_t *a)
 {
         if (istok_unarypre(a->oc->t)) {
                 int op, t = a->oc->t;
@@ -1019,205 +1001,164 @@ assemble_expr7(struct assemble_t *a)
                         op = -1;
 
                 as_lex(a);
-                assemble_expr8(a);
+                assemble_expr4_elems(a);
 
                 if (op >= 0)
                         add_instr(a, op, 0, 0);
         } else {
-                assemble_expr8(a);
+                assemble_expr4_elems(a);
         }
 }
 
-/* awk...ward! Added this late in the game */
+/* terminate array of these with .tok = -1 */
+struct token_to_opcode_t {
+        int tok;
+        int opcode;
+};
+
+struct operator_state_t {
+        const struct token_to_opcode_t *toktbl;
+        bool loop;
+        int opcode; /* >= zero means "toktbl->opcode is arg1" */
+};
+
+/* Helper to assemble_expr2_binary - the recursive part */
 static void
-assemble_expr6_2(struct assemble_t *a)
+assemble_binary_operators_r(struct assemble_t *a,
+                            const struct operator_state_t *tbl)
 {
-        assemble_expr7(a);
-        while (a->oc->t == OC_POW) {
-                as_lex(a);
-                assemble_expr7(a);
-                add_instr(a, INSTR_POW, 0, 0);
+        if (tbl->toktbl == NULL) {
+                /* carry on to unarypre and atom */
+                assemble_expr3_unarypre(a);
+                return;
         }
-}
 
-static void
-assemble_expr6(struct assemble_t *a)
-{
-        assemble_expr6_2(a);
-        while (a->oc->t == OC_MUL ||
-               a->oc->t == OC_DIV ||
-               a->oc->t == OC_MOD) {
-                int op;
-                if (a->oc->t == OC_MUL)
-                        op = INSTR_MUL;
-                else if (a->oc->t == OC_DIV)
-                        op = INSTR_DIV;
-                else
-                        op = INSTR_MOD;
-                as_lex(a);
-                assemble_expr6_2(a);
-                add_instr(a, op, 0, 0);
-        }
-}
-
-static void
-assemble_expr5(struct assemble_t *a)
-{
-        assemble_expr6(a);
-        while (a->oc->t == OC_PLUS || a->oc->t == OC_MINUS) {
-                int op;
-                if (a->oc->t == OC_PLUS)
-                        op = INSTR_ADD;
-                else
-                        op = INSTR_SUB;
-                as_lex(a);
-                assemble_expr6(a);
-                add_instr(a, op, 0, 0);
-        }
-}
-
-static void
-assemble_expr4(struct assemble_t *a)
-{
-        assemble_expr5(a);
-        while (a->oc->t == OC_LSHIFT || a->oc->t == OC_RSHIFT) {
-                int op;
-                if (a->oc->t == OC_LSHIFT)
-                        op = INSTR_LSHIFT;
-                else
-                        op = INSTR_RSHIFT;
-
-                /* TODO: peek if we can do fast eval */
-                as_lex(a);
-                assemble_expr5(a);
-                add_instr(a, op, 0, 0);
-        }
-}
-
-static void
-assemble_expr3_2(struct assemble_t *a)
-{
-        assemble_expr4(a);
-        if (a->oc->t == OC_HAS) {
-                as_lex(a);
-                assemble_expr4(a);
-
-                add_instr(a, INSTR_HAS, 0, 0);
-        }
-}
-
-static void
-assemble_expr3(struct assemble_t *a)
-{
-        assemble_expr3_2(a);
-        while (istok_compare(a->oc->t)) {
-                int cmp;
-                switch (a->oc->t) {
-                case OC_EQEQ:
-                        cmp = IARG_EQ;
-                        break;
-                case OC_LEQ:
-                        cmp = IARG_LEQ;
-                        break;
-                case OC_GEQ:
-                        cmp = IARG_GEQ;
-                        break;
-                case OC_NEQ:
-                        cmp = IARG_NEQ;
-                        break;
-                case OC_LT:
-                        cmp = IARG_LT;
-                        break;
-                case OC_GT:
-                        cmp = IARG_GT;
-                        break;
-                default:
-                        bug();
-                        cmp = 0;
+        assemble_binary_operators_r(a, tbl + 1);
+        do {
+                const struct token_to_opcode_t *t;
+                for (t = tbl->toktbl; t->tok >= 0; t++) {
+                        if (a->oc->t == t->tok)
+                                break;
                 }
-                as_lex(a);
-                assemble_expr3_2(a);
+                if (t->tok < 0)
+                        return;
 
-                add_instr(a, INSTR_CMP, cmp, 0);
-        }
+                as_lex(a);
+                assemble_binary_operators_r(a, tbl + 1);
+                if (tbl->opcode < 0)
+                        add_instr(a, t->opcode, 0, 0);
+                else
+                        add_instr(a, tbl->opcode, t->opcode, 0);
+        } while (tbl->loop);
+}
+
+/* Parse and compile operators with left- and right-side operands */
+static void
+assemble_expr2_binary(struct assemble_t *a)
+{
+        static const struct token_to_opcode_t POW_TOK2OP[] = {
+                { .tok = OC_POW,        .opcode = INSTR_POW },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t MULDIVMOD_TOK2OP[] = {
+                { .tok = OC_MUL,        .opcode = INSTR_MUL },
+                { .tok = OC_DIV,        .opcode = INSTR_DIV },
+                { .tok = OC_MOD,        .opcode = INSTR_MOD },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t ADDSUB_TOK2OP[] = {
+                { .tok = OC_PLUS,       .opcode = INSTR_ADD },
+                { .tok = OC_MINUS,      .opcode = INSTR_SUB },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t SHIFT_TOK2OP[] = {
+                { .tok = OC_LSHIFT, .opcode = INSTR_LSHIFT },
+                { .tok = OC_RSHIFT, .opcode = INSTR_RSHIFT },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t HAS_TOK2OP[] = {
+                { .tok = OC_HAS, .opcode = INSTR_HAS },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t CMP_TOK2OP[] = {
+                { . tok = OC_EQEQ,   .opcode = IARG_EQ },
+                { . tok = OC_LEQ,    .opcode = IARG_LEQ },
+                { . tok = OC_GEQ,    .opcode = IARG_GEQ },
+                { . tok = OC_NEQ,    .opcode = IARG_NEQ },
+                { . tok = OC_LT,     .opcode = IARG_LT },
+                { . tok = OC_GT,     .opcode = IARG_GT },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t BITWISE_TOK2OP[] = {
+                { .tok = OC_AND, .opcode = INSTR_BINARY_AND },
+                { .tok = OC_OR,  .opcode = INSTR_BINARY_OR },
+                { .tok = OC_XOR, .opcode = INSTR_BINARY_XOR },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t LOGICAL_TOK2OP[] = {
+                { .tok = OC_ANDAND, .opcode = INSTR_LOGICAL_AND, },
+                { .tok = OC_OROR,   .opcode = INSTR_LOGICAL_OR, },
+                { .tok = -1 }
+        };
+        static const struct operator_state_t BINARY_OPERATORS[] = {
+                { LOGICAL_TOK2OP,   true,  -1 },
+                { BITWISE_TOK2OP,   true,  -1 },
+                { CMP_TOK2OP,       true,  INSTR_CMP },
+                { HAS_TOK2OP,       false, -1 },
+                { SHIFT_TOK2OP,     true,  -1 },
+                { ADDSUB_TOK2OP,    true,  -1 },
+                { MULDIVMOD_TOK2OP, true,  -1 },
+                { POW_TOK2OP,       true,  -1 },
+                { NULL },
+        };
+        assemble_binary_operators_r(a, BINARY_OPERATORS);
 }
 
 static void
-assemble_expr2(struct assemble_t *a)
+assemble_expr1_ternary(struct assemble_t *a)
 {
-        assemble_expr3(a);
-        while (a->oc->t == OC_AND ||
-               a->oc->t == OC_OR ||
-               a->oc->t == OC_XOR) {
-                int op;
-                if (a->oc->t == OC_AND) {
-                        op = INSTR_BINARY_AND;
-                } else if (a->oc->t == OC_OR) {
-                        op = INSTR_BINARY_OR;
-                } else {
-                        op = INSTR_BINARY_XOR;
-                }
-                as_lex(a);
-                assemble_expr3(a);
-                add_instr(a, op, 0, 0);
-        }
-}
-
-static void
-assemble_expr1(struct assemble_t *a)
-{
-        assemble_expr2(a);
-
-        while (istok_logical(a->oc->t)) {
-                int code;
-                switch (a->oc->t) {
-                case OC_ANDAND:
-                        code = INSTR_LOGICAL_AND;
-                        break;
-                case OC_OROR:
-                        code = INSTR_LOGICAL_OR;
-                        break;
-                default:
-                        code = 0;
-                        bug();
-                }
-
-                as_lex(a);
-                assemble_expr2(a);
-                add_instr(a, code, 0, 0);
-        }
-}
-
-static void
-assemble_expr05(struct assemble_t *a)
-{
-        assemble_expr1(a);
+        assemble_expr2_binary(a);
         if (a->oc->t == OC_QUEST) {
                 as_lex(a);
-                assemble_expr1(a);
+                assemble_expr2_binary(a);
                 if (a->oc->t != OC_COLON) {
                         err_setstr(SyntaxError,
                                    "Expected: ':' in ternary expression");
                         as_err(a, AE_GEN);
                 }
                 as_lex(a);
-                assemble_expr1(a);
+                assemble_expr2_binary(a);
 
                 add_instr(a, INSTR_TERNARY, 0, 0);
         }
 }
 
-/*
- * Sister function to assemble_stmt.  This and its
- * assemble_exprN descendants form a recursive-descent parser that
- * builds up the instructions for evaluating the EXPR part of a
- * statement (see big comment in assemble_stmt).
+/**
+ * assemble_expr - sister function to assemble_stmt.
+ *
+ * This and its assemble_exprN_XXX descendants form a recursive-descent
+ * parser that builds up the instructions for evaluating the EXPR part of
+ * a statement (see big comment in assemble_stmt).
+ *
+ * This has five levels of recursive descent:
+ *
+ *      ..... atom                 assemble_expr5_atomic()
+ *       .... primary elements     assemble_expr4_elems()
+ *        ... unary operators      assemble_expr3_unarypre()
+ *         .. binary operators     assemble_expr2_binary()
+ *          . ternary operators    assemble_expr1_ternary()
+ *
+ * In fact it recurses much deeper, however, since
+ * 1. assemble_expr2_binary()'s helper recurses in on itself before
+ *    descending into assemble_expr3_unarypre(), and
+ * 2. assemble_expr5_atomic() could, and at the top level likely will,
+ *    recurse into assemble_stmt() again.
  */
 static void
 assemble_expr(struct assemble_t *a)
 {
         as_lex(a);
-        assemble_expr05(a);
+        assemble_expr1_ternary(a);
         as_unlex(a);
 }
 
@@ -1428,7 +1369,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * pointer to store 'value'
                  */
                 assemble_expr(a);
-                ainstr_load_or_assign(a, &name, INSTR_ASSIGN, pos);
+                ainstr_assign_symbol(a, &name, pos);
                 return 0;
         } else if (istok_assign(a->oc->t)) {
                 /*
@@ -1438,7 +1379,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 ainstr_load_symbol(a, &name, pos);
                 assemble_preassign(a, a->oc->t);
-                ainstr_load_or_assign(a, &name, INSTR_ASSIGN, pos);
+                ainstr_assign_symbol(a, &name, pos);
                 return 0;
         } else {
                 /*
@@ -1455,7 +1396,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         }
 }
 
-/* commont to assemble_declarator_stmt and assemble_foreach */
+/* common to assemble_declarator_stmt and assemble_foreach */
 static int
 assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
 {
@@ -1530,15 +1471,13 @@ assemble_try(struct assemble_t *a)
         int finally = as_next_label(a);
         int catch = as_next_label(a);
 
-        apush_scope(a);
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_TRY, catch);
+        ainstr_push_block(a, IARG_TRY, catch);
 
         /* block of the try { ... } statement */
         assemble_stmt(a, 0, 0);
         add_instr(a, INSTR_B, 0, finally);
 
-        add_instr(a, INSTR_POP_BLOCK, 0, 0);
-        apop_scope(a);
+        ainstr_pop_block(a);
 
         as_errlex(a, OC_CATCH);
         as_set_label(a, catch);
@@ -1550,8 +1489,7 @@ assemble_try(struct assemble_t *a)
          * declared stack exception below.
          * XXX Overkill? is it not safe to just add a POP below?
          */
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_BLOCK, 0);
-        apush_scope(a);
+        ainstr_push_block(a, IARG_BLOCK, 0);
 
         as_errlex(a, OC_LPAR);
         as_errlex(a, OC_IDENTIFIER);
@@ -1566,8 +1504,7 @@ assemble_try(struct assemble_t *a)
 
         assemble_stmt(a, 0, 0);
 
-        add_instr(a, INSTR_POP_BLOCK, 0, 0);
-        apop_scope(a);
+        ainstr_pop_block(a);
 
         as_lex(a);
 
@@ -1625,8 +1562,7 @@ assemble_while(struct assemble_t *a)
         int start = as_next_label(a);
         int breakto = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, breakto);
-        apush_scope(a);
+        ainstr_push_block(a, IARG_LOOP, breakto);
 
         as_set_label(a, start);
 
@@ -1638,8 +1574,7 @@ assemble_while(struct assemble_t *a)
         assemble_stmt(a, FE_CONTINUE, start);
         add_instr(a, INSTR_B, 0, start);
 
-        apop_scope(a);
-        add_instr(a, INSTR_POP_BLOCK, 0, 0);
+        ainstr_pop_block(a);
 
         as_set_label(a, breakto);
 }
@@ -1650,8 +1585,7 @@ assemble_do(struct assemble_t *a)
         int start = as_next_label(a);
         int breakto = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, breakto);
-        apush_scope(a);
+        ainstr_push_block(a, IARG_LOOP, breakto);
 
         as_set_label(a, start);
         assemble_stmt(a, FE_CONTINUE, start);
@@ -1659,8 +1593,7 @@ assemble_do(struct assemble_t *a)
         assemble_expr(a);
         add_instr(a, INSTR_B_IF, 1, start);
 
-        apop_scope(a);
-        add_instr(a, INSTR_POP_BLOCK, 0, 0);
+        ainstr_pop_block(a);
 
         as_set_label(a, breakto);
 }
@@ -1673,8 +1606,7 @@ assemble_foreach(struct assemble_t *a)
         int forelse = as_next_label(a);
         int iter    = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, breakto);
-        apush_scope(a);
+        ainstr_push_block(a, IARG_LOOP, breakto);
 
         /* save name of the 'needle' in 'for(needle, haystack)' */
         as_errlex(a, OC_IDENTIFIER);
@@ -1715,8 +1647,7 @@ assemble_foreach(struct assemble_t *a)
                 as_unlex(a);
         }
 
-        add_instr(a, INSTR_POP_BLOCK, 0, 0);
-        apop_scope(a);
+        ainstr_pop_block(a);
 
         as_set_label(a, breakto);
 }
@@ -1734,8 +1665,7 @@ assemble_for_cstyle(struct assemble_t *a)
         int iter    = as_next_label(a);
         int forelse = as_next_label(a);
 
-        add_instr(a, INSTR_PUSH_BLOCK, IARG_LOOP, breakto);
-        apush_scope(a);
+        ainstr_push_block(a, IARG_LOOP, breakto);
 
         /* initializer */
         assemble_stmt(a, 0, 0);
@@ -1774,8 +1704,7 @@ assemble_for_cstyle(struct assemble_t *a)
                 as_unlex(a);
         }
 
-        add_instr(a, INSTR_POP_BLOCK, 0, 0);
-        apop_scope(a);
+        ainstr_pop_block(a);
 
         as_set_label(a, breakto);
 }
@@ -1835,8 +1764,7 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags,
                 arg2 = 0;
         }
 
-        apush_scope(a);
-        add_instr(a, INSTR_PUSH_BLOCK, arg1, arg2);
+        ainstr_push_block(a, arg1, arg2);
 
         /* don't pass this down */
         flags &= ~FE_CONTINUE;
@@ -1850,8 +1778,7 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags,
 
                 assemble_stmt(a, flags, -1);
         }
-        add_instr(a, INSTR_POP_BLOCK, 0, 0);
-        apop_scope(a);
+        ainstr_pop_block(a);
 }
 
 /*
@@ -1969,28 +1896,7 @@ static int as_recursion = 0;
  *      single-line expr:       STMT ';'
  *      block:                  '{' STMT ';' STMT ';'... '}'
  *
- * Valid single-line statements are
- *
- * #1   empty declaration:      let IDENTIFIER
- * #2   assignmment:            IDENTIFIER '=' EXPR
- * #3   decl. + assign:         let IDENTIFER '=' EXPR
- * #4   limited eval:           IDENTIFIER '(' ARGS... ')'
- * #5     ""     "" :           '(' EXPR ')'
- * #6   emtpy expr:             IDENTIFER
- * #7   program flow:           if '(' EXPR ')' STMT
- * #8     ""     "" :           if '(' EXPR ')' STMT else STMT
- * #9     ""     "" :           while '(' EXPR ')' STMT
- * #10    ""     "" :           do STMT while '(' EXPR ')'
- * #11    ""     "":            for '(' STMT... ')' STMT
- * #12  return nothing:         return
- * #13  return something:       return EXPR
- * #10  break:                  break
- * #12  nothing:
- *
- * TODO: #13 exception          try '(' IDENTIFIER ',' EXPR* ')' STMT
- *              handling:                   catch '(' IDENTIFIER ')' STMT
- *
- * See Documentation.rst for the details.
+ * See Tutorial.rst for the details.
  */
 static void
 assemble_stmt(struct assemble_t *a, unsigned int flags, int continueto)
@@ -2129,6 +2035,20 @@ new_assembler(const char *source_file_name, FILE *fp)
         return a;
 }
 
+/* if err, delete executable too, all that work for nothing */
+static void
+as_delete_frame_list(struct list_t *parent_list, int err)
+{
+        struct list_t *li, *tmp;
+        list_foreach_safe(li, tmp, parent_list) {
+                struct as_frame_t *fr = list2frame(li);
+                list_remove(&fr->list);
+                if (err && fr->x)
+                        VAR_DECR_REF((Object *)fr->x);
+                efree(fr);
+        }
+}
+
 /**
  * free_assembler - Free an assembler state machine
  * @a:          Handle to the assembler state machine
@@ -2138,7 +2058,8 @@ new_assembler(const char *source_file_name, FILE *fp)
 static void
 free_assembler(struct assemble_t *a, int err)
 {
-        as_delete_frames(a, err);
+        as_delete_frame_list(&a->active_frames, err);
+        as_delete_frame_list(&a->finished_frames, err);
         token_state_free(a->prog);
         efree(a);
 }

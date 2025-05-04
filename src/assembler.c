@@ -4,25 +4,31 @@
  *
  * FIXME: This whole file!  Because it doesn't separate the parsing phase
  * from the code-generation phase, not a single optimization can be made.
- * No loop invariants, no reduction of computations when constants are
- * used, none of that.
  *
- * The entry point is assemble()
+ * The entry point is assemble().  The result will be a compiled XptrType
+ * object to execute.  Since files are thought of as big functions nesting
+ * little functions, multiple XptrType objects will likely be compiled in
+ * one go.  The entry-point XptrType object will be the one returned. (See
+ * big comment in xptr.h how these link to each other.)
  *
- * XXX  REVISIT: when using gcc with -O3, this file
- *      takes forever and a day to compile.  Is it ME?
- *      Do I need to rethink all the recursion, or should I trust
- *      that gcc is taking its time to make things awesome?
- *
- * I use a recursive descent parser.
  * For a statement like
  *              let a = (x + y.z() * 2.0);
  * the parser's entry point is assemble_stmt().
  * The part to the right of the "="
  *              (x + y.z() * 2.0)
- * is evaluated starting at assemble_expr().  Since this is what can be
- * evaluated and reduced to a single datum during runtime, it's what the
- * documentation refers to as EXPR.
+ * is evaluated starting at assemble_expr().
+ *
+ * Some other frequent helper functions:
+ *      add_instr
+ *              Append a new instruction
+ *      ainstr_XXXX
+ *              Wrap add_instr with some other stuff that needs to get done
+ *      as_XXXX
+ *              Little helper function
+ *      assemble_XXX
+ *              BIG helper function!
+ *      [^a].*_XXXX
+ *              Poorly chosen function name :)
  */
 #include <evilcandy.h>
 #include <token.h>
@@ -329,47 +335,46 @@ as_peek(struct assemble_t *a, bool may_be_eof)
         return res;
 }
 
-/* check if next token is semicolon but do not take it. */
 static int
-peek_semi(struct assemble_t *a)
-{
-        return as_peek(a, false) == OC_SEMI;
-}
-
-static int
-symtab_seek(struct assemble_t *a, const char *s)
+as_symbol_seek__(const char *s, char **lut, size_t n)
 {
         int i;
-        struct as_frame_t *fr = a->fr;
-        for (i = 0; i < fr->sp; i++) {
-                if (s && fr->symtab[i] && !strcmp(s, fr->symtab[i]))
+        for (i = 0; i < n; i++) {
+                if (s && lut[i] && !strcmp(s, lut[i]))
                         return i;
         }
         return -1;
 }
 
 static int
-arg_seek(struct assemble_t *a, const char *s)
+as_closure_seek(struct assemble_t *a, const char *s)
 {
-        int i;
-        struct as_frame_t *fr = a->fr;
-        for (i = 0; i < fr->argc; i++) {
-                if (s && fr->argv[i] && !strcmp(s, fr->argv[i]))
-                        return i;
-        }
-        return -1;
+        return as_symbol_seek__(s, a->fr->clo, a->fr->cp);
 }
 
+/* arg may be NULL, it's the arg1 for LOAD/ASSIGN commands & such */
 static int
-clo_seek(struct assemble_t *a, const char *s)
+as_symbol_seek(struct assemble_t *a, const char *s, int *arg)
 {
-        int i;
         struct as_frame_t *fr = a->fr;
-        for (i = 0; i < fr->cp; i++) {
-                if (s && fr->clo[i] && !strcmp(s, fr->clo[i]))
-                        return i;
+        int i, targ;
+        if ((i = as_symbol_seek__(s, fr->symtab, fr->sp)) >= 0) {
+                targ = IARG_PTR_AP;
+                goto found;
+        }
+        if ((i = as_symbol_seek__(s, fr->argv, fr->argc)) >= 0) {
+                targ = IARG_PTR_FP;
+                goto found;
+        }
+        if ((i = as_symbol_seek__(s, fr->clo, fr->cp)) >= 0) {
+                targ = IARG_PTR_CP;
+                goto found;
         }
         return -1;
+found:
+        if (arg)
+                *arg = targ;
+        return i;
 }
 
 static void
@@ -408,21 +413,24 @@ as_next_label(struct assemble_t *a)
 }
 
 /*
- * ie pointer to the execution struct of a function.
- * Different instances of functions have their own metadata,
- * but if a function was created as, perhaps, a return value
- * of another function, the *executable* part will always
- * point to this.
+ * Like as_seek_rodata, but for an XptrType instead of an atom stored
+ * in a token.
+ *
+ * Add a pointer to another XptrType to this one's .rodata.
  */
 static int
-seek_or_add_const_xptr(struct assemble_t *a, struct xptrvar_t *p)
+as_seek_rodata_xptr(struct assemble_t *a, struct xptrvar_t *p)
 {
         return xptr_add_rodata((Object *)a->fr->x, (Object *)p);
 }
 
-/* const from a token literal in the script */
+/*
+ * Seek .rodata for same value stored in @oc, which has an atom literal
+ * If data is found, return its array index.
+ * If data is not found, insert data form @oc and return new index.
+ */
 static int
-seek_or_add_const(struct assemble_t *a, struct token_t *oc)
+as_seek_rodata(struct assemble_t *a, struct token_t *oc)
 {
         struct as_frame_t *fr = a->fr;
         struct xptrvar_t *x = fr->x;
@@ -436,7 +444,7 @@ seek_or_add_const(struct assemble_t *a, struct token_t *oc)
 static void
 ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 {
-        add_instr(a, INSTR_LOAD_CONST, 0, seek_or_add_const(a, oc));
+        add_instr(a, INSTR_LOAD_CONST, 0, as_seek_rodata(a, oc));
 }
 
 /*
@@ -489,21 +497,15 @@ fakestack_declare(struct assemble_t *a, char *name)
                 as_err(a, AE_OVERFLOW);
 
         if (name) {
-                if (symtab_seek(a, name) >= 0)
-                        goto redef;
-                if (arg_seek(a, name) >= 0)
-                        goto redef;
-                if (clo_seek(a, name) >= 0)
-                        goto redef;
+                if (as_symbol_seek(a, name, NULL) >= 0) {
+                        err_setstr(SyntaxError, "Redefining variable ('%s')", name);
+                        as_err(a, AE_GEN);
+                        return 0;
+                }
         }
 
         a->fr->symtab[a->fr->sp++] = name;
         return a->fr->sp - 1;
-
-redef:
-        err_setstr(SyntaxError, "Redefining variable ('%s')", name);
-        as_err(a, AE_GEN);
-        return 0;
 }
 
 /*
@@ -794,9 +796,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
         if (!this_frame)
                 return -1;
 
-        if (symtab_seek(a, name) >= 0 ||
-            arg_seek(a, name) >= 0 ||
-            clo_seek(a, name) >= 0)  {
+        if (as_symbol_seek(a, name, NULL) >= 0) {
 
                 pos = as_swap_pos(a, pos);
                 assemble_expr5_atomic(a);
@@ -815,7 +815,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
         }
 
         /* try this again */
-        return clo_seek(a, name);
+        return as_closure_seek(a, name);
 }
 
 /*
@@ -829,24 +829,19 @@ static void
 ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
                       int instr, token_pos_t pos)
 {
-        int idx;
+        int idx, arg;
         /*
          * Note: in our implementation, FP <= AP <= SP,
          * that is, AP is the *top* of the argument stack.
-         * We don't know how many args the caller actually pushed,
-         * so we use AP instead of FP for our local-variable
+         * We use AP instead of FP for our local-variable
          * de-reference, and FP for our argument de-reference.
          */
-        if ((idx = symtab_seek(a, name->s)) >= 0) {
-                add_instr(a, instr, IARG_PTR_AP, idx);
-        } else if ((idx = arg_seek(a, name->s)) >= 0) {
-                add_instr(a, instr, IARG_PTR_FP, idx);
-        } else if ((idx = clo_seek(a, name->s)) >= 0) {
-                add_instr(a, instr, IARG_PTR_CP, idx);
+        if ((idx = as_symbol_seek(a, name->s, &arg)) >= 0) {
+                add_instr(a, instr, arg, idx);
         } else if ((idx = maybe_closure(a, name->s, pos)) >= 0) {
                 add_instr(a, instr, IARG_PTR_CP, idx);
         } else {
-                int namei = seek_or_add_const(a, name);
+                int namei = as_seek_rodata(a, name);
                 add_instr(a, instr, IARG_PTR_SEEK, namei);
         }
 }
@@ -1403,7 +1398,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
         int namei;
         bug_on(global && name == NULL);
         if (global) {
-                namei = seek_or_add_const(a, name);
+                namei = as_seek_rodata(a, name);
                 add_instr(a, INSTR_SYMTAB, 0, namei);
         } else {
                 namei = fakestack_declare(a, name ? name->s : NULL);
@@ -1438,7 +1433,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         namei = assemble_declare(a, &name, tok == OC_GBL);
 
         /* if no assign, return early */
-        if (peek_semi(a))
+        if (as_peek(a, false) == OC_SEMI)
                 return;
 
         /* for initializers, only '=', not '+=' or such */
@@ -1455,7 +1450,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 static void
 assemble_return(struct assemble_t *a)
 {
-        if (peek_semi(a)) {
+        if (as_peek(a, false) == OC_SEMI) {
                 ainstr_load_const_int(a, 0);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
         } else {
@@ -1924,7 +1919,7 @@ resolve_func_label(struct assemble_t *a,
                 if (sib == fr)
                         continue;
                 if (sib->funcno == ii->arg2) {
-                        ii->arg2 = seek_or_add_const_xptr(a, sib->x);
+                        ii->arg2 = as_seek_rodata_xptr(a, sib->x);
                         return;
                 }
         }

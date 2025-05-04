@@ -64,9 +64,9 @@
  *      name1   name2   name3   <-- different names or dict keys with
  *        \       |       |         references to same function var
  *         \     /        |
- *         funcvar1   funcvar2
+ *         funcvar1   funcvar2  <-- FuncType objects
  *               \       /
- *                xptrvar
+ *                xptrvar       <-- XptrType object
  */
 struct xptrvar_t {
         Object base;

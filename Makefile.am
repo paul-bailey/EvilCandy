@@ -119,9 +119,6 @@ EXTRA_DIST = \
         AUTHORS \
         COPYING \
         README \
-        Tutorial.rst \
         etc/thought_bucket.txt
 
-
-dist_doc_DATA = Tutorial.rst
 

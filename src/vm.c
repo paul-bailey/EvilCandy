@@ -380,7 +380,7 @@ static int
 do_pop(Frame *fr, instruction_t ii)
 {
         Object *p = pop(fr);
-        if (ii.arg1 == IARG_POP_PRINT) {
+        if (ii.arg1 == IARG_POP_PRINT && p != NullVar) {
                 Object *str = var_str(p);
                 fprintf(stderr, "%s\n", string_get_cstring(str));
                 VAR_DECR_REF(str);

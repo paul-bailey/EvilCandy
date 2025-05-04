@@ -18,6 +18,8 @@ src/builtin/.*.swp
 /config.log
 .DS_Store
 
+/Documentation/_build
+
 # generated programs
 /evilcandy
 /tools/gen

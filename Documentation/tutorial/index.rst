@@ -1,3 +1,5 @@
+.. _tutorial_index:
+
 ==================
 EvilCandy tutorial
 ==================

@@ -18,8 +18,9 @@ Must Do
   ("a = 1;") will be executed and the second part ("b = 2;") will be
   discarded and never parsed.
 
-* Integers are too recessive now; we need a way to int-ify a float
-  without using a slow built-in function.
+* Now that variadic functions are internally made into fixed-size
+  functions, at least for user-defined functions, we can now get rid of
+  the AP/FP distinction.
 
 * ``demos`` folder is a joke.  Write a real suite of demos, split into
   two groups: demos that are indeed demos and present meaningful examples

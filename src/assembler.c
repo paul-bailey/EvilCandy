@@ -356,6 +356,12 @@ as_closure_seek(struct assemble_t *a, const char *s)
 static int
 as_symbol_seek(struct assemble_t *a, const char *s, int *arg)
 {
+        /*
+         * Note: in our implementation, FP <= AP <= SP,
+         * that is, AP is the *top* of the argument stack.
+         * We use AP instead of FP for our local-variable
+         * de-reference, and FP for our argument de-reference.
+         */
         struct as_frame_t *fr = a->fr;
         int i, targ;
         if ((i = as_symbol_seek__(s, fr->symtab, fr->sp)) >= 0) {
@@ -472,13 +478,22 @@ ainstr_push_block(struct assemble_t *a, int arg1, int arg2)
 static void
 ainstr_pop_block(struct assemble_t *a)
 {
-        /* Don't add the instructions, that's implicit in POP_BLOCK */
         bug_on(a->fr->nest <= 0);
         while (a->fr->sp > a->fr->fp)
                 a->fr->sp--;
         a->fr->nest--;
         a->fr->fp = a->fr->scope[a->fr->nest];
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
+}
+
+static void
+ainstr_return_null(struct assemble_t *a)
+{
+        /*
+         * Identical to PUSH_LOCAL and RETURN_VALUE, but this is one
+         * instruction fewer.
+         */
+        add_instr(a, INSTR_END, 0, 0);
 }
 
 /*
@@ -583,12 +598,11 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                 assemble_stmt(a, 0, 0);
         }
         /*
-         * This is often unreachable to the VM,
-         * but in case statement reached end
-         * without hitting "return", we need a BL.
+         * This is often unreachable to the VM, but in case statement
+         * reached end without hitting "return", we need to preven VM
+         * from overrunning instruction set.
          */
-        ainstr_load_const_int(a, 0LL);
-        add_instr(a, INSTR_RETURN_VALUE, 0, 0);
+        ainstr_return_null(a);
 }
 
 static void
@@ -819,7 +833,8 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
 }
 
 /*
- * ainstr_load_or_assign - common to ainstr_load_symbol and ainstr_assign_symbol
+ * ainstr_load/assign_symbol
+ *
  * @name:  name of symbol, token assumed to be saved from a->oc already.
  * @instr: either INSTR_LOAD, or INSTR_ASSIGN
  * @pos:   Saved token position when saving name; needed to maybe pass to
@@ -830,12 +845,6 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
                       int instr, token_pos_t pos)
 {
         int idx, arg;
-        /*
-         * Note: in our implementation, FP <= AP <= SP,
-         * that is, AP is the *top* of the argument stack.
-         * We use AP instead of FP for our local-variable
-         * de-reference, and FP for our argument de-reference.
-         */
         if ((idx = as_symbol_seek(a, name->s, &arg)) >= 0) {
                 add_instr(a, instr, arg, idx);
         } else if ((idx = maybe_closure(a, name->s, pos)) >= 0) {
@@ -1451,8 +1460,7 @@ static void
 assemble_return(struct assemble_t *a)
 {
         if (as_peek(a, false) == OC_SEMI) {
-                ainstr_load_const_int(a, 0);
-                add_instr(a, INSTR_RETURN_VALUE, 0, 0);
+                ainstr_return_null(a);
         } else {
                 assemble_expr(a);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);

@@ -24,6 +24,21 @@ instr_uses_rodata(instruction_t ii)
         }
 }
 
+static bool
+instr_uses_jump(instruction_t ii)
+{
+        switch (ii.code) {
+        case INSTR_B:
+        case INSTR_B_IF:
+        case INSTR_FOREACH_ITER:
+                return true;
+        case INSTR_PUSH_BLOCK:
+                return ii.arg1 != IARG_BLOCK;
+        default:
+                return false;
+        }
+}
+
 static int
 frame_n_rodata(struct as_frame_t *fr)
 {
@@ -38,22 +53,42 @@ frame_n_rodata(struct as_frame_t *fr)
 static void
 remove_unused_rodata(struct as_frame_t *fr)
 {
-        int16_t **marks;
+        enum {
+                DEFAULT_NCONST = 32,
+                DEFAULT_NINSTR = 32,
+        };
+        int16_t **iptrs;
+        char *marks;
         instruction_t *idata;
         int i, n_rodata, n_instr;
         Object **rodata;
+        char stack_marks[DEFAULT_NCONST];
+        int16_t *stack_iptrs[DEFAULT_NINSTR];
 
         n_instr = as_frame_ninstr(fr);
-        marks = emalloc(n_instr * sizeof(void *));
+        if (n_instr <= DEFAULT_NINSTR)
+                iptrs = stack_iptrs;
+        else
+                iptrs = emalloc(n_instr * sizeof(void *));
+
         n_rodata = frame_n_rodata(fr);
+        if (n_rodata <= DEFAULT_NCONST)
+                marks = stack_marks;
+        else
+                marks = emalloc(n_rodata);
+
+        memset(iptrs, 0, n_instr * sizeof(void *));
+        memset(marks, 0, n_rodata);
         idata = (instruction_t *)fr->af_instr.s;
 
         /* set this at start to make things a little faster */
         for (i = 0; i < n_instr; i++) {
-                if (instr_uses_rodata(idata[i]))
-                        marks[i] = &idata[i].arg2;
-                else
-                        marks[i] = NULL;
+                if (instr_uses_rodata(idata[i])) {
+                        int16_t *arg = &idata[i].arg2;
+                        bug_on(*arg < 0 || *arg >= n_rodata);
+                        marks[*arg] = 1;
+                        iptrs[i] = arg;
+                }
         }
 
         rodata = (Object **)fr->af_rodata.s;
@@ -63,14 +98,7 @@ remove_unused_rodata(struct as_frame_t *fr)
                 /* Skip checks for xptr, we know it's sitll needed */
                 if (isvar_xptr(rodata[i]))
                         continue;
-
-                for (j = 0; j < n_instr; j++) {
-                        if (marks[j] && marks[j][0] == i)
-                                break;
-                }
-
-                /* Someone still needs us */
-                if (j != n_instr)
+                if (marks[i] != 0)
                         continue;
 
                 /* no one needs us */
@@ -78,8 +106,9 @@ remove_unused_rodata(struct as_frame_t *fr)
 
                 /* Point affected instructions down one index */
                 for (j = 0; j < n_instr; j++) {
-                        if (marks[j] && *(marks[j]) > i)
-                                marks[j][0] -= 1;
+                        int16_t *arg2 = iptrs[j];
+                        if (arg2 && *arg2 > i)
+                                *arg2 -= 1;
                 }
 
                 /* Move rodata down one */
@@ -91,6 +120,11 @@ remove_unused_rodata(struct as_frame_t *fr)
 
         /* so dirty... */
         fr->af_rodata.p = n_rodata * sizeof(Object *);
+
+        if (iptrs != stack_iptrs)
+                efree(iptrs);
+        if (marks != stack_marks)
+                efree(marks);
 }
 
 static Object *
@@ -197,55 +231,67 @@ seek_rodata(struct assemble_t *a, struct as_frame_t *fr, Object *obj)
 static void
 reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
 {
-        bool reduced, reduced_once;
+        bool reduced, reduced_once, n_instr;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
         Object **rodata = (Object **)fr->af_rodata.s;
 
         reduced_once = false;
+        n_instr = as_frame_ninstr(fr);
         do {
-                int i = 0;
-                int n_instr = as_frame_ninstr(fr);
+                instruction_t *ip = idata;
+                instruction_t *stop = ip + n_instr;
+
                 reduced = false;
-                while (i < (n_instr - 2)) {
-                        /* XXX Am I sure this doesn't straddle a label? */
-                        if (idata[i].code == INSTR_LOAD_CONST &&
-                            idata[i+1].code == INSTR_LOAD_CONST) {
-                                Object *left, *right, *result;
+                for (ip = idata; ip < stop; ip++) {
+                        instruction_t *ip2, *ip3;
+                        Object *left, *right, *result;
 
-                                left = rodata[idata[i].arg2];
-                                right = rodata[idata[i+1].arg2];
-                                result = try_binop(left, right,
-                                                   idata[i+2].code);
+                        if (ip->code != INSTR_LOAD_CONST)
+                                continue;
 
-                                /*
-                                 * NULL means either it wasn't a bin-op or
-                                 * an error occurred.  Suppress errors for
-                                 * now, this could be in a try/catch statement.
-                                 */
-                                if (result == NULL) {
-                                        err_clear();
-                                        i++;
-                                        continue;
-                                }
+                        ip2 = ip+1;
+                        while (ip2->code == INSTR_NOP && ip2 < stop)
+                                ip2++;
+                        if (ip2->code != INSTR_LOAD_CONST)
+                                continue;
 
-                                idata[i].arg2 = seek_rodata(a, fr, result);
-                                idata[i+1].code = INSTR_NOP;
-                                idata[i+2].code = INSTR_NOP;
-                                i += 3;
-                                reduced = true;
-                        } else {
-                                i++;
+                        ip3 = ip2+1;
+                        while (ip3->code == INSTR_NOP && ip3 < stop)
+                                ip3++;
+
+                        left = rodata[ip->arg2];
+                        right = rodata[ip2->arg2];
+                        result = try_binop(left, right, ip3->code);
+
+                        /*
+                         * NULL means either ip3 wasn't a bin-op or an
+                         * error occurred.  Suppress errors for now, this
+                         * could be in a try/catch statement.
+                         *
+                         * XXX if error, this will be repeated until
+                         * entire scan runs through without setting
+                         * @reduced below.
+                         */
+                        if (result == NULL) {
+                                err_clear();
+                                continue;
                         }
-                }
 
-                if (reduced) {
-                        remove_nop_instructions(a, fr);
+                        ip->arg2 = seek_rodata(a, fr, result);
+                        ip2->code = INSTR_NOP;
+                        ip3->code = INSTR_NOP;
+                        /* iterator will update to ip3+1 */
+                        ip = ip3;
+                        reduced = true;
                         reduced_once = true;
                 }
+
         } while (reduced);
 
-        if (reduced_once)
+        if (reduced_once) {
+                remove_nop_instructions(a, fr);
                 remove_unused_rodata(fr);
+        }
 }
 
 /*
@@ -262,6 +308,10 @@ reduce_const_operands(struct assemble_t *a)
         }
 }
 
+/*
+ * Jump instructions' arg2 currently holds a label number.
+ * Convert that into an offset from the program counter.
+ */
 static void
 resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
 {
@@ -280,26 +330,17 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
         a->fr = fr;
 
         for (i = 0; i < n_instr; i++) {
-                instruction_t *ii = &instrs[i];
-                if (ii->code == INSTR_B
-                    || ii->code == INSTR_B_IF
-                    || ii->code == INSTR_FOREACH_ITER
-                    || ii->code == INSTR_PUSH_BLOCK) {
-                        int arg2 = ii->arg2;
-
-                        if (ii->code == INSTR_PUSH_BLOCK
-                            && ii->arg1 == IARG_BLOCK) {
-                                /* ignore labels for this one */
-                                continue;
-                        }
-
-                        bug_on(arg2 >= n_label);
+                if (instr_uses_jump(instrs[i])) {
+                        instruction_t *ii = &instrs[i];
+                        bug_on(ii->arg2 >= n_label);
                         /*
-                         * minus one because pc will have already
-                         * been incremented.
+                         * label holds a positive offset from start of
+                         * instructions. We want signed offset from
+                         * current pc.  The '-1' is because the pc will
+                         * have already incremented by the time this
+                         * instruction is processed.
                          */
-                        ii->arg2 = labels[arg2] - i - 1;
-                        continue;
+                        ii->arg2 = labels[ii->arg2] - i - 1;
                 }
         }
         a->fr = frsav;

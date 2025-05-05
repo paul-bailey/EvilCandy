@@ -350,10 +350,22 @@ static void
 as_set_label(struct assemble_t *a, int jmp)
 {
         unsigned short *data;
+        unsigned long n_instr;
         struct as_frame_t *fr = a->fr;
         bug_on(jmp >= as_frame_nlabel(fr));
         data = (unsigned short *)fr->af_labels.s;
-        data[jmp] = as_frame_ninstr(fr);
+        n_instr = as_frame_ninstr(fr);
+        /*
+         * Limit to 15 bits instead of 16, because the final jump arg
+         * will be directional.  We need an extended-arg method for
+         * instructions before we can support Functions of Unusual Size.
+         */
+        if (n_instr > 32767) {
+                err_setstr(RangeError,
+                           "Cannot compile: instruction set too large for jump labels");
+                as_err(a, AE_GEN);
+        }
+        data[jmp] = (unsigned short)n_instr;
 }
 
 static int

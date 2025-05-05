@@ -250,13 +250,13 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                                 continue;
 
                         ip2 = ip+1;
-                        while (ip2->code == INSTR_NOP && ip2 < stop)
+                        while (ip2->code == INSTR_NOP && ip2 < stop - 1)
                                 ip2++;
                         if (ip2->code != INSTR_LOAD_CONST)
                                 continue;
 
                         ip3 = ip2+1;
-                        while (ip3->code == INSTR_NOP && ip3 < stop)
+                        while (ip3->code == INSTR_NOP && ip3 < stop - 1)
                                 ip3++;
 
                         left = rodata[ip->arg2];

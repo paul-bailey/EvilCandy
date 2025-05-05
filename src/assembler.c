@@ -98,10 +98,13 @@ enum {
  * @fp:          Index into @af_locals defining current scope
  * @af_args:     Symbol table of argument names, in order of argument
  * @af_closures: Symbol table of closure names
+ * @af_rodata:   ie. a function's consts, array of Object *
+ * @af_labels:   Jump labels, array of short ints
+ * @af_instr;    Instructions, array of instruction_t
  * @scope:       Current {...} scope within the function
  * @nest:        Pointer to current top of @scope
+ * @line:        Line number of first line of code for this frame
  * @list:        Link to sibling frames
- * @x:           Executable code being built up by this assembler.
  *
  * This wraps @x (the true intended result of this assembly, and will
  * be thrown away when we're done, leaving only @x remaining.
@@ -116,10 +119,13 @@ struct as_frame_t {
         int fp;
         struct buffer_t af_args;
         struct buffer_t af_closures;
+        struct buffer_t af_rodata;
+        struct buffer_t af_labels;
+        struct buffer_t af_instr;
         int scope[FRAME_NEST_MAX];
         int nest;
+        int line;
         struct list_t list;
-        struct xptrvar_t *x;
 };
 
 /**
@@ -173,10 +179,25 @@ as_buffer_ptr_resize(struct buffer_t *b, int i)
 }
 
 static int
-as_buffer_put_name(struct buffer_t *b, const char *name)
+as_buffer_put_ptr(struct buffer_t *b, void *ptr)
 {
-        buffer_putd(b, (void *)&name, sizeof(void *));
+        buffer_putd(b, (void *)&ptr, sizeof(void *));
         return as_buffer_ptr_size(b) - 1;
+}
+
+#define as_buffer_put_name(bf_, nm_) \
+        as_buffer_put_ptr(bf_, (void *)(nm_))
+
+static int
+as_frame_ninstr(struct as_frame_t *fr)
+{
+        return buffer_size(&fr->af_instr) / sizeof(instruction_t);
+}
+
+static int
+as_frame_nlabel(struct as_frame_t *fr)
+{
+        return buffer_size(&fr->af_labels) / sizeof(short);
 }
 
 /*
@@ -207,14 +228,16 @@ as_frame_push(struct assemble_t *a, int funcno)
         fr = emalloc(sizeof(*fr));
         memset(fr, 0, sizeof(*fr));
 
-        /* memset does this, but just in case buffer.c internals change... */
+        /* memset did this, but just in case buffer.c internals change... */
         buffer_init(&fr->af_closures);
         buffer_init(&fr->af_locals);
         buffer_init(&fr->af_args);
+        buffer_init(&fr->af_rodata);
+        buffer_init(&fr->af_labels);
+        buffer_init(&fr->af_instr);
 
         fr->funcno = funcno;
-        fr->x = (struct xptrvar_t *)xptrvar_new(a->file_name,
-                                                a->oc ? a->oc->line : 1);
+        fr->line = a->oc ? a->oc->line : 1;
 
         list_init(&fr->list);
         list_add_tail(&fr->list, &a->active_frames);
@@ -411,7 +434,7 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
         ii.arg1 = arg1;
         ii.arg2 = arg2;
 
-        xptr_add_instr((Object *)a->fr->x, ii);
+        buffer_putd(&a->fr->af_instr, &ii, sizeof(ii));
 }
 
 /*
@@ -424,13 +447,45 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
 static void
 as_set_label(struct assemble_t *a, int jmp)
 {
-        xptr_set_label((Object *)a->fr->x, jmp);
+        unsigned short *data;
+        struct as_frame_t *fr = a->fr;
+        bug_on(jmp >= as_frame_nlabel(fr));
+        data = (unsigned short *)fr->af_labels.s;
+        data[jmp] = as_frame_ninstr(fr);
 }
 
 static int
 as_next_label(struct assemble_t *a)
 {
-        return xptr_next_label((Object *)a->fr->x);
+        /* XXX initialize to < 0 to sanity check later? */
+        short v = 0;
+        buffer_putd(&a->fr->af_labels, &v, sizeof(short));
+        return as_frame_nlabel(a->fr) - 1;
+}
+
+static int
+as_seek_rodata__(struct assemble_t *a, Object *v)
+{
+        struct buffer_t *b = &a->fr->af_rodata;
+        Object **data = (Object **)(b->s);
+        int i, n = as_buffer_ptr_size(b);
+
+        bug_on(!v);
+        for (i = 0; i < n; i++) {
+                /* var_compare thinks 2 == 2.0, don't allow that */
+                if (v->v_type != data[i]->v_type)
+                        continue;
+                if (var_compare(v, data[i]) == 0) {
+                        break;
+                }
+        }
+
+        if (i == n) {
+                VAR_INCR_REF(v);
+                as_buffer_put_ptr(b, v);
+        }
+
+        return i;
 }
 
 /*
@@ -442,7 +497,7 @@ as_next_label(struct assemble_t *a)
 static int
 as_seek_rodata_xptr(struct assemble_t *a, struct xptrvar_t *p)
 {
-        return xptr_add_rodata((Object *)a->fr->x, (Object *)p);
+        return as_seek_rodata__(a, (Object *)p);
 }
 
 /*
@@ -453,13 +508,8 @@ as_seek_rodata_xptr(struct assemble_t *a, struct xptrvar_t *p)
 static int
 as_seek_rodata(struct assemble_t *a, struct token_t *oc)
 {
-        struct as_frame_t *fr = a->fr;
-        struct xptrvar_t *x = fr->x;
-
-        /* oc->t can only be a sort that would have filled in oc->v */
-        bug_on(oc->v == NULL);
-        VAR_INCR_REF(oc->v);
-        return xptr_add_rodata((Object *)x, oc->v);
+        bug_on(!oc->v);
+        return as_seek_rodata__(a, oc->v);
 }
 
 static void
@@ -475,7 +525,7 @@ ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 static void
 ainstr_load_const_int(struct assemble_t *a, long long ival)
 {
-        int idx = xptr_add_rodata((Object *)a->fr->x, intvar_new(ival));
+        int idx = as_seek_rodata__(a, intvar_new(ival));
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
@@ -1918,37 +1968,25 @@ assemble_stmt(struct assemble_t *a, unsigned int flags, int continueto)
         AS_RECURSION_DECR();
 }
 
-/*
- * FIXME: This and resolve_jump_labels are all
- * tangled up with xptr.c code.
- */
-static void
-resolve_func_label(struct assemble_t *a,
-                   struct as_frame_t *fr,
-                   instruction_t *ii)
-{
-        struct list_t *li;
-        bug_on(ii->arg2 == fr->funcno);
-        list_foreach(li, &a->finished_frames) {
-                struct as_frame_t *sib = list2frame(li);
-                if (sib == fr)
-                        continue;
-                if (sib->funcno == ii->arg2) {
-                        ii->arg2 = as_seek_rodata_xptr(a, sib->x);
-                        return;
-                }
-        }
-        bug();
-}
-
 static void
 resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
 {
-        int i, n = fr->x->n_instr;
-        struct as_frame_t *frsav = a->fr;
+        int i, n_instr, n_label;
+        short *labels;
+        instruction_t *instrs;
+        struct as_frame_t *frsav;
+
+        labels  = (short *)fr->af_labels.s;
+        n_label = as_frame_nlabel(fr);
+
+        instrs = (instruction_t *)fr->af_instr.s;
+        n_instr = as_frame_ninstr(fr);
+
+        frsav = a->fr;
         a->fr = fr;
-        for (i = 0; i < n; i++) {
-                instruction_t *ii = &fr->x->instr[i];
+
+        for (i = 0; i < n_instr; i++) {
+                instruction_t *ii = &instrs[i];
                 if (ii->code == INSTR_B
                     || ii->code == INSTR_B_IF
                     || ii->code == INSTR_FOREACH_ITER
@@ -1961,56 +1999,101 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
                                 continue;
                         }
 
-                        bug_on(arg2 >= fr->x->n_label);
+                        bug_on(arg2 >= n_label);
                         /*
                          * minus one because pc will have already
                          * been incremented.
                          */
-                        ii->arg2 = fr->x->label[arg2] - i - 1;
+                        ii->arg2 = labels[arg2] - i - 1;
                         continue;
                 }
-                if (ii->code == INSTR_DEFFUNC)
-                        resolve_func_label(a, fr, ii);
         }
         a->fr = frsav;
 }
 
-/*
- * create the instruction sequences, one for the top-level file
- * and one for each function definition
- */
-static void
-assemble_first_pass(struct assemble_t *a, bool toeof)
-{
-        do {
-                assemble_stmt(a, toeof ? 0 : FE_TOP, -1);
-        } while (toeof && a->oc->t != OC_EOF);
-        add_instr(a, INSTR_END, 0, 0);
-
-        list_remove(&a->fr->list);
-        list_add_front(&a->fr->list, &a->finished_frames);
-}
-
-/* resolve local jump addresses */
-static void
-assemble_second_pass(struct assemble_t *a)
+static struct as_frame_t *
+func_label_to_frame(struct assemble_t *a, int funcno)
 {
         struct list_t *li;
-        list_foreach(li, &a->finished_frames)
-                resolve_jump_labels(a, list2frame(li));
+        list_foreach(li, &a->finished_frames) {
+                struct as_frame_t *sib = list2frame(li);
+                if (sib->funcno == funcno)
+                        return sib;
+        }
+        bug();
+        return NULL;
 }
 
 static struct xptrvar_t *
-as_top_executable(struct assemble_t *a)
+frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
 {
-        struct as_frame_t *fr = list2frame(a->finished_frames.next);
-        /*
-         * fr->x could be NULL if last call to
-         * assemble_next encountered an error
-         */
-        bug_on(!!fr->x && &fr->list == &a->finished_frames);
+        struct xptrvar_t *x;
+        instruction_t *instrs;
+        int i, n_instr;
 
-        return fr->x;
+        instrs = (instruction_t *)fr->af_instr.s;
+        n_instr = as_frame_ninstr(fr);
+        for (i = 0; i < n_instr; i++) {
+                instruction_t *ii = &instrs[i];
+                if (ii->code == INSTR_DEFFUNC) {
+                        struct as_frame_t *child;
+                        struct xptrvar_t *x;
+                        struct as_frame_t *frsav;
+
+                        child = func_label_to_frame(a, ii->arg2);
+                        bug_on(!child || child == fr);
+
+                        x = frame_to_xptr(a, child);
+
+                        frsav = a->fr;
+                        a->fr = fr;
+                        ii->arg2 = as_seek_rodata_xptr(a, x);
+                        a->fr = frsav;
+                }
+        }
+
+        do {
+                struct xptr_cfg_t cfg;
+                cfg.file_name   = a->file_name;
+                cfg.file_line   = fr->line;
+                cfg.n_label     = as_frame_nlabel(fr);
+                cfg.n_rodata    = as_buffer_ptr_size(&fr->af_rodata);
+                cfg.n_instr     = as_frame_ninstr(fr);
+                cfg.label       = buffer_trim(&fr->af_labels);
+                cfg.rodata      = buffer_trim(&fr->af_rodata);
+                cfg.instr       = buffer_trim(&fr->af_instr);
+                x = (struct xptrvar_t *)xptrvar_new(&cfg);
+        } while (0);
+
+        return x;
+}
+
+/* resolve local jump addresses */
+static struct xptrvar_t *
+assemble_second_pass(struct assemble_t *a)
+{
+        struct list_t *li;
+
+        /*
+         * TODO: Right here we can find any instance of
+         * LOAD_CONST + LOAD_CONST + binary op, or
+         * LOAD_CONST + unary op, execute it here, reduce
+         * the instruction set and number of runtime operations.
+         * We'll need to do that while the labels are still in
+         * fr->af_labels instead of the instructions or it will
+         * be a lot harder.
+         */
+
+        list_foreach(li, &a->finished_frames) {
+                struct as_frame_t *fr = list2frame(li);
+                resolve_jump_labels(a, fr);
+        }
+
+        /*
+         * See as_frame_pop().
+         * First child of finished_frames is also our entry point.
+         */
+        return frame_to_xptr(a, list2frame(a->finished_frames.next));
 }
 
 /*
@@ -2045,7 +2128,7 @@ new_assembler(const char *source_file_name, FILE *fp)
         return a;
 }
 
-/* if err, delete executable too, all that work for nothing */
+/* If err, delete executable too, all that work for nothing */
 static void
 as_delete_frame_list(struct list_t *parent_list, int err)
 {
@@ -2053,11 +2136,18 @@ as_delete_frame_list(struct list_t *parent_list, int err)
         list_foreach_safe(li, tmp, parent_list) {
                 struct as_frame_t *fr = list2frame(li);
                 list_remove(&fr->list);
-                if (err && fr->x)
-                        VAR_DECR_REF((Object *)fr->x);
                 buffer_free(&fr->af_locals);
                 buffer_free(&fr->af_args);
                 buffer_free(&fr->af_closures);
+
+                /*
+                 * These are safe to free, because if we aren't unwinding
+                 * due to failure, buffer_trim reset these already.
+                 */
+                buffer_free(&fr->af_rodata);
+                buffer_free(&fr->af_labels);
+                buffer_free(&fr->af_instr);
+
                 efree(fr);
         }
 }
@@ -2180,11 +2270,17 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                 *status = RES_ERROR;
                 ex = NULL;
         } else {
-                assemble_first_pass(a, toeof);
-                assemble_second_pass(a);
+                do {
+                        assemble_stmt(a, toeof ? 0 : FE_TOP, -1);
+                } while (toeof && a->oc->t != OC_EOF);
+                add_instr(a, INSTR_END, 0, 0);
+
+                list_remove(&a->fr->list);
+                list_add_front(&a->fr->list, &a->finished_frames);
+
+                ex = assemble_second_pass(a);
 
                 *status = RES_OK;
-                ex = as_top_executable(a);
         }
 
         AS_RECURSION_RESET();

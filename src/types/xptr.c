@@ -15,6 +15,8 @@ xptr_reset(Object *v)
                         VAR_DECR_REF(ex->rodata[i]);
                 efree(ex->rodata);
         }
+        if (ex->file_name)
+                efree(ex->file_name);
         if (ex->label)
                 efree(ex->label);
 }
@@ -52,118 +54,6 @@ struct type_t XptrType = {
         .reset  = xptr_reset,
 };
 
-/*
- * These API functions should only be used by assemble.c and
- * serializer.c, which build up the XptrType code block.
- */
-
-/**
- * xptr_next_label - Grow label array and get index of next label
- *
- * Return value should be regarded as an opaque identifier.  Use
- * it for the argument to xptr_set_label
- */
-int
-xptr_next_label(Object *v)
-{
-        struct xptrvar_t *x = V2XP(v);
-        bug_on(!isvar_xptr(v));
-
-        x->n_label++;
-        x->label = erealloc(x->label, x->n_label * sizeof(x->label[0]));
-        return x->n_label - 1;
-}
-
-/**
- * xptr_set_label - Set a label
- *
- * The assumption here is:
- *      1. @jmp is a return value from xptr_next_label
- *      2. You are inserting this BEFORE a call to xptr_add_instr
- *         for an instruction you want to jump to.
- */
-void
-xptr_set_label(Object *v, int jmp)
-{
-        struct xptrvar_t *x = V2XP(v);
-        bug_on(!isvar_xptr(v));
-        bug_on(!x->label || x->n_label <= jmp);
-        x->label[jmp] = x->n_instr;
-}
-
-/**
- * xptr_add_xptr - Seek or add rodata
- * @x: Parent XptrType var
- * @new_data: Child XptrType var to add.  This must be either a datum
- *      that can be expressed in a single token--strings, integers,
- *      etc.--or other XptrType vars.
- *
- * If @new_data already exists in @x's .rodata, consume @new_data's
- * reference and return the .rodata array index where it was found.
- * If it does not exist, store it and return the new array index.
- * Since @new_data is assumed to have just been created, this function
- * does not produce a reference.
- */
-int
-xptr_add_rodata(Object *v, Object *new_data)
-{
-        int i;
-        struct xptrvar_t *x = V2XP(v);
-
-        bug_on(!isvar_xptr(v));
-        for (i = 0; i < x->n_rodata; i++) {
-                /*
-                 * careful, var_compare will think 2.0 == 2,
-                 * but we want to preserve number types in rodata.
-                 */
-                if (new_data->v_type != x->rodata[i]->v_type)
-                        continue;
-                if (var_compare(new_data, x->rodata[i]) == 0) {
-                        VAR_DECR_REF(new_data);
-                        break;
-                }
-        }
-
-        if (i == x->n_rodata) {
-                /*
-                 * It looks cumbersome to grow rodata array by just one
-                 * each time, but we're only doing this during assembly.
-                 * In usual cases, there is probably less than a dozen
-                 * of these per function.
-                 */
-                x->rodata = erealloc(x->rodata,
-                                     (x->n_rodata + 1) * sizeof(Object *));
-                x->rodata[x->n_rodata] = new_data;
-                x->n_rodata++;
-#if DEBUG_MISSING_RODATA
-                new_data->v_rodata = 1;
-#endif /* DEBUG_MISSING_RODATA */
-        }
-
-        return i;
-}
-
-/**
- * xptr_add_instr - Append an instruction to the instruction array.
- */
-void
-xptr_add_instr(Object *v, instruction_t ii)
-{
-        struct xptrvar_t *x = V2XP(v);
-
-        bug_on(!isvar_xptr(v));
-
-        /*
-         * TODO: Add a n_instr_alloc var, there are enough of these that
-         * we don't really want to realloc the array by just one each time
-         */
-        x->instr = erealloc(x->instr,
-                        (x->n_instr + 1) * sizeof(x->instr[0]));
-
-        x->instr[x->n_instr] = ii;
-        x->n_instr++;
-}
-
 /**
  * xptrvar_new - Get a new XptrType var
  * @file_name: Name of source file that defines this code
@@ -172,18 +62,19 @@ xptr_add_instr(Object *v, instruction_t ii)
  *             script.
  */
 Object *
-xptrvar_new(const char *file_name, int file_line)
+xptrvar_new(const struct xptr_cfg_t *cfg)
 {
         Object *v = var_new(&XptrType);
         struct xptrvar_t *x = V2XP(v);
-        x->instr        = NULL;
-        x->rodata       = NULL;
-        x->n_instr      = 0;
-        x->n_rodata     = 0;
-        x->label        = NULL;
-        x->n_label      = 0;
-        x->file_name    = file_name;
-        x->file_line    = file_line;
+
+        x->instr        = cfg->instr;
+        x->n_rodata     = cfg->n_rodata;
+        x->n_instr      = cfg->n_instr;
+        x->rodata       = cfg->rodata;
+        x->label        = cfg->label;
+        x->n_label      = cfg->n_label;
+        x->file_name    = estrdup(cfg->file_name);
+        x->file_line    = cfg->file_line;
         x->uuid         = uuidstr();
         return v;
 }

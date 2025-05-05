@@ -1,3 +1,4 @@
+#if 0
 /*
  * serializer.c - Code that loads or writes out a serialized byte code file.
  *
@@ -1062,3 +1063,4 @@ done:
         buffer_free(&state.b);
         return res;
 }
+#endif /* 0 */

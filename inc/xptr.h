@@ -77,9 +77,9 @@ struct xptrvar_t {
         int n_instr;
         int n_rodata;
         /* cold items used by disassembly and serializer */
-        unsigned short *label;
+        short *label;
         int n_label;
-        const char *file_name;
+        char *file_name;
         int file_line;
         /*
          * XXX: I'd rather this be uuid_t, but I want to limit the
@@ -93,10 +93,17 @@ struct xptrvar_t {
 };
 
 /* only serializer.c and assembler.c code should need to use these */
-extern int xptr_next_label(Object *v);
-extern void xptr_set_label(Object *v, int jmp);
-extern int xptr_add_rodata(Object *v, Object *new_data);
-extern void xptr_add_instr(Object *v, instruction_t ii);
-extern Object *xptrvar_new(const char *file_name, int file_line);
+struct xptr_cfg_t {
+        instruction_t *instr;
+        int n_instr;
+        Object **rodata;
+        int n_rodata;
+        short *label;
+        int n_label;
+        int file_line;
+        const char *file_name;
+};
+
+extern Object *xptrvar_new(const struct xptr_cfg_t *cfg);
 
 #endif /* EVILCANDY_XPTR_H */

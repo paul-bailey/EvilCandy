@@ -1,11 +1,96 @@
+/*
+ * XXX  This file bravely makes the assumption that 'optimize' and
+ *      'front-load' mean the same thing.  This will make for a sluggish
+ *      load time, unless we get a good serialization scheme working, so
+ *      that this stuff only happens when a byte-code file doesn't exist.
+ */
 #include <evilcandy.h>
 #include <xptr.h>
 #include "assemble_priv.h"
+
+static bool
+uses_rodata(instruction_t ii)
+{
+        switch (ii.code) {
+        case INSTR_LOAD_CONST:
+        case INSTR_SYMTAB:
+        case INSTR_DEFFUNC:
+                return true;
+        case INSTR_LOAD:
+        case INSTR_ASSIGN:
+                return ii.arg1 == IARG_PTR_SEEK;
+        default:
+                return false;
+        }
+}
 
 static int
 frame_n_rodata(struct as_frame_t *fr)
 {
         return as_buffer_ptr_size(&fr->af_rodata);
+}
+
+/*
+ * If we simplified some operations on consts, then some .rodata may no
+ * longer be necessary.  If so, this garbage collects that and adjust
+ * instructions' .rodata offsets as necessary.
+ */
+static void
+shift_down_rodata(struct as_frame_t *fr)
+{
+        int16_t **marks;
+        instruction_t *idata;
+        int i, n_rodata, n_instr;
+        Object **rodata;
+
+        n_instr = as_frame_ninstr(fr);
+        marks = emalloc(n_instr * sizeof(void *));
+        n_rodata = frame_n_rodata(fr);
+        idata = (instruction_t *)fr->af_instr.s;
+
+        /* set this at start to make things a little faster */
+        for (i = 0; i < n_instr; i++) {
+                if (uses_rodata(idata[i]))
+                        marks[i] = &idata[i].arg2;
+                else
+                        marks[i] = NULL;
+        }
+
+        rodata = (Object **)fr->af_rodata.s;
+        for (i = n_rodata - 1; i >= 0; i--) {
+                int j;
+
+                /* Skip checks for xptr, we know it's sitll needed */
+                if (isvar_xptr(rodata[i]))
+                        continue;
+
+                for (j = 0; j < n_instr; j++) {
+                        if (marks[j] && marks[j][0] == i)
+                                break;
+                }
+
+                /* Someone still needs us */
+                if (j != n_instr)
+                        continue;
+
+                /* no one needs us */
+                VAR_DECR_REF(rodata[i]);
+
+                /* Point affected instructions down one index */
+                for (j = 0; j < n_instr; j++) {
+                        if (marks[j] && *(marks[j]) > i)
+                                marks[j][0] -= 1;
+                }
+
+                /* Move rodata down one */
+                for (j = i; j < n_rodata - 1; j++) {
+                        rodata[j] = rodata[j + 1];
+                }
+                n_rodata--;
+        }
+
+        /* so dirty... */
+        fr->af_rodata.p = n_rodata * sizeof(Object *);
 }
 
 static Object *
@@ -163,17 +248,8 @@ reduce_const_operators_(struct assemble_t *a, struct as_frame_t *fr)
                 }
         } while (reduced);
 
-        if (reduced_once) {
-                /*
-                 * TODO: This is a placeholder for where we shift out
-                 * no longer needed .rodata.  But to do that safely, we
-                 * need a more automated way of determining which
-                 * op-codes would be affected than we have now.  Until
-                 * then, there will likely be some unused .rodata, which
-                 * may confuse people looking at the disassembly.
-                 */
-                (void)reduced_once;
-        }
+        if (reduced_once)
+                shift_down_rodata(fr);
 }
 
 static void
@@ -249,6 +325,13 @@ frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
         instruction_t *instrs;
         int i, n_instr;
 
+        /*
+         * Resolve any nested function defintions from a magic number to
+         * a pointer to another XptrType object.  This means that we have
+         * to process the most deeply nested functions first, hence the
+         * recursion.  No need for a recursion-count check, these cannot
+         * be any deeper than what assembler.c checked for already.
+         */
         instrs = (instruction_t *)fr->af_instr.s;
         n_instr = as_frame_ninstr(fr);
         for (i = 0; i < n_instr; i++) {
@@ -282,21 +365,23 @@ frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
         return x;
 }
 
-/* resolve local jump addresses */
+/**
+ * assemble_post - Helper function for assemble()
+ *
+ * All the opcodes have been compiled.  Still to do...
+ * 1. If any binary operators perform on two consts, perform them here
+ *    and reduce three instructions to a single LOAD_CONST.
+ * 2. Garbage-collect any .rodata that the above procedure rendered
+ *    no longer necessary.
+ * 3. Resolve local jump addresses
+ * 4. Convert it all into a tree of XptrType objects, with the entry
+ *    point at the top.
+ */
 struct xptrvar_t *
 assemble_post(struct assemble_t *a)
 {
         struct list_t *li;
 
-        /*
-         * TODO: Right here we can find any instance of
-         * INSTR_LOAD_CONST + INSTR_LOAD_CONST + binary op, or
-         * INSTR_LOAD_CONST + unary op, execute it here, reduce
-         * the instruction set and number of runtime operations.
-         * We'll need to do that while the labels are still in
-         * fr->af_labels instead of the instructions or it will
-         * be a lot harder.
-         */
         reduce_const_operators(a);
 
         list_foreach(li, &a->finished_frames) {

@@ -9,7 +9,7 @@
 #include "assemble_priv.h"
 
 static bool
-uses_rodata(instruction_t ii)
+instr_uses_rodata(instruction_t ii)
 {
         switch (ii.code) {
         case INSTR_LOAD_CONST:
@@ -36,7 +36,7 @@ frame_n_rodata(struct as_frame_t *fr)
  * instructions' .rodata offsets as necessary.
  */
 static void
-shift_down_rodata(struct as_frame_t *fr)
+remove_unused_rodata(struct as_frame_t *fr)
 {
         int16_t **marks;
         instruction_t *idata;
@@ -50,7 +50,7 @@ shift_down_rodata(struct as_frame_t *fr)
 
         /* set this at start to make things a little faster */
         for (i = 0; i < n_instr; i++) {
-                if (uses_rodata(idata[i]))
+                if (instr_uses_rodata(idata[i]))
                         marks[i] = &idata[i].arg2;
                 else
                         marks[i] = NULL;
@@ -143,17 +143,7 @@ try_binop(Object *left, Object *right, int opcode)
 }
 
 static void
-shift_down_labels(short *labels, int n_labels, int after, int amount)
-{
-        int i;
-        for (i = 0; i < n_labels; i++) {
-                if (labels[i] > after)
-                        labels[i] -= amount;
-        }
-}
-
-static void
-shift_out_nops(struct assemble_t *a, struct as_frame_t *fr)
+remove_nop_instructions(struct assemble_t *a, struct as_frame_t *fr)
 {
         int i, n_instr;
         int n_labels = as_frame_nlabel(fr);
@@ -167,14 +157,19 @@ shift_out_nops(struct assemble_t *a, struct as_frame_t *fr)
                         i++;
                         continue;
                 }
-                int amount, after, movsize;
+                int j, amount, after, movsize;
+
                 after = i;
                 do {
                         i++;
                 } while (i < n_instr && idata[i].code == INSTR_NOP);
                 amount = i - after;
 
-                shift_down_labels(labels, n_labels, after, amount);
+                /* shift down labels */
+                for (j = 0; j < n_labels; j++) {
+                        if (labels[j] > after)
+                                labels[j] -= amount;
+                }
 
                 movsize = (n_instr - i) * sizeof(instruction_t);
                 bug_on(movsize < 0);
@@ -198,8 +193,9 @@ seek_rodata(struct assemble_t *a, struct as_frame_t *fr, Object *obj)
         return ret;
 }
 
+/* reduce_const_operands but for just one function */
 static void
-reduce_const_operators_(struct assemble_t *a, struct as_frame_t *fr)
+reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
 {
         bool reduced, reduced_once;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
@@ -243,22 +239,26 @@ reduce_const_operators_(struct assemble_t *a, struct as_frame_t *fr)
                 }
 
                 if (reduced) {
-                        shift_out_nops(a, fr);
+                        remove_nop_instructions(a, fr);
                         reduced_once = true;
                 }
         } while (reduced);
 
         if (reduced_once)
-                shift_down_rodata(fr);
+                remove_unused_rodata(fr);
 }
 
+/*
+ * For any A operator B where A and B are both consts, perform the
+ * operation here and reduce it to just a single LOAD_CONST instruction
+ */
 static void
-reduce_const_operators(struct assemble_t *a)
+reduce_const_operands(struct assemble_t *a)
 {
         struct list_t *li;
         list_foreach(li, &a->finished_frames) {
                 struct as_frame_t *fr = list2frame(li);
-                reduce_const_operators_(a, fr);
+                reduce_const_operands_(a, fr);
         }
 }
 
@@ -382,7 +382,7 @@ assemble_post(struct assemble_t *a)
 {
         struct list_t *li;
 
-        reduce_const_operators(a);
+        reduce_const_operands(a);
 
         list_foreach(li, &a->finished_frames) {
                 struct as_frame_t *fr = list2frame(li);

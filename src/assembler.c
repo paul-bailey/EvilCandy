@@ -365,10 +365,16 @@ as_next_label(struct assemble_t *a)
         return as_frame_nlabel(a->fr) - 1;
 }
 
+static int
+as_seek_rodata_tok(struct assemble_t *a, struct token_t *oc)
+{
+        return assemble_seek_rodata(a, oc->v);
+}
+
 static void
 ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 {
-        int idx = assemble_seek_rodata(a, oc->v);
+        int idx = as_seek_rodata_tok(a, oc);
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
@@ -379,7 +385,13 @@ ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 static void
 ainstr_load_const_int(struct assemble_t *a, long long ival)
 {
-        int idx = assemble_seek_rodata(a, intvar_new(ival));
+        Object *iobj;
+        int idx;
+
+        iobj = intvar_new(ival);
+        idx = assemble_seek_rodata(a, iobj);
+        VAR_DECR_REF(iobj);
+
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
@@ -761,7 +773,7 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
         } else if ((idx = maybe_closure(a, name->s, pos)) >= 0) {
                 add_instr(a, instr, IARG_PTR_CP, idx);
         } else {
-                int namei = assemble_seek_rodata(a, name->v);
+                int namei = as_seek_rodata_tok(a, name);
                 add_instr(a, instr, IARG_PTR_SEEK, namei);
         }
 }
@@ -1318,7 +1330,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
         int namei;
         bug_on(global && name == NULL);
         if (global) {
-                namei = assemble_seek_rodata(a, name->v);
+                namei = as_seek_rodata_tok(a, name);
                 add_instr(a, INSTR_SYMTAB, 0, namei);
         } else {
                 namei = fakestack_declare(a, name ? name->s : NULL);
@@ -2027,9 +2039,8 @@ assemble_seek_rodata(struct assemble_t *a, Object *v)
                 /* var_compare thinks 2 == 2.0, don't allow that */
                 if (v->v_type != data[i]->v_type)
                         continue;
-                if (var_compare(v, data[i]) == 0) {
+                if (var_compare(v, data[i]) == 0)
                         break;
-                }
         }
 
         if (i == n) {

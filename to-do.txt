@@ -12,6 +12,8 @@ Must Do
 
 * Make sure all .cmpz methods match documentation.
 
+* Make sure all .cmp methods behave correctly: <0 if a<b, 0 if a==b, ...
+
 * Interactive mode problem: token state machine is created and destroyed
   by a wrapping call from assemble().  So if it's interactive mode and
   someone types "a = 1; b = 2;" all on the same line, the first part
@@ -44,8 +46,6 @@ Must Do
 Library/Language Features
 -------------------------
 
-* Support array slicing
-
 * Add sets
 
 * Support soft keywords
@@ -68,10 +68,6 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
-* (requires parser rewrite) Optimize parsing of complex-number
-  expressions like '2 + 2j' so that they evaluate to a single complex
-  number at compile time instead of runtime.
-
 * Replace setjmp in assemble.c with normal stack unwinding.  May need
   to replace EOF with OC_EOF so that a <0 check will always mean
   'error'.
@@ -86,13 +82,6 @@ Mebbe/Wishlist/Low-prio bugs
 
 * Replace jmp_buf in token.c with either fussier management of helper
   functions' return values, or with a big damn get_tok function.
-
-* At assemble_eval() time, determine if certain expressions can be
-  reduced to single consts known at assemble time.  Currently something
-  like "1 + 2" will result in an operation at execution time instead
-  of being compiled to just "3".  Big lift, basically means creating
-  a parse tree BEFORE generating code.  We're currently doing these
-  two tasks simultaneously.
 
 * Preserve token buffer in interactive mode so that the UP arrow will
   recall previous expressions.

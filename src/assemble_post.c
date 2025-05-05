@@ -108,6 +108,7 @@ seek_rodata(struct assemble_t *a, struct as_frame_t *fr, Object *obj)
         struct as_frame_t *frsav = a->fr;
         a->fr = fr;
         ret = assemble_seek_rodata(a, obj);
+        VAR_DECR_REF(obj);
         a->fr = frsav;
         return ret;
 }

@@ -34,6 +34,7 @@
 #include <token.h>
 #include <xptr.h>
 #include <setjmp.h>
+#include "assemble_priv.h"
 
 /*
  * The @flags arg used in some of the functions below.
@@ -50,12 +51,6 @@ enum {
         FE_TOP          = 0x04
 };
 
-#define INSTR_SIZE      sizeof(instruction_t)
-#define DATA_ALIGN_SIZE 8
-
-#define PAD_ALIGN(x) \
-        (DATA_ALIGN_SIZE - (((x) * INSTR_SIZE) & (DATA_ALIGN_SIZE-1)))
-
 #define as_err(a, e) longjmp((a)->env, e)
 #define as_err_if(a, cond, e) \
         do { if (cond) as_err(a, e); } while (0)
@@ -64,8 +59,6 @@ enum {
         err_setstr(SyntaxError, "Unexpected termination"); \
         as_err(a, AE_GEN); \
 } while (0)
-
-#define list2frame(li) container_of(li, struct as_frame_t, list)
 
 enum {
         AE_GEN = 1,
@@ -81,81 +74,7 @@ enum {
         AE_PARSER,
 };
 
-enum {
-        NFRAME     = 32,
-};
-
-enum {
-        FUNC_INIT = 1,
-        JMP_INIT = 0,
-};
-
-/**
- * struct as_frame_t - Temporary frame during assembly
- * @funcno:      Temporary magic number identifying this during the first
- *               pass before jump labels are resolved.
- * @af_locals:   Symbol table of stack variables.
- * @fp:          Index into @af_locals defining current scope
- * @af_args:     Symbol table of argument names, in order of argument
- * @af_closures: Symbol table of closure names
- * @af_rodata:   ie. a function's consts, array of Object *
- * @af_labels:   Jump labels, array of short ints
- * @af_instr;    Instructions, array of instruction_t
- * @scope:       Current {...} scope within the function
- * @nest:        Pointer to current top of @scope
- * @line:        Line number of first line of code for this frame
- * @list:        Link to sibling frames
- *
- * This wraps @x (the true intended result of this assembly, and will
- * be thrown away when we're done, leaving only @x remaining.
- *
- * One of these frames is allocated for each function, and one for the
- * top-level script.  Internal scope (if, while, anything in a {...}
- * block) is managed by scope[].
- */
-struct as_frame_t {
-        int funcno;
-        struct buffer_t af_locals;
-        int fp;
-        struct buffer_t af_args;
-        struct buffer_t af_closures;
-        struct buffer_t af_rodata;
-        struct buffer_t af_labels;
-        struct buffer_t af_instr;
-        int scope[FRAME_NEST_MAX];
-        int nest;
-        int line;
-        struct list_t list;
-};
-
-/**
- * struct assemble_t - The top-level assembler, contains all the
- *                     function definitions in the same source file.
- * @prog:       The token state machine
- * @oc:         Pointer into current parsed token in @prog
- * @func:       Label number for next function
- * @env:        Buffer to longjmp from in case of error
- * @active_frames:
- *              Linked list of frames that have not been fully parsed.
- *              Because functions can be declared and defined in the
- *              middle of wrapper functions, this is not necessarily
- *              size one.
- * @finished:frames:
- *              Linked list of frames that have been fully parsed.
- * @fr:         Current active frame, should be last member of
- *              @active frames
- */
-struct assemble_t {
-        char *file_name;
-        FILE *fp;
-        struct token_state_t *prog;
-        struct token_t *oc;
-        int func;
-        jmp_buf env;
-        struct list_t active_frames;
-        struct list_t finished_frames;
-        struct as_frame_t *fr;
-};
+enum { FUNC_INIT = 1 };
 
 static void assemble_expr(struct assemble_t *a);
 static void assemble_stmt(struct assemble_t *a, unsigned int flags,
@@ -164,11 +83,6 @@ static void assemble_expr5_atomic(struct assemble_t *a);
 static int assemble_primary_elements(struct assemble_t *a,
                                      bool may_assign);
 
-static int
-as_buffer_ptr_size(struct buffer_t *b)
-{
-        return buffer_size(b) / sizeof(void *);
-}
 
 /* i is ARRAY size, not number of bytes! */
 /* XXX should be a buffer.h function */
@@ -187,18 +101,6 @@ as_buffer_put_ptr(struct buffer_t *b, void *ptr)
 
 #define as_buffer_put_name(bf_, nm_) \
         as_buffer_put_ptr(bf_, (void *)(nm_))
-
-static int
-as_frame_ninstr(struct as_frame_t *fr)
-{
-        return buffer_size(&fr->af_instr) / sizeof(instruction_t);
-}
-
-static int
-as_frame_nlabel(struct as_frame_t *fr)
-{
-        return buffer_size(&fr->af_labels) / sizeof(short);
-}
 
 /*
  * See comments above get_tok().
@@ -463,59 +365,11 @@ as_next_label(struct assemble_t *a)
         return as_frame_nlabel(a->fr) - 1;
 }
 
-static int
-as_seek_rodata__(struct assemble_t *a, Object *v)
-{
-        struct buffer_t *b = &a->fr->af_rodata;
-        Object **data = (Object **)(b->s);
-        int i, n = as_buffer_ptr_size(b);
-
-        bug_on(!v);
-        for (i = 0; i < n; i++) {
-                /* var_compare thinks 2 == 2.0, don't allow that */
-                if (v->v_type != data[i]->v_type)
-                        continue;
-                if (var_compare(v, data[i]) == 0) {
-                        break;
-                }
-        }
-
-        if (i == n) {
-                VAR_INCR_REF(v);
-                as_buffer_put_ptr(b, v);
-        }
-
-        return i;
-}
-
-/*
- * Like as_seek_rodata, but for an XptrType instead of an atom stored
- * in a token.
- *
- * Add a pointer to another XptrType to this one's .rodata.
- */
-static int
-as_seek_rodata_xptr(struct assemble_t *a, struct xptrvar_t *p)
-{
-        return as_seek_rodata__(a, (Object *)p);
-}
-
-/*
- * Seek .rodata for same value stored in @oc, which has an atom literal
- * If data is found, return its array index.
- * If data is not found, insert data form @oc and return new index.
- */
-static int
-as_seek_rodata(struct assemble_t *a, struct token_t *oc)
-{
-        bug_on(!oc->v);
-        return as_seek_rodata__(a, oc->v);
-}
-
 static void
 ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 {
-        add_instr(a, INSTR_LOAD_CONST, 0, as_seek_rodata(a, oc));
+        int idx = assemble_seek_rodata(a, oc->v);
+        add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
 /*
@@ -525,7 +379,7 @@ ainstr_load_const(struct assemble_t *a, struct token_t *oc)
 static void
 ainstr_load_const_int(struct assemble_t *a, long long ival)
 {
-        int idx = as_seek_rodata__(a, intvar_new(ival));
+        int idx = assemble_seek_rodata(a, intvar_new(ival));
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
@@ -907,7 +761,7 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
         } else if ((idx = maybe_closure(a, name->s, pos)) >= 0) {
                 add_instr(a, instr, IARG_PTR_CP, idx);
         } else {
-                int namei = as_seek_rodata(a, name);
+                int namei = assemble_seek_rodata(a, name->v);
                 add_instr(a, instr, IARG_PTR_SEEK, namei);
         }
 }
@@ -1464,7 +1318,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
         int namei;
         bug_on(global && name == NULL);
         if (global) {
-                namei = as_seek_rodata(a, name);
+                namei = assemble_seek_rodata(a, name->v);
                 add_instr(a, INSTR_SYMTAB, 0, namei);
         } else {
                 namei = fakestack_declare(a, name ? name->s : NULL);
@@ -1968,134 +1822,6 @@ assemble_stmt(struct assemble_t *a, unsigned int flags, int continueto)
         AS_RECURSION_DECR();
 }
 
-static void
-resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
-{
-        int i, n_instr, n_label;
-        short *labels;
-        instruction_t *instrs;
-        struct as_frame_t *frsav;
-
-        labels  = (short *)fr->af_labels.s;
-        n_label = as_frame_nlabel(fr);
-
-        instrs = (instruction_t *)fr->af_instr.s;
-        n_instr = as_frame_ninstr(fr);
-
-        frsav = a->fr;
-        a->fr = fr;
-
-        for (i = 0; i < n_instr; i++) {
-                instruction_t *ii = &instrs[i];
-                if (ii->code == INSTR_B
-                    || ii->code == INSTR_B_IF
-                    || ii->code == INSTR_FOREACH_ITER
-                    || ii->code == INSTR_PUSH_BLOCK) {
-                        int arg2 = ii->arg2 - JMP_INIT;
-
-                        if (ii->code == INSTR_PUSH_BLOCK
-                            && ii->arg1 == IARG_BLOCK) {
-                                /* ignore labels for this one */
-                                continue;
-                        }
-
-                        bug_on(arg2 >= n_label);
-                        /*
-                         * minus one because pc will have already
-                         * been incremented.
-                         */
-                        ii->arg2 = labels[arg2] - i - 1;
-                        continue;
-                }
-        }
-        a->fr = frsav;
-}
-
-static struct as_frame_t *
-func_label_to_frame(struct assemble_t *a, int funcno)
-{
-        struct list_t *li;
-        list_foreach(li, &a->finished_frames) {
-                struct as_frame_t *sib = list2frame(li);
-                if (sib->funcno == funcno)
-                        return sib;
-        }
-        bug();
-        return NULL;
-}
-
-static struct xptrvar_t *
-frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
-{
-        struct xptrvar_t *x;
-        instruction_t *instrs;
-        int i, n_instr;
-
-        instrs = (instruction_t *)fr->af_instr.s;
-        n_instr = as_frame_ninstr(fr);
-        for (i = 0; i < n_instr; i++) {
-                instruction_t *ii = &instrs[i];
-                if (ii->code == INSTR_DEFFUNC) {
-                        struct as_frame_t *child;
-                        struct xptrvar_t *x;
-                        struct as_frame_t *frsav;
-
-                        child = func_label_to_frame(a, ii->arg2);
-                        bug_on(!child || child == fr);
-
-                        x = frame_to_xptr(a, child);
-
-                        frsav = a->fr;
-                        a->fr = fr;
-                        ii->arg2 = as_seek_rodata_xptr(a, x);
-                        a->fr = frsav;
-                }
-        }
-
-        do {
-                struct xptr_cfg_t cfg;
-                cfg.file_name   = a->file_name;
-                cfg.file_line   = fr->line;
-                cfg.n_label     = as_frame_nlabel(fr);
-                cfg.n_rodata    = as_buffer_ptr_size(&fr->af_rodata);
-                cfg.n_instr     = as_frame_ninstr(fr);
-                cfg.label       = buffer_trim(&fr->af_labels);
-                cfg.rodata      = buffer_trim(&fr->af_rodata);
-                cfg.instr       = buffer_trim(&fr->af_instr);
-                x = (struct xptrvar_t *)xptrvar_new(&cfg);
-        } while (0);
-
-        return x;
-}
-
-/* resolve local jump addresses */
-static struct xptrvar_t *
-assemble_second_pass(struct assemble_t *a)
-{
-        struct list_t *li;
-
-        /*
-         * TODO: Right here we can find any instance of
-         * LOAD_CONST + LOAD_CONST + binary op, or
-         * LOAD_CONST + unary op, execute it here, reduce
-         * the instruction set and number of runtime operations.
-         * We'll need to do that while the labels are still in
-         * fr->af_labels instead of the instructions or it will
-         * be a lot harder.
-         */
-
-        list_foreach(li, &a->finished_frames) {
-                struct as_frame_t *fr = list2frame(li);
-                resolve_jump_labels(a, fr);
-        }
-
-        /*
-         * See as_frame_pop().
-         * First child of finished_frames is also our entry point.
-         */
-        return frame_to_xptr(a, list2frame(a->finished_frames.next));
-}
-
 /*
  * new_assembler - Start an assembler state machine for a new input stream
  * @source_file_name: Name of input stream, for error reporting;
@@ -2278,7 +2004,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                 list_remove(&a->fr->list);
                 list_add_front(&a->fr->list, &a->finished_frames);
 
-                ex = assemble_second_pass(a);
+                ex = assemble_post(a);
 
                 *status = RES_OK;
         }
@@ -2286,6 +2012,32 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
         AS_RECURSION_RESET();
 
         return ex;
+}
+
+/* extern linkage because assemble_post.c needs it */
+int
+assemble_seek_rodata(struct assemble_t *a, Object *v)
+{
+        struct buffer_t *b = &a->fr->af_rodata;
+        Object **data = (Object **)(b->s);
+        int i, n = as_buffer_ptr_size(b);
+
+        bug_on(!v);
+        for (i = 0; i < n; i++) {
+                /* var_compare thinks 2 == 2.0, don't allow that */
+                if (v->v_type != data[i]->v_type)
+                        continue;
+                if (var_compare(v, data[i]) == 0) {
+                        break;
+                }
+        }
+
+        if (i == n) {
+                VAR_INCR_REF(v);
+                as_buffer_put_ptr(b, v);
+        }
+
+        return i;
 }
 
 /**

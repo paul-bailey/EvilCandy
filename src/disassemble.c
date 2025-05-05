@@ -104,16 +104,13 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex, unsigned int i)
         }
         v = ex->rodata[i];
 
-        if (isvar_int(v))
-                fprintf(fp, "0x%016llx", intvar_toll(v));
-        else if (isvar_float(v))
-                fprintf(fp, "%.8le", floatvar_tod(v));
-        else if (isvar_string(v))
-                print_escapestr(fp, string_get_cstring(v), '"');
-        else if (isvar_xptr(v))
+        if (isvar_xptr(v)) {
                 fprintf(fp, "<%s>", ((struct xptrvar_t *)(v))->uuid);
-        else
-                fprintf(fp, "%s", undefstr);
+        } else {
+                Object *str = var_str(v);
+                fprintf(fp, "%s", string_get_cstring(str));
+                VAR_DECR_REF(str);
+        }
 }
 
 static void

@@ -9,6 +9,7 @@ tools_gen_CPPFLAGS = -I$(top_srcdir)/inc
 
 evilcandy_SOURCES = \
         src/assembler.c \
+        src/assemble_post.c \
         src/buffer.c \
         src/disassemble.c \
         src/err.c \
@@ -48,6 +49,7 @@ evilcandy_SOURCES = \
         src/types/xptr.c
 
 noinst_HEADERS = \
+        src/assemble_priv.h \
         inc/debug.h \
         inc/evcenums.h \
         inc/evilcandy.h \

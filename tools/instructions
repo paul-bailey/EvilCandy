@@ -13,7 +13,8 @@
 # inc/instruction.h).  Each instruction also takes two arguments,
 # making the total instruction word 32 bits.
 
-# No operations, honestly I don't know why I have this
+# No operations, used in assemble_post as a placeholder before
+# shifting opcodes down in the array while optimizing.
 NOP
 
 # Push NullVar onto stack ('null' as seen by the user).  In most

@@ -125,7 +125,13 @@ complex_cmp(Object *a, Object *b)
         complex double ca, cb;
         COMPLEX(a, ca);
         COMPLEX(b, cb);
-        return creal(ca) == creal(cb) && cimag(ca) == cimag(cb);
+        /*
+         * "a < b" makes no sense with complex numbers, so sorting
+         * won't be meaningul here.  However we still need this for
+         * matching purposes.  Return 0 if they match, 1 otherwise,
+         * regardless which is "bigger".
+         */
+        return !(creal(ca) == creal(cb) && cimag(ca) == cimag(cb));
 }
 
 static bool

@@ -105,9 +105,6 @@ again:
                         }
 
                         switch (c) {
-                        case '0':
-                                /* don't sneak in nullchar */
-                                goto err;
                         case 'a': /* bell - but why? */
                                 buffer_putc(&b, '\a');
                                 continue;
@@ -143,7 +140,7 @@ again:
                                         if (!isodigit(*s))
                                                 break;
                                         /* '0' & 7 happens to be 0 */
-                                        v = (v << 3) + c & 7;
+                                        v = (v << 3) + (*s & 7);
                                 }
                                 if (v == 0 || v >= 256)
                                         goto err;
@@ -1244,7 +1241,7 @@ string_str(Object *v)
                         buffer_putc(&b, c);
                 } else if (!isgraph(c)) {
                         buffer_putc(&b, BKSL);
-                        buffer_putc(&b, ((c >> 6) & 0x07) + '0');
+                        buffer_putc(&b, ((c >> 6) & 0x03) + '0');
                         buffer_putc(&b, ((c >> 3) & 0x07) + '0');
                         buffer_putc(&b, (c & 0x07) + '0');
                 } else {

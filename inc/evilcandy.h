@@ -122,10 +122,6 @@ extern FILE *push_path(const char *filename);
 /* var.c */
 #include "var.h"
 
-/* serializer.c */
-extern int serialize_write(FILE *fp, Object *ex);
-extern Object *serialize_read(FILE *fp, const char *file_name);
-
 /* types/array.c */
 extern Object *arrayvar_new(int n_items);
 extern Object *tuplevar_new(int n_items);

@@ -23,7 +23,7 @@ evilcandy_SOURCES = \
         src/main.c \
         src/op.c \
         src/path.c \
-        src/serializer.c \
+        src/reassemble.c \
         src/token.c \
         src/uuid.c \
         src/var.c \

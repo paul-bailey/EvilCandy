@@ -122,31 +122,6 @@ as_savetok(struct assemble_t *a, struct token_t *dst)
         return token_get_pos(a->prog);
 }
 
-static void
-as_frame_push(struct assemble_t *a, int funcno)
-{
-        struct as_frame_t *fr;
-
-        fr = emalloc(sizeof(*fr));
-        memset(fr, 0, sizeof(*fr));
-
-        /* memset did this, but just in case buffer.c internals change... */
-        buffer_init(&fr->af_closures);
-        buffer_init(&fr->af_locals);
-        buffer_init(&fr->af_args);
-        buffer_init(&fr->af_rodata);
-        buffer_init(&fr->af_labels);
-        buffer_init(&fr->af_instr);
-
-        fr->funcno = funcno;
-        fr->line = a->oc ? a->oc->line : 1;
-
-        list_init(&fr->list);
-        list_add_tail(&fr->list, &a->active_frames);
-
-        a->fr = fr;
-}
-
 /*
  * This is so dirty, but we have to because we need to stuff
  * future frame with arg defs while adding instructions to old
@@ -201,32 +176,6 @@ as_frame_take(struct assemble_t *a)
         a->fr = parent;
 
         return child;
-}
-
-/*
- * Doesn't destroy it, it just removes it from active list.
- * We'll iterate through these when we're done.
- */
-static void
-as_frame_pop(struct assemble_t *a)
-{
-        struct list_t *prev;
-        struct as_frame_t *fr = a->fr;
-        bug_on(list_is_empty(&a->active_frames));
-
-        list_remove(&fr->list);
-        bug_on(list_is_empty(&a->active_frames));
-
-        prev = a->active_frames.prev;
-
-        /*
-         * first to start will be last to finish, so prepending these
-         * instead of appending them will make it easier to put the entry
-         * point first.
-         */
-        list_add_front(&fr->list, &a->finished_frames);
-
-        a->fr = list2frame(prev);
 }
 
 static void
@@ -555,7 +504,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
         add_instr(a, INSTR_DEFFUNC, 0, funcno);
         as_errlex(a, OC_LPAR);
 
-        as_frame_push(a, funcno);
+        assemble_frame_push(a, funcno);
 
         do {
                 enum { NORMAL, OPTIND, KWIND } kind;
@@ -625,7 +574,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
         add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, minargs);
         as_frame_swap(a);
 
-        as_frame_pop(a);
+        assemble_frame_pop(a);
 }
 
 static void
@@ -1894,7 +1843,7 @@ new_assembler(const char *source_file_name, FILE *fp)
         a->func = FUNC_INIT;
         list_init(&a->active_frames);
         list_init(&a->finished_frames);
-        as_frame_push(a, 0);
+        assemble_frame_push(a, 0);
         return a;
 }
 
@@ -2058,13 +2007,61 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
         return ex;
 }
 
+/* **********************************************************************
+ *                      API functions
+ ***********************************************************************/
+/*
+ * assemble() is the only intentional API function, the rest below are
+ * forward-declared in assemble_priv.h and used by assemble_post.c and
+ * reassemble.c
+ */
+
+void
+assemble_label_here(struct assemble_t *a)
+{
+        as_set_label(a, as_next_label(a));
+}
+
+void
+assemble_add_instr(struct assemble_t *a, int opcode, int arg1, int arg2)
+{
+        add_instr(a, opcode, arg1, arg2);
+}
+
+/* will return -1 and set exc. if line is longer than @max */
+ssize_t
+assemble_get_line(struct assemble_t *a, struct token_t *toks,
+                  size_t max, int *lineno)
+{
+        int line = 0;
+        int count = 0;
+        while (count < max) {
+                as_lex(a);
+                if (a->oc->t == OC_EOF)
+                        break;
+                if (count == 0) {
+                        line = a->oc->line;
+                } else if (a->oc->line != line) {
+                        as_unlex(a);
+                        break;
+                }
+                as_savetok(a, &toks[count]);
+                count++;
+        }
+        if (count == max) {
+                err_setstr(SyntaxError, "line %d too long", line);
+                count = -1;
+        }
+        *lineno = line;
+        return count;
+}
+
 /* extern linkage because assemble_post.c needs it */
 int
 assemble_seek_rodata(struct assemble_t *a, Object *v)
 {
-        struct buffer_t *b = &a->fr->af_rodata;
-        Object **data = (Object **)(b->s);
-        int i, n = as_buffer_ptr_size(b);
+        Object **data = as_frame_rodata(a->fr);
+        int i, n = as_frame_nconst(a->fr);
 
         bug_on(!v);
         for (i = 0; i < n; i++) {
@@ -2077,10 +2074,61 @@ assemble_seek_rodata(struct assemble_t *a, Object *v)
 
         if (i == n) {
                 VAR_INCR_REF(v);
-                as_buffer_put_ptr(b, v);
+                as_buffer_put_ptr(&a->fr->af_rodata, v);
         }
 
         return i;
+}
+
+void
+assemble_frame_push(struct assemble_t *a, long long funcno)
+{
+        struct as_frame_t *fr;
+
+        fr = emalloc(sizeof(*fr));
+        memset(fr, 0, sizeof(*fr));
+
+        /* memset did this, but just in case buffer.c internals change... */
+        buffer_init(&fr->af_closures);
+        buffer_init(&fr->af_locals);
+        buffer_init(&fr->af_args);
+        buffer_init(&fr->af_rodata);
+        buffer_init(&fr->af_labels);
+        buffer_init(&fr->af_instr);
+
+        fr->funcno = funcno;
+        fr->line = a->oc ? a->oc->line : 1;
+
+        list_init(&fr->list);
+        list_add_tail(&fr->list, &a->active_frames);
+
+        a->fr = fr;
+}
+
+/*
+ * Doesn't destroy it, it just removes it from active list.
+ * We'll iterate through these when we're done.
+ */
+void
+assemble_frame_pop(struct assemble_t *a)
+{
+        struct list_t *prev;
+        struct as_frame_t *fr = a->fr;
+        bug_on(list_is_empty(&a->active_frames));
+
+        list_remove(&fr->list);
+        bug_on(list_is_empty(&a->active_frames));
+
+        prev = a->active_frames.prev;
+
+        /*
+         * first to start will be last to finish, so prepending these
+         * instead of appending them will make it easier to put the entry
+         * point first.
+         */
+        list_add_front(&fr->list, &a->finished_frames);
+
+        a->fr = list2frame(prev);
 }
 
 /**
@@ -2108,7 +2156,24 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
         a = new_assembler(filename, fp);
         if (!a)
                 return NULL;
-        ret = assemble_next(a, toeof, &localstatus);
+
+        /*
+         * If first token is a dot, it can't be EvilCandy source,
+         * but it could be a disassembly.
+         * XXX: toeof wasn't meant to be synonymous with !(interactive mode)
+         */
+        if (toeof && as_peek(a, true) == OC_PER) {
+                ret = reassemble(a);
+                /* reassemble can only succeed or fail */
+                if (!ret) {
+                        assemble_splash_error(a);
+                        localstatus = RES_ERROR;
+                } else {
+                        localstatus = RES_OK;
+                }
+        } else {
+                ret = assemble_next(a, toeof, &localstatus);
+        }
 
         /* status cannot be OK if ret is NULL and toeof is true */
         bug_on(toeof && ret == NULL && localstatus == RES_OK);

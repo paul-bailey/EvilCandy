@@ -73,16 +73,39 @@ struct assemble_t {
 
 #define list2frame(li) container_of(li, struct as_frame_t, list)
 
+static inline int as_buffer_ptr_size(struct buffer_t *b)
+        { return buffer_size(b) / sizeof(void *); }
+
+static inline Object **as_frame_rodata(struct as_frame_t *fr)
+        { return (Object **)fr->af_rodata.s; }
+
+static inline int as_frame_nconst(struct as_frame_t *fr)
+        { return as_buffer_ptr_size(&fr->af_rodata); }
+
 static inline int as_frame_ninstr(struct as_frame_t *fr)
         { return buffer_size(&fr->af_instr) / sizeof(instruction_t); }
 
 static inline int as_frame_nlabel(struct as_frame_t *fr)
         { return buffer_size(&fr->af_labels) / sizeof(short); }
 
-static inline int as_buffer_ptr_size(struct buffer_t *b)
-        { return buffer_size(b) / sizeof(void *); }
-
-extern struct xptrvar_t *assemble_post(struct assemble_t *a);
+/* assemble.c */
 extern int assemble_seek_rodata(struct assemble_t *a, Object *v);
+extern void assemble_label_here(struct assemble_t *a);
+extern ssize_t assemble_get_line(struct assemble_t *a,
+                                 struct token_t *tok, size_t max,
+                                 int *lineno);
+extern void assemble_frame_push(struct assemble_t *a, long long funcno);
+extern void assemble_frame_pop(struct assemble_t *a);
+extern void assemble_add_instr(struct assemble_t *a, int opcode,
+                               int arg1, int arg2);
+
+/* assemble_post.c */
+extern struct xptrvar_t *assemble_post(struct assemble_t *a);
+extern struct xptrvar_t *assemble_frame_to_xptr(struct assemble_t *a,
+                                                struct as_frame_t *fr,
+                                                bool id_in_arg);
+
+/* reassemble.c */
+extern struct xptrvar_t *reassemble(struct assemble_t *a);
 
 #endif /* ASSEMBLE_PRIV_H */

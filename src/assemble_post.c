@@ -44,12 +44,6 @@ instr_uses_jump(instruction_t ii)
         }
 }
 
-static int
-frame_n_rodata(struct as_frame_t *fr)
-{
-        return as_buffer_ptr_size(&fr->af_rodata);
-}
-
 /*
  * If we simplified some operations on consts, then some .rodata may no
  * longer be necessary.  If so, this garbage collects that and adjust
@@ -76,7 +70,7 @@ remove_unused_rodata(struct as_frame_t *fr)
         else
                 iptrs = emalloc(n_instr * sizeof(void *));
 
-        n_rodata = frame_n_rodata(fr);
+        n_rodata = as_frame_nconst(fr);
         if (n_rodata <= DEFAULT_NCONST)
                 marks = stack_marks;
         else
@@ -96,7 +90,7 @@ remove_unused_rodata(struct as_frame_t *fr)
                 }
         }
 
-        rodata = (Object **)fr->af_rodata.s;
+        rodata = as_frame_rodata(fr);
         for (i = n_rodata - 1; i >= 0; i--) {
                 int j;
 
@@ -239,7 +233,7 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
         bool reduced, reduced_once;
         int n_instr;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
-        Object **rodata = (Object **)fr->af_rodata.s;
+        Object **rodata = as_frame_rodata(fr);
 
         reduced_once = false;
         n_instr = as_frame_ninstr(fr);
@@ -355,7 +349,7 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
 }
 
 static struct as_frame_t *
-func_label_to_frame(struct assemble_t *a, int funcno)
+func_label_to_frame(struct assemble_t *a, long long funcno)
 {
         struct list_t *li;
         list_foreach(li, &a->finished_frames) {
@@ -367,8 +361,22 @@ func_label_to_frame(struct assemble_t *a, int funcno)
         return NULL;
 }
 
-static struct xptrvar_t *
-frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
+/**
+ * assemble_frame_to_xptr - Resolve XptrType pointers in .rodata, create
+ *                          final XptrType objects, and return entry-point
+ *                          XptrType object.
+ * @fr: Entry-level frame.  We cannot determine it from @a here, because
+ *      it may be set differently between assemble() and reassemble().
+ * @id_in_arg:  - If true, then function ID is a small number in DEFDICT
+ *                instructions' arg2, and .rodata does not yet have an
+ *                entry for this instruction
+ *              - If false, then the offset is set already, but .rodata
+ *                contains an IdType var instead of an XptrType.
+ *
+ */
+struct xptrvar_t *
+assemble_frame_to_xptr(struct assemble_t *a,
+                       struct as_frame_t *fr, bool id_in_arg)
 {
         struct xptrvar_t *x;
         instruction_t *instrs;
@@ -385,16 +393,32 @@ frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
         n_instr = as_frame_ninstr(fr);
         for (i = 0; i < n_instr; i++) {
                 instruction_t *ii = &instrs[i];
-                if (ii->code == INSTR_DEFFUNC) {
-                        struct as_frame_t *child;
-                        struct xptrvar_t *x;
+                if (ii->code != INSTR_DEFFUNC)
+                        continue;
 
+                if (id_in_arg) {
+                        struct xptrvar_t *x;
+                        struct as_frame_t *child;
                         child = func_label_to_frame(a, ii->arg2);
                         bug_on(!child || child == fr);
 
-                        x = frame_to_xptr(a, child);
-
+                        x = assemble_frame_to_xptr(a, child, id_in_arg);
                         ii->arg2 = seek_rodata(a, fr, (Object *)x);
+                } else {
+                        struct as_frame_t *child;
+                        Object **rodata;
+                        long long idval;
+
+                        bug_on(as_frame_nconst(fr) <= ii->arg2);
+                        rodata = as_frame_rodata(fr);
+                        idval = idvar_toll(rodata[ii->arg2]);
+
+                        child = func_label_to_frame(a, idval);
+                        bug_on(!child || child == fr);
+
+                        VAR_DECR_REF(rodata[ii->arg2]);
+                        rodata[ii->arg2] = (Object *)assemble_frame_to_xptr(a,
+                                                        child, id_in_arg);
                 }
         }
 
@@ -403,7 +427,7 @@ frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
                 cfg.file_name   = a->file_name;
                 cfg.file_line   = fr->line;
                 cfg.n_label     = as_frame_nlabel(fr);
-                cfg.n_rodata    = frame_n_rodata(fr);
+                cfg.n_rodata    = as_frame_nconst(fr);
                 cfg.n_instr     = as_frame_ninstr(fr);
                 cfg.label       = buffer_trim(&fr->af_labels);
                 cfg.rodata      = buffer_trim(&fr->af_rodata);
@@ -442,7 +466,8 @@ assemble_post(struct assemble_t *a)
          * See as_frame_pop().
          * First child of finished_frames is also our entry point.
          */
-        return frame_to_xptr(a, list2frame(a->finished_frames.next));
+        return assemble_frame_to_xptr(a,
+                        list2frame(a->finished_frames.next), true);
 }
 
 

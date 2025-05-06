@@ -101,6 +101,8 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex, unsigned int i)
         v = ex->rodata[i];
 
         if (isvar_xptr(v)) {
+                /* XXX: it's a bug not to put this in configure.ac */
+                bug_on(sizeof(void *) > sizeof(long long));
                 fprintf(fp, "<%p>", v);
         } else {
                 Object *str = var_str(v);
@@ -124,6 +126,7 @@ static void
 disassemble_start(FILE *fp, const char *sourcefile_name)
 {
         fprintf(fp, "# Disassembly for file %s\n\n", sourcefile_name);
+        fprintf(fp, ".evilcandy \"" VERSION "\"\n\n");
         fprintf(fp, "# enuerations for GETATTR/SETATTR arg1\n");
         ADD_DEFINES(ATTR_NAMES);
         putc('\n', fp);

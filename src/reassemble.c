@@ -23,6 +23,37 @@ opcode_check(int code, int arg1, int arg2)
 }
 
 static int
+parse_opcode_fast(struct assemble_t *a, struct token_t *toks, int ntok)
+{
+        /* enterint this, we know tok[1]=int, tok[2]=int, ntok >= 3 */
+        int opcode, arg1, arg2;
+
+        opcode = intvar_toi(toks[0].v);
+        arg1 = intvar_toi(toks[1].v);
+        if (ntok == 4 && toks[2].t == OC_MINUS) {
+                Object *v;
+                if (toks[3].t != OC_INTEGER)
+                        return -1;
+                v = qop_negate(toks[3].v);
+                bug_on(!v || v == ErrorVar);
+                arg2 = intvar_toi(v);
+                VAR_DECR_REF(v);
+        } else if (ntok == 3 && toks[2].t == OC_INTEGER) {
+                arg2 = intvar_toi(toks[2].v);
+        } else {
+                return -1;
+        }
+
+        if (err_occurred() || opcode_check(opcode, arg1, arg2) < 0) {
+                err_clear();
+                return -1;
+        }
+
+        assemble_add_instr(a, opcode, arg1, arg2);
+        return 0;
+}
+
+static int
 tok2arg(struct token_t *tok, Object *dict)
 {
         enum { GUARANTEED_BAD_ARG = -32769 };
@@ -330,6 +361,11 @@ get_function:
                 } else if (ntok == 2 && toks[0].t == OC_INTEGER
                            && toks[1].t == OC_COLON) {
                         assemble_label_here(a);
+                } else if (ntok >= 3 &&
+                           toks[0].t == OC_INTEGER &&
+                           toks[1].t == OC_INTEGER) {
+                        if (parse_opcode_fast(a, toks, ntok) < 0)
+                                goto ebadopcodes;
                 } else if (ntok >= 4 && toks[0].t == OC_IDENTIFIER &&
                            toks[2].t == OC_COMMA) {
                         if (parse_opcode(a, toks, ntok, dict) < 0)

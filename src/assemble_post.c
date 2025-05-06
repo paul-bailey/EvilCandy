@@ -231,7 +231,8 @@ seek_rodata(struct assemble_t *a, struct as_frame_t *fr, Object *obj)
 static void
 reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
 {
-        bool reduced, reduced_once, n_instr;
+        bool reduced, reduced_once;
+        int n_instr;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
         Object **rodata = (Object **)fr->af_rodata.s;
 
@@ -252,12 +253,14 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                         ip2 = ip+1;
                         while (ip2->code == INSTR_NOP && ip2 < stop - 1)
                                 ip2++;
-                        if (ip2->code != INSTR_LOAD_CONST)
+                        if (ip2 >= stop - 1 || ip2->code != INSTR_LOAD_CONST)
                                 continue;
 
                         ip3 = ip2+1;
-                        while (ip3->code == INSTR_NOP && ip3 < stop - 1)
+                        while (ip3 < stop && ip3->code == INSTR_NOP)
                                 ip3++;
+                        if (ip3 == stop)
+                                break;
 
                         left = rodata[ip->arg2];
                         right = rodata[ip2->arg2];

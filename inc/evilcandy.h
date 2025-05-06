@@ -76,6 +76,7 @@ extern void err_errno(const char *msg, ...);
 extern void disassemble(FILE *fp, Object *ex,
                         const char *sourcefile_name);
 extern void disassemble_lite(FILE *fp, Object *ex);
+extern void disassemble_minimal(FILE *fp, Object *ex);
 
 /* ewrappers.c */
 extern char *estrdup(const char *s);

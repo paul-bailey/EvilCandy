@@ -9,6 +9,13 @@
 #define IARG(x)   [IARG_##x]  = #x
 #define IARGP(x)  [IARG_PTR_##x]  = #x
 
+enum {
+        DF_VERBOSE      = 0x01,
+        DF_DEFINE       = 0x02,
+        DF_ENUMERATE    = 0x04,
+        DF_HEADER       = 0x08,
+};
+
 static const char *ATTR_NAMES[] = {
         "ATTR_CONST",
         "ATTR_STACK",
@@ -79,10 +86,13 @@ spaces(FILE *fp, int n)
                 putc(' ', fp);
 }
 
-#define ADD_DEFINES(arr) do { \
+#define ADD_DEFINES(fp, arr, verb, comment) do { \
         int i; \
+        if (verb) \
+                fprintf(fp, "# %s\n", comment); \
         for (i = 0; i < ARRAY_SIZE(arr); i++) \
                 fprintf(fp, ".define %-24s%d\n", arr[i], i); \
+        putc('\n', fp); \
 } while (0)
 
 static void
@@ -123,36 +133,39 @@ dump_rodata(FILE *fp, struct xptrvar_t *ex)
 }
 
 static void
-disassemble_start(FILE *fp, const char *sourcefile_name)
+add_defines(FILE *fp, unsigned int flags)
 {
-        fprintf(fp, "# Disassembly for file %s\n\n", sourcefile_name);
-        fprintf(fp, ".evilcandy \"" VERSION "\"\n\n");
-        fprintf(fp, "# enuerations for GETATTR/SETATTR arg1\n");
-        ADD_DEFINES(ATTR_NAMES);
-        putc('\n', fp);
-        fprintf(fp, "# enumerations for CALL_FUNC arg1\n");
-        ADD_DEFINES(FUNCARG_NAMES);
-        putc('\n', fp);
-        fprintf(fp, "# enumerations for FUNC_SETATTR arg1\n");
-        ADD_DEFINES(FUNC_ATTRARG_NAMES);
-        putc('\n', fp);
-        fprintf(fp, "# enumerations for CMP arg1\n");
-        ADD_DEFINES(CMP_NAMES);
-        putc('\n', fp);
-        fprintf(fp, "# enumerations for PUSH_BLOCK arg1\n");
-        ADD_DEFINES(BLOCK_NAMES);
-        putc('\n', fp);
-        fprintf(fp, "# enumerations for POP arg1\n");
-        ADD_DEFINES(POP_NAMES);
-        putc('\n', fp);
-        fprintf(fp, "# enumerations for LOAD/ASSIGN_xxx arg1\n");
-        ADD_DEFINES(PTR_NAMES);
-        putc('\n', fp);
+        bool verbose = !!(flags & DF_VERBOSE);
+
+        ADD_DEFINES(fp, ATTR_NAMES, verbose,
+                "enuerations for GETATTR/SETATTR arg1");
+        ADD_DEFINES(fp, FUNCARG_NAMES, verbose,
+                "enumerations for CALL_FUNC arg1");
+        ADD_DEFINES(fp, FUNC_ATTRARG_NAMES, verbose,
+                "enumerations for FUNC_SETATTR arg1");
+        ADD_DEFINES(fp, CMP_NAMES, verbose,
+                "enumerations for CMP arg1");
+        ADD_DEFINES(fp, BLOCK_NAMES, verbose,
+                "enumerations for PUSH_BLOCK arg1");
+        ADD_DEFINES(fp, POP_NAMES, verbose,
+                "enumerations for POP arg1");
+        ADD_DEFINES(fp, PTR_NAMES, verbose,
+                "enumerations for LOAD/ASSIGN_xxx arg1");
         putc('\n', fp);
 }
 
 static void
-disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
+disassemble_start(FILE *fp, const char *sourcefile_name, unsigned int flags)
+{
+        if (!!(flags & DF_VERBOSE) && sourcefile_name != NULL)
+                fprintf(fp, "# Disassembly for file %s\n\n", sourcefile_name);
+        fprintf(fp, ".evilcandy \"" VERSION "\"\n\n");
+        if (!!(flags & DF_DEFINE))
+                add_defines(fp, flags);
+}
+
+static void
+disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i, unsigned int flags)
 {
         int label = line_to_label(i, ex);
         size_t len = 0;
@@ -161,6 +174,11 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
         if (label >= 0) {
                 putc('\n', fp);
                 fprintf(fp, "%d:\n", label);
+        }
+        if (!(flags & DF_ENUMERATE)) {
+                fprintf(fp, "%hhu %hhu %hd\n",
+                        ii->code, ii->arg1, ii->arg2);
+                return;
         }
 
         fprintf(fp, "%8s%-16s", "", instruction_name(ii->code));
@@ -198,27 +216,34 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
         case INSTR_B:
         case INSTR_B_IF:
                 len = fprintf(fp, "%d, %hd", ii->arg1, ii->arg2);
-                if (len < 16)
-                        spaces(fp, 16 - len);
-                fprintf(fp, "# label %d\n",
-                        line_to_label(i + ii->arg2 + 1, ex));
+                if (!!(flags & DF_VERBOSE)) {
+                        if (len < 16)
+                                spaces(fp, 16 - len);
+                        fprintf(fp, "# label %d",
+                                line_to_label(i + ii->arg2 + 1, ex));
+                }
+                putc('\n', fp);
                 break;
 
         case INSTR_LOAD_CONST:
                 len = fprintf(fp, "%d, %hd", ii->arg1, ii->arg2);
-                if (len < 16)
-                        spaces(fp, 16 - len);
-                fprintf(fp, "# ");
-                print_rodata_str(fp, ex, ii->arg2);
+                if (!!(flags & DF_VERBOSE)) {
+                        if (len < 16)
+                                spaces(fp, 16 - len);
+                        fprintf(fp, "# ");
+                        print_rodata_str(fp, ex, ii->arg2);
+                }
                 putc('\n', fp);
                 break;
 
         case INSTR_SYMTAB:
                 len = fprintf(fp, "%d, %hd", ii->arg1, ii->arg2);
-                if (len < 16)
-                        spaces(fp, 16 - len);
-                fprintf(fp, "# ");
-                print_rodata_str(fp, ex, ii->arg2);
+                if (!!(flags & DF_VERBOSE)) {
+                        if (len < 16)
+                                spaces(fp, 16 - len);
+                        fprintf(fp, "# ");
+                        print_rodata_str(fp, ex, ii->arg2);
+                }
                 putc('\n', fp);
                 break;
 
@@ -228,17 +253,17 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
 }
 
 static void
-disassemble_recursive(FILE *fp, struct xptrvar_t *ex, int verbose)
+disassemble_recursive(FILE *fp, struct xptrvar_t *ex, unsigned int flags)
 {
         int i;
         fprintf(fp, ".start <%p>\n", ex);
-        if (verbose) {
+        if (!!(flags & DF_VERBOSE)) {
                 fprintf(fp, "# in file \"%s\"\n", ex->file_name);
                 fprintf(fp, "# starting at line %d\n", ex->file_line);
         }
 
         for (i = 0; i < ex->n_instr; i++) {
-                disinstr(fp, ex, i);
+                disinstr(fp, ex, i, flags);
         }
 
         putc('\n', fp);
@@ -249,27 +274,54 @@ disassemble_recursive(FILE *fp, struct xptrvar_t *ex, int verbose)
                 Object *v = ex->rodata[i];
                 if (isvar_xptr(v)) {
                         disassemble_recursive(fp,
-                                        (struct xptrvar_t *)v, verbose);
+                                        (struct xptrvar_t *)v, flags);
                 }
         }
 }
 
-void
-disassemble(FILE *fp, Object *ex, const char *sourcefile_name)
+static void
+disassemble_(FILE *fp, Object *ex,
+             const char *sourcefile_name, unsigned int flags)
 {
         bug_on(!isvar_xptr(ex));
-        disassemble_start(fp, sourcefile_name);
-        disassemble_recursive(fp, (struct xptrvar_t *)ex, true);
+        if (!!(flags & DF_HEADER))
+                disassemble_start(fp, sourcefile_name, flags);
+        disassemble_recursive(fp, (struct xptrvar_t *)ex, flags);
 }
 
 /**
- * like disassemble, but without the verbose defines up top.
+ * pretty disassemble - comments, header defines, enumerated
+ *                      opcodes and arguments.
+ * This is technically reverse-compilable, but the verbosity means
+ * bigger file and slower parsing; for serialization, use
+ * disassemble_minimal.
+ */
+void
+disassemble(FILE *fp, Object *ex, const char *sourcefile_name)
+{
+        unsigned int flags = DF_VERBOSE | DF_DEFINE
+                             | DF_ENUMERATE | DF_HEADER;
+        disassemble_(fp, ex, sourcefile_name, flags);
+}
+
+/**
+ * like disassemble, but without the header defines.
+ * This cannot be reversed-compiled.
  * Used for debugging in interactive TTY mode.
  */
 void
 disassemble_lite(FILE *fp, Object *ex)
 {
-        bug_on(!isvar_xptr(ex));
-        disassemble_recursive(fp, (struct xptrvar_t *)ex, false);
+        disassemble_(fp, ex, NULL, DF_VERBOSE | DF_ENUMERATE);
+}
+
+/**
+ * The not-very-readable version of disassemble.
+ * Only the minimum information needed to re-compile is printed.
+ */
+void
+disassemble_minimal(FILE *fp, Object *ex)
+{
+        disassemble_(fp, ex, NULL, DF_HEADER);
 }
 

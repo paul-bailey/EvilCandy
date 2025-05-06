@@ -340,8 +340,7 @@ get_function:
                 }
         }
 
-        list_remove(&a->fr->list);
-        list_add_front(&a->fr->list, &a->finished_frames);
+        assemble_frame_pop(a);
 
         ntok = lex_line(a, toks, &line);
         if (ntok > 0) {

@@ -2119,23 +2119,20 @@ assemble_frame_push(struct assemble_t *a, long long funcno)
 void
 assemble_frame_pop(struct assemble_t *a)
 {
-        struct list_t *prev;
         struct as_frame_t *fr = a->fr;
         bug_on(list_is_empty(&a->active_frames));
-
-        list_remove(&fr->list);
-        bug_on(list_is_empty(&a->active_frames));
-
-        prev = a->active_frames.prev;
 
         /*
          * first to start will be last to finish, so prepending these
          * instead of appending them will make it easier to put the entry
          * point first.
          */
+        list_remove(&fr->list);
         list_add_front(&fr->list, &a->finished_frames);
 
-        a->fr = list2frame(prev);
+        /* list is empty in reassemble mode */
+        if (!list_is_empty(&a->active_frames))
+                a->fr = list2frame(a->active_frames.prev);
 }
 
 #if !defined(NDEBUG) && defined(HAVE_CLOCK) && PROFILE_LOAD_TIME

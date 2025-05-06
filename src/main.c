@@ -8,6 +8,7 @@ static struct {
         struct {
                 bool disassemble;
                 bool disassemble_only;
+                bool disassemble_minimum;
                 char *disassemble_outfile;
                 char *infile;
         } opt;
@@ -113,19 +114,13 @@ parse_args(int argc, char **argv)
                                 if (*s != '\0')
                                         goto er;
                                 break;
+                        case 'D':
+                                q_.opt.disassemble = true;
+                                q_.opt.disassemble_minimum = true;
+                                break;
                         case '-':
-                                if (!strcmp(s, "disassemble-only")) {
+                                if (!strcmp(s, "disassemble-to")) {
                                         q_.opt.disassemble = true;
-                                        q_.opt.disassemble_only = true;
-                                } else if (!strcmp(s, "disassemble-to")) {
-                                        q_.opt.disassemble = true;
-                                        argi++;
-                                        if (argi == argc)
-                                                goto er;
-                                        q_.opt.disassemble_outfile = argv[argi];
-                                } else if (!strcmp(s, "disassemble-only-to")) {
-                                        q_.opt.disassemble = true;
-                                        q_.opt.disassemble_only = true;
                                         argi++;
                                         if (argi == argc)
                                                 goto er;
@@ -144,6 +139,8 @@ parse_args(int argc, char **argv)
                 }
                 argi++;
         }
+        if (q_.opt.disassemble)
+                q_.opt.disassemble_only = true;
         return 0;
 
 er:
@@ -178,7 +175,10 @@ run_script(const char *filename, FILE *fp, Frame *fr)
                                 dfp = stdout;
                         }
 
-                        disassemble(dfp, ex, filename);
+                        if (q_.opt.disassemble_minimum)
+                                disassemble_minimal(dfp, ex);
+                        else
+                                disassemble(dfp, ex, filename);
                         if (dfp != stdout)
                                 fclose(dfp);
                 }

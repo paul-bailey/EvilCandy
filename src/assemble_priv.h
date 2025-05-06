@@ -28,7 +28,7 @@
  * block) is managed by scope[].
  */
 struct as_frame_t {
-        int funcno;
+        long long funcno;
         struct buffer_t af_locals;
         int fp;
         struct buffer_t af_args;

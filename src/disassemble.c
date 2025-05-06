@@ -101,7 +101,7 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex, unsigned int i)
         v = ex->rodata[i];
 
         if (isvar_xptr(v)) {
-                fprintf(fp, "<%s>", ((struct xptrvar_t *)(v))->uuid);
+                fprintf(fp, "<%p>", v);
         } else {
                 Object *str = var_str(v);
                 fprintf(fp, "%s", string_get_cstring(str));
@@ -228,7 +228,7 @@ static void
 disassemble_recursive(FILE *fp, struct xptrvar_t *ex, int verbose)
 {
         int i;
-        fprintf(fp, ".start <%s>\n", ex->uuid);
+        fprintf(fp, ".start <%p>\n", ex);
         if (verbose) {
                 fprintf(fp, "# in file \"%s\"\n", ex->file_name);
                 fprintf(fp, "# starting at line %d\n", ex->file_line);

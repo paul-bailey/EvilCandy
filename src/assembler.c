@@ -589,7 +589,6 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                                         "You may not declare normal argument after variadic argument");
                                 as_err(a, AE_GEN);
                         }
-                        minargs++;
                 }
 
                 if (a->oc->t != OC_IDENTIFIER) {

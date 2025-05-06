@@ -231,6 +231,7 @@ extern struct type_t BytesType;
 extern struct type_t PropertyType;
 extern struct type_t RangeType;
 extern struct type_t UuidptrType;
+extern struct type_t IdType;
 extern struct type_t FileType;
 extern struct type_t FloatsType;
 

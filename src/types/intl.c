@@ -6,6 +6,11 @@ struct uuidptrvar_t {
         char *uuid;
 };
 
+struct idvar_t {
+        Object base;
+        long long id;
+};
+
 /* struct (uuid/x)ptrvar_t forward-defined in typedefs.h */
 
 char *
@@ -15,11 +20,26 @@ uuidptr_get_cstring(Object *v)
         return ((struct uuidptrvar_t *)v)->uuid;
 }
 
+long long
+idvar_toll(Object *v)
+{
+        bug_on(v->v_type != &IdType);
+        return ((struct idvar_t *)v)->id;
+}
+
 Object *
 uuidptrvar_new(char *uuid)
 {
         Object *v = var_new(&UuidptrType);
         ((struct uuidptrvar_t *)v)->uuid = uuid;
+        return v;
+}
+
+Object *
+idvar_new(long long id)
+{
+        Object *v = var_new(&IdType);
+        ((struct idvar_t *)v)->id = id;
         return v;
 }
 
@@ -43,6 +63,28 @@ uuidptr_str(Object *v)
                  (((struct uuidptrvar_t *)v)->uuid));
         return stringvar_new(buf);
 }
+
+static Object *
+id_str(Object *v)
+{
+        char buf[32];
+        snprintf(buf, sizeof(buf) - 1, "<id %llx>",
+                 (((struct idvar_t *)v)->id));
+        return stringvar_new(buf);
+}
+
+struct type_t IdType = {
+        .name   = "[internal-use ID]",
+        .opm    = NULL,
+        .cbm    = NULL,
+        .mpm    = NULL,
+        .sqm    = NULL,
+        .size   = sizeof(struct idvar_t),
+        .str    = id_str,
+        .cmp    = NULL,
+        .cmpz   = NULL,
+        .reset  = NULL,
+};
 
 struct type_t UuidptrType = {
         .name   = "[internal-use UUID]",

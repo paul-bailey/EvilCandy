@@ -192,6 +192,8 @@ extern Object *intvar_new(long long value);
 /* types/intl.c */
 extern Object *uuidptrvar_new(char *uuid);
 extern char *uuidptr_get_cstring(Object *v);
+extern long long idvar_toll(Object *v);
+extern Object *idvar_new(long long id);
 
 /* types/dict.c */
 extern Object *dictvar_new(void);

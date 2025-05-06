@@ -388,7 +388,7 @@ skip_whitespace(struct token_state_t *state)
  * token data if this happens.
  */
 static int
-tokenize_helper(struct token_state_t *state)
+tokenize_helper(struct token_state_t *state, int *line)
 {
         /*
          * XXX: setjmp for every token?
@@ -439,6 +439,7 @@ tokenize_helper(struct token_state_t *state)
                 } else if (get_tok_delim(&ret, state)) {
                         return ret;
                 } else if (get_tok_string(state)) {
+                        *line = state->lineno;
                         /*
                          * this allows for strings expressed like
                          *      "..." "..."
@@ -449,6 +450,7 @@ tokenize_helper(struct token_state_t *state)
                         } while (ret != OC_EOF && get_tok_string(state));
                         return OC_STRING;
                 } else if (get_tok_bytes(state)) {
+                        *line = state->lineno;
                         do {
                                 ret = skip_whitespace(state);
                         } while (ret != OC_EOF && get_tok_bytes(state));
@@ -470,8 +472,10 @@ static int
 tokenize(struct token_state_t *state)
 {
         int ret;
+        /* only set if bytes or string */
+        int line = -1;
 
-        ret = tokenize_helper(state);
+        ret = tokenize_helper(state, &line);
         if (ret == RES_ERROR) {
                 return ret;
         } else if (ret == OC_EOF) {
@@ -505,6 +509,7 @@ tokenize(struct token_state_t *state)
                         intern = true;
                         break;
                 case OC_BYTES:
+                        oc.line = line;
                         oc.v = bytesvar_from_source(state->tok.s);
                         if (oc.v == ErrorVar) {
                                 err_setstr(SyntaxError,
@@ -537,6 +542,7 @@ tokenize(struct token_state_t *state)
                         oc.v = stringvar_new(state->tok.s);
                         break;
                 case OC_STRING:
+                        oc.line = line;
                         oc.v = stringvar_from_source(state->tok.s, true);
                         if (oc.v == ErrorVar) {
                                 err_setstr(SyntaxError,

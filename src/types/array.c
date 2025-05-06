@@ -462,6 +462,17 @@ array_or_tuple_str(Object *t, int startchar)
                 buffer_puts(&b, string_get_cstring(item));
                 VAR_DECR_REF(item);
         }
+
+        /*
+         * Print what we can read back as the same type.  In the case of
+         * a tuple of size 1, parentheses around a single expression are
+         * interpreted as just that expression. A comma between the
+         * expression and closing parethesis ensures that it will be
+         * interpreted as a tuple.
+         */
+        if (startchar == '(' && n == 1)
+                buffer_putc(&b, ',');
+
         buffer_putc(&b, startchar == '(' ? ')' : ']');
         ret = stringvar_from_buffer(&b);
         return ret;

@@ -185,10 +185,7 @@ then one variable's changes will affect the other variable.
 
 Lists literals are expressed the same as with JavaScript: a set of
 expressions in between square brackets, delimited from each other by
-commas.  **Do not** place a comma between the last item and the closing
-brace; this is a syntax error.
-
-:TODO: Too strict? Neither Python nor JavaScript enforces this.
+commas.
 
 A list of size zero is expressed simply ``[]``.
 
@@ -218,9 +215,10 @@ Tuples are the same as lists in every way but three:
 
 1. Tuples expressions use parentheses instead of square brackets.
 2. Tuples are immutable, while lists are not.
-3. Tuples cannot be expressed literally with a single value, or the
-   expression will be the value contained, not a tuple.  ``(1)``
-   will evaluate to the integer 1, not a tuple containing the integer 1.
+3. Unless a tuple has a comma, even if its length is one, it will not
+   evaluate as a tuple.  Although it looks sloppy, a tuple containing
+   only one expression ``x`` must be expressed as ``(x,)``.  If it is
+   expressed as ``(x)`` it will evaluate to whatever ``x`` is.
 
 Strings
 ```````

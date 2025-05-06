@@ -639,6 +639,14 @@ assemble_arraydef(struct assemble_t *a)
         as_unlex(a);
 
         do {
+                /*
+                 * sloppy ",]", but allow it anyway,
+                 * since everyone else does.
+                 */
+                if (as_peek(a, false) == OC_RBRACK) {
+                        as_lex(a);
+                        break;
+                }
                 assemble_expr(a);
                 as_lex(a);
                 n_items++;
@@ -653,6 +661,7 @@ static void
 assemble_tupledef(struct assemble_t *a)
 {
         int n_items = 0;
+        bool has_comma;
         as_lex(a);
         if (a->oc->t == OC_RPAR) {
                 /* empty tuple */
@@ -660,17 +669,26 @@ assemble_tupledef(struct assemble_t *a)
         }
         as_unlex(a);
 
+        has_comma = false;
         do {
+                /*
+                 * ie. ",)", actually necessary in this case, since
+                 * there's no other way to express a tuple of length 1.
+                 */
+                if (as_peek(a, false) == OC_RPAR) {
+                        as_lex(a);
+                        has_comma = true;
+                        break;
+                }
                 assemble_expr(a);
                 as_lex(a);
                 n_items++;
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
 
-        if (n_items == 1) {
-                /* not a tuple, just something wrapped in parentheses */
+        /* "(x,)" is a tuple.  "(x)" is whatever x is */
+        if (!has_comma && n_items == 1)
                 return;
-        }
 done:
         add_instr(a, INSTR_DEFTUPLE, 0, n_items);
 }
@@ -697,6 +715,9 @@ assemble_objdef(struct assemble_t *a)
                            || a->oc->t == OC_STRING) {
                         /* key is literal text */
                         ainstr_load_const(a, a->oc);
+                } else if (a->oc->t == OC_RBRACE) {
+                        /* comma after last elem */
+                        break;
                 } else {
                         err_setstr(SyntaxError,
                                 "Dictionary key must be either an identifier or string");

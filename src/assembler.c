@@ -36,6 +36,13 @@
 #include <setjmp.h>
 #include "assemble_priv.h"
 
+/* set to 1 to get a stderr debug profile of load time */
+#define PROFILE_LOAD_TIME 0
+
+#if PROFILE_LOAD_TIME && defined(HAVE_CLOCK) && !defined(NDEBUG)
+# include <time.h>
+#endif
+
 /*
  * The @flags arg used in some of the functions below.
  * @FE_FOR: We're in that middle part of a for loop between two
@@ -2131,6 +2138,23 @@ assemble_frame_pop(struct assemble_t *a)
         a->fr = list2frame(prev);
 }
 
+#if !defined(NDEBUG) && defined(HAVE_CLOCK) && PROFILE_LOAD_TIME
+# define CLOCK_DECLARE() clock_t __FUNCTION__##clk
+# define CLOCK_SAVE() \
+  do { \
+          __FUNCTION__##clk = clock(); \
+  } while (0)
+# define CLOCK_REPORT() \
+  do { \
+          DBUG("That took %lld clocks", \
+               (long long)(clock() - __FUNCTION__##clk)); \
+  } while (0)
+#else
+# define CLOCK_DECLARE()  do { (void)0; } while (0)
+# define CLOCK_SAVE()     do { (void)0; } while (0)
+# define CLOCK_REPORT()   do { (void)0; } while (0)
+#endif
+
 /**
  * assemble - Parse input and convert into byte code
  * @filename:   Name of file, for usage later by serializer and disassembler
@@ -2152,6 +2176,7 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
         int localstatus;
         struct xptrvar_t *ret;
         struct assemble_t *a;
+        CLOCK_DECLARE();
 
         a = new_assembler(filename, fp);
         if (!a)
@@ -2162,6 +2187,7 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
          * but it could be a disassembly.
          * XXX: toeof wasn't meant to be synonymous with !(interactive mode)
          */
+        CLOCK_SAVE();
         if (toeof && as_peek(a, true) == OC_PER) {
                 ret = reassemble(a);
                 /* reassemble can only succeed or fail */
@@ -2174,6 +2200,7 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
         } else {
                 ret = assemble_next(a, toeof, &localstatus);
         }
+        CLOCK_REPORT();
 
         /* status cannot be OK if ret is NULL and toeof is true */
         bug_on(toeof && ret == NULL && localstatus == RES_OK);

@@ -29,7 +29,7 @@ dnl TODO: Check all the headers, AC_CHECK_HEADERS
 
 dnl TODO: This is for all the functions of questionable availabilty
 dnl not covered in individual checks above
-AC_CHECK_FUNCS([atexit])
+AC_CHECK_FUNCS([atexit clock])
 
 dnl May be useful for speeding up the checksum algo in
 dnl serializer.c.  I have written a fast algorithm for this,

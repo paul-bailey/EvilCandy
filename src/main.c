@@ -62,6 +62,8 @@ init_lib(void)
         extern void moduleinit_builtin(void);
         /* token.c */
         extern void moduleinit_token(void);
+        /* instruction_name.c */
+        extern void moduleinit_instruction_name(void);
 
         /*
          * "moduleinit" was a poorly chosen name for these constructors.
@@ -79,6 +81,7 @@ init_lib(void)
                 { .initfn = moduleinit_vm },
                 { .initfn = moduleinit_builtin },
                 { .initfn = moduleinit_token },
+                { .initfn = moduleinit_instruction_name },
                 { .initfn = NULL },
         };
         const struct initfn_tbl_t *t;
@@ -264,6 +267,7 @@ run_tty(void)
 extern void moduledeinit_vm(void);
 extern void moduledeinit_var(void);
 extern void moduledeinit_builtin(void);
+extern void moduledeinit_instruction_name(void);
 
 int
 main(int argc, char **argv)
@@ -294,6 +298,7 @@ main(int argc, char **argv)
         VAR_DECR_REF(ErrorVar);
         moduledeinit_vm();
         moduledeinit_builtin();
+        moduledeinit_instruction_name();
         /* must be last */
         moduledeinit_var();
         return 0;

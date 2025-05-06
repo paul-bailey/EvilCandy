@@ -88,6 +88,11 @@ extern void efree(void *ptr);
 /* hash.c */
 extern hash_t calc_string_hash(Object *key);
 
+/* instruction_name.c */
+extern const char *instruction_name(int opcode);
+extern int instruction_from_name(const char *name);
+extern int instruction_from_key(Object *key);
+
 /* json.c */
 Object *dict_from_json(const char *filename);
 

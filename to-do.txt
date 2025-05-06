@@ -8,6 +8,10 @@ Bugs
 Must Do
 -------
 
+* Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
+
+* Make sure operator order follows either JavaScript or Python.
+
 * Make sure all built-in types have a .cmpz method.
 
 * Make sure all .cmpz methods match documentation.
@@ -45,6 +49,8 @@ Must Do
 
 Library/Language Features
 -------------------------
+
+* Add ``===`` or ``is`` or both
 
 * Add sets
 

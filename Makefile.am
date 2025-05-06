@@ -17,6 +17,7 @@ evilcandy_SOURCES = \
         src/find_import.c \
         src/hash.c \
         src/helpers.c \
+        src/instruction_name.c \
         src/json.c \
         src/list.c \
         src/main.c \

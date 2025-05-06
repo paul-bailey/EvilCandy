@@ -8,6 +8,11 @@
 #include <xptr.h>
 #include "assemble_priv.h"
 
+/*
+ * FIXME: These two functions ought to be automated in some way from
+ * tools/instructions and tools/gen.  If I change up the instructions
+ * these could end up being wrong.
+ */
 static bool
 instr_uses_rodata(instruction_t ii)
 {

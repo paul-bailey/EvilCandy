@@ -9,10 +9,6 @@
 #define IARG(x)   [IARG_##x]  = #x
 #define IARGP(x)  [IARG_PTR_##x]  = #x
 
-static const char *INSTR_NAMES[N_INSTR] = {
-#include "disassemble_gen.c.h"
-};
-
 static const char *ATTR_NAMES[] = {
         "ATTR_CONST",
         "ATTR_STACK",
@@ -164,7 +160,7 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i)
                 fprintf(fp, "%d:\n", label);
         }
 
-        fprintf(fp, "%8s%-16s", "", SAFE_NAME(INSTR, ii->code));
+        fprintf(fp, "%8s%-16s", "", instruction_name(ii->code));
         switch (ii->code) {
         case INSTR_ASSIGN:
         case INSTR_LOAD:

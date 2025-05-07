@@ -433,7 +433,6 @@ dict_insert(Object *dict, Object *key,
 
                         VAR_DECR_REF(b->b_data);
                         VAR_INCR_REF(attr);
-                        VAR_INCR_REF(b->b_key);
                         b->b_data = attr;
                 } else {
                         /* put */

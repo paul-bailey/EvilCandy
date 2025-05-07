@@ -292,7 +292,6 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
                 Object *key = RODATA(fr, ii);
                 int ret = symbol_put(fr, key, from);
                 VAR_DECR_REF(from);
-                VAR_DECR_REF(key);
                 return ret;
             }
         case IARG_PTR_THIS:

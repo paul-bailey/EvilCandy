@@ -431,8 +431,11 @@ dict_insert(Object *dict, Object *key,
                         if (!!(flags & DF_EXCL))
                                 return RES_ERROR;
 
-                        VAR_DECR_REF(b->b_data);
                         VAR_INCR_REF(attr);
+                        VAR_INCR_REF(key);
+                        VAR_DECR_REF(b->b_data);
+                        VAR_DECR_REF(b->b_key);
+                        b->b_key = key;
                         b->b_data = attr;
                 } else {
                         /* put */

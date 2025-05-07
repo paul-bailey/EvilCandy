@@ -231,6 +231,7 @@ var_make_file(const char *fmt, va_list ap, char **endptr)
         bug_on(fp == NULL);
 
         res = filevar_new(fp, name, mode);
+        VAR_DECR_REF(name);
         bug_on(res == ErrorVar);
         bug_on(*fmt != '/');
         *endptr = (char *)fmt+1;

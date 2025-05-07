@@ -265,6 +265,7 @@ unary_op_common(Frame *fr,
         Object *opres = op(v);
         if (!opres)
                 return -1;
+        VAR_DECR_REF(v);
         push(fr, opres);
         return 0;
 }

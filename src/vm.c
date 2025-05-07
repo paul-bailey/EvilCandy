@@ -286,8 +286,14 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
                 ppto = fr->clo + ii.arg2;
                 break;
         case IARG_PTR_SEEK:
+            {
                 /* Global variable or attribute in namespace */
-                return symbol_put(fr, RODATA(fr, ii), from);
+                Object *key = RODATA(fr, ii);
+                int ret = symbol_put(fr, key, from);
+                VAR_DECR_REF(from);
+                VAR_DECR_REF(key);
+                return ret;
+            }
         case IARG_PTR_THIS:
                 err_setstr(TypeError, "You may not assign `this'");
                 return RES_ERROR;

@@ -63,6 +63,8 @@ struct token_state_t {
         jmp_buf env;
 };
 
+static void token_state_free_(struct token_state_t *state, bool free_self);
+
 /* a sort of "ctype" for tokens */
 static unsigned char tok_charmap[128];
 
@@ -82,7 +84,11 @@ static inline bool tokc_isident1(int c) { return tokc_isflags(c, QIDENT1); }
 static int
 tok_next_line(struct token_state_t *state)
 {
-        int res = getline(&state->line, &state->_slen, state->fp);
+        int res = -1;
+
+        if (state->fp)
+                res = getline(&state->line, &state->_slen, state->fp);
+
         if (res != -1) {
                 state->s = state->line;
                 state->lineno++;
@@ -555,7 +561,7 @@ tokenize(struct token_state_t *state)
                         oc.v = NULL;
                 }
 
-                if (oc.v == NULL || intern) {
+                if ((oc.v == NULL || intern) && state->dedup) {
                         oc.s = dict_unique(state->dedup, state->tok.s);
                 } else {
                         oc.s = estrdup(state->tok.s);
@@ -572,7 +578,58 @@ tokenize(struct token_state_t *state)
         return ret;
 }
 
+static void
+token_init_state(struct token_state_t *state, FILE *fp, const char *filename)
+{
+        buffer_init(&state->tok);
+        state->line     = NULL;
+        state->_slen    = 0;
+        state->s        = NULL;
+        state->filename = filename ? estrdup(filename) : NULL;
+        state->fp       = fp;
+        state->lineno   = 0;
+
+        buffer_init(&state->pgm);
+        state->ntok     = 0;
+        state->nexttok  = 0;
+        state->eof      = false;
+
+        /*
+         * if not file, we're just parsing a line, so interning
+         * is more overhead than it's worth
+         */
+        state->dedup = fp ? dictvar_new() : NULL;
+}
+
 #define TOKBUF(state_) ((struct token_t *)(state_)->pgm.s)
+
+int
+get_tok_from_cstring(const char *s, char **endptr, struct token_t *dst)
+{
+        struct token_state_t state;
+        int ret;
+
+        token_init_state(&state, NULL, NULL);
+        state.line = (char *)s;
+        state.s = state.line;
+
+        ret = tokenize(&state);
+        if (ret >= 0) {
+                memcpy(dst, TOKBUF(&state), sizeof(*dst));
+                /* cleaning state below would consume this */
+                if (dst->v)
+                        VAR_INCR_REF(dst->v);
+                if (dst->s)
+                        dst->s = NULL;
+                if (endptr)
+                        *endptr = state.s;
+        }
+
+        /* don't let token_state_free touch this */
+        state.line = state.s = NULL;
+        token_state_free_(&state, false);
+        return ret;
+}
 
 /**
  * get_tok - Get the next token
@@ -683,8 +740,8 @@ token_state_trim(struct token_state_t *state)
  *
  * Called when finished parsing a full file.
  */
-void
-token_state_free(struct token_state_t *state)
+static void
+token_state_free_(struct token_state_t *state, bool free_self)
 {
         struct token_t *tok = (struct token_t *)(state->pgm.s);
         int i, n = buffer_size(&state->pgm);
@@ -695,8 +752,10 @@ token_state_free(struct token_state_t *state)
                 bool intern = false;
                 if (tok[i].v) {
                         int t = tok[i].t;
-                        if (t == OC_NULL || t == OC_TRUE
-                            || t == OC_FALSE) {
+                        if ((t == OC_NULL ||
+                             t == OC_TRUE ||
+                             t == OC_FALSE) &&
+                            state->dedup) {
                                 intern = true;
                         }
                         VAR_DECR_REF(tok[i].v);
@@ -709,10 +768,19 @@ token_state_free(struct token_state_t *state)
                        efree(tok[i].s);
                 }
         }
-        VAR_DECR_REF(state->dedup);
+        if (state->dedup)
+                VAR_DECR_REF(state->dedup);
         buffer_free(&state->pgm);
-        efree(state->filename);
-        efree(state);
+        if (state->filename)
+                efree(state->filename);
+        if (free_self)
+                efree(state);
+}
+
+void
+token_state_free(struct token_state_t *state)
+{
+        token_state_free_(state, true);
 }
 
 /**
@@ -729,19 +797,7 @@ token_state_new(FILE *fp, const char *filename)
 {
         struct token_state_t *state = emalloc(sizeof(*state));
 
-        buffer_init(&state->tok);
-        state->line     = NULL;
-        state->_slen    = 0;
-        state->s        = NULL;
-        state->filename = estrdup(filename);
-        state->fp       = fp;
-        state->lineno   = 0;
-
-        buffer_init(&state->pgm);
-        state->ntok     = 0;
-        state->nexttok  = 0;
-        state->eof      = false;
-        state->dedup    = dictvar_new();
+        token_init_state(state, fp, filename);
 
         /*
          * Get first line, so that the

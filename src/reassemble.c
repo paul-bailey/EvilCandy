@@ -1,421 +1,416 @@
 #include <evilcandy.h>
 #include <token.h>
 #include "assemble_priv.h"
+#include <errno.h>
+#include <stdlib.h>
 
-enum {
-        MAX_TOKS_PER_LINE = 10,
+struct reassemble_t {
+        struct assemble_t *a;
+        FILE *fp;
+        char *line;
+        size_t line_len;
+        int lineno;
+        char *s;
 };
 
-/* toks must have at least MAX_TOKS_PER_LINE */
-static int
-lex_line(struct assemble_t *a, struct token_t *toks, int *pline)
+static ssize_t
+ra_next_line(struct reassemble_t *ra)
 {
-        return assemble_get_line(a, toks, MAX_TOKS_PER_LINE, pline);
+        char *s;
+        ssize_t nread;
+
+        do {
+                nread = getline(&ra->line, &ra->line_len, ra->fp);
+                if (nread <= 0)
+                        return nread;
+                ra->lineno++;
+
+                s = ra->line;
+                while (*s != '\0' && isspace((int)*s))
+                        s++;
+        } while (*s == '\0' || *s == '#');
+        ra->s = s;
+        return nread;
+}
+
+static char *
+skip_ws(const char *s)
+{
+        while (*s != '\0' && isspace((int)*s))
+                s++;
+        if (*s == '#')
+                return strchr(s, '\0');
+        return (char *)s;
+}
+
+static void
+ra_err(struct reassemble_t *ra, const char *msg)
+{
+        err_setstr(SyntaxError, "Line %d: %s", ra->lineno, msg);
+}
+
+static void
+err_extratok(struct reassemble_t *ra)
+{
+        ra_err(ra, "Extra token");
 }
 
 static int
-opcode_check(int code, int arg1, int arg2)
+parse_opcodes(struct reassemble_t *ra, const char *pc)
 {
-        if ((unsigned)code >= N_INSTR
-            || (unsigned)arg1 > 255 || arg2 < -32768 || arg2 > 32767)
-                return -1;
-        return 0;
-}
+        unsigned long code, arg1;
+        long arg2;
+        char *endptr;
 
-static int
-parse_opcode_fast(struct assemble_t *a, struct token_t *toks, int ntok)
-{
-        /* enterint this, we know tok[1]=int, tok[2]=int, ntok >= 3 */
-        int opcode, arg1, arg2;
+        errno = 0;
+        code = strtoul(pc, &endptr, 0);
+        if (errno || endptr == pc)
+                goto err;
+        pc = skip_ws(endptr);
 
-        opcode = intvar_toi(toks[0].v);
-        arg1 = intvar_toi(toks[1].v);
-        if (ntok == 4 && toks[2].t == OC_MINUS) {
-                Object *v;
-                if (toks[3].t != OC_INTEGER)
+        /* Check if this is a label instead */
+        if (*pc == ':') {
+                pc = skip_ws(pc + 1);
+                if (*pc != '\0') {
+                        err_extratok(ra);
                         return -1;
-                v = qop_negate(toks[3].v);
-                bug_on(!v || v == ErrorVar);
-                arg2 = intvar_toi(v);
-                VAR_DECR_REF(v);
-        } else if (ntok == 3 && toks[2].t == OC_INTEGER) {
-                arg2 = intvar_toi(toks[2].v);
-        } else {
-                return -1;
-        }
-
-        if (err_occurred() || opcode_check(opcode, arg1, arg2) < 0) {
-                err_clear();
-                return -1;
-        }
-
-        assemble_add_instr(a, opcode, arg1, arg2);
-        return 0;
-}
-
-static int
-tok2arg(struct token_t *tok, Object *dict)
-{
-        enum { GUARANTEED_BAD_ARG = -32769 };
-        int ret;
-        if (tok->t == OC_IDENTIFIER) {
-                if (!dict)
-                        return GUARANTEED_BAD_ARG;
-                Object *v = dict_getitem(dict, tok->v);
-                if (!v) {
-                        ret = GUARANTEED_BAD_ARG;
-                } else {
-                        ret = intvar_toi(v);
-                        VAR_DECR_REF(v);
                 }
-        } else {
-                ret = intvar_toi(tok->v);
-        }
-        if (err_occurred()) {
-                err_clear();
-                ret = GUARANTEED_BAD_ARG;
-        }
-        return ret;
-}
-
-static int
-parse_opcode(struct assemble_t *a, struct token_t *toks, int ntok, Object *dict)
-{
-        /* Going in, we know ntok >= 4, tok[0]==ID, tok[2]=="," */
-        Object *oarg;
-        int opcode, arg1, arg2, negative;
-        struct token_t *start, *end = toks + ntok;
-
-        opcode = instruction_from_name(toks[0].s);
-        arg1 = tok2arg(&toks[1], dict);
-        start = &toks[3];
-
-        if (start->t == OC_MINUS) {
-                negative = 1;
-                start++;
-        } else {
-                negative = 0;
-        }
-        if (start == end || start->t != OC_INTEGER)
-                return -1;
-
-        oarg = start->v;
-        start++;
-        if (start != end)
-                return -1;
-
-        if (negative) {
-                Object *res = qop_negate(oarg);
-                if (!res || res == ErrorVar)
-                        return -1;
-                oarg = res;
-        } else {
-                VAR_INCR_REF(oarg);
-        }
-
-        arg2 = intvar_toi(oarg);
-        VAR_DECR_REF(oarg);
-
-        if (opcode_check(opcode, arg1, arg2) < 0)
-                return -1;
-
-        assemble_add_instr(a, opcode, arg1, arg2);
-        return 0;
-}
-
-static int
-parse_rodata(struct assemble_t *a, struct token_t *toks, int ntok)
-{
-        struct token_t *start, *stop;
-        int negative;
-        int ret;
-        if (ntok < 3)
-                return -1;
-
-        /*
-         * take care of the most common cases first:
-         * function or single-token expression
-         */
-        if (ntok == 5 && toks[2].t == OC_LT &&
-            toks[3].t == OC_INTEGER && toks[4].t == OC_GT) {
-                /* rodata points at another function */
-                long long id = intvar_toll(toks[3].v);
-                Object *idobj = idvar_new(id);
-                assemble_seek_rodata(a, idobj);
-                VAR_DECR_REF(idobj);
-                return 0;
-        } else if (ntok == 3 && toks[2].v != NULL
-                   && toks[2].t != OC_IDENTIFIER) {
-                /* most common case */
-                assemble_seek_rodata(a, toks[2].v);
+                assemble_label_here(ra->a);
                 return 0;
         }
 
-        /* -number, +number, [+/-]real[+/-]imag */
-        stop = &toks[ntok];
-        start = &toks[2];
-        negative = 0;
-        if (start->t == OC_PLUS || start->t == OC_MINUS) {
-                if (start->t == OC_MINUS)
-                        negative = 1;
-                start++;
-                if (start >= stop)
-                        return -1;
-        }
-        if (start->t != OC_INTEGER && start->t != OC_FLOAT)
+        /* Not a label, carry on with opcodes */
+        if (code >= N_INSTR)
+                goto err;
+        arg1 = strtoul(pc, &endptr, 0);
+        if (errno || endptr == pc || arg1 > 255)
+                goto err;
+        pc = skip_ws(endptr);
+        arg2 = strtol(pc, &endptr, 0);
+        if (errno || endptr == pc || arg2 < -32768 || arg2 > 32767)
+                goto err;
+        pc = skip_ws(endptr);
+        if (*pc != '\0') {
+                err_extratok(ra);
                 return -1;
-
-        Object *left, *right, *result;
-
-        left = start->v;
-
-        if (negative) {
-                left = qop_negate(left);
-                bug_on(!left || left == ErrorVar);
-        } else {
-                VAR_INCR_REF(left);
         }
 
-        /* from here, need to unwind before returning */
-        ret = -1;
+        assemble_add_instr(ra->a, code, arg1, arg2);
+        return 0;
 
-        start++;
-        if (start >= stop) {
-                /* '+' or '-' followed by a real number */
-                assemble_seek_rodata(a, left);
-                ret = 0;
-                goto out_decr_left;
-        }
-
-        /* we must have a complex number */
-        negative = 0;
-        if (start->t == OC_PLUS || start->t == OC_MINUS) {
-                if (start->t == OC_MINUS)
-                        negative = 1;
-                start++;
-                if (start == stop)
-                        goto out_decr_left;
-        } else {
-                goto out_decr_left;
-        }
-
-        if (start->t != OC_COMPLEX)
-                goto out_decr_left;
-        right = start->v;
-        if (negative) {
-                right = qop_negate(right);
-                bug_on(!right || right == ErrorVar);
-        } else {
-                VAR_INCR_REF(right);
-        }
-
-        result = qop_add(left, right);
-        bug_on(!result || result == ErrorVar);
-
-        assemble_seek_rodata(a, result);
-
-        VAR_DECR_REF(result);
-        VAR_DECR_REF(right);
-out_decr_left:
-        VAR_DECR_REF(left);
-        return ret;
+err:
+        ra_err(ra, "Malformed opcode");
+        return -1;
 }
 
-
-
-struct xptrvar_t *
-reassemble(struct assemble_t *a)
+static int
+check_version(struct reassemble_t *ra, const char *pc)
 {
-        struct token_t toks[MAX_TOKS_PER_LINE];
-        Object *dict = NULL;
-        int line, ntok, status;
-        int havefunc = 0;
+        const char *version;
 
-        /* XXX policy dirt. assemble() uses this but it hasn't set it yet */
-        if ((status = setjmp(a->env)) != 0) {
-                if (!err_occurred()) {
-                        err_setstr(SyntaxError,
-                                   "Assembler returned error %d",
-                                   status);
-                }
-                return NULL;
+        if (strncmp(pc, ".evilcandy", 10))
+                goto err_firstline;
+        pc = skip_ws(pc + 10);
+        if (*pc != '"')
+                goto err_firstline;
+
+        pc++;
+        version = pc;
+        while (*pc != '\0' && *pc != '"')
+                pc++;
+        if (*pc == '\0')
+                goto err_firstline;
+        if (strncmp(version, VERSION, pc - version)) {
+                ra_err(ra, "Refusing to reassemble: version mismatch");
+                return -1;
         }
-
-        ntok = lex_line(a, toks, &line);
-
-        /* this is the reason we were called! */
-        bug_on(ntok == 0);
-        bug_on(toks[0].t != OC_PER);
-
-        if (ntok < 0)
-                return NULL;
-
-        /* first line, expect three tokens: '.' + 'evilcandy' + "version" */
-        if (ntok != 3) {
-                err_setstr(SyntaxError,
-                           "Malformed first line %d of disassembly",
-                           line);
-                return NULL;
+        pc = skip_ws(pc + 1);
+        if (*pc != '\0') {
+                err_extratok(ra);
+                return -1;
         }
-        if (toks[1].t != OC_IDENTIFIER || strcmp(toks[1].s, "evilcandy"))
-                goto efirstline;
+        return 0;
 
-        if (toks[2].t != OC_STRING)
-                goto efirstline;
+err_firstline:
+        ra_err(ra, "Expected first line: .evilcandy VERSION");
+        return -1;
+}
 
-        char *version = string_get_cstring(toks[2].v);
-        if (strcmp(version, VERSION) != 0) {
-                err_setstr(SyntaxError,
-                           "Refusing to compile: version '%s' does not match our version '%s'",
-                           version, VERSION);
-                return NULL;
-        }
-        /* end of code that can return without any cleanup */
+static int
+parse_funcid(struct reassemble_t *ra, const char *pc, bool may_push)
+{
+        char *endptr;
+        unsigned long long id;
 
-        for (;;) {
-                ntok = lex_line(a, toks, &line);
-                if (ntok <= 0) {
-                        if (ntok == 0) {
-                                err_setstr(SyntaxError,
-                                           "Empty assembly with no code to execute");
-                        }
-                        /* else, message sent already */
-                        goto bad_out;
-                }
-
-                if (toks[0].t == OC_PER) {
-                        char *dir;
-                        if (ntok < 2 || toks[1].t != OC_IDENTIFIER)
-                                goto ebaddirective;
-                        dir = toks[1].s;
-                        if (!strcmp(dir, "start"))
-                                break;
-
-                        if (!strcmp(dir, "define")) {
-                                Object *key;
-
-                                if (ntok != 4 || toks[2].t != OC_IDENTIFIER
-                                    || toks[3].t != OC_INTEGER) {
-                                        goto ebaddirective;
-                                }
-                                if (!dict)
-                                        dict = dictvar_new();
-                                key = stringvar_new(toks[2].s);
-                                dict_setitem(dict, key, toks[3].v);
-                                VAR_DECR_REF(key);
-                        } else {
-                                err_setstr(SyntaxError,
-                                        "Expected: only .define directives before .start (line %d)",
-                                        line);
-                                goto bad_out;
-                        }
-                } else {
-                        err_setstr(SyntaxError,
-                                   "Non-directive before .start near line %d",
-                                   line);
-                        goto bad_out;
-                }
-        }
-
-get_function:
-        /* if here, we already know line begins with '.' and 'start' */
-        if (ntok != 5 || toks[2].t != OC_LT ||
-            toks[3].t != OC_INTEGER || toks[4].t != OC_GT) {
-                err_setstr(SyntaxError,
-                           "Malformed .start directive near line %d",
-                           line);
-                goto bad_out;
+        if (strncmp(pc, ".start", 6))
+                goto err_start;
+        pc = skip_ws(pc + 6);
+        if (*pc != '<')
+                goto err_start;
+        pc++;
+        errno = 0;
+        id = strtoull(pc, &endptr, 0);
+        if (errno || endptr == pc)
+                goto err_start;
+        pc = endptr;
+        if (*pc != '>')
+                goto err_start;
+        pc = skip_ws(pc + 1);
+        if (*pc != '\0') {
+                err_extratok(ra);
+                return -1;
         }
 
         /*
          * Don't do this for entry point, new_assembler() already did
-         * that.  We're losing the function number here, but that's all
-         * right because no one references the entry point.
+         * that.  We're losing the function number here, but that's OK
+         * because no one references the entry point.
          */
-        if (havefunc)
-                assemble_frame_push(a, intvar_toll(toks[3].v));
-        havefunc = 1;
+        if (may_push)
+                assemble_frame_push(ra->a, id);
 
-        for (;;) {
-                ntok = lex_line(a, toks, &line);
-                if (ntok <= 0) {
-                        err_setstr(SyntaxError,
-                                "End of input before .end directive");
-                        goto bad_out;
-                }
-                if (toks[0].t == OC_PER) {
-                        if (ntok < 2 || toks[1].t != OC_IDENTIFIER)
-                                goto ebaddirective;
-                        if (!strcmp(toks[1].s, "rodata")) {
-                                if (parse_rodata(a, toks, ntok) < 0) {
-                                        err_setstr(SyntaxError,
-                                                "Malformed rodata line %d",
-                                                line);
-                                        goto bad_out;
-                                }
-                        } else if (!strcmp(toks[1].s, "end")) {
-                                if (ntok != 2)
-                                        goto ebaddirective;
-                                break;
-                        }
-                } else if (ntok == 2 && toks[0].t == OC_INTEGER
-                           && toks[1].t == OC_COLON) {
-                        assemble_label_here(a);
-                } else if (ntok >= 3 &&
-                           toks[0].t == OC_INTEGER &&
-                           toks[1].t == OC_INTEGER) {
-                        if (parse_opcode_fast(a, toks, ntok) < 0)
-                                goto ebadopcodes;
-                } else if (ntok >= 4 && toks[0].t == OC_IDENTIFIER &&
-                           toks[2].t == OC_COMMA) {
-                        if (parse_opcode(a, toks, ntok, dict) < 0)
-                                goto ebadopcodes;
-                } else {
-                        err_setstr(SyntaxError, "Malformed line %d", line);
-                        goto bad_out;
-                }
-        }
+        return 0;
 
-        assemble_frame_pop(a);
+err_start:
+        ra_err(ra, "Expected: .start <ID>");
+        return -1;
+}
 
-        ntok = lex_line(a, toks, &line);
-        if (ntok > 0) {
-                if (ntok > 1 && toks[0].t == OC_PER &&
-                    toks[1].t == OC_IDENTIFIER &&
-                    !strcmp(toks[1].s, "start")) {
-                        goto get_function;
-                }
-                /* anything else, malformed */
-                err_setstr(SyntaxError,
-                           "Invalid line %d between functions", line);
-                goto bad_out;
-        }
-
-        if (dict)
-                VAR_DECR_REF(dict);
+static int
+parse_rodata(struct reassemble_t *ra, const char *pc)
+{
+        char *endptr;
+        Object *o;
 
         /*
-         * Unlike assembler.c, we did not recurse, so entry level
-         * is *last* on the list, not first.
+         * .rodata is either an ID to more code, or an atomic--but not
+         * necessarily single-token--object.  Numbers are the only
+         * objects that might have one token, but those are easy enough
+         * to parse here without egregiously violating the
+         * single-endpoint principle of parsing.  For the others, it's
+         * best to leave it to the tokenizer.
          */
+        if (*pc == '<') {
+                long long id;
+
+                pc++;
+                errno = 0;
+                id = strtoull(pc, &endptr, 0);
+                if (errno || endptr == pc) {
+                        ra_err(ra, "Malformed function ID");
+                        return -1;
+                }
+                pc = endptr;
+                if (*pc != '>') {
+                        ra_err(ra, "Missing '>'");
+                        return -1;
+                }
+                pc = skip_ws(pc + 1);
+                if (*pc != '\0') {
+                        err_extratok(ra);
+                        return -1;
+                }
+                o = idvar_new(id);
+                assemble_seek_rodata(ra->a, o);
+                VAR_DECR_REF(o);
+                return 0;
+        }
+        struct token_t tok;
+        int status, negative;
+
+        negative = 0;
+        if (*pc == '-') {
+                pc++;
+                negative = 1;
+        }
+        tok.v = NULL;
+        status = get_tok_from_cstring(pc, &endptr, &tok);
+        if (status < 0 || tok.v == NULL) {
+                ra_err(ra, "Malformed rodata token");
+                return -1;
+        }
+        o = tok.v;
+        pc = skip_ws(endptr);
+        if (negative) {
+                if (tok.t != OC_INTEGER && tok.t != OC_FLOAT) {
+                        ra_err(ra, "Unary minus before a non-number");
+                        goto err_clear_left;
+                }
+                Object *tmp = qop_negate(o);
+                bug_on(!tmp || tmp == ErrorVar);
+                VAR_DECR_REF(o);
+                o = tmp;
+        } else if (tok.t != OC_INTEGER && tok.t != OC_FLOAT) {
+                /* Not a number */
+                if (*pc != '\0') {
+                        err_extratok(ra);
+                        goto err_clear_left;
+                }
+                assemble_seek_rodata(ra->a, tok.v);
+                VAR_DECR_REF(tok.v);
+                return 0;
+        }
+
+        if (*pc == '\0') {
+                /* real number "[-]X" */
+                bug_on(!o);
+                assemble_seek_rodata(ra->a, o);
+                VAR_DECR_REF(o);
+                return 0;
+        }
+
+        /* complex number "[-]R +/- I" */
+        negative = 0;
+        if (*pc == '-' || *pc == '+') {
+                if (*pc == '-')
+                        negative = 1;
+                pc = skip_ws(pc + 1);
+        } else {
+                /* ...or not */
+                err_extratok(ra);
+                goto err_clear_left;
+        }
+
+        tok.v = NULL;
+        status = get_tok_from_cstring(pc, &endptr, &tok);
+        if (status < 0 || tok.t != OC_COMPLEX) {
+                ra_err(ra, "Expected: complex number");
+                goto err_clear_left;
+        }
+
+        pc = skip_ws(endptr);
+        if (*pc != '\0') {
+                err_extratok(ra);
+                goto err_clear_left;
+        }
+
+        {
+                binary_operator_t func = negative ? qop_sub : qop_add;
+                Object *tmp = func(o, tok.v);
+                bug_on(!tmp || tmp == ErrorVar);
+                VAR_DECR_REF(o);
+                VAR_DECR_REF(tok.v);
+                o = tmp;
+        }
+
+        assemble_seek_rodata(ra->a, o);
+        VAR_DECR_REF(o);
+        return 0;
+
+err_clear_left:
+        if (o)
+                VAR_DECR_REF(o);
+        return -1;
+}
+
+struct xptrvar_t *
+reassemble(struct assemble_t *a)
+{
+        struct reassemble_t ra;
+        char *pc;
+        ssize_t nread;
+        int havefunc;
+
+        ra.a = a;
+        ra.fp = a->fp;
+        ra.lineno = 0;
+        ra.line = ra.s = NULL;
+        ra.line_len = 0;
+
+        /*
+         * It was tempting, because it's "cleaner", to use @a's token
+         * state, since every a disassembly file's tokens (verbose or
+         * otherwise) are all a subset of EvilCandy's valid tokens.
+         * (A directive like ".rodata" is two tokens, OC_PER and
+         * OC_IDENTIFIER).
+         *
+         * The problem is that even the most minimal disassembly files
+         * have like a bazillion lines like
+         *      12 0 3
+         * creating three object per line, which we'd immediately toss
+         * as soon as we finish adding the opcode.  Some load-time speed
+         * tests confirm that this was taking up to four times longer
+         * than just compiling the source code.  That totally defeats the
+         * purpose of serialization in the first place!
+         *
+         * So instead we're going to forgo the ability to re-assemble
+         * verbose, enumerated, human-readable disassembly, and instead
+         * manually parse all but the .rodata tokens.
+         */
+        rewind(a->fp);
+
+        nread = ra_next_line(&ra);
+        if (nread <= 0) {
+                err_setstr(SystemError,
+                           "(possible bug) end of disassembly before first instruction");
+                return NULL;
+        }
+
+        if (check_version(&ra, ra.s) < 0)
+                goto e_free_state;
+
+        havefunc = 0;
+        /* for each function... */
+        for (;;) {
+                nread = ra_next_line(&ra);
+                if (nread <= 0)
+                        break;
+
+                /* get ID from .start directive */
+                if (parse_funcid(&ra, ra.s, havefunc) < 0)
+                        goto e_free_state;
+                havefunc = 1;
+
+                /* get opcodes */
+                for (;;) {
+                        nread = ra_next_line(&ra);
+                        if (nread <= 0)
+                                goto err_noend;
+                        pc = ra.s;
+                        if (*pc == '.')
+                                break;
+
+                        if (parse_opcodes(&ra, pc) < 0)
+                                goto e_free_state;
+                }
+
+                /* get .rodata if any */
+                for (;;) {
+                        /* we already got line that starts w/ '.' */
+                        if (strncmp(pc, ".rodata", 7))
+                                break;
+                        pc = skip_ws(pc + 7);
+                        if (parse_rodata(&ra, pc) < 0)
+                                goto e_free_state;
+
+                        nread = ra_next_line(&ra);
+                        if (nread <= 0)
+                                goto err_noend;
+                        pc = ra.s;
+                }
+
+                /* all functions must end with .end directive */
+                if (strncmp(pc, ".end", 4)) {
+                        ra_err(&ra, "Expected: .end or .rodata");
+                        goto e_free_state;
+                }
+
+                assemble_frame_pop(a);
+        }
+
+        if (ra.line)
+                efree(ra.line);
         return assemble_frame_to_xptr(a,
                         list2frame(a->finished_frames.prev), false);
 
 
-ebadopcodes:
-        err_setstr(SyntaxError, "Malformed opcode near line %d", line);
-        goto bad_out;
+err_noend:
+        err_setstr(SyntaxError, "End of input before expected .end");
+        goto e_free_state;
 
-ebaddirective:
-        err_setstr(SyntaxError, "Invalid directive at line %d", line);
-        goto bad_out;
-
-efirstline:
-        err_setstr(SyntaxError, "Expected: .evilcandy \"VERSION\"");
-
-bad_out:
-        if (dict)
-                VAR_DECR_REF(dict);
+e_free_state:
+        if (ra.line)
+                efree(ra.line);
         return NULL;
 }
 

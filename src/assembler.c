@@ -37,7 +37,7 @@
 #include "assemble_priv.h"
 
 /* set to 1 to get a stderr debug profile of load time */
-#define PROFILE_LOAD_TIME 0
+#define PROFILE_LOAD_TIME 1
 
 #if PROFILE_LOAD_TIME && defined(HAVE_CLOCK) && !defined(NDEBUG)
 # include <time.h>

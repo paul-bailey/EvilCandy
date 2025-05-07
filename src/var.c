@@ -5,7 +5,7 @@
  * If 1 and !NDEBUG, splash some debug data about var allocation
  * to stderr upon exit.
  */
-#define REPORT_VARS_ON_EXIT 1
+#define REPORT_VARS_ON_EXIT 0
 
 #ifdef NDEBUG
 # undef REPORT_VARS_ON_EXIT

@@ -675,6 +675,7 @@ initialize_global_object(void)
                 const struct type_inittbl_t *tbl;
         } GLOBAL_MODULES[] = {
                 { "_builtins",  builtin_inittbl },
+                /* XXX: find way to make these not load until requested */
                 { "_math",      bi_math_inittbl__ },
                 { "_io",        bi_io_inittbl__ },
                 { NULL }
@@ -705,13 +706,11 @@ initialize_global_object(void)
                         STDIO_ARGS(stdin, READ),
                         STDIO_ARGS(stdout, WRITE),
                         STDIO_ARGS(stderr, WRITE));
-
-#undef STDIO_ARGS
-
         k = stringvar_new("_sys");
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
+#undef STDIO_ARGS
 }
 
 static Object *

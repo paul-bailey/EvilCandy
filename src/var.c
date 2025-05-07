@@ -168,6 +168,7 @@ var_initialize_type(struct type_t *tp)
                 k = stringvar_new(t->name);
                 res = dict_setitem_exclusive(dict, k, v);
                 VAR_DECR_REF(k);
+                VAR_DECR_REF(v);
 
                 bug_on(res != RES_OK);
                 (void)res;
@@ -184,6 +185,7 @@ var_initialize_type(struct type_t *tp)
                 k = stringvar_new(p->name);
                 res = dict_setitem_exclusive(dict, k, v);
                 VAR_DECR_REF(k);
+                VAR_DECR_REF(v);
 
                 bug_on(res != RES_OK);
                 (void)res;

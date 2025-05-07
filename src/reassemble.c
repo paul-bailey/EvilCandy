@@ -4,7 +4,7 @@
  * This does not parse the pretty, human-readable enumerated-and-commented
  * assembly files created with the -d option.  Instead it reads files where
  * an opcode line might be something like "12 1 1".  (Big comment in
- * reassemble() why we do this.)  At most it skips the pount '#' comment
+ * reassemble() why we do this.)  At most it skips the pound '#' comment
  * character.
  *
  * The entry point is reassemble()
@@ -442,7 +442,7 @@ reassemble(struct assemble_t *a)
          * finished assembly frames at the front of the list.
          * Normal-source assembly is recursive, so entry point is also
          * the last to be popped, putting it at the front of the list.
-         * But in our case, there's no recursion, so the entry point is
+         * But in our case, there's no recursion.  So the entry point is
          * at the back of the list.
          */
         return assemble_frame_to_xptr(a,

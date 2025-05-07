@@ -2189,7 +2189,7 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
                 ret = reassemble(a);
                 /* reassemble can only succeed or fail */
                 if (!ret) {
-                        assemble_splash_error(a);
+                        err_print_last(stderr);
                         localstatus = RES_ERROR;
                 } else {
                         localstatus = RES_OK;

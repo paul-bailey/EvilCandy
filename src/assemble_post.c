@@ -317,13 +317,12 @@ reduce_const_operands(struct assemble_t *a)
 static void
 resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
 {
-        int i, n_instr, n_label;
+        int i, n_instr;
         short *labels;
         instruction_t *instrs;
         struct as_frame_t *frsav;
 
         labels  = (short *)fr->af_labels.s;
-        n_label = as_frame_nlabel(fr);
 
         instrs = (instruction_t *)fr->af_instr.s;
         n_instr = as_frame_ninstr(fr);
@@ -334,7 +333,7 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
         for (i = 0; i < n_instr; i++) {
                 if (instr_uses_jump(instrs[i])) {
                         instruction_t *ii = &instrs[i];
-                        bug_on(ii->arg2 >= n_label);
+                        bug_on(ii->arg2 >= as_frame_nlabel(fr));
                         /*
                          * label holds a positive offset from start of
                          * instructions. We want signed offset from

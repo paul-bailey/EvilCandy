@@ -315,8 +315,7 @@ var_from_format(const char *fmt, ...)
         Object *res;
         va_list ap;
         char *endptr;
-        int count = count_items(fmt, '\0');
-        bug_on(count != 1);
+        bug_on(count_items(fmt, '\0') != 1);
 
         va_start(ap, fmt);
         res = var_vmake(fmt, ap, &endptr);

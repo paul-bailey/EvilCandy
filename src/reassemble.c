@@ -1,3 +1,14 @@
+/*
+ * reassemble.c - Re-assemble disassembled file
+ *
+ * This does not parse the pretty, human-readable enumerated-and-commented
+ * assembly files created with the -d option.  Instead it reads files where
+ * an opcode line might be something like "12 1 1".  (Big comment in
+ * reassemble() why we do this.)  At most it skips the pount '#' comment
+ * character.
+ *
+ * The entry point is reassemble()
+ */
 #include <evilcandy.h>
 #include <token.h>
 #include "assemble_priv.h"
@@ -5,12 +16,12 @@
 #include <stdlib.h>
 
 struct reassemble_t {
-        struct assemble_t *a;
-        FILE *fp;
-        char *line;
-        size_t line_len;
-        int lineno;
-        char *s;
+        struct assemble_t *a;   /* info passed from assemble() */
+        FILE *fp;               /* input stream */
+        char *line;             /* current line being processed */
+        size_t line_len;        /* arg to getline */
+        int lineno;             /* current line number */
+        char *s;                /* pointer into @line */
 };
 
 static ssize_t
@@ -55,6 +66,13 @@ err_extratok(struct reassemble_t *ra)
         ra_err(ra, "Extra token");
 }
 
+/*
+ * Parse a line either which contains a number and a colon (a jump label,
+ * useful for making re-assembly human-readable), or which contains two
+ * unsigned integers (the opcode and its first argument) and one signed
+ * integer (the second argument).  Add parsed data to their proper
+ * assembly-frame array.
+ */
 static int
 parse_opcodes(struct reassemble_t *ra, const char *pc)
 {
@@ -103,6 +121,11 @@ err:
         return -1;
 }
 
+/*
+ * Parse the first non-empty line of the input,
+ * verify it's '.evilcandy "version"', where "version"
+ * matches our own VERSION in config.h
+ */
 static int
 check_version(struct reassemble_t *ra, const char *pc)
 {
@@ -136,6 +159,11 @@ err_firstline:
         return -1;
 }
 
+/*
+ * Parse a ".start <#####>" line. @pc is at the beginning of the line.
+ * Get the id number between the angle brackets and, if @may_push is set,
+ * get a new assembly frame using the new id number.
+ */
 static int
 parse_funcid(struct reassemble_t *ra, const char *pc, bool may_push)
 {
@@ -164,7 +192,7 @@ parse_funcid(struct reassemble_t *ra, const char *pc, bool may_push)
         /*
          * Don't do this for entry point, new_assembler() already did
          * that.  We're losing the function number here, but that's OK
-         * because no one references the entry point.
+         * because no one needs to point to the entry point.
          */
         if (may_push)
                 assemble_frame_push(ra->a, id);
@@ -176,6 +204,10 @@ err_start:
         return -1;
 }
 
+/*
+ * Parse one rodata line.
+ * @pc points at first nonwhitespace character beyond ".rodata"
+ */
 static int
 parse_rodata(struct reassemble_t *ra, const char *pc)
 {
@@ -187,12 +219,14 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
         /*
          * .rodata is either an ID to more code, or an atomic--but not
          * necessarily single-token--object.  Numbers are the only
-         * objects that might have multiple tokens, but those are easy
-         * enough to parse here without egregiously violating the
-         * single-endpoint principle of parsing.  For the others, it's
-         * best to leave it to the tokenizer.
+         * objects that might have multiple tokens, but we can parse
+         * the plus, minus, negative signs easily enough without
+         * egregiously usurping the tokenizer's job.  For everything
+         * else, it's best to leave it to the tokenizer.
          */
+
         if (*pc == '<') {
+                /* ID for more code */
                 long long id;
 
                 pc++;
@@ -230,6 +264,7 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
         o = tok.v;
         pc = skip_ws(endptr);
         if (negative) {
+                /* negative number */
                 if (tok.t != OC_INTEGER && tok.t != OC_FLOAT) {
                         ra_err(ra, "Unary minus before a non-number");
                         goto err_clear_left;
@@ -247,18 +282,18 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
                 goto done;
         }
 
-        /* real number? "[-]X" */
+        /* real number: "[-]X", or... */
         if (*pc == '\0')
                 goto done;
 
-        /* complex number "...+/- Imag" */
+        /* ...complex number. pc at "+/- Imag" */
         negative = 0;
         if (*pc == '-' || *pc == '+') {
                 if (*pc == '-')
                         negative = 1;
                 pc = skip_ws(pc + 1);
         } else {
-                /* ...or not */
+                /* ...or just bad input */
                 err_extratok(ra);
                 goto err_clear_left;
         }
@@ -297,6 +332,14 @@ err_clear_left:
         return -1;
 }
 
+/**
+ * reassemble - Reassemble a disassembly file.
+ *
+ * Return: The entry-point compiled XptrType object.
+ *
+ * Called from assemble() when it detects that the file is a disassembly
+ * instead of a regular source file.
+ */
 struct xptrvar_t *
 reassemble(struct assemble_t *a)
 {
@@ -328,7 +371,7 @@ reassemble(struct assemble_t *a)
          * purpose of serialization in the first place!
          *
          * So instead we're going to forgo the ability to re-assemble
-         * verbose, enumerated, human-readable disassembly, and instead
+         * verbose, enumerated, human-readable disassembly, because we'll
          * manually parse all but the .rodata tokens.
          */
         rewind(a->fp);
@@ -394,6 +437,14 @@ reassemble(struct assemble_t *a)
 
         if (ra.line)
                 efree(ra.line);
+        /*
+         * .prev instead of .next, because assemble_frame_pop() puts
+         * finished assembly frames at the front of the list.
+         * Normal-source assembly is recursive, so entry point is also
+         * the last to be popped, putting it at the front of the list.
+         * But in our case, there's no recursion, so the entry point is
+         * at the back of the list.
+         */
         return assemble_frame_to_xptr(a,
                         list2frame(a->finished_frames.prev), false);
 

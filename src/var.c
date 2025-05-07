@@ -359,10 +359,9 @@ malformed:
  * @v:  Variable whose attribute we're seeking
  * @key: Variable storing the key, either the name or an index number
  *
- * Return: Attribute of @v, or NULL if not found.  This is the actual
- * attribute, not a copy, so be careful what you do with it.
+ * Return: Attribute of @v, or ErrorVar if not found.
  *
- * This gets the equivalent to the EvilCandy expression: v[key]
+ * This implements the EvilCandy expression: v[key]
  *
  * If @key is an integer, it gets the indexed item @v.
  * If @key is a string, it first checks if @v is a dictionary storing
@@ -371,7 +370,9 @@ malformed:
  *
  * ONLY vm.c SHOULD USE THIS!  It accesses a dictionary which may not
  * yet exist during initialization, but which will be available by the
- * time the VM is running.
+ * time the VM is running.  It also does some interpolating to make
+ * dictionaries behave more like instances rather than pure dictionaries,
+ * something internal code has no need for.
  */
 Object *
 var_getattr(Object *v, Object *key)
@@ -449,6 +450,15 @@ badtype:
         return ErrorVar;
 }
 
+/**
+ * var_has_attr - Implement the has keyword
+ * @haystack: the lval 'a' of 'a has b'
+ * @needle:   the rval 'b' of 'a has b'
+ *
+ * Return: true if @needle is an item stored by @haystack, false if not.
+ *      Unlike with var_get, built-in attributes and properties are not
+ *      a consideration.
+ */
 bool
 var_hasattr(Object *haystack, Object *needle)
 {
@@ -464,12 +474,12 @@ var_hasattr(Object *haystack, Object *needle)
 /**
  * var_set_attr - Generalized set-attribute
  * @v:          Variable whose attribute we're setting
- * @key:      Variable storing the index number or name
+ * @key:        Variable storing the index number or name
  * @attr:       Variable storing the attribute to set.  This will be
  *              copied, so calling function still must handle GC for this
  * Return:      RES_OK if success, RES_ERROR if failure does not exist.
  *
- * This implements x[key] = attr;
+ * This implements v[key] = attr;
  */
 enum result_t
 var_setattr(Object *v, Object *key, Object *attr)

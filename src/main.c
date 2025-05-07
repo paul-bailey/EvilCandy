@@ -152,73 +152,53 @@ static void
 run_script(const char *filename, FILE *fp, Frame *fr)
 {
         Object *ex;
+        Object *retval;
         int status;
 
         ex = assemble(filename, fp, true, &status);
-        if (ex != NULL && status == RES_OK) {
-                Object *retval;
-                if (q_.opt.disassemble) {
-                        static bool once = false;
-                        FILE *dfp;
-                        if (once)
-                                return;
-                        once = true;
+        if (!ex)
+                return;
+        bug_on(status != RES_OK);
 
-                        if (q_.opt.disassemble_outfile) {
-                                dfp = fopen(q_.opt.disassemble_outfile, "w");
-                                if (!dfp) {
-                                        err_errno("Cannot output to %s",
-                                                  q_.opt.disassemble_outfile);
-                                        goto er;
-                                }
-                        } else {
-                                dfp = stdout;
-                        }
-
-                        if (q_.opt.disassemble_minimum)
-                                disassemble_minimal(dfp, ex);
-                        else
-                                disassemble(dfp, ex, filename);
-                        if (dfp != stdout)
-                                fclose(dfp);
-                }
-                if (!q_.opt.disassemble_only) {
-                        retval = vm_exec_script(ex, fr);
-                        if (retval == ErrorVar || err_occurred()) {
-                                if (!err_occurred())
-                                        err_setstr(RuntimeError, "Unreported Error");
-                                err_print_last(stderr);
+        if (q_.opt.disassemble) {
+                FILE *dfp;
+                if (q_.opt.disassemble_outfile) {
+                        dfp = fopen(q_.opt.disassemble_outfile, "w");
+                        if (!dfp) {
+                                err_errno("Cannot output to %s",
+                                          q_.opt.disassemble_outfile);
+                                retval = ErrorVar;
+                                goto done;
                         }
                 } else {
-                        VAR_INCR_REF(NullVar);
-                        retval = NullVar;
+                        dfp = stdout;
                 }
 
-                VAR_DECR_REF(ex);
-
-                if (retval == ErrorVar)
-                        goto er;
-
-                if (retval)
-                        VAR_DECR_REF(retval);
+                if (q_.opt.disassemble_minimum)
+                        disassemble_minimal(dfp, ex);
+                else
+                        disassemble(dfp, ex, filename);
+                if (dfp != stdout)
+                        fclose(dfp);
+                retval = NULL;
+        } else {
+                bug_on(q_.opt.disassemble_only);
+                retval = vm_exec_script(ex, fr);
+                if (retval == ErrorVar || err_occurred()) {
+                        /* semi bug */
+                        if (!err_occurred())
+                                err_setstr(RuntimeError, "Unreported Error");
+                        retval = ErrorVar;
+                }
         }
-        return;
 
-er:
-        /*
-         * Philosophical ish--
-         *
-         * We could have recursed into a file imported with the "load"
-         * command.  Call exit? or just return to parent script, where
-         * another error will likely be symbol-not-found?  This would
-         * cascade with a nest of uncompleted scripts, all the way to
-         * the top, which will finally return early.  Meanwhile there'd
-         * be a paper trail on stderr, making the culprit easy to find.
-         *
-         * ...but for now I'll just exit early.
-         */
-        err_print_last(stderr);
-        exit(1);
+done:
+        VAR_DECR_REF(ex);
+
+        if (retval == ErrorVar)
+                err_print_last(stderr);
+        else if (retval)
+                VAR_DECR_REF(retval);
 }
 
 static void

@@ -181,12 +181,14 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
 {
         char *endptr;
         Object *o;
+        struct token_t tok;
+        int status, negative;
 
         /*
          * .rodata is either an ID to more code, or an atomic--but not
          * necessarily single-token--object.  Numbers are the only
-         * objects that might have one token, but those are easy enough
-         * to parse here without egregiously violating the
+         * objects that might have multiple tokens, but those are easy
+         * enough to parse here without egregiously violating the
          * single-endpoint principle of parsing.  For the others, it's
          * best to leave it to the tokenizer.
          */
@@ -211,12 +213,8 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
                         return -1;
                 }
                 o = idvar_new(id);
-                assemble_seek_rodata(ra->a, o);
-                VAR_DECR_REF(o);
-                return 0;
+                goto done;
         }
-        struct token_t tok;
-        int status, negative;
 
         negative = 0;
         if (*pc == '-') {
@@ -246,20 +244,14 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
                         err_extratok(ra);
                         goto err_clear_left;
                 }
-                assemble_seek_rodata(ra->a, tok.v);
-                VAR_DECR_REF(tok.v);
-                return 0;
+                goto done;
         }
 
-        if (*pc == '\0') {
-                /* real number "[-]X" */
-                bug_on(!o);
-                assemble_seek_rodata(ra->a, o);
-                VAR_DECR_REF(o);
-                return 0;
-        }
+        /* real number? "[-]X" */
+        if (*pc == '\0')
+                goto done;
 
-        /* complex number "[-]R +/- I" */
+        /* complex number "...+/- Imag" */
         negative = 0;
         if (*pc == '-' || *pc == '+') {
                 if (*pc == '-')
@@ -293,6 +285,8 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
                 o = tmp;
         }
 
+done:
+        bug_on(!o);
         assemble_seek_rodata(ra->a, o);
         VAR_DECR_REF(o);
         return 0;
@@ -319,8 +313,8 @@ reassemble(struct assemble_t *a)
 
         /*
          * It was tempting, because it's "cleaner", to use @a's token
-         * state, since every a disassembly file's tokens (verbose or
-         * otherwise) are all a subset of EvilCandy's valid tokens.
+         * state, since all of a disassembly file's tokens (verbose or
+         * otherwise) are a subset of EvilCandy's valid tokens.
          * (A directive like ".rodata" is two tokens, OC_PER and
          * OC_IDENTIFIER).
          *
@@ -402,7 +396,6 @@ reassemble(struct assemble_t *a)
                 efree(ra.line);
         return assemble_frame_to_xptr(a,
                         list2frame(a->finished_frames.prev), false);
-
 
 err_noend:
         err_setstr(SyntaxError, "End of input before expected .end");

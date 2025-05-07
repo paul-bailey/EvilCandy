@@ -256,17 +256,6 @@ moduledeinit_var(void)
         }
 }
 
-/**
- * var_bucket_delete - Hash table callback for several modules.
- * @data: Expected to be a Object that was created with var_new()
- */
-void
-var_bucket_delete(void *data)
-{
-        VAR_SANITY((Object *)data);
-        VAR_DECR_REF((Object *)data);
-}
-
 /*
  * Helper to var_setattr/var_getattr
  *

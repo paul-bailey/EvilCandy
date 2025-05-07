@@ -108,8 +108,6 @@ extern bool var_any(Object *v, enum result_t *status);
 extern Object *var_min(Object *v);
 extern Object *var_max(Object *v);
 extern Object *var_lnot(Object *v);
-/* common hashtable callback for var-storing hashtables */
-extern void var_bucket_delete(void *data);
 /* note: v only evaluated once in VAR_*_REF() */
 extern void var_delete__(Object *v);
 

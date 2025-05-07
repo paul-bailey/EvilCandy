@@ -46,22 +46,25 @@ struct var_mem_t {
         };
 };
 
-#ifndef NDEBUG
+#if REPORT_VARS_ON_EXIT
+
 static size_t var_max_alloc_size = 0;
 static size_t var_alloc_size = 0;
 static size_t var_nalloc = 0;
-# define REGISTER_ALLOC(n_) do {                        \
+
+#define REGISTER_ALLOC(n_) do {                         \
         var_nalloc++;                                   \
         var_alloc_size += (n_);                         \
         if (var_alloc_size > var_max_alloc_size)        \
                 var_max_alloc_size = var_alloc_size;    \
 } while (0)
-# define REGISTER_FREE(n_)  do {        \
+
+#define REGISTER_FREE(n_)  do {         \
         bug_on((int)var_nalloc <= 0);   \
         var_alloc_size -= (n_);         \
         var_nalloc--;                   \
 } while (0)
-# if REPORT_VARS_ON_EXIT
+
 static void
 var_alloc_tell(void)
 {
@@ -69,11 +72,13 @@ var_alloc_tell(void)
         DBUG("%s: #vars outstanding:  %lu", __FILE__, (long)var_nalloc);
         DBUG("%s: max #bytes alloc'd: %lu", __FILE__, (long)var_max_alloc_size);
 }
-# endif /* REPORT_VARS_ON_EXIT */
-#else /* NDEBUG */
+
+#else /* !REPORT_VARS_ON_EXIT */
+
 # define REGISTER_ALLOC(x) do { (void)0; } while (0)
 # define REGISTER_FREE(x)  do { (void)0; } while (0)
-#endif /* NDEBUG */
+
+#endif /* !REPORT_VARS_ON_EXIT */
 
 static Object *
 var_alloc(struct type_t *type)

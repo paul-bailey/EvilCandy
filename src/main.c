@@ -12,7 +12,7 @@ static struct {
                 char *disassemble_outfile;
                 char *infile;
         } opt;
-} q_;
+} gbl;
 
 /*
  * Global User-Type Variables
@@ -110,21 +110,21 @@ parse_args(int argc, char **argv)
                         s++;
                         switch (*s++) {
                         case 'd':
-                                q_.opt.disassemble = true;
+                                gbl.opt.disassemble = true;
                                 if (*s != '\0')
                                         goto er;
                                 break;
                         case 'D':
-                                q_.opt.disassemble = true;
-                                q_.opt.disassemble_minimum = true;
+                                gbl.opt.disassemble = true;
+                                gbl.opt.disassemble_minimum = true;
                                 break;
                         case '-':
                                 if (!strcmp(s, "disassemble-to")) {
-                                        q_.opt.disassemble = true;
+                                        gbl.opt.disassemble = true;
                                         argi++;
                                         if (argi == argc)
                                                 goto er;
-                                        q_.opt.disassemble_outfile = argv[argi];
+                                        gbl.opt.disassemble_outfile = argv[argi];
                                 } else {
                                         goto er;
                                 }
@@ -137,16 +137,16 @@ parse_args(int argc, char **argv)
                                 goto er;
                         }
                 } else {
-                        if (q_.opt.infile != NULL) {
+                        if (gbl.opt.infile != NULL) {
                                 fprintf(stderr, "You may only specify one input file\n");
                                 goto er;
                         }
-                        q_.opt.infile = s;
+                        gbl.opt.infile = s;
                 }
                 argi++;
         }
-        if (q_.opt.disassemble)
-                q_.opt.disassemble_only = true;
+        if (gbl.opt.disassemble)
+                gbl.opt.disassemble_only = true;
         return 0;
 
 er:
@@ -166,13 +166,13 @@ run_script(const char *filename, FILE *fp, Frame *fr)
                 return;
         bug_on(status != RES_OK);
 
-        if (q_.opt.disassemble) {
+        if (gbl.opt.disassemble) {
                 FILE *dfp;
-                if (q_.opt.disassemble_outfile) {
-                        dfp = fopen(q_.opt.disassemble_outfile, "w");
+                if (gbl.opt.disassemble_outfile) {
+                        dfp = fopen(gbl.opt.disassemble_outfile, "w");
                         if (!dfp) {
                                 err_errno("Cannot output to %s",
-                                          q_.opt.disassemble_outfile);
+                                          gbl.opt.disassemble_outfile);
                                 retval = ErrorVar;
                                 goto done;
                         }
@@ -180,7 +180,7 @@ run_script(const char *filename, FILE *fp, Frame *fr)
                         dfp = stdout;
                 }
 
-                if (q_.opt.disassemble_minimum)
+                if (gbl.opt.disassemble_minimum)
                         disassemble_minimal(dfp, ex);
                 else
                         disassemble(dfp, ex, filename);
@@ -188,7 +188,7 @@ run_script(const char *filename, FILE *fp, Frame *fr)
                         fclose(dfp);
                 retval = NULL;
         } else {
-                bug_on(q_.opt.disassemble_only);
+                bug_on(gbl.opt.disassemble_only);
                 retval = vm_exec_script(ex, fr);
                 if (retval == ErrorVar || err_occurred()) {
                         /* semi bug */
@@ -211,9 +211,9 @@ static void
 run_tty(void)
 {
         FILE *dfp = NULL;
-        if (q_.opt.disassemble) {
-                if (q_.opt.disassemble_outfile) {
-                        dfp = fopen(q_.opt.disassemble_outfile, "w");
+        if (gbl.opt.disassemble) {
+                if (gbl.opt.disassemble_outfile) {
+                        dfp = fopen(gbl.opt.disassemble_outfile, "w");
                         if (!dfp)
                                 perror("Cannot disassemble, failed to open output file");
                 } else {
@@ -237,7 +237,7 @@ run_tty(void)
 
                         if (dfp)
                                 disassemble_lite(dfp, ex);
-                        if (!q_.opt.disassemble_only) {
+                        if (!gbl.opt.disassemble_only) {
                                 Object *res;
                                 res = vm_exec_script(ex, NULL);
                                 if (res == ErrorVar)
@@ -263,11 +263,11 @@ main(int argc, char **argv)
         if (parse_args(argc, argv) < 0)
                 return -1;
 
-        if (q_.opt.infile) {
-                FILE *fp = push_path(q_.opt.infile);
+        if (gbl.opt.infile) {
+                FILE *fp = push_path(gbl.opt.infile);
                 if (!fp)
-                        fail("Could not open '%s'", q_.opt.infile);
-                run_script(q_.opt.infile, fp, NULL);
+                        fail("Could not open '%s'", gbl.opt.infile);
+                run_script(gbl.opt.infile, fp, NULL);
                 pop_path(fp);
         } else {
                 if (isatty(fileno(stdin))) {

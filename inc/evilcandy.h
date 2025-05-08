@@ -28,6 +28,7 @@
 #include "typedefs.h"
 #include "uarg.h"
 #include "debug.h"
+#include "recursion.h"
 #include "global.h"
 #include "objtypes.h"
 #include "var.h"

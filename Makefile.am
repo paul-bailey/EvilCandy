@@ -54,8 +54,10 @@ noinst_HEADERS = \
         inc/debug.h \
         inc/evcenums.h \
         inc/evilcandy.h \
+        inc/global.h \
         inc/instructions.h \
         inc/objtypes.h \
+        inc/recursion.h \
         inc/stringtype.h \
         inc/token.h \
         inc/typedefs.h \

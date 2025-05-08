@@ -631,6 +631,9 @@ dict_str(Object *o)
         int count;
         Object *ret;
 
+        RECURSION_DECLARE_FUNC();
+        RECURSION_START_FUNC(RECURSION_MAX);
+
         bug_on(!isvar_dict(o));
 
         d = V2D(o);
@@ -660,6 +663,8 @@ dict_str(Object *o)
 
         buffer_putc(&b, '}');
         ret = stringvar_from_buffer(&b);
+
+        RECURSION_END_FUNC();
         return ret;
 }
 

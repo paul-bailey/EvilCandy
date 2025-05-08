@@ -121,7 +121,7 @@ symbol_put(Frame *fr, Object *name, Object *v)
  *      on the next function call.  We only need to call malloc whenever
  *      we exceed our previous max of how deeply nested our function calls
  *      have been.  The total number of allocated frames will never exceed
- *      VM_RECURSION_MAX, and they will rarely even exceed a small handful,
+ *      RECURSION_MAX, and they will rarely even exceed a small handful,
  *      even in long-running scripts.
  */
 static struct list_t vframe_free_list = LIST_INIT(&vframe_free_list);
@@ -1013,36 +1013,13 @@ check_ghost_errors(int res)
 # define check_ghost_errors(x_) do { (void)0; } while (0)
 #endif
 
-/*
- * DOC: VM_RECURSION_MAX
- *
- * "Recursion" was chosen for lack of a better word.  In this case, it's
- * one of three things:
- *      1) a script being executed (ergo execute_loop is running) loads
- *         another script, thus recursion occurs on execute_loop.
- *      2) a built-in C function calls a user-define script function
- *         (vm_exec_func), also causing recursion of execute_loop.
- *      3) ANY call to a user function causes recursion of execute_loop.
- *         I previously tried to limit these calls to the same instance,
- *         no matter how deeply nested the CALL_FUNC instructions got,
- *         but that made a dirty, confusing, error-prone mess of things,
- *         so I gave up and also recurse here.  It's just cleaner that way.
- *
- * Recursion means stack stress (the irl stack, not the user-data stack).
- * Users shouldn't write absurdly deep recursive functions.  In case they
- * do, VM_RECURSION_MAX is the limit at which this can happen.
- */
-#define VM_RECURSION_MAX RECURSION_MAX
-
 Object *
 execute_loop(Frame *fr)
 {
-        static int recursion_count = 0;
         Object *retval;
 
-        if (recursion_count >= VM_RECURSION_MAX)
-                fail("Recursion max reached: you may need to adjust VM_RECURSION_MAX");
-        recursion_count++;
+        RECURSION_DECLARE_FUNC();
+        RECURSION_START_FUNC(RECURSION_MAX);
 
         instruction_t ii;
         while ((ii = *(fr->ppii)++).code != INSTR_END) {
@@ -1107,8 +1084,7 @@ execute_loop(Frame *fr)
         retval = NullVar;
 
 out:
-        bug_on(recursion_count < 0);
-        recursion_count--;
+        RECURSION_END_FUNC();
         return retval;
 }
 

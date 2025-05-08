@@ -1790,24 +1790,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 as_errlex(a, OC_SEMI);
 }
 
-static int as_recursion = 0;
-
-#define AS_RECURSION_MAX RECURSION_MAX
-
-#define AS_RECURSION_INCR() do { \
-        if (as_recursion >= AS_RECURSION_MAX) \
-                fail("Recursion overflow"); \
-        as_recursion++; \
-} while (0)
-
-#define AS_RECURSION_DECR() do { \
-        bug_on(as_recursion <= 0); \
-        as_recursion--; \
-} while (0)
-
-#define AS_RECURSION_RESET() do { \
-        as_recursion = 0; \
-} while (0)
+RECURSION_DECLARE(as_recursion);
 
 /*
  * assemble_stmt - Parser for the top-level statement
@@ -1823,11 +1806,11 @@ static int as_recursion = 0;
 static void
 assemble_stmt(struct assemble_t *a, unsigned int flags, int continueto)
 {
-        AS_RECURSION_INCR();
+        RECURSION_DEFAULT_START(as_recursion);
 
         assemble_stmt_simple(a, flags, continueto);
 
-        AS_RECURSION_DECR();
+        RECURSION_END(as_recursion);
 }
 
 /*
@@ -2017,7 +2000,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
                 *status = RES_OK;
         }
 
-        AS_RECURSION_RESET();
+        RECURSION_RESET(as_recursion);
 
         return ex;
 }

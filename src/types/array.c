@@ -390,17 +390,35 @@ array_reset(Object *a)
 static int
 array_cmp(Object *a, Object *b)
 {
-        int i, n = seqvar_size(a);
-        Object **aitems = V2ARR(a)->items;
-        Object **bitems = V2ARR(b)->items;
+        int i, res, n;
+        Object **aitems, **bitems;
+
+        RECURSION_DECLARE_FUNC();
+        RECURSION_START_FUNC(RECURSION_MAX);
+
+        aitems = V2ARR(a)->items;
+        bitems = V2ARR(b)->items;
+        n = seqvar_size(a);
         if (n > seqvar_size(b))
                 n = seqvar_size(b);
+
+        /*
+         * XXX: slow policy here: We don't bail early if sizes don't
+         * match, because we want to check if internals have any
+         * mismatch and return that instead of length(a)-length(b).
+         */
         for (i = 0; i < n; i++) {
-                int x = var_compare(aitems[i], bitems[i]);
-                if (x)
-                        return x;
+                res = var_compare(aitems[i], bitems[i]);
+                if (res)
+                        break;
         }
-        return seqvar_size(a) - seqvar_size(b);
+
+        if (i == n)
+                res = seqvar_size(a) - seqvar_size(b);
+
+        RECURSION_END_FUNC();
+
+        return res;
 }
 
 /* helper to array_cat and tuple_cat */
@@ -448,6 +466,9 @@ tuple_cat(Object *a, Object *b)
 static Object *
 array_or_tuple_str(Object *t, int startchar)
 {
+        RECURSION_DECLARE_FUNC();
+        RECURSION_START_FUNC(RECURSION_MAX);
+
         struct buffer_t b;
         Object *ret;
         size_t i, n = seqvar_size(t);
@@ -475,6 +496,9 @@ array_or_tuple_str(Object *t, int startchar)
 
         buffer_putc(&b, startchar == '(' ? ')' : ']');
         ret = stringvar_from_buffer(&b);
+
+        RECURSION_END_FUNC();
+
         return ret;
 }
 

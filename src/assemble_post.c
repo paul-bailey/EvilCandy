@@ -364,8 +364,8 @@ func_label_to_frame(struct assemble_t *a, long long funcno)
  * assemble_frame_to_xptr - Resolve XptrType pointers in .rodata, create
  *                          final XptrType objects, and return entry-point
  *                          XptrType object.
- * @fr: Entry-level frame.  We cannot determine it from @a here, because
- *      it may be set differently between assemble() and reassemble().
+ * @fr: Entry-level assembly frame.  This function will recursively call
+ *      itself to create all the descendant XptrType objects.
  */
 struct xptrvar_t *
 assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
@@ -378,9 +378,17 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
          * Resolve any nested function defintions from a magic number to
          * a pointer to another XptrType object.  This means that we have
          * to process the most deeply nested functions first, hence the
-         * recursion.  No need for a recursion-count check, these cannot
-         * be any deeper than what assembler.c checked for already.
+         * recursion.  assembler.c already checked against runaway
+         * recursion for us, and in the case of reassemble(), that
+         * disassembly was generated from code that also was checked by
+         * assemble() some time in the past.
+         *
+         * ...but we'd be reckless to assume it, so add this inexpensive
+         * recursion guard anyway.
          */
+        RECURSION_DECLARE_FUNC();
+        RECURSION_START_FUNC(RECURSION_MAX);
+
         instrs = (instruction_t *)fr->af_instr.s;
         n_instr = as_frame_ninstr(fr);
         for (i = 0; i < n_instr; i++) {
@@ -415,6 +423,8 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
                 cfg.instr       = buffer_trim(&fr->af_instr);
                 x = (struct xptrvar_t *)xptrvar_new(&cfg);
         } while (0);
+
+        RECURSION_END_FUNC();
 
         return x;
 }

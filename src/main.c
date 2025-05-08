@@ -4,15 +4,7 @@
 #include <errno.h>
 
 /* configuration stuff */
-static struct {
-        struct {
-                bool disassemble;
-                bool disassemble_only;
-                bool disassemble_minimum;
-                char *disassemble_outfile;
-                char *infile;
-        } opt;
-} gbl;
+struct global_t gbl;
 
 /*
  * Global User-Type Variables

@@ -4,31 +4,6 @@
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
 
-/*
- * Enumeration of indices into gbl.strconsts.
- *
- * Most of these are one-word names of function arguments, so we can
- * embed them in the enum, for easy macro wrapping.
- *
- * Warning!! Any update here needs a corresponding update to
- * initialize_string_consts().
- */
-enum {
-        STRCONST_IDX_sep = 0,
-        STRCONST_IDX_file,
-        STRCONST_IDX_end,
-        STRCONST_IDX_spc,
-        N_STRCONST,
-};
-
-/* XXX bad name for this, it should go into io.c */
-static struct gbl_private_t {
-        Object *nl;
-        Object *stdout_file;
-        Object *strconsts[N_STRCONST];
-} gbl;
-
-#define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])
 
 /*
  * function.c does not trap too small var-args, some callbacks do not

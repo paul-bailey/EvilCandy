@@ -63,5 +63,36 @@ enum result_t {
         RES_ERROR = -1,
 };
 
+/*
+ * Enumeration of indices into gbl.strconsts.
+ *
+ * Most of these are one-word names of function arguments, so we can
+ * embed them in the enum, for easy macro wrapping.
+ *
+ * Warning!! Any update here needs a corresponding update to
+ * initialize_string_consts().
+ */
+enum {
+        STRCONST_IDX_sep = 0,
+        STRCONST_IDX_file,
+        STRCONST_IDX_end,
+        STRCONST_IDX_spc,
+        N_STRCONST,
+};
+
+/* @mode arg to filevar_new */
+enum {
+        FMODE_BINARY    = 0x01,
+        FMODE_READ      = 0x02,
+        FMODE_WRITE     = 0x04,
+        FMODE_PROTECT   = 0x08, /* "don't truly close on 'close'" */
+};
+
+/* Floats encoding, @enc arg to floatsvar_from_bytes */
+enum floats_enc_t {
+        FLOATS_BINARY64, FLOATS_BINARY32,
+        FLOATS_UINT64, FLOATS_UINT32, FLOATS_UINT16, FLOATS_UINT8,
+        FLOATS_INT64, FLOATS_INT32, FLOATS_INT16, FLOATS_INT8
+};
 
 #endif /* EVILCANDY_EVCENUMS_H */

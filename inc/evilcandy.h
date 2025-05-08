@@ -26,32 +26,16 @@
 
 #include "evcenums.h"
 #include "typedefs.h"
-#include "objtypes.h"
 #include "uarg.h"
 #include "debug.h"
-
-/* main.c */
-extern Object *ErrorVar;
-extern Object *NullVar;
-extern Object *GlobalObject;
-
-extern Object *ArgumentError;
-extern Object *KeyError;
-extern Object *IndexError;
-extern Object *NameError;
-extern Object *NotImplementedError;
-extern Object *NumberError;
-extern Object *RangeError;
-extern Object *RecursionError;
-extern Object *RuntimeError;
-extern Object *SyntaxError;
-extern Object *SystemError;
-extern Object *TypeError;
-extern Object *ValueError;
+#include "global.h"
+#include "objtypes.h"
+#include "var.h"
+#include "vm.h"
 
 /* assembler.c */
 extern Object *assemble(const char *filename,
-                              FILE *fp, bool toeof, int *status);
+                        FILE *fp, bool toeof, int *status);
 
 /* err.c */
 extern void fail(const char *msg, ...);
@@ -68,8 +52,7 @@ extern void err_index(Object *index);
 extern void err_argtype(const char *what);
 extern void err_locked(void);
 extern void err_permit(const char *op, Object *var);
-extern void err_permit2(const char *op,
-                        Object *a, Object *b);
+extern void err_permit2(const char *op, Object *a, Object *b);
 extern void err_errno(const char *msg, ...);
 
 /* disassemble.c */
@@ -120,22 +103,17 @@ extern FILE *find_import(const char *cur_path, const char *file_name,
 extern void pop_path(FILE *fp);
 extern FILE *push_path(const char *filename);
 
-/* var.c */
-#include "var.h"
-
 /* types/array.c */
 extern Object *arrayvar_new(int n_items);
 extern Object *tuplevar_new(int n_items);
 extern Object *arrayvar_from_stack(Object **items, int n_items, bool consume);
 extern Object *tuplevar_from_stack(Object **items, int n_items, bool consume);
-extern enum result_t array_setitem(Object *array,
-                                   int i, Object *child);
+extern enum result_t array_setitem(Object *array, int i, Object *child);
 /* user doesn't have access to this but internal code needs it */
 #define tuple_setitem   array_setitem
 #define tuple_getitem   array_getitem
 extern Object *array_getitem(Object *array, int idx);
-extern enum result_t array_append(Object *array,
-                                  Object *child);
+extern enum result_t array_append(Object *array, Object *child);
 extern enum result_t tuple_validate(Object *tup, const char *descr,
                                     bool map_function);
 
@@ -152,12 +130,6 @@ extern Object *complexvar_new(double real, double imag);
 extern Object *emptyvar_new(void);
 
 /* types/file.c */
-enum {
-        FMODE_BINARY    = 0x01,
-        FMODE_READ      = 0x02,
-        FMODE_WRITE     = 0x04,
-        FMODE_PROTECT   = 0x08, /* "don't truly close on 'close'" */
-};
 extern Object *filevar_new(FILE *fp, Object *name, unsigned int mode);
 extern enum result_t file_write(Object *file, Object *data);
 
@@ -165,11 +137,6 @@ extern enum result_t file_write(Object *file, Object *data);
 extern Object *floatvar_new(double value);
 
 /* types/floats.c */
-enum floats_enc_t {
-        FLOATS_BINARY64, FLOATS_BINARY32,
-        FLOATS_UINT64, FLOATS_UINT32, FLOATS_UINT16, FLOATS_UINT8,
-        FLOATS_INT64, FLOATS_INT32, FLOATS_INT16, FLOATS_INT8
-};
 extern Object *floatsvar_from_bytes(Object *v,
                                     enum floats_enc_t enc, int le);
 extern Object *floatsvar_from_list(Object *v);
@@ -236,8 +203,5 @@ extern Object *stringvar_nocopy(const char *cstr);
 
 /* uuid.c */
 extern char *uuidstr(void);
-
-/* vm.c */
-#include "vm.h"
 
 #endif /* EVILCANDY_H */

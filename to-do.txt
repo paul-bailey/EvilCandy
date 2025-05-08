@@ -8,7 +8,23 @@ Bugs
 Must Do
 -------
 
+* Capabilities checklist before calling this a "feature complete" alpha:
+
+  - Fill in math, io libraries
+  - Fill in built-in methods for strings, arrays, etc.
+  - Fill in __gbl__._sys
+  - Add ^^ to global vars as ``sys``, since it's already built up anyway
+  - Add __gbl__._debug and let disassembly of functions be printable
+    in interactive mode without the -d option
+  - Finish path resolution
+  - Add ``===`` or ``is`` or both
+  - Get prompt working
+  - Make consistent and accurate error reporting
+
 * Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
+
+  - Python operates these on a dictionary's *keys*, not its values.
+    What does JavaScript do?
 
 * Make sure operator order follows either JavaScript or Python.
 
@@ -50,7 +66,8 @@ Must Do
 Library/Language Features
 -------------------------
 
-* Add ``===`` or ``is`` or both
+* Add ``decorate`` method for dictionaries, so that user-defined obects
+  can be added, anded, divided, etc.
 
 * Add sets
 
@@ -69,10 +86,13 @@ Library/Language Features
 * Add way to pass arguments to imported scripts, and a way for the
   script to access them.  Maybe a special identifier token like ``$0``.
 
-* Add keyword arguments, esp. useful for things like ``print``.
-
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* Replace stack arrangement of FOREACH_ITER to use an iterator of the
+  sort used in var.c, any/all/max/min functions.  This ought to speed
+  up the for loop a tiny bit, because instead of constantly operating
+  on and replacing IntType objects, we're just incrementing C ints.
 
 * Replace setjmp in assemble.c with normal stack unwinding.  May need
   to replace EOF with OC_EOF so that a <0 check will always mean

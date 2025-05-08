@@ -69,7 +69,7 @@ trap(const char *what, const char *file, int line)
 {
         fprintf(stderr, "%s trapped in %s line %d\n",
                 what, file, line);
-        exit(1);
+        _Exit(EXIT_FAILURE);
 }
 
 void
@@ -110,7 +110,7 @@ fail(const char *msg, ...)
                 fputc('\n', stderr);
         }
 
-        exit(1);
+        _Exit(EXIT_FAILURE);
 }
 
 static void

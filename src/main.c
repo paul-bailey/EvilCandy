@@ -129,6 +129,12 @@ parse_args(int argc, char **argv)
                                         goto er;
                                 }
                                 break;
+                        case 'V':
+                                printf("%s\n", PACKAGE_STRING);
+                                exit(EXIT_SUCCESS);
+                                break;
+                        default:
+                                goto er;
                         }
                 } else {
                         if (q_.opt.infile != NULL) {

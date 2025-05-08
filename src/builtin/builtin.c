@@ -4,11 +4,31 @@
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
 
+/*
+ * Enumeration of indices into gbl.strconsts.
+ *
+ * Most of these are one-word names of function arguments, so we can
+ * embed them in the enum, for easy macro wrapping.
+ *
+ * Warning!! Any update here needs a corresponding update to
+ * initialize_string_consts().
+ */
+enum {
+        STRCONST_IDX_sep = 0,
+        STRCONST_IDX_file,
+        STRCONST_IDX_end,
+        STRCONST_IDX_spc,
+        N_STRCONST,
+};
+
 /* XXX bad name for this, it should go into io.c */
 static struct gbl_private_t {
         Object *nl;
         Object *stdout_file;
+        Object *strconsts[N_STRCONST];
 } gbl;
+
+#define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])
 
 /*
  * function.c does not trap too small var-args, some callbacks do not
@@ -37,28 +57,10 @@ do_typeof(Frame *fr)
 static Object *
 do_print(Frame *fr)
 {
-        static Object *sep_key     = NULL;
-        static Object *file_key    = NULL;
-        static Object *end_key     = NULL;
-        static Object *sep_default = NULL;
-
         size_t i, n;
         Object *arg, *kw, *file, *sep, *end;
         enum result_t status;
         Object *res = NULL;
-
-        if (sep_key == NULL) {
-                /*
-                 * Need to initialize these the first time.
-                 * FIXME: These will never get cleaned on exit.
-                 * They could mask memory-leak bugs elsewhere.
-                 */
-                sep_key  = stringvar_new("sep");
-                file_key = stringvar_new("file");
-                end_key  = stringvar_new("end");
-                sep_default = stringvar_new(" ");
-        }
-
 
         arg = vm_get_arg(fr, 0);
         kw = vm_get_arg(fr, 1);
@@ -66,9 +68,9 @@ do_print(Frame *fr)
         bug_on(!kw || !isvar_dict(kw));
 
         dict_unpack(kw,
-                    sep_key,  &sep,  sep_default,
-                    file_key, &file, gbl.stdout_file,
-                    end_key,  &end,  gbl.nl,
+                    STRCONST_ID(sep),  &sep,  STRCONST_ID(spc),
+                    STRCONST_ID(file), &file, gbl.stdout_file,
+                    STRCONST_ID(end),  &end,  gbl.nl,
                     NULL);
         n = seqvar_size(arg);
         if (n == 0)
@@ -711,6 +713,24 @@ initialize_global_object(void)
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
 #undef STDIO_ARGS
+#undef STDIO_FMT
+}
+
+static void
+initialize_string_consts(void)
+{
+#define STRCONST_CSTR(X) [STRCONST_IDX_##X] = #X
+        static const char *STRCONST_CSTR[N_STRCONST] = {
+                STRCONST_CSTR(sep),
+                STRCONST_CSTR(file),
+                STRCONST_CSTR(end),
+                [STRCONST_IDX_spc] = " ",
+        };
+#undef STRCONST_CSTR
+
+        int i;
+        for (i = 0; i < N_STRCONST; i++)
+                gbl.strconsts[i] = stringvar_new(STRCONST_CSTR[i]);
 }
 
 static Object *
@@ -759,15 +779,21 @@ moduleinit_builtin(void)
         gbl.stdout_file = sysget("stdout");
         bug_on(!gbl.nl);
         bug_on(!gbl.stdout_file);
+
+        initialize_string_consts();
 }
 
 void
 moduledeinit_builtin(void)
 {
+        int i;
         VAR_DECR_REF(GlobalObject);
 
         VAR_DECR_REF(gbl.stdout_file);
         VAR_DECR_REF(gbl.nl);
+
+        for (i = 0; i < N_STRCONST; i++)
+                VAR_DECR_REF(gbl.strconsts[i]);
 
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);

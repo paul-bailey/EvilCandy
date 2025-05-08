@@ -109,6 +109,12 @@ as_buffer_put_ptr(struct buffer_t *b, void *ptr)
 #define as_buffer_put_name(bf_, nm_) \
         as_buffer_put_ptr(bf_, (void *)(nm_))
 
+static inline int
+as_next_funcno(struct assemble_t *a)
+{
+        return a->func++;
+}
+
 /*
  * See comments above get_tok().
  * We cannot naively have something like
@@ -502,17 +508,19 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
 static void
 assemble_funcdef(struct assemble_t *a, bool lambda)
 {
-        int funcno = a->func++;
+        int funcno = as_next_funcno(a);
         int minargs = 0;
         int optarg = -1;
         int kwarg = -1;
+        Object *id_o;
 
-        /* need to be corrected later */
-        add_instr(a, INSTR_DEFFUNC, 0, funcno);
-        as_errlex(a, OC_LPAR);
-
+        /* placeholder for XptrType, resolved in assemble_frame_to_xptr() */
+        id_o = idvar_new(funcno);
+        add_instr(a, INSTR_DEFFUNC, 0, assemble_seek_rodata(a, id_o));
+        VAR_DECR_REF(id_o);
         assemble_frame_push(a, funcno);
 
+        as_errlex(a, OC_LPAR);
         do {
                 enum { NORMAL, OPTIND, KWIND } kind;
                 as_lex(a);
@@ -1850,7 +1858,7 @@ new_assembler(const char *source_file_name, FILE *fp)
         a->func = FUNC_INIT;
         list_init(&a->active_frames);
         list_init(&a->finished_frames);
-        assemble_frame_push(a, 0);
+        assemble_frame_push(a, as_next_funcno(a));
         return a;
 }
 
@@ -2078,6 +2086,9 @@ assemble_seek_rodata(struct assemble_t *a, Object *v)
                 if (var_compare(v, data[i]) == 0)
                         break;
         }
+
+        /* No more than one reference to unique ID can exist in code */
+        bug_on(v->v_type == &IdType && i != n);
 
         if (i == n) {
                 VAR_INCR_REF(v);

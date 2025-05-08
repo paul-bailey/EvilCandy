@@ -102,8 +102,7 @@ extern void assemble_add_instr(struct assemble_t *a, int opcode,
 /* assemble_post.c */
 extern struct xptrvar_t *assemble_post(struct assemble_t *a);
 extern struct xptrvar_t *assemble_frame_to_xptr(struct assemble_t *a,
-                                                struct as_frame_t *fr,
-                                                bool id_in_arg);
+                                                struct as_frame_t *fr);
 
 /* reassemble.c */
 extern struct xptrvar_t *reassemble(struct assemble_t *a);

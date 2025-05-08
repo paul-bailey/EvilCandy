@@ -446,7 +446,7 @@ reassemble(struct assemble_t *a)
          * at the back of the list.
          */
         return assemble_frame_to_xptr(a,
-                        list2frame(a->finished_frames.prev), false);
+                                list2frame(a->finished_frames.prev));
 
 err_noend:
         err_setstr(SyntaxError, "End of input before expected .end");

@@ -366,16 +366,9 @@ func_label_to_frame(struct assemble_t *a, long long funcno)
  *                          XptrType object.
  * @fr: Entry-level frame.  We cannot determine it from @a here, because
  *      it may be set differently between assemble() and reassemble().
- * @id_in_arg:  - If true, then function ID is a small number in DEFDICT
- *                instructions' arg2, and .rodata does not yet have an
- *                entry for this instruction
- *              - If false, then the offset is set already, but .rodata
- *                contains an IdType var instead of an XptrType.
- *
  */
 struct xptrvar_t *
-assemble_frame_to_xptr(struct assemble_t *a,
-                       struct as_frame_t *fr, bool id_in_arg)
+assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
 {
         struct xptrvar_t *x;
         instruction_t *instrs;
@@ -392,33 +385,22 @@ assemble_frame_to_xptr(struct assemble_t *a,
         n_instr = as_frame_ninstr(fr);
         for (i = 0; i < n_instr; i++) {
                 instruction_t *ii = &instrs[i];
+                struct as_frame_t *child;
+                Object **rodata;
+                long long idval;
+
                 if (ii->code != INSTR_DEFFUNC)
                         continue;
 
-                if (id_in_arg) {
-                        struct xptrvar_t *x;
-                        struct as_frame_t *child;
-                        child = func_label_to_frame(a, ii->arg2);
-                        bug_on(!child || child == fr);
+                bug_on(as_frame_nconst(fr) <= ii->arg2);
+                rodata = as_frame_rodata(fr);
+                idval = idvar_toll(rodata[ii->arg2]);
 
-                        x = assemble_frame_to_xptr(a, child, id_in_arg);
-                        ii->arg2 = seek_rodata(a, fr, (Object *)x);
-                } else {
-                        struct as_frame_t *child;
-                        Object **rodata;
-                        long long idval;
+                child = func_label_to_frame(a, idval);
+                bug_on(!child || child == fr);
 
-                        bug_on(as_frame_nconst(fr) <= ii->arg2);
-                        rodata = as_frame_rodata(fr);
-                        idval = idvar_toll(rodata[ii->arg2]);
-
-                        child = func_label_to_frame(a, idval);
-                        bug_on(!child || child == fr);
-
-                        VAR_DECR_REF(rodata[ii->arg2]);
-                        rodata[ii->arg2] = (Object *)assemble_frame_to_xptr(a,
-                                                        child, id_in_arg);
-                }
+                VAR_DECR_REF(rodata[ii->arg2]);
+                rodata[ii->arg2] = (Object *)assemble_frame_to_xptr(a, child);
         }
 
         do {
@@ -466,7 +448,7 @@ assemble_post(struct assemble_t *a)
          * First child of finished_frames is also our entry point.
          */
         return assemble_frame_to_xptr(a,
-                        list2frame(a->finished_frames.next), true);
+                                list2frame(a->finished_frames.next));
 }
 
 

@@ -43,7 +43,7 @@ Object *TypeError;
 Object *ValueError;
 
 static void
-init_lib(void)
+initialize_program(void)
 {
         /* ewrappers.c */
         extern void moduleinit_ewrappers(void);
@@ -90,6 +90,22 @@ init_lib(void)
         NullVar  = emptyvar_new();
 }
 
+static void
+end_program(void)
+{
+        extern void moduledeinit_vm(void);
+        extern void moduledeinit_var(void);
+        extern void moduledeinit_builtin(void);
+        extern void moduledeinit_instruction_name(void);
+
+        VAR_DECR_REF(ErrorVar);
+        moduledeinit_vm();
+        moduledeinit_builtin();
+        moduledeinit_instruction_name();
+        /* must be last */
+        moduledeinit_var();
+}
+
 static int
 parse_args(int argc, char **argv)
 {
@@ -123,6 +139,7 @@ parse_args(int argc, char **argv)
                                 break;
                         case 'V':
                                 printf("%s\n", PACKAGE_STRING);
+                                end_program();
                                 exit(EXIT_SUCCESS);
                                 break;
                         default:
@@ -242,15 +259,10 @@ run_tty(void)
         }
 }
 
-extern void moduledeinit_vm(void);
-extern void moduledeinit_var(void);
-extern void moduledeinit_builtin(void);
-extern void moduledeinit_instruction_name(void);
-
 int
 main(int argc, char **argv)
 {
-        init_lib();
+        initialize_program();
 
         if (parse_args(argc, argv) < 0)
                 return -1;
@@ -273,12 +285,7 @@ main(int argc, char **argv)
                 }
         }
 
-        VAR_DECR_REF(ErrorVar);
-        moduledeinit_vm();
-        moduledeinit_builtin();
-        moduledeinit_instruction_name();
-        /* must be last */
-        moduledeinit_var();
+        end_program();
         return 0;
 }
 

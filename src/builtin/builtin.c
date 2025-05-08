@@ -4,7 +4,6 @@
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
 
-
 /*
  * function.c does not trap too small var-args, some callbacks do not
  * consider 0 args an error, others do.

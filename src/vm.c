@@ -452,11 +452,7 @@ static int
 do_assign(Frame *fr, instruction_t ii)
 {
         Object *from = pop(fr);
-        int ret = assign_complete(fr, ii, from);
-        if (ret == RES_ERROR)
-                VAR_DECR_REF(from);
-        /* else, @from got assigned */
-        return ret;
+        return assign_complete(fr, ii, from);
 }
 
 static int

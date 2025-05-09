@@ -19,11 +19,10 @@
  * @f_magic:    If FUNC_INTERNAL, function is an internal function
  *              If FUNC_USER, function is in the user's script
  * @f_minargs:  Minimum number of args that may be passed to the
- *              function, if internal function.
+ *              function
  * @f_maxargs:  Maximum number of args that may be passed to the
- *              function (if it's FUNC_INTERNAL), or -1 if no maximum
- * @f_optind:   If >0, argument index of optional args.  Not used for
- *              built-in functions.
+ *              function, or -1 if no maximum
+ * @f_optind:   If >0, argument index of optional args.
  * @f_kwind:    If >0, argument index of keyword args.
  * @f_cb:       If @magic is FUNC_INTERNAL, pointer to the builtin
  *              callback

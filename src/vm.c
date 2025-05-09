@@ -29,6 +29,9 @@
 #include <token.h>
 #include <xptr.h>
 
+/* Check return value of each opcode callback against err_occurred() */
+#define CHECK_GHOST_ERRORS 0
+
 static Object *symbol_table = NULL;
 
 /* XXX: Need to be made per-thread */
@@ -242,8 +245,7 @@ vmframe_unwind_block(Frame *fr, struct block_t *bl)
 }
 
 static int
-binary_op_common(Frame *fr,
-                 Object *(*op)(Object *, Object *))
+binary_op_common(Frame *fr, Object *(*op)(Object *, Object *))
 {
         Object *lval, *rval, *opres;
         int ret = 0;
@@ -995,12 +997,7 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
 };
 
-/*
- * TODO: Some fancy level-of-debuggery configuration.
- * I don't want this bogging down my system just because
- * DEBUG is defined.
- */
-#if 0
+#if CHECK_GHOST_ERRORS && !defined(NDEBUG)
 static void
 check_ghost_errors(int res)
 {

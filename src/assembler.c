@@ -36,10 +36,7 @@
 #include <setjmp.h>
 #include "assemble_priv.h"
 
-/* set to 1 to get a stderr debug profile of load time */
-#define PROFILE_LOAD_TIME 0
-
-#if PROFILE_LOAD_TIME && defined(HAVE_CLOCK) && !defined(NDEBUG)
+#if DBUG_PROFILE_LOAD_TIME
 # include <time.h>
 #endif
 
@@ -2092,7 +2089,7 @@ assemble_frame_pop(struct assemble_t *a)
                 a->fr = list2frame(a->active_frames.prev);
 }
 
-#if !defined(NDEBUG) && defined(HAVE_CLOCK) && PROFILE_LOAD_TIME
+#if DBUG_PROFILE_LOAD_TIME
 # define CLOCK_DECLARE() clock_t __FUNCTION__##clk
 # define CLOCK_SAVE() \
   do { \

@@ -1,17 +1,6 @@
 #include <evilcandy.h>
 #include <stdlib.h> /* for atexit */
 
-/*
- * If 1 and !NDEBUG, splash some debug data about var allocation
- * to stderr upon exit.
- */
-#define REPORT_VARS_ON_EXIT 0
-
-#ifdef NDEBUG
-# undef REPORT_VARS_ON_EXIT
-# define REPORT_VARS_ON_EXIT 0
-#endif /* NDEBUG */
-
 /**
  * DOC: Variable malloc/free wrappers.
  *
@@ -46,39 +35,31 @@ struct var_mem_t {
         };
 };
 
-#if REPORT_VARS_ON_EXIT
+#if DBUG_REPORT_VARS_ON_EXIT
 
-static size_t var_max_alloc_size = 0;
-static size_t var_alloc_size = 0;
 static size_t var_nalloc = 0;
 
-#define REGISTER_ALLOC(n_) do {                         \
-        var_nalloc++;                                   \
-        var_alloc_size += (n_);                         \
-        if (var_alloc_size > var_max_alloc_size)        \
-                var_max_alloc_size = var_alloc_size;    \
+#define REGISTER_ALLOC(n_) do { \
+        var_nalloc++;           \
 } while (0)
 
 #define REGISTER_FREE(n_)  do {         \
         bug_on((int)var_nalloc <= 0);   \
-        var_alloc_size -= (n_);         \
         var_nalloc--;                   \
 } while (0)
 
 static void
 var_alloc_tell(void)
 {
-        DBUG("%s: #bytes outstanding: %lu", __FILE__, (long)var_alloc_size);
         DBUG("%s: #vars outstanding:  %lu", __FILE__, (long)var_nalloc);
-        DBUG("%s: max #bytes alloc'd: %lu", __FILE__, (long)var_max_alloc_size);
 }
 
-#else /* !REPORT_VARS_ON_EXIT */
+#else /* !DBUG_REPORT_VARS_ON_EXIT */
 
 # define REGISTER_ALLOC(x) do { (void)0; } while (0)
 # define REGISTER_FREE(x)  do { (void)0; } while (0)
 
-#endif /* !REPORT_VARS_ON_EXIT */
+#endif /* !DBUG_REPORT_VARS_ON_EXIT */
 
 static Object *
 var_alloc(struct type_t *type)
@@ -230,7 +211,7 @@ moduleinit_var(void)
         for (i = 0; VAR_TYPES_TBL[i] != NULL; i++)
                 var_initialize_type(VAR_TYPES_TBL[i]);
 
-#if REPORT_VARS_ON_EXIT
+#if DBUG_REPORT_VARS_ON_EXIT
         atexit(var_alloc_tell);
 #endif
 }

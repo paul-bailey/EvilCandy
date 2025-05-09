@@ -6,18 +6,7 @@
 #include <evilcandy.h>
 #include <stdlib.h>
 
-/*
- * WARNING!! This will make EvilCany CRIPPINGLY SLOW!!
- * Never leave it set when checking it in to version control.
- */
-#define PROFILE_MALLOC_USAGE 0
-
-#ifdef NDEBUG
-# undef PROFILE_MALLOC_USAGE
-# define PROFILE_MALLOC_USAGE 0
-#endif /* NDEBUG */
-
-#if PROFILE_MALLOC_USAGE
+#if DBUG_PROFILE_MALLOC_USAGE
 
 enum { ALLOC_PROFILE_CAP = 16 * 1024 };
 
@@ -130,7 +119,7 @@ report_alloc_stats(void)
 # define DBUG_LOG_MALLOC(...)        do { (void)0; } while (0)
 # define DBUG_LOG_MALLOC_IF(...)     do { (void)0; } while (0)
 # define DBUG_LOG_FREE(...)          do { (void)0; } while (0)
-#endif /* PROFILE_MALLOC_USAGE */
+#endif /* DBUG_PROFILE_MALLOC_USAGE */
 
 /**
  * estrdup - error-handling wrapper to strdup
@@ -215,7 +204,7 @@ efree(void *ptr)
 void
 moduleinit_ewrappers(void)
 {
-#if PROFILE_MALLOC_USAGE
+#if DBUG_PROFILE_MALLOC_USAGE
         atexit(report_alloc_stats);
 #endif
 }

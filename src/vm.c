@@ -29,9 +29,6 @@
 #include <token.h>
 #include <xptr.h>
 
-/* Check return value of each opcode callback against err_occurred() */
-#define CHECK_GHOST_ERRORS 0
-
 static Object *symbol_table = NULL;
 
 /* XXX: Need to be made per-thread */
@@ -997,7 +994,7 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
 };
 
-#if CHECK_GHOST_ERRORS && !defined(NDEBUG)
+#if DBUG_CHECK_GHOST_ERRORS
 static void
 check_ghost_errors(int res)
 {

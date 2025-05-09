@@ -49,9 +49,9 @@ parseatomic(struct json_state_t *j)
         j->recursion++;
 
         switch (j->tok->t) {
-        case 'i':
-        case 'f':
-        case 'q':
+        case OC_INTEGER:
+        case OC_FLOAT:
+        case OC_STRING:
         case OC_TRUE:
         case OC_FALSE:
                 bug_on(j->tok->v == NULL);

@@ -1004,12 +1004,12 @@ assemble_expr2_binary(struct assemble_t *a)
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t CMP_TOK2OP[] = {
-                { . tok = OC_EQEQ,   .opcode = IARG_EQ },
-                { . tok = OC_LEQ,    .opcode = IARG_LEQ },
-                { . tok = OC_GEQ,    .opcode = IARG_GEQ },
-                { . tok = OC_NEQ,    .opcode = IARG_NEQ },
-                { . tok = OC_LT,     .opcode = IARG_LT },
-                { . tok = OC_GT,     .opcode = IARG_GT },
+                { .tok = OC_EQEQ,   .opcode = IARG_EQ },
+                { .tok = OC_LEQ,    .opcode = IARG_LEQ },
+                { .tok = OC_GEQ,    .opcode = IARG_GEQ },
+                { .tok = OC_NEQ,    .opcode = IARG_NEQ },
+                { .tok = OC_LT,     .opcode = IARG_LT },
+                { .tok = OC_GT,     .opcode = IARG_GT },
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t BITWISE_TOK2OP[] = {
@@ -1177,8 +1177,6 @@ static int
 assemble_primary_elements(struct assemble_t *a, bool may_assign)
 {
         while (istok_indirection(a->oc->t)) {
-                struct token_t name;
-
                 switch (a->oc->t) {
                 case OC_PER:
                         as_errlex(a, OC_IDENTIFIER);
@@ -1189,48 +1187,13 @@ assemble_primary_elements(struct assemble_t *a, bool may_assign)
                         break;
 
                 case OC_LBRACK:
-                        as_lex(a);
-                        switch (a->oc->t) {
-                        case OC_STRING:
-                        case OC_INTEGER:
-                                /*
-                                 * Try to optimize... "[" + LITERAL could
-                                 * hypothetically be something weird like
-                                 *
-                                 *      thing["name\n".strip()]
-                                 *
-                                 * but 99% of the time it's just going to be
-                                 *
-                                 *      thing["name"]...
-                                 *
-                                 * So we'll see if we can avoid making the
-                                 * VM evaluate this.
-                                 */
-                                as_savetok(a, &name);
-                                if (as_lex(a) == OC_RBRACK) {
-                                        /* ...the 99% scenario */
-                                        ainstr_load_const(a, &name);
-                                        if (may_assign && setattr_if_assign(a))
-                                                return 0;
-                                        add_instr(a, INSTR_GETATTR, 0, 0);
-                                        as_unlex(a);
-                                        break;
-                                }
+                        assemble_slice(a);
+                        if (as_lex(a) == OC_RBRACK) {
+                                if (may_assign && setattr_if_assign(a))
+                                        return 0;
                                 as_unlex(a);
-                                /* ...the 1% scenario, fall through and eval */
-
-                        default:
-                                /* need to evaluate index */
-                                as_unlex(a);
-                                assemble_slice(a);
-                                if (as_lex(a) == OC_RBRACK) {
-                                        if (may_assign && setattr_if_assign(a))
-                                                return 0;
-                                        as_unlex(a);
-                                }
-                                add_instr(a, INSTR_GETATTR, 0, 0);
-                                break;
                         }
+                        add_instr(a, INSTR_GETATTR, 0, 0);
                         as_errlex(a, OC_RBRACK);
                         break;
 

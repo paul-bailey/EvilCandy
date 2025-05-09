@@ -462,8 +462,11 @@ var_hasattr(Object *haystack, Object *needle)
         const struct map_methods_t *mpm = haystack->v_type->mpm;
         if (sqm && sqm->hasitem)
                 return sqm->hasitem(haystack, needle);
-        if (mpm && mpm->hasitem)
+        if (mpm && mpm->hasitem) {
+                if (!isvar_string(needle))
+                        return false;
                 return mpm->hasitem(haystack, needle);
+        }
         return false;
 }
 

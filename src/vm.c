@@ -18,10 +18,12 @@
  * that they will compile into a (crippling, in this case) if-else-if
  * block unless you take the sort of fussy precautions that are way too
  * easy to overlook.  Looking at Cpython's code, I see that they use a
- * fifty-mile-long switch statement with tons of gimmicks and Gnu
- * extensions like arrays of goto labels.  Well, more power to them,
- * since they also have legions of developers to check each other.
- * I'll play it safe and accept being like 5% slower.
+ * fifty-mile-long switch statement with tons of gimmicks like a choice
+ * between replacing it with an indefinitely recursible tail-call system
+ * or a rat's nest of goto labels with a Gnu-specific array of goto
+ * targets.  Well, more power to them, since they also have legions of
+ * developers to check each other.  I'll play it safe and accept being
+ * like 5% slower.
  */
 #include <evilcandy.h>
 #include <token.h>
@@ -127,9 +129,11 @@ symbol_put(Frame *fr, Object *name, Object *v)
 static struct list_t vframe_free_list = LIST_INIT(&vframe_free_list);
 
 static Frame *
-vmframe_alloc(void)
+vmframe_alloc(Object *fn, Object *owner,
+              Frame *fr_old, Object **argv, int argc)
 {
         Frame *ret;
+        int i;
         struct list_t *li = vframe_free_list.next;
         if (li == &vframe_free_list) {
                 ret = ecalloc(sizeof(*ret));
@@ -137,42 +141,40 @@ vmframe_alloc(void)
         } else {
                 ret = container_of(li, Frame, alloc_list);
                 list_remove(li);
-#ifndef NDEBUG
-                bug_on(!ret->freed);
-#endif
                 memset(ret, 0, sizeof(*ret));
                 list_init(&ret->alloc_list);
         }
-#ifndef NDEBUG
-        ret->freed = false;
-#endif
+
+        ret->stack = fr_old ? fr_old->stackptr : vm_stack;
+        ret->owner = owner;
+        ret->func  = fn;
+        ret->ap = argc;
+        ret->stackptr = ret->stack + ret->ap;
+        VAR_INCR_REF(owner);
+        VAR_INCR_REF(fn);
+
+        bug_on(argc > 0 && !argv);
+        for (i = 0; i < argc; i++) {
+                /* vmframe_free below decrements these back */
+                VAR_INCR_REF(argv[i]);
+                ret->stack[i] = argv[i];
+        }
         return ret;
 }
 
 static void
 vmframe_free(Frame *fr)
 {
-        bug_on(!fr);
-
-#ifndef NDEBUG
-        bug_on(fr->freed);
-        fr->freed = true;
-#endif
-
         /*
-         * Note: fr->clo are the actual closures, not copied.
-         * They're managed by their owning function object,
-         * so we don't consume their references here.
+         * Note: fr->clo are the actual closure array, not a copy.
+         * They're managed by their owning function object, so we don't
+         * consume their references here.
          */
         while (fr->stackptr > fr->stack) {
                 Object *v = pop(fr);
                 VAR_DECR_REF(v);
         }
 
-        /*
-         * XXX REVISIT: Not at all obvious that these DECR's are parallel
-         * with INCR's in function_prep_frame.
-         */
         if (fr->owner)
                 VAR_DECR_REF(fr->owner);
         if (fr->func)
@@ -1146,34 +1148,8 @@ vm_exec_func(Frame *fr_old, Object *func,
                 VAR_INCR_REF(func);
         }
 
-        fr = vmframe_alloc();
-        fr->stack = fr_old ? fr_old->stackptr : vm_stack;
-        fr->ap = argc;
-        bug_on(argc > 0 && !argv);
-        while (argc-- > 0) {
-                /* vmframe_free below decrements these back */
-                VAR_INCR_REF(argv[argc]);
-                fr->stack[argc] = argv[argc];
-        }
-
-        if (function_prep_frame(func, fr, owner, have_dict) == ErrorVar) {
-                /* frame only partly set up, we need to set this */
-                fr->stackptr = fr->stack + fr->ap;
-                vmframe_free(fr);
-                return ErrorVar;
-        }
-
-        /*
-         * XXX If this is all there is between function_prep_frame
-         * and call_function, then it ought to all be in the same
-         * function.  function.c needs low-level access to fr anyway.
-         */
-        fr->stackptr = fr->stack + fr->ap;
-
-        if (fr->ex)
-                fr->ppii = fr->ex->instr;
-
-        res = call_function(fr, fr->func);
+        fr = vmframe_alloc(func, owner, fr_old, argv, argc);
+        res = function_call(fr, have_dict);
         vmframe_free(fr);
 
         if (!res) {

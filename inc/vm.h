@@ -32,7 +32,6 @@ struct block_t {
  *              deconstructed
  * @alloc_list: Used for some memory-management bookkeepping.  See
  *              comments above vmframe_alloc/vmframe_free in vm.c
- * @freed:      Sanity checker, used only on debug builds.
  *
  * Its fields should only be used by vm.c and (for now) types/function.c
  */
@@ -47,9 +46,6 @@ struct vmframe_t {
         instruction_t *ppii;
         Object **clo;
         struct list_t alloc_list;
-#ifndef NDEBUG
-        bool freed;
-#endif
 };
 
 /* vm.c */

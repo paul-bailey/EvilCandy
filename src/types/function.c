@@ -1,8 +1,8 @@
 /*
  * function.c - FunctionType stuff
  *
- * function_prep_frame and call_function are part of same function
- * call (see vm_exec_func).
+ * function_call is called from the VM to execute a function, user or
+ * internal.
  *
  * funcvar_new_user, function_add_default, function_add_closure, and
  * function_setattr are called from VM when executing code that builds
@@ -79,22 +79,28 @@ function_argc_check(struct funcvar_t *fh, int argc)
         return RES_OK;
 }
 
-/*
- * return: If success: either @fn or the callable descendant of @fn to pass
- *         to call_function()
- *         If error or not callable: ErrorVar
+/**
+ * function_call - prep VM frame and call function
+ * @fr: Frame used for this function.  Its stack base and AP have already
+ *      been set up, except that the var-args are still spread out on the
+ *      stack, leaving the kwarg dictionary at the wrong place
+ * @have_dict: If true, then the top of the stack contains a dictionary
+ *      of the keyword arguments provided.
+ *
+ * Return: The function result, or ErrorVar if there was an error here or
+ *      in the function called.
  */
 Object *
-function_prep_frame(Object *fn,
-                    Frame *fr, Object *owner, bool have_dict)
+function_call(Frame *fr, bool have_dict)
 {
         Object *dict;
         struct funcvar_t *fh;
 
-        if (!isvar_function(fn))
-                return ErrorVar;
+        if (!isvar_function(fr->func))
+                goto err;
 
-        fh = V2FUNC(fn);
+        fh = V2FUNC(fr->func);
+        bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
 
         dict = NULL;
         if (have_dict){
@@ -110,6 +116,12 @@ function_prep_frame(Object *fn,
         }
         /* else, leave dict NULL */
 
+        /*
+         * XXX REVISIT: We can forgo this step by setting a call-specific
+         * optind and kwind field in the Frame struct.  It would require
+         * a more sophisticated parser, to tell if this is the starred
+         * variable or not.
+         */
         if (fh->f_optind >= 0) {
                 Object *opts, **start;
                 int n;
@@ -118,9 +130,10 @@ function_prep_frame(Object *fn,
                         err_setstr(ArgumentError, "Missing argument");
                         if (dict && !have_dict)
                                 VAR_DECR_REF(dict);
-                        return ErrorVar;
+                        goto err;
                 }
 
+                /* List size n may be zero here */
                 start = &fr->stack[fh->f_optind];
                 opts = arrayvar_from_stack(start, n, true);
 
@@ -133,49 +146,37 @@ function_prep_frame(Object *fn,
                 fr->stack[fr->ap++] = dict;
         }
 
+        /* Finished setting up args, fr->ap */
+        fr->stackptr = fr->stack + fr->ap;
+
         if (function_argc_check(fh, fr->ap) != RES_OK)
-                return ErrorVar;
+                goto err;
 
-        fr->owner = owner;
-        fr->func  = fn;
-        fr->clo   = fh->f_closures ?
-                        array_get_data(fh->f_closures) : NULL;
-
-        VAR_INCR_REF(owner);
-        VAR_INCR_REF(fn);
+        if (fh->f_magic == FUNC_USER && fh->f_closures)
+                fr->clo = array_get_data(fh->f_closures);
+        else
+                fr->clo = NULL;
 
         if (fh->f_magic == FUNC_USER)
                 fr->ex = fh->f_ex;
-        return fr->func;
-}
-
-/**
- * call_function - Call a function
- * @fr: Frame to pass to execute_loop if it's a user-defined
- *      function.
- * @fn: Function to call.
- *
- * XXX: @fn is a field of @fr, do we need this extra stack variable
- *      for every recursion into call_function?
- *
- * Return:      ErrorVar if error encountered
- *              Return value of function otherwise
- */
-Object *
-call_function(Frame *fr, Object *fn)
-{
-        struct funcvar_t *fh = V2FUNC(fn);
-
-        bug_on(!isvar_function(fn));
-        bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
 
         if (fh->f_magic == FUNC_INTERNAL) {
                 bug_on(!fh->f_cb);
                 return fh->f_cb(fr);
         } else {
                 /* FUNC_USER */
+                bug_on(!fr->ex);
+                fr->ppii = fr->ex->instr;
                 return execute_loop(fr);
         }
+
+err:
+        /*
+         * fr->ap may have changed since we started this function,
+         * so we need to update fr->stackptr accordingly.
+         */
+        fr->stackptr = fr->stack + fr->ap;
+        return ErrorVar;
 }
 
 void

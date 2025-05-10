@@ -2,8 +2,12 @@
  * 2025 update... I've been reading Aho/Ullman and now I see just how
  * hillbilly this file is.  Please don't look at it, it's embarrassing.
  *
- * FIXME: This whole file!  Because it doesn't separate the parsing phase
- * from the code-generation phase, not a single optimization can be made.
+ * FIXME: This whole file!  It parses, compiles, and assembles all at the
+ * same time.  Aside from a few optimizations and function-and-label
+ * resolutions in assemble_post.c, it does not separate any of the three
+ * stages apart from each other.  It doesn't distinguish them, either; it
+ * calls everything assemble_this, assemble_that, when it should say
+ * parse_this or compile_that.
  *
  * The entry point is assemble().  The result will be a compiled XptrType
  * object to execute.  Since files are thought of as big functions nesting
@@ -25,7 +29,7 @@
  *              Wrap add_instr with some other stuff that needs to get done
  *      as_XXXX
  *              Little helper function
- *      assemble_XXX
+ *      assemble_XXXX
  *              BIG helper function!
  *      [^a].*_XXXX
  *              Poorly chosen function name :)
@@ -729,7 +733,13 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
                 return -1;
 
         if (as_symbol_seek(a, name, NULL) >= 0) {
-
+                /*
+                 * 'atomic' instead of assemble_expr(), because if we see
+                 * 'x.y', the closure should be x, not its descendant y.
+                 * This way user-defined classes can use mutable closures
+                 * like dictionaries to pass the same private data to
+                 * multiple methods of the same instantiation.
+                 */
                 pos = as_swap_pos(a, pos);
                 assemble_expr5_atomic(a);
                 as_swap_pos(a, pos);
@@ -977,18 +987,18 @@ static void
 assemble_expr2_binary(struct assemble_t *a)
 {
         static const struct token_to_opcode_t POW_TOK2OP[] = {
-                { .tok = OC_POW,        .opcode = INSTR_POW },
+                { .tok = OC_POW,    .opcode = INSTR_POW },
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t MULDIVMOD_TOK2OP[] = {
-                { .tok = OC_MUL,        .opcode = INSTR_MUL },
-                { .tok = OC_DIV,        .opcode = INSTR_DIV },
-                { .tok = OC_MOD,        .opcode = INSTR_MOD },
+                { .tok = OC_MUL,    .opcode = INSTR_MUL },
+                { .tok = OC_DIV,    .opcode = INSTR_DIV },
+                { .tok = OC_MOD,    .opcode = INSTR_MOD },
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t ADDSUB_TOK2OP[] = {
-                { .tok = OC_PLUS,       .opcode = INSTR_ADD },
-                { .tok = OC_MINUS,      .opcode = INSTR_SUB },
+                { .tok = OC_PLUS,   .opcode = INSTR_ADD },
+                { .tok = OC_MINUS,  .opcode = INSTR_SUB },
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t SHIFT_TOK2OP[] = {
@@ -996,35 +1006,48 @@ assemble_expr2_binary(struct assemble_t *a)
                 { .tok = OC_RSHIFT, .opcode = INSTR_RSHIFT },
                 { .tok = -1 }
         };
-        static const struct token_to_opcode_t HAS_TOK2OP[] = {
-                { .tok = OC_HAS, .opcode = INSTR_HAS },
-                { .tok = -1 }
-        };
-        static const struct token_to_opcode_t CMP_TOK2OP[] = {
-                { .tok = OC_EQEQ,   .opcode = IARG_EQ },
+        static const struct token_to_opcode_t CMP1_TOK2OP[] = {
+                { .tok = OC_HAS,    .opcode = IARG_HAS },
                 { .tok = OC_LEQ,    .opcode = IARG_LEQ },
                 { .tok = OC_GEQ,    .opcode = IARG_GEQ },
-                { .tok = OC_NEQ,    .opcode = IARG_NEQ },
                 { .tok = OC_LT,     .opcode = IARG_LT },
                 { .tok = OC_GT,     .opcode = IARG_GT },
                 { .tok = -1 }
         };
-        static const struct token_to_opcode_t BITWISE_TOK2OP[] = {
-                { .tok = OC_AND, .opcode = INSTR_BINARY_AND },
-                { .tok = OC_OR,  .opcode = INSTR_BINARY_OR },
-                { .tok = OC_XOR, .opcode = INSTR_BINARY_XOR },
+        static const struct token_to_opcode_t CMP2_TOK2OP[] = {
+                { .tok = OC_EQEQ,   .opcode = IARG_EQ },
+                { .tok = OC_NEQ,    .opcode = IARG_NEQ },
+                /* TODO: EQ3, NEQ3 */
                 { .tok = -1 }
         };
-        static const struct token_to_opcode_t LOGICAL_TOK2OP[] = {
+        static const struct token_to_opcode_t BIT_AND_TOK2OP[] = {
+                { .tok = OC_AND,    .opcode = INSTR_BINARY_AND },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t BIT_XOR_TOK2OP[] = {
+                { .tok = OC_AND,    .opcode = INSTR_BINARY_XOR },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t BIT_OR_TOK2OP[] = {
+                { .tok = OC_OR,     .opcode = INSTR_BINARY_OR },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t LOG_AND_TOK2OP[] = {
                 { .tok = OC_ANDAND, .opcode = INSTR_LOGICAL_AND, },
+                { .tok = -1 }
+        };
+        static const struct token_to_opcode_t LOG_OR_TOK2OP[] = {
                 { .tok = OC_OROR,   .opcode = INSTR_LOGICAL_OR, },
                 { .tok = -1 }
         };
         static const struct operator_state_t BINARY_OPERATORS[] = {
-                { LOGICAL_TOK2OP,   true,  -1 },
-                { BITWISE_TOK2OP,   true,  -1 },
-                { CMP_TOK2OP,       true,  INSTR_CMP },
-                { HAS_TOK2OP,       false, -1 },
+                { LOG_OR_TOK2OP,    true,  -1 },
+                { LOG_AND_TOK2OP,   true,  -1 },
+                { BIT_OR_TOK2OP,    true,  -1 },
+                { BIT_XOR_TOK2OP,   true,  -1 },
+                { BIT_AND_TOK2OP,   true,  -1 },
+                { CMP2_TOK2OP,      true,  INSTR_CMP },
+                { CMP1_TOK2OP,      true,  INSTR_CMP },
                 { SHIFT_TOK2OP,     true,  -1 },
                 { ADDSUB_TOK2OP,    true,  -1 },
                 { MULDIVMOD_TOK2OP, true,  -1 },
@@ -1663,11 +1686,7 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags,
         ainstr_pop_block(a);
 }
 
-/*
- * parse the stmt of 'stmt' + ';'
- * return true if semicolon expected, false if not (because
- * we recursed into a '{...}' statement which requires no semicolon).
- */
+/* parse the stmt of 'stmt' + ';' */
 static void
 assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                      int continueto)

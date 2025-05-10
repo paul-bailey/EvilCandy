@@ -168,10 +168,6 @@ BINARY_XOR
 LOGICAL_OR
 LOGICAL_AND
 
-# A binary operator that implements the 'has' keyword.
-# lval is the haystack and rval is the needle.
-HAS
-
 # Scripts don't always return a value, so END means 'quit this code
 # block.'  It's an artifact, since assembler should be inserting
 # PUSH and RETURN_VALUE in place of this

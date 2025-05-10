@@ -8,9 +8,8 @@
  * Still, EvilCandy takes JavaScript's Middle Way:  Internal code which
  * accesses dictionaries using these API functions directly can treat a
  * dictionary like a pure associative array, while dictionaries accessed
- * by user code are assumed to be using these like class instantiations
- * (for example see how var_getattr intercepts retrieving functions from
- * a dictionary).  The code in this file plays dumb to either case.
+ * by user code are assumed to be class instantiations.  The code in this
+ * file plays dumb to either case.
  */
 #include <evilcandy.h>
 #include <stringtype.h>

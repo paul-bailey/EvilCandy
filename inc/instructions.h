@@ -21,7 +21,8 @@ enum {
         IARG_GEQ,
         IARG_NEQ,
         IARG_LT,
-        IARG_GT
+        IARG_GT,
+        IARG_HAS,
 };
 
 /* PUSH/POP_BLOCK args */

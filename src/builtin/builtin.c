@@ -621,7 +621,6 @@ build_internal_object(Object *parent, const struct type_inittbl_t *tbl)
         if (!tbl)
                 return;
         for (t = tbl; t->name != NULL; t++) {
-                /* TODO: add 'ok', optind, kwargs */
                 Object *func, *key;
                 func = funcvar_from_lut(t);
                 key = stringvar_new(t->name);

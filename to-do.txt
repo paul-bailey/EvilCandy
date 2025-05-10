@@ -18,6 +18,7 @@ Must Do
     in interactive mode without the -d option
   - Finish path resolution
   - Add ``===`` or ``is`` or both
+  - Add slice assignment
   - Get prompt working
   - Make consistent and accurate error reporting
 
@@ -25,6 +26,9 @@ Must Do
 
   - Python operates these on a dictionary's *keys*, not its values.
     What does JavaScript do?
+
+* Replace ``has`` with ``in``, you're doing no one any favors by making
+  up something new.
 
 * Make sure operator order follows either JavaScript or Python.
 

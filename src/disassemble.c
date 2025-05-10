@@ -59,7 +59,8 @@ static const char *CMP_NAMES[] = {
         IARG(GEQ),
         IARG(NEQ),
         IARG(LT),
-        IARG(GT)
+        IARG(GT),
+        IARG(HAS),
 };
 
 /* note, i evaluated twice */

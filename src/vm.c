@@ -900,6 +900,14 @@ do_cmp(Frame *fr, instruction_t ii)
         rval = pop(fr);
         lval = pop(fr);
 
+        if (ii.arg1 == IARG_EQ3 || ii.arg1 == IARG_NEQ3) {
+                /* strict compare */
+                cmp = (rval == lval);
+                if (ii.arg1 == IARG_NEQ3)
+                        cmp = !cmp;
+                goto done;
+        }
+
         cmp = var_compare(lval, rval);
         switch (ii.arg1) {
         case IARG_EQ:
@@ -927,6 +935,7 @@ do_cmp(Frame *fr, instruction_t ii)
                 bug();
         }
 
+done:
         res = intvar_new(cmp);
         push(fr, res);
         VAR_DECR_REF(rval);

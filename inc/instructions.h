@@ -23,6 +23,8 @@ enum {
         IARG_LT,
         IARG_GT,
         IARG_HAS,
+        IARG_EQ3,
+        IARG_NEQ3,
 };
 
 /* PUSH/POP_BLOCK args */

@@ -1017,7 +1017,8 @@ assemble_expr2_binary(struct assemble_t *a)
         static const struct token_to_opcode_t CMP2_TOK2OP[] = {
                 { .tok = OC_EQEQ,   .opcode = IARG_EQ },
                 { .tok = OC_NEQ,    .opcode = IARG_NEQ },
-                /* TODO: EQ3, NEQ3 */
+                { .tok = OC_EQ3,    .opcode = IARG_EQ3 },
+                { .tok = OC_NEQ3,   .opcode = IARG_NEQ3 },
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t BIT_AND_TOK2OP[] = {

@@ -386,10 +386,13 @@ ainstr_push_block(struct assemble_t *a, int arg1, int arg2)
 static void
 ainstr_pop_block(struct assemble_t *a)
 {
-        bug_on(a->fr->nest <= 0);
-        as_buffer_ptr_resize(&a->fr->af_locals, a->fr->fp);
-        a->fr->nest--;
-        a->fr->fp = a->fr->scope[a->fr->nest];
+        struct as_frame_t *fr = a->fr;
+        bug_on(fr->nest <= 0);
+
+        as_buffer_ptr_resize(&fr->af_locals, fr->fp);
+        fr->nest--;
+
+        fr->fp = fr->scope[fr->nest];
         add_instr(a, INSTR_POP_BLOCK, 0, 0);
 }
 

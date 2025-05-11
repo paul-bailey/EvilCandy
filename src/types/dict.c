@@ -353,6 +353,39 @@ dictvar_new(void)
 }
 
 /**
+ * dictvar_from_methods - Create a dictionary from a methods lookup table
+ * @parent: Dictionary to add methods to, or NULL to create a new dictionary
+ * @tbl: A methods initialization table.
+ *
+ * Return: @parent, or if it was NULL, a pointer to the new dictionary
+ *
+ * Used for early-initialization stuff and module initialization.
+ */
+Object *
+dictvar_from_methods(Object *parent, const struct type_inittbl_t *tbl)
+{
+        const struct type_inittbl_t *t;
+        Object *ret;
+        if (parent)
+                ret = parent;
+        else
+                ret = dictvar_new();
+
+        if (!tbl)
+                return ret;
+
+        for (t = tbl; t->name != NULL; t++) {
+                Object *func, *key;
+                func = funcvar_from_lut(t);
+                key = stringvar_new(t->name);
+                dict_setitem(ret, key, func);
+                VAR_DECR_REF(func);
+                VAR_DECR_REF(key);
+        }
+        return ret;
+}
+
+/**
  * dict_getitem - Get object attribute
  * @o:  Me
  * @s:  Key

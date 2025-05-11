@@ -1,6 +1,8 @@
 #ifndef EGQ_BUILTIN_H
 #define EGQ_BUILTIN_H
 
+#error "Delete me"
+
 #include <evilcandy.h>
 
 /* io.c */

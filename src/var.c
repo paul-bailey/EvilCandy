@@ -123,7 +123,6 @@ void
 var_delete__(Object *v)
 {
         bug_on(!v);
-        bug_on(v == NullVar);
         bug_on(v->v_refcnt != 0);
         bug_on(!v->v_type);
         if (v->v_type->reset)

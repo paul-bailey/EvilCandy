@@ -1,7 +1,7 @@
 /*
  * builtin/math.c - Implementation of the __gbl__.Math built-in object
  */
-#include "builtin.h"
+#include <evilcandy.h>
 #include <math.h>
 
 static int
@@ -77,7 +77,7 @@ MATHMETHOD(tanh,  1)
 #define MATHTBL(func_, narg_) \
         V_INITTBL(#func_, do_##func_, narg_, narg_, -1, -1)
 
-const struct type_inittbl_t bi_math_inittbl__[] = {
+static const struct type_inittbl_t math_inittbl[] = {
         MATHTBL(acos,   1),
         MATHTBL(asin,   1),
         MATHTBL(atan,   1),
@@ -148,5 +148,15 @@ const struct type_inittbl_t bi_math_inittbl__[] = {
 
         TBLEND,
 };
+
+void
+moduleinit_math(void)
+{
+        Object *k = stringvar_new("_math");
+        Object *o = dictvar_from_methods(NULL, math_inittbl);
+        dict_setitem(GlobalObject, k, o);
+        VAR_DECR_REF(k);
+        VAR_DECR_REF(o);
+}
 
 

@@ -3,45 +3,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-/* configuration stuff */
-struct global_t gbl;
-
-/*
- * Global User-Type Variables
- *
- *      When returning NullVar to mean 'null' (as the script user sees
- *      it), produce a reference, just as if you would for any other
- *      variable.  Ditto with GlobalObject, this is what the user sees
- *      as '__gbl__'.
- *
- *      Do not produce a reference for the ErrorVar, since it tells you
- *      an error occurred.  You should never use ErrorVar such that it
- *      could be 'seen' by the user, eg. never push it onto the user
- *      stack.
- *
- *      The others (SyntaxError et al.) are visible to the user in
- *      __gbl__._builtins.  Produce a reference if they are requested
- *      with the SYMTAB instruction, but do not produce a reference
- *      when passing these as the first argument to err_setstr.
- */
-Object *ErrorVar;
-Object *NullVar;
-Object *GlobalObject;
-
-Object *ArgumentError;
-Object *KeyError;
-Object *IndexError;
-Object *NameError;
-Object *NumberError;
-Object *NotImplementedError;
-Object *RangeError;
-Object *RecursionError;
-Object *RuntimeError;
-Object *SyntaxError;
-Object *SystemError;
-Object *TypeError;
-Object *ValueError;
-
 static void
 initialize_program(void)
 {
@@ -52,7 +13,7 @@ initialize_program(void)
                 { .initfn = cfile_init_ewrappers },
                 { .initfn = cfile_init_var },
                 { .initfn = cfile_init_vm },
-                { .initfn = cfile_init_builtin },
+                { .initfn = cfile_init_global },
                 { .initfn = cfile_init_token },
                 { .initfn = cfile_init_instruction_name },
                 { .initfn = NULL },
@@ -62,22 +23,15 @@ initialize_program(void)
         for (t = INITFNS; t->initfn != NULL; t++)
                 t->initfn();
 
-        /*
-         * GlobalObject and the XxxError vars should have been
-         * initialized by cfile_init_builtin.  These two remain.
-         */
-        ErrorVar = stringvar_new("If you can see this from the console, this is a BUG!!!\n");
-        NullVar  = emptyvar_new();
 }
 
 static void
 end_program(void)
 {
 
-        VAR_DECR_REF(ErrorVar);
         cfile_deinit_instruction_name();
         /* no deinit for token.c */
-        cfile_deinit_builtin();
+        cfile_deinit_global();
         cfile_deinit_vm();
         /* must be last */
         cfile_deinit_var();

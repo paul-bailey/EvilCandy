@@ -35,6 +35,9 @@
 #include "vm.h"
 
 /* constructors/destructors for certain C file */
+/* global.c */
+extern void cfile_init_global(void);
+extern void cfile_deinit_global(void);
 /* ewrappers.c */
 extern void cfile_init_ewrappers(void);
 /* var.c */
@@ -43,14 +46,19 @@ extern void cfile_deinit_var(void);
 /* vm.c */
 extern void cfile_init_vm(void);
 extern void cfile_deinit_vm(void);
-/* builtin/builtin.c */
-extern void cfile_init_builtin(void);
-extern void cfile_deinit_builtin(void);
 /* token.c */
 extern void cfile_init_token(void);
 /* instruction_name.c */
 extern void cfile_init_instruction_name(void);
 extern void cfile_deinit_instruction_name(void);
+
+/* constructors/destructors for built-in modules */
+/* builtin/builtin.c */
+extern void moduleinit_builtin(void);
+/* builtin/math.c */
+extern void moduleinit_math(void);
+/* builtin/io.c */
+extern void moduleinit_io(void);
 
 /* assembler.c */
 extern Object *assemble(const char *filename,
@@ -182,6 +190,8 @@ extern Object *idvar_new(long long id);
 
 /* types/dict.c */
 extern Object *dictvar_new(void);
+extern Object *dictvar_from_methods(Object *parent,
+                        const struct type_inittbl_t *tbl);
 extern Object *dict_keys(Object *obj);
 extern Object *dict_getitem(Object *o, Object *key);
 extern Object *dict_getitem_cstr(Object *o, const char *cstr_key);

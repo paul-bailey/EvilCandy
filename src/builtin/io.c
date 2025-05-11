@@ -19,11 +19,8 @@
  * f.errno()       Get the last error number pertaining to f
  * f.tell()        Return the current offset into f
  * f.rewind()      Return to the start of the file
- *
- * TODO: Binary file operations, need better array class than list.
  */
-#include "builtin.h"
-
+#include <evilcandy.h>
 
 /*
  * Io.open(name, mode)          name and mode are strings
@@ -89,8 +86,19 @@ do_open(Frame *fr)
         return filevar_new(fp, vname, modeflags);
 }
 
-const struct type_inittbl_t bi_io_inittbl__[] = {
+static const struct type_inittbl_t io_inittbl[] = {
         V_INITTBL("open", do_open, 2, 2, -1, -1),
         TBLEND,
 };
+
+void
+moduleinit_io(void)
+{
+        Object *k = stringvar_new("_io");
+        Object *o = dictvar_from_methods(NULL, io_inittbl);
+        dict_setitem(GlobalObject, k, o);
+        VAR_DECR_REF(k);
+        VAR_DECR_REF(o);
+}
+
 

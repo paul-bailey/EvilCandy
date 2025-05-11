@@ -1,35 +1,10 @@
-/*
- * builtin/io.c - Implementation of the __gbl__.Io built-in object
- *
- * f = Io.open(name, mode)
- * If fail,
- *      return a string describing the failure
- *
- * If success,
- *      return a file handle, an object with the following
- *      methods:
- *
- * f.readline()    Read a line from f to the next '\n' and return
- *                 it as a string, or as "" if f is at EOF.
- * f.writeline(txt)
- *                 Write txt to f.  Do not interpolate characters
- *                 or add a newline at the end.
- * f.eof()         Return 1 if f is at EOF, 0 if not
- * f.clearerr()    Clear error flags in f
- * f.errno()       Get the last error number pertaining to f
- * f.tell()        Return the current offset into f
- * f.rewind()      Return to the start of the file
- */
+/* builtin/io.c - Implementation of the __gbl__.Io built-in object */
 #include <evilcandy.h>
 
 /*
  * Io.open(name, mode)          name and mode are strings
  *
- * Return:
- *      string          if error (errno descr. stored in string)
- *      object          if success
- *
- * Check with typeof to determine success or failure
+ * Return: a FileType handle
  */
 static Object *
 do_open(Frame *fr)

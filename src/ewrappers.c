@@ -13,6 +13,7 @@ enum { ALLOC_PROFILE_CAP = 16 * 1024 };
 static bool can_profile = 1;
 static unsigned long total_alloc_bytes = 0;
 static unsigned long max_alloc_bytes = 0;
+static unsigned long max_sgl_alloc_bytes = 0;
 
 static struct alloc_profile_t {
         void *p;
@@ -78,6 +79,8 @@ DBUG_LOG_MALLOC(void *p, size_t size)
         total_alloc_bytes += size;
         if (total_alloc_bytes > max_alloc_bytes)
                 max_alloc_bytes = total_alloc_bytes;
+        if (size > max_sgl_alloc_bytes)
+                max_sgl_alloc_bytes = size;
         prof->p = p;
         prof->size = size;
 }
@@ -111,6 +114,7 @@ report_alloc_stats(void)
                 DBUG1("could not profile memory bytes");
         else
                 DBUG("outstanding memory=%ld bytes", count);
+        DBUG("Largest single allocation: %ld", max_sgl_alloc_bytes);
         DBUG("Largest amount of memory allocated at one time: %ld",
              max_alloc_bytes);
 }

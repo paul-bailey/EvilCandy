@@ -17,7 +17,7 @@ Must Do
   - Add __gbl__._debug and let disassembly of functions be printable
     in interactive mode without the -d option
   - Finish path resolution
-  - Add ``===`` or ``is`` or both
+  - **done** Add ``===`` or ``is`` or both
   - Add slice assignment
   - Get prompt working
   - Make consistent and accurate error reporting
@@ -30,7 +30,7 @@ Must Do
 * Replace ``has`` with ``in``, you're doing no one any favors by making
   up something new.
 
-* Make sure operator order follows either JavaScript or Python.
+* **done** Make sure operator order follows either JavaScript or Python.
 
 * Make sure all built-in types have a .cmpz method.
 
@@ -70,7 +70,7 @@ Must Do
 Library/Language Features
 -------------------------
 
-* Add ``decorate`` method for dictionaries, so that user-defined obects
+* Add ``decorate`` method for dictionaries, so that user-defined objects
   can be added, anded, divided, etc.
 
 * Add sets

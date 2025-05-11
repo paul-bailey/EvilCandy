@@ -158,7 +158,6 @@ void *
 ecalloc(size_t size)
 {
         void *res = emalloc(size);
-        DBUG_LOG_MALLOC(res, size);
         memset(res, 0, size);
         return res;
 }
@@ -184,7 +183,6 @@ ememdup(void *buf, size_t size)
         if (!size)
                 size = 1;
         ret = emalloc(size);
-        DBUG_LOG_MALLOC(buf, size);
         memcpy(ret, buf, size);
         return ret;
 }

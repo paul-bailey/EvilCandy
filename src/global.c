@@ -42,9 +42,15 @@ moduleinit_sys(void)
                         STDIO_ARGS(stdin, READ),
                         STDIO_ARGS(stdout, WRITE),
                         STDIO_ARGS(stderr, WRITE));
+
         k = stringvar_new("_sys");
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
+
+        k = stringvar_new("sys");
+        vm_add_global(k, o);
+        VAR_DECR_REF(k);
+
         VAR_DECR_REF(o);
 }
 #undef STDIO_ARGS

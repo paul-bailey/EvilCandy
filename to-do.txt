@@ -13,7 +13,7 @@ Must Do
   - Fill in math, io libraries
   - Fill in built-in methods for strings, arrays, etc.
   - Fill in __gbl__._sys
-  - Add ^^ to global vars as ``sys``, since it's already built up anyway
+  - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
   - Add __gbl__._debug and let disassembly of functions be printable
     in interactive mode without the -d option
   - Finish path resolution

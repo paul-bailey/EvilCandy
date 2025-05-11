@@ -11,5 +11,5 @@ return (function(m){
     m.deg   = 57.2957795130823208768; /* deg/rad */
     m.phi   = 1.61803398874989484820; /* golden ratio */
     return m;
-})(__gbl__._math);
+})(__gbl__._math());
 

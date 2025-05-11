@@ -1,8 +1,5 @@
 // Io - hook to __gbl__._io
 
-return (function(io){
-    // TODO: any post-inheritance embellishments here.
-    return io;
-})(__gbl__._io);
+return __gbl__._io();
 
 

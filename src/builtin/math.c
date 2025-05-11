@@ -149,11 +149,18 @@ static const struct type_inittbl_t math_inittbl[] = {
         TBLEND,
 };
 
+static Object *
+create_math_instance(Frame *fr)
+{
+        return dictvar_from_methods(NULL, math_inittbl);
+}
+
 void
 moduleinit_math(void)
 {
         Object *k = stringvar_new("_math");
-        Object *o = dictvar_from_methods(NULL, math_inittbl);
+        Object *o = var_from_format("<xmM>",
+                                    create_math_instance, 0, 0);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);

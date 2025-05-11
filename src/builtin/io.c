@@ -91,11 +91,18 @@ static const struct type_inittbl_t io_inittbl[] = {
         TBLEND,
 };
 
+static Object *
+create_io_instance(Frame *fr)
+{
+        return dictvar_from_methods(NULL, io_inittbl);
+}
+
 void
 moduleinit_io(void)
 {
         Object *k = stringvar_new("_io");
-        Object *o = dictvar_from_methods(NULL, io_inittbl);
+        Object *o = var_from_format("<xmM>",
+                                    create_io_instance, 0, 0);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);

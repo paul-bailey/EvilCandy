@@ -1836,6 +1836,11 @@ as_delete_frame_list(struct list_t *parent_list, int err)
         list_foreach_safe(li, tmp, parent_list) {
                 struct as_frame_t *fr = list2frame(li);
                 list_remove(&fr->list);
+                /*
+                 * These buffers are arrays of pointers.  We only need to
+                 * free the arrays; the actual pointers are maintained by
+                 * token.c, which frees them in due time.
+                 */
                 buffer_free(&fr->af_locals);
                 buffer_free(&fr->af_args);
                 buffer_free(&fr->af_closures);

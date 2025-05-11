@@ -558,20 +558,18 @@ tokenize(struct token_state_t *state)
                         }
                         break;
                 default:
+                        intern = true;
                         oc.v = NULL;
                 }
 
-                if ((oc.v == NULL || intern) && state->dedup) {
+                intern = intern && !!state->dedup;
+
+                if (intern) {
                         oc.s = dict_unique(state->dedup, state->tok.s);
                 } else {
                         oc.s = estrdup(state->tok.s);
                 }
 
-                if (ret == RES_ERROR) {
-                        if (oc.v)
-                                VAR_DECR_REF(oc.v);
-                        return ret;
-                }
                 buffer_putd(&state->pgm, &oc, sizeof(oc));
         }
         state->ntok++;
@@ -722,16 +720,16 @@ token_get_pos(struct token_state_t *state)
         return (token_pos_t)state->nexttok;
 }
 
-/*
- * Use when you still need what's been parsed from @state,
- * but you don't need the current-token bits.
- */
-void
-token_state_trim(struct token_state_t *state)
+static bool
+isintern(struct token_state_t *state, struct token_t *tok)
 {
-        buffer_free(&state->tok);
-        if (state->line)
-                efree(state->line);
+        if (!state->dedup)
+                return false;
+        if (!tok->v)
+                return true;
+        return tok->t == OC_NULL ||
+               tok->t == OC_TRUE ||
+               tok->t == OC_FALSE;
 }
 
 /**
@@ -743,34 +741,29 @@ token_state_trim(struct token_state_t *state)
 static void
 token_state_free_(struct token_state_t *state, bool free_self)
 {
-        struct token_t *tok = (struct token_t *)(state->pgm.s);
-        int i, n = buffer_size(&state->pgm);
-        if (n > state->ntok)
-                n = state->ntok;
-        token_state_trim(state);
-        for (i = 0; i < n; i++) {
-                bool intern = false;
-                if (tok[i].v) {
-                        int t = tok[i].t;
-                        if ((t == OC_NULL ||
-                             t == OC_TRUE ||
-                             t == OC_FALSE) &&
-                            state->dedup) {
-                                intern = true;
-                        }
-                        VAR_DECR_REF(tok[i].v);
-                } else {
-                        intern = true;
-                }
+        struct token_t *tok, *endtok;
+        int n;
 
-                if (!intern) {
-                       bug_on(!tok[i].s);
-                       efree(tok[i].s);
+        buffer_free(&state->tok);
+        if (state->line)
+                efree(state->line);
+        n = buffer_size(&state->pgm) / sizeof(struct token_t);
+        bug_on(n > state->ntok);
+        tok = (struct token_t *)(state->pgm.s);
+        endtok = &tok[n];
+        while (tok < endtok) {
+                if (tok->v)
+                        VAR_DECR_REF(tok->v);
+                if (!isintern(state, tok)) {
+                        bug_on(!tok->s);
+                        efree(tok->s);
                 }
+                tok++;
         }
+        buffer_free(&state->pgm);
+
         if (state->dedup)
                 VAR_DECR_REF(state->dedup);
-        buffer_free(&state->pgm);
         if (state->filename)
                 efree(state->filename);
         if (free_self)

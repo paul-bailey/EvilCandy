@@ -218,8 +218,7 @@ again:
                 return ret;
         }
 
-        bug_on(!b.s);
-        return b.s;
+        return buffer_trim(&b);
 
 err:
         buffer_free(&b);

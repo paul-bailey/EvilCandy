@@ -137,7 +137,7 @@ var_delete__(Object *v)
  * data types which don't need to be visible outside their little
  * corner of the interpreter.
  * The major players are forward-declared in typedefs.h and added
- * to VAR_TYPES_TBL[] below in moduleinit_var.
+ * to VAR_TYPES_TBL[] below in cfile_init_var.
  */
 void
 var_initialize_type(struct type_t *tp)
@@ -202,10 +202,10 @@ static struct type_t *const VAR_TYPES_TBL[] = {
 
 /*
  * see main.c - this must be after all the typedef code
- * has had their moduleinit functions called, or it will fail.
+ * has had their cfile_init functions called, or it will fail.
  */
 void
-moduleinit_var(void)
+cfile_init_var(void)
 {
         int i;
         for (i = 0; VAR_TYPES_TBL[i] != NULL; i++)
@@ -217,7 +217,7 @@ moduleinit_var(void)
 }
 
 void
-moduledeinit_var(void)
+cfile_deinit_var(void)
 {
         int i;
         for (i = 0; VAR_TYPES_TBL[i] != NULL; i++) {

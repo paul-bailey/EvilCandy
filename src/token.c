@@ -813,7 +813,7 @@ token_state_new(FILE *fp, const char *filename)
 }
 
 void
-moduleinit_token(void)
+cfile_init_token(void)
 {
         /*
          * IMPORTANT!! These two strings must be in same order as

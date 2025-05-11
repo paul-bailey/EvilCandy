@@ -717,7 +717,7 @@ sysget(const char *name)
 
 /* initialize the builtin/ C file modules */
 void
-moduleinit_builtin(void)
+cfile_init_builtin(void)
 {
         Object *o, *k;
 
@@ -757,7 +757,7 @@ moduleinit_builtin(void)
 }
 
 void
-moduledeinit_builtin(void)
+cfile_deinit_builtin(void)
 {
         int i;
         VAR_DECR_REF(GlobalObject);

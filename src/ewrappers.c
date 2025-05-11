@@ -202,7 +202,7 @@ efree(void *ptr)
 }
 
 void
-moduleinit_ewrappers(void)
+cfile_init_ewrappers(void)
 {
 #if DBUG_PROFILE_MALLOC_USAGE
         atexit(report_alloc_stats);

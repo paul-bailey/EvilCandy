@@ -1158,7 +1158,7 @@ vm_exec_func(Frame *fr_old, Object *func,
 void
 vm_add_global(Object *name, Object *var)
 {
-        /* moduleinit_vm should have been called first */
+        /* cfile_init_vm should have been called first */
         int res;
         bug_on(!symbol_table);
         bug_on(!isvar_string(name));
@@ -1195,7 +1195,7 @@ vm_symbol_exists(Object *key)
 }
 
 void
-moduleinit_vm(void)
+cfile_init_vm(void)
 {
         symbol_table = dictvar_new();
 
@@ -1204,7 +1204,7 @@ moduleinit_vm(void)
 }
 
 void
-moduledeinit_vm(void)
+cfile_deinit_vm(void)
 {
         VAR_DECR_REF(symbol_table);
         /* XXX: any way to clear the stack vars? */

@@ -67,16 +67,16 @@ instruction_from_key(Object *key)
 
 /*
  * This function exists just to provide symmetry with
- * moduledeinit_instruction_name
+ * cfile_deinit_instruction_name
  */
 void
-moduleinit_instruction_name(void)
+cfile_init_instruction_name(void)
 {
         ;
 }
 
 void
-moduledeinit_instruction_name(void)
+cfile_deinit_instruction_name(void)
 {
         if (instr_dict)
                 VAR_DECR_REF(instr_dict);

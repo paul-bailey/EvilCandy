@@ -45,36 +45,16 @@ Object *ValueError;
 static void
 initialize_program(void)
 {
-        /* ewrappers.c */
-        extern void moduleinit_ewrappers(void);
-        /* var.c */
-        extern void moduleinit_var(void);
-        /* vm.c */
-        extern void moduleinit_vm(void);
-        /* builtin/builtin.c */
-        extern void moduleinit_builtin(void);
-        /* token.c */
-        extern void moduleinit_token(void);
-        /* instruction_name.c */
-        extern void moduleinit_instruction_name(void);
-
-        /*
-         * "moduleinit" was a poorly chosen name for these constructors.
-         * They are "modules" because they are for C files that have
-         * private data to initialize; they are not related to the
-         * loadable script "modules" in this source tree's lib/ folder,
-         * or to the C accelerators in builtin/, unless by coincidence.
-         */
         static const struct initfn_tbl_t {
                 void (*initfn)(void);
         } INITFNS[] = {
                 /* Note: the order of this table matters */
-                { .initfn = moduleinit_ewrappers },
-                { .initfn = moduleinit_var },
-                { .initfn = moduleinit_vm },
-                { .initfn = moduleinit_builtin },
-                { .initfn = moduleinit_token },
-                { .initfn = moduleinit_instruction_name },
+                { .initfn = cfile_init_ewrappers },
+                { .initfn = cfile_init_var },
+                { .initfn = cfile_init_vm },
+                { .initfn = cfile_init_builtin },
+                { .initfn = cfile_init_token },
+                { .initfn = cfile_init_instruction_name },
                 { .initfn = NULL },
         };
         const struct initfn_tbl_t *t;
@@ -84,7 +64,7 @@ initialize_program(void)
 
         /*
          * GlobalObject and the XxxError vars should have been
-         * initialized by moduleinit_builtin.  These two remain.
+         * initialized by cfile_init_builtin.  These two remain.
          */
         ErrorVar = stringvar_new("If you can see this from the console, this is a BUG!!!\n");
         NullVar  = emptyvar_new();
@@ -93,17 +73,15 @@ initialize_program(void)
 static void
 end_program(void)
 {
-        extern void moduledeinit_vm(void);
-        extern void moduledeinit_var(void);
-        extern void moduledeinit_builtin(void);
-        extern void moduledeinit_instruction_name(void);
 
         VAR_DECR_REF(ErrorVar);
-        moduledeinit_vm();
-        moduledeinit_builtin();
-        moduledeinit_instruction_name();
+        cfile_deinit_instruction_name();
+        /* no deinit for token.c */
+        cfile_deinit_builtin();
+        cfile_deinit_vm();
         /* must be last */
-        moduledeinit_var();
+        cfile_deinit_var();
+        /* no deinit for ewrappers.c */
 }
 
 static int

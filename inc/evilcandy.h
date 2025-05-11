@@ -34,6 +34,24 @@
 #include "var.h"
 #include "vm.h"
 
+/* constructors/destructors for certain C file */
+/* ewrappers.c */
+extern void cfile_init_ewrappers(void);
+/* var.c */
+extern void cfile_init_var(void);
+extern void cfile_deinit_var(void);
+/* vm.c */
+extern void cfile_init_vm(void);
+extern void cfile_deinit_vm(void);
+/* builtin/builtin.c */
+extern void cfile_init_builtin(void);
+extern void cfile_deinit_builtin(void);
+/* token.c */
+extern void cfile_init_token(void);
+/* instruction_name.c */
+extern void cfile_init_instruction_name(void);
+extern void cfile_deinit_instruction_name(void);
+
 /* assembler.c */
 extern Object *assemble(const char *filename,
                         FILE *fp, bool toeof, int *status);

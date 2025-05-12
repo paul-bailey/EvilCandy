@@ -17,7 +17,7 @@ struct stringvar_t {
         hash_t s_hash;
 };
 
-static inline bool
+static inline hash_t
 string_hash(Object *v)
 {
         return ((struct stringvar_t *)v)->s_hash;

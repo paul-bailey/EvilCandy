@@ -1206,8 +1206,17 @@ cfile_init_vm(void)
 void
 cfile_deinit_vm(void)
 {
+        struct list_t *li, *tmp;
+
         VAR_DECR_REF(symbol_table);
         /* XXX: any way to clear the stack vars? */
         efree(vm_stack);
+
+        /* For-real-this-time free the VM frames */
+        list_foreach_safe(li, tmp, &vframe_free_list) {
+                Frame *fr = container_of(li, Frame, alloc_list);
+                list_remove(li);
+                efree(fr);
+        }
 }
 

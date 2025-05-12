@@ -748,8 +748,8 @@ token_state_free_(struct token_state_t *state, bool free_self)
         if (state->line)
                 efree(state->line);
         n = buffer_size(&state->pgm) / sizeof(struct token_t);
-        bug_on(n > state->ntok);
-        tok = (struct token_t *)(state->pgm.s);
+        bug_on(n != state->ntok);
+        tok = TOKBUF(state);
         endtok = &tok[n];
         while (tok < endtok) {
                 if (tok->v)

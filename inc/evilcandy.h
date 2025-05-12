@@ -46,8 +46,6 @@ extern void cfile_deinit_var(void);
 /* vm.c */
 extern void cfile_init_vm(void);
 extern void cfile_deinit_vm(void);
-/* token.c */
-extern void cfile_init_token(void);
 /* instruction_name.c */
 extern void cfile_init_instruction_name(void);
 extern void cfile_deinit_instruction_name(void);

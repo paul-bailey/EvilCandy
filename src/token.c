@@ -4,13 +4,6 @@
 #include <setjmp.h>
 #include <stdlib.h>
 
-enum {
-        QDELIM = 0x01,
-        QIDENT = 0x02,
-        QIDENT1 = 0x04,
-        QDDELIM = 0x08,
-};
-
 /* Token errors, args to longjmp(state->env) */
 enum {
         TE_UNTERM_QUOTE = 1, /* may not be zero */
@@ -65,21 +58,16 @@ struct token_state_t {
 
 static void token_state_free_(struct token_state_t *state, bool free_self);
 
-/* a sort of "ctype" for tokens */
-static unsigned char tok_charmap[128];
-
-static inline bool tokc_isascii(int c) { return c && c == (c & 0x7fu); }
-static inline bool
-tokc_isflags(int c, unsigned char flags)
-{
-        return tokc_isascii(c) && (tok_charmap[c] & flags) == flags;
-}
-
-static inline bool tokc_isdelim(int c) { return tokc_isflags(c, QDELIM); }
 /* may be in identifier */
-static inline bool tokc_isident(int c) { return tokc_isflags(c, QIDENT); }
+static inline bool tokc_isident(int c)
+{
+        return (unsigned)c < 128 && (c == '_' || isalnum(c));
+}
 /* may be 1st char of identifier */
-static inline bool tokc_isident1(int c) { return tokc_isflags(c, QIDENT1); }
+static inline bool tokc_isident1(int c)
+{
+        return (unsigned)c < 128 && (c == '_' || isalpha(c));
+}
 
 static int
 tok_next_line(struct token_state_t *state)
@@ -209,8 +197,6 @@ get_tok_identifier(struct token_state_t *state)
                 return false;
         while (tokc_isident(*pc))
                 buffer_putc(tok, *pc++);
-        if (!tokc_isdelim(*pc))
-                token_errset(state, TE_INVALID_CHARS);
         state->s = pc;
         return true;
 }
@@ -259,8 +245,7 @@ get_tok_int_hdr(struct token_state_t *state)
         }
 
 
-        if (!tokc_isdelim(*pc))
-                goto e_malformed;
+        /* TODO: Support things like 0x1j */
 
         state->s = pc;
         return true;
@@ -318,11 +303,13 @@ get_tok_number(struct token_state_t *state)
         if (*pc == 'j' || *pc == 'J') {
                 ret = OC_COMPLEX;
                 pc++;
+                /*
+                 * Can't tell if 'j' is end of number or start of
+                 * next token?
+                 */
+                if (tokc_isident(*pc))
+                        goto malformed;
         }
-
-        /* We don't allow suffixes like f, u, ul, etc. */
-        if (!tokc_isdelim(*pc))
-                goto malformed;
 
         while (start < pc)
                 buffer_putc(&state->tok, *start++);
@@ -803,46 +790,6 @@ token_state_new(FILE *fp, const char *filename)
         }
 
         return state;
-}
-
-void
-cfile_init_token(void)
-{
-        /*
-         * IMPORTANT!! These two strings must be in same order as
-         *             their OC_* enums in token.h
-         */
-        static const char *const DELIMS = "+-<>=&|.!;,/*%^()[]{}:~ \t\n";
-        static const char *const DELIMDBL = "+-<>=&|";
-        const char *s;
-        int i;
-
-        /*
-         * Set up tok_charmap
-         * XXX: more optimal to put this in a code generator
-         * so it's all done at compile time instead.
-         */
-
-        /* delimiter */
-        for (s = DELIMS; *s != '\0'; s++)
-                tok_charmap[(int)*s] |= QDELIM;
-        /* double-delimeters */
-        for (s = DELIMDBL; *s != '\0'; s++)
-                tok_charmap[(int)*s] |= QDDELIM;
-
-        /* special cases */
-        tok_charmap[(int)'*'] |= (QDELIM | QDDELIM);
-        tok_charmap[(int)'`'] |= (QDELIM | QDDELIM);
-        tok_charmap[0] |= QDELIM;
-
-        /* permitted identifier chars */
-        for (i = 'a'; i <= 'z'; i++)
-                tok_charmap[i] |= QIDENT | QIDENT1;
-        for (i = 'A'; i <= 'Z'; i++)
-                tok_charmap[i] |= QIDENT | QIDENT1;
-        for (i = '0'; i <= '9'; i++)
-                tok_charmap[i] |= QIDENT;
-        tok_charmap['_'] |= QIDENT | QIDENT1;
 }
 
 /**

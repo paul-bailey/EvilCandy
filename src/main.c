@@ -6,23 +6,12 @@
 static void
 initialize_program(void)
 {
-        static const struct initfn_tbl_t {
-                void (*initfn)(void);
-        } INITFNS[] = {
-                /* Note: the order of this table matters */
-                { .initfn = cfile_init_ewrappers },
-                { .initfn = cfile_init_var },
-                { .initfn = cfile_init_vm },
-                { .initfn = cfile_init_global },
-                { .initfn = cfile_init_token },
-                { .initfn = cfile_init_instruction_name },
-                { .initfn = NULL },
-        };
-        const struct initfn_tbl_t *t;
-
-        for (t = INITFNS; t->initfn != NULL; t++)
-                t->initfn();
-
+        /* Note: the order matters */
+        cfile_init_ewrappers();
+        cfile_init_var();
+        cfile_init_vm();
+        cfile_init_global();
+        cfile_init_instruction_name();
 }
 
 static void

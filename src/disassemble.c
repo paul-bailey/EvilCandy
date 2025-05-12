@@ -119,7 +119,7 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex, unsigned int i)
                 fprintf(fp, "<%p>", v);
         } else {
                 Object *str = var_str(v);
-                fprintf(fp, "%s", string_get_cstring(str));
+                fprintf(fp, "%s", string_cstring(str));
                 VAR_DECR_REF(str);
         }
 }

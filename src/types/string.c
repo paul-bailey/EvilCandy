@@ -16,7 +16,7 @@ enum {
 enum { SF_COPY = 1, };
 
 #define V2STR(v)                ((struct stringvar_t *)(v))
-#define V2CSTR(v)               (V2STR(v)->s)
+#define V2CSTR(v)               string_cstring(v)
 #define STRING_LENGTH(str)      seqvar_size(str)
 #define STRING_NBYTES(str)      (V2STR(str)->s_info.ascii_len)
 
@@ -726,11 +726,11 @@ string_length_method(Frame *fr)
 }
 
 static bool
-string_format_helper(Object **args, char **src,
+string_format_helper(Object **args, const char **src,
                      struct buffer_t *t, int *lastarg,
                      size_t argc)
 {
-        char *s = *src;
+        const char *s = *src;
         int la = *lastarg;
         Object *q = NULL;
         ++s;
@@ -752,11 +752,11 @@ string_format_helper(Object **args, char **src,
                 return false;
 
         if (isvar_string(q)) {
-                buffer_puts(t, string_get_cstring(q));
+                buffer_puts(t, V2CSTR(q));
         } else {
                 /* not a string, so we'll just use q's .str method. */
                 Object *xpr = var_str(q);
-                buffer_puts(t, string_get_cstring(xpr));
+                buffer_puts(t, V2CSTR(xpr));
                 VAR_DECR_REF(xpr);
         }
 
@@ -778,7 +778,7 @@ string_format(Frame *fr)
         Object **args;
         int lastarg = 0;
         size_t list_size;
-        char *s, *self_s;
+        const char *s, *self_s;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
@@ -810,7 +810,7 @@ string_toint(Frame *fr)
 {
         Object *self = get_this(fr);
         long long i = 0LL;
-        char *s;
+        const char *s;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
@@ -837,7 +837,7 @@ string_tofloat(Frame *fr)
 {
         Object *self = get_this(fr);
         double f = 0.;
-        char *s;
+        const char *s;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
@@ -913,16 +913,17 @@ string_split(Frame *fr)
         Object *self = get_this(fr);
         Object *ret;
         bug_on(!isvar_string(self));
-        char *str;
+        const char *str;
 
         ret = arrayvar_new(0);
-        str = string_get_cstring(self);
+        str = V2CSTR(self);
 
         if (!str || seqvar_size(self) == 0)
                 return ret;
 
         for (;;) {
-                char *start, *end, *newbuf;
+                const char *start, *end;
+                char *newbuf;
                 size_t size;
                 Object *item;
 
@@ -980,7 +981,7 @@ string_replace(Frame *fr)
         Object *self    = get_this(fr);
         Object *vneedle = frame_get_arg(fr, 0);
         Object *vrepl   = frame_get_arg(fr, 1);
-        char *haystack, *needle, *end;
+        const char *haystack, *needle, *end;
         size_t needle_len;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
@@ -1131,7 +1132,7 @@ string_join(Frame *fr)
         struct buffer_t b;
         Object *self = get_this(fr);
         Object *arg = vm_get_arg(fr, 0);
-        char *joinstr;
+        const char *joinstr;
         Object *elem;
         int i;
         size_t n;
@@ -1207,7 +1208,7 @@ string_str(Object *v)
 
         bug_on(!isvar_string(v));
 
-        s = string_get_cstring(v);
+        s = V2CSTR(v);
         buffer_init(&b);
 
         buffer_putc(&b, Q);
@@ -1262,7 +1263,7 @@ static Object *
 string_cat(Object *a, Object *b)
 {
         char *catstr;
-        char *lval, *rval;
+        const char *lval, *rval;
         size_t rlen, llen;
 
         if (!b)
@@ -1305,7 +1306,7 @@ string_cmp(Object *a, Object *b)
 static bool
 string_cmpz(Object *a)
 {
-        char *s = V2CSTR(a);
+        const char *s = V2CSTR(a);
         /* treat "" same as NULL in comparisons */
         return s ? s[0] == '\0' : true;
 }
@@ -1317,7 +1318,7 @@ static bool slice_cmp_gt(int a, int b) { return a > b; }
 static Object *
 string_getslice(Object *str, int start, int stop, int step)
 {
-        char *src;
+        const char *src;
         struct buffer_t b;
         bool (*cmp)(int, int);
 
@@ -1325,7 +1326,7 @@ string_getslice(Object *str, int start, int stop, int step)
                 return stringvar_new("");
 
         buffer_init(&b);
-        src = string_get_cstring(str);
+        src = V2CSTR(str);
         cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
 
         if (V2STR(str)->s_info.enc != STRING_ENC_UTF8) {
@@ -1352,7 +1353,7 @@ static Object *
 string_getitem(Object *str, int idx)
 {
         char cbuf[5];
-        char *src;
+        const char *src;
 
         bug_on(!isvar_string(str));
         src = V2CSTR(str);
@@ -1378,14 +1379,14 @@ string_getitem(Object *str, int idx)
 static bool
 string_hasitem(Object *str, Object *substr)
 {
-        char *haystack, *needle;
+        const char *haystack, *needle;
         bug_on(!isvar_string(str));
         /* XXX policy, throw error instead? */
         if (!isvar_string(substr))
                 return false;
 
-        haystack = string_get_cstring(str);
-        needle = string_get_cstring(substr);
+        haystack = V2CSTR(str);
+        needle = V2CSTR(substr);
         return strstr(haystack, needle) != NULL;
 }
 
@@ -1463,20 +1464,6 @@ stringvar_from_source(const char *tokenstr, bool imm)
         if (!s)
                 return ErrorVar;
         return stringvar_newf(s, 0);
-}
-
-/*
- * WARNING!! This does not produce a reference! Whatever you are doing
- * with the return value, do it now.  Treat it as READ-ONLY.
- *
- * FIXME: This is not thread safe, and "do it quick" is not a good enough
- * solution.
- */
-char *
-string_get_cstring(Object *str)
-{
-        bug_on(!isvar_string(str));
-        return V2CSTR(str);
 }
 
 struct seq_methods_t string_seq_methods = {

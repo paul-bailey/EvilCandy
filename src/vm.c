@@ -87,7 +87,7 @@ symbol_seek(Object *name)
         ret = dict_getitem(symbol_table, name);
         if (!ret) {
                 err_setstr(NameError, "Symbol %s not found",
-                           string_get_cstring(name));
+                           string_cstring(name));
         } else {
                 /*
                  * See where used below.  dict_getitem produced a
@@ -108,7 +108,7 @@ symbol_put(Frame *fr, Object *name, Object *v)
         if (ret != RES_OK && !err_occurred()) {
                 err_setstr(NameError,
                            "Symbol '%s' does not exist or is unassignable",
-                           string_get_cstring(name));
+                           string_cstring(name));
         }
         return ret;
 }
@@ -389,7 +389,7 @@ do_pop(Frame *fr, instruction_t ii)
         Object *p = pop(fr);
         if (ii.arg1 == IARG_POP_PRINT && p != NullVar) {
                 Object *str = var_str(p);
-                fprintf(stderr, "%s\n", string_get_cstring(str));
+                fprintf(stderr, "%s\n", string_cstring(str));
                 VAR_DECR_REF(str);
         }
         VAR_DECR_REF(p);
@@ -465,7 +465,7 @@ do_symtab(Frame *fr, instruction_t ii)
         res = dict_setitem_exclusive(symbol_table, name, NullVar);
         if (res != RES_OK) {
                 err_setstr(NameError, "Symbol %s already exists",
-                                string_get_cstring(name));
+                                string_cstring(name));
         }
         return res;
 }

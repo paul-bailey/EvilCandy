@@ -109,7 +109,7 @@ do_import(Frame *fr)
                 return ErrorVar;
         }
 
-        modestr = string_get_cstring(mode);
+        modestr = string_cstring(mode);
         if (!strcmp(modestr, "r")) {
                 how = R; /* read script and return it as a function */
         } else if (!strcmp(modestr, "x")) {
@@ -119,7 +119,7 @@ do_import(Frame *fr)
                 return ErrorVar;
         }
 
-        fnamestr = string_get_cstring(file_name);
+        fnamestr = string_cstring(file_name);
 
         fp = push_path(fnamestr);
         if (!fp) {
@@ -163,7 +163,7 @@ do_exit(Frame *fr)
 {
         Object *p = frame_get_arg(fr, 0);
         if (p && isvar_string(p))
-                printf("%s\n", string_get_cstring(p));
+                printf("%s\n", string_cstring(p));
         exit(0);
 
         /*
@@ -331,7 +331,7 @@ do_int(Frame *fr)
 
         if (isvar_string(v)) {
                 int base;
-                const char *s = string_get_cstring(v);
+                const char *s = string_cstring(v);
                 char *endptr;
                 long long ival;
 
@@ -371,7 +371,7 @@ bad:
                         errno = EINVAL;
                 err_setstr(ValueError,
                           "Cannot convert string '%s' base %d to int (%s)",
-                          string_get_cstring(v), base, strerror(errno));
+                          string_cstring(v), base, strerror(errno));
                 return ErrorVar;
         }
 
@@ -565,8 +565,8 @@ do_floats(Frame *fr)
                 return ErrorVar;
         if (arg_type_check(le_arg, &StringType) != RES_OK)
                 return ErrorVar;
-        s_enc = string_get_cstring(enc_arg);
-        s_le  = string_get_cstring(le_arg);
+        s_enc = string_cstring(enc_arg);
+        s_le  = string_cstring(le_arg);
 
         t = str2enum(floats_enc_strs, s_enc);
         if (!t) {

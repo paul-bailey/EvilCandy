@@ -314,6 +314,14 @@ struct bytesvar_t {
         unsigned char *b_buf;
 };
 
+struct stringvar_t {
+        struct seqvar_t base;
+        char *s;        /* the actual C string */
+        struct utf8_info_t s_info;
+        hash_t s_hash;
+};
+
+
 /* Warning!! Only call these if you already type-checked @v */
 static inline double floatvar_tod(Object *v)
         { return ((struct floatvar_t *)v)->f; }
@@ -331,6 +339,23 @@ static inline double *floats_get_data(Object *v)
 static inline unsigned char *bytes_get_data(Object *v)
         { return ((struct bytesvar_t *)v)->b_buf; }
 extern int intvar_toi(Object *v);
+
+/*
+ * string helpers - Only call these if you already type-checked @v
+ */
+static inline hash_t string_hash(Object *v)
+        { return ((struct stringvar_t *)v)->s_hash; }
+
+/* may be different from seqvar_size if not entirely ASCII */
+static inline size_t string_nbytes(Object *v)
+        { return ((struct stringvar_t *)v)->s_info.ascii_len; }
+
+static inline const char *
+string_cstring(Object *v)
+{
+        bug_on(!isvar_string(v));
+        return ((struct stringvar_t *)v)->s;
+}
 
 #endif /* EVILCANDY_OBJTYPES_H */
 

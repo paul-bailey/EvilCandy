@@ -76,8 +76,8 @@ str_key_match(Object *key1, Object *key2)
         /* fast-path "==", since these still sometimes are literal()'d */
         return key1 == key2
                || (string_hash(key1) == string_hash(key2)
-                   && !strcmp(string_get_cstring(key1),
-                              string_get_cstring(key2)));
+                   && !strcmp(string_cstring(key1),
+                              string_cstring(key2)));
 }
 
 static inline int
@@ -541,7 +541,7 @@ dict_unique(Object *dict, const char *key)
         i = seek_helper(d, keycopy);
         if (d->d_keys[i] != NULL) {
                 VAR_DECR_REF(keycopy);
-                return string_get_cstring(d->d_keys[i]);
+                return (char *)string_cstring(d->d_keys[i]);
         }
 
         insert_common(d, keycopy, keycopy, i);
@@ -549,7 +549,7 @@ dict_unique(Object *dict, const char *key)
 
         /* additional incref since it's stored twice */
         VAR_INCR_REF(keycopy);
-        return string_get_cstring(keycopy);
+        return (char *)string_cstring(keycopy);
 }
 
 /*
@@ -672,11 +672,11 @@ dict_str(Object *o)
                         buffer_puts(&b, ", ");
 
                 buffer_putc(&b, '\'');
-                buffer_puts(&b, string_get_cstring(k));
+                buffer_puts(&b, string_cstring(k));
                 buffer_puts(&b, "': ");
 
                 item = var_str(d->d_vals[i]);
-                buffer_puts(&b, string_get_cstring(item));
+                buffer_puts(&b, string_cstring(item));
                 VAR_DECR_REF(item);
 
                 count++;
@@ -907,8 +907,8 @@ do_dict_purloin(Frame *fr)
                 i = seek_helper(d, key);
                 if (d->d_keys[i] == NULL) {
                         err_setstr(KeyError,
-                                "Cannot purloin %s: does not exist",
-                                string_get_cstring(key));
+                                   "Cannot purloin %s: does not exist",
+                                   string_cstring(key));
                         return ErrorVar;
                 }
                 purloin_one(&d->d_vals[i]);

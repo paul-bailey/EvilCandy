@@ -219,8 +219,6 @@ extern Object *rangevar_new(long long start,
                         long long stop, long long step);
 
 /* types/string.c */
-extern void string_assign_cstring(Object *str, const char *s);
-extern char *string_get_cstring(Object *str);
 extern Object *stringvar_new(const char *cstr);
 extern Object *stringvar_from_buffer(struct buffer_t *b);
 extern Object *stringvar_from_source(const char *tokenstr, bool imm);

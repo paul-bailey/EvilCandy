@@ -64,7 +64,7 @@ file_write(Object *file, Object *data)
                 size = seqvar_size(data);
                 fwrite(data, 1, size, f->f_fp);
         } else if (isvar_string(data)) {
-                s = (unsigned char *)string_get_cstring(data);
+                s = (unsigned char *)string_cstring(data);
                 size = strlen((char *)s);
         } else {
                 err_setstr(TypeError, "Cannot write '%s' type to %s stream",
@@ -128,7 +128,7 @@ file_str(Object *v)
         buffer_init(&b);
         buffer_printf(&b, "<%s file at %s>",
                      f->f_fp ? "open" : "closed",
-                     string_get_cstring(f->f_name));
+                     string_cstring(f->f_name));
         return stringvar_from_buffer(&b);
 }
 

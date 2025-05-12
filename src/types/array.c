@@ -480,7 +480,7 @@ array_or_tuple_str(Object *t, int startchar)
                 if (i > 0)
                         buffer_puts(&b, ", ");
                 item = var_str(V2ARR(t)->items[i]);
-                buffer_puts(&b, string_get_cstring(item));
+                buffer_puts(&b, string_cstring(item));
                 VAR_DECR_REF(item);
         }
 

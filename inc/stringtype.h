@@ -10,26 +10,6 @@
 
 #include <evilcandy.h>
 
-struct stringvar_t {
-        struct seqvar_t base;
-        char *s;        /* the actual C string */
-        struct utf8_info_t s_info;
-        hash_t s_hash;
-};
-
-static inline hash_t
-string_hash(Object *v)
-{
-        return ((struct stringvar_t *)v)->s_hash;
-}
-
-/* may be different from seqvar_size if not entirely ASCII */
-static inline size_t
-string_nbytes(Object *v)
-{
-        return ((struct stringvar_t *)v)->s_info.ascii_len;
-}
-
 /**
  * string_update_hash - Update string var with hash calculation.
  *

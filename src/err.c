@@ -207,7 +207,7 @@ err_get(void)
 void
 err_print(FILE *fp, Object *exc)
 {
-        char *errval, *errmsg;
+        const char *errval, *errmsg;
         bool tty;
         Object *v, *msg;
 
@@ -217,10 +217,10 @@ err_print(FILE *fp, Object *exc)
         bug_on(exception_validate(exc) != RES_OK);
 
         v = var_str_swap(tuple_getitem(exc, 0));
-        errval = string_get_cstring(v);
+        errval = string_cstring(v);
 
         msg = var_str_swap(tuple_getitem(exc, 1));
-        errmsg = string_get_cstring(msg);
+        errmsg = string_cstring(msg);
 
         tty = !!isatty(fileno(fp));
 
@@ -256,7 +256,7 @@ err_attribute(const char *getorset, Object *deref, Object *obj)
 {
         Object *key = var_str(deref);
         err_setstr(TypeError, "Cannot %s attribute %s of type %s",
-                   getorset, string_get_cstring(key), typestr(obj));
+                   getorset, string_cstring(key), typestr(obj));
         VAR_DECR_REF(key);
 }
 
@@ -265,7 +265,7 @@ err_index(Object *index)
 {
         Object *key = var_str(index);
         err_setstr(IndexError, "Subscript %s out of range",
-                   string_get_cstring(key));
+                   string_cstring(key));
         VAR_DECR_REF(key);
 }
 

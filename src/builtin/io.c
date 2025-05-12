@@ -9,7 +9,7 @@
 static Object *
 do_open(Frame *fr)
 {
-        char *name, *mode, *ps;
+        const char *name, *mode, *ps;
         unsigned int modeflags;
         FILE *fp;
         Object *vname = frame_get_arg(fr, 0);
@@ -19,8 +19,8 @@ do_open(Frame *fr)
                 return ErrorVar;
         if (arg_type_check(vmode, &StringType) != 0)
                 return ErrorVar;
-        name = string_get_cstring(vname);
-        mode = string_get_cstring(vmode);
+        name = string_cstring(vname);
+        mode = string_cstring(vmode);
         if (name == NULL || mode == NULL) {
                 err_setstr(ArgumentError, "Expected: NAME MODE");
                 return ErrorVar;

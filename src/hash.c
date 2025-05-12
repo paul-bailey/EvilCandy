@@ -37,7 +37,7 @@ hash_t
 calc_string_hash(Object *key)
 {
         bug_on(!isvar_string(key));
-        return fnv_cstring_hash(string_get_cstring(key));
+        return fnv_cstring_hash(string_cstring(key));
 }
 
 

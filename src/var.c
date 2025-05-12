@@ -424,7 +424,7 @@ var_getattr(Object *v, Object *key)
                 }
 
                 err_setstr(KeyError, "%s object has no attribute %s",
-                           typestr(v), string_get_cstring(key));
+                           typestr(v), string_cstring(key));
                 return ErrorVar;
 
 found:
@@ -484,7 +484,7 @@ enum result_t
 var_setattr(Object *v, Object *key, Object *attr)
 {
         if (isvar_string(key)) {
-                const char *ks = string_get_cstring(key);
+                const char *ks = string_cstring(key);
                 const struct map_methods_t *map = v->v_type->mpm;
                 if (!map || !map->setitem)
                         goto badtype;

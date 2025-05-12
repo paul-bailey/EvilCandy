@@ -1828,9 +1828,8 @@ new_assembler(const char *source_file_name, FILE *fp)
         return a;
 }
 
-/* If err, delete executable too, all that work for nothing */
 static void
-as_delete_frame_list(struct list_t *parent_list, int err)
+as_delete_frame_list(struct list_t *parent_list)
 {
         struct list_t *li, *tmp;
         list_foreach_safe(li, tmp, parent_list) {
@@ -1864,10 +1863,10 @@ as_delete_frame_list(struct list_t *parent_list, int err)
  *              non-zero to delete those also.
  */
 static void
-free_assembler(struct assemble_t *a, int err)
+free_assembler(struct assemble_t *a)
 {
-        as_delete_frame_list(&a->active_frames, err);
-        as_delete_frame_list(&a->finished_frames, err);
+        as_delete_frame_list(&a->active_frames);
+        as_delete_frame_list(&a->finished_frames);
         token_state_free(a->prog);
         efree(a);
 }
@@ -2195,7 +2194,7 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
          * statement will not be preserved to be executed in the next
          * pass to assemble().
          */
-        free_assembler(a, localstatus == RES_ERROR);
+        free_assembler(a);
         return (Object *)ret;
 }
 

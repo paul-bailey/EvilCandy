@@ -1,5 +1,4 @@
 #include <evilcandy.h>
-#include <stringtype.h>
 
 static hash_t
 fnv_cstring_hash(const char *key)

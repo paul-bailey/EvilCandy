@@ -12,7 +12,6 @@
  * file plays dumb to either case.
  */
 #include <evilcandy.h>
-#include <stringtype.h>
 
 /**
  * struct dictvar_t - Descriptor for an object handle

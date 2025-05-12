@@ -223,6 +223,7 @@ extern Object *stringvar_new(const char *cstr);
 extern Object *stringvar_from_buffer(struct buffer_t *b);
 extern Object *stringvar_from_source(const char *tokenstr, bool imm);
 extern Object *stringvar_nocopy(const char *cstr);
+extern hash_t string_update_hash(Object *v);
 
 /* uuid.c */
 extern char *uuidstr(void);

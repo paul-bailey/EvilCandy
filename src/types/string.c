@@ -1,6 +1,5 @@
 /* string.c - Built-in methods for string data types */
 #include <evilcandy.h>
-#include <stringtype.h>
 #include <errno.h>
 #include <math.h>
 #include <stdlib.h> /* strtol and friends */
@@ -1464,6 +1463,28 @@ stringvar_from_source(const char *tokenstr, bool imm)
         if (!s)
                 return ErrorVar;
         return stringvar_newf(s, 0);
+}
+
+/**
+ * string_update_hash - Update string var with hash calculation.
+ *
+ * This doesn't truly affect the string, so it's not considered a
+ * violation of immutability.  The only reason it doesn't happen at
+ * stringvar_new() time is because we don't know yet if we're going to
+ * need it.  It could be something getting added to .rodata, in which
+ * calculating hash right at startup should be no big deal.  But it
+ * could also be some rando stack variable that gets created and
+ * destroyed every time a certain function is called and returns,
+ * and which is never used in a way that requires the hash.  So we
+ * let the calling code decide whether to update the hash or not.
+ */
+hash_t
+string_update_hash(Object *v)
+{
+        struct stringvar_t *vs = (struct stringvar_t *)v;
+        if (vs->s_hash == (hash_t)0)
+                vs->s_hash = calc_string_hash(v);
+        return vs->s_hash;
 }
 
 struct seq_methods_t string_seq_methods = {

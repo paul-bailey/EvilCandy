@@ -199,6 +199,23 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         NULL,
 };
 
+#ifndef NDEBUG
+static void
+var_sanity_check_types_tbl(void)
+{
+        /*
+         * Bug traps call _Exit, not exit, so bug_on() is safe to call
+         * during an atexit() callback.
+         */
+        int i;
+        for (i = 0; VAR_TYPES_TBL[i] != NULL; i++) {
+                struct type_t *tp = VAR_TYPES_TBL[i];
+                bug_on(tp->freelist != NULL);
+                bug_on(tp->n_freelist != 0);
+        }
+}
+#endif /* !NDEBUG */
+
 /*
  * see main.c - this must be after all the typedef code
  * has had their cfile_init functions called, or it will fail.
@@ -212,6 +229,9 @@ cfile_init_var(void)
 
 #if DBUG_REPORT_VARS_ON_EXIT
         atexit(var_alloc_tell);
+#endif
+#ifndef NDEBUG
+        atexit(var_sanity_check_types_tbl);
 #endif
 }
 

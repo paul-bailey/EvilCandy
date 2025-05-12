@@ -19,6 +19,8 @@ xptr_reset(Object *v)
                 efree(ex->file_name);
         if (ex->label)
                 efree(ex->label);
+        if (ex->uuid)
+                efree(ex->uuid);
 }
 
 static int

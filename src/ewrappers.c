@@ -132,7 +132,7 @@ char *
 estrdup(const char *s)
 {
         char *res = strdup(s);
-        DBUG_LOG_MALLOC(res, strlen(s));
+        DBUG_LOG_MALLOC(res, strlen(s)+1);
         if (!res)
                 fail("strdup failed");
         return res;

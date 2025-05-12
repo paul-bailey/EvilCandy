@@ -19,8 +19,6 @@ xptr_reset(Object *v)
                 efree(ex->file_name);
         if (ex->label)
                 efree(ex->label);
-        if (ex->uuid)
-                efree(ex->uuid);
 }
 
 static int
@@ -38,8 +36,7 @@ xptr_str(Object *v)
 {
         char buf[64];
         memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf) - 1, "<code-block at '%s'>",
-                 V2XP(v)->uuid);
+        snprintf(buf, sizeof(buf) - 1, "<code-block at %p>", v);
         return stringvar_new(buf);
 }
 
@@ -77,7 +74,6 @@ xptrvar_new(const struct xptr_cfg_t *cfg)
         x->n_label      = cfg->n_label;
         x->file_name    = estrdup(cfg->file_name);
         x->file_line    = cfg->file_line;
-        x->uuid         = uuidstr();
         return v;
 }
 

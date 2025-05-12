@@ -322,7 +322,7 @@ func_str(Object *a)
         memset(buf, 0, sizeof(buf));
         if (f->f_magic == FUNC_USER) {
                 snprintf(buf, sizeof(buf)-1,
-                         "<function (user) at '%s'>", f->f_ex->uuid);
+                         "<function (user) at %p>", (void *)f->f_ex);
         } else {
                 snprintf(buf, sizeof(buf)-1,
                          "<function (intl) at %p>", (void *)f->f_cb);

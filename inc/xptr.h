@@ -81,15 +81,6 @@ struct xptrvar_t {
         int n_label;
         char *file_name;
         int file_line;
-        /*
-         * XXX: I'd rather this be uuid_t, but I want to limit the
-         * platform dependence and header namespace to the C modules
-         * as much as possible.
-         *
-         * XXX: Overkill?  These only have to be unique **per file**
-         * Can it not just be an incrementing integer when serializing?
-         */
-        char *uuid;
 };
 
 /* only serializer.c and assembler.c code should need to use these */

@@ -14,24 +14,18 @@
 #include <evilcandy.h>
 #include <stringtype.h>
 
-struct bucket_t {
-        /*
-         * TODO: b_key has hash already, get rid of need for b_hash and
-         * save some space.
-         */
-        hash_t b_hash;
-        Object *b_key;
-        Object *b_data;
-};
-
 /**
  * struct dictvar_t - Descriptor for an object handle
- * @d_size:             Array size of d_bucket, always a power of 2
+ * @d_size:             Array size of d_keys/d_vals, always a power of 2
  * @d_used:             Active entries in hash table
  * @d_count:            Active + removed ('dead') entries in hash table
  * @d_grow_size:        Next threshold for expanding
  * @d_shrink_size:      Next threshold for shrinking
- * @d_bucket:           Array of bucket entries
+ * @d_keys:             Array of keys
+ * @d_vals:             Array of values, whose indices match those of keys.
+ *
+ * d_keys and d_vals are allocated in one call each time the table resizes.
+ * d_vals points at d_keys[d_size].
  */
 struct dictvar_t {
         struct seqvar_t base;
@@ -40,7 +34,8 @@ struct dictvar_t {
         size_t d_count;
         size_t d_grow_size;
         size_t d_shrink_size;
-        struct bucket_t **d_bucket;
+        Object **d_keys;
+        Object **d_vals;
 };
 
 #define V2D(v)          ((struct dictvar_t *)(v))
@@ -61,6 +56,18 @@ struct dictvar_t {
  */
 enum { INIT_SIZE = 16 };
 
+/*
+ * d_keys and d_vals will be clobbered, they're assumed to have
+ * been saved.
+ */
+static void
+bucket_alloc(struct dictvar_t *dict)
+{
+        /* x2 because keys and vals are alloc'd together */
+        dict->d_keys = ecalloc(sizeof(Object *) * dict->d_size * 2);
+        dict->d_vals = &dict->d_keys[dict->d_size];
+}
+
 static bool
 str_key_match(Object *key1, Object *key2)
 {
@@ -73,33 +80,21 @@ str_key_match(Object *key1, Object *key2)
                               string_get_cstring(key2)));
 }
 
-static inline struct bucket_t *
-bucket_alloc(void)
-{
-        return emalloc(sizeof(struct bucket_t));
-}
-
-static inline void
-bucket_free(struct bucket_t *b)
-{
-        efree(b);
-}
-
 static inline int
 bucketi(struct dictvar_t *dict, hash_t hash)
 {
         return hash & (dict->d_size - 1);
 }
 
-static struct bucket_t *
-seek_helper(struct dictvar_t *dict, Object *key,
-                        hash_t hash, unsigned int *idx)
+static int
+seek_helper(struct dictvar_t *dict, Object *key)
 {
-        unsigned int i = bucketi(dict, hash);
-        struct bucket_t *b;
+        Object *k;
+        hash_t hash = string_update_hash(key);
         unsigned long perturb = hash;
-        while ((b = dict->d_bucket[i]) != NULL) {
-                if (b != BUCKET_DEAD && str_key_match(b->b_key, key))
+        int i = bucketi(dict, hash);
+        while ((k = dict->d_keys[i]) != NULL) {
+                if (k != BUCKET_DEAD && str_key_match(k, key))
                         break;
                 /*
                  * Collision or dead entry.
@@ -129,35 +124,43 @@ seek_helper(struct dictvar_t *dict, Object *key,
                 perturb >>= 5;
                 i = bucketi(dict, i * 5 + perturb + 1);
         }
-        *idx = i;
-        return b;
+        bug_on(i < 0 || i >= dict->d_size);
+        return i;
 }
 
 static void
 transfer_table(struct dictvar_t *dict, size_t old_size)
 {
         int i, j, count;
-        struct bucket_t **old, **new;
-        old = dict->d_bucket;
-        dict->d_bucket = new = ecalloc(sizeof(void *) * dict->d_size);
+        Object **old_keys = dict->d_keys;
+        Object **old_vals = dict->d_vals;
+
+        bucket_alloc(dict);
+
         count = 0;
         for (i = 0; i < old_size; i++) {
                 unsigned long perturb;
-                struct bucket_t *b = old[i];
-                if (!b || b == BUCKET_DEAD)
+                Object *k = old_keys[i];
+                hash_t hash;
+
+                if (k == NULL || k == BUCKET_DEAD)
                         continue;
 
-                perturb = b->b_hash;
-                j = bucketi(dict, b->b_hash);
-                while (new[j]) {
+                hash = string_hash(k);
+                bug_on(!hash);
+                perturb = hash;
+                j = bucketi(dict, hash);
+                while (dict->d_keys[j] != NULL) {
                         perturb >>= 5;
                         j = bucketi(dict, j * 5 + perturb + 1);
                 }
-                new[j] = b;
+                dict->d_keys[j] = old_keys[i];
+                dict->d_vals[j] = old_vals[i];
                 count++;
         }
+
         dict->d_count = dict->d_used = count;
-        efree(old);
+        efree(old_keys);
 }
 
 static void
@@ -219,13 +222,11 @@ maybe_shrink_table(struct dictvar_t *dict)
 
 static inline void
 insert_common(struct dictvar_t *dict, Object *key,
-              Object *data, hash_t hash, unsigned int i)
+              Object *data, int i)
 {
-        struct bucket_t *b = bucket_alloc();
-        b->b_key = key;
-        b->b_data = data;
-        b->b_hash = hash;
-        dict->d_bucket[i] = b;
+        bug_on(!isvar_string(key));
+        dict->d_keys[i] = key;
+        dict->d_vals[i] = data;
         dict->d_count++;
         dict->d_used++;
         maybe_grow_table(dict);
@@ -310,7 +311,7 @@ dict_keys(Object *obj)
 {
         Object *keys;
         struct dictvar_t *d;
-        unsigned int i;
+        int i;
         int array_i;
 
         bug_on(!isvar_dict(obj));
@@ -320,12 +321,10 @@ dict_keys(Object *obj)
         array_i = 0;
 
         for (i = 0; i < d->d_size; i++) {
-                struct bucket_t *b = d->d_bucket[i];
-                Object *ks;
-                if (b == NULL || b == BUCKET_DEAD)
+                Object *ks = d->d_keys[i];
+                if (ks == NULL || ks == BUCKET_DEAD)
                         continue;
 
-                ks = b->b_key;
                 array_setitem(keys, array_i, ks);
                 array_i++;
         }
@@ -348,7 +347,7 @@ dictvar_new(void)
         d->d_used = 0;
         d->d_count = 0;
         refresh_grow_markers(d);
-        d->d_bucket = ecalloc(sizeof(void *) * INIT_SIZE);
+        bucket_alloc(d);
         return o;
 }
 
@@ -397,21 +396,18 @@ Object *
 dict_getitem(Object *o, Object *key)
 {
         struct dictvar_t *d;
-        unsigned int i;
-        hash_t hash;
-        struct bucket_t *b;
+        int i;
 
         d = V2D(o);
         bug_on(!isvar_dict(o));
         bug_on(!isvar_string(key));
 
-        hash = string_update_hash(key);
-        b = seek_helper(d, key, hash, &i);
-        if (!b)
+        i = seek_helper(d, key);
+        if (d->d_keys[i] == NULL)
                 return NULL;
 
-        VAR_INCR_REF(b->b_data);
-        return b->b_data;
+        VAR_INCR_REF(d->d_vals[i]);
+        return d->d_vals[i];
 }
 
 /*
@@ -439,10 +435,8 @@ static enum result_t
 dict_insert(Object *dict, Object *key,
               Object *attr, unsigned int flags)
 {
-        unsigned int i;
+        int i;
         struct dictvar_t *d;
-        hash_t hash;
-        struct bucket_t *b;
 
         bug_on(!!(flags & DF_EXCL) && attr == NULL);
         bug_on(!!(flags & DF_SWAP) && attr == NULL);
@@ -452,39 +446,38 @@ dict_insert(Object *dict, Object *key,
 
         d = V2D(dict);
 
-        hash = string_update_hash(key);
-        b = seek_helper(d, key, hash, &i);
+        i = seek_helper(d, key);
 
         /* @child is either the former entry replaced by @attr or NULL */
         if (attr) {
                 /* insert */
-                if (b) {
+                if (d->d_keys[i] != NULL) {
                         /* replace old, don't grow table */
                         if (!!(flags & DF_EXCL))
                                 return RES_ERROR;
 
                         VAR_INCR_REF(attr);
                         VAR_INCR_REF(key);
-                        VAR_DECR_REF(b->b_data);
-                        VAR_DECR_REF(b->b_key);
-                        b->b_key = key;
-                        b->b_data = attr;
+                        VAR_DECR_REF(d->d_vals[i]);
+                        VAR_DECR_REF(d->d_keys[i]);
+                        d->d_keys[i] = key;
+                        d->d_vals[i] = attr;
                 } else {
                         /* put */
                         if (!!(flags & DF_SWAP))
                                 return RES_ERROR;
+
                         VAR_INCR_REF(key);
                         VAR_INCR_REF(attr);
-                        insert_common(d, key, attr, hash, i);
+                        insert_common(d, key, attr, i);
                         bug_on(d->d_used != seqvar_size(dict) + 1);
                         seqvar_set_size(dict, d->d_used);
                 }
-        } else if (b) {
+        } else if (d->d_keys[i] != NULL) {
                 /* remove */
-                VAR_DECR_REF(b->b_data);
-                VAR_DECR_REF(b->b_key);
-                bucket_free(b);
-                d->d_bucket[i] = BUCKET_DEAD;
+                VAR_DECR_REF(d->d_vals[i]);
+                VAR_DECR_REF(d->d_keys[i]);
+                d->d_keys[i] = BUCKET_DEAD;
                 d->d_used--;
                 maybe_shrink_table(d);
                 bug_on(d->d_used != seqvar_size(dict) - 1);
@@ -534,9 +527,7 @@ char *
 dict_unique(Object *dict, const char *key)
 {
         Object *keycopy;
-        unsigned int i;
-        hash_t hash;
-        struct bucket_t *b;
+        int i;
         struct dictvar_t *d;
 
         d = V2D(dict);
@@ -547,14 +538,13 @@ dict_unique(Object *dict, const char *key)
          * time consuming?  This is for **every** token!
          */
         keycopy = stringvar_new(key);
-        hash = string_update_hash(keycopy);
-        b = seek_helper(d, keycopy, hash, &i);
-        if (b) {
+        i = seek_helper(d, keycopy);
+        if (d->d_keys[i] != NULL) {
                 VAR_DECR_REF(keycopy);
-                return string_get_cstring(b->b_key);
+                return string_get_cstring(d->d_keys[i]);
         }
 
-        insert_common(d, keycopy, keycopy, hash, i);
+        insert_common(d, keycopy, keycopy, i);
         seqvar_set_size(dict, d->d_used);
 
         /* additional incref since it's stored twice */
@@ -574,17 +564,16 @@ dict_setitem_replace(Object *dict,
         return dict_insert(dict, key, attr, DF_SWAP);
 }
 
-
 static int
 dict_hasitem(Object *dict, Object *key)
 {
-        unsigned int i;
+        int i;
         if (!key)
                 return 0;
         bug_on(!isvar_dict(dict));
 
-        hash_t hash = string_update_hash(key);
-        return seek_helper(V2D(dict), key, hash, &i) != NULL;
+        i = seek_helper(V2D(dict), key);
+        return V2D(dict)->d_keys[i] != NULL;
 }
 
 /*
@@ -599,16 +588,16 @@ dict_hasitem(Object *dict, Object *key)
 void
 dict_add_to_globals(Object *dict)
 {
-        unsigned int i;
+        int i;
         struct dictvar_t *d = V2D(dict);
         bug_on(!isvar_dict(dict));
 
         for (i = 0; i < d->d_size; i++) {
-                struct bucket_t *b = d->d_bucket[i];
-                if (b == NULL || b == BUCKET_DEAD)
+                Object *k = d->d_keys[i];
+                if (k == NULL || k == BUCKET_DEAD)
                         continue;
 
-                vm_add_global(b->b_key, b->b_data);
+                vm_add_global(k, d->d_vals[i]);
         }
 }
 
@@ -641,17 +630,17 @@ dict_reset(Object *o)
         dict = V2D(o);
 
         for (i = 0; i < dict->d_size; i++) {
-                if (dict->d_bucket[i] == BUCKET_DEAD) {
-                        dict->d_bucket[i] = NULL;
-                } else if (dict->d_bucket[i] != NULL) {
-                        VAR_DECR_REF(dict->d_bucket[i]->b_data);
-                        VAR_DECR_REF(dict->d_bucket[i]->b_key);
-                        bucket_free(dict->d_bucket[i]);
-                        dict->d_bucket[i] = NULL;
+                if (dict->d_keys[i] == BUCKET_DEAD) {
+                        dict->d_keys[i] = NULL;
+                } else if (dict->d_keys[i] != NULL) {
+                        VAR_DECR_REF(dict->d_vals[i]);
+                        VAR_DECR_REF(dict->d_keys[i]);
+                        dict->d_keys[i] = NULL;
+                        dict->d_vals[i] = NULL;
                 }
         }
         dict->d_count = dict->d_used = 0;
-        efree(dict->d_bucket);
+        efree(dict->d_keys);
 }
 
 static Object *
@@ -659,7 +648,7 @@ dict_str(Object *o)
 {
         struct dictvar_t *d;
         struct buffer_t b;
-        unsigned int i;
+        int i;
         int count;
         Object *ret;
 
@@ -674,19 +663,19 @@ dict_str(Object *o)
 
         count = 0;
         for (i = 0; i < d->d_size; i++) {
-                struct bucket_t *bk = d->d_bucket[i];
+                Object *k = d->d_keys[i];
                 Object *item;
-                if (bk == NULL || bk == BUCKET_DEAD)
+                if (k == NULL || k == BUCKET_DEAD)
                         continue;
 
                 if (count > 0)
                         buffer_puts(&b, ", ");
 
                 buffer_putc(&b, '\'');
-                buffer_puts(&b, string_get_cstring(bk->b_key));
+                buffer_puts(&b, string_get_cstring(k));
                 buffer_puts(&b, "': ");
 
-                item = var_str(bk->b_data);
+                item = var_str(d->d_vals[i]);
                 buffer_puts(&b, string_get_cstring(item));
                 VAR_DECR_REF(item);
 
@@ -703,14 +692,14 @@ dict_str(Object *o)
 static int
 dict_copyto(Object *to, Object *from)
 {
-        unsigned int i;
+        int i;
         struct dictvar_t *d = V2D(from);
 
         for (i = 0; i < d->d_size; i++) {
-                struct bucket_t *b = d->d_bucket[i];
-                if (b == NULL || b == BUCKET_DEAD)
+                Object *k = d->d_keys[i];
+                if (k == NULL || k == BUCKET_DEAD)
                         continue;
-                if (dict_setitem(to, b->b_key, b->b_data) != RES_OK)
+                if (dict_setitem(to, k, d->d_vals[i]) != RES_OK)
                         return RES_ERROR;
         }
         return RES_OK;
@@ -866,14 +855,14 @@ do_dict_copy(Frame *fr)
 }
 
 static void
-purloin_one(struct bucket_t *b)
+purloin_one(Object **x)
 {
-        if (isvar_method(b->b_data)) {
+        if (isvar_method(*x)) {
                 Object *func, *owner;
-                methodvar_tofunc(b->b_data, &func, &owner);
+                methodvar_tofunc(*x, &func, &owner);
                 VAR_DECR_REF(owner);
-                VAR_DECR_REF(b->b_data);
-                b->b_data = func;
+                VAR_DECR_REF(*x);
+                *x = func;
         }
 }
 
@@ -895,8 +884,7 @@ purloin_one(struct bucket_t *b)
 static Object *
 do_dict_purloin(Frame *fr)
 {
-        unsigned int i;
-        struct bucket_t *b;
+        int i;
         Object *self = get_this(fr);
         Object *key  = vm_get_arg(fr, 0);
         struct dictvar_t *d = V2D(self);
@@ -906,27 +894,24 @@ do_dict_purloin(Frame *fr)
 
         if (!key) {
                 for (i = 0; i < d->d_size; i++) {
-                        b = d->d_bucket[i];
-                        if (b == NULL || b == BUCKET_DEAD)
+                        Object *k = d->d_keys[i];
+                        if (k == NULL || k == BUCKET_DEAD)
                                 continue;
 
-                        purloin_one(b);
+                        purloin_one(&d->d_vals[i]);
                 }
         } else {
-                hash_t hash;
-
                 if (arg_type_check(key, &StringType) == RES_ERROR)
                         return ErrorVar;
 
-                hash = string_update_hash(key);
-                b = seek_helper(d, key, hash, &i);
-                if (!b) {
+                i = seek_helper(d, key);
+                if (d->d_keys[i] == NULL) {
                         err_setstr(KeyError,
                                 "Cannot purloin %s: does not exist",
                                 string_get_cstring(key));
                         return ErrorVar;
                 }
-                purloin_one(b);
+                purloin_one(&d->d_vals[i]);
         }
         return NULL;
 }

@@ -19,7 +19,6 @@ end_program(void)
 {
 
         cfile_deinit_instruction_name();
-        /* no deinit for token.c */
         cfile_deinit_global();
         cfile_deinit_vm();
         /* must be last */

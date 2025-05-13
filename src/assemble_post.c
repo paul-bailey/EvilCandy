@@ -127,10 +127,10 @@ remove_unused_rodata(struct as_frame_t *fr)
 }
 
 static Object *
-try_binop(Object *left, Object *right, int opcode)
+try_binop(Object *left, Object *right, instruction_t *ii)
 {
         binary_operator_t func = NULL;
-        switch (opcode) {
+        switch (ii->code) {
         case INSTR_MUL:
                 func = qop_mul;
                 break;
@@ -171,6 +171,10 @@ try_binop(Object *left, Object *right, int opcode)
                 func = var_logical_and;
                 break;
         case INSTR_CMP:
+            {
+                bool cmp = var_compare_iarg(left, right, ii->arg1);
+                return intvar_new((int)cmp);
+            }
         default:
                 /* default, not a binary operator */
                 return NULL;
@@ -267,7 +271,7 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
 
                         left = rodata[ip->arg2];
                         right = rodata[ip2->arg2];
-                        result = try_binop(left, right, ip3->code);
+                        result = try_binop(left, right, ip3);
 
                         /*
                          * NULL means either ip3 wasn't a bin-op or an

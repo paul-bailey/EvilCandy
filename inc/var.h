@@ -100,6 +100,7 @@ extern Object *var_getattr(Object *v, Object *deref);
 extern bool var_hasattr(Object *haystack, Object *needle);
 extern enum result_t var_setattr(Object *v, Object *deref, Object *attr);
 extern int var_compare(Object *a, Object *b);
+extern bool var_compare_iarg(Object *a, Object *b, int iarg);
 extern int var_sort(Object *v);
 extern Object *var_str(Object *v);
 extern Object *var_str_swap(Object *v);

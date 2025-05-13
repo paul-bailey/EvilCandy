@@ -94,6 +94,11 @@ symbol_seek(Object *name)
                  * reference, but so will do_load, since VARPTR might
                  * give it something from the stack instead of here.
                  * So consume one reference to keep it balanced.
+                 *
+                 * FIXME: Hazardous to have to know this here and make
+                 * such unclean code.  By making separate opcodes --
+                 * LOAD_NAME apart from LOAD, ASSIGN_NAME apart from
+                 * ASSIGN -- we won't have this problem.
                  */
                 VAR_DECR_REF(ret);
         }
@@ -873,43 +878,7 @@ do_cmp(Frame *fr, instruction_t ii)
 
         rval = pop(fr);
         lval = pop(fr);
-
-        if (ii.arg1 == IARG_EQ3 || ii.arg1 == IARG_NEQ3) {
-                /* strict compare */
-                cmp = (rval == lval);
-                if (ii.arg1 == IARG_NEQ3)
-                        cmp = !cmp;
-                goto done;
-        } else if (ii.arg1 == IARG_HAS) {
-                cmp = var_hasattr(lval, rval);
-                goto done;
-        }
-
-        cmp = var_compare(lval, rval);
-        switch (ii.arg1) {
-        case IARG_EQ:
-                cmp = cmp == 0;
-                break;
-        case IARG_LEQ:
-                cmp = cmp <= 0;
-                break;
-        case IARG_GEQ:
-                cmp = cmp >= 0;
-                break;
-        case IARG_NEQ:
-                cmp = cmp != 0;
-                break;
-        case IARG_LT:
-                cmp = cmp < 0;
-                break;
-        case IARG_GT:
-                cmp = cmp > 0;
-                break;
-        default:
-                bug();
-        }
-
-done:
+        cmp = var_compare_iarg(lval, rval, ii.arg1);
         res = intvar_new(cmp);
         push(fr, res);
         VAR_DECR_REF(rval);

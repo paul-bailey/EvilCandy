@@ -545,6 +545,53 @@ var_compare(Object *a, Object *b)
         return a->v_type->cmp(a, b);
 }
 
+/**
+ * var_compare - compare two variables, taking an instruction arg
+ * @a:          Left operand
+ * @b:          Right operand
+ * @iarg:       One of the IARG_xxx enums
+ *
+ * Return: True if "@a @iarg @b" is true, false otherwise.
+ */
+bool
+var_compare_iarg(Object *a, Object *b, int iarg)
+{
+        int cmp;
+        if (iarg == IARG_EQ3 || iarg == IARG_NEQ3) {
+                /* strict compare */
+                cmp = (b == a);
+                if (iarg == IARG_NEQ3)
+                        cmp = !cmp;
+        } else if (iarg == IARG_HAS) {
+                cmp = var_hasattr(a, b);
+        } else {
+                cmp = var_compare(a, b);
+                switch (iarg) {
+                case IARG_EQ:
+                        cmp = cmp == 0;
+                        break;
+                case IARG_LEQ:
+                        cmp = cmp <= 0;
+                        break;
+                case IARG_GEQ:
+                        cmp = cmp >= 0;
+                        break;
+                case IARG_NEQ:
+                        cmp = cmp != 0;
+                        break;
+                case IARG_LT:
+                        cmp = cmp < 0;
+                        break;
+                case IARG_GT:
+                        cmp = cmp > 0;
+                        break;
+                default:
+                        bug();
+                }
+        }
+        return !!cmp;
+}
+
 int
 var_sort(Object *v)
 {

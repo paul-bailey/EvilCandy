@@ -270,9 +270,6 @@ static inline bool isvar_property(Object *v)
 static inline bool isvar_floats(Object *v)
         { return v->v_type == &FloatsType; }
 
-/* not 'isvar_num'... there always has to be an odd one out */
-static inline bool isnumvar(Object *v)
-        { return v->v_type->opm != NULL; }
 static inline bool isvar_real(Object *v)
         { return isvar_float(v) || isvar_int(v); }
 static inline bool isvar_seq(Object *v)
@@ -329,9 +326,9 @@ static inline double floatvar_tod(Object *v)
         { return ((struct floatvar_t *)v)->f; }
 static inline long long intvar_toll(Object *v)
         { return ((struct intvar_t *)v)->i; }
-static inline long long numvar_toint(Object *v)
+static inline long long realvar_toint(Object *v)
         { return isvar_int(v) ? intvar_toll(v) : (long long)floatvar_tod(v); }
-static inline double numvar_tod(Object *v)
+static inline double realvar_tod(Object *v)
         { return isvar_float(v) ? floatvar_tod(v) : (double)intvar_toll(v); }
 static inline Object **array_get_data(Object *v)
         { return ((struct arrayvar_t *)v)->items; }

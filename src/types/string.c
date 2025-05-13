@@ -303,7 +303,7 @@ format2_i(struct buffer_t *buf, Object *arg,
         int base;
         size_t count;
         int xchar = 'A' - 10;
-        long long ival = numvar_toint(arg);
+        long long ival = realvar_toint(arg);
 
         /* overrule '0' if left-justified */
         if (!rjust)
@@ -376,7 +376,7 @@ format2_e(struct buffer_t *buf, Object *arg,
         int sigfig = 0;
         double ival;
         /* checked before this call */
-        double v = numvar_tod(arg);
+        double v = realvar_tod(arg);
         double dv = v;
 
         size_t count = buf->p;
@@ -457,7 +457,7 @@ static void
 format2_f(struct buffer_t *buf, Object *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
-        double v = numvar_tod(arg);
+        double v = realvar_tod(arg);
         bool have_dot = false;
         size_t count = buf->p;
 
@@ -598,18 +598,18 @@ format2_helper(Object **args, struct buffer_t *buf, const char *s, int argi, int
         case 'X':
         case 'd':
         case 'u':
-                if (!isnumvar(v))
+                if (!isvar_real(v))
                         return 0;
                 format2_i(buf, v, conv, rjust, padc, padlen, precision);
                 break;
         case 'f':
-                if (!isnumvar(v))
+                if (!isvar_real(v))
                         return 0;
                 format2_f(buf, v, conv, rjust, padc, padlen, precision);
                 break;
         case 'e':
         case 'E':
-                if (!isnumvar(v))
+                if (!isvar_real(v))
                         return 0;
                 format2_e(buf, v, conv, rjust, padc, padlen, precision);
                 break;

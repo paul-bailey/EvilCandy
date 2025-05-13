@@ -808,4 +808,30 @@ var_lnot(Object *v)
         return intvar_new((int)cond);
 }
 
+Object *
+var_logical_or(Object *a, Object *b)
+{
+        int status;
+        bool res = !var_cmpz(a, &status);
+        if (status)
+                return NULL;
+        res = res || !var_cmpz(b, &status);
+        if (status)
+                return NULL;
+        return intvar_new((int)res);
+}
+
+Object *
+var_logical_and(Object *a, Object *b)
+{
+        int status;
+        bool res = !var_cmpz(a, &status);
+        if (status)
+                return NULL;
+        res = res && !var_cmpz(b, &status);
+        if (status)
+                return NULL;
+        return intvar_new((int)res);
+}
+
 

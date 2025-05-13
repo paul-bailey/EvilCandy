@@ -314,32 +314,6 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
         return RES_OK;
 }
 
-static Object *
-logical_or(Object *a, Object *b)
-{
-        int status;
-        bool res = !var_cmpz(a, &status);
-        if (status)
-                return NULL;
-        res = res || !var_cmpz(b, &status);
-        if (status)
-                return NULL;
-        return intvar_new((int)res);
-}
-
-static Object *
-logical_and(Object *a, Object *b)
-{
-        int status;
-        bool res = !var_cmpz(a, &status);
-        if (status)
-                return NULL;
-        res = res && !var_cmpz(b, &status);
-        if (status)
-                return NULL;
-        return intvar_new((int)res);
-}
-
 static int
 do_nop(Frame *fr, instruction_t ii)
 {
@@ -964,13 +938,13 @@ do_binary_xor(Frame *fr, instruction_t ii)
 static int
 do_logical_or(Frame *fr, instruction_t ii)
 {
-        return binary_op_common(fr, logical_or);
+        return binary_op_common(fr, var_logical_or);
 }
 
 static int
 do_logical_and(Frame *fr, instruction_t ii)
 {
-        return binary_op_common(fr, logical_and);
+        return binary_op_common(fr, var_logical_and);
 }
 
 static int

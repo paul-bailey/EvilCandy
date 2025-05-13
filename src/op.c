@@ -55,7 +55,6 @@ BINARY_OP_BASIC_FUNC(xor, "^")
 BINARY_OP_BASIC_FUNC(lshift, "<<")
 BINARY_OP_BASIC_FUNC(rshift, ">>")
 
-
 Object *
 qop_bit_or(Object *a, Object *b)
 {

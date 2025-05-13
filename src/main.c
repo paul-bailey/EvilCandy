@@ -17,7 +17,6 @@ initialize_program(void)
 static void
 end_program(void)
 {
-
         cfile_deinit_instruction_name();
         cfile_deinit_global();
         cfile_deinit_vm();

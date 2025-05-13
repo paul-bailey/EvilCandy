@@ -64,6 +64,7 @@ static inline size_t seqvar_size(Object *v)
 static inline void seqvar_set_size(Object *v, size_t size)
         { ((struct seqvar_t *)v)->v_size = size; }
 
+/* note: v only evaluated once in VAR_*_REF() */
 #define VAR_INCR_REF(v) do { (v)->v_refcnt++; } while (0)
 #define VAR_DECR_REF(v) do {      \
         Object *v_ = (v);         \
@@ -108,7 +109,8 @@ extern bool var_any(Object *v, enum result_t *status);
 extern Object *var_min(Object *v);
 extern Object *var_max(Object *v);
 extern Object *var_lnot(Object *v);
-/* note: v only evaluated once in VAR_*_REF() */
+extern Object *var_logical_or(Object *a, Object *b);
+extern Object *var_logical_and(Object *a, Object *b);
 extern void var_delete__(Object *v);
 
 /* var_from_format.c */

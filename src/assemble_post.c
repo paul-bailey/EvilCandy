@@ -158,14 +158,18 @@ try_binop(Object *left, Object *right, int opcode)
         case INSTR_BINARY_XOR:
                 func = qop_xor;
                 break;
-        /*
-         * XXX These either take args or are otherwise do not have pure
-         * qop_XXX functions, but that's no reason we can't support them
-         */
-        case INSTR_LOGICAL_OR:
-        case INSTR_LOGICAL_AND:
         case INSTR_LSHIFT:
+                func = qop_lshift;
+                break;
         case INSTR_RSHIFT:
+                func = qop_rshift;
+                break;
+        case INSTR_LOGICAL_OR:
+                func = var_logical_or;
+                break;
+        case INSTR_LOGICAL_AND:
+                func = var_logical_and;
+                break;
         case INSTR_CMP:
         default:
                 /* default, not a binary operator */

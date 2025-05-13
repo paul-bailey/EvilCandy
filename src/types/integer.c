@@ -145,14 +145,29 @@ int_sub(Object *a, Object *b)
         return intvar_new(la - lb);
 }
 
+/*
+ * cmp is not an .opm operation, so @b may be non-integer.
+ * var_compare made sure not to call us for non-real numbers,
+ * so assume @b is either float or int.
+ */
 static int
 int_cmp(Object *a, Object *b)
 {
-        long long la, lb;
-        BUGCHECK_TYPES(a, b);
-        la = intvar_toll(a);
-        lb = intvar_toll(b);
-        return OP_CMP(la, lb);
+        bug_on(!isvar_int(a) || !isvar_real(b));
+
+        long long la = intvar_toll(a);
+        if (isvar_int(b)) {
+                long long lb = intvar_toll(b);
+                return OP_CMP(la, lb);
+        } else {
+                /*
+                 * b is float.  Don't convert b into int, or else
+                 * we'd return zero for things like a=1 and b=1.1
+                 */
+                double fa = (double)la;
+                double fb = floatvar_tod(b);
+                return OP_CMP(fa, fb);
+        }
 }
 
 static Object *

@@ -537,7 +537,7 @@ var_compare(Object *a, Object *b)
         if (b == NULL)
                 return 1;
         if (a->v_type != b->v_type
-            && !(isnumvar(a) && isnumvar(b))) {
+            && !(isvar_real(a) && isvar_real(b))) {
                 return strcmp(typestr(a), typestr(b));
         }
         if (!a->v_type->cmp)

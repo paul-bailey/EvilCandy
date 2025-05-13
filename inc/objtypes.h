@@ -273,6 +273,8 @@ static inline bool isvar_floats(Object *v)
 /* not 'isvar_num'... there always has to be an odd one out */
 static inline bool isnumvar(Object *v)
         { return v->v_type->opm != NULL; }
+static inline bool isvar_real(Object *v)
+        { return isvar_float(v) || isvar_int(v); }
 static inline bool isvar_seq(Object *v)
         { return v->v_type->sqm != NULL; }
 static inline bool isvar_map(Object *v)

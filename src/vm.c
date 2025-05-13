@@ -880,6 +880,9 @@ do_cmp(Frame *fr, instruction_t ii)
                 if (ii.arg1 == IARG_NEQ3)
                         cmp = !cmp;
                 goto done;
+        } else if (ii.arg1 == IARG_HAS) {
+                cmp = var_hasattr(lval, rval);
+                goto done;
         }
 
         cmp = var_compare(lval, rval);
@@ -901,9 +904,6 @@ do_cmp(Frame *fr, instruction_t ii)
                 break;
         case IARG_GT:
                 cmp = cmp > 0;
-                break;
-        case IARG_HAS:
-                cmp = var_hasattr(lval, rval);
                 break;
         default:
                 bug();

@@ -807,20 +807,35 @@ assemble_call_func(struct assemble_t *a)
                 as_lex(a);
                 if (a->oc->t == OC_RPAR)
                         break;
-                if (a->oc->t == OC_IDENTIFIER) {
+                if (a->oc->t == OC_MUL) {
+                        /*
+                         * Atomic, not full eval.
+                         * Certain starred args are too ambiguous.
+                         * Require caller to express them as:
+                         *
+                         *      *(x.y)            not   *x.y
+                         *      *([...].sort())   not   *[...].sort()
+                         */
                         as_lex(a);
-                        if (a->oc->t == OC_EQ) {
-                                kwind = argc;
+                        assemble_expr5_atomic(a);
+                        add_instr(a, INSTR_DEFSTAR, 0, 0);
+                        argc++;
+                } else {
+                        if (a->oc->t == OC_IDENTIFIER) {
+                                as_lex(a);
+                                if (a->oc->t == OC_EQ) {
+                                        kwind = argc;
+                                        as_unlex(a);
+                                        as_unlex(a);
+                                        break;
+                                }
                                 as_unlex(a);
-                                as_unlex(a);
-                                break;
                         }
                         as_unlex(a);
+                        assemble_expr(a);
+                        argc++;
+                        as_lex(a);
                 }
-                as_unlex(a);
-                assemble_expr(a);
-                argc++;
-                as_lex(a);
         } while (a->oc->t == OC_COMMA);
 
         if (kwind >= 0) {

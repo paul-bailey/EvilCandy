@@ -61,6 +61,16 @@ struct type_t StarType = {
 };
 
 Object *
+star_unpack(Object *star)
+{
+        Object *e;
+        bug_on(!isvar_star(star));
+        e = ((struct starvar_t *)star)->st_elem;
+        VAR_INCR_REF(e);
+        return e;
+}
+
+Object *
 starvar_new(Object *x)
 {
         Object *ret = var_new(&StarType);

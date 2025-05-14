@@ -220,6 +220,7 @@ extern Object *rangevar_new(long long start,
 
 /* types/star.c */
 extern Object *starvar_new(Object *x);
+extern Object *star_unpack(Object *star);
 
 /* types/string.c */
 extern Object *stringvar_new(const char *cstr);

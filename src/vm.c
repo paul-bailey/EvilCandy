@@ -552,6 +552,25 @@ do_deflist(Frame *fr, instruction_t ii)
 }
 
 static int
+do_defstar(Frame *fr, instruction_t ii)
+{
+        Object *arr, *star;
+
+        arr = pop(fr);
+        if (!isvar_array(arr)) {
+                err_setstr(NotImplementedError,
+                        "Currently lists are the only valid starred arguments");
+                return RES_ERROR;
+        }
+
+        star = starvar_new(arr);
+        VAR_DECR_REF(arr);
+
+        push(fr, star);
+        return RES_OK;
+}
+
+static int
 do_defdict(Frame *fr, instruction_t ii)
 {
         Object **arr;

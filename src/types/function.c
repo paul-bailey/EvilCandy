@@ -94,6 +94,7 @@ function_call(Frame *fr, bool have_dict)
 {
         Object *dict;
         struct funcvar_t *fh;
+        int i;
 
         if (!isvar_function(fr->func))
                 goto err;
@@ -116,10 +117,22 @@ function_call(Frame *fr, bool have_dict)
         }
         /* else, leave dict NULL */
 
+        /* Make sure starred arg is only in optind position */
+        for (i = 0; i < fr->ap; i++) {
+                Object *v = fr->stack[i];
+                if (isvar_star(v) && i != fh->f_optind) {
+                        err_setstr(ArgumentError,
+                                "Positional arguments may not be starred");
+                        goto err;
+                }
+        }
+
         /* Compact optional args into a list at optind */
         if (fh->f_optind >= 0) {
-                Object *opts, **start;
+                Object *opts, **vargs;
                 int n;
+
+                vargs = &fr->stack[fh->f_optind];
                 n = fr->ap - fh->f_optind;
                 if (n < 0) {
                         err_setstr(ArgumentError, "Missing argument");
@@ -128,12 +141,29 @@ function_call(Frame *fr, bool have_dict)
                         goto err;
                 }
 
-                /* List size n may be zero here */
-                start = &fr->stack[fh->f_optind];
-                opts = arrayvar_from_stack(start, n, true);
+                if (n > 0 && isvar_star(*vargs)) {
+                        /* 'starred', already compacted as arg */
+                        if (n != 1) {
+                                err_setstr(ArgumentError,
+                                        "Starred argument must be last non-keyword argument");
+                                goto err;
+                        }
 
-                fr->ap -= n;
-                fr->stack[fr->ap++] = opts;
+                        Object *star = *vargs;
+                        Object *arr = star_unpack(star);
+                        VAR_DECR_REF(star);
+
+                        *vargs = arr;
+
+                        bug_on(!isvar_array(arr));
+                        bug_on(fr->ap != fh->f_optind + 1);
+                } else {
+                        /* Unstarred, list <- 0 or more stack items */
+                        opts = arrayvar_from_stack(vargs, n, true);
+
+                        fr->ap -= n;
+                        fr->stack[fr->ap++] = opts;
+                }
         }
 
         /* Put dict back onto the stack at the correct spot */

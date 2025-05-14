@@ -91,6 +91,9 @@ DEFDICT
 # like DEFLIST... but in tuple form!
 DEFTUPLE
 
+# Check if stack top is the correct type, then wrap it in a StarType
+DEFSTAR
+
 ##
 #   GET/SET/LOADATTR
 #

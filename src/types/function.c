@@ -101,6 +101,7 @@ function_call(Frame *fr, bool have_dict)
         fh = V2FUNC(fr->func);
         bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
 
+        /* Pull dict off the stack, since we may need to reposition it */
         dict = NULL;
         if (have_dict){
                 if (fh->f_kwind < 0) {
@@ -115,12 +116,7 @@ function_call(Frame *fr, bool have_dict)
         }
         /* else, leave dict NULL */
 
-        /*
-         * XXX REVISIT: We can forgo this step by setting a call-specific
-         * optind and kwind field in the Frame struct.  It would require
-         * a more sophisticated parser, to tell if this is the starred
-         * variable or not.
-         */
+        /* Compact optional args into a list at optind */
         if (fh->f_optind >= 0) {
                 Object *opts, **start;
                 int n;
@@ -140,6 +136,7 @@ function_call(Frame *fr, bool have_dict)
                 fr->stack[fr->ap++] = opts;
         }
 
+        /* Put dict back onto the stack at the correct spot */
         if (dict) {
                 bug_on(fr->ap != fh->f_kwind);
                 fr->stack[fr->ap++] = dict;

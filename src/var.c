@@ -196,6 +196,7 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &IdType,
         &FileType,
         &FloatsType,
+        &StarType,
         NULL,
 };
 

@@ -218,6 +218,9 @@ extern enum result_t property_set(Object *prop,
 extern Object *rangevar_new(long long start,
                         long long stop, long long step);
 
+/* types/star.c */
+extern Object *starvar_new(Object *x);
+
 /* types/string.c */
 extern Object *stringvar_new(const char *cstr);
 extern Object *stringvar_from_buffer(struct buffer_t *b);

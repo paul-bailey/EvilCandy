@@ -234,6 +234,7 @@ extern struct type_t UuidptrType;
 extern struct type_t IdType;
 extern struct type_t FileType;
 extern struct type_t FloatsType;
+extern struct type_t StarType;
 
 static inline bool isvar_array(Object *v)
         { return v->v_type == &ArrayType; }
@@ -269,6 +270,8 @@ static inline bool isvar_property(Object *v)
         { return v->v_type == &PropertyType; }
 static inline bool isvar_floats(Object *v)
         { return v->v_type == &FloatsType; }
+static inline bool isvar_star(Object *v)
+        { return v->v_type == &StarType; }
 
 static inline bool isvar_real(Object *v)
         { return isvar_float(v) || isvar_int(v); }

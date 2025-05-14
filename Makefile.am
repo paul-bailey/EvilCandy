@@ -47,6 +47,7 @@ evilcandy_SOURCES = \
         src/types/method.c \
         src/types/property.c \
         src/types/range.c \
+        src/types/star.c \
         src/types/string.c \
         src/types/xptr.c
 

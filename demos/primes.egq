@@ -2,17 +2,20 @@
 
 // basically a test of for-else and break
 let primes_to = function(bound) {
+        let pr = [];
         for (n, range(2, bound)) {
                 for (x, range(2, n)) {
                         if ((n % x) == 0)
                                 break;
                 } else {
-                        print(n, end=' ');
+                        pr.append(n);
                 }
         }
+        return pr;
 };
 
-primes_to(20);
-print('');
+// also sanity-check that this print the numbers
+// but not as a list, due to the star
+print(*(primes_to(20)));
 
 // : vim: set syntax=javascript :

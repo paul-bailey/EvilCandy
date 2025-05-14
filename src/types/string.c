@@ -55,6 +55,10 @@ stringvar_newf(char *cstr, unsigned int flags)
                 vs->s = cstr;
         }
         utf8_scan(cstr, &vs->s_info);
+        /*
+         * We only hash the first time it's needed.  If we never need
+         * it, we never hash.
+         */
         vs->s_hash = 0;
         seqvar_set_size(ret, vs->s_info.enc_len);
         return ret;

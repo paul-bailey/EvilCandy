@@ -70,6 +70,8 @@ Must Do
 Library/Language Features
 -------------------------
 
+* Add serial-port, socket libraries
+
 * Add ``decorate`` method for dictionaries, so that user-defined objects
   can be added, anded, divided, etc.
 
@@ -92,6 +94,13 @@ Library/Language Features
 
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* Use more sophisticated branching instructions for conditional tests,
+  where "<true stmt> ||" or "<false stmt> &&" will skip runtime-evaluation
+  of the remainder of the statement inside that atomic block.
+
+* At assemble_post() time, reduce ternary operators to a single expression
+  if the "a" of "a?b:c" is const.
 
 * Replace stack arrangement of FOREACH_ITER to use an iterator of the
   sort used in var.c, any/all/max/min functions.  This ought to speed

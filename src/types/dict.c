@@ -273,29 +273,42 @@ dict_unpack(Object *obj, ...)
 {
         va_list ap;
         Object **ppv;
+        ssize_t n;
 
         bug_on(!isvar_dict(obj));
         va_start(ap, obj);
 
+        /*
+         * @n keeps track of the number of unpacked items in @obj.  The
+         * caller should not pass duplicate keys in their argument list,
+         * so decrement a temporary size variable for every found arg in
+         * @obj.  When it hits zero, save time by just using the defaults
+         * for the remaining args.
+         */
+        n = seqvar_size(obj);
         for (;;) {
                 Object *k, *v, *deflt;
 
                 k = va_arg(ap, Object *);
                 if (!k)
                         break;
-                bug_on(!isvar_string(k));
                 ppv = va_arg(ap, Object **);
-                bug_on(!ppv);
                 deflt = va_arg(ap, Object *);
+
+                bug_on(!isvar_string(k));
+                bug_on(!ppv);
                 bug_on(!deflt);
 
-                v = dict_getitem(obj, k);
-                if (v) {
-                        *ppv = v;
-                } else {
-                        VAR_INCR_REF(deflt);
-                        *ppv = deflt;
+                if (n > 0) {
+                        v = dict_getitem(obj, k);
+                        if (v) {
+                                n--;
+                                *ppv = v;
+                                continue;
+                        }
                 }
+                VAR_INCR_REF(deflt);
+                *ppv = deflt;
         }
 
         va_end(ap);

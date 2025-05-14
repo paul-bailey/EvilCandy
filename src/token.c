@@ -25,8 +25,8 @@ enum {
  * @tok:        Last parsed token, not literal()-ized yet.  Library use
  *              only.
  * @s:          Current pointer into @line, where to look for next token
- * @_slen:      Length of line buffer, for getline calls
- * @line:       line buffer, for getline calls
+ * @_slen:      Length of line buffer, for egetline calls
+ * @line:       line buffer, for egetline calls
  * @fp:         File we're getting input from
  * @filename:   name of @fp
  * @pgm:        Buffer struct containing array of parsed tokens
@@ -75,7 +75,7 @@ tok_next_line(struct token_state_t *state)
         int res = -1;
 
         if (state->fp)
-                res = getline(&state->line, &state->_slen, state->fp);
+                res = egetline(&state->line, &state->_slen, state->fp);
 
         if (res != -1) {
                 state->s = state->line;

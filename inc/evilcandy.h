@@ -92,6 +92,7 @@ extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
 extern void *erealloc(void *buf, size_t size);
 extern void *ememdup(void *buf, size_t size);
+extern ssize_t egetline(char **line, size_t *linecap, FILE *fp);
 extern void efree(void *ptr);
 
 /* hash.c */

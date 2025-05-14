@@ -19,7 +19,7 @@ struct reassemble_t {
         struct assemble_t *a;   /* info passed from assemble() */
         FILE *fp;               /* input stream */
         char *line;             /* current line being processed */
-        size_t line_len;        /* arg to getline */
+        size_t line_len;        /* arg to egetline */
         int lineno;             /* current line number */
         char *s;                /* pointer into @line */
 };
@@ -31,7 +31,7 @@ ra_next_line(struct reassemble_t *ra)
         ssize_t nread;
 
         do {
-                nread = getline(&ra->line, &ra->line_len, ra->fp);
+                nread = egetline(&ra->line, &ra->line_len, ra->fp);
                 if (nread <= 0)
                         return nread;
                 ra->lineno++;

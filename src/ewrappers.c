@@ -89,7 +89,7 @@ static void
 DBUG_LOG_FREE(void *p)
 {
         struct alloc_profile_t *prof;
-        if (!can_profile)
+        if (!can_profile || !p)
                 return;
 
         if ((prof = find_this_profile_slot(p)) == NULL)
@@ -201,6 +201,24 @@ efree(void *ptr)
         bug_on(!ptr);
         DBUG_LOG_FREE(ptr);
         free(ptr);
+}
+
+/**
+ * egetline - Wrapper for getline
+ *
+ * Unlike the other eXXX functions, this does not trap an error.  A
+ * result < 0 could just mean EOF, that's for calling code to sort out.
+ * Use it anyway, it helps keep track of memory usage in debug mode.
+ */
+ssize_t
+egetline(char **line, size_t *cap, FILE *fp)
+{
+        ssize_t res;
+        DBUG_LOG_FREE(*line);
+        res = getline(line, cap, fp);
+        if (DBUG_PROFILE_MALLOC_USAGE && res >= 0)
+                DBUG_LOG_MALLOC(*line, *cap);
+        return res;
 }
 
 void

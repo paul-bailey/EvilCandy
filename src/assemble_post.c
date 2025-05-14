@@ -183,6 +183,26 @@ try_binop(Object *left, Object *right, instruction_t *ii)
         return func(left, right);
 }
 
+static Object *
+try_unaryop(Object *v, instruction_t *ii)
+{
+        unary_operator_t func = NULL;
+        switch (ii->code) {
+        case INSTR_BITWISE_NOT:
+                func = qop_bit_not;
+                break;
+        case INSTR_NEGATE:
+                func = qop_negate;
+                break;
+        case INSTR_LOGICAL_NOT:
+                func = var_lnot;
+                break;
+        default:
+                return NULL;
+        }
+        return func(v);
+}
+
 static void
 remove_nop_instructions(struct assemble_t *a, struct as_frame_t *fr)
 {
@@ -252,7 +272,7 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                 reduced = false;
                 for (ip = idata; ip < stop; ip++) {
                         instruction_t *ip2, *ip3;
-                        Object *left, *right, *result;
+                        Object *left, *result;
 
                         if (ip->code != INSTR_LOAD_CONST)
                                 continue;
@@ -260,18 +280,25 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                         ip2 = ip+1;
                         while (ip2->code == INSTR_NOP && ip2 < stop - 1)
                                 ip2++;
-                        if (ip2 >= stop - 1 || ip2->code != INSTR_LOAD_CONST)
+                        if (ip2 >= stop - 1)
                                 continue;
 
-                        ip3 = ip2+1;
-                        while (ip3 < stop && ip3->code == INSTR_NOP)
-                                ip3++;
-                        if (ip3 == stop)
-                                break;
-
                         left = rodata[ip->arg2];
-                        right = rodata[ip2->arg2];
-                        result = try_binop(left, right, ip3);
+                        if (ip2->code != INSTR_LOAD_CONST) {
+                                result = try_unaryop(left, ip2);
+                                ip3 = ip2;
+                        } else {
+                                Object *right;
+
+                                ip3 = ip2+1;
+                                while (ip3 < stop && ip3->code == INSTR_NOP)
+                                        ip3++;
+                                if (ip3 == stop)
+                                        break;
+
+                                right = rodata[ip2->arg2];
+                                result = try_binop(left, right, ip3);
+                        }
 
                         /*
                          * NULL means either ip3 wasn't a bin-op or an
@@ -289,7 +316,8 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
 
                         ip->arg2 = seek_rodata(a, fr, result);
                         ip2->code = INSTR_NOP;
-                        ip3->code = INSTR_NOP;
+                        if (ip3 != ip2)
+                                ip3->code = INSTR_NOP;
                         /* iterator will update to ip3+1 */
                         ip = ip3;
                         reduced = true;

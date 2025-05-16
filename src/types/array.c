@@ -71,8 +71,8 @@ array_getitem(Object *array, int idx)
 }
 
 static enum result_t
-array_insert_from_arr(Object *array, Object **children,
-                      size_t n_items, int at)
+array_insert_from_arr(Object *array, int at,
+                      Object **children, size_t n_items)
 {
         struct arrayvar_t *h = V2ARR(array);
         size_t i, size = seqvar_size(array);
@@ -99,6 +99,32 @@ array_insert_from_arr(Object *array, Object **children,
         }
 
         seqvar_set_size(array, size + n_items);
+        return RES_OK;
+}
+
+static enum result_t
+array_delete_chunk(Object *array, int at, size_t n_items)
+{
+        struct arrayvar_t *h = V2ARR(array);
+        ssize_t i, size = seqvar_size(array);
+        ssize_t movsize;
+
+        bug_on(!isvar_array(array));
+
+        if (at >= size)
+                return RES_OK;
+        if (size - at > n_items)
+                n_items = size - at;
+
+        for (i = at; i < at + n_items; i++)
+                VAR_DECR_REF(h->items[i]);
+
+        movsize = (size - (at + n_items)) * sizeof(Object *);
+        if (movsize > 0)
+                memmove(&h->items[at], &h->items[at + n_items], movsize);
+
+        seqvar_set_size(array, size - n_items);
+        array_resize(array, size - n_items);
         return RES_OK;
 }
 
@@ -183,21 +209,32 @@ array_setslice(Object *obj, int start, int stop, int step, Object *val)
                 }
 
                 src_i = 0;
+                n = seqvar_size(val);
                 while (cmp(start, stop)) {
+                        if (src_i >= seqvar_size(val)) {
+                                /*
+                                 * No more src.  Delete the rest, unless
+                                 * we were stepping down.
+                                 */
+                                if (step < 0)
+                                        break;
+                                array_delete_chunk(obj, start,
+                                                seqvar_size(obj) - start);
+                                return RES_OK;
+                        }
                         VAR_DECR_REF(dst[start]);
                         VAR_INCR_REF(src[src_i]);
                         dst[start] = src[src_i];
                         start += step;
                         src_i++;
                 }
-                bug_on(src_i != n);
 
                 if (step == 1) {
                         if (seqvar_size(val) > src_i) {
                                 n = seqvar_size(val) - src_i;
                                 bug_on(start > seqvar_size(obj));
-                                array_insert_from_arr(obj, &src[src_i],
-                                                      n, start);
+                                array_insert_from_arr(obj, start,
+                                                      &src[src_i], n);
                         }
                 }
                 return RES_OK;
@@ -275,7 +312,7 @@ array_hasitem(Object *array, Object *item)
 enum result_t
 array_append(Object *array, Object *child)
 {
-        return array_insert_from_arr(array, &child, 1, seqvar_size(array));
+        return array_insert_from_arr(array, seqvar_size(array), &child, 1);
 }
 
 static Object *

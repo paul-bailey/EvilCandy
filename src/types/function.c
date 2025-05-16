@@ -167,10 +167,8 @@ function_call(Frame *fr, bool have_dict)
         }
 
         /* Put dict back onto the stack at the correct spot */
-        if (dict) {
-                bug_on(fr->ap != fh->f_kwind);
+        if (dict)
                 fr->stack[fr->ap++] = dict;
-        }
 
         /* Finished setting up args, fr->ap */
         fr->stackptr = fr->stack + fr->ap;

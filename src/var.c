@@ -494,6 +494,16 @@ var_setattr(Object *v, Object *key, Object *attr)
                         return RES_ERROR;
                 }
                 return map->setitem(v, key, attr);
+        } else if (isvar_tuple(key)) {
+                int start, stop, step;
+                const struct seq_methods_t *seq = v->v_type->sqm;
+                if (!seq || !seq->setslice)
+                        goto badtype;
+                if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {
+                        bug_on(!err_occurred());
+                        return RES_ERROR;
+                }
+                return seq->setslice(v, start, stop, step, attr);
         } else if (isvar_int(key)) {
                 int i;
                 const struct seq_methods_t *seq = v->v_type->sqm;

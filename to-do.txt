@@ -1,6 +1,11 @@
 Bugs
 ----
 
+* BUGs 5/2025:
+
+        * Object mem leak, four not garbage-collected whenever there's a
+          SyntaxError exception.  Other exceptions are fine.
+
 * BUGs 4/2025:
 
         * All user-visible data types need a .cpmz method.

@@ -70,6 +70,38 @@ array_getitem(Object *array, int idx)
         return va->items[idx];
 }
 
+static enum result_t
+array_insert_from_arr(Object *array, Object **children,
+                      size_t n_items, int at)
+{
+        struct arrayvar_t *h = V2ARR(array);
+        size_t i, size = seqvar_size(array);
+
+        /* FIXME: move lock check to calling funcs */
+        if (h->lock) {
+                err_locked();
+                return RES_ERROR;
+        }
+
+        array_resize(array, size + n_items);
+
+        if (size > at) {
+                Object **src = &h->items[at];
+                Object **dst = &h->items[at + n_items];
+                size_t movsize = (size - at) * sizeof(Object *);
+                memmove(dst, src, movsize);
+        }
+
+        for (i = 0; i < n_items; i++) {
+                bug_on(at + i >= seqvar_size(array) + n_items);
+                VAR_INCR_REF(children[i]);
+                h->items[at + i] = children[i];
+        }
+
+        seqvar_set_size(array, size + n_items);
+        return RES_OK;
+}
+
 /* comparisons, helpers to array_getslice */
 static bool slice_cmp_lt(int a, int b) { return a < b; }
 static bool slice_cmp_gt(int a, int b) { return a > b; }
@@ -106,6 +138,71 @@ X##_getslice(Object *obj, int start, int stop, int step)        \
 GETSLICE(array)
 GETSLICE(tuple)
 #undef GETSLICE
+
+static enum result_t
+array_setslice(Object *obj, int start, int stop, int step, Object *val)
+{
+        bug_on(!isvar_array(obj));
+
+        if (start == stop)
+                return RES_OK;
+
+        if (!val) {
+                /* delete slice */
+                err_setstr(NotImplementedError,
+                           "List slice deletion not yet supported");
+                return RES_ERROR;
+        } else {
+                /* insert/add slice */
+                Object **dst, **src;
+                bool (*cmp)(int, int);
+                int src_i;
+                size_t n;
+
+                bug_on(!isvar_seq(val));
+
+                cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;
+                dst = array_get_data(obj);
+
+                if (isvar_array(val)) {
+                        src = array_get_data(val);
+                } else if (isvar_tuple(val)) {
+                        src = tuple_get_data(val);
+                } else {
+                        err_setstr(TypeError,
+                                   "Cannot set list slice from type %s",
+                                   typestr(val));
+                        return RES_ERROR;
+                }
+
+                n = (stop - start) / step;
+                bug_on(n < 0);
+                if (n < seqvar_size(val) && stop > start && step != 1) {
+                        err_setstr(ValueError, "Cannot extend list for step > 1");
+                        return RES_ERROR;
+                }
+
+                src_i = 0;
+                while (cmp(start, stop)) {
+                        VAR_DECR_REF(dst[start]);
+                        VAR_INCR_REF(src[src_i]);
+                        dst[start] = src[src_i];
+                        start += step;
+                        src_i++;
+                }
+                bug_on(src_i != n);
+
+                if (step == 1) {
+                        if (seqvar_size(val) > src_i) {
+                                n = seqvar_size(val) - src_i;
+                                bug_on(start > seqvar_size(obj));
+                                array_insert_from_arr(obj, &src[src_i],
+                                                      n, start);
+                        }
+                }
+                return RES_OK;
+        }
+}
 
 /* helper to array_sort */
 static int
@@ -178,20 +275,7 @@ array_hasitem(Object *array, Object *item)
 enum result_t
 array_append(Object *array, Object *child)
 {
-        struct arrayvar_t *h = V2ARR(array);
-        size_t size = seqvar_size(array);
-
-        if (h->lock) {
-                err_locked();
-                return RES_ERROR;
-        }
-
-        array_resize(array, size + 1);
-        h->items[size] = child;
-
-        seqvar_set_size(array, size + 1);
-        VAR_INCR_REF(child);
-        return RES_OK;
+        return array_insert_from_arr(array, &child, 1, seqvar_size(array));
 }
 
 static Object *
@@ -662,6 +746,7 @@ static const struct seq_methods_t array_seq_methods = {
         .setitem        = array_setitem,
         .hasitem        = array_hasitem,
         .getslice       = array_getslice,
+        .setslice       = array_setslice,
         .cat            = array_cat,
         .sort           = array_sort,
 };
@@ -689,6 +774,7 @@ static const struct seq_methods_t tuple_seq_methods = {
         .setitem        = NULL,
         .hasitem        = array_hasitem,
         .getslice       = tuple_getslice,
+        .setslice       = NULL,
         .cat            = tuple_cat,
         .sort           = NULL,
 };

@@ -112,6 +112,7 @@ struct seq_methods_t {
         bool (*hasitem)(Object *haystack, Object *needle);
         enum result_t (*setitem)(Object *, int, Object *);
         Object *(*getslice)(Object *, int start, int stop, int step);
+        enum result_t (*setslice)(Object *, int start, int stop, int step, Object *);
         /* new = a + b; if b is NULL, return new empty var */
         binary_operator_t cat;
         void (*sort)(Object *);

@@ -33,6 +33,7 @@
  *      common to both: buffer_init
  *                      buffer_reset
  *                      buffer_free
+ *                      buffer_trim
  *
  * Always call buffer_init before using it the first time.
  * DO NOT call buffer_init a second time until you next call

@@ -59,12 +59,15 @@ struct token_state_t {
 static void token_state_free_(struct token_state_t *state, bool free_self);
 
 /* may be in identifier */
-static inline bool tokc_isident(int c)
+static inline bool
+tokc_isident(int c)
 {
         return (unsigned)c < 128 && (c == '_' || isalnum(c));
 }
+
 /* may be 1st char of identifier */
-static inline bool tokc_isident1(int c)
+static inline bool
+tokc_isident1(int c)
 {
         return (unsigned)c < 128 && (c == '_' || isalpha(c));
 }

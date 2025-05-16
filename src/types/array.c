@@ -202,7 +202,7 @@ array_setslice(Object *obj, int start, int stop, int step, Object *val)
                 }
 
                 n = (stop - start) / step;
-                bug_on(n < 0);
+                bug_on((int)n < 0);
                 if (n < seqvar_size(val) && stop > start && step != 1) {
                         err_setstr(ValueError, "Cannot extend list for step > 1");
                         return RES_ERROR;

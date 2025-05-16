@@ -12,6 +12,8 @@ struct global_t {
         Object *nl;
         Object *stdout_file;
         Object *strconsts[N_STRCONST];
+        Object *one;
+        Object *zero;
 };
 
 #define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])

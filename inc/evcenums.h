@@ -71,11 +71,15 @@ enum result_t {
  *
  * Warning!! Any update here needs a corresponding update to
  * initialize_string_consts().
+ *
+ * FIXME: Re: above warning: This needs to be auto-generated from a
+ * single source to remove an oops-I-forgot-to-update-this hazard.
  */
 enum {
         STRCONST_IDX_sep = 0,
         STRCONST_IDX_file,
         STRCONST_IDX_end,
+        STRCONST_IDX_sorted,
         STRCONST_IDX_spc,
         N_STRCONST,
 };

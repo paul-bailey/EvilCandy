@@ -60,10 +60,12 @@ moduleinit_sys(void)
 static void
 initialize_string_consts(void)
 {
+        /* Keep sync'd with evcenums.h */
         static const char *STRCONST_CSTR[N_STRCONST] = {
                 STRCONST_CSTR(sep),
                 STRCONST_CSTR(file),
                 STRCONST_CSTR(end),
+                STRCONST_CSTR(sorted),
                 [STRCONST_IDX_spc] = " ",
         };
 
@@ -94,6 +96,9 @@ initialize_global_object(void)
         gbl.stdout_file = dict_getitem_cstr(o, "stdout");
         bug_on(!gbl.nl || !gbl.stdout_file);
         VAR_DECR_REF(o);
+
+        gbl.one = intvar_new(1LL);
+        gbl.zero = intvar_new(0LL);
 
         o = dict_getitem_cstr(GlobalObject, "_builtins");
         dict_add_to_globals(o);

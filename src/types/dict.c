@@ -839,10 +839,20 @@ do_dict_delitem(Frame *fr)
 static Object *
 do_dict_keys(Frame *fr)
 {
+        Object *sorted;
         Object *self = vm_get_this(fr);
+        Object *kw = vm_get_arg(fr, 0);
+
         if (arg_type_check(self, &DictType) == RES_ERROR)
                 return ErrorVar;
-        return dict_keys(self, true);
+
+        bug_on(!kw || !isvar_dict(kw));
+
+        dict_unpack(kw, STRCONST_ID(sorted), &sorted, gbl.zero, NULL);
+        if (arg_type_check(sorted, &IntType) == RES_ERROR)
+                return ErrorVar;
+
+        return dict_keys(self, !!intvar_toll(sorted));
 }
 
 /*
@@ -934,7 +944,7 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("foreach",   do_dict_foreach,   1, 2, -1, -1),
         V_INITTBL("delitem",   do_dict_delitem,   1, 1, -1, -1),
         V_INITTBL("purloin",   do_dict_purloin,   0, 1, -1, -1),
-        V_INITTBL("keys",      do_dict_keys,      0, 0, -1, -1),
+        V_INITTBL("keys",      do_dict_keys,      1, 1, -1,  0),
         V_INITTBL("copy",      do_dict_copy,      0, 0, -1, -1),
         TBLEND,
 };

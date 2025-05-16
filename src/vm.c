@@ -701,7 +701,7 @@ do_foreach_setup(Frame *fr, instruction_t ii)
                         goto cant;
 
                 /* Dictionary, use its keys instead */
-                w = dict_keys(v);
+                w = dict_keys(v, true);
                 VAR_DECR_REF(v);
                 v = w;
         }

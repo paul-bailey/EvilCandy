@@ -191,7 +191,7 @@ extern Object *idvar_new(long long id);
 extern Object *dictvar_new(void);
 extern Object *dictvar_from_methods(Object *parent,
                         const struct type_inittbl_t *tbl);
-extern Object *dict_keys(Object *obj);
+extern Object *dict_keys(Object *obj, bool sorted);
 extern Object *dict_getitem(Object *o, Object *key);
 extern Object *dict_getitem_cstr(Object *o, const char *cstr_key);
 extern enum result_t dict_setitem(Object *o, Object *key, Object *attr);

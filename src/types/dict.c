@@ -319,7 +319,7 @@ dict_unpack(Object *obj, ...)
  *               currently in the dictionary.
  */
 Object *
-dict_keys(Object *obj)
+dict_keys(Object *obj, bool sorted)
 {
         Object *keys;
         struct dictvar_t *d;
@@ -341,7 +341,8 @@ dict_keys(Object *obj)
                 array_i++;
         }
 
-        var_sort(keys);
+        if (sorted)
+                var_sort(keys);
         return keys;
 }
 
@@ -766,7 +767,7 @@ do_dict_foreach(Frame *fr)
         if (!priv)
                 priv = NullVar;
 
-        keys = dict_keys(self);
+        keys = dict_keys(self, true);
         len = seqvar_size(keys);
         bug_on(len < 0);
 
@@ -841,7 +842,7 @@ do_dict_keys(Frame *fr)
         Object *self = vm_get_this(fr);
         if (arg_type_check(self, &DictType) == RES_ERROR)
                 return ErrorVar;
-        return dict_keys(self);
+        return dict_keys(self, true);
 }
 
 /*

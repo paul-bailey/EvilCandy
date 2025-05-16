@@ -559,7 +559,7 @@ var_compare(Object *a, Object *b)
 }
 
 /**
- * var_compare - compare two variables, taking an instruction arg
+ * var_compare_iarg - compare two variables, taking an instruction arg
  * @a:          Left operand
  * @b:          Right operand
  * @iarg:       One of the IARG_xxx enums
@@ -677,7 +677,7 @@ iterable_setup(Object *v, struct iterable_t *iter)
 {
         VAR_INCR_REF(v);
         if (isvar_dict(v)) {
-                Object *keys = dict_keys(v);
+                Object *keys = dict_keys(v, false);
                 bug_on(!keys);
                 iter->dict = v;
                 iter->v = keys;

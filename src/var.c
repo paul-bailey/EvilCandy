@@ -503,6 +503,8 @@ var_setattr(Object *v, Object *key, Object *attr)
                         bug_on(!err_occurred());
                         return RES_ERROR;
                 }
+                if (stop == start)
+                        return RES_OK;
                 return seq->setslice(v, start, stop, step, attr);
         } else if (isvar_int(key)) {
                 int i;

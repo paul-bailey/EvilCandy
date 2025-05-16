@@ -13,7 +13,8 @@ Bugs
 Must Do
 -------
 
-* Capabilities checklist before calling this a "feature complete" alpha:
+* Capabilities checklist before calling this a "feature complete" alpha.
+  When this is complete I could start thinking about version numbers.
 
   - Fill in math, io libraries
   - Fill in built-in methods for strings, arrays, etc.
@@ -23,8 +24,9 @@ Must Do
     in interactive mode without the -d option
   - Finish path resolution
   - **done** Add ``===`` or ``is`` or both
-  - Add slice assignment
+  - **done** Add slice assignment
   - Get prompt working
+  - Add support for deleting elements and global variables
   - Make consistent and accurate error reporting
 
 * Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.

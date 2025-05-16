@@ -801,24 +801,6 @@ do_dict_foreach(Frame *fr)
 }
 
 
-/*
- * len()  (no args)
- * returns number of elements in object
- */
-static Object *
-do_dict_len(Frame *fr)
-{
-        Object *v;
-        int i;
-
-        v = vm_get_this(fr);
-        if (arg_type_check(v, &DictType) == RES_ERROR)
-                return ErrorVar;
-
-        i = OBJ_SIZE(v);
-        return intvar_new(i);
-}
-
 static Object *
 do_dict_delitem(Frame *fr)
 {
@@ -939,14 +921,25 @@ do_dict_purloin(Frame *fr)
         return NULL;
 }
 
+static Object *
+dict_getprop_length(Object *self)
+{
+        bug_on(!isvar_dict(self));
+        return intvar_new(seqvar_size(self));
+}
+
 static const struct type_inittbl_t dict_cb_methods[] = {
-        V_INITTBL("len",       do_dict_len,       0, 0, -1, -1),
         V_INITTBL("foreach",   do_dict_foreach,   1, 2, -1, -1),
         V_INITTBL("delitem",   do_dict_delitem,   1, 1, -1, -1),
         V_INITTBL("purloin",   do_dict_purloin,   0, 1, -1, -1),
         V_INITTBL("keys",      do_dict_keys,      1, 1, -1,  0),
         V_INITTBL("copy",      do_dict_copy,      0, 0, -1, -1),
         TBLEND,
+};
+
+static const struct type_prop_t dict_prop_getsets[] = {
+        { .name = "length", .getprop = dict_getprop_length, .setprop = NULL },
+        { .name = NULL },
 };
 
 static const struct map_methods_t dict_map_methods = {
@@ -967,6 +960,7 @@ struct type_t DictType = {
         .cmp    = dict_cmp,
         .cmpz   = dict_cmpz,
         .reset  = dict_reset,
+        .prop_getsets = dict_prop_getsets,
 };
 
 

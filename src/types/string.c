@@ -711,21 +711,21 @@ string_format2(Frame *fr)
 }
 
 /* **********************************************************************
- *              Built-in type methods (not format2)
+ *           Built-in type props and methods (not format2)
  * *********************************************************************/
 
-/* len() (no args)
- * returns length of C string stored in self
- *
- * Gotta call it something different, "string_length" already taken
- */
 static Object *
-string_length_method(Frame *fr)
+string_getprop_length(Object *self)
 {
-        Object *self = get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
+        bug_on(!isvar_string(self));
         return intvar_new(STRING_LENGTH(self));
+}
+
+static Object *
+string_getprop_nbytes(Object *self)
+{
+        bug_on(!isvar_string(self));
+        return intvar_new(STRING_NBYTES(self));
 }
 
 static bool
@@ -1174,7 +1174,6 @@ string_join(Frame *fr)
 }
 
 static struct type_inittbl_t string_methods[] = {
-        V_INITTBL("len",     string_length_method, 0, 0, -1, -1),
         V_INITTBL("format",  string_format,        1, 1,  0, -1),
         V_INITTBL("format2", string_format2,       1, 1,  0, -1),
         V_INITTBL("ljust",   string_ljust,         1, 1, -1, -1),
@@ -1491,6 +1490,12 @@ string_update_hash(Object *v)
         return vs->s_hash;
 }
 
+static const struct type_prop_t string_prop_getsets[] = {
+        { .name = "length", .getprop = string_getprop_length, .setprop = NULL },
+        { .name = "nbytes", .getprop = string_getprop_nbytes, .setprop = NULL },
+        { .name = NULL },
+};
+
 struct seq_methods_t string_seq_methods = {
         .getitem        = string_getitem,
         .setitem        = NULL,
@@ -1511,6 +1516,7 @@ struct type_t StringType = {
         .cmp    = string_cmp,
         .cmpz   = string_cmpz,
         .reset  = string_reset,
+        .prop_getsets = string_prop_getsets,
 };
 
 

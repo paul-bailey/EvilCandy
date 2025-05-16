@@ -635,25 +635,6 @@ tuple_str(Object *t)
         return array_or_tuple_str(t, '(');
 }
 
-/* implement 'x.len()' */
-static Object *
-do_array_len(Frame *fr)
-{
-        Object *self = get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
-                return ErrorVar;
-        return intvar_new(seqvar_size(self));
-}
-
-static Object *
-do_tuple_len(Frame *fr)
-{
-        Object *self = get_this(fr);
-        if (arg_type_check(self, &TupleType) == RES_ERROR)
-                return ErrorVar;
-        return intvar_new(seqvar_size(self));
-}
-
 /* implement 'x.foreach(myfunc, mypriv)' */
 static Object *
 array_tuple_foreach_common(Frame *fr, struct type_t *type)
@@ -751,6 +732,15 @@ do_array_append(Frame *fr)
         return NULL;
 }
 
+static Object *
+array_getprop_length(Object *self)
+{
+        bug_on(!isvar_array(self) && !isvar_tuple(self));
+        return intvar_new(seqvar_size(self));
+}
+
+#define tuple_getprop_length array_getprop_length
+
 /*
  * array.allocated() - Return number of actual slots available in the
  *                     array's memory.
@@ -772,7 +762,6 @@ do_array_allocated(Frame *fr)
 
 static const struct type_inittbl_t array_cb_methods[] = {
         V_INITTBL("append",     do_array_append,    1, 1, -1, -1),
-        V_INITTBL("len",        do_array_len,       0, 0, -1, -1),
         V_INITTBL("foreach",    do_array_foreach,   1, 2, -1, -1),
         V_INITTBL("allocated",  do_array_allocated, 0, 0, -1, -1),
         TBLEND,
@@ -788,6 +777,11 @@ static const struct seq_methods_t array_seq_methods = {
         .sort           = array_sort,
 };
 
+static const struct type_prop_t array_prop_getsets[] = {
+        { .name = "length", .getprop = array_getprop_length, .setprop = NULL },
+        { .name = NULL },
+};
+
 struct type_t ArrayType = {
         .name = "list",
         .opm = NULL,
@@ -798,10 +792,10 @@ struct type_t ArrayType = {
         .str = array_str,
         .cmp = array_cmp,
         .reset = array_reset,
+        .prop_getsets = array_prop_getsets,
 };
 
 static const struct type_inittbl_t tuple_cb_methods[] = {
-        V_INITTBL("len",        do_tuple_len,           0, 0, -1, -1),
         V_INITTBL("foreach",    do_tuple_foreach,       1, 2, -1, -1),
         TBLEND,
 };
@@ -816,6 +810,11 @@ static const struct seq_methods_t tuple_seq_methods = {
         .sort           = NULL,
 };
 
+static const struct type_prop_t tuple_prop_getsets[] = {
+        { .name = "length", .getprop = tuple_getprop_length, .setprop = NULL },
+        { .name = NULL },
+};
+
 struct type_t TupleType = {
         .name = "tuple",
         .opm = NULL,
@@ -826,4 +825,5 @@ struct type_t TupleType = {
         .str = tuple_str,
         .cmp = array_cmp,
         .reset = array_reset,
+        .prop_getsets = tuple_prop_getsets,
 };

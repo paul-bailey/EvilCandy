@@ -5,16 +5,6 @@
 #define V2B(v_) ((struct bytesvar_t *)(v_))
 
 static Object *
-bytes_len(Frame *fr)
-{
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &BytesType) == RES_ERROR)
-                return ErrorVar;
-
-        return intvar_new(seqvar_size(self));
-}
-
-static Object *
 bytes_getitem(Object *a, int idx)
 {
         unsigned char *ba = V2B(a)->b_buf;
@@ -373,8 +363,19 @@ err:
         return ErrorVar;
 }
 
+static Object *
+bytes_getprop_length(Object *self)
+{
+        bug_on(!isvar_bytes(self));
+        return intvar_new(seqvar_size(self));
+}
+
+static const struct type_prop_t bytes_prop_getsets[] = {
+        { .name = "length", .getprop = bytes_getprop_length, .setprop = NULL },
+        { .name = NULL },
+};
+
 static const struct type_inittbl_t bytes_cb_methods[] = {
-        V_INITTBL("len",        bytes_len, 0, 0, -1, -1),
         /* TODO: lstrip, just, etc. */
         TBLEND,
 };
@@ -399,5 +400,6 @@ struct type_t BytesType = {
         .cmp    = bytes_cmp,
         .cmpz   = bytes_cmpz,
         .reset  = bytes_reset,
+        .prop_getsets = bytes_prop_getsets,
 };
 

@@ -400,6 +400,34 @@ do_length(Frame *fr)
 }
 
 static Object *
+do_list(Frame *fr)
+{
+        Object *v = vm_get_arg(fr, 0);
+        bug_on(!v);
+
+        if (!isvar_seq(v) && !isvar_dict(v)) {
+                err_setstr(TypeError, "Invalid type '%s' for list()",
+                           typestr(v));
+                return ErrorVar;
+        }
+        return var_listify(v);
+}
+
+static Object *
+do_tuple(Frame *fr)
+{
+        Object *v = vm_get_arg(fr, 0);
+        bug_on(!v);
+
+        if (!isvar_seq(v) && !isvar_dict(v)) {
+                err_setstr(TypeError, "Invalid type '%s' for list()",
+                           typestr(v));
+                return ErrorVar;
+        }
+        return var_tuplify(v);
+}
+
+static Object *
 do_max(Frame *fr)
 {
         Object *res, *arg;
@@ -592,12 +620,14 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("floats", do_floats, 1, 3, -1, -1),
         V_INITTBL("int",    do_int,    1, 2, -1, -1),
         V_INITTBL("length", do_length, 1, 1, -1, -1),
+        V_INITTBL("list",   do_list,   1, 1, -1, -1),
         V_INITTBL("min",    do_min,    1, 1,  0, -1),
         V_INITTBL("max",    do_max,    1, 1,  0, -1),
         V_INITTBL("print",  do_print,  2, 2,  0,  1),
-        V_INITTBL("setnl",  do_setnl,  1, 1, -1, -1),
-        V_INITTBL("typeof", do_typeof, 1, 1, -1, -1),
         V_INITTBL("range",  do_range,  1, 3, -1, -1),
+        V_INITTBL("setnl",  do_setnl,  1, 1, -1, -1),
+        V_INITTBL("tuple",  do_tuple,  1, 1, -1, -1),
+        V_INITTBL("typeof", do_typeof, 1, 1, -1, -1),
         /* XXX: maybe exit should be a method of __gbl__._sys */
         V_INITTBL("exit",   do_exit,   0, 0, -1, -1),
         V_INITTBL("exists", do_exists, 1, 1, -1, -1),

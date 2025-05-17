@@ -737,6 +737,48 @@ iterable_next(struct iterable_t *iter)
              e_ != NULL && e_ != ErrorVar; \
              e_ = iterable_next(iter_))
 
+Object *
+var_tuplify(Object *obj)
+{
+        struct iterable_t iter;
+        Object *ret, **data;
+        int i, n;
+
+        if (iterable_setup(obj, &iter) == RES_ERROR)
+                return ErrorVar;
+
+        n = seqvar_size(obj);
+        ret = tuplevar_new(n);
+        data = tuple_get_data(ret);
+        for (i = 0; i < n; i++) {
+                /* iterable_next() already produced ref */
+                data[i] = iterable_next(&iter);
+                bug_on(!data[i]);
+        }
+        return ret;
+}
+
+Object *
+var_listify(Object *obj)
+{
+        struct iterable_t iter;
+        Object *ret, **data;
+        int i, n;
+
+        if (iterable_setup(obj, &iter) == RES_ERROR)
+                return ErrorVar;
+
+        n = seqvar_size(obj);
+        ret = arrayvar_new(n);
+        data = array_get_data(ret);
+        for (i = 0; i < n; i++) {
+                /* iterable_next() already produced ref */
+                data[i] = iterable_next(&iter);
+                bug_on(!data[i]);
+        }
+        return ret;
+}
+
 /*
  * all(x) - return true if every element in x is true.
  */

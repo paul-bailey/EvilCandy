@@ -111,55 +111,6 @@ range_str(Object *v)
 }
 
 static Object *
-range_foreach(Frame *fr)
-{
-        Object *self, *func, *priv;
-        size_t n;
-        int i, status = RES_OK;
-
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &RangeType) == RES_ERROR)
-                return ErrorVar;
-
-        n = RANGE_LEN(self);
-
-        func = frame_get_arg(fr, 0);
-        if (!isvar_function(func)) {
-                err_argtype("function");
-                return ErrorVar;
-        }
-
-        /* nothing to iterate over, return early */
-        if (n == 0)
-                return NULL;
-
-        priv = frame_get_arg(fr, 1);
-        if (!priv)
-                priv = NullVar;
-
-        bug_on(n > INT_MAX);
-        for (i = 0; i < n; i++) {
-                Object *argv[3];
-                Object *retval;
-                argv[0] = intvar_new(i);
-                argv[1] = range_getitem(self, i);
-                argv[2] = priv;
-
-                retval = vm_exec_func(fr, func, 3, argv, false);
-                VAR_DECR_REF(argv[0]);
-                VAR_DECR_REF(argv[1]);
-                if (retval == ErrorVar) {
-                        status = RES_ERROR;
-                        break;
-                }
-                /* foreach throws away retval */
-                if (retval)
-                        VAR_DECR_REF(retval);
-        }
-        return status == RES_OK ? NULL : ErrorVar;
-}
-
-static Object *
 range_len(Frame *fr)
 {
         Object *self = vm_get_this(fr);
@@ -177,8 +128,8 @@ static const struct seq_methods_t range_seq_methods = {
 };
 
 static const struct type_inittbl_t range_cb_methods[] = {
-        V_INITTBL("len",     range_len,     0, 0, -1, -1),
-        V_INITTBL("foreach", range_foreach, 1, 2, -1, -1),
+        V_INITTBL("len",     range_len,           0, 0, -1, -1),
+        V_INITTBL("foreach", var_foreach_generic, 1, 2, -1, -1),
         TBLEND,
 };
 

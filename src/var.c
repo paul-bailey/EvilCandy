@@ -894,4 +894,65 @@ var_logical_and(Object *a, Object *b)
         return intvar_new((int)res);
 }
 
+/**
+ * var_foreach_generic - Common .foreach method for sequential objects.
+ *
+ * Currently not supported for dictionaries.
+ */
+Object *
+var_foreach_generic(Frame *fr)
+{
+        Object *self, *func, *priv;
+        int i, status;
+        Object *(*get)(Object *, int);
+
+        self = vm_get_this(fr);
+        bug_on(!isvar_seq(self));
+
+        get = self->v_type->sqm->getitem;
+        bug_on(!get);
+
+        func = vm_get_arg(fr, 0);
+        priv = vm_get_arg(fr, 1);
+
+        /*
+         * If 'func' is not a function, it could still be callable, so do
+         * not use arg_type_check() for it.
+         */
+        if (!func) {
+                err_argtype("function");
+                return ErrorVar;
+        }
+
+        if (!priv)
+                priv = NullVar;
+
+        status = RES_OK;
+        if (!seqvar_size(self))
+                goto out;
+
+        for (i = 0; i < seqvar_size(self); i++) {
+                Object *ret, *argv[3];
+
+                argv[1] = get(self, i);
+                argv[0] = intvar_new(i);
+                argv[2] = priv;
+
+                ret = vm_exec_func(fr, func, 3, argv, false);
+                VAR_DECR_REF(argv[0]);
+                VAR_DECR_REF(argv[1]);
+
+                if (ret) {
+                        if (ret == ErrorVar) {
+                                status = RES_ERROR;
+                                break;
+                        }
+
+                        VAR_DECR_REF(ret);
+                }
+        }
+
+out:
+        return status == RES_OK ? NULL : ErrorVar;
+}
 

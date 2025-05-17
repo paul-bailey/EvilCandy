@@ -198,62 +198,6 @@ tuple_getitem(Object *tup, int idx)
  *              Built-in methods
  */
 
-static Object *
-do_tuple_foreach(Frame *fr)
-{
-        Object *self, *func, *priv, *argv[3], **data;
-        unsigned int idx;
-        int status = RES_OK;
-
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &TupleType) == RES_ERROR)
-                return ErrorVar;
-        /*
-         * If 'func' is not function, it could still be callable,
-         * so do not use arg_type_check() for it.
-         */
-        func = frame_get_arg(fr, 0);
-        if (!func) {
-                err_argtype("function");
-                return ErrorVar;
-        }
-        priv = frame_get_arg(fr, 1);
-        if (!priv)
-                priv = NullVar;
-        if (!seqvar_size(self)) /* nothing to iterate over */
-                goto out;
-
-        data = tuple_get_data(self);
-        for (idx = 0; idx < seqvar_size(self); idx++) {
-                /*
-                 * XXX creating a new intvar every time, maybe some
-                 * back-door hacks to intvar should be allowed for
-                 * just the files in this directory.
-                 */
-                Object *retval;
-
-                argv[0] = data[idx];
-                argv[1] = intvar_new(idx);
-                argv[2] = priv;
-
-                retval = vm_exec_func(fr, func, 3, argv, false);
-                VAR_DECR_REF(argv[1]);
-
-                if (retval == ErrorVar) {
-                        status = RES_ERROR;
-                        break;
-                }
-                /* foreach throws away retval */
-                if (retval)
-                        VAR_DECR_REF(retval);
-        }
-
-out:
-        return status == RES_OK ? NULL : ErrorVar;
-}
-
-
-
 /*
  *              Properties
  */
@@ -431,7 +375,7 @@ nope:
 
 
 static const struct type_inittbl_t tuple_cb_methods[] = {
-        V_INITTBL("foreach",    do_tuple_foreach,       1, 2, -1, -1),
+        V_INITTBL("foreach", var_foreach_generic, 1, 2, -1, -1),
         TBLEND,
 };
 

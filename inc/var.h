@@ -112,6 +112,7 @@ extern Object *var_max(Object *v);
 extern Object *var_lnot(Object *v);
 extern Object *var_logical_or(Object *a, Object *b);
 extern Object *var_logical_and(Object *a, Object *b);
+extern Object *var_foreach_generic(Frame *fr);
 extern void var_delete__(Object *v);
 
 /* var_from_format.c */

@@ -467,70 +467,6 @@ array_str(Object *t)
         return ret;
 }
 
-/* implement 'x.foreach(myfunc, mypriv)' */
-static Object *
-do_array_foreach(Frame *fr)
-{
-        Object *self, *func, *priv, *argv[3];
-        unsigned int idx, lock;
-        struct arrayvar_t *h;
-        int status = RES_OK;
-
-        self = get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
-                return ErrorVar;
-        /*
-         * If 'func' is not function, it could still be callable,
-         * so do not use arg_type_check() for it.
-         */
-        func = frame_get_arg(fr, 0);
-        if (!func) {
-                err_argtype("function");
-                return ErrorVar;
-        }
-        priv = frame_get_arg(fr, 1);
-        if (!priv)
-                priv = NullVar;
-        h = V2ARR(self);
-        if (!seqvar_size(self)) /* nothing to iterate over */
-                goto out;
-
-        /*
-         * appends in the middle of a loop can cause spinlock or moved
-         * arrays, so don't allow it.
-         */
-        lock = h->lock;
-        h->lock = 1;
-
-        for (idx = 0; idx < seqvar_size(self); idx++) {
-                /*
-                 * XXX creating a new intvar every time, maybe some
-                 * back-door hacks to intvar should be allowed for
-                 * just the files in this directory.
-                 */
-                Object *retval;
-
-                argv[0] = h->items[idx];
-                argv[1] = intvar_new(idx);
-                argv[2] = priv;
-
-                retval = vm_exec_func(fr, func, 3, argv, false);
-                VAR_DECR_REF(argv[1]);
-
-                if (retval == ErrorVar) {
-                        status = RES_ERROR;
-                        break;
-                }
-                /* foreach throws away retval */
-                if (retval)
-                        VAR_DECR_REF(retval);
-        }
-        h->lock = lock;
-
-out:
-        return status == RES_OK ? NULL : ErrorVar;
-}
-
 /* implement 'x.append(y)' */
 static Object *
 do_array_append(Frame *fr)
@@ -579,9 +515,9 @@ do_array_allocated(Frame *fr)
 }
 
 static const struct type_inittbl_t array_cb_methods[] = {
-        V_INITTBL("append",     do_array_append,    1, 1, -1, -1),
-        V_INITTBL("foreach",    do_array_foreach,   1, 2, -1, -1),
-        V_INITTBL("allocated",  do_array_allocated, 0, 0, -1, -1),
+        V_INITTBL("append",     do_array_append,     1, 1, -1, -1),
+        V_INITTBL("foreach",    var_foreach_generic, 1, 2, -1, -1),
+        V_INITTBL("allocated",  do_array_allocated,  0, 0, -1, -1),
         TBLEND,
 };
 

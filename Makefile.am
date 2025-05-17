@@ -49,6 +49,7 @@ evilcandy_SOURCES = \
         src/types/range.c \
         src/types/star.c \
         src/types/string.c \
+        src/types/tuple.c \
         src/types/xptr.c
 
 noinst_HEADERS = \

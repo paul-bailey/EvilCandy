@@ -132,38 +132,32 @@ array_delete_chunk(Object *array, int at, size_t n_items)
 static bool slice_cmp_lt(int a, int b) { return a < b; }
 static bool slice_cmp_gt(int a, int b) { return a > b; }
 
-#define GETSLICE(X)                                             \
-                                                                \
-static Object *                                                 \
-X##_getslice(Object *obj, int start, int stop, int step)        \
-{                                                               \
-        Object *ret, **src;                                     \
-        bool (*cmp)(int, int);                                  \
-                                                                \
-        bug_on(!isvar_##X(obj));                                \
-                                                                \
-        ret = X##var_new(0);                                    \
-                                                                \
-        if (start == stop)                                      \
-                return ret;                                     \
-                                                                \
-        cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;       \
-        src = X##_get_data(obj);                                \
-                                                                \
-        while (cmp(start, stop)) {                              \
-                /*                                              \
-                 * XXX: there is no 'tuple_append',             \
-                 * and for good reason.                         \
-                 */                                             \
-                array_append(ret, src[start]);                  \
-                start += step;                                  \
-        }                                                       \
-        return ret;                                             \
-}
+static Object *
+array_getslice(Object *obj, int start, int stop, int step)
+{
+        Object *ret, **src;
+        bool (*cmp)(int, int);
 
-GETSLICE(array)
-GETSLICE(tuple)
-#undef GETSLICE
+        bug_on(!isvar_array(obj));
+
+        ret = arrayvar_new(0);
+
+        if (start == stop)
+                return ret;
+
+        cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;
+        src = array_get_data(obj);
+
+        while (cmp(start, stop)) {
+                /*
+                 * XXX: there is no 'tuple_append',
+                 * and for good reason.
+                 */
+                array_append(ret, src[start]);
+                start += step;
+        }
+        return ret;
+}
 
 static enum result_t
 array_setslice(Object *obj, int start, int stop, int step, Object *val)
@@ -316,10 +310,10 @@ array_append(Object *array, Object *child)
 }
 
 static Object *
-arrayvar_new_common(int n_items, struct type_t *type, Object **src, bool consume)
+arrayvar_new_common(int n_items, Object **src, bool consume)
 {
         int i;
-        Object *array = var_new(type);
+        Object *array = var_new(&ArrayType);
         struct arrayvar_t *va = V2ARR(array);
         va->alloc_size = 0;
         va->items = NULL;
@@ -346,17 +340,7 @@ arrayvar_new_common(int n_items, struct type_t *type, Object **src, bool consume
 Object *
 arrayvar_new(int n_items)
 {
-        return arrayvar_new_common(n_items, &ArrayType, NULL, false);
-}
-
-/**
- * tuplevar_new - Create a new tuple of size @n_items
- * Return: new tuple.  Each slot is filled with NullVar.
- */
-Object *
-tuplevar_new(int n_items)
-{
-        return arrayvar_new_common(n_items, &TupleType, NULL, false);
+        return arrayvar_new_common(n_items, NULL, false);
 }
 
 /**
@@ -370,127 +354,7 @@ tuplevar_new(int n_items)
 Object *
 arrayvar_from_stack(Object **items, int n_items, bool consume)
 {
-        return arrayvar_new_common(n_items, &ArrayType, items, consume);
-}
-
-/* like arrayvar_from_stack... but for tuples! */
-Object *
-tuplevar_from_stack(Object **items, int n_items, bool consume)
-{
-        return arrayvar_new_common(n_items, &TupleType, items, consume);
-}
-
-/**
- * tuple_validate - Ensure a certain tuple length
- *                  and arrangement of contents.
- * @tup: Tuple to validate
- * @descr: Description of contents, explained below.
- * @map_function: If true, then 'x' in @descr could be either for a
- *              function or for a method object.  If false, then 'x' is
- *              strictly for functions.
- *
- * Return: RES_OK if contents match, RES_ERROR if either the tuple size
- *      is not the length of @descr or if any of its contents do not
- *      match.  tuple_validate() will not set any exceptions.
- *
- * tuples make for some useful pseudo-class objects.  tuple_validate can
- * be used to make sure its contents are the right type in the right order.
- *
- * As a general rule, upper-case letters in @descr are for internal-use
- * types or types the user does not normally deal with, while lower-case
- * letters are for types that user is most involved with.  Specifically,
- * @descr must contain a sequence of the following letters:
- *      letter:      Type:
- *      -------      -----
- *        *         wildcard (any type is valid)
- *        F         Filetype
- *        U         UuidptrType
- *        X         XptrType
- *        a         ArrayType
- *        b         BytesType
- *        d         DictType
- *        e         EmptyType (ie NullVar)
- *        f         FloatType
- *        i         IntType
- *        m         MethodType
- *        r         RangeType
- *        s         StringType
- *        x         FunctionType
- */
-enum result_t
-tuple_validate(Object *tup, const char *descr, bool map_function)
-{
-        Object **data;
-        if (!isvar_tuple(tup))
-                goto nope;
-        if (seqvar_size(tup) != strlen(descr))
-                goto nope;
-
-        data = tuple_get_data(tup);
-        while (*descr) {
-                struct type_t *check;
-                switch (*descr) {
-                case '*':
-                        check = NULL;
-                        break;
-                case 'F':
-                        check = &FileType;
-                        break;
-                case 'U':
-                        check = &UuidptrType;
-                        break;
-                case 'X':
-                        check = &XptrType;
-                        break;
-                case 'a':
-                        check = &ArrayType;
-                        break;
-                case 'b':
-                        check = &BytesType;
-                        break;
-                case 'd':
-                        check = &DictType;
-                        break;
-                case 'e':
-                        check = &EmptyType;
-                        break;
-                case 'f':
-                        check = &FloatType;
-                        break;
-                case 'i':
-                        check = &IntType;
-                        break;
-                case 'm':
-                        check = &MethodType;
-                        break;
-                case 'r':
-                        check = &RangeType;
-                        break;
-                case 's':
-                        check = &StringType;
-                        break;
-                case 'x':
-                        check = &FunctionType;
-                        break;
-                default:
-                        check = NULL;
-                        bug();
-                }
-                if (check && (*data)->v_type != check) {
-                        if (!map_function)
-                                goto nope;
-                        if (*descr != 'x')
-                                goto nope;
-                        if ((*data)->v_type != &MethodType)
-                                goto nope;
-                }
-                descr++;
-                data++;
-        }
-        return RES_OK;
-
-nope:
-        return RES_ERROR;
+        return arrayvar_new_common(n_items, items, consume);
 }
 
 /* type_t .reset callback */
@@ -542,50 +406,40 @@ array_cmp(Object *a, Object *b)
         return res;
 }
 
-/* helper to array_cat and tuple_cat */
+/* implement concatenation of a + b */
 static Object *
-array_cat_common(Object *a, Object *b, struct type_t *type)
+array_cat(Object *a, Object *b)
 {
-        size_t size_a, size_b;
+        size_t size_a, size_b, i;
         Object **ppa, **ppb, **ppc, *c;
 
         if (!b)
-                return arrayvar_new_common(0, type, NULL, false);
+                return arrayvar_new(0);
 
         size_a = seqvar_size(a);
         size_b = seqvar_size(b);
         ppa = V2ARR(a)->items;
         ppb = V2ARR(b)->items;
-        c = arrayvar_new_common(size_a + size_b, type, NULL, false);
+        c = arrayvar_new_common(size_a + size_b, NULL, false);
         ppc = V2ARR(c)->items;
-        if (size_a) {
-                memcpy(ppc, ppa, size_a * sizeof(Object *));
-                ppc += size_a;
+        for (i = 0; i < size_a; i++) {
+                VAR_DECR_REF(ppc[i]);
+                VAR_INCR_REF(ppa[i]);
+                ppc[i] = ppa[i];
         }
 
-        if (size_b)
-                memcpy(ppc, ppb, size_b * sizeof(Object *));
+        for (i = 0; i < size_b; i++) {
+                VAR_DECR_REF(ppc[i+size_a]);
+                VAR_INCR_REF(ppb[i]);
+                ppc[i + size_a] = ppb[i];
+        }
 
         return c;
 }
 
-/* implement concatenation of a + b */
-static Object *
-array_cat(Object *a, Object *b)
-{
-        return array_cat_common(a, b, &ArrayType);
-}
-
-/* implement concatenation of a + b */
-static Object *
-tuple_cat(Object *a, Object *b)
-{
-        return array_cat_common(a, b, &TupleType);
-}
-
 /* type_t .str callbacks for array and tuple */
 static Object *
-array_or_tuple_str(Object *t, int startchar)
+array_str(Object *t)
 {
         RECURSION_DECLARE_FUNC();
         RECURSION_START_FUNC(RECURSION_MAX);
@@ -594,7 +448,7 @@ array_or_tuple_str(Object *t, int startchar)
         Object *ret;
         size_t i, n = seqvar_size(t);
         buffer_init(&b);
-        buffer_putc(&b, startchar);
+        buffer_putc(&b, '[');
 
         for (i = 0; i < n; i++) {
                 Object *item;
@@ -605,17 +459,7 @@ array_or_tuple_str(Object *t, int startchar)
                 VAR_DECR_REF(item);
         }
 
-        /*
-         * Print what we can read back as the same type.  In the case of
-         * a tuple of size 1, parentheses around a single expression are
-         * interpreted as just that expression. A comma between the
-         * expression and closing parethesis ensures that it will be
-         * interpreted as a tuple.
-         */
-        if (startchar == '(' && n == 1)
-                buffer_putc(&b, ',');
-
-        buffer_putc(&b, startchar == '(' ? ')' : ']');
+        buffer_putc(&b, ']');
         ret = stringvar_from_buffer(&b);
 
         RECURSION_END_FUNC();
@@ -623,21 +467,9 @@ array_or_tuple_str(Object *t, int startchar)
         return ret;
 }
 
-static Object *
-array_str(Object *a)
-{
-        return array_or_tuple_str(a, '[');
-}
-
-static Object *
-tuple_str(Object *t)
-{
-        return array_or_tuple_str(t, '(');
-}
-
 /* implement 'x.foreach(myfunc, mypriv)' */
 static Object *
-array_tuple_foreach_common(Frame *fr, struct type_t *type)
+do_array_foreach(Frame *fr)
 {
         Object *self, *func, *priv, *argv[3];
         unsigned int idx, lock;
@@ -645,7 +477,7 @@ array_tuple_foreach_common(Frame *fr, struct type_t *type)
         int status = RES_OK;
 
         self = get_this(fr);
-        if (arg_type_check(self, type) == RES_ERROR)
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
         /*
          * If 'func' is not function, it could still be callable,
@@ -699,18 +531,6 @@ out:
         return status == RES_OK ? NULL : ErrorVar;
 }
 
-static Object *
-do_array_foreach(Frame *fr)
-{
-        return array_tuple_foreach_common(fr, &ArrayType);
-}
-
-static Object *
-do_tuple_foreach(Frame *fr)
-{
-        return array_tuple_foreach_common(fr, &TupleType);
-}
-
 /* implement 'x.append(y)' */
 static Object *
 do_array_append(Frame *fr)
@@ -735,11 +555,9 @@ do_array_append(Frame *fr)
 static Object *
 array_getprop_length(Object *self)
 {
-        bug_on(!isvar_array(self) && !isvar_tuple(self));
+        bug_on(!isvar_array(self));
         return intvar_new(seqvar_size(self));
 }
-
-#define tuple_getprop_length array_getprop_length
 
 /*
  * array.allocated() - Return number of actual slots available in the
@@ -793,37 +611,4 @@ struct type_t ArrayType = {
         .cmp = array_cmp,
         .reset = array_reset,
         .prop_getsets = array_prop_getsets,
-};
-
-static const struct type_inittbl_t tuple_cb_methods[] = {
-        V_INITTBL("foreach",    do_tuple_foreach,       1, 2, -1, -1),
-        TBLEND,
-};
-
-static const struct seq_methods_t tuple_seq_methods = {
-        .getitem        = array_getitem,
-        .setitem        = NULL,
-        .hasitem        = array_hasitem,
-        .getslice       = tuple_getslice,
-        .setslice       = NULL,
-        .cat            = tuple_cat,
-        .sort           = NULL,
-};
-
-static const struct type_prop_t tuple_prop_getsets[] = {
-        { .name = "length", .getprop = tuple_getprop_length, .setprop = NULL },
-        { .name = NULL },
-};
-
-struct type_t TupleType = {
-        .name = "tuple",
-        .opm = NULL,
-        .cbm = tuple_cb_methods,
-        .mpm = NULL,
-        .sqm = &tuple_seq_methods,
-        .size = sizeof(struct arrayvar_t),
-        .str = tuple_str,
-        .cmp = array_cmp,
-        .reset = array_reset,
-        .prop_getsets = tuple_prop_getsets,
 };

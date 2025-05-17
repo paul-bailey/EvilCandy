@@ -295,11 +295,16 @@ struct floatvar_t {
         Object base;
         double f;
 };
-/* Arrays and tuples share the same data struct */
+
 struct arrayvar_t {
         struct seqvar_t base;
+        Object **items;
         int lock;
         size_t alloc_size;
+};
+
+struct tuplevar_t {
+        struct seqvar_t base;
         Object **items;
 };
 
@@ -336,7 +341,8 @@ static inline double realvar_tod(Object *v)
         { return isvar_float(v) ? floatvar_tod(v) : (double)intvar_toll(v); }
 static inline Object **array_get_data(Object *v)
         { return ((struct arrayvar_t *)v)->items; }
-#define tuple_get_data(v) array_get_data(v)
+static inline Object **tuple_get_data(Object *v)
+        { return ((struct tuplevar_t *)v)->items; }
 static inline double *floats_get_data(Object *v)
         { return ((struct floatsvar_t *)v)->data; }
 static inline unsigned char *bytes_get_data(Object *v)

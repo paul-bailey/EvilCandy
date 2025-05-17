@@ -25,24 +25,21 @@ static Object *exception_last = NULL;
 static Object *
 mkexception(char *fmt, void *exc_arg, void *msg_arg)
 {
-        Object *tup;
+        Object *tup, **tupdata;
         int i;
         void *args[2] = { exc_arg, msg_arg };
 
         bug_on(strlen(fmt) != 2);
         tup = tuplevar_new(2);
+        tupdata = tuple_get_data(tup);
         for (i = 0; i < 2; i++) {
-                Object *tmp;
                 switch (fmt[i]) {
                 case 's':
-                        tmp = stringvar_new((char *)args[i]);
-                        tuple_setitem(tup, i, tmp);
-                        VAR_DECR_REF(tmp);
+                        tupdata[i] = stringvar_new((char *)args[i]);
                         break;
                 case 'S':
                 case 'O':
-                        tuple_setitem(tup, i, (Object *)args[i]);
-                        VAR_DECR_REF((Object *)args[i]);
+                        tupdata[i] = (Object *)args[i];
                         break;
                 default:
                         bug();

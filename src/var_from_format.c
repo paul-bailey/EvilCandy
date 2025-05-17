@@ -90,11 +90,10 @@ var_make_tuple(const char *fmt, va_list ap, char **endptr)
                 goto done;
         }
 
+        Object **data = tuple_get_data(tuple);
         for (i = 0; i < count; i++) {
-                Object *item = var_vmake(fmt, ap, endptr);
+                data[i] = var_vmake(fmt, ap, endptr);
                 fmt = *endptr;
-                tuple_setitem(tuple, i, item);
-                VAR_DECR_REF(item);
         }
 
 done:

@@ -131,17 +131,10 @@ extern FILE *push_path(const char *filename);
 
 /* types/array.c */
 extern Object *arrayvar_new(int n_items);
-extern Object *tuplevar_new(int n_items);
 extern Object *arrayvar_from_stack(Object **items, int n_items, bool consume);
-extern Object *tuplevar_from_stack(Object **items, int n_items, bool consume);
 extern enum result_t array_setitem(Object *array, int i, Object *child);
-/* user doesn't have access to this but internal code needs it */
-#define tuple_setitem   array_setitem
-#define tuple_getitem   array_getitem
 extern Object *array_getitem(Object *array, int idx);
 extern enum result_t array_append(Object *array, Object *child);
-extern enum result_t tuple_validate(Object *tup, const char *descr,
-                                    bool map_function);
 
 /* types/bytes.c */
 extern Object *bytesvar_new(unsigned char *buf, size_t len);
@@ -229,6 +222,13 @@ extern Object *stringvar_from_buffer(struct buffer_t *b);
 extern Object *stringvar_from_source(const char *tokenstr, bool imm);
 extern Object *stringvar_nocopy(const char *cstr);
 extern hash_t string_update_hash(Object *v);
+
+/* types/tuple.c */
+extern enum result_t tuple_validate(Object *tup, const char *descr,
+                                    bool map_function);
+extern Object *tuplevar_from_stack(Object **items, int n_items, bool consume);
+extern Object *tuplevar_new(int n_items);
+extern Object *tuple_getitem(Object *tup, int idx);
 
 /* uuid.c */
 extern char *uuidstr(void);

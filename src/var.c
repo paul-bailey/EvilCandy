@@ -896,21 +896,16 @@ var_logical_and(Object *a, Object *b)
 
 /**
  * var_foreach_generic - Common .foreach method for sequential objects.
- *
- * Currently not supported for dictionaries.
  */
 Object *
 var_foreach_generic(Frame *fr)
 {
-        Object *self, *func, *priv;
+        Object *self, *func, *priv, *dict;
         int i, status;
         Object *(*get)(Object *, int);
 
         self = vm_get_this(fr);
-        bug_on(!isvar_seq(self));
-
-        get = self->v_type->sqm->getitem;
-        bug_on(!get);
+        bug_on(!isvar_seq(self) && !isvar_dict(self));
 
         func = vm_get_arg(fr, 0);
         priv = vm_get_arg(fr, 1);
@@ -927,15 +922,37 @@ var_foreach_generic(Frame *fr)
         if (!priv)
                 priv = NullVar;
 
+        if (isvar_dict(self)) {
+                dict = self;
+                self = dict_keys(dict, true);
+        } else {
+                dict = NULL;
+        }
+
+        get = self->v_type->sqm->getitem;
+        bug_on(!get);
+
         status = RES_OK;
         if (!seqvar_size(self))
                 goto out;
 
         for (i = 0; i < seqvar_size(self); i++) {
-                Object *ret, *argv[3];
+                Object *ret, *key, *value, *argv[3];
+                value = get(self, i);
+                bug_on(!value);
+                if (dict) {
+                        key = value;
+                        value = dict_getitem(dict, key);
+                        if (!value) {
+                                VAR_DECR_REF(key);
+                                continue;
+                        }
+                } else {
+                        key = intvar_new(i);
+                }
 
-                argv[1] = get(self, i);
-                argv[0] = intvar_new(i);
+                argv[0] = value;
+                argv[1] = key;
                 argv[2] = priv;
 
                 ret = vm_exec_func(fr, func, 3, argv, false);
@@ -953,6 +970,9 @@ var_foreach_generic(Frame *fr)
         }
 
 out:
+        if (dict) /* keys were generated here */
+                VAR_DECR_REF(self);
+
         return status == RES_OK ? NULL : ErrorVar;
 }
 

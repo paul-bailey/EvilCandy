@@ -740,67 +740,6 @@ err:
  *                      Built-in Methods
  ***********************************************************************/
 
-/*
- * foreach(function)
- *      function may be user-defined or built-in (usu. the former).  Its
- *      argument is the specific object child, which is whatever type
- *      it happens to be.
- * Returns nothing
- */
-Object *
-do_dict_foreach(Frame *fr)
-{
-        Object *keys, *func, *self, *priv;
-        int i, len, status;
-
-        self = get_this(fr);
-
-        if (arg_type_check(self, &DictType) == RES_ERROR)
-                return ErrorVar;
-
-        func = frame_get_arg(fr, 0);
-        if (!func) {
-                err_argtype("function");
-                return ErrorVar;
-        }
-        priv = frame_get_arg(fr, 1);
-        if (!priv)
-                priv = NullVar;
-
-        keys = dict_keys(self, true);
-        len = seqvar_size(keys);
-        bug_on(len < 0);
-
-        status = RES_OK;
-        for (i = 0; i < len; i++) {
-                Object *key, *val, *argv[3], *cbret;
-
-                key = array_getitem(keys, i);
-                bug_on(!key || key == ErrorVar);
-                val = dict_getitem(self, key);
-                if (!val) /* user shenanigans in foreach loop */
-                        continue;
-
-                argv[0] = val;
-                argv[1] = key;
-                argv[2] = priv;
-                cbret = vm_exec_func(fr, func, 3, argv, false);
-
-                VAR_DECR_REF(key);
-                VAR_DECR_REF(val);
-
-                if (cbret == ErrorVar) {
-                        status = RES_ERROR;
-                        break;
-                }
-                if (cbret)
-                        VAR_DECR_REF(cbret);
-        }
-        VAR_DECR_REF(keys);
-        return status == RES_OK ? NULL : ErrorVar;
-}
-
-
 static Object *
 do_dict_delitem(Frame *fr)
 {
@@ -929,11 +868,11 @@ dict_getprop_length(Object *self)
 }
 
 static const struct type_inittbl_t dict_cb_methods[] = {
-        V_INITTBL("foreach",   do_dict_foreach,   1, 2, -1, -1),
-        V_INITTBL("delitem",   do_dict_delitem,   1, 1, -1, -1),
-        V_INITTBL("purloin",   do_dict_purloin,   0, 1, -1, -1),
-        V_INITTBL("keys",      do_dict_keys,      1, 1, -1,  0),
-        V_INITTBL("copy",      do_dict_copy,      0, 0, -1, -1),
+        V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
+        V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
+        V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
+        V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
+        V_INITTBL("copy",      do_dict_copy,        0, 0, -1, -1),
         TBLEND,
 };
 

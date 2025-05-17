@@ -34,7 +34,7 @@ print("\t{}\n\t{}".format(helloworld, helloagain));
 
     let printobj = function(obj) {
         print("Printing object");
-        obj.foreach(function(e, s, priv) {
+        obj.foreach(function(e, s) {
             print("\t{}: {}".format(s, e));
         });
     };

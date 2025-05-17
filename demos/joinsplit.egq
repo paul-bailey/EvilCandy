@@ -3,7 +3,7 @@
 // some code to see how join, append, and foreach behave
 print(' '.join(['a', 'b', 'c', 'd']));
 
-(['a', 'b', 'c'].foreach(function(e, i, unused){
+(['a', 'b', 'c'].foreach(function(e, i){
         print(i, ': ', e, sep='', end='; ');
 }));
 print('');
@@ -13,7 +13,7 @@ myar.append(1);
 myar.append(234);
 
 print("length(myar)={}".format(length(myar)));
-myar.foreach(function(e, i, unused) {
-        print("\t%2d: %4d".format2(i, e));
-});
+myar.foreach(function(e, i, priv) {
+        print("\t%2d: %4d (priv=%d)".format2(i, e, priv));
+}, 1);
 

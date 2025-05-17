@@ -716,18 +716,6 @@ iterable_next(struct iterable_t *iter)
         ret = iter->get(iter->v, iter->i);
         if (!ret)
                 return ErrorVar;
-        /*
-         * XXX Be more like Python, where a dictionary's keys, not its
-         * values, are regarded as its contents?
-         */
-        if (iter->dict) {
-                Object *tmp;
-                bug_on(!isvar_string(ret));
-                tmp = dict_getitem(iter->dict, ret);
-                bug_on(!tmp);
-                VAR_DECR_REF(ret);
-                ret = tmp;
-        }
         iter->i++;
         return ret;
 }

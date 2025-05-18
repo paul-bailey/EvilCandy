@@ -743,6 +743,7 @@ var_tuplify(Object *obj)
                 data[i] = iterable_next(&iter);
                 bug_on(!data[i]);
         }
+        iterable_cleanup(&iter);
         return ret;
 }
 
@@ -764,6 +765,7 @@ var_listify(Object *obj)
                 data[i] = iterable_next(&iter);
                 bug_on(!data[i]);
         }
+        iterable_cleanup(&iter);
         return ret;
 }
 

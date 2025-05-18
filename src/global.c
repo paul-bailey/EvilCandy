@@ -147,6 +147,8 @@ cfile_deinit_global(void)
 
         VAR_DECR_REF(gbl.stdout_file);
         VAR_DECR_REF(gbl.nl);
+        VAR_DECR_REF(gbl.one);
+        VAR_DECR_REF(gbl.zero);
 
         for (i = 0; i < N_STRCONST; i++)
                 VAR_DECR_REF(gbl.strconsts[i]);

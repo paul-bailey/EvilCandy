@@ -46,8 +46,11 @@ do_print(Frame *fr)
                     STRCONST_ID(end),  &end,  gbl.nl,
                     NULL);
         n = seqvar_size(arg);
-        if (n == 0)
+        if (n == 0) {
                 err_varargs(1, 0);
+                res = ErrorVar;
+                goto done;
+        }
 
         for (i = 0; i < n; i++) {
                 Object *p;
@@ -82,6 +85,7 @@ do_print(Frame *fr)
                         res = ErrorVar;
         }
 
+done:
         VAR_DECR_REF(sep);
         VAR_DECR_REF(file);
         VAR_DECR_REF(end);

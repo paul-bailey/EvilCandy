@@ -776,6 +776,30 @@ do_dict_keys(Frame *fr)
         return dict_keys(self, !!intvar_toll(sorted));
 }
 
+static Object *
+do_dict_values(Frame *fr)
+{
+        Object *ret;
+        Object *self = vm_get_this(fr);
+        struct dictvar_t *dict = V2D(self);
+        int i, j;
+
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
+
+        ret = arrayvar_new(seqvar_size(self));
+        j = 0;
+        for (i = 0; i < dict->d_size; i++) {
+                Object *k = dict->d_keys[i];
+                if (k == NULL || k == BUCKET_DEAD)
+                        continue;
+                array_setitem(ret, j, dict->d_vals[i]);
+                bug_on(j >= seqvar_size(self));
+                j++;
+        }
+        return ret;
+}
+
 /*
  * .copy()      Duplicate myself
  *
@@ -872,6 +896,7 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
         V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
         V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
+        V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
         V_INITTBL("copy",      do_dict_copy,        0, 0, -1, -1),
         TBLEND,
 };

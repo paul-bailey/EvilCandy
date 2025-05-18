@@ -763,6 +763,7 @@ do_dict_keys(Frame *fr)
         Object *sorted;
         Object *self = vm_get_this(fr);
         Object *kw = vm_get_arg(fr, 0);
+        Object *ret;
 
         if (arg_type_check(self, &DictType) == RES_ERROR)
                 return ErrorVar;
@@ -770,10 +771,14 @@ do_dict_keys(Frame *fr)
         bug_on(!kw || !isvar_dict(kw));
 
         dict_unpack(kw, STRCONST_ID(sorted), &sorted, gbl.zero, NULL);
-        if (arg_type_check(sorted, &IntType) == RES_ERROR)
-                return ErrorVar;
+        if (arg_type_check(sorted, &IntType) == RES_ERROR) {
+                ret = ErrorVar;
+        } else {
+                ret = dict_keys(self, !!intvar_toll(sorted));
+        }
 
-        return dict_keys(self, !!intvar_toll(sorted));
+        VAR_DECR_REF(sorted);
+        return ret;
 }
 
 static Object *

@@ -739,6 +739,7 @@ var_tuplify(Object *obj)
         ret = tuplevar_new(n);
         data = tuple_get_data(ret);
         for (i = 0; i < n; i++) {
+                VAR_DECR_REF(data[i]);
                 /* iterable_next() already produced ref */
                 data[i] = iterable_next(&iter);
                 bug_on(!data[i]);
@@ -761,6 +762,7 @@ var_listify(Object *obj)
         ret = arrayvar_new(n);
         data = array_get_data(ret);
         for (i = 0; i < n; i++) {
+                VAR_DECR_REF(data[i]);
                 /* iterable_next() already produced ref */
                 data[i] = iterable_next(&iter);
                 bug_on(!data[i]);

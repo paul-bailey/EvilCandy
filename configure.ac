@@ -24,6 +24,7 @@ AS_VAR_IF([have_uuid], [no],
 AS_VAR_IF([have_uuid], [yes], ,[AC_MSG_ERROR([uuid header missing])])
 
 AC_CHECK_TYPES([ssize_t], ,[AC_MSG_ERROR([signed ssize_t not available])])
+AC_CHECK_FUNCS([strrchrnul strrspn])
 
 dnl TODO: Check all the headers, AC_CHECK_HEADERS
 

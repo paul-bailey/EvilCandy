@@ -74,7 +74,7 @@ find_import_(const char *cur_path, const char *file_name,
         const char *notdir;
         size_t newdir_len;
 
-        notdir = my_strrchrnul(file_name + 1, SEP);
+        notdir = strrchrnul(file_name + 1, SEP);
         if (notdir[0] == '\0') {
                 notdir = file_name;
                 newdir_len = notdir - file_name;

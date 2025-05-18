@@ -213,7 +213,7 @@ buffer_rstrip(struct buffer_t *buf, const char *charset)
                 return;
         if (!charset)
                 charset = STRIP_DEFAULT_CHARSET;
-        spn = my_strrspn(buf->s, charset, buf->s + buf->p - 1);
+        spn = strrspn(buf->s, charset, buf->s + buf->p - 1);
         if (spn >= buf->p) {
                 bug_on(spn > buf->p);
                 buffer_reset(buf);

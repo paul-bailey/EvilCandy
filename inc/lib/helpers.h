@@ -5,15 +5,20 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdbool.h>
+#include "config.h"
+
+#ifndef HAVE_STRRSPN
+extern size_t strrspn(const char *s, const char *charset, const char *end);
+#endif
+#ifndef HAVE_STRRCHRNUL
+extern char *strrchrnul(const char *s, int c);
+#endif
 
 /* helpers.c */
 extern int x2bin(int c);
 static inline bool isodigit(int c) { return c >= '0' && c <= '7'; }
 static inline bool isquote(int c) { return c == '"' || c == '\''; }
-extern char *my_strrchrnul(const char *s, int c);
 extern ssize_t match(const char *needle, const char *haystack);
-extern size_t my_strrspn(const char *s,
-                         const char *charset, const char *end);
 extern int bit_count32(uint32_t v);
 extern int bit_count16(uint16_t v);
 extern int ctz32(uint32_t x);

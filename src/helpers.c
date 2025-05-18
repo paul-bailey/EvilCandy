@@ -21,15 +21,16 @@ x2bin(int c)
 const char *
 notdir(const char *path)
 {
-        const char *ret = my_strrchrnul(path, '/');
+        const char *ret = strrchrnul(path, '/');
         if (ret[0] == '\0')
                 return path;
         return ret + 1;
 }
 
+#ifndef HAVE_STRRCHRNUL
 /* Amazinglly, this is not in every C library */
 char *
-my_strrchrnul(const char *s, int c)
+strrchrnul(const char *s, int c)
 {
         const char *ret = NULL;
         while (*s != '\0') {
@@ -39,9 +40,11 @@ my_strrchrnul(const char *s, int c)
         }
         return ret ? (char *)ret : (char *)s;
 }
+#endif /* HAVE_STRRCHRNUL */
 
+#ifndef HAVE_STRRSPN
 /*
- * my_strrspn - Like strspn, but from the right
+ * strrspn - Like strspn, but from the right
  * @s:          Input string
  * @charset:    Characters to filter
  * @end:        Pointer to last character in @s before the nullchar
@@ -52,13 +55,14 @@ my_strrchrnul(const char *s, int c)
  * Return: Number of characters spanned.
  */
 size_t
-my_strrspn(const char *s, const char *charset, const char *end)
+strrspn(const char *s, const char *charset, const char *end)
 {
         const char *end_save = end;
         while (end >= s && strchr(charset, *end))
                 end--;
         return end_save - end;
 }
+#endif /* HAVE_STRRSPN */
 
 /**
  * bit_count16 - Count the number of '1' bits in an 16-bit datum

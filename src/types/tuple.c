@@ -3,9 +3,9 @@
 
 #define V2TUP(v_)               ((struct tuplevar_t *)(v_))
 
-/*
+/* **********************************************************************
  *              Type Methods
- */
+ ***********************************************************************/
 
 static Object *
 tuple_str(Object *t)
@@ -93,9 +93,9 @@ tuple_reset(Object *tup)
 }
 
 
-/*
+/* **********************************************************************
  *              Operator Methods
- */
+ ***********************************************************************/
 
 static Object *
 tuple_cat(Object *a, Object *b)
@@ -194,13 +194,75 @@ tuple_getitem(Object *tup, int idx)
         return va->items[idx];
 }
 
-/*
+/* **********************************************************************
  *              Built-in methods
- */
+ ***********************************************************************/
 
-/*
+static Object *
+do_tuple_index(Frame *fr)
+{
+        Object *self, *xarg, *startarg, **data;
+        int i, start, stop;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &TupleType) == RES_ERROR)
+                return ErrorVar;
+
+        start = 0;
+        stop = seqvar_size(self);
+
+        xarg = vm_get_arg(fr, 0);
+        bug_on(!xarg);
+        startarg = vm_get_arg(fr, 1);
+        if (startarg) {
+                Object *stoparg;
+
+                if (seqvar_arg2idx(self, startarg, &start) != RES_OK)
+                        return ErrorVar;
+                stoparg = vm_get_arg(fr, 2);
+                if (stoparg) {
+                        if (seqvar_arg2idx(self, stoparg, &stop) != RES_OK)
+                                return ErrorVar;
+                }
+        }
+
+        data = tuple_get_data(self);
+        for (i = start; i < stop; i++) {
+                if (var_compare(xarg, data[i]) == 0)
+                        return intvar_new(i);
+        }
+
+        err_setstr(ValueError, "item not in list");
+        return ErrorVar;
+}
+
+static Object *
+do_tuple_count(Frame *fr)
+{
+        Object *self, *xarg, **data;
+        int i, n, count;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &TupleType) == RES_ERROR)
+                return ErrorVar;
+
+        xarg = vm_get_arg(fr, 0);
+        bug_on(!xarg);
+
+        n = seqvar_size(self);
+        data = tuple_get_data(self);
+        count = 0;
+        for (i = 0; i < n; i++) {
+                if (var_compare(xarg, data[i]) == 0)
+                        count++;
+        }
+        return intvar_new(count);
+}
+
+
+/* **********************************************************************
  *              Properties
- */
+ ***********************************************************************/
 
 static Object *
 tuple_getprop_length(Object *self)
@@ -209,9 +271,9 @@ tuple_getprop_length(Object *self)
         return intvar_new(seqvar_size(self));
 }
 
-/*
+/* **********************************************************************
  *              API functions & helpers
- */
+ ***********************************************************************/
 
 static Object *
 tuplevar_new_common(int n_items, Object **src, bool consume)
@@ -372,10 +434,10 @@ nope:
         return RES_ERROR;
 }
 
-
-
 static const struct type_inittbl_t tuple_cb_methods[] = {
         V_INITTBL("foreach", var_foreach_generic, 1, 2, -1, -1),
+        V_INITTBL("count",   do_tuple_count,      1, 1, -1, -1),
+        V_INITTBL("index",   do_tuple_index,      1, 3, -1, -1),
         TBLEND,
 };
 

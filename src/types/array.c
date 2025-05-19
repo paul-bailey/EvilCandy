@@ -71,8 +71,8 @@ array_getitem(Object *array, int idx)
 }
 
 static enum result_t
-array_insert_from_arr(Object *array, int at,
-                      Object **children, size_t n_items)
+array_insert_chunk(Object *array, int at,
+                   Object **children, size_t n_items)
 {
         struct arrayvar_t *h = V2ARR(array);
         size_t i, size = seqvar_size(array);
@@ -113,7 +113,7 @@ array_delete_chunk(Object *array, int at, size_t n_items)
 
         if (at >= size)
                 return RES_OK;
-        if (size - at > n_items)
+        if (size - at < n_items)
                 n_items = size - at;
 
         for (i = at; i < at + n_items; i++)
@@ -227,8 +227,8 @@ array_setslice(Object *obj, int start, int stop, int step, Object *val)
                         if (seqvar_size(val) > src_i) {
                                 n = seqvar_size(val) - src_i;
                                 bug_on(start > seqvar_size(obj));
-                                array_insert_from_arr(obj, start,
-                                                      &src[src_i], n);
+                                array_insert_chunk(obj, start,
+                                                   &src[src_i], n);
                         }
                 }
                 return RES_OK;
@@ -306,7 +306,7 @@ array_hasitem(Object *array, Object *item)
 enum result_t
 array_append(Object *array, Object *child)
 {
-        return array_insert_from_arr(array, seqvar_size(array), &child, 1);
+        return array_insert_chunk(array, seqvar_size(array), &child, 1);
 }
 
 static Object *
@@ -475,7 +475,6 @@ do_array_append(Frame *fr)
         self = get_this(fr);
         arg = vm_get_arg(fr, 0);
 
-        /* array only, tuples are read-only... */
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
@@ -486,6 +485,16 @@ do_array_append(Frame *fr)
         }
         array_append(self, arg);
         return NULL;
+}
+
+/* implement 'x.copy()' */
+static Object *
+do_array_copy(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+        return array_getslice(self, 0, seqvar_size(self), 1);
 }
 
 static Object *
@@ -514,10 +523,247 @@ do_array_allocated(Frame *fr)
                           / sizeof(Object *));
 }
 
+static Object *
+do_array_clear(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+        if (array_delete_chunk(self, 0, seqvar_size(self)) != RES_OK)
+                return ErrorVar;
+        return NULL;
+}
+
+static Object *
+do_array_extend(Frame *fr)
+{
+        Object *arg, *self, *ext, *ret;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+
+        arg = vm_get_arg(fr, 0);
+        bug_on(!arg);
+
+        if (isvar_dict(arg)) {
+                ext = dict_keys(arg, true);
+        } else {
+                ext = arg;
+                VAR_INCR_REF(ext);
+        }
+
+        ret = NULL;
+        if (!isvar_seq(ext)) {
+                err_setstr(TypeError, "Expected: sequential object");
+                ret = ErrorVar;
+                goto out;
+        }
+
+        if (array_insert_chunk(self, seqvar_size(self),
+                               array_get_data(ext),
+                               seqvar_size(ext)) != RES_OK) {
+                ret = ErrorVar;
+        }
+
+out:
+        VAR_DECR_REF(ext);
+        return ret;
+}
+
+static Object *
+do_array_remove(Frame *fr)
+{
+        Object *arg, *self, **data;
+        int i, n;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+
+        arg = vm_get_arg(fr, 0);
+        bug_on(!arg);
+
+        data = array_get_data(self);
+
+        n = seqvar_size(self);
+        for (i = 0; i < n; i++) {
+                if (var_compare(data[i], arg) == 0) {
+                        if (array_delete_chunk(self, i, 1) != RES_OK) {
+                                bug_on(!err_occurred());
+                                return ErrorVar;
+                        }
+                        return NULL;
+                }
+        }
+        err_setstr(ValueError, "item not in list");
+        return ErrorVar;
+}
+
+static Object *
+do_array_pop(Frame *fr)
+{
+        Object *arg, *self;
+        int at;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+
+        arg = vm_get_arg(fr, 0);
+        if (arg) {
+                if (arg_type_check(arg, &IntType) == RES_ERROR)
+                        return ErrorVar;
+                at = intvar_toi(arg);
+                if (err_occurred())
+                        return ErrorVar;
+        } else {
+                at = 0;
+        }
+
+        if (at < 0) {
+                at += seqvar_size(self);
+                if (at < 0)
+                        at = 0;
+        }
+
+        if (array_delete_chunk(self, at, 1) == RES_ERROR)
+                return ErrorVar;
+
+        return NULL;
+}
+
+static Object *
+do_array_insert(Frame *fr)
+{
+        Object *idxarg, *valarg, *self;
+        int at;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+
+        idxarg = vm_get_arg(fr, 0);
+        valarg = vm_get_arg(fr, 1);
+        bug_on(!valarg || !idxarg);
+
+        if (arg_type_check(idxarg, &IntType) == RES_ERROR)
+                return ErrorVar;
+
+        at = intvar_toi(idxarg);
+        if (err_occurred())
+                return ErrorVar;
+
+        if (at > seqvar_size(self)) {
+                /*
+                 * XXX REVISIT: Here I'm doing what Python does, quietly
+                 * change the argument instead of throw an error.  I'm
+                 * not so sure I like that.
+                 */
+                at = seqvar_size(self);
+        }
+
+        if (array_insert_chunk(self, at, &valarg, 1) == RES_ERROR)
+                return ErrorVar;
+        return NULL;
+}
+
+static Object *
+do_array_index(Frame *fr)
+{
+        Object *self, *xarg, *startarg, **data;
+        int i, start, stop;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+
+        start = 0;
+        stop = seqvar_size(self);
+
+        xarg = vm_get_arg(fr, 0);
+        bug_on(!xarg);
+        startarg = vm_get_arg(fr, 1);
+        if (startarg) {
+                Object *stoparg;
+
+                if (seqvar_arg2idx(self, startarg, &start) != RES_OK)
+                        return ErrorVar;
+                stoparg = vm_get_arg(fr, 2);
+                if (stoparg) {
+                        if (seqvar_arg2idx(self, stoparg, &stop) != RES_OK)
+                                return ErrorVar;
+                }
+        }
+
+        data = array_get_data(self);
+        for (i = start; i < stop; i++) {
+                if (var_compare(xarg, data[i]) == 0)
+                        return intvar_new(i);
+        }
+
+        err_setstr(ValueError, "item not in list");
+        return ErrorVar;
+}
+
+static Object *
+do_array_count(Frame *fr)
+{
+        Object *self, *xarg, **data;
+        int i, n, count;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+
+        xarg = vm_get_arg(fr, 0);
+        bug_on(!xarg);
+
+        n = seqvar_size(self);
+        data = array_get_data(self);
+        count = 0;
+        for (i = 0; i < n; i++) {
+                if (var_compare(xarg, data[i]) == 0)
+                        count++;
+        }
+        return intvar_new(count);
+}
+
+static Object *
+do_array_reverse(Frame *fr)
+{
+        Object **low, **high, *self;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+
+        low = array_get_data(self);
+        high = &low[seqvar_size(self) - 1];
+        while (low < high) {
+                Object *tmp = *high;
+                *high = *low;
+                *low = tmp;
+                high--;
+                low++;
+        }
+        return NULL;
+}
+
 static const struct type_inittbl_t array_cb_methods[] = {
-        V_INITTBL("append",     do_array_append,     1, 1, -1, -1),
-        V_INITTBL("foreach",    var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("allocated",  do_array_allocated,  0, 0, -1, -1),
+        V_INITTBL("append",     do_array_append,     1, 1, -1, -1),
+        V_INITTBL("clear",      do_array_clear,      0, 0, -1, -1),
+        V_INITTBL("copy",       do_array_copy,       0, 0, -1, -1),
+        V_INITTBL("count",      do_array_count,      1, 1, -1, -1),
+        V_INITTBL("extend",     do_array_extend,     1, 1, -1, -1),
+        V_INITTBL("foreach",    var_foreach_generic, 1, 2, -1, -1),
+        V_INITTBL("index",      do_array_index,      1, 3, -1, -1),
+        V_INITTBL("insert",     do_array_insert,     2, 2, -1, -1),
+        V_INITTBL("pop",        do_array_pop,        0, 1, -1, -1),
+        V_INITTBL("remove",     do_array_remove,     1, 1, -1, -1),
+        V_INITTBL("reverse",    do_array_reverse,    0, 0, -1, -1),
+        /* TODO: sort */
         TBLEND,
 };
 

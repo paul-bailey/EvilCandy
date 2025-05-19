@@ -352,6 +352,41 @@ malformed:
 }
 
 /**
+ * seqvar_arg2idx - Helper functions for sequential objects to translate
+ *                  an index argument (which may be <0) into an index >= 0
+ * @obj:  Object being de-referenced
+ * @iarg: Argument containing an integer index number
+ * @idx:  Pointer to a variable to store index
+ *
+ * Return: RES_OK or RES_ERROR.  If result is RES_ERROR, an exceptin has
+ *         been thrown.
+ */
+enum result_t
+seqvar_arg2idx(Object *obj, Object *iarg, int *idx)
+{
+        /*
+         * XXX: Slight DRY violation with var_realindex, tup2slice.
+         * Review policy and merge duplicate parts of these functions.
+         */
+        int i;
+        bug_on(!isvar_seq(obj));
+        if (arg_type_check(iarg, &IntType) == RES_ERROR)
+                return RES_ERROR;
+        i = intvar_toi(iarg);
+        if (err_occurred())
+                return RES_ERROR;
+
+        if (i < 0) {
+                i += seqvar_size(obj);
+                if (i < 0)
+                        i = 0;
+        }
+        *idx = i;
+        return RES_OK;
+}
+
+
+/**
  * var_getattr - Generalized get-attribute
  * @v:  Variable whose attribute we're seeking
  * @key: Variable storing the key, either the name or an index number

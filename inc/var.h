@@ -114,6 +114,7 @@ extern Object *var_max(Object *v);
 extern Object *var_lnot(Object *v);
 extern Object *var_logical_or(Object *a, Object *b);
 extern Object *var_logical_and(Object *a, Object *b);
+extern enum result_t seqvar_arg2idx(Object *obj, Object *iarg, int *idx);
 extern Object *var_foreach_generic(Frame *fr);
 extern void var_delete__(Object *v);
 

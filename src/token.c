@@ -93,7 +93,7 @@ static bool
 str_or_bytes_finish(struct token_state_t *state, char *pc, int q)
 {
         struct buffer_t *tok = &state->tok;
-        int c;
+        int c, clast = 0;
         while ((c = *pc++) != q) {
                 if (c == '\0')
                         token_errset(state, TE_UNTERM_QUOTE);
@@ -101,10 +101,11 @@ str_or_bytes_finish(struct token_state_t *state, char *pc, int q)
                 buffer_putc(tok, c);
 
                 /* make sure we don't misinterpret q */
-                if (c == '\\' && *pc == q) {
+                if (clast != '\\' && c == '\\' && *pc == q) {
                         buffer_putc(tok, q);
-                        pc++;
+                        c = *pc++;
                 }
+                clast = c;
         }
         buffer_putc(tok, q);
         state->s = pc;

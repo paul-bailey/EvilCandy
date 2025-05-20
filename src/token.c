@@ -545,7 +545,7 @@ tokenize(struct token_state_t *state)
                                 err_setstr(SyntaxError,
                                         "Error in string literal %s",
                                         state->tok.s);
-                                ret = RES_ERROR;
+                                return RES_ERROR;
                         }
                         break;
                 default:

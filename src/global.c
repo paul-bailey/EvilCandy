@@ -66,6 +66,7 @@ initialize_string_consts(void)
                 STRCONST_CSTR(file),
                 STRCONST_CSTR(end),
                 STRCONST_CSTR(sorted),
+                STRCONST_CSTR(tabsize),
                 [STRCONST_IDX_spc] = " ",
         };
 
@@ -99,6 +100,7 @@ initialize_global_object(void)
 
         gbl.one = intvar_new(1LL);
         gbl.zero = intvar_new(0LL);
+        gbl.eight = intvar_new(8LL);
 
         o = dict_getitem_cstr(GlobalObject, "_builtins");
         dict_add_to_globals(o);
@@ -149,6 +151,7 @@ cfile_deinit_global(void)
         VAR_DECR_REF(gbl.nl);
         VAR_DECR_REF(gbl.one);
         VAR_DECR_REF(gbl.zero);
+        VAR_DECR_REF(gbl.eight);
 
         for (i = 0; i < N_STRCONST; i++)
                 VAR_DECR_REF(gbl.strconsts[i]);

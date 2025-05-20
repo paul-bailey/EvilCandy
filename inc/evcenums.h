@@ -80,6 +80,7 @@ enum {
         STRCONST_IDX_file,
         STRCONST_IDX_end,
         STRCONST_IDX_sorted,
+        STRCONST_IDX_tabsize,
         STRCONST_IDX_spc,
         N_STRCONST,
 };

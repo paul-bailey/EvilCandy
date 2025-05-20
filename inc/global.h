@@ -14,6 +14,7 @@ struct global_t {
         Object *strconsts[N_STRCONST];
         Object *one;
         Object *zero;
+        Object *eight;
 };
 
 #define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])

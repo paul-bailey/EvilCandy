@@ -805,58 +805,6 @@ string_format(Frame *fr)
         return stringvar_newf(buffer_trim(&t), 0);
 }
 
-/* toint() (no args)
- * returns int
- */
-static Object *
-string_toint(Frame *fr)
-{
-        Object *self = get_this(fr);
-        long long i = 0LL;
-        const char *s;
-
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        s = V2CSTR(self);
-        /* XXX Revisit: throw exception if not numerical? */
-        if (s) {
-                int errno_save = errno;
-                char *endptr;
-                i = strtoll(s, &endptr, 0);
-                if (endptr == s || errno)
-                        i = 0;
-                errno = errno_save;
-        }
-        return intvar_new(i);
-}
-
-/*
- * tofloat()  (no args)
- * returns float
- */
-static Object *
-string_tofloat(Frame *fr)
-{
-        Object *self = get_this(fr);
-        double f = 0.;
-        const char *s;
-
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        s = V2CSTR(self);
-        if (s) {
-                int errno_save = errno;
-                char *endptr;
-                f = strtod(s, &endptr);
-                if (endptr == s || errno)
-                        f = 0.;
-                errno = errno_save;
-        }
-        return floatvar_new(f);
-}
-
 /*
  * lstrip()             no args implies whitespace
  * lstrip(charset)      charset is string
@@ -1173,20 +1121,355 @@ string_join(Frame *fr)
         return stringvar_newf(buffer_trim(&b), 0);
 }
 
+static Object *
+string_capitalize(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        const char *src;
+        char *dst;
+        char *newbuf;
+        int c;
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        src = string_cstring(self);
+        newbuf = dst = emalloc(STRING_NBYTES(self) + 1);
+
+        if ((c = *src++) != '\0')
+                *dst++ = isascii(c) ? toupper(c) : c;
+
+        while ((c = *src++) != '\0')
+                *dst++ = isascii(c) ? tolower(c) : c;
+
+        *dst = '\0';
+        return stringvar_newf(newbuf, SF_COPY);
+}
+
+static Object *
+string_center(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        Object *arg = vm_get_arg(fr, 0);
+        char *dst, *end, *newbuf;
+        int len, src_len, nbytes, src_nbytes, padlen;
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        if (arg_type_check(arg, &IntType) == RES_ERROR)
+                return ErrorVar;
+
+        len = intvar_toi(arg);
+        if (err_occurred())
+                return ErrorVar;
+
+        src_len = seqvar_size(self);
+        if (len < src_len)
+                len = src_len;
+        src_nbytes = STRING_NBYTES(self);
+        nbytes = src_nbytes + (len - src_len);
+
+        dst = newbuf = emalloc(nbytes + 1);
+        end = dst + nbytes;
+
+        padlen = (len - src_len) / 2;
+        while (padlen-- > 0)
+                *dst++ = ' ';
+        memcpy(dst, string_cstring(self), src_nbytes);
+        dst += src_nbytes;
+        while (dst < end)
+                *dst++ = ' ';
+        *dst = '\0';
+        return stringvar_newf(newbuf, SF_COPY);
+}
+
+static Object *
+string_count(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        Object *arg = vm_get_arg(fr, 0);
+        const char *needle, *haystack;
+        int count, ndlen;
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(arg, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        needle = string_cstring(arg);
+        haystack = string_cstring(self);
+        /*
+         * strstr has too complicated a return value,
+         * just do this manually.
+         */
+        count = 0;
+        ndlen = STRING_NBYTES(arg);
+        while (*haystack != '\0') {
+                if (!strncmp(haystack, needle, ndlen)) {
+                        count++;
+                        haystack += ndlen;
+                } else {
+                        haystack++;
+                }
+        }
+        return intvar_new(count);
+}
+
+static Object *
+string_endswith(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        Object *arg = vm_get_arg(fr, 0);
+        /* TODO: optional start, stop args */
+        const char *needle, *haystack;
+        int endswith, nlen, hlen;
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(arg, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        needle = string_cstring(arg);
+        haystack = string_cstring(self);
+        nlen = STRING_NBYTES(arg);
+        hlen = STRING_NBYTES(self);
+
+        if (nlen > hlen) {
+                endswith = 0;
+        } else {
+                endswith = strcmp(&haystack[hlen - nlen], needle) == 0;
+        }
+        return intvar_new(endswith);
+}
+
+static Object *
+string_expandtabs(Frame *fr)
+{
+        Object *self, *kw, *tabarg;
+        int tabsize, col, c, nextstop;
+        const char *src;
+        struct buffer_t b;
+
+        self = vm_get_this(fr);
+        kw = vm_get_arg(fr, 0);
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        bug_on(!kw || !isvar_dict(kw));
+        dict_unpack(kw, STRCONST_ID(tabsize), &tabarg, gbl.eight, NULL);
+        if (arg_type_check(tabarg, &IntType) == RES_ERROR) {
+                VAR_DECR_REF(tabarg);
+                return ErrorVar;
+        }
+        tabsize = intvar_toi(tabarg);
+        VAR_DECR_REF(tabarg);
+
+        if (err_occurred())
+                return ErrorVar;
+
+        if (tabsize < 0)
+                tabsize = 0;
+
+        buffer_init(&b);
+        col = 0;
+        nextstop = tabsize;
+        src = string_cstring(self);
+        while ((c = *src++) != '\0') {
+                if (c == '\t') {
+                        if (col == nextstop)
+                                nextstop += tabsize;
+                        while (col < nextstop) {
+                                buffer_putc(&b, ' ');
+                                col++;
+                        }
+                        nextstop += tabsize;
+                        continue;
+                } else {
+                        if (col == nextstop)
+                                nextstop += tabsize;
+                        buffer_putc(&b, c);
+                        col++;
+                }
+        }
+        return stringvar_newf(buffer_trim(&b), 0);
+}
+
+/* helper to str.find() and str.index() */
+static Object *
+string_index_or_find(Frame *fr, int suppress)
+{
+        Object *self = vm_get_this(fr);
+        Object *arg = vm_get_arg(fr, 0);
+        const char *haystack, *needle, *found;
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(arg, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        needle = string_cstring(arg);
+        haystack = string_cstring(self);
+        found = strstr(haystack, needle);
+        if (!found && !suppress) {
+                err_setstr(ValueError, "substring not found");
+                return ErrorVar;
+        }
+        return intvar_new(found ? (int)(found - haystack) : -1);
+}
+
+static Object *
+string_find(Frame *fr)
+{
+        return string_index_or_find(fr, 1);
+}
+
+static Object *
+string_index(Frame *fr)
+{
+        return string_index_or_find(fr, 0);
+}
+
+/*
+ *      str.isXXXX() functions and helpers
+ */
+
+static Object *
+string_is1(Frame *fr, bool (*cb)(const char *))
+{
+        Object *ret;
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        if (seqvar_size(self) == 0) {
+                ret = gbl.zero;
+        } else {
+                ret = cb(string_cstring(self)) ? gbl.one : gbl.zero;
+        }
+        VAR_INCR_REF(ret);
+        return ret;
+}
+
+static Object *
+string_is2(Frame *fr, bool (*tst)(unsigned int c))
+{
+        Object *ret;
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        /* To be overwritten if false */
+        ret = gbl.one;
+        if (seqvar_size(self) == 0) {
+                ret = gbl.zero;
+        } else {
+                unsigned int c;
+                const char *s = string_cstring(self);
+                while ((c = *s++) != '\0') {
+                        if (!tst(c)) {
+                                ret = gbl.zero;
+                                break;
+                        }
+                }
+        }
+        VAR_INCR_REF(ret);
+        return ret;
+}
+
+static bool
+is_ident(const char *s)
+{
+        int c;
+        if ((c = *s++) != '_' && !isalpha(c))
+                return false;
+        while ((c = *s++) != '\0') {
+                if (!isalnum(c) && c != '_')
+                        return false;
+        }
+        return true;
+}
+
+static bool
+is_title(const char *s)
+{
+        int c;
+        bool first = true;
+        while ((c = *s++) != '\0') {
+                if (!isalpha(c)) {
+                        first = true;
+                } else if (first) {
+                        if (islower(c))
+                                return false;
+                        first = false;
+                }
+        }
+        return true;
+}
+
+static bool is_alnum(unsigned int c) { return c < 128 && isalnum(c); }
+static bool is_alpha(unsigned int c) { return c < 128 && isalpha(c); }
+static bool is_ascii(unsigned int c) { return c < 128; }
+static bool is_digit(unsigned int c) { return c < 128 && isdigit(c); }
+static bool is_printable(unsigned int c) { return c < 128 && isprint(c); }
+static bool is_space(unsigned int c) { return c < 128 && isspace(c); }
+static bool is_upper(unsigned int c) { return c < 128 && isupper(c); }
+
+static Object *string_isident(Frame *fr)
+        { return string_is1(fr, is_ident); }
+
+static Object *string_istitle(Frame *fr)
+        { return string_is1(fr, is_title); }
+
+static Object *string_isalnum(Frame *fr)
+        { return string_is2(fr, is_alnum); }
+
+static Object *string_isalpha(Frame *fr)
+        { return string_is2(fr, is_alpha); }
+
+static Object *string_isascii(Frame *fr)
+        { return string_is2(fr, is_ascii); }
+
+static Object *string_isdigit(Frame *fr)
+        { return string_is2(fr, is_digit); }
+
+static Object *string_isprintable(Frame *fr)
+        { return string_is2(fr, is_printable); }
+
+static Object *string_isspace(Frame *fr)
+        { return string_is2(fr, is_space); }
+
+static Object *string_isupper(Frame *fr)
+        { return string_is2(fr, is_upper); }
+
 static struct type_inittbl_t string_methods[] = {
-        V_INITTBL("format",  string_format,        1, 1,  0, -1),
-        V_INITTBL("format2", string_format2,       1, 1,  0, -1),
-        V_INITTBL("ljust",   string_ljust,         1, 1, -1, -1),
-        V_INITTBL("rjust",   string_rjust,         1, 1, -1, -1),
-        V_INITTBL("toint",   string_toint,         0, 0, -1, -1),
-        V_INITTBL("tofloat", string_tofloat,       0, 0, -1, -1),
-        V_INITTBL("lstrip",  string_lstrip,        0, 1, -1, -1),
-        V_INITTBL("rstrip",  string_rstrip,        0, 1, -1, -1),
-        V_INITTBL("replace", string_replace,       2, 2, -1, -1),
-        V_INITTBL("split",   string_split,         0, 0, -1, -1),
-        V_INITTBL("strip",   string_strip,         0, 1, -1, -1),
-        V_INITTBL("copy",    string_copy,          0, 0, -1, -1),
-        V_INITTBL("join",    string_join,          1, 1, -1, -1),
+        V_INITTBL("capitalize",  string_capitalize,  0, 0, -1, -1),
+        V_INITTBL("center",      string_center,      1, 1, -1, -1),
+        V_INITTBL("copy",        string_copy,        0, 0, -1, -1),
+        V_INITTBL("count",       string_count,       1, 1, -1, -1),
+        V_INITTBL("endswith",    string_endswith,    0, 0, -1, -1),
+        V_INITTBL("expandtabs",  string_expandtabs,  1, 1, -1,  0),
+        V_INITTBL("find",        string_find,        1, 1, -1, -1),
+        V_INITTBL("format",      string_format,      1, 1,  0, -1),
+        V_INITTBL("format2",     string_format2,     1, 1,  0, -1),
+        V_INITTBL("index",       string_index,       1, 1, -1, -1),
+        V_INITTBL("isalnum",     string_isalnum,     0, 0, -1, -1),
+        V_INITTBL("isalpha",     string_isalpha,     0, 0, -1, -1),
+        V_INITTBL("isascii",     string_isascii,     0, 0, -1, -1),
+        V_INITTBL("isdigit",     string_isdigit,     0, 0, -1, -1),
+        V_INITTBL("isident",     string_isident,     0, 0, -1, -1),
+        V_INITTBL("isprintable", string_isprintable, 0, 0, -1, -1),
+        V_INITTBL("isspace",     string_isspace,     0, 0, -1, -1),
+        V_INITTBL("istitle",     string_istitle,     0, 0, -1, -1),
+        V_INITTBL("isupper",     string_isupper,     0, 0, -1, -1),
+        V_INITTBL("join",        string_join,        1, 1, -1, -1),
+        V_INITTBL("ljust",       string_ljust,       1, 1, -1, -1),
+        V_INITTBL("lstrip",      string_lstrip,      0, 1, -1, -1),
+        V_INITTBL("replace",     string_replace,     2, 2, -1, -1),
+        V_INITTBL("rjust",       string_rjust,       1, 1, -1, -1),
+        V_INITTBL("rstrip",      string_rstrip,      0, 1, -1, -1),
+        V_INITTBL("split",       string_split,       0, 0, -1, -1),
+        V_INITTBL("strip",       string_strip,       0, 1, -1, -1),
         TBLEND,
 };
 

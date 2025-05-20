@@ -1501,6 +1501,9 @@ string_str(Object *v)
                 if (c == Q) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, Q);
+                } else if (c == BKSL) {
+                        buffer_putc(&b, BKSL);
+                        buffer_putc(&b, BKSL);
                 } else if (isspace(c)) {
                         switch (c) {
                         case ' ': /* this one's ok */

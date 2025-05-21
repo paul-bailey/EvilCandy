@@ -200,16 +200,15 @@ done:
 }
 
 static Object *
-float_tostr(Frame *fr)
+float_conjugate(Frame *fr)
 {
         Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &FloatType) == RES_ERROR)
-                return ErrorVar;
-        return float_str(self);
+        bug_on(!self || !isvar_float(self));
+        return VAR_NEW_REF(self);
 }
 
 static const struct type_inittbl_t float_methods[] = {
-        V_INITTBL("tostr", float_tostr, 0, 0, -1, -1),
+        V_INITTBL("conjugate", float_conjugate, 0, 0, -1, -1),
         TBLEND,
 };
 

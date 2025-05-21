@@ -295,6 +295,14 @@ int_bit_count(Frame *fr)
         return intvar_new__(count);
 }
 
+static Object *
+int_conjugate(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        bug_on(!self || !isvar_int(self));
+        return VAR_NEW_REF(self);
+}
+
 Object *
 intvar_new(long long initval)
 {
@@ -322,6 +330,7 @@ intvar_toi(Object *v)
 static const struct type_inittbl_t int_methods[] = {
         V_INITTBL("bit_length", int_bit_length, 0, 0, -1, -1),
         V_INITTBL("bit_count",  int_bit_count,  0, 0, -1, -1),
+        V_INITTBL("conjugate",  int_conjugate,  0, 0, -1, -1),
         TBLEND,
 };
 

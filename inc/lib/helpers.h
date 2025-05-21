@@ -22,6 +22,7 @@ extern int x2bin(int c);
 static inline bool isodigit(int c) { return c >= '0' && c <= '7'; }
 static inline bool isquote(int c) { return c == '"' || c == '\''; }
 extern ssize_t match(const char *needle, const char *haystack);
+extern int bit_count64(uint64_t v);
 extern int bit_count32(uint32_t v);
 extern int bit_count16(uint16_t v);
 extern int ctz32(uint32_t x);

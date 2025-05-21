@@ -114,6 +114,23 @@ bit_count32(uint32_t v)
         return v;
 }
 
+/**
+ * bit_count32 - Count the number of '1' bits in a 64-bit datum
+ *
+ * Credit to the book *Hacker's Delight" by Henry S. Warren, Jr.
+ */
+int
+bit_count64(uint64_t v)
+{
+        v = (v & 0x5555555555555555ull) + ((v >> 1) & 0x5555555555555555ull);
+        v = (v & 0x3333333333333333ull) + ((v >> 2) & 0x3333333333333333ull);
+        v = (v & 0x0f0f0f0f0f0f0f0full) + ((v >> 4) & 0x0f0f0f0f0f0f0f0full);
+        v = (v & 0x00ff00ff00ff00ffull) + ((v >> 8) & 0x00ff00ff00ff00ffull);
+        v = (v & 0x0000ffff0000ffffull) + ((v >> 16) & 0x0000ffff0000ffffull);
+        v = (v & 0x00000000ffffffffull) + ((v >> 32) & 0x00000000ffffffffull);
+        return (int)v;
+}
+
 /*
  * Count trailing bits.
  * These return a meaningless 31 and 63, respectively, if x is zero.

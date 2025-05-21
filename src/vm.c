@@ -898,7 +898,7 @@ do_cmp(Frame *fr, instruction_t ii)
         rval = pop(fr);
         lval = pop(fr);
         cmp = var_compare_iarg(lval, rval, ii.arg1);
-        res = intvar_new(cmp);
+        res = cmp ? VAR_NEW_REF(gbl.one) : VAR_NEW_REF(gbl.zero);
         push(fr, res);
         VAR_DECR_REF(rval);
         VAR_DECR_REF(lval);

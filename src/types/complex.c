@@ -110,12 +110,22 @@ complex_str(Object *self)
 {
         struct complexvar_t *cv = V2C(self);
         struct buffer_t b;
+        double im, re;
+        int sign;
         complex double c = cv->c;
         bug_on(!isvar_complex(self));
 
+        re = creal(c);
+        im = cimag(c);
+        if (im < 0) {
+                im = -im;
+                sign = '-';
+        } else {
+                sign = '+';
+        }
+
         buffer_init(&b);
-        /* XXX: types/float.c and this should call the same format func */
-        buffer_printf(&b, "%.17g + %.17gj", creal(c), cimag(c));
+        buffer_printf(&b, "(%.17g%c%.17gj)", re, sign, im);
         return stringvar_from_buffer(&b);
 }
 

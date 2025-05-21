@@ -11,6 +11,12 @@
  */
 #define LL_SQUARE_LIMIT  (1ull << 32)
 
+static Object *
+intvar_new__(long long x)
+{
+        return x ? intvar_new(x) : VAR_NEW_REF(gbl.zero);
+}
+
 /*
  * Algorithm taken straight from Wikipedia, "Exponentiation by squaring".
  * I C-ified and int-ified it and added some boundary checks.  I *assume*
@@ -84,7 +90,7 @@ int_pow(Object *a, Object *b)
         res = ipow(la, lb);
         if (err_occurred())
                 return NULL;
-        return intvar_new(res);
+        return intvar_new__(res);
 }
 
 static Object *
@@ -94,7 +100,7 @@ int_mul(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new(la * lb);
+        return intvar_new__(la * lb);
 }
 
 static Object *
@@ -108,7 +114,7 @@ int_div(Object *a, Object *b)
                 err_setstr(NumberError, "Divide by zero");
                 return NULL;
         }
-        return intvar_new(la / lb);
+        return intvar_new__(la / lb);
 }
 
 static Object *
@@ -122,7 +128,7 @@ int_mod(Object *a, Object *b)
                 err_setstr(NumberError, "Modulo zero");
                 return NULL;
         }
-        return intvar_new(la % lb);
+        return intvar_new__(la % lb);
 }
 
 static Object *
@@ -132,7 +138,7 @@ int_add(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new(la + lb);
+        return intvar_new__(la + lb);
 }
 
 static Object *
@@ -142,7 +148,7 @@ int_sub(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new(la - lb);
+        return intvar_new__(la - lb);
 }
 
 /*
@@ -177,7 +183,7 @@ int_lshift(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new(la << lb);
+        return intvar_new__(la << lb);
 }
 
 static Object *
@@ -187,7 +193,7 @@ int_rshift(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new(la >> lb);
+        return intvar_new__(la >> lb);
 }
 
 static Object *
@@ -197,7 +203,7 @@ int_bit_and(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new(la & lb);
+        return intvar_new__(la & lb);
 }
 
 static Object *
@@ -207,7 +213,7 @@ int_bit_or(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new(la | lb);
+        return intvar_new__(la | lb);
 }
 
 static Object *
@@ -217,7 +223,7 @@ int_xor(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new(la ^ lb);
+        return intvar_new__(la ^ lb);
 }
 
 static bool
@@ -229,13 +235,13 @@ int_cmpz(Object *a)
 static Object *
 int_bit_not(Object *a)
 {
-        return intvar_new(~(V2I(a)->i));
+        return intvar_new__(~(V2I(a)->i));
 }
 
 static Object *
 int_negate(Object *a)
 {
-        return intvar_new(-(V2I(a)->i));
+        return intvar_new__(-(V2I(a)->i));
 }
 
 static Object *
@@ -244,7 +250,7 @@ int_abs(Object *a)
         long long v = intvar_toll(a);
         if (v < 0)
                 v = -v;
-        return intvar_new(v);
+        return intvar_new__(v);
 }
 
 static Object *
@@ -257,12 +263,36 @@ int_str(Object *v)
 }
 
 static Object *
-int_tostr(Frame *fr)
+int_bit_length(Frame *fr)
 {
-        Object *self = get_this(fr);
+        int count;
+        unsigned long long ival;
+        Object *self = vm_get_this(fr);
         if (arg_type_check(self, &IntType) == RES_ERROR)
                 return ErrorVar;
-        return int_str(self);
+
+        ival = intvar_toll(self);
+
+        count = 0;
+        while (ival) {
+                count++;
+                ival >>= 1;
+        }
+        return intvar_new__(count);
+}
+
+static Object *
+int_bit_count(Frame *fr)
+{
+        int count;
+        unsigned long long ival;
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &IntType) == RES_ERROR)
+                return ErrorVar;
+
+        ival = intvar_toll(self);
+        count = bit_count64(ival);
+        return intvar_new__(count);
 }
 
 Object *
@@ -290,7 +320,8 @@ intvar_toi(Object *v)
 }
 
 static const struct type_inittbl_t int_methods[] = {
-        V_INITTBL("tostr", int_tostr, 0, 0, -1, -1),
+        V_INITTBL("bit_length", int_bit_length, 0, 0, -1, -1),
+        V_INITTBL("bit_count",  int_bit_count,  0, 0, -1, -1),
         TBLEND,
 };
 

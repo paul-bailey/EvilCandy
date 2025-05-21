@@ -64,14 +64,27 @@ static inline size_t seqvar_size(Object *v)
 static inline void seqvar_set_size(Object *v, size_t size)
         { ((struct seqvar_t *)v)->v_size = size; }
 
-/* note: v only evaluated once in VAR_*_REF() */
-#define VAR_INCR_REF(v) do { (v)->v_refcnt++; } while (0)
-#define VAR_DECR_REF(v) do {      \
-        Object *v_ = (v);         \
-        v_->v_refcnt--;           \
-        if (v_->v_refcnt <= 0)    \
-                var_delete__(v_); \
-} while (0)
+extern void var_delete__(Object *v);
+static inline void
+VAR_INCR_REF(Object *v)
+{
+        v->v_refcnt++;
+}
+
+static inline void
+VAR_DECR_REF(Object *v)
+{
+        v->v_refcnt--;
+        if (v->v_refcnt <= 0)
+                var_delete__(v);
+}
+
+static inline Object *
+VAR_NEW_REF(Object *v)
+{
+        VAR_INCR_REF(v);
+        return v;
+}
 
 /*
  * VAR_SANITY - keep this a macro so I can tell where the bug was
@@ -116,7 +129,6 @@ extern Object *var_logical_or(Object *a, Object *b);
 extern Object *var_logical_and(Object *a, Object *b);
 extern enum result_t seqvar_arg2idx(Object *obj, Object *iarg, int *idx);
 extern Object *var_foreach_generic(Frame *fr);
-extern void var_delete__(Object *v);
 
 /* var_from_format.c */
 extern Object *var_from_format(const char *fmt, ...);

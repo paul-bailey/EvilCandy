@@ -27,6 +27,21 @@ notdir(const char *path)
         return ret + 1;
 }
 
+#ifndef HAVE_STRRSTR
+char *
+strrstr(const char *haystack, const char *needle)
+{
+        size_t nlen = strlen(needle);
+        const char *end = &haystack[strlen(haystack) - nlen];
+        while (end >= haystack) {
+                if (!memcmp(end, needle, nlen))
+                        return (char *)end;
+                end--;
+        }
+        return NULL;
+}
+#endif /* HAVE_STRRSTR */
+
 #ifndef HAVE_STRRCHRNUL
 /* Amazinglly, this is not in every C library */
 char *

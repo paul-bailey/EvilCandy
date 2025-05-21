@@ -62,12 +62,15 @@ initialize_string_consts(void)
 {
         /* Keep sync'd with evcenums.h */
         static const char *STRCONST_CSTR[N_STRCONST] = {
-                STRCONST_CSTR(sep),
-                STRCONST_CSTR(file),
                 STRCONST_CSTR(end),
+                STRCONST_CSTR(file),
+                STRCONST_CSTR(keepends),
+                STRCONST_CSTR(maxsplit),
+                STRCONST_CSTR(sep),
                 STRCONST_CSTR(sorted),
                 STRCONST_CSTR(tabsize),
                 [STRCONST_IDX_spc] = " ",
+                [STRCONST_IDX_mpty] = "",
         };
 
         int i;
@@ -98,9 +101,10 @@ initialize_global_object(void)
         bug_on(!gbl.nl || !gbl.stdout_file);
         VAR_DECR_REF(o);
 
-        gbl.one = intvar_new(1LL);
-        gbl.zero = intvar_new(0LL);
-        gbl.eight = intvar_new(8LL);
+        gbl.neg_one     = intvar_new(-1LL);
+        gbl.one         = intvar_new(1LL);
+        gbl.zero        = intvar_new(0LL);
+        gbl.eight       = intvar_new(8LL);
 
         o = dict_getitem_cstr(GlobalObject, "_builtins");
         dict_add_to_globals(o);
@@ -149,6 +153,7 @@ cfile_deinit_global(void)
 
         VAR_DECR_REF(gbl.stdout_file);
         VAR_DECR_REF(gbl.nl);
+        VAR_DECR_REF(gbl.neg_one);
         VAR_DECR_REF(gbl.one);
         VAR_DECR_REF(gbl.zero);
         VAR_DECR_REF(gbl.eight);

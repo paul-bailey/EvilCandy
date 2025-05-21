@@ -7,6 +7,9 @@
 #include <stdbool.h>
 #include "config.h"
 
+#ifndef HAVE_STRRSTR
+extern char *strrstr(const char *haystack, const char *needle);
+#endif
 #ifndef HAVE_STRRSPN
 extern size_t strrspn(const char *s, const char *charset, const char *end);
 #endif

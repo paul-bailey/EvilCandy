@@ -11,8 +11,14 @@ enum {
         PAD_MAX = JUST_MAX,
 };
 
-/* flags arg to stringvar_newf, see comments there */
-enum { SF_COPY = 1, };
+enum {
+        /* flags arg to stringvar_newf, see comments there */
+        SF_COPY = 0x0001,
+
+        /* Other common flags to methods' helper functions */
+        SF_RIGHT        = 0x0010,       /* from the right (not left) */
+        SF_SUPPRESS     = 0x0020,       /* suppress errors */
+};
 
 #define V2STR(v)                ((struct stringvar_t *)(v))
 #define V2CSTR(v)               string_cstring(v)
@@ -858,47 +864,6 @@ string_rstrip(Frame *fr)
         return stringvar_newf(buffer_trim(&b), 0);
 }
 
-static Object *
-string_split(Frame *fr)
-{
-        Object *self = get_this(fr);
-        Object *ret;
-        bug_on(!isvar_string(self));
-        const char *str;
-
-        ret = arrayvar_new(0);
-        str = V2CSTR(self);
-
-        if (!str || seqvar_size(self) == 0)
-                return ret;
-
-        for (;;) {
-                const char *start, *end;
-                char *newbuf;
-                size_t size;
-                Object *item;
-
-                start = str;
-                while (*start != '\0' && isspace((int)(*start)))
-                        ++start;
-                if (*start == '\0')
-                        break;
-                end = start;
-                while (*end != '\0' && !isspace((int)(*end)))
-                        ++end;
-                size = (end - start);
-                newbuf = emalloc(size + 1);
-                memcpy(newbuf, start, size);
-                newbuf[size] = '\0';
-                item = stringvar_nocopy(newbuf);
-                array_append(ret, item);
-                VAR_DECR_REF(item);
-
-                str = end;
-        }
-        return ret;
-}
-
 /*
  *  strip()             no args implies whitespace
  *  strip(charset)      charset is string
@@ -1217,14 +1182,16 @@ string_count(Frame *fr)
 }
 
 static Object *
-string_endswith(Frame *fr)
+string_starts_or_ends_with(Frame *fr, unsigned int flags)
 {
-        Object *self = vm_get_this(fr);
-        Object *arg = vm_get_arg(fr, 0);
+        Object *self, *arg, *ret;
+
         /* TODO: optional start, stop args */
         const char *needle, *haystack;
-        int endswith, nlen, hlen;
+        int hasat, nlen, hlen;
 
+        self = vm_get_this(fr);
+        arg = vm_get_arg(fr, 0);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
         if (arg_type_check(arg, &StringType) == RES_ERROR)
@@ -1236,11 +1203,27 @@ string_endswith(Frame *fr)
         hlen = STRING_NBYTES(self);
 
         if (nlen > hlen) {
-                endswith = 0;
+                hasat = 0;
         } else {
-                endswith = strcmp(&haystack[hlen - nlen], needle) == 0;
+                int idx = !!(flags & SF_RIGHT) ? hlen - nlen : 0;
+                hasat = (strncmp(&haystack[idx], needle, nlen) == 0);
         }
-        return intvar_new(endswith);
+
+        ret = hasat ? gbl.one : gbl.zero;
+        VAR_INCR_REF(ret);
+        return ret;
+}
+
+static Object *
+string_endswith(Frame *fr)
+{
+        return string_starts_or_ends_with(fr, SF_RIGHT);
+}
+
+static Object *
+string_startswith(Frame *fr)
+{
+        return string_starts_or_ends_with(fr, 0);
 }
 
 static Object *
@@ -1295,9 +1278,8 @@ string_expandtabs(Frame *fr)
         return stringvar_newf(buffer_trim(&b), 0);
 }
 
-/* helper to str.find() and str.index() */
 static Object *
-string_index_or_find(Frame *fr, int suppress)
+string_index_or_find(Frame *fr, unsigned int flags)
 {
         Object *self = vm_get_this(fr);
         Object *arg = vm_get_arg(fr, 0);
@@ -1310,8 +1292,11 @@ string_index_or_find(Frame *fr, int suppress)
 
         needle = string_cstring(arg);
         haystack = string_cstring(self);
-        found = strstr(haystack, needle);
-        if (!found && !suppress) {
+        if (!!(flags & SF_RIGHT))
+                found = strrstr(haystack, needle);
+        else
+                found = strstr(haystack, needle);
+        if (!found && !(flags & SF_SUPPRESS)) {
                 err_setstr(ValueError, "substring not found");
                 return ErrorVar;
         }
@@ -1321,7 +1306,7 @@ string_index_or_find(Frame *fr, int suppress)
 static Object *
 string_find(Frame *fr)
 {
-        return string_index_or_find(fr, 1);
+        return string_index_or_find(fr, SF_SUPPRESS);
 }
 
 static Object *
@@ -1329,6 +1314,376 @@ string_index(Frame *fr)
 {
         return string_index_or_find(fr, 0);
 }
+
+static Object *
+string_rfind(Frame *fr)
+{
+        return string_index_or_find(fr, SF_SUPPRESS | SF_RIGHT);
+}
+
+static Object *
+string_rindex(Frame *fr)
+{
+        return string_index_or_find(fr, SF_RIGHT);
+}
+
+static Object *
+string_lrpartition(Frame *fr, unsigned int flags)
+{
+        Object *self, *arg, *tup, **td;
+        const char *haystack, *needle, *found;
+
+        self = vm_get_this(fr);
+        arg = vm_get_arg(fr, 0);
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(arg, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        if (seqvar_size(arg) == 0) {
+                err_setstr(ValueError, "Separator may not be empty");
+                return ErrorVar;
+        }
+
+        haystack = string_cstring(self);
+        needle = string_cstring(arg);
+
+        if (!!(flags & SF_RIGHT))
+                found = strrstr(haystack, needle);
+        else
+                found = strstr(haystack, needle);
+
+        tup = tuplevar_new(3);
+        td = tuple_get_data(tup);
+        VAR_DECR_REF(td[0]);
+        VAR_DECR_REF(td[1]);
+        VAR_DECR_REF(td[2]);
+        if (!found) {
+                td[0] = self;
+                td[1] = STRCONST_ID(mpty);
+                td[2] = STRCONST_ID(mpty);
+                VAR_INCR_REF(td[0]);
+                VAR_INCR_REF(td[1]);
+                VAR_INCR_REF(td[2]);
+        } else {
+                int idx = (int)(found - haystack);
+                if (idx == 0) {
+                        td[0] = STRCONST_ID(mpty);
+                        VAR_INCR_REF(td[0]);
+                } else {
+                        td[0] = stringvar_newn(haystack, idx);
+                }
+
+                VAR_INCR_REF(arg);
+                td[1] = arg;
+
+                idx += STRING_NBYTES(arg);
+                if (idx == STRING_NBYTES(haystack)) {
+                        VAR_INCR_REF(STRCONST_ID(mpty));
+                        td[2] = STRCONST_ID(mpty);
+                } else {
+                        td[2] = stringvar_newf((char *)&haystack[idx],
+                                               SF_COPY);
+                }
+        }
+        return tup;
+}
+
+static Object *
+string_partition(Frame *fr)
+{
+        return string_lrpartition(fr, 0);
+}
+
+static Object *
+string_rpartition(Frame *fr)
+{
+        return string_lrpartition(fr, SF_RIGHT);
+}
+
+static Object *
+string_removelr(Frame *fr, unsigned int flags)
+{
+        Object *self, *arg;
+        const char *haystack, *needle;
+        unsigned int idx, nlen, hlen;
+        char *newbuf;
+
+        self = vm_get_this(fr);
+        arg = vm_get_arg(fr, 0);
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(arg, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        nlen = STRING_NBYTES(arg);
+        hlen = STRING_NBYTES(self);
+        haystack = string_cstring(self);
+        needle = string_cstring(arg);
+
+        if (nlen > hlen)
+                goto return_self;
+
+        idx = !!(flags & SF_RIGHT) ? hlen - nlen : 0;
+        if (strncmp(&haystack[idx], needle, nlen) != 0)
+                goto return_self;
+
+        newbuf = emalloc(hlen + 1 - nlen);
+        if (!!(flags & SF_RIGHT))
+                memcpy(newbuf, haystack, hlen - nlen);
+        else
+                memcpy(newbuf, &haystack[nlen], hlen - nlen);
+        newbuf[hlen - nlen] = '\0';
+        return stringvar_newf(newbuf, 0);
+
+return_self:
+        VAR_INCR_REF(self);
+        return self;
+}
+
+static Object *
+string_removeprefix(Frame *fr)
+{
+        return string_removelr(fr, 0);
+}
+
+static Object *
+string_removesuffix(Frame *fr)
+{
+        return string_removelr(fr, SF_RIGHT);
+}
+
+/* helper to string_lrsplit */
+static void
+append_str_or_empty(Object *arr, const char *s)
+{
+        if (*s) {
+                Object *tmp = stringvar_newf((char *)s, SF_COPY);
+                array_append(arr, tmp);
+                VAR_DECR_REF(tmp);
+        } else {
+                array_append(arr, STRCONST_ID(mpty));
+        }
+}
+
+static Object *
+string_lrsplit(Frame *fr, unsigned int flags)
+{
+        enum { LRSPLIT_STACK_SIZE = 64, };
+        Object *self = vm_get_this(fr);
+        Object *kw = vm_get_arg(fr, 0);
+        Object *separg, *maxarg;
+        Object *ret;
+        char newsrc_stack[LRSPLIT_STACK_SIZE];
+        const char *sep;
+        char *newsrc;
+        int maxsplit, seplen;
+        bool combine = false;
+
+        bug_on(!self || !isvar_string(self));
+        bug_on(!kw || !isvar_dict(kw));
+
+        dict_unpack(kw,
+                    STRCONST_ID(sep), &separg, NullVar,
+                    STRCONST_ID(maxsplit), &maxarg, gbl.neg_one,
+                    NULL);
+
+        if (separg == NullVar) {
+                combine = true;
+                VAR_DECR_REF(separg);
+                separg = STRCONST_ID(spc);
+                VAR_INCR_REF(separg);
+        }
+
+        if (arg_type_check(separg, &StringType) == RES_ERROR) {
+                ret = ErrorVar;
+                goto out;
+        }
+        if (seqvar_size(separg) == 0) {
+                ret = ErrorVar;
+                err_setstr(ValueError, "Separate may not be empty");
+                goto out;
+        }
+        maxsplit = intvar_toi(maxarg);
+        if (err_occurred()) {
+                ret = ErrorVar;
+                goto out;
+        }
+        sep = string_cstring(separg);
+        seplen = STRING_NBYTES(separg);
+        if (STRING_NBYTES(self) + 1 >= LRSPLIT_STACK_SIZE) {
+                newsrc = estrdup(string_cstring(self));
+        } else {
+                newsrc = newsrc_stack;
+                strcpy(newsrc, string_cstring(self));
+        }
+        ret = arrayvar_new(0);
+        if (!!(flags & SF_RIGHT)) {
+                while (maxsplit != 0) {
+                        char *s;
+                        maxsplit--;
+
+                        s = strrstr(newsrc, sep);
+                        if (!s)
+                                break;
+
+                        memset(s, 0, seplen);
+                        append_str_or_empty(ret, s + seplen);
+
+                        while (combine && ((int)(s - newsrc) > seplen)
+                               && memcmp(s - seplen, sep, seplen) == 0) {
+                                s -= seplen;
+                                memset(s, 0, seplen);
+                        }
+                }
+                append_str_or_empty(ret, newsrc);
+                array_reverse(ret);
+        } else {
+                char *tsrc = newsrc;
+                while (maxsplit != 0) {
+                        char *s;
+                        maxsplit--;
+
+                        s = strstr(tsrc, sep);
+                        if (!s)
+                                break;
+
+                        memset(s, 0, seplen);
+                        append_str_or_empty(ret, tsrc);
+                        tsrc = s + seplen;
+                        while (combine && memcmp(tsrc, sep, seplen) == 0)
+                                tsrc += seplen;
+                }
+
+                append_str_or_empty(ret, tsrc);
+        }
+        if (newsrc != newsrc_stack)
+                efree(newsrc);
+
+out:
+        VAR_DECR_REF(separg);
+        VAR_DECR_REF(maxarg);
+        return ret;
+}
+
+static Object *
+string_rsplit(Frame *fr)
+{
+        return string_lrsplit(fr, SF_RIGHT);
+}
+
+static Object *
+string_split(Frame *fr)
+{
+        return string_lrsplit(fr, 0);
+}
+
+#define EOLCHARSET "\r\n"
+
+static Object *
+string_splitlines(Frame *fr)
+{
+        enum { SPLIT_STACKSIZE = 64 };
+
+        Object *self, *kw, *keeparg, *ret;
+        int keepends;
+        const char *src;
+
+        self = vm_get_this(fr);
+        kw = vm_get_arg(fr, 0);
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        bug_on(!kw || !isvar_dict(kw));
+        dict_unpack(kw, STRCONST_ID(keepends), &keeparg, gbl.zero, NULL);
+        if (arg_type_check(keeparg, &IntType) == RES_ERROR) {
+                ret = ErrorVar;
+                goto out;
+        }
+        keepends = intvar_toi(keeparg);
+        if (err_occurred()) {
+                ret = ErrorVar;
+                goto out;
+        }
+        src = string_cstring(self);
+        ret = arrayvar_new(0);
+        while (*src != '\0') {
+                size_t n;
+                size_t nexti, nli;
+                nli = strcspn(src, EOLCHARSET);
+                if (src[nli] != '\0') {
+                        const char *eol = src + nli;
+                        switch (*eol) {
+                        case '\r':
+                                eol++;
+                                if (*eol == '\n')
+                                        eol++;
+                                break;
+                        case '\n':
+                                eol++;
+                                break;
+                        default:
+                                bug();
+                        }
+                        nexti = eol - src;
+                } else {
+                        nexti = nli;
+                }
+                n = keepends ? nexti : nli;
+                if (n) {
+                        Object *tmp = stringvar_newn(src, n);
+                        array_append(ret, tmp);
+                        VAR_DECR_REF(tmp);
+                } else {
+                        array_append(ret, STRCONST_ID(mpty));
+                }
+                src += nexti;
+        }
+
+out:
+        VAR_DECR_REF(keeparg);
+        return ret;
+}
+
+#undef EOLCHARSET
+
+static Object *
+string_zfill(Frame *fr)
+{
+        Object *self, *arg;
+        const char *src;
+        int nz;
+        struct buffer_t b;
+
+        self = vm_get_this(fr);
+        arg = vm_get_arg(fr, 0);
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(arg, &IntType) == RES_ERROR)
+                return ErrorVar;
+
+        nz = intvar_toi(arg);
+        if (err_occurred())
+                return ErrorVar;
+        nz -= seqvar_size(self);
+
+        src = string_cstring(self);
+        buffer_init(&b);
+        if (*src == '-' || *src == '+') {
+                buffer_putc(&b, *src);
+                src++;
+        }
+
+        while (nz-- > 0)
+                buffer_putc(&b, '0');
+        buffer_puts(&b, src);
+
+        return stringvar_newf(buffer_trim(&b), 0);
+}
+
 
 /*
  *      str.isXXXX() functions and helpers
@@ -1442,37 +1797,143 @@ static Object *string_isspace(Frame *fr)
 static Object *string_isupper(Frame *fr)
         { return string_is2(fr, is_upper); }
 
+/*
+ * string case-swapping & helpers
+ */
+static Object *
+string_title(Frame *fr)
+{
+        Object *self;
+        const char *src;
+        char *dst, *newbuf;
+        unsigned int c;
+        bool first;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        src = string_cstring(self);
+        dst = newbuf = emalloc(STRING_NBYTES(self) + 1);
+        first = true;
+        while ((c = *src++) != '\0') {
+                if (c < 128 && isalpha(c)) {
+                        if (first) {
+                                c = toupper(c);
+                                first = false;
+                        } else {
+                                c = tolower(c);
+                        }
+                } else {
+                        first = true;
+                }
+                *dst++ = c;
+        }
+
+        *dst = '\0';
+        return stringvar_newf(newbuf, 0);
+}
+
+static Object *
+string_to(Frame *fr, int (*cb)(unsigned int))
+{
+        Object *self;
+        const char *src;
+        char *dst, *newbuf;
+        unsigned int c;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        src = string_cstring(self);
+        dst = newbuf = emalloc(STRING_NBYTES(self) + 1);
+        while ((c = *src++) != '\0')
+                *dst++ = cb(c);
+
+        *dst = '\0';
+        return stringvar_newf(newbuf, 0);
+}
+
+static int to_lower(unsigned int c)
+        { return c < 128 ? tolower(c) : c; }
+static int to_upper(unsigned int c)
+        { return c < 128 ? toupper(c) : c; }
+static int
+to_swap(unsigned int c)
+{
+        if (c < 128) {
+                if (isupper(c))
+                        c = tolower(c);
+                else if (islower(c))
+                        c = toupper(c);
+        }
+        return c;
+}
+
+static Object *
+string_lower(Frame *fr)
+{
+        return string_to(fr, to_lower);
+}
+
+static Object *
+string_swapcase(Frame *fr)
+{
+        return string_to(fr, to_swap);
+}
+
+static Object *
+string_upper(Frame *fr)
+{
+        return string_to(fr, to_upper);
+}
+
 static struct type_inittbl_t string_methods[] = {
-        V_INITTBL("capitalize",  string_capitalize,  0, 0, -1, -1),
-        V_INITTBL("center",      string_center,      1, 1, -1, -1),
-        V_INITTBL("copy",        string_copy,        0, 0, -1, -1),
-        V_INITTBL("count",       string_count,       1, 1, -1, -1),
-        V_INITTBL("endswith",    string_endswith,    0, 0, -1, -1),
-        V_INITTBL("expandtabs",  string_expandtabs,  1, 1, -1,  0),
-        V_INITTBL("find",        string_find,        1, 1, -1, -1),
-        V_INITTBL("format",      string_format,      1, 1,  0, -1),
-        V_INITTBL("format2",     string_format2,     1, 1,  0, -1),
-        V_INITTBL("index",       string_index,       1, 1, -1, -1),
-        V_INITTBL("isalnum",     string_isalnum,     0, 0, -1, -1),
-        V_INITTBL("isalpha",     string_isalpha,     0, 0, -1, -1),
-        V_INITTBL("isascii",     string_isascii,     0, 0, -1, -1),
-        V_INITTBL("isdigit",     string_isdigit,     0, 0, -1, -1),
-        V_INITTBL("isident",     string_isident,     0, 0, -1, -1),
-        V_INITTBL("isprintable", string_isprintable, 0, 0, -1, -1),
-        V_INITTBL("isspace",     string_isspace,     0, 0, -1, -1),
-        V_INITTBL("istitle",     string_istitle,     0, 0, -1, -1),
-        V_INITTBL("isupper",     string_isupper,     0, 0, -1, -1),
-        V_INITTBL("join",        string_join,        1, 1, -1, -1),
-        V_INITTBL("ljust",       string_ljust,       1, 1, -1, -1),
-        V_INITTBL("lstrip",      string_lstrip,      0, 1, -1, -1),
-        V_INITTBL("replace",     string_replace,     2, 2, -1, -1),
-        V_INITTBL("rjust",       string_rjust,       1, 1, -1, -1),
-        V_INITTBL("rstrip",      string_rstrip,      0, 1, -1, -1),
-        V_INITTBL("split",       string_split,       0, 0, -1, -1),
-        V_INITTBL("strip",       string_strip,       0, 1, -1, -1),
+        V_INITTBL("capitalize",   string_capitalize,   0, 0, -1, -1),
+        V_INITTBL("center",       string_center,       1, 1, -1, -1),
+        V_INITTBL("copy",         string_copy,         0, 0, -1, -1),
+        V_INITTBL("count",        string_count,        1, 1, -1, -1),
+        V_INITTBL("endswith",     string_endswith,     1, 1, -1, -1),
+        V_INITTBL("expandtabs",   string_expandtabs,   1, 1, -1,  0),
+        V_INITTBL("find",         string_find,         1, 1, -1, -1),
+        V_INITTBL("format",       string_format,       1, 1,  0, -1),
+        V_INITTBL("format2",      string_format2,      1, 1,  0, -1),
+        V_INITTBL("index",        string_index,        1, 1, -1, -1),
+        V_INITTBL("isalnum",      string_isalnum,      0, 0, -1, -1),
+        V_INITTBL("isalpha",      string_isalpha,      0, 0, -1, -1),
+        V_INITTBL("isascii",      string_isascii,      0, 0, -1, -1),
+        V_INITTBL("isdigit",      string_isdigit,      0, 0, -1, -1),
+        V_INITTBL("isident",      string_isident,      0, 0, -1, -1),
+        V_INITTBL("isprintable",  string_isprintable,  0, 0, -1, -1),
+        V_INITTBL("isspace",      string_isspace,      0, 0, -1, -1),
+        V_INITTBL("istitle",      string_istitle,      0, 0, -1, -1),
+        V_INITTBL("isupper",      string_isupper,      0, 0, -1, -1),
+        V_INITTBL("join",         string_join,         1, 1, -1, -1),
+        V_INITTBL("ljust",        string_ljust,        1, 1, -1, -1),
+        V_INITTBL("lower",        string_lower,        0, 0, -1, -1),
+        V_INITTBL("lstrip",       string_lstrip,       0, 1, -1, -1),
+        V_INITTBL("partition",    string_partition,    1, 1, -1, -1),
+        V_INITTBL("removeprefix", string_removeprefix, 1, 1, -1, -1),
+        V_INITTBL("removesuffix", string_removesuffix, 1, 1, -1, -1),
+        V_INITTBL("replace",      string_replace,      2, 2, -1, -1),
+        V_INITTBL("rfind",        string_rfind,        1, 1, -1, -1),
+        V_INITTBL("rindex",       string_rindex,       1, 1, -1, -1),
+        V_INITTBL("rjust",        string_rjust,        1, 1, -1, -1),
+        V_INITTBL("rpartition",   string_rpartition,   1, 1, -1, -1),
+        V_INITTBL("rsplit",       string_rsplit,       1, 1, -1,  0),
+        V_INITTBL("rstrip",       string_rstrip,       0, 1, -1, -1),
+        V_INITTBL("split",        string_split,        1, 1, -1,  0),
+        V_INITTBL("splitlines",   string_splitlines,   1, 1, -1,  0),
+        V_INITTBL("startswith",   string_startswith,   1, 1, -1, -1),
+        V_INITTBL("strip",        string_strip,        0, 1, -1, -1),
+        V_INITTBL("swapcase",     string_swapcase,     0, 0, -1, -1),
+        V_INITTBL("title",        string_title,        0, 0, -1, -1),
+        V_INITTBL("upper",        string_upper,        0, 0, -1, -1),
+        V_INITTBL("zfill",        string_zfill,        1, 1, -1, -1),
+
         TBLEND,
 };
-
 
 /* **********************************************************************
  *                      Operator Methods
@@ -1693,6 +2154,26 @@ Object *
 stringvar_new(const char *cstr)
 {
         return stringvar_newf((char *)cstr, SF_COPY);
+}
+
+/**
+ * stringvar_newn - Get a string var from a subset of @cstr
+ * @cstr: C-string to set string to
+ * @n: Max length of new string.
+ *
+ * Return: new string var containing a copy of up to @n characters
+ *         from @cstr
+ */
+Object *
+stringvar_newn(const char *cstr, size_t n)
+{
+        char *new;
+        size_t len = strlen(cstr);
+        if (n > len)
+                n = len;
+        new = ememdup(cstr, n + 1);
+        new[n] = '\0';
+        return stringvar_newf(new, 0);
 }
 
 /**

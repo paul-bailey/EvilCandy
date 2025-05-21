@@ -12,6 +12,7 @@ struct global_t {
         Object *nl;
         Object *stdout_file;
         Object *strconsts[N_STRCONST];
+        Object *neg_one;
         Object *one;
         Object *zero;
         Object *eight;

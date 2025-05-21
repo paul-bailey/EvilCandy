@@ -76,12 +76,18 @@ enum result_t {
  * single source to remove an oops-I-forgot-to-update-this hazard.
  */
 enum {
-        STRCONST_IDX_sep = 0,
+        /* enum after STRCONST_IDX_ is same as string */
+        STRCONST_IDX_end = 0,
         STRCONST_IDX_file,
-        STRCONST_IDX_end,
+        STRCONST_IDX_keepends,
+        STRCONST_IDX_maxsplit,
+        STRCONST_IDX_sep,
         STRCONST_IDX_sorted,
         STRCONST_IDX_tabsize,
+
+        /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,
+        STRCONST_IDX_mpty,
         N_STRCONST,
 };
 

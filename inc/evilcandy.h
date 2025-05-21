@@ -91,7 +91,7 @@ extern char *estrdup(const char *s);
 extern void *emalloc(size_t size);
 extern void *ecalloc(size_t size);
 extern void *erealloc(void *buf, size_t size);
-extern void *ememdup(void *buf, size_t size);
+extern void *ememdup(const void *buf, size_t size);
 extern ssize_t egetline(char **line, size_t *linecap, FILE *fp);
 extern void efree(void *ptr);
 
@@ -135,6 +135,7 @@ extern Object *arrayvar_from_stack(Object **items, int n_items, bool consume);
 extern enum result_t array_setitem(Object *array, int i, Object *child);
 extern Object *array_getitem(Object *array, int idx);
 extern enum result_t array_append(Object *array, Object *child);
+extern void array_reverse(Object *array);
 
 /* types/bytes.c */
 extern Object *bytesvar_new(unsigned char *buf, size_t len);
@@ -218,6 +219,7 @@ extern Object *star_unpack(Object *star);
 
 /* types/string.c */
 extern Object *stringvar_new(const char *cstr);
+extern Object *stringvar_newn(const char *cstr, size_t n);
 extern Object *stringvar_from_buffer(struct buffer_t *b);
 extern Object *stringvar_from_source(const char *tokenstr, bool imm);
 extern Object *stringvar_nocopy(const char *cstr);

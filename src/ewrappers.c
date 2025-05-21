@@ -177,7 +177,7 @@ erealloc(void *buf, size_t size)
 }
 
 void *
-ememdup(void *buf, size_t size)
+ememdup(const void *buf, size_t size)
 {
         void *ret;
         if (!size)

@@ -70,6 +70,23 @@ array_getitem(Object *array, int idx)
         return va->items[idx];
 }
 
+/**
+ * array_reverse - Reverse the order of an array
+ */
+void
+array_reverse(Object *array)
+{
+        Object **low = array_get_data(array);
+        Object **high = &low[seqvar_size(array) - 1];
+        while (low < high) {
+                Object *tmp = *high;
+                *high = *low;
+                *low = tmp;
+                high--;
+                low++;
+        }
+}
+
 static enum result_t
 array_insert_chunk(Object *array, int at,
                    Object **children, size_t n_items)
@@ -732,21 +749,11 @@ do_array_count(Frame *fr)
 static Object *
 do_array_reverse(Frame *fr)
 {
-        Object **low, **high, *self;
-
-        self = vm_get_this(fr);
+        Object *self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
-        low = array_get_data(self);
-        high = &low[seqvar_size(self) - 1];
-        while (low < high) {
-                Object *tmp = *high;
-                *high = *low;
-                *low = tmp;
-                high--;
-                low++;
-        }
+        array_reverse(self);
         return NULL;
 }
 

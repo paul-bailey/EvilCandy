@@ -474,10 +474,8 @@ do_call_func(Frame *fr, instruction_t ii)
         /* see comments to vm_exec_func: this may be NULL */
         retval = vm_exec_func(fr, func, argc, argv,
                               ii.arg1 == IARG_HAVE_DICT);
-        if (!retval) {
-                VAR_INCR_REF(NullVar);
-                retval = NullVar;
-        }
+        if (!retval)
+                retval = VAR_NEW_REF(NullVar);
 
         /*
          * Unwind stack in calling frame.
@@ -1031,8 +1029,7 @@ execute_loop(Frame *fr)
          * We hit INSTR_END without any RETURN.
          * Return null by default.
          */
-        VAR_INCR_REF(NullVar);
-        retval = NullVar;
+        retval = VAR_NEW_REF(NullVar);
 
 out:
         RECURSION_END_FUNC();
@@ -1101,10 +1098,8 @@ vm_exec_func(Frame *fr_old, Object *func,
         res = function_call(fr, have_dict);
         vmframe_free(fr);
 
-        if (!res) {
-                VAR_INCR_REF(NullVar);
-                res = NullVar;
-        }
+        if (!res)
+                res = VAR_NEW_REF(NullVar);
 
         VAR_DECR_REF(func);
         VAR_DECR_REF(owner);

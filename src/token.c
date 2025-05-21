@@ -493,16 +493,15 @@ tokenize(struct token_state_t *state)
 
                 switch (ret) {
                 case OC_NULL:
-                        VAR_INCR_REF(NullVar);
-                        oc.v = NullVar;
+                        oc.v = VAR_NEW_REF(NullVar);
                         intern = true;
                         break;
                 case OC_TRUE:
-                        oc.v = intvar_new(1);
+                        oc.v = VAR_NEW_REF(gbl.one);
                         intern = true;
                         break;
                 case OC_FALSE:
-                        oc.v = intvar_new(0);
+                        oc.v = VAR_NEW_REF(gbl.zero);
                         intern = true;
                         break;
                 case OC_BYTES:

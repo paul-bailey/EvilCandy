@@ -158,6 +158,15 @@ complex_getimag(Object *self)
         return floatvar_new(cimag(cv->c));
 }
 
+static Object *
+do_complex_conjugate(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        bug_on(!self || !isvar_complex(self));
+        complex double c = V2C(self)->c;
+        return complexvar_new(creal(c), -cimag(c));
+}
+
 static const struct type_prop_t complex_prop_getsets[] = {
         { .name = "real", .getprop = complex_getreal, .setprop = NULL },
         { .name = "imag", .getprop = complex_getimag, .setprop = NULL },
@@ -165,6 +174,7 @@ static const struct type_prop_t complex_prop_getsets[] = {
 };
 
 static const struct type_inittbl_t complex_methods[] = {
+        V_INITTBL("conjugate", do_complex_conjugate, 0, 0, -1, -1),
         TBLEND,
 };
 

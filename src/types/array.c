@@ -631,21 +631,11 @@ do_array_pop(Frame *fr)
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
-        arg = vm_get_arg(fr, 0);
-        if (arg) {
-                if (arg_type_check(arg, &IntType) == RES_ERROR)
-                        return ErrorVar;
-                at = intvar_toi(arg);
-                if (err_occurred())
+        if ((arg = vm_get_arg(fr, 0)) != NULL) {
+                if (seqvar_arg2idx(self, arg, &at) == RES_ERROR)
                         return ErrorVar;
         } else {
                 at = 0;
-        }
-
-        if (at < 0) {
-                at += seqvar_size(self);
-                if (at < 0)
-                        at = 0;
         }
 
         if (array_delete_chunk(self, at, 1) == RES_ERROR)

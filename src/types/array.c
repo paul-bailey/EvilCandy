@@ -287,12 +287,16 @@ array_setitem(Object *array, int i, Object *child)
 
         bug_on(i >= seqvar_size(array));
 
-        /* delete old entry */
-        bug_on(va->items[i] == NULL);
-        VAR_DECR_REF(va->items[i]);
+        if (child) {
+                /* delete old entry */
+                bug_on(va->items[i] == NULL);
+                VAR_DECR_REF(va->items[i]);
 
-        va->items[i] = child;
-        VAR_INCR_REF(child);
+                va->items[i] = child;
+                VAR_INCR_REF(child);
+        } else {
+                return array_delete_chunk(array, i, 1);
+        }
         return RES_OK;
 }
 

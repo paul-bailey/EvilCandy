@@ -57,8 +57,10 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
 
 * It parses an input, compiles it into binary code, then executes it
   in a virtual stack machine.  When debug hooks are turned off (which
-  in truth it's not ready for), its speed is comparable to Python, at
-  least on my computer.
+  in truth it's not ready for), its speed for basic execution is
+  comparable to Python, at least on my computer; string and list handling
+  is probably much slower, but I haven't rigorously tested that stuff
+  yet.
 
 * It can run in interactive mode, although it's a bit quirky; I haven't
   figured out a good solution to statements where the parser needs to
@@ -82,9 +84,8 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
 
 * I want to rewrite the parser before I finish some language basics.
   I have not yet decided on everything I want.  These include things
-  like functions' keyword arguments vs. default arguments, policy
-  regarding 'else' statement in a 'for' loop (I really want it, but
-  it would be a bad idea to call it 'else')... that kind of stuff.
+  like policy regarding 'else' statement in a 'for' loop, generators,
+  comprehensions... that kind of stuff.
 
 * It is single-threaded, and it will probably remain that way at least
   for a while.
@@ -130,6 +131,9 @@ But here are some major differences...
 
 * There is no ``var`` keyword.  There are only ``let`` and ``global``.
 
+* There (so far) is no ``yield`` statement or any generators or
+  comprehensions.
+
 * The ``for`` loop may either be like JS's verbose C-like for-loop,
   or it may be like Python's eye-friendly for-loop. Depends on how it's
   expressed.  See documentation for details.  This also means that where
@@ -167,7 +171,7 @@ But here are some major differences...
     no braces and misleading tabs to confuse a programmer where the
     program flow is actually going.)
 
-  * Closures can be more explicitly declared
+  * Instead of ``in`` there's ``has``.
 
   * EvilCandy (currently) has nothing to do with the Document Object Model.
 

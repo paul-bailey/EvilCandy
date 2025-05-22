@@ -1503,7 +1503,7 @@ string_lrsplit(Frame *fr, unsigned int flags)
         }
         if (seqvar_size(separg) == 0) {
                 ret = ErrorVar;
-                err_setstr(ValueError, "Separate may not be empty");
+                err_setstr(ValueError, "Separator may not be empty");
                 goto out;
         }
         maxsplit = intvar_toi(maxarg);

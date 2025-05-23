@@ -77,6 +77,10 @@ Must Do
 Library/Language Features
 -------------------------
 
+* Support f-strings
+
+* Support generators and comprehensions
+
 * Add serial-port, socket libraries
 
 * Add ``decorate`` method for dictionaries, so that user-defined objects

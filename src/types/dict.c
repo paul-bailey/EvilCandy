@@ -219,7 +219,7 @@ maybe_shrink_table(struct dictvar_t *dict)
                 transfer_table(dict, old_size);
 }
 
-static inline void
+static void
 insert_common(struct dictvar_t *dict, Object *key,
               Object *data, int i)
 {
@@ -229,6 +229,31 @@ insert_common(struct dictvar_t *dict, Object *key,
         dict->d_count++;
         dict->d_used++;
         maybe_grow_table(dict);
+}
+
+static void
+dict_clear_noresize(struct dictvar_t *dict)
+{
+        int i;
+        for (i = 0; i < dict->d_size; i++) {
+                if (dict->d_keys[i] == BUCKET_DEAD) {
+                        dict->d_keys[i] = NULL;
+                } else if (dict->d_keys[i] != NULL) {
+                        VAR_DECR_REF(dict->d_vals[i]);
+                        VAR_DECR_REF(dict->d_keys[i]);
+                        dict->d_keys[i] = NULL;
+                        dict->d_vals[i] = NULL;
+                }
+        }
+        dict->d_count = dict->d_used = 0;
+        seqvar_set_size((Object *)dict, dict->d_used);
+}
+
+static void
+dict_clear(struct dictvar_t *dict)
+{
+        dict_clear_noresize(dict);
+        maybe_shrink_table(dict);
 }
 
 
@@ -636,23 +661,9 @@ dict_cmpz(Object *obj)
 static void
 dict_reset(Object *o)
 {
-        struct dictvar_t *dict;
-        int i;
-
+        struct dictvar_t *dict = V2D(o);
         bug_on(!isvar_dict(o));
-        dict = V2D(o);
-
-        for (i = 0; i < dict->d_size; i++) {
-                if (dict->d_keys[i] == BUCKET_DEAD) {
-                        dict->d_keys[i] = NULL;
-                } else if (dict->d_keys[i] != NULL) {
-                        VAR_DECR_REF(dict->d_vals[i]);
-                        VAR_DECR_REF(dict->d_keys[i]);
-                        dict->d_keys[i] = NULL;
-                        dict->d_vals[i] = NULL;
-                }
-        }
-        dict->d_count = dict->d_used = 0;
+        dict_clear_noresize(dict);
         efree(dict->d_keys);
 }
 
@@ -890,6 +901,15 @@ do_dict_purloin(Frame *fr)
 }
 
 static Object *
+do_dict_clear(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        bug_on(!isvar_dict(self));
+        dict_clear(V2D(self));
+        return NULL;
+}
+
+static Object *
 dict_getprop_length(Object *self)
 {
         bug_on(!isvar_dict(self));
@@ -897,12 +917,13 @@ dict_getprop_length(Object *self)
 }
 
 static const struct type_inittbl_t dict_cb_methods[] = {
-        V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
-        V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
-        V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
-        V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
-        V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
+        V_INITTBL("clear",     do_dict_clear,       0, 0, -1, -1),
         V_INITTBL("copy",      do_dict_copy,        0, 0, -1, -1),
+        V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
+        V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
+        V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
+        V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
+        V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
         TBLEND,
 };
 

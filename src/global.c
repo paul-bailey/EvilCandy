@@ -105,6 +105,8 @@ initialize_global_object(void)
         gbl.one         = intvar_new(1LL);
         gbl.zero        = intvar_new(0LL);
         gbl.eight       = intvar_new(8LL);
+        gbl.empty_bytes = bytesvar_new((unsigned char *)"", 0);
+        gbl.spc_bytes   = bytesvar_new((unsigned char *)" ", 1);
 
         o = dict_getitem_cstr(GlobalObject, "_builtins");
         dict_add_to_globals(o);
@@ -157,6 +159,8 @@ cfile_deinit_global(void)
         VAR_DECR_REF(gbl.one);
         VAR_DECR_REF(gbl.zero);
         VAR_DECR_REF(gbl.eight);
+        VAR_DECR_REF(gbl.empty_bytes);
+        VAR_DECR_REF(gbl.spc_bytes);
 
         for (i = 0; i < N_STRCONST; i++)
                 VAR_DECR_REF(gbl.strconsts[i]);

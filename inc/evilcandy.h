@@ -138,10 +138,10 @@ extern enum result_t array_append(Object *array, Object *child);
 extern void array_reverse(Object *array);
 
 /* types/bytes.c */
-extern Object *bytesvar_new(unsigned char *buf, size_t len);
+extern Object *bytesvar_new(const unsigned char *buf, size_t len);
 extern Object *bytesvar_from_source(char *src);
 extern const unsigned char *bytes_getbuf(Object *v);
-extern Object *bytesvar_nocopy(unsigned char *buf, size_t len);
+extern Object *bytesvar_nocopy(const unsigned char *buf, size_t len);
 
 /* types/comlex.c */
 extern Object *complexvar_new(double real, double imag);

@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include "config.h"
 
+/* helpers.c */
 #ifndef HAVE_STRRSTR
 extern char *strrstr(const char *haystack, const char *needle);
 #endif
@@ -16,8 +17,21 @@ extern size_t strrspn(const char *s, const char *charset, const char *end);
 #ifndef HAVE_STRRCHRNUL
 extern char *strrchrnul(const char *s, int c);
 #endif
+#ifndef HAVE_MEMMEM
+extern void *memmem(const void *haystack, size_t hlen,
+                    const void *needle, size_t nlen);
+#endif
+#ifndef HAVE_MEMRMEM
+extern void *memrmem(const void *haystack, size_t hlen,
+                     const void *needle, size_t nlen);
+#endif
+
+#define ASCII_WS_CHARS " \t\r\n\v\f"
+#define ASCII_NWS_CHARS 6
 
 /* helpers.c */
+extern int memcount(const void *haystack, size_t hlen,
+                    const void *needle, size_t nlen);
 extern int x2bin(int c);
 static inline bool isodigit(int c) { return c >= '0' && c <= '7'; }
 static inline bool isquote(int c) { return c == '"' || c == '\''; }

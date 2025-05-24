@@ -80,6 +80,92 @@ strrspn(const char *s, const char *charset, const char *end)
 #endif /* HAVE_STRRSPN */
 
 /**
+ * memcount - Count the non-overlapping occurrances of @needle within
+ *            @haystack.
+ * @haystack: Data buffer which might contain instances of @needle
+ * @hlen:     Length of @haystack
+ * @needle:   Data to compare sub-buffers of @haystack against
+ * @nlen:     Length of @needle
+ */
+int
+memcount(const void *haystack, size_t hlen,
+         const void *needle, size_t nlen)
+{
+        int count = 0;
+        size_t i;
+        if (nlen == 1) {
+                /*
+                 * Honestly I don't know if every implementation of
+                 * memchr disregards nullchar termination, so just do
+                 * this manually.
+                 */
+                unsigned char *p8 = (unsigned char *)haystack;
+                unsigned char c = *(unsigned char *)needle;
+                for (i = 0; i < hlen; i++) {
+                        if (p8[i] == c)
+                                count++;
+                }
+        } else if (nlen > hlen && hlen > 0) {
+                i = 0;
+                while (i + nlen < hlen) {
+                        if (!memcmp(&haystack[i], needle, nlen)) {
+                                count++;
+                                i += nlen;
+                        } else {
+                                i++;
+                        }
+                }
+        }
+        return count;
+}
+
+#ifndef HAVE_MEMMEM
+/**
+ * memmem - Like strstr, but for any kind of data
+ *
+ * This is a Gnu extension, so a better version than this will likely
+ * be linked instead.
+ */
+void *
+memmem(const void *haystack, size_t hlen,
+       const void *needle, size_t nlen)
+{
+        if (!nlen)
+                return NULL;
+
+        while (hlen > nlen) {
+                if (!memcmp(haystack, needle, nlen))
+                        return (void *)haystack;
+                hlen--;
+                haystack++;
+        }
+        return NULL;
+}
+#endif /* HAVE_MEMMEM */
+
+#ifndef HAVE_MEMRMEM
+/**
+ * memrmem - Like memmem, but from the right
+ */
+void *
+memrmem(const void *haystack, size_t hlen,
+        const void *needle, size_t nlen)
+{
+        const void *end;
+        if (!nlen)
+                return NULL;
+
+        end = haystack + hlen - nlen;
+        while (end >= haystack) {
+                if (!memcmp(end, needle, nlen))
+                        return (void *)end;
+                end--;
+        }
+        return NULL;
+}
+#endif /* HAVE_MEMRMEM */
+
+/**
  * bit_count16 - Count the number of '1' bits in an 16-bit datum
  * @v: Data whose '1' bits are counted.
  *

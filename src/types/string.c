@@ -1030,7 +1030,7 @@ string_ljust(Frame *fr)
 static Object *
 join_next_str(Object *arr, int i)
 {
-        Object *ret = array_getitem(arr, i);
+        Object *ret = seqvar_getitem(arr, i);
         /* see string_join below, we already checked that i is ok */
         bug_on(!ret);
         if (!isvar_string(ret)) {
@@ -1152,33 +1152,19 @@ string_center(Frame *fr)
 static Object *
 string_count(Frame *fr)
 {
+        int count;
         Object *self = vm_get_this(fr);
         Object *arg = vm_get_arg(fr, 0);
-        const char *needle, *haystack;
-        int count, ndlen;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
         if (arg_type_check(arg, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        needle = string_cstring(arg);
-        haystack = string_cstring(self);
-        /*
-         * strstr has too complicated a return value,
-         * just do this manually.
-         */
-        count = 0;
-        ndlen = STRING_NBYTES(arg);
-        while (*haystack != '\0') {
-                if (!strncmp(haystack, needle, ndlen)) {
-                        count++;
-                        haystack += ndlen;
-                } else {
-                        haystack++;
-                }
-        }
-        return intvar_new(count);
+        count = memcount(string_cstring(self), STRING_NBYTES(self),
+                         string_cstring(arg), STRING_NBYTES(arg));
+
+        return count ? intvar_new(count) : VAR_NEW_REF(gbl.zero);
 }
 
 static Object *
@@ -1258,8 +1244,15 @@ string_expandtabs(Frame *fr)
         col = 0;
         nextstop = tabsize;
         src = string_cstring(self);
+        /*
+         * FIXME: col all wrong if there are utf-8 characters in here.
+         */
         while ((c = *src++) != '\0') {
-                if (c == '\t') {
+                if (c == '\n') {
+                        col = 0;
+                        nextstop = tabsize;
+                        buffer_putc(&b, c);
+                } else if (c == '\t') {
                         if (col == nextstop)
                                 nextstop += tabsize;
                         while (col < nextstop) {
@@ -1267,7 +1260,6 @@ string_expandtabs(Frame *fr)
                                 col++;
                         }
                         nextstop += tabsize;
-                        continue;
                 } else {
                         if (col == nextstop)
                                 nextstop += tabsize;
@@ -1284,6 +1276,7 @@ string_index_or_find(Frame *fr, unsigned int flags)
         Object *self = vm_get_this(fr);
         Object *arg = vm_get_arg(fr, 0);
         const char *haystack, *needle, *found;
+        int res;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
@@ -1300,7 +1293,10 @@ string_index_or_find(Frame *fr, unsigned int flags)
                 err_setstr(ValueError, "substring not found");
                 return ErrorVar;
         }
-        return intvar_new(found ? (int)(found - haystack) : -1);
+        if (!found)
+                return VAR_NEW_REF(gbl.neg_one);
+        res = (int)(found - haystack);
+        return res ? intvar_new(res) : VAR_NEW_REF(gbl.zero);
 }
 
 static Object *
@@ -1360,28 +1356,22 @@ string_lrpartition(Frame *fr, unsigned int flags)
         VAR_DECR_REF(td[1]);
         VAR_DECR_REF(td[2]);
         if (!found) {
-                td[0] = self;
-                td[1] = STRCONST_ID(mpty);
-                td[2] = STRCONST_ID(mpty);
-                VAR_INCR_REF(td[0]);
-                VAR_INCR_REF(td[1]);
-                VAR_INCR_REF(td[2]);
+                td[0] = VAR_NEW_REF(self);
+                td[1] = VAR_NEW_REF(STRCONST_ID(mpty));
+                td[2] = VAR_NEW_REF(STRCONST_ID(mpty));
         } else {
                 int idx = (int)(found - haystack);
                 if (idx == 0) {
-                        td[0] = STRCONST_ID(mpty);
-                        VAR_INCR_REF(td[0]);
+                        td[0] = VAR_NEW_REF(STRCONST_ID(mpty));
                 } else {
                         td[0] = stringvar_newn(haystack, idx);
                 }
 
-                VAR_INCR_REF(arg);
-                td[1] = arg;
+                td[1] = VAR_NEW_REF(arg);
 
                 idx += STRING_NBYTES(arg);
                 if (idx == STRING_NBYTES(haystack)) {
-                        VAR_INCR_REF(STRCONST_ID(mpty));
-                        td[2] = STRCONST_ID(mpty);
+                        td[2] = VAR_NEW_REF(STRCONST_ID(mpty));
                 } else {
                         td[2] = stringvar_newf((char *)&haystack[idx],
                                                SF_COPY);
@@ -1513,6 +1503,10 @@ string_lrsplit(Frame *fr, unsigned int flags)
         }
         sep = string_cstring(separg);
         seplen = STRING_NBYTES(separg);
+        /*
+         * FIXME: Since we have stringvar_newn now,
+         * we don't need to do this anymore.
+         */
         if (STRING_NBYTES(self) + 1 >= LRSPLIT_STACK_SIZE) {
                 newsrc = estrdup(string_cstring(self));
         } else {
@@ -1532,7 +1526,7 @@ string_lrsplit(Frame *fr, unsigned int flags)
                         memset(s, 0, seplen);
                         append_str_or_empty(ret, s + seplen);
 
-                        while (combine && ((int)(s - newsrc) > seplen)
+                        while (combine && ((int)(s - newsrc) >= seplen)
                                && memcmp(s - seplen, sep, seplen) == 0) {
                                 s -= seplen;
                                 memset(s, 0, seplen);
@@ -1585,8 +1579,6 @@ string_split(Frame *fr)
 static Object *
 string_splitlines(Frame *fr)
 {
-        enum { SPLIT_STACKSIZE = 64 };
-
         Object *self, *kw, *keeparg, *ret;
         int keepends;
         const char *src;
@@ -1602,11 +1594,7 @@ string_splitlines(Frame *fr)
                 ret = ErrorVar;
                 goto out;
         }
-        keepends = intvar_toi(keeparg);
-        if (err_occurred()) {
-                ret = ErrorVar;
-                goto out;
-        }
+        keepends = intvar_toll(keeparg);
         src = string_cstring(self);
         ret = arrayvar_new(0);
         while (*src != '\0') {
@@ -1732,14 +1720,23 @@ string_is2(Frame *fr, bool (*tst)(unsigned int c))
         return ret;
 }
 
+static bool is_alnum(unsigned int c) { return c < 128 && isalnum(c); }
+static bool is_alpha(unsigned int c) { return c < 128 && isalpha(c); }
+static bool is_ascii(unsigned int c) { return c < 128; }
+static bool is_digit(unsigned int c) { return c < 128 && isdigit(c); }
+static bool is_printable(unsigned int c) { return c < 128 && isprint(c); }
+static bool is_space(unsigned int c) { return c < 128 && isspace(c); }
+static bool is_upper(unsigned int c) { return c < 128 && isupper(c); }
+static bool is_lower(unsigned int c) { return c < 128 && islower(c); }
+
 static bool
 is_ident(const char *s)
 {
         int c;
-        if ((c = *s++) != '_' && !isalpha(c))
+        if ((c = *s++) != '_' && !is_alpha(c))
                 return false;
         while ((c = *s++) != '\0') {
-                if (!isalnum(c) && c != '_')
+                if (!is_alnum(c) && c != '_')
                         return false;
         }
         return true;
@@ -1751,24 +1748,16 @@ is_title(const char *s)
         int c;
         bool first = true;
         while ((c = *s++) != '\0') {
-                if (!isalpha(c)) {
+                if (!is_alpha(c)) {
                         first = true;
                 } else if (first) {
-                        if (islower(c))
+                        if (is_lower(c))
                                 return false;
                         first = false;
                 }
         }
         return true;
 }
-
-static bool is_alnum(unsigned int c) { return c < 128 && isalnum(c); }
-static bool is_alpha(unsigned int c) { return c < 128 && isalpha(c); }
-static bool is_ascii(unsigned int c) { return c < 128; }
-static bool is_digit(unsigned int c) { return c < 128 && isdigit(c); }
-static bool is_printable(unsigned int c) { return c < 128 && isprint(c); }
-static bool is_space(unsigned int c) { return c < 128 && isspace(c); }
-static bool is_upper(unsigned int c) { return c < 128 && isupper(c); }
 
 static Object *string_isident(Frame *fr)
         { return string_is1(fr, is_ident); }

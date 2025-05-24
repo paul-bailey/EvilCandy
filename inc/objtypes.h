@@ -278,6 +278,8 @@ static inline bool isvar_real(Object *v)
         { return isvar_float(v) || isvar_int(v); }
 static inline bool isvar_seq(Object *v)
         { return v->v_type->sqm != NULL; }
+static inline bool isvar_seq_readable(Object *v)
+        { return isvar_seq(v) && v->v_type->sqm->getitem != NULL; }
 static inline bool isvar_map(Object *v)
         { return v->v_type->mpm != NULL; }
 static inline bool hasvar_len(Object *v)
@@ -348,6 +350,10 @@ static inline double *floats_get_data(Object *v)
 static inline unsigned char *bytes_get_data(Object *v)
         { return ((struct bytesvar_t *)v)->b_buf; }
 extern int intvar_toi(Object *v);
+
+/* only call if isvar_seq_readable() is true */
+static inline Object *seqvar_getitem(Object *v, int i)
+        { return v->v_type->sqm->getitem(v, i); }
 
 /*
  * string helpers - Only call these if you already type-checked @v

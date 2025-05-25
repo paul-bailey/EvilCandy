@@ -37,11 +37,10 @@ static void
 moduleinit_sys(void)
 {
         Object *o, *k;
-        o = var_from_format("{ss" STDIO_FMT STDIO_FMT STDIO_FMT "}",
-                        "nl", "\n",
-                        STDIO_ARGS(stdin, READ),
-                        STDIO_ARGS(stdout, WRITE),
-                        STDIO_ARGS(stderr, WRITE));
+        o = var_from_format("{" STDIO_FMT STDIO_FMT STDIO_FMT "}",
+                            STDIO_ARGS(stdin, READ),
+                            STDIO_ARGS(stdout, WRITE),
+                            STDIO_ARGS(stderr, WRITE));
 
         k = stringvar_new("_sys");
         dict_setitem(GlobalObject, k, o);
@@ -96,7 +95,7 @@ initialize_global_object(void)
 
         o = dict_getitem_cstr(GlobalObject, "_sys");
         bug_on(!o);
-        gbl.nl = dict_getitem_cstr(o, "nl");
+        gbl.nl = stringvar_new("\n");
         gbl.stdout_file = dict_getitem_cstr(o, "stdout");
         bug_on(!gbl.nl || !gbl.stdout_file);
         VAR_DECR_REF(o);

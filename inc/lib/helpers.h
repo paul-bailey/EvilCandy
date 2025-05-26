@@ -85,8 +85,16 @@ extern void utf8_scan(const char *s, struct utf8_info_t *info);
 extern int utf8_subscr_str(const char *src, size_t idx, char *dest);
 extern size_t utf8_strgetc(const char *s, char *dst);
 extern size_t utf8_encode(uint32_t point, char *buf);
+extern long utf8_decode_one(const unsigned char *src,
+                            unsigned char **endptr);
 extern void *utf8_decode(const char *src, size_t *width,
                          size_t *len, int *ascii);
-
+static inline bool
+utf8_valid_unicode(unsigned long point)
+{
+        /* Check out of range or invalid surrogate pairs */
+        return point < 0x10fffful &&
+               !(point >= 0xd800ul && point <= 0xdffful);
+}
 
 #endif /* EGQ_HELPERS_H */

@@ -693,6 +693,42 @@ decode_one_point(const unsigned char *s, unsigned char **endptr,
 }
 
 /**
+ * utf8_decode_one - Get a single unicode point
+ * @src: C string containing UTF-8-encoded Unicode points.
+ * @endptr: stop point
+ *
+ * Return value: Unicode point, or -1 if either next char in @src is
+ * ASCII or @src points to an invalid UTF-8 sequence.
+ */
+long
+utf8_decode_one(const unsigned char *src, unsigned char **endptr)
+{
+        unsigned int c = *src++;
+        long point = -1;
+        do {
+                int count;
+                if ((c & 0xf8u) == 0xf0u) {
+                        c &= 0x07u;
+                        count = 3;
+                } else if ((c & 0xf0u) == 0xe0u) {
+                        c &= 0x0fu;
+                        count = 2;
+                } else if ((c & 0xe0u) == 0xc0u) {
+                        c &= 0x1fu;
+                        count = 1;
+                } else {
+                        break;
+                }
+                point = decode_one_point(src, endptr, c, count);
+        } while (0);
+
+        if (point >= 0LL && !utf8_valid_unicode(point))
+                point = -1LL;
+
+        return point;
+}
+
+/**
  * utf8_decode - Decode a (possibly) UTF-8 encoded C-string, and return
  *               an array of its Unicode points.
  * @src:        C-string to decode
@@ -800,11 +836,8 @@ utf8_decode(const char *src, size_t *width,
                         continue;
                 }
 
-                if (point > 0x10ffffu ||
-                    (point >= 0xd800 && point <= 0xdfff)) {
-                        /* Out of range or invalid surrogate pairs */
+                if (!utf8_valid_unicode(point))
                         goto err;
-                }
 
                 utf8_decode_write_point(&b, point, maxwidth);
                 s = endptr;

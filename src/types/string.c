@@ -241,16 +241,15 @@ stringvar_from_points(void *points, size_t width, size_t len)
                         return NULL;
                 }
 
-                /* We should have trapped this already */
-                bug_on(point > 0x10ffff ||
-                       (point >= 0xd800u && point <= 0xdfffu));
-
                 if (point < 128) {
                         buffer_putc(&b, point);
                         continue;
                 }
 
                 ascii = 0;
+
+                /* We should have trapped this already */
+                bug_on(!utf8_valid_unicode(point));
 
                 if (point < 0x7ff) {
                         buffer_putc(&b, 0xc0 | (point >> 6));
@@ -286,7 +285,6 @@ string_copy__(Object *str)
         VAR_INCR_REF(str);
         return str;
 }
-
 
 /*
  * helper to stringvar_from_source -
@@ -394,7 +392,7 @@ again:
                                 if (point == 0)
                                         goto err;
                                 /* out-of-range for Unicode */
-                                if (point > 0x10ffff)
+                                if (!utf8_valid_unicode(point))
                                         goto err;
 
                                 s += amt;
@@ -407,6 +405,16 @@ again:
 
                         /* unsupported escape */
                         goto err;
+                } else if (c > 127) {
+                        long point;
+                        unsigned char *endptr;
+                        point = utf8_decode_one(s - 1, &endptr);
+                        if (point >= 0L) {
+                                string_writer_append(&wr, point);
+                                s = endptr;
+                        } else {
+                                string_writer_append(&wr, c);
+                        }
                 } else {
                         string_writer_append(&wr, c);
                 }

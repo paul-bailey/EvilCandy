@@ -23,12 +23,140 @@ enum {
 #define V2STR(v)                ((struct stringvar_t *)(v))
 #define V2CSTR(v)               string_cstring(v)
 #define STRING_LENGTH(str)      seqvar_size(str)
-#define STRING_NBYTES(str)      (V2STR(str)->s_info.ascii_len)
+#define STRING_NBYTES(str)      string_nbytes(str)
 
 
 /* **********************************************************************
  *                      Common Helpers
  ***********************************************************************/
+
+/*
+ * struct string_writer_t - Because wrappers for struct buffer_t would be
+ *                          too cumbersome, we'll just do it manually.
+ */
+struct string_writer_t {
+        size_t width;
+        union {
+                uint8_t *u8;
+                uint16_t *u16;
+                uint32_t *u32;
+                void *p;
+        } p;
+        unsigned long maxchr;
+        size_t pos;
+        size_t pos_i;
+        size_t n_alloc;
+};
+
+static void
+string_writer_init(struct string_writer_t *wr, size_t width)
+{
+        wr->width = width;
+        switch (width) {
+        case 1:
+                wr->maxchr = 0xffu;
+                break;
+        case 2:
+                wr->maxchr = 0xffffu;
+                break;
+        case 4:
+                wr->maxchr = 0x10ffffu;
+                break;
+        default:
+                bug();
+        }
+        wr->p.p = NULL;
+        wr->pos = wr->pos_i = wr->n_alloc = 0;
+}
+
+static void
+string_writer_append(struct string_writer_t *wr, unsigned long c)
+{
+        enum { STR_REALLOC_SIZE = 64 };
+
+        if (c > wr->maxchr) {
+                /*
+                 * Ugh, need to resize.  This should only occur from
+                 * string_parse, when we're loading a source file.
+                 */
+                struct string_writer_t wr2;
+                size_t width;
+                size_t i;
+
+                bug_on(c > 0x10fffful);
+
+                if (c > 0xfffful) {
+                        width = 4;
+                } else if (c > 0xfful) {
+                        width = 2;
+                } else{
+                        bug();
+                        return;
+                }
+
+                string_writer_init(&wr2, width);
+                for (i = 0; i < wr->pos_i; i++) {
+                        unsigned long oldchar;
+                        switch (wr->width) {
+                        case 1:
+                                oldchar = wr->p.u8[i];
+                                break;
+                        case 2:
+                                oldchar = wr->p.u16[i];
+                                break;
+                        default:
+                                bug();
+                                return;
+                        }
+                        string_writer_append(&wr2, oldchar);
+                }
+                if (wr->p.p)
+                        efree(wr->p.p);
+                bug_on(wr->pos_i != wr2.pos_i);
+                memcpy(wr, &wr2, sizeof(wr2));
+                /* fall through, we still have to write c */
+        }
+
+        bug_on(c > wr->maxchr);
+
+        if (wr->pos + wr->width > wr->n_alloc) {
+                wr->n_alloc += STR_REALLOC_SIZE * wr->width;
+                wr->p.p = erealloc(wr->p.p, wr->n_alloc);
+        }
+
+        switch (wr->width) {
+        case 1:
+                wr->p.u8[wr->pos_i] = c;
+                break;
+        case 2:
+                wr->p.u16[wr->pos_i] = c;
+                break;
+        case 4:
+                wr->p.u32[wr->pos_i] = c;
+                break;
+        default:
+                bug();
+        }
+        wr->pos_i++;
+        wr->pos += wr->width;
+}
+
+static void *
+string_writer_finish(struct string_writer_t *wr, size_t *width, size_t *len)
+{
+        *len = wr->pos_i;
+        *width = wr->width;
+        if (wr->p.p == NULL) {
+                bug_on(*len != 0);
+                return NULL;
+        }
+
+        /*
+         * XXX: Maybe avoid realloc
+         * if wr->n_alloc - wr->pos < some_threshold
+         */
+        return erealloc(wr->p.p, wr->pos);
+}
 
 /*
  * Flags are:
@@ -60,13 +188,95 @@ stringvar_newf(char *cstr, unsigned int flags)
         } else {
                 vs->s = cstr;
         }
-        utf8_scan(cstr, &vs->s_info);
+        vs->s_ascii_len = strlen(vs->s);
         /*
          * We only hash the first time it's needed.  If we never need
          * it, we never hash.
          */
         vs->s_hash = 0;
-        seqvar_set_size(ret, vs->s_info.enc_len);
+        vs->s_unicode = utf8_decode(vs->s, &vs->s_width, &vs->s_enc_len,
+                                    &vs->s_ascii);
+        seqvar_set_size(ret, vs->s_enc_len);
+        return ret;
+}
+
+static Object *
+stringvar_from_points(void *points, size_t width, size_t len)
+{
+        Object *ret;
+        struct buffer_t b;
+        size_t i;
+        int ascii;
+        struct stringvar_t *vs;
+        union {
+                uint32_t *p32;
+                uint16_t *p16;
+                uint8_t *p8;
+                void *p;
+        } x = { .p = points };
+
+        if (!len) {
+                bug_on(!!points);
+                return stringvar_newf("", SF_COPY);
+        }
+
+        bug_on(!points);
+
+        ascii = 1;
+        buffer_init(&b);
+        for (i = 0; i < len; i++) {
+                uint32_t point;
+                switch (width) {
+                case 4:
+                        point = x.p32[i];
+                        break;
+                case 2:
+                        point = x.p16[i];
+                        break;
+                case 1:
+                        point = x.p8[i];
+                        break;
+                default:
+                        bug();
+                        return NULL;
+                }
+
+                /* We should have trapped this already */
+                bug_on(point > 0x10ffff ||
+                       (point >= 0xd800u && point <= 0xdfffu));
+
+                if (point < 128) {
+                        buffer_putc(&b, point);
+                        continue;
+                }
+
+                ascii = 0;
+
+                if (point < 0x7ff) {
+                        buffer_putc(&b, 0xc0 | (point >> 6));
+                        buffer_putc(&b, 0x80 | (point & 0x3f));
+                } else if (point < 0xffff) {
+                        buffer_putc(&b, 0xe0 | (point >> 12));
+                        buffer_putc(&b, 0x80 | ((point >> 6) & 0x3f));
+                        buffer_putc(&b, 0x80 | (point & 0x3f));
+                } else {
+                        buffer_putc(&b, 0xf0 | (point >> 18));
+                        buffer_putc(&b, 0x80 | ((point >> 12) & 0x3f));
+                        buffer_putc(&b, 0x80 | ((point >> 6) & 0x3f));
+                        buffer_putc(&b, 0x80 | (point & 0x3f));
+                }
+        }
+        ret = var_new(&StringType);
+        vs = V2STR(ret);
+
+        vs->s_unicode   = points;
+        vs->s_enc_len   = len;
+        vs->s_width     = width;
+        vs->s           = buffer_trim(&b);
+        vs->s_ascii_len = strlen(vs->s);
+        vs->s_hash      = 0;
+        vs->s_ascii     = ascii;
+        seqvar_set_size(ret, len);
         return ret;
 }
 
@@ -82,15 +292,15 @@ string_copy__(Object *str)
  * helper to stringvar_from_source -
  *      interpolate a string's backslash escapes
  */
-static char *
-string_parse(const char *src)
+enum result_t
+string_parse(const char *src, void **buf, size_t *width, size_t *len)
 {
-        int c, q;
-        struct buffer_t b;
-        const char *s = src;
+        unsigned int c, q;
+        const unsigned char *s = (unsigned char *)src;
+        struct string_writer_t wr;
         enum { BKSL = '\\', SQ = '\'', DQ = '"' };
 
-        buffer_init(&b);
+        string_writer_init(&wr, 1);
 
         q = *s++;
         bug_on(q != SQ && q != DQ);
@@ -102,48 +312,48 @@ again:
                 if (c == BKSL) {
                         c = *s++;
                         if (c == q) {
-                                buffer_putc(&b, c);
+                                string_writer_append(&wr, c);
                                 continue;
                         } else if (c == 'n') {
                                 /*
                                  * could be in switch,
                                  * but it's our 99% scenario.
                                  */
-                                buffer_putc(&b, '\n');
+                                string_writer_append(&wr, '\n');
                                 continue;
                         }
 
                         switch (c) {
                         case 'a': /* bell - but why? */
-                                buffer_putc(&b, '\a');
+                                string_writer_append(&wr, '\a');
                                 continue;
                         case 'b':
-                                buffer_putc(&b, '\b');
+                                string_writer_append(&wr, '\b');
                                 continue;
                         case 'e':
-                                buffer_putc(&b, '\033');
+                                string_writer_append(&wr, '\033');
                                 continue;
                         case 'f':
-                                buffer_putc(&b, '\f');
+                                string_writer_append(&wr, '\f');
                                 continue;
                         case 'v':
-                                buffer_putc(&b, '\v');
+                                string_writer_append(&wr, '\v');
                                 continue;
                         case 'r':
-                                buffer_putc(&b, '\r');
+                                string_writer_append(&wr, '\r');
                                 continue;
                         case 't':
-                                buffer_putc(&b, '\t');
+                                string_writer_append(&wr, '\t');
                                 continue;
                         case BKSL:
-                                buffer_putc(&b, BKSL);
+                                string_writer_append(&wr, BKSL);
                                 continue;
                         default:
                                 break;
                         }
 
                         if (isodigit(c)) {
-                                int i, v;
+                                unsigned int i, v;
                                 --s;
                                 for (i = 0, v = 0; i < 3; i++, s++) {
                                         if (!isodigit(*s))
@@ -153,12 +363,12 @@ again:
                                 }
                                 if (v == 0 || v >= 256)
                                         goto err;
-                                buffer_putc(&b, v);
+                                string_writer_append(&wr, v);
                                 continue;
                         }
 
                         if (c == 'x' || c == 'X') {
-                                int v;
+                                unsigned int v;
                                 if (!isxdigit(s[0]) || !isxdigit(s[1]))
                                         goto err;
                                 v = x2bin(s[0]) * 16 + x2bin(s[1]);
@@ -166,15 +376,14 @@ again:
                                         goto err;
 
                                 s += 2;
-                                buffer_putc(&b, v);
+                                string_writer_append(&wr, v);
                                 continue;
                         }
 
                         if (c == 'u' || c == 'U') {
-                                char ubuf[5];
-                                uint32_t point = 0;
+                                unsigned long point = 0;
                                 int i, amt = c == 'u' ? 4 : 8;
-                                size_t ubuf_size;
+
                                 for (i = 0; i < amt; i++) {
                                         if (!isxdigit((int)(s[i])))
                                                 goto err;
@@ -188,12 +397,8 @@ again:
                                 if (point > 0x10ffff)
                                         goto err;
 
-                                ubuf_size = utf8_encode(point, ubuf);
-                                bug_on(ubuf_size == 0);
-                                (void)ubuf_size;
-
                                 s += amt;
-                                buffer_puts(&b, ubuf);
+                                string_writer_append(&wr, point);
                                 continue;
                         }
 
@@ -203,7 +408,7 @@ again:
                         /* unsupported escape */
                         goto err;
                 } else {
-                        buffer_putc(&b, c);
+                        string_writer_append(&wr, c);
                 }
         }
 
@@ -219,19 +424,13 @@ again:
                 goto again;
         }
 
-        if (buffer_size(&b) == 0) {
-                /* empty string, should we allow it? */
-                buffer_free(&b);
-                char *ret = emalloc(1);
-                ret[0] = '\0';
-                return ret;
-        }
-
-        return buffer_trim(&b);
+        *buf = string_writer_finish(&wr, width, len);
+        return RES_OK;
 
 err:
-        buffer_free(&b);
-        return NULL;
+        if (wr.p.p)
+                efree(wr.p.p);
+        return RES_ERROR;
 }
 
 
@@ -808,7 +1007,8 @@ string_format(Frame *fr)
                 buffer_putc(&t, *s);
         }
 
-        return stringvar_newf(buffer_trim(&t), 0);
+        Object *ret = stringvar_newf(buffer_trim(&t), 0);
+        return ret;
 }
 
 /*
@@ -1370,7 +1570,7 @@ string_lrpartition(Frame *fr, unsigned int flags)
                 td[1] = VAR_NEW_REF(arg);
 
                 idx += STRING_NBYTES(arg);
-                if (idx == STRING_NBYTES(haystack)) {
+                if (idx == STRING_NBYTES(self)) {
                         td[2] = VAR_NEW_REF(STRCONST_ID(mpty));
                 } else {
                         td[2] = stringvar_newf((char *)&haystack[idx],
@@ -1771,7 +1971,9 @@ static Object *string_isalnum(Frame *fr)
 static Object *string_isalpha(Frame *fr)
         { return string_is2(fr, is_alpha); }
 
-static Object *string_isascii(Frame *fr)
+/* FIXME: Skip the scan, just return V2STR(self)->s_ascii. */
+/* named funny, because string_isascii is an API func */
+static Object *string_isascii_mthd(Frame *fr)
         { return string_is2(fr, is_ascii); }
 
 static Object *string_isdigit(Frame *fr)
@@ -1891,7 +2093,7 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("index",        string_index,        1, 1, -1, -1),
         V_INITTBL("isalnum",      string_isalnum,      0, 0, -1, -1),
         V_INITTBL("isalpha",      string_isalpha,      0, 0, -1, -1),
-        V_INITTBL("isascii",      string_isascii,      0, 0, -1, -1),
+        V_INITTBL("isascii",      string_isascii_mthd, 0, 0, -1, -1),
         V_INITTBL("isdigit",      string_isdigit,      0, 0, -1, -1),
         V_INITTBL("isident",      string_isident,      0, 0, -1, -1),
         V_INITTBL("isprintable",  string_isprintable,  0, 0, -1, -1),
@@ -1954,7 +2156,7 @@ string_str(Object *v)
                 } else if (c == BKSL) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, BKSL);
-                } else if (isspace(c)) {
+                } else if (c < 128 && isspace(c)) {
                         switch (c) {
                         case ' ': /* this one's ok */
                                 buffer_putc(&b, c);
@@ -1977,7 +2179,7 @@ string_str(Object *v)
                         }
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, c);
-                } else if (!isgraph(c)) {
+                } else if (c > 128 || !isgraph(c)) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, ((c >> 6) & 0x03) + '0');
                         buffer_putc(&b, ((c >> 3) & 0x07) + '0');
@@ -1994,6 +2196,8 @@ static void
 string_reset(Object *str)
 {
         struct stringvar_t *vs = V2STR(str);
+        if (vs->s_unicode != vs->s && vs->s_unicode != NULL)
+                efree(vs->s_unicode);
         efree(vs->s);
 }
 
@@ -2067,7 +2271,7 @@ string_getslice(Object *str, int start, int stop, int step)
         src = V2CSTR(str);
         cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
 
-        if (V2STR(str)->s_info.enc != STRING_ENC_UTF8) {
+        if (string_isascii(str)) {
                 /* thank god */
                 while (cmp(start, stop)) {
                         buffer_putc(&b, src[start]);
@@ -2100,7 +2304,7 @@ string_getitem(Object *str, int idx)
 
         bug_on(idx >= STRING_LENGTH(str));
 
-        if (V2STR(str)->s_info.enc != STRING_ENC_UTF8) {
+        if (string_isascii(str)) {
                 /* ASCII, Latin1, or some undecoded binary */
                 cbuf[0] = src[idx];
                 cbuf[1] = '\0';
@@ -2218,10 +2422,14 @@ stringvar_from_buffer(struct buffer_t *b)
 Object *
 stringvar_from_source(const char *tokenstr, bool imm)
 {
-        char *s = string_parse(tokenstr);
-        if (!s)
+        size_t width, len;
+        enum result_t status;
+        void *buf;
+
+        status = string_parse(tokenstr, &buf, &width, &len);
+        if (status != RES_OK)
                 return ErrorVar;
-        return stringvar_newf(s, 0);
+        return stringvar_from_points(buf, width, len);
 }
 
 /**

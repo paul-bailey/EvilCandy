@@ -29,10 +29,7 @@ Must Do
   - Add support for deleting elements and global variables
   - Make consistent and accurate error reporting
 
-* Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
-
-  - Python operates these on a dictionary's *keys*, not its values.
-    What does JavaScript do?
+* **done** Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
 
 * Replace ``has`` with ``in``, you're doing no one any favors by making
   up something new.

@@ -327,7 +327,11 @@ struct bytesvar_t {
 struct stringvar_t {
         struct seqvar_t base;
         char *s;        /* the actual C string */
-        struct utf8_info_t s_info;
+        size_t s_ascii_len;
+        void *s_unicode;
+        size_t s_width;
+        size_t s_enc_len;
+        int s_ascii;
         hash_t s_hash;
 };
 
@@ -363,7 +367,9 @@ static inline hash_t string_hash(Object *v)
 
 /* may be different from seqvar_size if not entirely ASCII */
 static inline size_t string_nbytes(Object *v)
-        { return ((struct stringvar_t *)v)->s_info.ascii_len; }
+        { return ((struct stringvar_t *)v)->s_ascii_len; }
+static inline bool string_isascii(Object *v)
+        { return !!((struct stringvar_t *)v)->s_ascii; }
 
 static inline const char *
 string_cstring(Object *v)

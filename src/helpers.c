@@ -586,58 +586,29 @@ utf8_subscr_str(const char *src, size_t idx, char *dest)
         return 0;
 }
 
-static size_t
-utf8_encode_(uint32_t point, char *buf)
-{
-        if (point > 0x10FFFFu || point == 0) {
-                return 0;
-        } else if (point > 0xFFFFu) {
-                buf[3] = (point & 0x3Fu) | 0x80u;
-                point >>= 6;
-                buf[2] = (point & 0x3Fu) | 0x80u;
-                point >>= 6;
-                buf[1] = (point & 0x3Fu) | 0x80u;
-                point >>= 6;
-                buf[0] = (point & 0x07u) | 0xF0u;
-                return 4;
-        } else if (point > 0x7ff) {
-                buf[2] = (point & 0x3Fu) | 0x80u;
-                point >>= 6;
-                buf[1] = (point & 0x3Fu) | 0x80u;
-                point >>= 6;
-                buf[0] = (point & 0x0Fu) | 0xE0u;
-                return 3;
-        } else if (point > 0x7F) {
-                buf[1] = (point & 0x3Fu) | 0x80u;
-                point >>= 6;
-                buf[0] = (point & 0x1Fu) | 0xC0u;
-                return 2;
-        } else {
-                /*
-                 * The jerk wrote all those hexes when a simple
-                 * ascii char would have done just fine
-                 */
-                buf[0] = point;
-                return 1;
-        }
-}
-
 /**
  * utf8_encode - Encode a Unicode point in UTF-8
  * @point:      A unicode point from U+0001 to U+10FFFF
- * @buf:        Buffer to store encoded result plus a nulchar terminator.
- *              This must be at least five bytes long.
+ * @buf:        Buffer to store encoded result
  *
- * Return:
- * Size of @buf filled, not counting the nulchar terminator.  If zero,
- * then @point was either zero or too large.
+ * Behavior is undefined if @point is not valid Unicode
  */
-size_t
-utf8_encode(uint32_t point, char *buf)
+void
+utf8_encode(unsigned long point, struct buffer_t *buf)
 {
-        size_t ret = utf8_encode_(point, buf);
-        buf[ret] = '\0';
-        return ret;
+        if (point < 0x7ff) {
+                buffer_putc(buf, 0xc0 | (point >> 6));
+                buffer_putc(buf, 0x80 | (point & 0x3f));
+        } else if (point < 0xffff) {
+                buffer_putc(buf, 0xe0 | (point >> 12));
+                buffer_putc(buf, 0x80 | ((point >> 6) & 0x3f));
+                buffer_putc(buf, 0x80 | (point & 0x3f));
+        } else {
+                buffer_putc(buf, 0xf0 | (point >> 18));
+                buffer_putc(buf, 0x80 | ((point >> 12) & 0x3f));
+                buffer_putc(buf, 0x80 | ((point >> 6) & 0x3f));
+                buffer_putc(buf, 0x80 | (point & 0x3f));
+        }
 }
 
 static void
@@ -749,7 +720,7 @@ utf8_decode(const char *src, size_t *width,
             size_t *len, int *ascii)
 {
         const unsigned char *s;
-        size_t npoints, maxwidth;
+        size_t maxwidth;
         unsigned int c;
         struct buffer_t b;
 
@@ -771,22 +742,21 @@ utf8_decode(const char *src, size_t *width,
                 return (void *)src;
         }
 
-        npoints = (size_t)((char *)s - src);
+        /*
+         * XXX: Some corner cases exist where I set maxwidth > 1
+         * but the encoding is Latin1, causing me to waste RAM.
+         */
         maxwidth = 1;
         while ((c = *s++) != '\0') {
-                if (c < 0xc0) {
-                        if (c < 127)
-                                npoints++;
-                        /* else, UTF-8 continuation char */
-                } else if ((c & 0xf8) == 0xf0) {
-                        npoints++;
+                if (c < 0xc0)
+                        continue;
+
+                if ((c & 0xf8) == 0xf0) {
                         maxwidth = 4;
                 } else if ((c & 0xf0) == 0xe0) {
-                        npoints++;
                         if (maxwidth < 2)
                                 maxwidth = 2;
                 } else if ((c & 0xe0) == 0xc0) {
-                        npoints++;
                         /*
                          * 110aaabb 10bbcccc: if the 'aaa' bits are zero,
                          * then this is range 0x80...0xff (width 1).
@@ -794,9 +764,6 @@ utf8_decode(const char *src, size_t *width,
                          */
                         if (c > 0xc3 && maxwidth < 2)
                                 maxwidth = 2;
-                } else if ((c & 0xc0) != 0x80) {
-                        /* Latin1? */
-                        npoints++;
                 }
         }
 

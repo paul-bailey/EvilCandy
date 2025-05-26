@@ -250,20 +250,7 @@ stringvar_from_points(void *points, size_t width, size_t len)
 
                 /* We should have trapped this already */
                 bug_on(!utf8_valid_unicode(point));
-
-                if (point < 0x7ff) {
-                        buffer_putc(&b, 0xc0 | (point >> 6));
-                        buffer_putc(&b, 0x80 | (point & 0x3f));
-                } else if (point < 0xffff) {
-                        buffer_putc(&b, 0xe0 | (point >> 12));
-                        buffer_putc(&b, 0x80 | ((point >> 6) & 0x3f));
-                        buffer_putc(&b, 0x80 | (point & 0x3f));
-                } else {
-                        buffer_putc(&b, 0xf0 | (point >> 18));
-                        buffer_putc(&b, 0x80 | ((point >> 12) & 0x3f));
-                        buffer_putc(&b, 0x80 | ((point >> 6) & 0x3f));
-                        buffer_putc(&b, 0x80 | (point & 0x3f));
-                }
+                utf8_encode(point, &b);
         }
         ret = var_new(&StringType);
         vs = V2STR(ret);
@@ -271,8 +258,8 @@ stringvar_from_points(void *points, size_t width, size_t len)
         vs->s_unicode   = points;
         vs->s_enc_len   = len;
         vs->s_width     = width;
+        vs->s_ascii_len = buffer_size(&b);
         vs->s           = buffer_trim(&b);
-        vs->s_ascii_len = strlen(vs->s);
         vs->s_hash      = 0;
         vs->s_ascii     = ascii;
         seqvar_set_size(ret, len);

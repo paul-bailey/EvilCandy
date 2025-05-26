@@ -80,11 +80,13 @@ struct utf8_info_t {
         size_t enc_len;
 };
 
+struct buffer_t;
+
 size_t utf8_strlen(const char *s);
 extern void utf8_scan(const char *s, struct utf8_info_t *info);
 extern int utf8_subscr_str(const char *src, size_t idx, char *dest);
 extern size_t utf8_strgetc(const char *s, char *dst);
-extern size_t utf8_encode(uint32_t point, char *buf);
+extern void utf8_encode(unsigned long point, struct buffer_t *buf);
 extern long utf8_decode_one(const unsigned char *src,
                             unsigned char **endptr);
 extern void *utf8_decode(const char *src, size_t *width,

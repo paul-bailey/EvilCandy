@@ -390,6 +390,24 @@ stringvar_from_writer(struct string_writer_t *wr)
         return stringvar_from_points(buf, width, len, 0);
 }
 
+/* Quicker verion of slice - substr is old[start:stop] */
+static Object *
+stringvar_from_substr(Object *old, size_t start, size_t stop)
+{
+        size_t width, len;
+        void *buf;
+
+        bug_on(start >= seqvar_size(old));
+        bug_on(stop > seqvar_size(old));
+        bug_on(stop < start);
+
+        width = V2STR(old)->s_width;
+        len  = stop - start;
+        buf = V2STR(old)->s_unicode + start * width;
+
+        return stringvar_from_points(buf, width, len, SF_COPY);
+}
+
 /*
  * helper to stringvar_from_source -
  *      interpolate a string's backslash escapes
@@ -1036,31 +1054,68 @@ string_printf(Object *self, Object *args, Object *kwargs)
         string_writer_init(&wr, V2STR(self)->s_width);
         for (i = 0; i < n; i++) {
                 unsigned long point = string_getidx(self, i);
-                if (point == '%' && i < n) {
-                        i++;
+                if (point == '%') {
+                        Object *arg;
+                        size_t ti;
+
+                        if (i++ >= n)
+                                break;
+
                         point = string_getidx(self, i);
                         if (point == '%') {
                                 string_writer_append(&wr, '%');
-                        } else if (point == '(') {
-                                /* keyword args not yet supported */
-                                --i;
                                 continue;
+                        }
+
+                        if (point == '(') {
+                                size_t start, stop;
+                                Object *key;
+
+                                if (!kwargs) {
+                                        --i;
+                                        continue;
+                                }
+
+                                if (i++ >= n)
+                                        break;
+
+                                start = i++;
+                                while (i < n) {
+                                        point = string_getidx(self, i);
+                                        bug_on(point < 0);
+                                        if (point == ')')
+                                                break;
+                                        i++;
+                                }
+                                /* XXX: maybe error instead */
+                                if (i >= n)
+                                        break;
+
+                                stop = i;
+                                key = stringvar_from_substr(self, start, stop);
+                                arg = dict_getitem(kwargs, key);
+                                VAR_DECR_REF(key);
+                                if (!arg)
+                                        continue;
+                                /* skip closing ')' */
+                                i++;
                         } else {
                                 /* Numbered arg */
-                                size_t ti;
-                                Object *arg;
-
                                 if (!args) {
                                         --i;
                                         continue;
                                 }
                                 arg = seqvar_getitem(args, argi++);
-                                ti = format2_helper(arg, &wr, self, i);
-                                if (!ti)
-                                        ti++;
-                                /* minus one because of 'for' iterator */
-                                i += ti - 1;
+                                if (!arg)
+                                        continue;
                         }
+
+                        ti = format2_helper(arg, &wr, self, i);
+                        if (!ti)
+                                ti++;
+                        /* minus one because of 'for' iterator */
+                        i += ti - 1;
+                        VAR_DECR_REF(arg);
                 } else {
                         string_writer_append(&wr, point);
                 }

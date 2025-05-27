@@ -2134,7 +2134,6 @@ string_is2(Frame *fr, bool (*tst)(unsigned int c))
 
 static bool is_alnum(unsigned int c) { return c < 128 && isalnum(c); }
 static bool is_alpha(unsigned int c) { return c < 128 && isalpha(c); }
-static bool is_ascii(unsigned int c) { return c < 128; }
 static bool is_digit(unsigned int c) { return c < 128 && isdigit(c); }
 static bool is_printable(unsigned int c) { return c < 128 && isprint(c); }
 static bool is_space(unsigned int c) { return c < 128 && isspace(c); }
@@ -2662,6 +2661,19 @@ stringvar_from_source(const char *tokenstr, bool imm)
         if (status != RES_OK)
                 return ErrorVar;
         return stringvar_from_points(buf, width, len, 0);
+}
+
+/**
+ * string_ord - Get the ordinal value of @str at index @idx
+ */
+long
+string_ord(Object *str, size_t idx)
+{
+        /* These should have been checked before calling us */
+        bug_on(!isvar_string(str));
+        bug_on(idx >= seqvar_size(str));
+
+        return string_getidx(str, idx);
 }
 
 /**

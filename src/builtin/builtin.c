@@ -616,6 +616,27 @@ do_floats(Frame *fr)
         return floatsvar_from_bytes(v, enc, le);
 }
 
+static Object *
+do_ord(Frame *fr)
+{
+        Object *str = vm_get_arg(fr, 0);
+        long ord;
+
+        if (arg_type_check(str, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        if (seqvar_size(str) != 1) {
+                err_setstr(ValueError,
+                           "Expected single character but got string of length %ld",
+                           seqvar_size(str));
+                return ErrorVar;
+        }
+
+        ord = string_ord(str, 0);
+        bug_on(ord < 0L);
+        return intvar_new(ord);
+}
+
 static const struct type_inittbl_t builtin_inittbl[] = {
         /*         name     callback  min max opt kw */
         V_INITTBL("abs",    do_abs,    1, 1, -1, -1),
@@ -627,6 +648,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("list",   do_list,   1, 1, -1, -1),
         V_INITTBL("min",    do_min,    1, 1,  0, -1),
         V_INITTBL("max",    do_max,    1, 1,  0, -1),
+        V_INITTBL("ord",    do_ord,    1, 1, -1, -1),
         V_INITTBL("print",  do_print,  2, 2,  0,  1),
         V_INITTBL("range",  do_range,  1, 3, -1, -1),
         V_INITTBL("setnl",  do_setnl,  1, 1, -1, -1),

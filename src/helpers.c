@@ -409,183 +409,6 @@ done:
         return 0;
 }
 
-/* true if @c is a valid UTF8 following (ie. not 1st) char */
-static inline bool isutf8(unsigned int c)
-        { return ((c & 0xC0) == 0x80); }
-
-/**
- * like strlen, except @s may contain UTF-8-encoded Unicode characters.
- * Characters >127 which are not proper UTF-8 will be treated as individuals.
- * Results may be undefined if a proper UTF-8 character shortly follows such
- * a malformed character.
- */
-size_t
-utf8_strlen(const char *s)
-{
-        struct utf8_info_t info;
-        utf8_scan(s, &info);
-        return info.enc_len;
-}
-
-/* like utf8_strgetc but without putting a nullchar at the end of @dst */
-static size_t
-utf8_strgetc_(const char *s, char *dst)
-{
-        unsigned int c0;
-        *dst++ = c0 = *s++;
-        if (c0 == 0)
-                return 0;
-
-        if (c0 > 127) {
-                unsigned int c;
-                *dst++ = c = *s++;
-                if (!isutf8(c))
-                        return 1;
-                if ((c0 & 0xe0) == 0xc0)
-                        return 2;
-                *dst++ = c = *s++;
-                if (!isutf8(c))
-                        return 1;
-                if ((c0 & 0xf0) == 0xe0)
-                        return 3;
-                *dst++ = c = *s++;
-                if (!isutf8(c))
-                        return 1;
-                if ((c0 & 0xf8) == 0xf0)
-                        return 4;
-        }
-        return 1;
-}
-
-/**
- * utf8_strgetc - Get the next character out of @s and store it in @dst
- * @s:          Source tring
- * @dst:        Buffer that must be at least five chars long, to store
- *              the next char or UTF-8 set of chars, plus a nullchar
- *              terminator.
- *
- * Return:
- * Amount of chars stuffed in @dst, not counting a nulchar terminator.
- * This is 0 if *s == '\0', 1 if *s was an ASCII or random large datum,
- * 2-4 if it was a valid UTF-8-encoded character.  In the latter case,
- * the value will remain encoded and copied verbatim in @dst.
- */
-size_t
-utf8_strgetc(const char *s, char *dst)
-{
-        size_t ret = utf8_strgetc_(s, dst);
-        dst[ret] = '\0';
-        return ret;
-}
-
-/**
- * utf8_scan - Get info about a C-string
- * @s:  String to inspect
- * @info: Struct to fill with info
- */
-void
-utf8_scan(const char *s, struct utf8_info_t *info)
-{
-        int enc = STRING_ENC_ASCII;
-        size_t skip = 0;
-        const char *start = s;
-        int c;
-
-        if (!s) {
-                info->enc_len = info->ascii_len = 0;
-                info->enc = STRING_ENC_ASCII;
-                return;
-        }
-
-        while ((c = *s++) != '\0') {
-                if ((unsigned)c > 127) {
-                        bool malformed = true;
-                        const char *ts = s;
-                        do {
-                                if ((c & 0xe0) == 0xc0) {
-                                        if (!isutf8(*ts++))
-                                                break;
-                                        malformed = false;
-                                } else if ((c & 0xf0) == 0xe0) {
-                                        if (!isutf8(*ts++))
-                                                break;
-                                        if (!isutf8(*ts++))
-                                                break;
-                                        malformed = false;
-                                } else if ((c & 0xf8) == 0xf0) {
-                                        if (!isutf8(*ts++))
-                                                break;
-                                        if (!isutf8(*ts++))
-                                                break;
-                                        if (!isutf8(*ts++))
-                                                break;
-                                        malformed = false;
-                                }
-                        } while (0);
-                        if (malformed) {
-                                enc = STRING_ENC_UNK;
-                        } else {
-                                if (enc != STRING_ENC_UNK)
-                                        enc = STRING_ENC_UTF8;
-                                skip += ts - s;
-                                s = ts;
-                        }
-                }
-        }
-        s--;
-
-        info->ascii_len = s - start;
-        info->enc = enc;
-
-        /*
-         * If not utf-8 or ASCII, treat as Latin1 or some binary,
-         * where #chars == #bytes
-         */
-        if (enc == STRING_ENC_UTF8)
-                info->enc_len = s - start - skip;
-        else
-                info->enc_len = info->ascii_len;
-}
-
-/**
- * Get a subscript of a string, which may be UTF-8
- * @src:        String to search
- * @idx:        Index
- * @dest:       Buffer to contain the undecoded results plus a nulchar
- *              terminator.  This must be at least 5 bytes long.
- *
- * Return:
- * 0 if found, -1 if out of range.
- */
-int
-utf8_subscr_str(const char *src, size_t idx, char *dest)
-{
-        int c, i;
-        const char *s = src;
-        for (i = 0, c = *s++; i < idx && c != '\0'; i++, c = *s++) {
-                if ((unsigned)c > 127) {
-                        if ((c & 0xe0) == 0xc0) {
-                                if (isutf8(s[0]))
-                                        s++;
-                        } else if ((c & 0xf0) == 0xe0) {
-                                if (isutf8(s[0]) && isutf8(s[1]))
-                                        s += 2;
-                        } else if ((c & 0xf8) == 0xf0) {
-                                if (isutf8(s[0]) &&
-                                    isutf8(s[1]) &&
-                                    isutf8(s[2])) {
-                                        s += 3;
-                                }
-                        }
-                }
-        }
-        if (c == '\0')
-                return -1;
-
-        utf8_strgetc(s - 1, dest);
-        return 0;
-}
-
 /**
  * utf8_encode - Encode a Unicode point in UTF-8
  * @point:      A unicode point from U+0001 to U+10FFFF
@@ -657,7 +480,7 @@ decode_one_point(const unsigned char *s, unsigned char **endptr,
                         point = -1L;
                         break;
                 }
-                point = (point << 6) & (c & 0x3fu);
+                point = (point << 6) + (c & 0x3fu);
         }
         *endptr = (unsigned char *)ts;
         return (long)point;
@@ -677,24 +500,17 @@ utf8_decode_one(const unsigned char *src, unsigned char **endptr)
         unsigned int c = *src++;
         long point = -1;
         do {
-                int count;
                 if ((c & 0xf8u) == 0xf0u) {
-                        c &= 0x07u;
-                        count = 3;
+                        point = decode_one_point(src, endptr, c & 0x07u, 3);
                 } else if ((c & 0xf0u) == 0xe0u) {
-                        c &= 0x0fu;
-                        count = 2;
+                        point = decode_one_point(src, endptr, c & 0x0fu, 2);
                 } else if ((c & 0xe0u) == 0xc0u) {
-                        c &= 0x1fu;
-                        count = 1;
-                } else {
-                        break;
+                        point = decode_one_point(src, endptr, c & 0x1fu, 1);
                 }
-                point = decode_one_point(src, endptr, c, count);
         } while (0);
 
-        if (point >= 0LL && !utf8_valid_unicode(point))
-                point = -1LL;
+        if (point >= 0L && !utf8_valid_unicode(point))
+                point = -1L;
 
         return point;
 }

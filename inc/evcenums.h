@@ -88,6 +88,7 @@ enum {
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,
         STRCONST_IDX_mpty,
+        STRCONST_IDX_wtspc,
         N_STRCONST,
 };
 

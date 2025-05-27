@@ -1,4 +1,34 @@
-/* string.c - Built-in methods for string data types */
+/*
+ * string.c - Built-in methods for string data types
+ *
+ *      Creating new string objects:
+ *      ----------------------------
+ *
+ * Strings have two buffers (unless they happen to be 100%-ASCII). The
+ * first is the string objects's .s field, a C-string containing only
+ * ASCII or UTF-8 encoded characters.  This is '\0'-terminated; EvilCandy
+ * strings may not have embedded zeroes, or else this won't work.  The
+ * other buffer is an array of Unicode points, whose width is specified
+ * by the string's .s_width field.  For speed, the Unicode arrays are
+ * operated on the most.  The C string is used for hashing and printing
+ * (since most every output takes UTF-8).
+ *
+ * If any .s field is not properly UTF-8 encoded, then different Objects
+ * with the exact same Unicode points could end up with different hashes.
+ * So these all MUST have proper encoding.  stringvar_from_source() will
+ * take care of this for literal expressions in user code, but all other
+ * string-creation functions, which are for internal use, assume that the
+ * argument is properly-encoded already.
+ *
+ * creation for INTERNAL use:
+ *         stringvar_new()
+ *         stringvar_newn()
+ *         stringvar_from_buffer()
+ *         stringvar_nocopy()
+ *
+ * creation from USER literal:
+ *         stringvar_from_source()
+ */
 #include <evilcandy.h>
 #include <errno.h>
 #include <math.h>
@@ -17,7 +47,8 @@ enum {
 
         /* Other common flags to methods' helper functions */
         SF_RIGHT        = 0x0010,       /* from the right (not left) */
-        SF_SUPPRESS     = 0x0020,       /* suppress errors */
+        SF_CENTER       = 0x0020,       /* both left and right */
+        SF_SUPPRESS     = 0x0040,       /* suppress errors */
 };
 
 #define V2STR(v)                ((struct stringvar_t *)(v))
@@ -29,6 +60,24 @@ enum {
 /* **********************************************************************
  *                      Common Helpers
  ***********************************************************************/
+
+static long
+string_getidx(Object *str, size_t idx)
+{
+        if (idx >= seqvar_size(str))
+                return -1;
+        switch (V2STR(str)->s_width) {
+        case 1:
+                return ((uint8_t *)V2STR(str)->s_unicode)[idx];
+        case 2:
+                return ((uint16_t *)V2STR(str)->s_unicode)[idx];
+        case 4:
+                return ((uint32_t *)V2STR(str)->s_unicode)[idx];
+        default:
+                bug();
+                return 0;
+        }
+}
 
 /*
  * struct string_writer_t - Because wrappers for struct buffer_t would be
@@ -141,6 +190,69 @@ string_writer_append(struct string_writer_t *wr, unsigned long c)
         wr->pos += wr->width;
 }
 
+static void
+string_writer_appends(struct string_writer_t *wr, const char *cstr)
+{
+        while (*cstr != '\0') {
+                string_writer_append(wr, (unsigned char)*cstr);
+                cstr++;
+        }
+}
+
+static void
+string_writer_append_strobj(struct string_writer_t *wr, Object *str)
+{
+        size_t i, n;
+        n = seqvar_size(str);
+        for (i = 0; i < n; i++) {
+                long point = string_getidx(str, i);
+                bug_on(point < 0L);
+                string_writer_append(wr, point);
+        }
+}
+
+
+static long
+string_writer_getidx(struct string_writer_t *wr, size_t idx)
+{
+        if (idx >= wr->pos_i)
+                return -1;
+        switch (wr->width) {
+        case 1:
+                return wr->p.u8[idx];
+        case 2:
+                return wr->p.u16[idx];
+        case 4:
+                return wr->p.u32[idx];
+        default:
+                bug();
+                return 0;
+        }
+}
+
+/* with string_writer_getidx, used by format2, for swapping pads */
+static int
+string_writer_setidx(struct string_writer_t *wr,
+                     size_t idx, unsigned long point)
+{
+        if (idx >= wr->pos_i)
+                return -1;
+        switch (wr->width) {
+        case 1:
+                wr->p.u8[idx] = point;
+                break;
+        case 2:
+                wr->p.u16[idx] = point;
+                break;
+        case 4:
+                wr->p.u32[idx] = point;
+                break;
+        default:
+                bug();
+        }
+        return 0;
+}
+
 static void *
 string_writer_finish(struct string_writer_t *wr, size_t *width, size_t *len)
 {
@@ -201,7 +313,8 @@ stringvar_newf(char *cstr, unsigned int flags)
 }
 
 static Object *
-stringvar_from_points(void *points, size_t width, size_t len)
+stringvar_from_points(void *points, size_t width,
+                      size_t len, unsigned int flags)
 {
         Object *ret;
         struct buffer_t b;
@@ -217,7 +330,7 @@ stringvar_from_points(void *points, size_t width, size_t len)
 
         if (!len) {
                 bug_on(!!points);
-                return stringvar_newf("", SF_COPY);
+                return VAR_NEW_REF(STRCONST_ID(mpty));
         }
 
         bug_on(!points);
@@ -255,7 +368,10 @@ stringvar_from_points(void *points, size_t width, size_t len)
         ret = var_new(&StringType);
         vs = V2STR(ret);
 
-        vs->s_unicode   = points;
+        if (!!(flags & SF_COPY))
+                vs->s_unicode = ememdup(points, len * width);
+        else
+                vs->s_unicode = points;
         vs->s_enc_len   = len;
         vs->s_width     = width;
         vs->s_ascii_len = buffer_size(&b);
@@ -266,11 +382,12 @@ stringvar_from_points(void *points, size_t width, size_t len)
         return ret;
 }
 
-static inline Object *
-string_copy__(Object *str)
+static Object *
+stringvar_from_writer(struct string_writer_t *wr)
 {
-        VAR_INCR_REF(str);
-        return str;
+        size_t width, len;
+        void *buf = string_writer_finish(wr, &width, &len);
+        return stringvar_from_points(buf, width, len, 0);
 }
 
 /*
@@ -337,6 +454,15 @@ again:
                                 break;
                         }
 
+                        /*
+                         * XXX REVISIT: This doesn't match documenation!
+                         * Even if adjacent octal or hex escape sequences
+                         * are equivalent to valid UTF-8 sequences, they
+                         * will **EACH** be encoded into separate UTF-8
+                         * sequences.  Either fix that here or (easier)
+                         * in the Documenation.  Python seems to do the
+                         * same thing, so maybe change documentation.
+                         */
                         if (isodigit(c)) {
                                 unsigned int i, v;
                                 --s;
@@ -395,7 +521,7 @@ again:
                 } else if (c > 127) {
                         long point;
                         unsigned char *endptr;
-                        point = utf8_decode_one(s - 1, &endptr);
+                        point = utf8_decode_one(s-1, &endptr);
                         if (point >= 0L) {
                                 string_writer_append(&wr, point);
                                 s = endptr;
@@ -428,6 +554,77 @@ err:
         return RES_ERROR;
 }
 
+static void *
+widen_buffer(Object *str, size_t width)
+{
+        void *tbuf, *src, *dst, *end;
+        size_t n, old_width;
+
+        old_width = V2STR(str)->s_width;
+        bug_on(old_width >= width);
+
+        n = seqvar_size(str);
+        tbuf = emalloc(n * width);
+
+        src = V2STR(str)->s_unicode;
+        dst = tbuf;
+        /* src end, not dst end */
+        end = src + n * old_width;
+        while (src < end) {
+                if (width == 2) {
+                        bug_on(old_width != 1);
+                        *(uint16_t *)dst = *(uint8_t *)src;
+                } else {
+                        bug_on(width != 4);
+                        if (old_width == 1) {
+                                *(uint32_t *)dst = *(uint8_t *)src;
+                        } else {
+                                bug_on(old_width != 2);
+                                *(uint32_t *)dst = *(uint16_t *)src;
+                        }
+                }
+                src += old_width;
+                dst += width;
+        }
+        return tbuf;
+}
+
+static ssize_t
+find_idx(Object *haystack, Object *needle, unsigned int flags)
+{
+        ssize_t hwid, nwid, hlen, nlen, idx;
+
+        bug_on(!isvar_string(haystack));
+        bug_on(!isvar_string(needle));
+
+        hlen = seqvar_size(haystack);
+        nlen = seqvar_size(needle);
+        hwid = V2STR(haystack)->s_width;
+        nwid = V2STR(needle)->s_width;
+
+        if (hwid < nwid || hlen < nlen) {
+                idx = -1;
+        } else {
+                void *found;
+                void *hsrc = V2STR(haystack)->s_unicode;
+                void *nsrc = V2STR(needle)->s_unicode;
+                if (hwid != nwid)
+                        nsrc = widen_buffer(needle, hwid);
+                if (!!(flags & SF_RIGHT))
+                        found = memrmem(hsrc, hlen * hwid, nsrc, nlen * hwid);
+                else
+                        found = memmem(hsrc, hlen * hwid, nsrc, nlen * hwid);
+                if (!found)
+                        idx = -1;
+                else
+                        idx = (ssize_t)(found - hsrc) / hwid;
+                if (nsrc != V2STR(needle)->s_unicode)
+                        efree(nsrc);
+        }
+        bug_on(idx >= (ssize_t)seqvar_size(haystack));
+        return idx;
+}
+
 
 /* **********************************************************************
  *                      format2 and helpers
@@ -455,10 +652,10 @@ err:
  */
 
 static void
-padwrite(struct buffer_t *buf, int padc, size_t padlen)
+padwrite(struct string_writer_t *wr, int padc, size_t padlen)
 {
         while (padlen--)
-                buffer_putc(buf, padc);
+                string_writer_append(wr, padc);
 }
 
 /*
@@ -468,28 +665,34 @@ padwrite(struct buffer_t *buf, int padc, size_t padlen)
  * overhead of buffer_putc.
  */
 static void
-swap_pad(struct buffer_t *buf, size_t count, size_t padlen)
+swap_pad(struct string_writer_t *wr, size_t count, size_t padlen)
 {
-        char *right = buf->s + buf->p - 1;
-        char *left = right - padlen;
-        if (!buf->s)
+        size_t right = wr->pos_i - 1;
+        size_t left = right - padlen;
+        if (!wr->pos_i)
                 return;
+
         while (count--) {
-                int c = *right;
-                *right-- = *left;
-                *left-- = c;
+                long rpoint = string_writer_getidx(wr, right);
+                long lpoint = string_writer_getidx(wr, left);
+                bug_on(lpoint < 0 || rpoint < 0);
+                string_writer_setidx(wr, right, lpoint);
+                string_writer_setidx(wr, left, rpoint);
+                left--;
+                right--;
         }
 }
 
 static void
-format2_i_helper(struct buffer_t *buf, unsigned long long ival, int base, int xchar)
+format2_i_helper(struct string_writer_t *wr,
+                 unsigned long long ival, int base, int xchar)
 {
         long long v;
         if (!ival)
                 return;
 
         if (ival >= base)
-                format2_i_helper(buf, ival / base, base, xchar);
+                format2_i_helper(wr, ival / base, base, xchar);
 
         v = ival % base;
         if (v >= 10)
@@ -497,11 +700,11 @@ format2_i_helper(struct buffer_t *buf, unsigned long long ival, int base, int xc
         else
                 v += '0';
 
-        buffer_putc(buf, (int)v);
+        string_writer_append(wr, (long)v);
 }
 
 static void
-format2_i(struct buffer_t *buf, Object *arg,
+format2_i(struct string_writer_t *wr, Object *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
         int base;
@@ -528,52 +731,52 @@ format2_i(struct buffer_t *buf, Object *arg,
                 bug();
         }
 
-        count = buf->p;
+        count = wr->pos_i;
         if (!ival) {
-                buffer_putc(buf, '0');
+                string_writer_append(wr, '0');
         } else {
                 unsigned long long uval;
                 if (conv == 'd' && ival < 0) {
-                        buffer_putc(buf, '-');
+                        string_writer_append(wr, '-');
                         uval = -ival;
                 } else {
                         uval = (unsigned long long)ival;
                 }
-                format2_i_helper(buf, uval, base, xchar);
+                format2_i_helper(wr, uval, base, xchar);
         }
 
-        count = buf->p - count;
+        count = wr->pos_i - count;
         if (count < padlen) {
                 padlen -= count;
-                padwrite(buf, padc, padlen);
+                padwrite(wr, padc, padlen);
                 if (rjust) {
-                        swap_pad(buf, count, padlen);
+                        swap_pad(wr, count, padlen);
                 }
         }
 }
 
 /* helper to format2_e - print exponent */
 static void
-format2_e_exp(struct buffer_t *buf, int exp)
+format2_e_exp(struct string_writer_t *wr, int exp)
 {
         if (exp == 0)
                 return;
         if (exp > 0)
-                format2_e_exp(buf, exp / 10);
-        buffer_putc(buf, (exp % 10) + '0');
+                format2_e_exp(wr, exp / 10);
+        string_writer_append(wr, (exp % 10) + '0');
 }
 
 /* FIXME: subtle difference from above, try to eliminate one of these */
 static void
-format2_f_ihelper(struct buffer_t *buf, unsigned int v)
+format2_f_ihelper(struct string_writer_t *wr, unsigned int v)
 {
         if (v >= 10)
-                format2_f_ihelper(buf, v / 10);
-        buffer_putc(buf, (v % 10) + '0');
+                format2_f_ihelper(wr, v / 10);
+        string_writer_append(wr, (v % 10) + '0');
 }
 
 static void
-format2_e(struct buffer_t *buf, Object *arg,
+format2_e(struct string_writer_t *wr, Object *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
         int exp = 0;
@@ -583,10 +786,10 @@ format2_e(struct buffer_t *buf, Object *arg,
         double v = realvar_tod(arg);
         double dv = v;
 
-        size_t count = buf->p;
+        size_t count = wr->pos_i;
 
         if (dv < 0.0) {
-                buffer_putc(buf, '-');
+                string_writer_append(wr, '-');
                 dv = -dv;
         }
 
@@ -616,69 +819,69 @@ format2_e(struct buffer_t *buf, Object *arg,
         }
 
         dv = modf(dv, &ival);
-        buffer_putc(buf, (int)ival + '0');
+        string_writer_append(wr, (int)ival + '0');
         ++sigfig;
 
-        buffer_putc(buf, '.');
+        string_writer_append(wr, '.');
         while (sigfig < precision) {
                 dv *= 10.0;
                 dv = modf(dv, &ival);
-                buffer_putc(buf, (int)ival + '0');
+                string_writer_append(wr, (int)ival + '0');
                 sigfig++;
         }
 
         /* print exponent */
         bug_on(conv != 'e' && conv != 'E');
-        buffer_putc(buf, conv);
+        string_writer_append(wr, conv);
         if (exp < 0) {
-                buffer_putc(buf, '-');
+                string_writer_append(wr, '-');
                 exp = -exp;
         } else {
-                buffer_putc(buf, '+');
+                string_writer_append(wr, '+');
         }
         /* %e requires exponent to be at least two digits */
         if (exp < 10)
-                buffer_putc(buf, '0');
+                string_writer_append(wr, '0');
 
         if (exp == 0)
-                buffer_putc(buf, '0');
+                string_writer_append(wr, '0');
         else
-                format2_e_exp(buf, exp);
+                format2_e_exp(wr, exp);
 
         if (!rjust)
                 padc = ' ';
-        count = buf->p - count;
+        count = wr->pos_i - count;
         if (count < padlen) {
                 padlen -= count;
-                padwrite(buf, padc, padlen);
+                padwrite(wr, padc, padlen);
                 if (rjust) {
-                        swap_pad(buf, count, padlen);
+                        swap_pad(wr, count, padlen);
                 }
         }
 }
 
 static void
-format2_f(struct buffer_t *buf, Object *arg,
+format2_f(struct string_writer_t *wr, Object *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
         double v = realvar_tod(arg);
         bool have_dot = false;
-        size_t count = buf->p;
+        size_t count = wr->pos_i;
 
         if (!isfinite(v)) {
                 if (isnan(v)) {
-                        buffer_puts(buf, "nan");
+                        string_writer_appends(wr, "nan");
                 } else {
                         if (v == -INFINITY)
-                                buffer_putc(buf, '-');
-                        buffer_puts(buf, "inf");
+                                string_writer_append(wr, '-');
+                        string_writer_appends(wr, "inf");
                 }
         } else {
                 double iptr, rem, scale;
                 int i;
 
                 if (v < 0.0) {
-                        buffer_putc(buf, '-');
+                        string_writer_append(wr, '-');
                         v = -v;
                 }
                 for (scale = 1.0, i = 0; i < precision; i++)
@@ -686,14 +889,14 @@ format2_f(struct buffer_t *buf, Object *arg,
                 v += scale * 0.5;
                 rem = modf(v, &iptr);
 
-                format2_f_ihelper(buf, (unsigned int)iptr);
+                format2_f_ihelper(wr, (unsigned int)iptr);
 
                 if (precision > 0) {
                         have_dot = true;
-                        buffer_putc(buf, '.');
+                        string_writer_append(wr, '.');
                         while (precision--) {
                                 rem *= 10.0;
-                                buffer_putc(buf, (int)rem + '0');
+                                string_writer_append(wr, (int)rem + '0');
                                 rem = modf(rem, &iptr);
                         }
                 }
@@ -701,56 +904,43 @@ format2_f(struct buffer_t *buf, Object *arg,
 
         if (!rjust && !have_dot)
                 padc = ' ';
-        count = buf->p - count;
+        count = wr->pos_i - count;
         if (count < padlen) {
                 padlen -= count;
-                padwrite(buf, padc, padlen);
+                padwrite(wr, padc, padlen);
                 if (rjust) {
-                        swap_pad(buf, count, padlen);
+                        swap_pad(wr, count, padlen);
                 }
         }
 }
 
 static void
-format2_s(struct buffer_t *buf, Object *arg,
+format2_s(struct string_writer_t *wr, Object *arg,
           int conv, bool rjust, int padc, size_t padlen, int precision)
 {
-        const char *src;
-        size_t count, count_bytes;
+        /* count = #chars, not #bytes */
+        size_t count = seqvar_size(arg);
+        string_writer_append_strobj(wr, arg);
 
-        src = V2CSTR(arg);
-        if (!src) {
-                count = count_bytes = 6;
-                buffer_puts(buf, "(null)");
-        } else {
-                count_bytes = buf->p;
-                count = utf8_strlen(src);
-                buffer_puts(buf, src);
-                count_bytes = buf->p - count_bytes;
-        }
-
-        /*
-         * This is trickier than the numbers' case, because the string
-         * length might get confused by Unicode characters.
-         */
         if (count < padlen) {
                 padlen -= count;
-                padwrite(buf, padc, padlen);
+                padwrite(wr, padc, padlen);
                 if (rjust)
-                        swap_pad(buf, count_bytes, padlen);
+                        swap_pad(wr, count, padlen);
         }
 }
 
 static size_t
-format2_helper(Object **args, struct buffer_t *buf, const char *s, int argi, int argc)
+format2_helper(Object **args, struct string_writer_t *wr, Object *self,
+               size_t self_i, int argi, int argc)
 {
-        const char *ssave = s;
+        size_t idx_save = self_i;
         bool rjust = true;
         int padc = ' ';
         size_t padlen = 0;
         int precision = 6;
         Object *v;
-        int conv;
+        unsigned long point;
 
         /*
          * XXX should warn, but if this is in a user loop or function,
@@ -764,31 +954,36 @@ format2_helper(Object **args, struct buffer_t *buf, const char *s, int argi, int
 
         /* get flags.  @cbuf already filled with next char */
         for (;;) {
-                switch (*s) {
+                switch (string_getidx(self, self_i)) {
                 case '-':
                         rjust = false;
-                        s++;
+                        self_i++;
                         continue;
                 case '0':
                         padc = '0';
-                        s++;
+                        self_i++;
                         continue;
                 }
                 break;
         }
-        if (isdigit((int)*s)) {
-                while (isdigit((int)*s)) {
-                        padlen = 10 * padlen + (*s - '0');
-                        s++;
+        point = string_getidx(self, self_i);
+        if (point < 128 && isdigit(point)) {
+                while (point < 128 && isdigit(point)) {
+                        padlen = 10 * padlen + (point - '0');
+                        self_i++;
+                        point = string_getidx(self, self_i);
                 }
         }
-        if (*s == '.') {
-                s++;
-                if (isdigit((int)*s)) {
+        if (point == '.') {
+                self_i++;
+                point = string_getidx(self, self_i);
+                if (point < 128 && isdigit(point)) {
                         precision = 0;
-                        while (isdigit((int)*s)) {
-                                precision = 10 * precision + (*s - '0');
-                                s++;
+                        while (point < 128 && isdigit(point)) {
+                                precision *= 10;
+                                precision += point - '0';
+                                self_i++;
+                                point = string_getidx(self, self_i);
                         }
                 }
         }
@@ -797,30 +992,32 @@ format2_helper(Object **args, struct buffer_t *buf, const char *s, int argi, int
         if (precision >= PRECISION_MAX)
                 precision = PRECISION_MAX;
 
-        switch ((conv = *s++)) {
+        point = string_getidx(self, self_i);
+        self_i++;
+        switch (point) {
         case 'x':
         case 'X':
         case 'd':
         case 'u':
                 if (!isvar_real(v))
                         return 0;
-                format2_i(buf, v, conv, rjust, padc, padlen, precision);
+                format2_i(wr, v, point, rjust, padc, padlen, precision);
                 break;
         case 'f':
                 if (!isvar_real(v))
                         return 0;
-                format2_f(buf, v, conv, rjust, padc, padlen, precision);
+                format2_f(wr, v, point, rjust, padc, padlen, precision);
                 break;
         case 'e':
         case 'E':
                 if (!isvar_real(v))
                         return 0;
-                format2_e(buf, v, conv, rjust, padc, padlen, precision);
+                format2_e(wr, v, point, rjust, padc, padlen, precision);
                 break;
         case 's':
                 if (!isvar_string(v))
                         return 0;
-                format2_s(buf, v, conv, rjust, padc, padlen, precision);
+                format2_s(wr, v, point, rjust, padc, padlen, precision);
                 break;
         default:
         case '\0':
@@ -828,7 +1025,7 @@ format2_helper(Object **args, struct buffer_t *buf, const char *s, int argi, int
                 return 0;
         }
 
-        return s - ssave;
+        return self_i - idx_save;
 }
 
 /*
@@ -860,12 +1057,11 @@ format2_helper(Object **args, struct buffer_t *buf, const char *s, int argi, int
 static Object *
 string_format2(Frame *fr)
 {
-        char cbuf[5];
-        size_t size, argc;
-        Object *ret, *list, *self, **args;
+        size_t argc;
+        Object *list, *self, **args;
         const char *s;
-        struct buffer_t b;
-        size_t argi = 0;
+        size_t i, n, argi = 0;
+        struct string_writer_t wr;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
@@ -888,26 +1084,30 @@ string_format2(Frame *fr)
                 return self;
         }
 
-        buffer_init(&b);
-        while ((size = utf8_strgetc(s, cbuf)) != 0) {
-                s += size;
-                if (size > 1) {
-                        buffer_puts(&b, cbuf);
-                } else if (cbuf[0] == '%') {
-                        size = utf8_strgetc(s, cbuf);
-                        if (size == 1 && cbuf[0] == '%') {
-                                s++;
-                                buffer_putc(&b, '%');
+        string_writer_init(&wr, V2STR(self)->s_width);
+        n = seqvar_size(self);
+        for (i = 0; i < n; i++) {
+                unsigned long point = string_getidx(self, i);
+                if (point == '%' && i < n) {
+                        i++;
+                        point = string_getidx(self, i);
+                        if (point == '%') {
+                                string_writer_append(&wr, '%');
                         } else {
-                                s += format2_helper(args, &b, s, argi++, argc);
+                                size_t ti;
+                                ti = format2_helper(args, &wr, self,
+                                                    i, argi++, argc);
+                                if (!ti)
+                                        ti++;
+                                /* minus one because of 'for' iterator */
+                                i += ti - 1;
                         }
-                } else  {
-                        buffer_putc(&b, cbuf[0]);
+                } else {
+                        string_writer_append(&wr, point);
                 }
         }
 
-        ret = stringvar_newf(buffer_trim(&b), 0);
-        return ret;
+        return stringvar_from_writer(&wr);
 }
 
 /* **********************************************************************
@@ -926,6 +1126,13 @@ string_getprop_nbytes(Object *self)
 {
         bug_on(!isvar_string(self));
         return intvar_new(STRING_NBYTES(self));
+}
+
+static Object *
+string_getprop_width(Object *self)
+{
+        bug_on(!isvar_string(self));
+        return intvar_new(V2STR(self)->s_width);
 }
 
 static bool
@@ -1006,6 +1213,112 @@ string_format(Frame *fr)
         return ret;
 }
 
+#define STRIP_HELPER(X_, Type) \
+static size_t \
+strip_##X_(Type *src, size_t srclen, Type *skip,  \
+           size_t skiplen, size_t width, unsigned int flags, \
+           size_t *new_end) \
+{ \
+        size_t new_start = 0; \
+        if (!(flags & SF_RIGHT)) { \
+                size_t i, j; \
+                for (i = 0; i < srclen; i++) { \
+                        for (j = 0; j < skiplen; j++) { \
+                                if (src[i] == skip[j]) \
+                                        break; \
+                        } \
+                        if (j == skiplen) \
+                                break; \
+                } \
+                new_start = i; \
+        } \
+        *new_end = srclen; \
+        if (!!(flags & (SF_CENTER|SF_RIGHT))) { \
+                size_t i, j; \
+                for (i = srclen - 1; (ssize_t)i >= new_start; i--) { \
+                        for (j = 0; j < skiplen; j++) { \
+                                if (src[i] == skip[j]) \
+                                        break; \
+                        } \
+                        if (j == skiplen) \
+                                break; \
+                } \
+                *new_end = i + 1; \
+        } \
+        return new_start; \
+}
+
+STRIP_HELPER(8, uint8_t)
+STRIP_HELPER(16, uint16_t)
+STRIP_HELPER(32, uint32_t)
+
+static Object *
+string_lrstrip(Frame *fr, unsigned int flags)
+{
+        Object *self, *arg, *ret;
+        void *src, *skip;
+        size_t srclen, skiplen, width, src_newend, src_newstart;
+        struct stringvar_t *vsrc, *vskip;
+
+        self = vm_get_this(fr);
+        arg = vm_get_arg(fr, 0);
+
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        if (arg && arg_type_check(arg, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        /* no need to produce a reference, we're just borrowing */
+        if (!arg)
+                arg = STRCONST_ID(wtspc);
+
+        vsrc = V2STR(self);
+        vskip = V2STR(arg);
+
+        if (vskip->s_width < vsrc->s_width) {
+                skip = widen_buffer(arg, vsrc->s_width);
+                src = vsrc->s_unicode;;
+                width = vsrc->s_width;
+        } else if (vskip->s_width > vsrc->s_width) {
+                skip = vskip->s_unicode;
+                src = widen_buffer(self, vskip->s_width);
+                width = vskip->s_width;
+        } else {
+                skip = vskip->s_unicode;
+                src = vsrc->s_unicode;
+                width = vsrc->s_width;
+        }
+        srclen = seqvar_size(self);
+        skiplen = seqvar_size(arg);
+
+        if (width == 4) {
+                src_newstart = strip_32(src, srclen, skip, skiplen,
+                                        width, flags, &src_newend);
+        } else if (width == 2) {
+                src_newstart = strip_16(src, srclen, skip, skiplen,
+                                        width, flags, &src_newend);
+        } else {
+                bug_on(width != 1);
+                src_newstart = strip_8(src, srclen, skip, skiplen,
+                                       width, flags, &src_newend);
+        }
+        bug_on(src_newstart > src_newend);
+        if (src_newstart == src_newend) {
+                ret = VAR_NEW_REF(STRCONST_ID(mpty));
+        } else {
+                /* Use original buffers, in case we had widened them. */
+                void *newp = vsrc->s_unicode + vsrc->s_width * src_newstart;
+                ret = stringvar_from_points(newp, vsrc->s_width,
+                                            src_newend - src_newstart, SF_COPY);
+        }
+        if (src != vsrc->s_unicode)
+                efree(src);
+        if (skip != vskip->s_unicode)
+                efree(skip);
+        return ret;
+}
+
 /*
  * lstrip()             no args implies whitespace
  * lstrip(charset)      charset is string
@@ -1013,24 +1326,7 @@ string_format(Frame *fr)
 static Object *
 string_lstrip(Frame *fr)
 {
-        const char *charset;
-        Object *arg = frame_get_arg(fr, 0);
-        Object *self = get_this(fr);
-        struct buffer_t b;
-
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        /* arg may be NULL, else it must be string */
-        if (arg && arg_type_check(arg, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        buffer_init(&b);
-        buffer_puts(&b, V2CSTR(self));
-        charset = arg ? V2CSTR(arg) : NULL;
-        buffer_lstrip(&b, charset);
-
-        return stringvar_newf(buffer_trim(&b), 0);
+        return string_lrstrip(fr, 0);
 }
 
 /*
@@ -1040,23 +1336,7 @@ string_lstrip(Frame *fr)
 static Object *
 string_rstrip(Frame *fr)
 {
-        const char *charset;
-        Object *arg = frame_get_arg(fr, 0);
-        Object *self = get_this(fr);
-        struct buffer_t b;
-
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        /* arg may be NULL, else it must be string */
-        if (arg && arg_type_check(arg, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        buffer_init(&b);
-        buffer_puts(&b, V2CSTR(self));
-        charset = arg ? V2CSTR(arg) : NULL;
-        buffer_rstrip(&b, charset);
-        return stringvar_newf(buffer_trim(&b), 0);
+        return string_lrstrip(fr, SF_RIGHT);
 }
 
 /*
@@ -1066,23 +1346,7 @@ string_rstrip(Frame *fr)
 static Object *
 string_strip(Frame *fr)
 {
-        const char *charset;
-        Object *arg = frame_get_arg(fr, 0);
-        Object *self = get_this(fr);
-        struct buffer_t b;
-
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-        /* arg may be NULL, else it must be string */
-        if (arg && arg_type_check(arg, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        buffer_init(&b);
-        buffer_puts(&b, V2CSTR(self));
-        charset = arg ? V2CSTR(arg) : NULL;
-        buffer_rstrip(&b, charset);
-        buffer_lstrip(&b, charset);
-        return stringvar_newf(buffer_trim(&b), 0);
+        return string_lrstrip(fr, SF_CENTER);
 }
 
 static Object *
@@ -1135,150 +1399,142 @@ done:
         return stringvar_newf(buffer_trim(&b), 0);
 }
 
-/* XXX Superfluous, the way we do things now, remove? */
 static Object *
-string_copy(Frame *fr)
+string_lrjust(Frame *fr, unsigned int flags)
 {
-        Object *self = get_this(fr);
+        Object *self, *arg;
+        struct string_writer_t wr;
+        ssize_t newlen, selflen, padlen;
 
+        bug_on((flags & (SF_CENTER|SF_RIGHT)) == (SF_CENTER|SF_RIGHT));
+
+        self = vm_get_this(fr);
+        arg = vm_get_arg(fr, 0);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        return string_copy__(self);
+        arg = vm_get_arg(fr, 0);
+        if (arg_type_check(arg, &IntType) == RES_ERROR)
+                return ErrorVar;
+
+        newlen = intvar_toi(arg);
+        if (err_occurred())
+                return ErrorVar;
+
+        selflen = seqvar_size(self);
+        if (newlen < selflen)
+                newlen = selflen;
+        padlen = newlen - selflen;
+        if (!!(flags & SF_CENTER))
+                padlen /= 2;
+
+        if (!newlen)
+                return VAR_NEW_REF(STRCONST_ID(mpty));
+
+        if (newlen == selflen)
+                return VAR_NEW_REF(self);
+
+        string_writer_init(&wr, V2STR(self)->s_width);
+        if (!!(flags & (SF_CENTER | SF_RIGHT))) {
+                while (padlen-- > 0)
+                        string_writer_append(&wr, ' ');
+        }
+        string_writer_append_strobj(&wr, self);
+        bug_on(wr.pos_i < newlen && !!(flags & SF_RIGHT));
+        while (wr.pos_i < newlen) {
+                string_writer_append(&wr, ' ');
+        }
+        return stringvar_from_writer(&wr);
 }
 
 /* rjust(amt)   integer arg */
 static Object *
 string_rjust(Frame *fr)
 {
-        Object *self = get_this(fr);
-        Object *arg = vm_get_arg(fr, 0);
-        size_t len;
-        long long just;
-
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-        if (arg_type_check(arg, &IntType) == RES_ERROR)
-                return ErrorVar;
-
-        just = intvar_toll(arg);
-        if (just < 0 || just >= JUST_MAX) {
-                err_setstr(ValueError, "Range limit error");
-                return ErrorVar;
-        }
-
-        len = STRING_LENGTH(self);
-        if (len < just) {
-                /*
-                 * TODO: "need_len = just + (bytes_len - len) + 1"
-                 * Need to replace buffer_t API, allocate this in
-                 * one chunk, and memset... much faster than this
-                 * in the case of "rjust(gazillion)"
-                 */
-                struct buffer_t b;
-                buffer_init(&b);
-                just -= len;
-                while (just--)
-                        buffer_putc(&b, ' ');
-                buffer_puts(&b, V2CSTR(self));
-                return stringvar_newf(buffer_trim(&b), 0);
-        } else {
-                return string_copy__(self);
-        }
+        return string_lrjust(fr, SF_RIGHT);
 }
 
 /* rjust(amt)    integer arg */
 static Object *
 string_ljust(Frame *fr)
 {
-        Object *self = get_this(fr);
-        Object *arg = vm_get_arg(fr, 0);
-        size_t len;
-        long long just;
-
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-        if (arg_type_check(arg, &IntType) == RES_ERROR)
-                return ErrorVar;
-
-        just = intvar_toll(arg);
-        if (just < 0 || just >= JUST_MAX) {
-                err_setstr(ValueError, "Range limit error");
-                return ErrorVar;
-        }
-
-        len = STRING_LENGTH(self);
-        if (len < just) {
-                struct buffer_t b;
-                buffer_init(&b);
-                buffer_puts(&b, V2CSTR(self));
-                just -= len;
-                while (just--)
-                        buffer_putc(&b, ' ');
-                return stringvar_newf(buffer_trim(&b), 0);
-        } else {
-                return string_copy__(self);
-        }
-}
-
-/* helper to string_join below */
-static Object *
-join_next_str(Object *arr, int i)
-{
-        Object *ret = seqvar_getitem(arr, i);
-        /* see string_join below, we already checked that i is ok */
-        bug_on(!ret);
-        if (!isvar_string(ret)) {
-                err_setstr(TypeError,
-                           "string.join method may only join lists of strings");
-                VAR_DECR_REF(ret);
-                return NULL;
-        }
-        return ret;
+        return string_lrjust(fr, 0);
 }
 
 static Object *
 string_join(Frame *fr)
 {
-        struct buffer_t b;
+        struct string_writer_t wr;
         Object *self = get_this(fr);
         Object *arg = vm_get_arg(fr, 0);
-        const char *joinstr;
-        Object *elem;
-        int i;
-        size_t n;
+        size_t i, n, width;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        if ((joinstr = V2CSTR(self)) == NULL)
-                joinstr = "";
-
-        if (arg_type_check(arg, &ArrayType) == RES_ERROR)
+        if (!arg || !isvar_seq_readable(arg)) {
+                err_setstr(ArgumentError, "Expected: sequential object");
                 return ErrorVar;
+        }
 
         if ((n = seqvar_size(arg)) == 0)
-                return stringvar_newf("", 0);
+                return VAR_NEW_REF(STRCONST_ID(mpty));
 
-        elem = join_next_str(arg, 0);
-        if (!elem)
-                return ErrorVar;
+        if (n == 1)
+                return seqvar_getitem(arg, 0);
 
-        buffer_init(&b);
-        buffer_puts(&b, V2CSTR(elem));
-        VAR_DECR_REF(elem);
-        for (i = 1; i < n; i++) {
-                elem = join_next_str(arg, i);
-                if (!elem) {
-                        buffer_free(&b);
-                        return ErrorVar;
+        width = V2STR(self)->s_width;
+        if (!isvar_string(arg)) {
+                bool have_joinstr = seqvar_size(self) > 0;
+                for (i = 0; i < n; i++) {
+                        Object *elem = seqvar_getitem(arg, i);
+                        size_t twid;
+                        bug_on(!elem);
+                        if (!isvar_string(elem)) {
+                                VAR_DECR_REF(elem);
+                                err_setstr(TypeError,
+                                        "Expected string type in sequence but found %s",
+                                        typestr(elem));
+                                return ErrorVar;
+                        }
+                        twid = V2STR(elem)->s_width;
+                        if (width < twid)
+                                width = twid;
+                        VAR_DECR_REF(elem);
                 }
-                if (joinstr[0] != '\0')
-                        buffer_puts(&b, joinstr);
-                buffer_puts(&b, V2CSTR(elem));
-                VAR_DECR_REF(elem);
+                string_writer_init(&wr, width);
+                for (i = 0; i < n; i++) {
+                        Object *elem = seqvar_getitem(arg, i);
+                        bug_on(!elem || !isvar_string(elem));
+                        if (i > 0 && have_joinstr)
+                                string_writer_append_strobj(&wr, self);
+                        string_writer_append_strobj(&wr, elem);
+                        VAR_DECR_REF(elem);
+                }
+        } else {
+                /*
+                 * For strings, the above method would add the overhead
+                 * of creating/destroying a string object for each
+                 * seqvar_getitem() call, so do a manual version here.
+                 */
+
+                /* Result is arg with nothing between its letters */
+                if (seqvar_size(self) == 0)
+                        return VAR_NEW_REF(arg);
+
+                if (width < V2STR(arg)->s_width)
+                        width = V2STR(arg)->s_width;
+                string_writer_init(&wr, width);
+                for (i = 0; i < n; i++) {
+                        long point = string_getidx(arg, i);
+                        bug_on(point < 0L);
+                        if (i > 0)
+                                string_writer_append_strobj(&wr, self);
+                        string_writer_append(&wr, point);
+                }
         }
-        return stringvar_newf(buffer_trim(&b), 0);
+
+        return stringvar_from_writer(&wr);
 }
 
 static Object *
@@ -1309,39 +1565,7 @@ string_capitalize(Frame *fr)
 static Object *
 string_center(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        Object *arg = vm_get_arg(fr, 0);
-        char *dst, *end, *newbuf;
-        int len, src_len, nbytes, src_nbytes, padlen;
-
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        if (arg_type_check(arg, &IntType) == RES_ERROR)
-                return ErrorVar;
-
-        len = intvar_toi(arg);
-        if (err_occurred())
-                return ErrorVar;
-
-        src_len = seqvar_size(self);
-        if (len < src_len)
-                len = src_len;
-        src_nbytes = STRING_NBYTES(self);
-        nbytes = src_nbytes + (len - src_len);
-
-        dst = newbuf = emalloc(nbytes + 1);
-        end = dst + nbytes;
-
-        padlen = (len - src_len) / 2;
-        while (padlen-- > 0)
-                *dst++ = ' ';
-        memcpy(dst, string_cstring(self), src_nbytes);
-        dst += src_nbytes;
-        while (dst < end)
-                *dst++ = ' ';
-        *dst = '\0';
-        return stringvar_newf(newbuf, SF_COPY);
+        return string_lrjust(fr, SF_CENTER);
 }
 
 static Object *
@@ -1356,6 +1580,7 @@ string_count(Frame *fr)
         if (arg_type_check(arg, &StringType) == RES_ERROR)
                 return ErrorVar;
 
+        /* XXX: Consistent to do with encoded C strings? */
         count = memcount(string_cstring(self), STRING_NBYTES(self),
                          string_cstring(arg), STRING_NBYTES(arg));
 
@@ -1411,9 +1636,9 @@ static Object *
 string_expandtabs(Frame *fr)
 {
         Object *self, *kw, *tabarg;
-        int tabsize, col, c, nextstop;
-        const char *src;
-        struct buffer_t b;
+        size_t tabsize, col, nextstop;
+        struct string_writer_t wr;
+        size_t i, n;
 
         self = vm_get_this(fr);
         kw = vm_get_arg(fr, 0);
@@ -1435,34 +1660,34 @@ string_expandtabs(Frame *fr)
         if (tabsize < 0)
                 tabsize = 0;
 
-        buffer_init(&b);
+        string_writer_init(&wr, V2STR(self)->s_width);
         col = 0;
         nextstop = tabsize;
-        src = string_cstring(self);
-        /*
-         * FIXME: col all wrong if there are utf-8 characters in here.
-         */
-        while ((c = *src++) != '\0') {
+
+        n = seqvar_size(self);
+        for (i = 0; i < n; i++) {
+                long c = string_getidx(self, i);
+                bug_on(c < 0L);
                 if (c == '\n') {
                         col = 0;
                         nextstop = tabsize;
-                        buffer_putc(&b, c);
+                        string_writer_append(&wr, c);
                 } else if (c == '\t') {
                         if (col == nextstop)
                                 nextstop += tabsize;
                         while (col < nextstop) {
-                                buffer_putc(&b, ' ');
+                                string_writer_append(&wr, ' ');
                                 col++;
                         }
                         nextstop += tabsize;
                 } else {
                         if (col == nextstop)
                                 nextstop += tabsize;
-                        buffer_putc(&b, c);
+                        string_writer_append(&wr, c);
                         col++;
                 }
         }
-        return stringvar_newf(buffer_trim(&b), 0);
+        return stringvar_from_writer(&wr);
 }
 
 static Object *
@@ -1470,27 +1695,21 @@ string_index_or_find(Frame *fr, unsigned int flags)
 {
         Object *self = vm_get_this(fr);
         Object *arg = vm_get_arg(fr, 0);
-        const char *haystack, *needle, *found;
-        int res;
+        ssize_t res;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
         if (arg_type_check(arg, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        needle = string_cstring(arg);
-        haystack = string_cstring(self);
-        if (!!(flags & SF_RIGHT))
-                found = strrstr(haystack, needle);
-        else
-                found = strstr(haystack, needle);
-        if (!found && !(flags & SF_SUPPRESS)) {
-                err_setstr(ValueError, "substring not found");
-                return ErrorVar;
-        }
-        if (!found)
+        res = find_idx(self, arg, flags);
+        if (res < 0) {
+                if (!(flags & SF_SUPPRESS)) {
+                        err_setstr(ValueError, "substring not found");
+                        return ErrorVar;
+                }
                 return VAR_NEW_REF(gbl.neg_one);
-        res = (int)(found - haystack);
+        }
         return res ? intvar_new(res) : VAR_NEW_REF(gbl.zero);
 }
 
@@ -1522,7 +1741,7 @@ static Object *
 string_lrpartition(Frame *fr, unsigned int flags)
 {
         Object *self, *arg, *tup, **td;
-        const char *haystack, *needle, *found;
+        ssize_t idx;
 
         self = vm_get_this(fr);
         arg = vm_get_arg(fr, 0);
@@ -1537,39 +1756,37 @@ string_lrpartition(Frame *fr, unsigned int flags)
                 return ErrorVar;
         }
 
-        haystack = string_cstring(self);
-        needle = string_cstring(arg);
-
-        if (!!(flags & SF_RIGHT))
-                found = strrstr(haystack, needle);
-        else
-                found = strstr(haystack, needle);
+        idx = find_idx(self, arg, flags);
 
         tup = tuplevar_new(3);
         td = tuple_get_data(tup);
         VAR_DECR_REF(td[0]);
         VAR_DECR_REF(td[1]);
         VAR_DECR_REF(td[2]);
-        if (!found) {
+        if (idx < 0) {
                 td[0] = VAR_NEW_REF(self);
                 td[1] = VAR_NEW_REF(STRCONST_ID(mpty));
                 td[2] = VAR_NEW_REF(STRCONST_ID(mpty));
         } else {
-                int idx = (int)(found - haystack);
+                size_t wid = V2STR(self)->s_width;
+                void *points = V2STR(self)->s_unicode;
                 if (idx == 0) {
                         td[0] = VAR_NEW_REF(STRCONST_ID(mpty));
                 } else {
-                        td[0] = stringvar_newn(haystack, idx);
+                        td[0] = stringvar_from_points(points, wid,
+                                                      idx, SF_COPY);
                 }
 
                 td[1] = VAR_NEW_REF(arg);
 
-                idx += STRING_NBYTES(arg);
-                if (idx == STRING_NBYTES(self)) {
+                idx += seqvar_size(arg);
+                if (idx == seqvar_size(self)) {
                         td[2] = VAR_NEW_REF(STRCONST_ID(mpty));
                 } else {
-                        td[2] = stringvar_newf((char *)&haystack[idx],
-                                               SF_COPY);
+                        size_t len = seqvar_size(self) - idx;
+                        points += idx * wid;
+                        td[2] = stringvar_from_points(points, wid,
+                                                      len, SF_COPY);
                 }
         }
         return tup;
@@ -1968,8 +2185,17 @@ static Object *string_isalpha(Frame *fr)
 
 /* FIXME: Skip the scan, just return V2STR(self)->s_ascii. */
 /* named funny, because string_isascii is an API func */
-static Object *string_isascii_mthd(Frame *fr)
-        { return string_is2(fr, is_ascii); }
+static Object *
+string_isascii_mthd(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        bool ascii;
+        if (arg_type_check(self, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        ascii = V2STR(self)->s_ascii;
+        return ascii ? VAR_NEW_REF(gbl.one) : VAR_NEW_REF(gbl.zero);
+}
 
 static Object *string_isdigit(Frame *fr)
         { return string_is2(fr, is_digit); }
@@ -2078,7 +2304,6 @@ string_upper(Frame *fr)
 static struct type_inittbl_t string_methods[] = {
         V_INITTBL("capitalize",   string_capitalize,   0, 0, -1, -1),
         V_INITTBL("center",       string_center,       1, 1, -1, -1),
-        V_INITTBL("copy",         string_copy,         0, 0, -1, -1),
         V_INITTBL("count",        string_count,        1, 1, -1, -1),
         V_INITTBL("endswith",     string_endswith,     1, 1, -1, -1),
         V_INITTBL("expandtabs",   string_expandtabs,   1, 1, -1,  0),
@@ -2134,17 +2359,18 @@ static Object *
 string_str(Object *v)
 {
         struct buffer_t b;
-        const char *s;
-        int c;
+        size_t i, n;
         enum { Q = '\'', BKSL = '\\' };
 
         bug_on(!isvar_string(v));
 
-        s = V2CSTR(v);
         buffer_init(&b);
 
         buffer_putc(&b, Q);
-        while ((c = *s++) != '\0') {
+        n = seqvar_size(v);
+        for (i = 0; i < n; i++) {
+                long c = string_getidx(v, i);
+                bug_on(c < 0L);
                 if (c == Q) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, Q);
@@ -2174,11 +2400,28 @@ string_str(Object *v)
                         }
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, c);
-                } else if (c > 128 || !isgraph(c)) {
+                } else if (c < 128 && !isgraph(c)) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, ((c >> 6) & 0x03) + '0');
                         buffer_putc(&b, ((c >> 3) & 0x07) + '0');
                         buffer_putc(&b, (c & 0x07) + '0');
+                } else if (c > 128) {
+                        char buf[10];
+                        buffer_putc(&b, BKSL);
+                        if (c > 0xffffu) {
+                                bug_on(!utf8_valid_unicode(c));
+                                buffer_putc(&b, 'U');
+                                sprintf(buf, "%08x", (int)c);
+                                buffer_puts(&b, buf);
+                        } else if (c > 0xffu) {
+                                buffer_putc(&b, 'u');
+                                sprintf(buf, "%04x", (int)c);
+                                buffer_puts(&b, buf);
+                        } else {
+                                buffer_putc(&b, ((c >> 6) & 0x03) + '0');
+                                buffer_putc(&b, ((c >> 3) & 0x07) + '0');
+                                buffer_putc(&b, (c & 0x07) + '0');
+                        }
                 } else {
                         buffer_putc(&b, c);
                 }
@@ -2255,76 +2498,70 @@ static bool slice_cmp_gt(int a, int b) { return a > b; }
 static Object *
 string_getslice(Object *str, int start, int stop, int step)
 {
-        const char *src;
-        struct buffer_t b;
+        struct string_writer_t wr;
         bool (*cmp)(int, int);
 
         if (start == stop)
                 return stringvar_new("");
 
-        buffer_init(&b);
-        src = V2CSTR(str);
+        /*
+         * XXX REVISIT: This assumes it's better to start with width=1,
+         * even if V2STR(str)->s_width > 1, because the >1 non-ASCII
+         * chars are rare enough that we'll likely miss them in a slice,
+         * therefore the RAM saved outweighs the overhead of an an
+         * occasional "oops, we need to resize."
+         */
+        string_writer_init(&wr, 1);
         cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
 
-        if (string_isascii(str)) {
-                /* thank god */
-                while (cmp(start, stop)) {
-                        buffer_putc(&b, src[start]);
-                        start += step;
-                }
-        } else {
-                char cbuf[5];
-                while (cmp(start, stop)) {
-                        if (utf8_subscr_str(src, start, cbuf) < 0) {
-                                bug();
-                        }
-                        buffer_puts(&b, cbuf);
-                        start += step;
-                }
+        while (cmp(start, stop)) {
+                long point = string_getidx(str, start);
+                bug_on(point < 0);
+                string_writer_append(&wr, point);
+                start += step;
         }
-        return stringvar_from_buffer(&b);
+        return stringvar_from_writer(&wr);
 }
 
 /* .getitem sequence method for string  */
 static Object *
 string_getitem(Object *str, int idx)
 {
-        char cbuf[5];
-        const char *src;
+        long point;
 
         bug_on(!isvar_string(str));
-        src = V2CSTR(str);
-        if (!src || src[0] == '\0')
-                return NULL;
-
         bug_on(idx >= STRING_LENGTH(str));
 
-        if (string_isascii(str)) {
-                /* ASCII, Latin1, or some undecoded binary */
-                cbuf[0] = src[idx];
-                cbuf[1] = '\0';
+        if (idx == 0 && seqvar_size(str) == 1)
+                return VAR_NEW_REF(str);
+
+        point = string_getidx(str, idx);
+        bug_on(point < 0L || !utf8_valid_unicode(point));
+
+        if (point > 0xffff) {
+                uint32_t pts = point;
+                return stringvar_from_points(&pts, 4, 1, SF_COPY);
+        } else if (point > 0xff) {
+                uint16_t pts = point;
+                return stringvar_from_points(&pts, 2, 1, SF_COPY);
         } else {
-                if (utf8_subscr_str(src, idx, cbuf) < 0) {
-                        /* code managing .s_info has bug */
-                        bug();
-                        return NULL;
-                }
+                uint8_t pts = point;
+                return stringvar_from_points(&pts, 1, 1, SF_COPY);
         }
-        return stringvar_newf(cbuf, SF_COPY);
 }
 
 static bool
 string_hasitem(Object *str, Object *substr)
 {
-        const char *haystack, *needle;
+        ssize_t idx;
+
         bug_on(!isvar_string(str));
         /* XXX policy, throw error instead? */
         if (!isvar_string(substr))
                 return false;
 
-        haystack = V2CSTR(str);
-        needle = V2CSTR(substr);
-        return strstr(haystack, needle) != NULL;
+        idx = find_idx(str, substr, SF_SUPPRESS);
+        return idx >= 0;
 }
 
 
@@ -2424,7 +2661,7 @@ stringvar_from_source(const char *tokenstr, bool imm)
         status = string_parse(tokenstr, &buf, &width, &len);
         if (status != RES_OK)
                 return ErrorVar;
-        return stringvar_from_points(buf, width, len);
+        return stringvar_from_points(buf, width, len, 0);
 }
 
 /**
@@ -2452,6 +2689,7 @@ string_update_hash(Object *v)
 static const struct type_prop_t string_prop_getsets[] = {
         { .name = "length", .getprop = string_getprop_length, .setprop = NULL },
         { .name = "nbytes", .getprop = string_getprop_nbytes, .setprop = NULL },
+        { .name = "width",  .getprop = string_getprop_width,  .setprop = NULL },
         { .name = NULL },
 };
 

@@ -82,8 +82,6 @@ struct utf8_info_t {
 
 struct buffer_t;
 
-size_t utf8_strlen(const char *s);
-extern void utf8_scan(const char *s, struct utf8_info_t *info);
 extern int utf8_subscr_str(const char *src, size_t idx, char *dest);
 extern size_t utf8_strgetc(const char *s, char *dst);
 extern void utf8_encode(unsigned long point, struct buffer_t *buf);

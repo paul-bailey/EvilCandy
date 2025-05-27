@@ -205,21 +205,23 @@ More on Unicode Escapes
 ```````````````````````
 
 String literals may contain Unicode characters, either encoded in
-UTF-8, or as ASCII representations using familiar backslash
-conventions.  The following are all valid ways to express the Greek
-letter β:
+UTF-8, or as ASCII representations using backslash-u conventions.
+The following are valid ways to express the Greek letter β:
 
 ================== ================
 Direct UTF-8       ``"β"``
 lowercase u escape ``"\u03b2"``
 Uppercase U escape ``"\U000003b2"``
-Hexadecimal escape ``"\xCE\xB2"``
-Octal escape       ``"\316\262"``
 ================== ================
 
+**Warning** Unlike C, adjacent hexadecimal and octal escapes cannot be
+used to create a single Unicode point. In ``"\xCE\xB2"`` or
+``"\316\262"``, are equivalent to ``\u03b2``, but in EvilCandy
+they are equivalent to ``\u00ce\u00b2``.
+
 For the ``u`` and ``U`` escape, EvilCandy will encode the character as
-UTF-8 internally.  Only Unicode values between U+0001 and U+10FFFF are
-supported.
+UTF-8 internally.  Unicode values between U+0001 and U+10FFFF are
+supported, except for invalid surrogate pairs from U+D800 to U+DFFF.
 
 Quotation Escapes
 `````````````````

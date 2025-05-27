@@ -2570,6 +2570,21 @@ string_cmpz(Object *a)
         return s ? s[0] == '\0' : true;
 }
 
+static Object *
+string_modulo(Object *str, Object *arg)
+{
+        bug_on(!isvar_string(str));
+        if (isvar_dict(arg)) {
+                return string_printf(str, NULL, arg);
+        } else if (isvar_tuple(arg) || isvar_array(arg)) {
+                return string_printf(str, arg, NULL);
+        } else {
+                err_setstr(TypeError,
+                           "'x' in str %% x must be a list, tuple, or dictionary");
+                return ErrorVar;
+        }
+}
+
 /* comparisons, helpers to string_getslice */
 static bool slice_cmp_lt(int a, int b) { return a < b; }
 static bool slice_cmp_gt(int a, int b) { return a > b; }
@@ -2794,9 +2809,13 @@ struct seq_methods_t string_seq_methods = {
         .sort           = NULL,
 };
 
+struct operator_methods_t string_opm = {
+        .mod    = string_modulo,
+};
+
 struct type_t StringType = {
         .name   = "string",
-        .opm    = NULL,
+        .opm    = &string_opm,
         .cbm    = string_methods,
         .mpm    = NULL,
         .sqm    = &string_seq_methods,

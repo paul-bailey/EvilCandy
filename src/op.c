@@ -48,12 +48,28 @@ qop_##Field (Object *a, Object *b)                      \
 
 BINARY_OP_BASIC_FUNC(pow, "**")
 BINARY_OP_BASIC_FUNC(div, "/")
-BINARY_OP_BASIC_FUNC(mod, "%")
 BINARY_OP_BASIC_FUNC(sub, "-")
 BINARY_OP_BASIC_FUNC(bit_and, "&")
 BINARY_OP_BASIC_FUNC(xor, "^")
 BINARY_OP_BASIC_FUNC(lshift, "<<")
 BINARY_OP_BASIC_FUNC(rshift, ">>")
+
+Object *
+qop_mod(Object *a, Object *b)
+{
+        const struct operator_methods_t *opm;
+        if (isvar_string(a)) {
+                /* Don't check b, let the string lib sort that out */
+                opm = a->v_type->opm;
+                bug_on(!opm || !opm->mod);
+        } else if ((opm = get_binop_method(a, b)) == NULL
+                   || opm->mod == NULL) {
+                err_permit2("%", a, b);
+                return NULL;
+        }
+        bug_on(!opm->mod);
+        return opm->mod(a, b);
+}
 
 Object *
 qop_bit_or(Object *a, Object *b)

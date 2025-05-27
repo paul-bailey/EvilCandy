@@ -4,12 +4,11 @@ print("Between quotes should look like two chars: '%-2s'"
        .format2("\U0001f600"));
 print("Do these column numbers look properly justified?");
 (function() {
-    for (let i = 5; i < 125; i+= 20) {
-        print("%-4d%04d 0x%08X".format2(i, i, i));
+    for (i, range(5, 125, 20)) {
+        print("%-4d%04d 0x%08X" % (i, i, i));
     }
-    for (let i = 5.0; i < 125.0; i += 20.0) {
-        print("%12.6E %12.4f %4d".format2(i, i, i));
-        // print("%E %f %d".format2(i, i, i));
+    for (i, range(5, 125, 20)) {
+        print("%12.6E %12.4f %4d" % (i, i, i));
     }
 })();
 

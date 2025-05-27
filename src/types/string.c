@@ -2090,7 +2090,7 @@ string_zfill(Frame *fr)
  */
 
 static Object *
-string_is1(Frame *fr, bool (*cb)(const char *))
+string_is1(Frame *fr, bool (*cb)(Object *))
 {
         Object *ret;
         Object *self = vm_get_this(fr);
@@ -2100,7 +2100,7 @@ string_is1(Frame *fr, bool (*cb)(const char *))
         if (seqvar_size(self) == 0) {
                 ret = gbl.zero;
         } else {
-                ret = cb(string_cstring(self)) ? gbl.one : gbl.zero;
+                ret = cb(self) ? gbl.one : gbl.zero;
         }
         VAR_INCR_REF(ret);
         return ret;
@@ -2119,10 +2119,10 @@ string_is2(Frame *fr, bool (*tst)(unsigned int c))
         if (seqvar_size(self) == 0) {
                 ret = gbl.zero;
         } else {
-                unsigned int c;
-                const char *s = string_cstring(self);
-                while ((c = *s++) != '\0') {
-                        if (!tst(c)) {
+                size_t i, n = seqvar_size(self);
+                for (i = 0; i < n; i++) {
+                        long point = string_getidx(self, i);
+                        if (!tst(point)) {
                                 ret = gbl.zero;
                                 break;
                         }
@@ -2141,28 +2141,39 @@ static bool is_upper(unsigned int c) { return c < 128 && isupper(c); }
 static bool is_lower(unsigned int c) { return c < 128 && islower(c); }
 
 static bool
-is_ident(const char *s)
+is_ident(Object *str)
 {
-        int c;
-        if ((c = *s++) != '_' && !is_alpha(c))
+        size_t i, n;
+        long point;
+        bug_on(!isvar_string(str));
+
+        n = seqvar_size(str);
+        bug_on(n == 0);
+
+        point = string_getidx(str, 0);
+        if (point != '_' && !is_alpha(point))
                 return false;
-        while ((c = *s++) != '\0') {
-                if (!is_alnum(c) && c != '_')
+
+        for (i = 1; i < n; i++) {
+                point = string_getidx(str, i);
+                if (!is_alnum(point) && point != '_')
                         return false;
         }
         return true;
 }
 
 static bool
-is_title(const char *s)
+is_title(Object *str)
 {
-        int c;
         bool first = true;
-        while ((c = *s++) != '\0') {
-                if (!is_alpha(c)) {
+        size_t i, n = seqvar_size(str);
+        bug_on(n == 0);
+        for (i = 0; i < n; i++) {
+                long point = string_getidx(str, i);
+                if (!is_alpha(point)) {
                         first = true;
                 } else if (first) {
-                        if (is_lower(c))
+                        if (is_lower(point))
                                 return false;
                         first = false;
                 }
@@ -2454,6 +2465,10 @@ string_cat(Object *a, Object *b)
                 return NULL;
         }
 
+        /*
+         * XXX REVISIT: Way less verification to do if we concatenate
+         * Unicode arrays instead of the C-strings, probably faster.
+         */
         lval = V2CSTR(a);
         llen = STRING_NBYTES(a);
 
@@ -2466,20 +2481,23 @@ string_cat(Object *a, Object *b)
         return stringvar_newf(catstr, 0);
 }
 
-/* helper to string_cmp */
-static int
-compare_strings(const char *a, const char *b)
-{
-        if (!a || !b)
-                return a != b;
-        return strcmp(a, b);
-}
-
 static int
 string_cmp(Object *a, Object *b)
 {
+        const char *sa, *sb;
+        /*
+         * Compare the C strings, not the Unicode buffers.  Some corner
+         * cases exist where a string produced from a built-in method
+         * will result in a new string whose width is wider than it needs
+         * to be, therefore the memcmp on the Unicode buffers could fail
+         * even for strings with all-matching Unicode points.
+         */
         bug_on(!isvar_string(a) || !isvar_string(b));
-        return compare_strings(V2CSTR(a), V2CSTR(b));
+        sa = string_cstring(a);
+        sb = string_cstring(b);
+        if (!sa || !sb)
+                return sa != sb;
+        return strcmp(sa, sb);
 }
 
 static bool

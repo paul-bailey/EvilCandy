@@ -931,26 +931,16 @@ format2_s(struct string_writer_t *wr, Object *arg,
 }
 
 static size_t
-format2_helper(Object **args, struct string_writer_t *wr, Object *self,
-               size_t self_i, int argi, int argc)
+format2_helper(Object *arg, struct string_writer_t *wr,
+               Object *self, size_t self_i)
 {
         size_t idx_save = self_i;
         bool rjust = true;
         int padc = ' ';
         size_t padlen = 0;
         int precision = 6;
-        Object *v;
         unsigned long point;
-
-        /*
-         * XXX should warn, but if this is in a user loop or function,
-         * I don't want to flood the output.
-         */
-        if (argi >= argc)
-                return 0;
-
-        v = args[argi];
-        bug_on(!v);
+        size_t self_n = seqvar_size(self);
 
         /* get flags.  @cbuf already filled with next char */
         for (;;) {
@@ -970,19 +960,22 @@ format2_helper(Object **args, struct string_writer_t *wr, Object *self,
         if (point < 128 && isdigit(point)) {
                 while (point < 128 && isdigit(point)) {
                         padlen = 10 * padlen + (point - '0');
-                        self_i++;
+                        if (self_i++ >= self_n)
+                                return 0;
                         point = string_getidx(self, self_i);
                 }
         }
         if (point == '.') {
-                self_i++;
+                if (self_i++ >= self_n)
+                        return 0;
                 point = string_getidx(self, self_i);
                 if (point < 128 && isdigit(point)) {
                         precision = 0;
                         while (point < 128 && isdigit(point)) {
                                 precision *= 10;
                                 precision += point - '0';
-                                self_i++;
+                                if (self_i++ >= self_n)
+                                        return 0;
                                 point = string_getidx(self, self_i);
                         }
                 }
@@ -999,25 +992,25 @@ format2_helper(Object **args, struct string_writer_t *wr, Object *self,
         case 'X':
         case 'd':
         case 'u':
-                if (!isvar_real(v))
+                if (!isvar_real(arg))
                         return 0;
-                format2_i(wr, v, point, rjust, padc, padlen, precision);
+                format2_i(wr, arg, point, rjust, padc, padlen, precision);
                 break;
         case 'f':
-                if (!isvar_real(v))
+                if (!isvar_real(arg))
                         return 0;
-                format2_f(wr, v, point, rjust, padc, padlen, precision);
+                format2_f(wr, arg, point, rjust, padc, padlen, precision);
                 break;
         case 'e':
         case 'E':
-                if (!isvar_real(v))
+                if (!isvar_real(arg))
                         return 0;
-                format2_e(wr, v, point, rjust, padc, padlen, precision);
+                format2_e(wr, arg, point, rjust, padc, padlen, precision);
                 break;
         case 's':
-                if (!isvar_string(v))
+                if (!isvar_string(arg))
                         return 0;
-                format2_s(wr, v, point, rjust, padc, padlen, precision);
+                format2_s(wr, arg, point, rjust, padc, padlen, precision);
                 break;
         default:
         case '\0':
@@ -1028,12 +1021,64 @@ format2_helper(Object **args, struct string_writer_t *wr, Object *self,
         return self_i - idx_save;
 }
 
+/* Common to string_format2 and string_modulo */
+static Object *
+string_printf(Object *self, Object *args, Object *kwargs)
+{
+        struct string_writer_t wr;
+        size_t i, n, argi;
+
+        n = seqvar_size(self);
+        if (n == 0)
+                return VAR_NEW_REF(self);
+
+        argi = 0;
+        string_writer_init(&wr, V2STR(self)->s_width);
+        for (i = 0; i < n; i++) {
+                unsigned long point = string_getidx(self, i);
+                if (point == '%' && i < n) {
+                        i++;
+                        point = string_getidx(self, i);
+                        if (point == '%') {
+                                string_writer_append(&wr, '%');
+                        } else if (point == '(') {
+                                /* keyword args not yet supported */
+                                --i;
+                                continue;
+                        } else {
+                                /* Numbered arg */
+                                size_t ti;
+                                Object *arg;
+
+                                if (!args) {
+                                        --i;
+                                        continue;
+                                }
+                                arg = seqvar_getitem(args, argi++);
+                                ti = format2_helper(arg, &wr, self, i);
+                                if (!ti)
+                                        ti++;
+                                /* minus one because of 'for' iterator */
+                                i += ti - 1;
+                        }
+                } else {
+                        string_writer_append(&wr, point);
+                }
+        }
+
+        return stringvar_from_writer(&wr);
+}
+
 /*
  * format2(...)         var args
  *
  * Lightweight printf-like alternative to format()
  *
- * Accepts %[{flags}{pad}.{precision}]{conversion}
+ * Accepts %[(kwname){flags}{pad}.{precision}]{conversion}
+ *      kwname: Surrounded by parentheses.  If used, next value will
+ *              be from the keyword dictionary whose name is kwname,
+ *              otherwise next value will be the next argument on the
+ *              stack.
  *      flags:  - left-justify instead of default right-justify
  *              0 zero pad instead of default space pad, if permitted
  *                for conversion specifier & justification
@@ -1057,57 +1102,19 @@ format2_helper(Object **args, struct string_writer_t *wr, Object *self,
 static Object *
 string_format2(Frame *fr)
 {
-        size_t argc;
-        Object *list, *self, **args;
-        const char *s;
-        size_t i, n, argi = 0;
-        struct string_writer_t wr;
+        Object *args, *kwargs, *self;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        list = vm_get_arg(fr, 0);
-        bug_on(!list);
-        bug_on(!isvar_array(list));
-        /*
-         * This is so format2 can return from whereever without having
-         * to fuss over reference counters.
-         */
-        args = array_get_data(list);
-        argc = seqvar_size(list);
+        args = vm_get_arg(fr, 0);
+        bug_on(!args || !isvar_array(args));
 
-        s = V2CSTR(self);
+        kwargs = vm_get_arg(fr, 1);
+        bug_on(!kwargs || !isvar_dict(kwargs));
 
-        if (!s || *s == '\0') {
-                VAR_INCR_REF(self);
-                return self;
-        }
-
-        string_writer_init(&wr, V2STR(self)->s_width);
-        n = seqvar_size(self);
-        for (i = 0; i < n; i++) {
-                unsigned long point = string_getidx(self, i);
-                if (point == '%' && i < n) {
-                        i++;
-                        point = string_getidx(self, i);
-                        if (point == '%') {
-                                string_writer_append(&wr, '%');
-                        } else {
-                                size_t ti;
-                                ti = format2_helper(args, &wr, self,
-                                                    i, argi++, argc);
-                                if (!ti)
-                                        ti++;
-                                /* minus one because of 'for' iterator */
-                                i += ti - 1;
-                        }
-                } else {
-                        string_writer_append(&wr, point);
-                }
-        }
-
-        return stringvar_from_writer(&wr);
+        return string_printf(self, args, kwargs);
 }
 
 /* **********************************************************************
@@ -2319,7 +2326,7 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("expandtabs",   string_expandtabs,   1, 1, -1,  0),
         V_INITTBL("find",         string_find,         1, 1, -1, -1),
         V_INITTBL("format",       string_format,       1, 1,  0, -1),
-        V_INITTBL("format2",      string_format2,      1, 1,  0, -1),
+        V_INITTBL("format2",      string_format2,      2, 2,  0,  1),
         V_INITTBL("index",        string_index,        1, 1, -1, -1),
         V_INITTBL("isalnum",      string_isalnum,      0, 0, -1, -1),
         V_INITTBL("isalpha",      string_isalpha,      0, 0, -1, -1),

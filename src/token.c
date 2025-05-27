@@ -11,7 +11,8 @@ enum {
         TE_INVALID_CHARS,
         TE_TOO_BIG,
         TE_MALFORMED,
-        TE_UNRECOGNIZED
+        TE_UNRECOGNIZED,
+        TE_SGL_RBRACE,
 };
 
 #define token_errset(state_, err_) longjmp((state_)->env, err_)
@@ -112,11 +113,21 @@ str_slide(struct token_state_t *state, struct buffer_t *tok,
           char *pc, const char *charset)
 {
         int c, clast = 0;
+        char *start = pc;
+        bool fstring = tok == &state->fstring_tok;
 
+again:
         while (!strchr(charset, c = *pc++)) {
                 /* XXX: portable behavior of strchr? */
                 bug_on(c == '\0');
                 buffer_putc(tok, c);
+
+                /* '}} in fstring to '}' */
+                if (c == '}' && fstring && pc - start != 1) {
+                        if (*pc != '}')
+                                token_errset(state, TE_SGL_RBRACE);
+                        ++pc;
+                }
 
                 /* make sure we don't misinterpret special chars */
                 if (clast != '\\' && c == '\\' &&
@@ -126,8 +137,17 @@ str_slide(struct token_state_t *state, struct buffer_t *tok,
                 }
                 clast = c;
         }
+
         if (c == '\0')
                 token_errset(state, TE_UNTERM_QUOTE);
+
+        if (c == '{' && *pc == '{') {
+                bug_on(!fstring);
+                buffer_putc(tok, c);
+                pc++;
+                goto again;
+        }
+
         buffer_putc(tok, c);
         state->s = pc;
         return c;
@@ -492,6 +512,9 @@ tokenize_helper(struct token_state_t *state, int *line)
                         break;
                 case TE_UNRECOGNIZED:
                         msg = "Unrecognized token";
+                        break;
+                case TE_SGL_RBRACE:
+                        msg = "Single '}' not allowed";
                         break;
                 default:
                         msg = "Token parsing error";

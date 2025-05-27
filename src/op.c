@@ -15,8 +15,10 @@ get_binop_method(Object *a, Object *b)
         struct type_t *at = a->v_type;
         struct type_t *bt = b->v_type;
 
-        if (at->opm == NULL || bt->opm == NULL)
+        if (at->opm == NULL || bt->opm == NULL ||
+            isvar_seq(a) || isvar_seq(b)) {
                 return NULL;
+        }
 
         if (at == &ComplexType)
                 return at->opm;

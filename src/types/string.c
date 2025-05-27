@@ -1242,7 +1242,7 @@ string_format_helper(Object **args, const char **src,
  * returns type string
  */
 static Object *
-string_format(Frame *fr)
+string_format1(Frame *fr)
 {
         struct buffer_t t;
         Object *self = vm_get_this(fr);
@@ -2380,7 +2380,7 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("endswith",     string_endswith,     1, 1, -1, -1),
         V_INITTBL("expandtabs",   string_expandtabs,   1, 1, -1,  0),
         V_INITTBL("find",         string_find,         1, 1, -1, -1),
-        V_INITTBL("format",       string_format,       1, 1,  0, -1),
+        V_INITTBL("format",       string_format1,      1, 1,  0, -1),
         V_INITTBL("format2",      string_format2,      2, 2,  0,  1),
         V_INITTBL("index",        string_index,        1, 1, -1, -1),
         V_INITTBL("isalnum",      string_isalnum,      0, 0, -1, -1),
@@ -2769,6 +2769,47 @@ string_ord(Object *str, size_t idx)
         bug_on(idx >= seqvar_size(str));
 
         return string_getidx(str, idx);
+}
+
+Object *
+string_format(Object *str, Object *tup)
+{
+        struct string_writer_t wr;
+        size_t i, n;
+        int argi;
+
+        if (arg_type_check(str, &StringType) == RES_ERROR)
+                return ErrorVar;
+        if (arg_type_check(tup, &TupleType) == RES_ERROR)
+                return ErrorVar;
+
+        n = seqvar_size(str);
+        i = 0;
+        argi = 0;
+        string_writer_init(&wr, V2STR(str)->s_width);
+        while (i < n) {
+                long point = string_getidx(str, i++);
+                if (point == '{' && i < n) {
+                        Object *arg;
+                        point = string_getidx(str, i++);
+                        if (point != '}' ||
+                            (arg = tuple_getitem(tup, argi++)) == NULL) {
+                                string_writer_append(&wr, '{');
+                                string_writer_append(&wr, '}');
+                                continue;
+                        }
+                        if (isvar_string(arg)) {
+                                string_writer_append_strobj(&wr, arg);
+                        } else {
+                                Object *xpr = var_str(arg);
+                                string_writer_append_strobj(&wr, xpr);
+                                VAR_DECR_REF(xpr);
+                        }
+                } else {
+                        string_writer_append(&wr, point);
+                }
+        }
+        return stringvar_from_writer(&wr);
 }
 
 /**

@@ -40,7 +40,7 @@
     print("\tpi is: %13.10f".format2(Math.pi));
     print("\te is:  %13.10f".format2(Math.e));
     (function(mypow) {
-        print("\tMy Pow: 4^4 = {}".format(mypow(4, 4)));
+        print(f"\tMy Pow: 4^4 = {mypow(4, 4)}");
     })(function(x, y) {
         if (typeof(x) != "integer" || typeof(y) != "integer")
             throw "wrong type!";
@@ -63,21 +63,21 @@
 })(import("math.evc", "x"));
 
 (function(s) {
-    print("length '{}' for '{}'".format(length(s), s));
+    print(f"length '{length(s)}' for '{s}'");
     print("Replace 'is' with 'at':");
-    print("\tOld text: '{}'\n\tNew text: '{}'"
-          .format(s, s.replace("is", "at")));
+    print(f"\tOld text: '{s}'");
+    print(f"\tNew text: '{s.replace('is', 'at')}'");
 })('This is a string');
 
 print("");
-print("~0xfffffffffffffffa is {}".format(~0xfffffffffffffffa));
-print("~0 is {}".format(~0));
+print(f"~0xfffffffffffffffa is {~0xfffffffffffffffa}");
+print(f"~0 is {~0}");
 
 {
     print("");
     print("Now here's a demo of foreach:");
     let prtypeof = function(o, str) {
-        print("typeof(e) for each e in {}".format(str));
+        print(f"typeof(e) for each e in {str}");
         // XXX need to add enumerate function
         let i = 0;
         for (k, o) {
@@ -96,7 +96,7 @@ print("~0 is {}".format(~0));
     ahasb(__gbl__, '__gbl__', 'MarioBros');
     ahasb(__gbl__, '__gbl__', '_builtins');
 })(function (obj, objname, key) {
-    print("Does", objname, "have child '{}'?".format(key));
+    print("Does", objname, f"have child '{key}'?");
     print("\t...", obj has key ? "yes!" : "no :(");
 });
 
@@ -104,8 +104,7 @@ print("~0 is {}".format(~0));
     print("UTF-8/ANSI escape test");
     print("\tValues of", kw.beeta, "will give rise to dom!");
     let s = "Be \U0001f600!";
-    print("\tLength of '{}' is {}, idx#3='{}', idx#4='{}'"
-          .format(s, length(s), s[3], s[4]));
+    print(f"\tLength of '{s}' is {length(s)}, idx#3='{s[3]}', idx#4='{s[4]}'");
     print("\tAm I ", kw.COLOR_BLUE, 'BLUE', kw.COLOR_DEF, "???", sep="");
 })(beeta='\u03b2', COLOR_BLUE='\e[36m', COLOR_DEF='\e[39m');
 

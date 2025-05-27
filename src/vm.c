@@ -320,6 +320,21 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
 }
 
 static int
+do_format(Frame *fr, instruction_t ii)
+{
+        Object *str, *tup, *res;
+        str = pop(fr);
+        tup = pop(fr);
+        res = string_format(str, tup);
+        VAR_DECR_REF(str);
+        VAR_DECR_REF(tup);
+        if (res == ErrorVar)
+                return RES_ERROR;
+        push(fr, res);
+        return RES_OK;
+}
+
+static int
 do_nop(Frame *fr, instruction_t ii)
 {
         return 0;

@@ -706,6 +706,30 @@ skip:
         add_instr(a, INSTR_DEFDICT, 0, count);
 }
 
+static void
+assemble_fstring(struct assemble_t *a)
+{
+        int count = 0;
+        do {
+                assemble_expr(a);
+                count++;
+                as_lex(a);
+        } while (a->oc->t == OC_FSTRING_CONTINUE);
+
+        if (a->oc->t != OC_FSTRING_END) {
+                /*
+                 * XXX bug? tokenizer should have trapped
+                 * unterminated quote
+                 */
+                err_setstr(SyntaxError, "Expected: end of f-string");
+                as_err(a, AE_EXPECT);
+        }
+
+        add_instr(a, INSTR_DEFTUPLE, 0, count);
+        ainstr_load_const(a, a->oc);
+        add_instr(a, INSTR_FORMAT, 0, 0);
+}
+
 /*
  * helper to ainstr_load_symbol, @name is not in local namespace,
  * check enclosing function before resorting to IARG_PTR_SEEK
@@ -889,6 +913,9 @@ assemble_expr5_atomic(struct assemble_t *a)
         case OC_TRUE:
         case OC_FALSE:
                 ainstr_load_const(a, a->oc);
+                break;
+        case OC_FSTRING_START:
+                assemble_fstring(a);
                 break;
         case OC_LPAR:
                 assemble_tupledef(a);

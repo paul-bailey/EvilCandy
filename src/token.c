@@ -33,6 +33,8 @@ enum {
  * @ntok:       Number of tokens in @pgm
  * @nexttok:    Next token in @pgm to get with get_tok()
  * @eof:        True if @fp has reached EOF
+ * @fstring:    single- or double-quote char if tokenizer is in the middle
+ *              of an F-string, nullchar otherwise.
  * @env:        Jump buffer, USE ONLY IN THE tokenize_helper() CONTEXT!
  *
  * Although using pointers for @ntok and @nexttok would make [un]get_tok
@@ -43,6 +45,7 @@ struct token_state_t {
         int lineno;
         int col;
         Object *dedup;
+        struct buffer_t fstring_tok;
         struct buffer_t tok;
         char *s;
         size_t _slen;
@@ -53,6 +56,8 @@ struct token_state_t {
         int ntok;
         int nexttok;
         bool eof;
+        char fstring;
+        size_t fstring_pos;
         jmp_buf env;
 };
 
@@ -89,27 +94,66 @@ tok_next_line(struct token_state_t *state)
         return res;
 }
 
-static bool
-str_or_bytes_finish(struct token_state_t *state, char *pc, int q)
+/* FIXME: Move to helpers.c */
+/* Like  strchr but return NULL if c is '\0' */
+static char *
+strchr_nonnull(const char *charset, int c)
 {
-        struct buffer_t *tok = &state->tok;
-        int c, clast = 0;
-        while ((c = *pc++) != q) {
-                if (c == '\0')
-                        token_errset(state, TE_UNTERM_QUOTE);
+        if (c) while (*charset) {
+                if (*charset == c)
+                        return (char *)charset;
+                charset++;
+        }
+        return NULL;
+}
 
+static int
+str_slide(struct token_state_t *state, struct buffer_t *tok,
+          char *pc, const char *charset)
+{
+        int c, clast = 0;
+
+        while (!strchr(charset, c = *pc++)) {
+                /* XXX: portable behavior of strchr? */
+                bug_on(c == '\0');
                 buffer_putc(tok, c);
 
-                /* make sure we don't misinterpret q */
-                if (clast != '\\' && c == '\\' && *pc == q) {
-                        buffer_putc(tok, q);
+                /* make sure we don't misinterpret special chars */
+                if (clast != '\\' && c == '\\' &&
+                    strchr_nonnull(charset, *pc)) {
+                        buffer_putc(tok, *pc);
                         c = *pc++;
                 }
                 clast = c;
         }
-        buffer_putc(tok, q);
+        if (c == '\0')
+                token_errset(state, TE_UNTERM_QUOTE);
+        buffer_putc(tok, c);
         state->s = pc;
+        return c;
+}
+
+static bool
+str_or_bytes_finish(struct token_state_t *state, char *pc, int q)
+{
+        char charset[2];
+        charset[0] = q;
+        charset[1] = '\0';
+
+        str_slide(state, &state->tok, pc, charset);
         return true;
+}
+
+static int
+fstring_continue(struct token_state_t *state)
+{
+        char charset[3];
+        charset[0] = state->fstring;
+        charset[1] = '{';
+        charset[2] = '\0';
+        bug_on(!charset[0]);
+
+        return str_slide(state, &state->fstring_tok, state->s, charset);
 }
 
 /*
@@ -151,6 +195,40 @@ get_tok_bytes(struct token_state_t *state)
         buffer_putc(tok, b);
         buffer_putc(tok, q);
         return str_or_bytes_finish(state, pc, q);
+}
+
+static int
+get_tok_fstring(struct token_state_t *state)
+{
+        struct buffer_t *tok = &state->fstring_tok;
+        char *pc = state->s;
+        int q, f;
+
+        /* Don't even try to nest f-strings */
+        if (state->fstring)
+                return 0;
+
+        f = *pc++;
+        if (f != 'f' && f != 'F')
+                return 0;
+        q = *pc++;
+        if (!isquote(q))
+                return 0;
+
+        state->s = pc;
+
+        buffer_reset(tok);
+        buffer_putc(tok, q);
+        state->fstring = q;
+        if (fstring_continue(state) == q) {
+                /* f-string without any conversion specifiers */
+                buffer_puts(&state->tok, tok->s);
+                buffer_reset(&state->fstring_tok);
+                state->fstring = '\0';
+                return OC_STRING;
+        }
+
+        return OC_FSTRING_START;
 }
 
 static bool
@@ -430,10 +508,41 @@ tokenize_helper(struct token_state_t *state, int *line)
                 if ((ret = skip_whitespace(state)) == OC_EOF)
                         return ret;
 
+                if (state->fstring) {
+                        if (state->s[0] == '\\') {
+                                /*
+                                 * We're in an expression in an f-string,
+                                 * but some characters need to be backslash-
+                                 * escaped.  Escape them here and fall
+                                 * through to regular-token processing
+                                 * below.
+                                 */
+                                int c = state->s[1];
+                                if (!!strchr_nonnull(":{}", c)) {
+                                        state->s++;
+                                } else {
+                                        token_errset(state, TE_UNRECOGNIZED);
+                                }
+                        } else if (state->s[0] == '}') {
+                                if (fstring_continue(state) == state->fstring) {
+                                        buffer_puts(tok, state->fstring_tok.s);
+                                        state->fstring = '\0';
+                                        return OC_FSTRING_END;
+                                }
+                                return OC_FSTRING_CONTINUE;
+                        }
+                }
+
                 /* get number before delim, '.' could not be delim */
                 if ((ret = get_tok_number(state)) != 0) {
                         return ret;
                 } else if (get_tok_delim(&ret, state)) {
+                        return ret;
+                } else if ((ret = get_tok_fstring(state)) != 0) {
+                        /*
+                         * FIXME: support multi-line concatenation of
+                         * adjacent f-string tokens.
+                         */
                         return ret;
                 } else if (get_tok_string(state)) {
                         *line = state->lineno;
@@ -538,6 +647,7 @@ tokenize(struct token_state_t *state)
                         oc.v = stringvar_new(state->tok.s);
                         break;
                 case OC_STRING:
+                case OC_FSTRING_END:
                         oc.line = line;
                         oc.v = stringvar_from_source(state->tok.s, true);
                         if (oc.v == ErrorVar) {
@@ -570,6 +680,7 @@ static void
 token_init_state(struct token_state_t *state, FILE *fp, const char *filename)
 {
         buffer_init(&state->tok);
+        buffer_init(&state->fstring_tok);
         state->line     = NULL;
         state->_slen    = 0;
         state->s        = NULL;
@@ -581,6 +692,8 @@ token_init_state(struct token_state_t *state, FILE *fp, const char *filename)
         state->ntok     = 0;
         state->nexttok  = 0;
         state->eof      = false;
+        state->fstring  = false;
+        state->fstring_pos = 0;
 
         /*
          * if not file, we're just parsing a line, so interning
@@ -735,6 +848,7 @@ token_state_free_(struct token_state_t *state, bool free_self)
         int n;
 
         buffer_free(&state->tok);
+        buffer_free(&state->fstring_tok);
         if (state->line)
                 efree(state->line);
         n = buffer_size(&state->pgm) / sizeof(struct token_t);

@@ -132,6 +132,10 @@ LOADATTR
 FOREACH_SETUP
 FOREACH_ITER
 
+# format an f-string.  Stack top is a string and below that is a
+# tuple containing the args.
+FORMAT
+
 # Stack top should have either a tuple, integer, or string.
 THROW
 

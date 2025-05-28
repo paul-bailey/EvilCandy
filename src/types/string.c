@@ -383,10 +383,6 @@ stringvar_from_points(void *points, size_t width,
         ret = var_new(&StringType);
         vs = V2STR(ret);
 
-        if (!!(flags & SF_COPY))
-                vs->s_unicode = ememdup(points, len * width);
-        else
-                vs->s_unicode = points;
         vs->s_enc_len   = len;
         vs->s_width     = width;
         vs->s_ascii_len = buffer_size(&b);
@@ -394,6 +390,16 @@ stringvar_from_points(void *points, size_t width,
         vs->s_hash      = 0;
         vs->s_ascii     = ascii;
         seqvar_set_size(ret, len);
+        if (ascii) {
+                if (!(flags & SF_COPY))
+                        efree(points);
+                vs->s_unicode = vs->s;
+        } else {
+                if (!!(flags & SF_COPY))
+                        vs->s_unicode = ememdup(points, len * width);
+                else
+                        vs->s_unicode = points;
+        }
         return ret;
 }
 

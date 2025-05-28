@@ -1028,6 +1028,40 @@ format2_f(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
         }
 }
 
+/*
+ * allows us to call vsnprintf instead of snprintf, to avoid
+ * annoying compiler warnings about non-literal format args.
+ */
+static void
+format2_g__(char *buf, size_t n, const char *fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+        memset(buf, 0, n);
+        vsnprintf(buf, n - 1, fmt, ap);
+        va_end(ap);
+}
+
+static void
+format2_g(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
+{
+        double v = realvar_tod(arg);
+        char *buf;
+        char fmtbuf[64];
+
+        /* '%g' hurts my brain, so I'll just call the library function */
+        memset(fmtbuf, 0, sizeof(fmtbuf));
+        snprintf(fmtbuf, sizeof(fmtbuf)-1, "%%%s%s%d.%d%c",
+                 fa->rjust ? "" : "-",
+                 fa->padc == '0' ? "0" : "",
+                 (int)fa->padlen, (int)fa->precision, fa->conv);
+
+        buf = emalloc(32 + fa->precision);
+        format2_g__(buf, sizeof(buf), fmtbuf, v);
+        string_writer_appends(wr, buf);
+        efree(buf);
+}
+
 static void
 format2_s(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
 {
@@ -1146,7 +1180,7 @@ parse_fmt_args(Object *fmt, struct fmt_args_t *args, size_t pos, int endchr)
         if (args->precision >= PRECISION_MAX)
                 args->precision = PRECISION_MAX;
 
-        if (point < 128 && strchr("xXdufeEs", point)) {
+        if (point < 128 && strchr("xXdufeEsgG", point)) {
                 args->conv = point;
                 if (endchr) {
                         if (point == n)
@@ -1204,6 +1238,12 @@ format2_output(struct string_writer_t *wr,
                 if (!isvar_real(val))
                         return;
                 format2_e(wr, val, fa);
+                break;
+        case 'g':
+        case 'G':
+                if (!isvar_real(val))
+                        return;
+                format2_g(wr, val, fa);
                 break;
         case 's':
                 if (!isvar_string(val)) {

@@ -61,6 +61,14 @@ enum {
  *                      Common Helpers
  ***********************************************************************/
 
+static bool is_alnum(unsigned int c) { return c < 128 && isalnum(c); }
+static bool is_alpha(unsigned int c) { return c < 128 && isalpha(c); }
+static bool is_digit(unsigned int c) { return c < 128 && isdigit(c); }
+static bool is_printable(unsigned int c) { return c < 128 && isprint(c); }
+static bool is_space(unsigned int c) { return c < 128 && isspace(c); }
+static bool is_upper(unsigned int c) { return c < 128 && isupper(c); }
+static bool is_lower(unsigned int c) { return c < 128 && islower(c); }
+
 static long
 string_getidx(Object *str, size_t idx)
 {
@@ -211,7 +219,6 @@ string_writer_append_strobj(struct string_writer_t *wr, Object *str)
         }
 }
 
-
 static long
 string_writer_getidx(struct string_writer_t *wr, size_t idx)
 {
@@ -268,6 +275,14 @@ string_writer_finish(struct string_writer_t *wr, size_t *width, size_t *len)
          * if wr->n_alloc - wr->pos < some_threshold
          */
         return erealloc(wr->p.p, wr->pos);
+}
+
+static void
+string_writer_destroy(struct string_writer_t *wr)
+{
+        if (wr->p.p != NULL)
+                efree(wr->p.p);
+        wr->pos = wr->pos_i = wr->n_alloc = 0;
 }
 
 /*
@@ -669,6 +684,14 @@ find_idx(Object *haystack, Object *needle, unsigned int flags)
  * is it specific to just POSIX?
  */
 
+struct fmt_args_t {
+        int conv;
+        bool rjust;
+        int padc;
+        size_t padlen;
+        int precision;
+};
+
 static void
 padwrite(struct string_writer_t *wr, int padc, size_t padlen)
 {
@@ -722,8 +745,7 @@ format2_i_helper(struct string_writer_t *wr,
 }
 
 static void
-format2_i(struct string_writer_t *wr, Object *arg,
-          int conv, bool rjust, int padc, size_t padlen, int precision)
+format2_i(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
 {
         int base;
         size_t count;
@@ -731,10 +753,10 @@ format2_i(struct string_writer_t *wr, Object *arg,
         long long ival = realvar_toint(arg);
 
         /* overrule '0' if left-justified */
-        if (!rjust)
-                padc = ' ';
+        if (!fa->rjust)
+                fa->padc = ' ';
 
-        switch (conv) {
+        switch (fa->conv) {
         case 'd':
         case 'u':
                 base = 10;
@@ -754,7 +776,7 @@ format2_i(struct string_writer_t *wr, Object *arg,
                 string_writer_append(wr, '0');
         } else {
                 unsigned long long uval;
-                if (conv == 'd' && ival < 0) {
+                if (fa->conv == 'd' && ival < 0) {
                         string_writer_append(wr, '-');
                         uval = -ival;
                 } else {
@@ -764,11 +786,11 @@ format2_i(struct string_writer_t *wr, Object *arg,
         }
 
         count = wr->pos_i - count;
-        if (count < padlen) {
-                padlen -= count;
-                padwrite(wr, padc, padlen);
-                if (rjust) {
-                        swap_pad(wr, count, padlen);
+        if (count < fa->padlen) {
+                fa->padlen -= count;
+                padwrite(wr, fa->padc, fa->padlen);
+                if (fa->rjust) {
+                        swap_pad(wr, count, fa->padlen);
                 }
         }
 }
@@ -794,8 +816,7 @@ format2_f_ihelper(struct string_writer_t *wr, unsigned int v)
 }
 
 static void
-format2_e(struct string_writer_t *wr, Object *arg,
-          int conv, bool rjust, int padc, size_t padlen, int precision)
+format2_e(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
 {
         int exp = 0;
         int sigfig = 0;
@@ -824,7 +845,7 @@ format2_e(struct string_writer_t *wr, Object *arg,
         {
                 /* precision rounding */
                 double adj = 5.0;
-                int pr = precision;
+                int pr = fa->precision;
                 while (pr--)
                         adj *= 0.1;
                 dv += adj;
@@ -841,7 +862,7 @@ format2_e(struct string_writer_t *wr, Object *arg,
         ++sigfig;
 
         string_writer_append(wr, '.');
-        while (sigfig < precision) {
+        while (sigfig < fa->precision) {
                 dv *= 10.0;
                 dv = modf(dv, &ival);
                 string_writer_append(wr, (int)ival + '0');
@@ -849,8 +870,8 @@ format2_e(struct string_writer_t *wr, Object *arg,
         }
 
         /* print exponent */
-        bug_on(conv != 'e' && conv != 'E');
-        string_writer_append(wr, conv);
+        bug_on(fa->conv != 'e' && fa->conv != 'E');
+        string_writer_append(wr, fa->conv);
         if (exp < 0) {
                 string_writer_append(wr, '-');
                 exp = -exp;
@@ -866,21 +887,20 @@ format2_e(struct string_writer_t *wr, Object *arg,
         else
                 format2_e_exp(wr, exp);
 
-        if (!rjust)
-                padc = ' ';
+        if (!fa->rjust)
+                fa->padc = ' ';
         count = wr->pos_i - count;
-        if (count < padlen) {
-                padlen -= count;
-                padwrite(wr, padc, padlen);
-                if (rjust) {
-                        swap_pad(wr, count, padlen);
+        if (count < fa->padlen) {
+                fa->padlen -= count;
+                padwrite(wr, fa->padc, fa->padlen);
+                if (fa->rjust) {
+                        swap_pad(wr, count, fa->padlen);
                 }
         }
 }
 
 static void
-format2_f(struct string_writer_t *wr, Object *arg,
-          int conv, bool rjust, int padc, size_t padlen, int precision)
+format2_f(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
 {
         double v = realvar_tod(arg);
         bool have_dot = false;
@@ -902,17 +922,17 @@ format2_f(struct string_writer_t *wr, Object *arg,
                         string_writer_append(wr, '-');
                         v = -v;
                 }
-                for (scale = 1.0, i = 0; i < precision; i++)
+                for (scale = 1.0, i = 0; i < fa->precision; i++)
                         scale *= 0.1;
                 v += scale * 0.5;
                 rem = modf(v, &iptr);
 
                 format2_f_ihelper(wr, (unsigned int)iptr);
 
-                if (precision > 0) {
+                if (fa->precision > 0) {
                         have_dot = true;
                         string_writer_append(wr, '.');
-                        while (precision--) {
+                        while (fa->precision--) {
                                 rem *= 10.0;
                                 string_writer_append(wr, (int)rem + '0');
                                 rem = modf(rem, &iptr);
@@ -920,123 +940,183 @@ format2_f(struct string_writer_t *wr, Object *arg,
                 }
         }
 
-        if (!rjust && !have_dot)
-                padc = ' ';
+        if (!fa->rjust && !have_dot)
+                fa->padc = ' ';
         count = wr->pos_i - count;
-        if (count < padlen) {
-                padlen -= count;
-                padwrite(wr, padc, padlen);
-                if (rjust) {
-                        swap_pad(wr, count, padlen);
+        if (count < fa->padlen) {
+                fa->padlen -= count;
+                padwrite(wr, fa->padc, fa->padlen);
+                if (fa->rjust) {
+                        swap_pad(wr, count, fa->padlen);
                 }
         }
 }
 
 static void
-format2_s(struct string_writer_t *wr, Object *arg,
-          int conv, bool rjust, int padc, size_t padlen, int precision)
+format2_s(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
 {
         /* count = #chars, not #bytes */
         size_t count = seqvar_size(arg);
         string_writer_append_strobj(wr, arg);
 
-        if (count < padlen) {
-                padlen -= count;
-                padwrite(wr, padc, padlen);
-                if (rjust)
-                        swap_pad(wr, count, padlen);
+        if (count < fa->padlen) {
+                fa->padlen -= count;
+                padwrite(wr, fa->padc, fa->padlen);
+                if (fa->rjust)
+                        swap_pad(wr, count, fa->padlen);
         }
 }
 
-static size_t
-format2_helper(Object *arg, struct string_writer_t *wr,
-               Object *self, size_t self_i)
+static void
+default_fmt_args(struct fmt_args_t *args)
 {
-        size_t idx_save = self_i;
-        bool rjust = true;
-        int padc = ' ';
-        size_t padlen = 0;
-        int precision = 6;
+        args->conv = '\0';
+        args->rjust = true;
+        args->padc = ' ';
+        args->padlen = 0;
+        args->precision = 6;
+}
+
+/* endchr is either '\0' or '}' */
+static ssize_t
+parse_fmt_args(Object *fmt, struct fmt_args_t *args, size_t pos, int endchr)
+{
         unsigned long point;
-        size_t self_n = seqvar_size(self);
+        size_t n = seqvar_size(fmt);
 
-        /* get flags.  @cbuf already filled with next char */
+        /* Shouldn't have called us if this is true */
+        bug_on(pos >= n);
+
+        default_fmt_args(args);
+
+        /* get flags */
         for (;;) {
-                switch (string_getidx(self, self_i)) {
-                case '-':
-                        rjust = false;
-                        self_i++;
-                        continue;
-                case '0':
-                        padc = '0';
-                        self_i++;
-                        continue;
-                }
-                break;
-        }
-        point = string_getidx(self, self_i);
-        if (point < 128 && isdigit(point)) {
-                while (point < 128 && isdigit(point)) {
-                        padlen = 10 * padlen + (point - '0');
-                        if (self_i++ >= self_n)
-                                return 0;
-                        point = string_getidx(self, self_i);
+                bug_on(pos > n);
+                if (pos == n)
+                        goto eos;
+                point = string_getidx(fmt, pos++);
+                if (point == '-') {
+                        args->rjust = false;
+                } else if (point == '0') {
+                        args->padc = '0';
+                } else {
+                        break;
                 }
         }
-        if (point == '.') {
-                if (self_i++ >= self_n)
-                        return 0;
-                point = string_getidx(self, self_i);
-                if (point < 128 && isdigit(point)) {
-                        precision = 0;
-                        while (point < 128 && isdigit(point)) {
-                                precision *= 10;
-                                precision += point - '0';
-                                if (self_i++ >= self_n)
-                                        return 0;
-                                point = string_getidx(self, self_i);
-                        }
-                }
-        }
-        if (padlen >= PAD_MAX)
-                padlen = PAD_MAX;
-        if (precision >= PRECISION_MAX)
-                precision = PRECISION_MAX;
 
-        point = string_getidx(self, self_i);
-        self_i++;
-        switch (point) {
+        while (is_digit(point)) {
+                args->padlen *= 10;
+                args->padlen += (point - '0');
+                if (pos == n)
+                        goto eos;
+                point = string_getidx(fmt, pos++);
+        }
+
+        if (point == '.') {
+                args->precision = 0;
+                if (pos == n)
+                        goto eos;
+                point = string_getidx(fmt, pos++);
+                while (is_digit(point)) {
+                        args->precision *= 10;
+                        args->precision += (point - '0');
+                        if (pos == n)
+                                goto eos;
+                        point = string_getidx(fmt, pos++);
+                }
+        }
+
+        if (args->padlen >= PAD_MAX)
+                args->padlen = PAD_MAX;
+        if (args->precision >= PRECISION_MAX)
+                args->precision = PRECISION_MAX;
+
+        if (point < 128 && strchr("xXdufeEs", point)) {
+                args->conv = point;
+                if (endchr) {
+                        if (point == n)
+                                return -1;
+                        point = string_getidx(fmt, pos++);
+                        if (point != endchr)
+                                return -1;
+                }
+                return pos;
+        } else if (point == endchr) {
+                return pos;
+        } else if (!endchr) {
+                return pos - 1;
+        }
+        return -1;
+
+eos:
+        if (args->padlen >= PAD_MAX)
+                args->padlen = PAD_MAX;
+        if (args->precision >= PRECISION_MAX)
+                args->precision = PRECISION_MAX;
+
+        return endchr ? -1 : pos;
+}
+
+static void
+format2_output(struct string_writer_t *wr,
+               Object *val, struct fmt_args_t *fa)
+{
+        if (!fa->conv) {
+                if (isvar_int(val))
+                        fa->conv = 'd';
+                else if (isvar_float(val))
+                        fa->conv = 'e';
+                else
+                        fa->conv = 's';
+        }
+
+        switch (fa->conv) {
         case 'x':
         case 'X':
         case 'd':
         case 'u':
-                if (!isvar_real(arg))
-                        return 0;
-                format2_i(wr, arg, point, rjust, padc, padlen, precision);
+                if (!isvar_real(val))
+                        return;
+                format2_i(wr, val, fa);
                 break;
         case 'f':
-                if (!isvar_real(arg))
-                        return 0;
-                format2_f(wr, arg, point, rjust, padc, padlen, precision);
+                if (!isvar_real(val))
+                        return;
+                format2_f(wr, val, fa);
                 break;
         case 'e':
         case 'E':
-                if (!isvar_real(arg))
-                        return 0;
-                format2_e(wr, arg, point, rjust, padc, padlen, precision);
+                if (!isvar_real(val))
+                        return;
+                format2_e(wr, val, fa);
                 break;
         case 's':
-                if (!isvar_string(arg))
-                        return 0;
-                format2_s(wr, arg, point, rjust, padc, padlen, precision);
+                if (!isvar_string(val)) {
+                        Object *strval = var_str(val);
+                        format2_s(wr, strval, fa);
+                        VAR_DECR_REF(strval);
+                } else {
+                        format2_s(wr, val, fa);
+                }
                 break;
         default:
-        case '\0':
-                /* don't try to format this */
-                return 0;
+                bug();
         }
+}
 
-        return self_i - idx_save;
+static ssize_t
+format2_helper(Object *arg, struct string_writer_t *wr,
+               Object *self, size_t self_i)
+{
+        struct fmt_args_t fa;
+        ssize_t newpos = parse_fmt_args(self, &fa, self_i, '\0');
+
+        /* incr by one on error, else caller will loop forever */
+        if (newpos < 0)
+                return self_i + 1;
+
+        format2_output(wr, arg, &fa);
+        return newpos;
 }
 
 /* Common to string_format2 and string_modulo */
@@ -1051,17 +1131,16 @@ string_printf(Object *self, Object *args, Object *kwargs)
                 return VAR_NEW_REF(self);
 
         argi = 0;
+        i = 0;
         string_writer_init(&wr, V2STR(self)->s_width);
-        for (i = 0; i < n; i++) {
-                unsigned long point = string_getidx(self, i);
+        while (i < n) {
+                unsigned long point = string_getidx(self, i++);
                 if (point == '%') {
                         Object *arg;
-                        size_t ti;
 
-                        if (i++ >= n)
+                        if (i >= n)
                                 break;
-
-                        point = string_getidx(self, i);
+                        point = string_getidx(self, i++);
                         if (point == '%') {
                                 string_writer_append(&wr, '%');
                                 continue;
@@ -1071,50 +1150,36 @@ string_printf(Object *self, Object *args, Object *kwargs)
                                 size_t start, stop;
                                 Object *key;
 
-                                if (!kwargs) {
-                                        --i;
+                                if (!kwargs)
                                         continue;
-                                }
-
-                                if (i++ >= n)
-                                        break;
 
                                 start = i++;
                                 while (i < n) {
-                                        point = string_getidx(self, i);
+                                        point = string_getidx(self, i++);
                                         bug_on(point < 0);
                                         if (point == ')')
                                                 break;
-                                        i++;
                                 }
-                                /* XXX: maybe error instead */
-                                if (i >= n)
-                                        break;
-
                                 stop = i;
                                 key = stringvar_from_substr(self, start, stop);
                                 arg = dict_getitem(kwargs, key);
                                 VAR_DECR_REF(key);
                                 if (!arg)
                                         continue;
-                                /* skip closing ')' */
-                                i++;
                         } else {
+                                --i;
+
                                 /* Numbered arg */
-                                if (!args) {
-                                        --i;
+                                if (!args)
                                         continue;
-                                }
+
                                 arg = seqvar_getitem(args, argi++);
                                 if (!arg)
                                         continue;
                         }
 
-                        ti = format2_helper(arg, &wr, self, i);
-                        if (!ti)
-                                ti++;
                         /* minus one because of 'for' iterator */
-                        i += ti - 1;
+                        i = format2_helper(arg, &wr, self, i);
                         VAR_DECR_REF(arg);
                 } else {
                         string_writer_append(&wr, point);
@@ -1197,46 +1262,6 @@ string_getprop_width(Object *self)
         return intvar_new(V2STR(self)->s_width);
 }
 
-static bool
-string_format_helper(Object **args, const char **src,
-                     struct buffer_t *t, int *lastarg,
-                     size_t argc)
-{
-        const char *s = *src;
-        int la = *lastarg;
-        Object *q = NULL;
-        ++s;
-        if (*s == '}') {
-                int i = la++;
-                if (i < argc)
-                        q = args[i];
-        } else if (isdigit(*s)) {
-                char *endptr;
-                int i = strtoul(s, &endptr, 10);
-                if (*endptr == '}') {
-                        if (i < argc)
-                                q = args[i];
-                        la = i + 1;
-                        s = endptr;
-                }
-        }
-        if (!q)
-                return false;
-
-        if (isvar_string(q)) {
-                buffer_puts(t, V2CSTR(q));
-        } else {
-                /* not a string, so we'll just use q's .str method. */
-                Object *xpr = var_str(q);
-                buffer_puts(t, V2CSTR(xpr));
-                VAR_DECR_REF(xpr);
-        }
-
-        *lastarg = la;
-        *src = s;
-        return true;
-}
-
 /*
  * format(...)
  * returns type string
@@ -1244,35 +1269,14 @@ string_format_helper(Object **args, const char **src,
 static Object *
 string_format1(Frame *fr)
 {
-        struct buffer_t t;
         Object *self = vm_get_this(fr);
         Object *list = vm_get_arg(fr, 0);
-        Object **args;
-        int lastarg = 0;
-        size_t list_size;
-        const char *s, *self_s;
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
         bug_on(!isvar_array(list));
-        list_size = seqvar_size(list);
-        args = array_get_data(list);
 
-        self_s = V2CSTR(self);
-        if (!self_s)
-                return stringvar_newf("", 0);
-
-        buffer_init(&t);
-        for (s = self_s; *s != '\0'; s++) {
-                if (*s == '{' &&
-                    string_format_helper(args, &s, &t, &lastarg, list_size)) {
-                        continue;
-                }
-                buffer_putc(&t, *s);
-        }
-
-        Object *ret = stringvar_newf(buffer_trim(&t), 0);
-        return ret;
+        return string_format(self, list);
 }
 
 #define STRIP_HELPER(X_, Type) \
@@ -2194,14 +2198,6 @@ string_is2(Frame *fr, bool (*tst)(unsigned int c))
         return ret;
 }
 
-static bool is_alnum(unsigned int c) { return c < 128 && isalnum(c); }
-static bool is_alpha(unsigned int c) { return c < 128 && isalpha(c); }
-static bool is_digit(unsigned int c) { return c < 128 && isdigit(c); }
-static bool is_printable(unsigned int c) { return c < 128 && isprint(c); }
-static bool is_space(unsigned int c) { return c < 128 && isspace(c); }
-static bool is_upper(unsigned int c) { return c < 128 && isupper(c); }
-static bool is_lower(unsigned int c) { return c < 128 && islower(c); }
-
 static bool
 is_ident(Object *str)
 {
@@ -2775,41 +2771,80 @@ Object *
 string_format(Object *str, Object *tup)
 {
         struct string_writer_t wr;
-        size_t i, n;
-        int argi;
+        size_t i, n, nt;
+        size_t argi;
 
         if (arg_type_check(str, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(tup, &TupleType) == RES_ERROR)
+        if (!isvar_tuple(tup) && !isvar_array(tup)) {
+                err_setstr(TypeError, "format expects tuple or list");
                 return ErrorVar;
+        }
 
         n = seqvar_size(str);
+        nt = seqvar_size(tup);
         i = 0;
         argi = 0;
         string_writer_init(&wr, V2STR(str)->s_width);
         while (i < n) {
                 long point = string_getidx(str, i++);
                 if (point == '{' && i < n) {
+                        struct fmt_args_t fa;
                         Object *arg;
                         point = string_getidx(str, i++);
-                        if (point != '}' ||
-                            (arg = tuple_getitem(tup, argi++)) == NULL) {
-                                string_writer_append(&wr, '{');
-                                string_writer_append(&wr, '}');
+                        if (point == '{') {
+                                string_writer_append(&wr, point);
                                 continue;
                         }
-                        if (isvar_string(arg)) {
-                                string_writer_append_strobj(&wr, arg);
+                        if (point == ':') {
+                                size_t newpos;
+
+                                if (i == n)
+                                        goto bad_format;
+                                newpos = parse_fmt_args(str, &fa, i, '}');
+                                if (newpos < 0)
+                                        goto bad_format;
+                                i = newpos;
                         } else {
-                                Object *xpr = var_str(arg);
-                                string_writer_append_strobj(&wr, xpr);
-                                VAR_DECR_REF(xpr);
+                                if (is_digit(point)) {
+                                        long newargi = 0;
+                                        while (is_digit(point)) {
+                                                newargi *= 10;
+                                                newargi += (point - '0');
+                                                if (i == n)
+                                                        goto bad_format;
+                                                point = string_getidx(str, i++);
+                                        }
+                                        argi = newargi;
+                                }
+                                if (point != '}')
+                                        goto bad_format;
+                                default_fmt_args(&fa);
                         }
+
+                        if (argi >= nt)
+                                goto bad_format;
+
+                        arg = seqvar_getitem(tup, argi++);
+                        format2_output(&wr, arg, &fa);
+                        VAR_DECR_REF(arg);
                 } else {
+                        if (point == '}') {
+                                if (i >= n)
+                                        goto bad_format;
+                                point = string_getidx(str, i++);
+                                if (point != '}')
+                                        goto bad_format;
+                        }
                         string_writer_append(&wr, point);
                 }
         }
         return stringvar_from_writer(&wr);
+
+bad_format:
+        err_setstr(ValueError, "Malformed format string");
+        string_writer_destroy(&wr);
+        return ErrorVar;
 }
 
 /**

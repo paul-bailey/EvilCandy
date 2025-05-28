@@ -12,7 +12,8 @@ enum {
         TE_TOO_BIG,
         TE_MALFORMED,
         TE_UNRECOGNIZED,
-        TE_SGL_RBRACE,
+        TE_FMT_1BRACE,
+        TE_FSTR_EMPTY,
 };
 
 #define token_errset(state_, err_) longjmp((state_)->env, err_)
@@ -113,7 +114,6 @@ str_slide(struct token_state_t *state, struct buffer_t *tok,
           char *pc, const char *charset)
 {
         int c, clast = 0;
-        char *start = pc;
         bool fstring = tok == &state->fstring_tok;
 
 again:
@@ -121,13 +121,6 @@ again:
                 /* XXX: portable behavior of strchr? */
                 bug_on(c == '\0');
                 buffer_putc(tok, c);
-
-                /* '}} in fstring to '}' */
-                if (c == '}' && fstring && pc - start != 1) {
-                        if (*pc != '}')
-                                token_errset(state, TE_SGL_RBRACE);
-                        ++pc;
-                }
 
                 /* make sure we don't misinterpret special chars */
                 if (clast != '\\' && c == '\\' &&
@@ -141,11 +134,16 @@ again:
         if (c == '\0')
                 token_errset(state, TE_UNTERM_QUOTE);
 
-        if (c == '{' && *pc == '{') {
+        if (c == '{') {
                 bug_on(!fstring);
-                buffer_putc(tok, c);
-                pc++;
-                goto again;
+                if (*pc == '{') {
+                        buffer_putc(tok, c);
+                        buffer_putc(tok, c);
+                        pc++;
+                        goto again;
+                }
+                if (*pc == '}')
+                        token_errset(state, TE_FSTR_EMPTY);
         }
 
         buffer_putc(tok, c);
@@ -172,6 +170,13 @@ fstring_continue(struct token_state_t *state)
         charset[1] = '{';
         charset[2] = '\0';
         bug_on(!charset[0]);
+
+        if (*state->s == ':') {
+                while (*state->s != '}') {
+                        buffer_putc(&state->fstring_tok, *state->s);
+                        state->s++;
+                }
+        }
 
         return str_slide(state, &state->fstring_tok, state->s, charset);
 }
@@ -241,10 +246,22 @@ get_tok_fstring(struct token_state_t *state)
         buffer_putc(tok, q);
         state->fstring = q;
         if (fstring_continue(state) == q) {
-                /* f-string without any conversion specifiers */
-                buffer_puts(&state->tok, tok->s);
-                buffer_reset(&state->fstring_tok);
-                state->fstring = '\0';
+                /*
+                 * f-string without any conversion specifiers.
+                 * Do the {{ -> { stuff here, since FORMAT instruction
+                 * will not be used.
+                 */
+                const char *src = tok->s;
+                int c;
+                while ((c = *src++) != '\0') {
+                        if (c == '{' || c == '}') {
+                                int clast = c;
+                                c = *src++;
+                                if (c != clast)
+                                        token_errset(state, TE_FMT_1BRACE);
+                        }
+                        buffer_putc(&state->tok, c);
+                }
                 return OC_STRING;
         }
 
@@ -513,8 +530,11 @@ tokenize_helper(struct token_state_t *state, int *line)
                 case TE_UNRECOGNIZED:
                         msg = "Unrecognized token";
                         break;
-                case TE_SGL_RBRACE:
-                        msg = "Single '}' not allowed";
+                case TE_FMT_1BRACE:
+                        msg = "Single '{' or '}' not allowed";
+                        break;
+                case TE_FSTR_EMPTY:
+                        msg = "F-strings may not take empty expressions";
                         break;
                 default:
                         msg = "Token parsing error";
@@ -546,7 +566,7 @@ tokenize_helper(struct token_state_t *state, int *line)
                                 } else {
                                         token_errset(state, TE_UNRECOGNIZED);
                                 }
-                        } else if (state->s[0] == '}') {
+                        } else if (state->s[0] == '}' || state->s[0] == ':') {
                                 if (fstring_continue(state) == state->fstring) {
                                         buffer_puts(tok, state->fstring_tok.s);
                                         state->fstring = '\0';

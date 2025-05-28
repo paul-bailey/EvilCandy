@@ -2383,11 +2383,6 @@ static struct type_inittbl_t string_methods[] = {
  *                      Operator Methods
  * *********************************************************************/
 
-/*
- * FIXME: crud, this is a DRY violation with print_escapestr in helpers.c,
- * but we could only use that one if we use mktemp or something crazy
- * like that.
- */
 static Object *
 string_str(Object *v)
 {
@@ -2397,6 +2392,11 @@ string_str(Object *v)
 
         bug_on(!isvar_string(v));
 
+        /*
+         * Since we're deliberately creating an all-ASCII string,
+         * we know it's faster to create from C-string than from
+         * Unicode points.
+         */
         buffer_init(&b);
 
         buffer_putc(&b, Q);
@@ -2513,7 +2513,9 @@ string_cmp(Object *a, Object *b)
          * cases exist where a string produced from a built-in method
          * will result in a new string whose width is wider than it needs
          * to be, therefore the memcmp on the Unicode buffers could fail
-         * even for strings with all-matching Unicode points.
+         * even for strings with all-matching Unicode points.  The
+         * alternative is a for loop which is probably not as fast as
+         * either strcmp or memcmp.
          */
         bug_on(!isvar_string(a) || !isvar_string(b));
         sa = string_cstring(a);
@@ -2732,6 +2734,12 @@ string_ord(Object *str, size_t idx)
         return string_getidx(str, idx);
 }
 
+/*
+ * @tup may be a list, if not called from VM
+ *
+ * TODO: Add a @dict arg, which may be NULL, so str.format can
+ * take keyword arguments.
+ */
 Object *
 string_format(Object *str, Object *tup)
 {
@@ -2782,6 +2790,10 @@ string_format(Object *str, Object *tup)
                                         }
                                         argi = newargi;
                                 }
+                                /*
+                                 * TODO: if point is ident, use
+                                 * dict key.
+                                 */
                                 if (point != '}')
                                         goto bad_format;
                                 default_fmt_args(&fa);

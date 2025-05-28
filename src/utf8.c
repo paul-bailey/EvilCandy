@@ -26,39 +26,6 @@ utf8_encode(unsigned long point, struct buffer_t *buf)
         }
 }
 
-static void
-utf8_decode_write_point(struct buffer_t *b,
-                        unsigned long point, unsigned int maxwidth)
-{
-        bug_on(point > 0xfffful && maxwidth < 4);
-        bug_on(point > 0xff && maxwidth < 2);
-        union {
-                uint8_t u8;
-                uint16_t u16;
-                uint32_t u32;
-        } x;
-        void *p;
-
-        switch (maxwidth) {
-        case 1:
-                x.u8 = point;
-                p = &x.u8;
-                break;
-        case 2:
-                x.u16 = point;
-                p = &x.u16;
-                break;
-        case 4:
-                x.u32 = point;
-                p = &x.u32;
-                break;
-        default:
-                bug();
-                return;
-        }
-        buffer_putd(b, p, maxwidth);
-}
-
 static long
 decode_one_point(const unsigned char *s, unsigned char **endptr,
                  unsigned long point, int n)
@@ -128,9 +95,8 @@ utf8_decode(const char *src, size_t *width,
             size_t *len, int *ascii)
 {
         const unsigned char *s;
-        size_t maxwidth;
         unsigned int c;
-        struct buffer_t b;
+        struct string_writer_t wr;
 
         /*
          * This makes it slower for non-ASCII strings, but
@@ -138,7 +104,7 @@ utf8_decode(const char *src, size_t *width,
          * probably be faster.
          */
         for (s = (unsigned char *)src; *s != '\0'; s++) {
-                if (((unsigned)(*s) & 0xffu) >= 128)
+                if (*s >= 128)
                         break;
         }
 
@@ -151,40 +117,12 @@ utf8_decode(const char *src, size_t *width,
         }
 
         /*
-         * XXX: Some corner cases exist where I set maxwidth > 1
-         * but the encoding is Latin1, causing me to waste RAM.
+         * We have no guaranteed way of knowing width, short of having to
+         * decode every Unicode point twice; it's less time consuming in
+         * most cases to assume the smallest width (Latin1) and let the
+         * string_writer API grow the array width as necessary.
          */
-        maxwidth = 1;
-        while ((c = *s++) != '\0') {
-                if (c < 0xc0)
-                        continue;
-
-                if ((c & 0xf8) == 0xf0) {
-                        maxwidth = 4;
-                } else if ((c & 0xf0) == 0xe0) {
-                        if (maxwidth < 2)
-                                maxwidth = 2;
-                } else if ((c & 0xe0) == 0xc0) {
-                        /*
-                         * 110aaabb 10bbcccc: if the 'aaa' bits are zero,
-                         * then this is range 0x80...0xff (width 1).
-                         * Otherwise, the range is 0x100...0x7ff (width 2).
-                         */
-                        if (c > 0xc3 && maxwidth < 2)
-                                maxwidth = 2;
-                }
-        }
-
-        /*
-         * If maxwidth is still 1, then we have some non-ASCII,
-         * non-UTF-8 chars in our string.  They are easy enough
-         * to parse amidst the UTF-8 characters so long as they
-         * are not in the middle of a malformed UTF-8 sequence,
-         * so add them to the points array below and tell caller
-         * it was UTF-8 all along.
-         */
-
-        buffer_init(&b);
+        string_writer_init(&wr, 1);
         s = (unsigned char *)src;
         while ((c = *s++) != '\0') {
                 unsigned long point;
@@ -204,29 +142,21 @@ utf8_decode(const char *src, size_t *width,
                 }
 
                 if ((long)point == -1L) {
-                        while (s < endptr && *s != '\0') {
-                                utf8_decode_write_point(&b, *s, maxwidth);
-                                s++;
-                        }
+                        /* Assume that malformed UTF-8 just means Latin1 */
+                        string_writer_append(&wr, *s++);
                         continue;
                 }
 
-                if (!utf8_valid_unicode(point))
-                        goto err;
+                if (!utf8_valid_unicode(point)) {
+                        string_writer_destroy(&wr);
+                        return NULL;
+                }
 
-                utf8_decode_write_point(&b, point, maxwidth);
+                string_writer_append(&wr, point);
                 s = endptr;
         }
 
-        utf8_decode_write_point(&b, 0, maxwidth);
-
         *ascii = 0;
-        *width = maxwidth;
-        *len = buffer_size(&b) / maxwidth;
-        return buffer_trim(&b);
-
-err:
-        buffer_free(&b);
-        return NULL;
+        return string_writer_finish(&wr, width, len);
 }
 

@@ -1258,7 +1258,7 @@ string_getprop_width(Object *self)
  * returns type string
  */
 static Object *
-string_format1(Frame *fr)
+string_format_mthd(Frame *fr)
 {
         Object *self = vm_get_this(fr);
         Object *list = vm_get_arg(fr, 0);
@@ -2367,7 +2367,7 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("endswith",     string_endswith,     1, 1, -1, -1),
         V_INITTBL("expandtabs",   string_expandtabs,   1, 1, -1,  0),
         V_INITTBL("find",         string_find,         1, 1, -1, -1),
-        V_INITTBL("format",       string_format1,      1, 1,  0, -1),
+        V_INITTBL("format",       string_format_mthd,  1, 1,  0, -1),
         V_INITTBL("index",        string_index,        1, 1, -1, -1),
         V_INITTBL("isalnum",      string_isalnum,      0, 0, -1, -1),
         V_INITTBL("isalpha",      string_isalpha,      0, 0, -1, -1),

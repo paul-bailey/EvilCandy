@@ -1369,9 +1369,11 @@ string_replace(Frame *fr)
         }
 
         while (*haystack && haystack < end) {
-                ssize_t size = match(needle, haystack);
-                if (size == -1)
+                ssize_t size;
+                void *found = strstr(haystack, needle);
+                if (!found)
                          break;
+                size = (char *)found - haystack;
                 buffer_nputs(&b, haystack, size);
                 buffer_puts(&b, V2CSTR(vrepl));
                 haystack += size + needle_len;

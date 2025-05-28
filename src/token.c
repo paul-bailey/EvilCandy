@@ -107,19 +107,6 @@ tok_next_line(struct token_state_t *state)
         return res;
 }
 
-/* FIXME: Move to helpers.c */
-/* Like  strchr but return NULL if c is '\0' */
-static char *
-strchr_nonnull(const char *charset, int c)
-{
-        if (c) while (*charset) {
-                if (*charset == c)
-                        return (char *)charset;
-                charset++;
-        }
-        return NULL;
-}
-
 static int
 str_slide(struct token_state_t *state, struct buffer_t *tok,
           char *pc, const char *charset)

@@ -105,6 +105,12 @@ struct string_writer_t {
         size_t n_alloc;
 };
 
+/*
+ * If you don't know correct width, pass 1 for @width.
+ * Absolutely do NOT pass a larger value than you will need,
+ * or you could cause unpredictable behavior in things like
+ * search algorithms.
+ */
 static void
 string_writer_init(struct string_writer_t *wr, size_t width)
 {
@@ -198,6 +204,7 @@ string_writer_append(struct string_writer_t *wr, unsigned long c)
         wr->pos += wr->width;
 }
 
+/* Do NOT call this unless you know @cstr is ASCII */
 static void
 string_writer_appends(struct string_writer_t *wr, const char *cstr)
 {
@@ -327,6 +334,51 @@ stringvar_newf(char *cstr, unsigned int flags)
         return ret;
 }
 
+static unsigned long
+point_from_raw_buf(const void *buf, size_t idx, size_t width)
+{
+        const void *p = buf + idx * width;
+        switch (width) {
+        default:
+                bug();
+        case 1:
+                return *(uint8_t *)p;
+        case 2:
+                return *(uint16_t *)p;
+        case 4:
+                return *(uint32_t *)p;
+        }
+}
+
+static void
+point_to_raw_buf(void *buf, size_t idx, size_t width, unsigned long point)
+{
+        void *p = buf + idx * width;
+        switch (width) {
+        default:
+                bug();
+        case 1:
+                *(uint8_t *)p = point;
+                break;
+        case 2:
+                *(uint16_t *)p = point;
+                break;
+        case 4:
+                *(uint32_t *)p = point;
+                break;
+        }
+}
+
+static size_t
+maxchr_to_width(unsigned long maxchr)
+{
+        if (maxchr > 0xffff)
+                return 4;
+        if (maxchr > 0xff)
+                return 2;
+        return 1;
+}
+
 static Object *
 stringvar_from_points(void *points, size_t width,
                       size_t len, unsigned int flags)
@@ -334,40 +386,21 @@ stringvar_from_points(void *points, size_t width,
         Object *ret;
         struct buffer_t b;
         size_t i;
+        long maxchr;
         int ascii;
         struct stringvar_t *vs;
-        union {
-                uint32_t *p32;
-                uint16_t *p16;
-                uint8_t *p8;
-                void *p;
-        } x = { .p = points };
 
-        if (!len) {
-                bug_on(!!points);
+        bug_on((!!len && !points) || (!len && !!points));
+        if (!len)
                 return VAR_NEW_REF(STRCONST_ID(mpty));
-        }
 
-        bug_on(!points);
-
+        maxchr = 0;
         ascii = 1;
         buffer_init(&b);
         for (i = 0; i < len; i++) {
-                uint32_t point;
-                switch (width) {
-                case 4:
-                        point = x.p32[i];
-                        break;
-                case 2:
-                        point = x.p16[i];
-                        break;
-                case 1:
-                        point = x.p8[i];
-                        break;
-                default:
-                        bug();
-                        return NULL;
-                }
+                uint32_t point = point_from_raw_buf(points, i, width);
+                if (point > maxchr)
+                        maxchr = point;
 
                 if (point < 128) {
                         buffer_putc(&b, point);
@@ -395,10 +428,39 @@ stringvar_from_points(void *points, size_t width,
                         efree(points);
                 vs->s_unicode = vs->s;
         } else {
-                if (!!(flags & SF_COPY))
-                        vs->s_unicode = ememdup(points, len * width);
-                else
+                if (!!(flags & SF_COPY)) {
+                        /*
+                         * We could be here to create a string from a
+                         * source's substring, in which case our width
+                         * may no longer be correct.  Check for that and
+                         * shrink as necessary, otherwise some of our
+                         * find algorithms could return false negatives.
+                         */
+                        size_t correct_width = maxchr_to_width(maxchr);
+                        bug_on(correct_width > width);
+                        if (correct_width == width) {
+                                vs->s_unicode = ememdup(points, len * width);
+                        } else {
+                                /* D'oh! We need to downsize */
+                                vs->s_unicode = emalloc(len * correct_width);
+                                for (i = 0; i < len; i++) {
+                                        long point;
+                                        point = point_from_raw_buf(points, i, width);
+                                        point_to_raw_buf(vs->s_unicode, i,
+                                                         correct_width, point);
+                                }
+                                vs->s_width = correct_width;
+                        }
+                } else {
+                        /*
+                         * If not SF_COPY, then we got this from
+                         * either parse or a struct string_writer_t.
+                         * In both cases, we should have not over-
+                         * estimated the width, so this is a bug.
+                         */
+                        bug_on(maxchr_to_width(maxchr) != width);
                         vs->s_unicode = points;
+                }
         }
         return ret;
 }
@@ -1554,7 +1616,10 @@ string_join(Frame *fr)
         if (n == 1)
                 return seqvar_getitem(arg, 0);
 
-        width = V2STR(self)->s_width;
+        if (n > 2)
+                width = V2STR(self)->s_width;
+        else
+                width = 1;
         if (!isvar_string(arg)) {
                 bool have_joinstr = seqvar_size(self) > 0;
                 for (i = 0; i < n; i++) {
@@ -1948,15 +2013,12 @@ string_lrsplit(Frame *fr, unsigned int flags)
                     STRCONST_ID(sep), &separg, NullVar,
                     STRCONST_ID(maxsplit), &maxarg, gbl.neg_one,
                     NULL);
-
         if (separg == NullVar) {
                 combine = true;
                 VAR_DECR_REF(separg);
                 separg = STRCONST_ID(spc);
                 VAR_INCR_REF(separg);
         }
-
-
         if (arg_type_check(separg, &StringType) == RES_ERROR) {
                 ret = ErrorVar;
                 goto out;
@@ -1971,7 +2033,6 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 ret = ErrorVar;
                 goto out;
         }
-
 
         hwid = V2STR(self)->s_width;
         hlen = seqvar_size(self);

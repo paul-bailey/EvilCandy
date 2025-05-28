@@ -61,6 +61,18 @@ enum {
  *                      Common Helpers
  ***********************************************************************/
 
+static inline size_t
+string_width(Object *str)
+{
+        return V2STR(str)->s_width;
+}
+
+static inline void *
+string_data(Object *str)
+{
+        return V2STR(str)->s_unicode;
+}
+
 static bool is_alnum(unsigned int c) { return c < 128 && isalnum(c); }
 static bool is_alpha(unsigned int c) { return c < 128 && isalpha(c); }
 static bool is_digit(unsigned int c) { return c < 128 && isdigit(c); }
@@ -87,209 +99,11 @@ string_getidx(Object *str, size_t idx)
         }
 }
 
-/*
- * struct string_writer_t - Because wrappers for struct buffer_t would be
- *                          too cumbersome, we'll just do it manually.
- */
-struct string_writer_t {
-        size_t width;
-        union {
-                uint8_t *u8;
-                uint16_t *u16;
-                uint32_t *u32;
-                void *p;
-        } p;
-        unsigned long maxchr;
-        size_t pos;
-        size_t pos_i;
-        size_t n_alloc;
-};
-
-/*
- * If you don't know correct width, pass 1 for @width.
- * Absolutely do NOT pass a larger value than you will need,
- * or you could cause unpredictable behavior in things like
- * search algorithms.
- */
-static void
-string_writer_init(struct string_writer_t *wr, size_t width)
-{
-        wr->width = width;
-        switch (width) {
-        case 1:
-                wr->maxchr = 0xffu;
-                break;
-        case 2:
-                wr->maxchr = 0xffffu;
-                break;
-        case 4:
-                wr->maxchr = 0x10ffffu;
-                break;
-        default:
-                bug();
-        }
-        wr->p.p = NULL;
-        wr->pos = wr->pos_i = wr->n_alloc = 0;
-}
-
-static void
-string_writer_append(struct string_writer_t *wr, unsigned long c)
-{
-        enum { STR_REALLOC_SIZE = 64 };
-
-        if (c > wr->maxchr) {
-                /*
-                 * Ugh, need to resize.  This should only occur from
-                 * string_parse, when we're loading a source file.
-                 */
-                struct string_writer_t wr2;
-                size_t width;
-                size_t i;
-
-                bug_on(c > 0x10fffful);
-
-                if (c > 0xfffful) {
-                        width = 4;
-                } else if (c > 0xfful) {
-                        width = 2;
-                } else{
-                        bug();
-                        return;
-                }
-
-                string_writer_init(&wr2, width);
-                for (i = 0; i < wr->pos_i; i++) {
-                        unsigned long oldchar;
-                        switch (wr->width) {
-                        case 1:
-                                oldchar = wr->p.u8[i];
-                                break;
-                        case 2:
-                                oldchar = wr->p.u16[i];
-                                break;
-                        default:
-                                bug();
-                                return;
-                        }
-                        string_writer_append(&wr2, oldchar);
-                }
-                if (wr->p.p)
-                        efree(wr->p.p);
-                bug_on(wr->pos_i != wr2.pos_i);
-                memcpy(wr, &wr2, sizeof(wr2));
-                /* fall through, we still have to write c */
-        }
-
-        bug_on(c > wr->maxchr);
-
-        if (wr->pos + wr->width > wr->n_alloc) {
-                wr->n_alloc += STR_REALLOC_SIZE * wr->width;
-                wr->p.p = erealloc(wr->p.p, wr->n_alloc);
-        }
-
-        switch (wr->width) {
-        case 1:
-                wr->p.u8[wr->pos_i] = c;
-                break;
-        case 2:
-                wr->p.u16[wr->pos_i] = c;
-                break;
-        case 4:
-                wr->p.u32[wr->pos_i] = c;
-                break;
-        default:
-                bug();
-        }
-        wr->pos_i++;
-        wr->pos += wr->width;
-}
-
-/* Do NOT call this unless you know @cstr is ASCII */
-static void
-string_writer_appends(struct string_writer_t *wr, const char *cstr)
-{
-        while (*cstr != '\0') {
-                string_writer_append(wr, (unsigned char)*cstr);
-                cstr++;
-        }
-}
-
 static void
 string_writer_append_strobj(struct string_writer_t *wr, Object *str)
 {
-        size_t i, n;
-        n = seqvar_size(str);
-        for (i = 0; i < n; i++) {
-                long point = string_getidx(str, i);
-                bug_on(point < 0L);
-                string_writer_append(wr, point);
-        }
-}
-
-static long
-string_writer_getidx(struct string_writer_t *wr, size_t idx)
-{
-        if (idx >= wr->pos_i)
-                return -1;
-        switch (wr->width) {
-        case 1:
-                return wr->p.u8[idx];
-        case 2:
-                return wr->p.u16[idx];
-        case 4:
-                return wr->p.u32[idx];
-        default:
-                bug();
-                return 0;
-        }
-}
-
-/* with string_writer_getidx, used by format2, for swapping pads */
-static int
-string_writer_setidx(struct string_writer_t *wr,
-                     size_t idx, unsigned long point)
-{
-        if (idx >= wr->pos_i)
-                return -1;
-        switch (wr->width) {
-        case 1:
-                wr->p.u8[idx] = point;
-                break;
-        case 2:
-                wr->p.u16[idx] = point;
-                break;
-        case 4:
-                wr->p.u32[idx] = point;
-                break;
-        default:
-                bug();
-        }
-        return 0;
-}
-
-static void *
-string_writer_finish(struct string_writer_t *wr, size_t *width, size_t *len)
-{
-        *len = wr->pos_i;
-        *width = wr->width;
-        if (wr->p.p == NULL) {
-                bug_on(*len != 0);
-                return NULL;
-        }
-
-        /*
-         * XXX: Maybe avoid realloc
-         * if wr->n_alloc - wr->pos < some_threshold
-         */
-        return erealloc(wr->p.p, wr->pos);
-}
-
-static void
-string_writer_destroy(struct string_writer_t *wr)
-{
-        if (wr->p.p != NULL)
-                efree(wr->p.p);
-        wr->pos = wr->pos_i = wr->n_alloc = 0;
+        string_writer_appendb(wr, string_data(str),
+                              string_width(str), seqvar_size(str));
 }
 
 /*
@@ -484,9 +298,9 @@ stringvar_from_substr(Object *old, size_t start, size_t stop)
         bug_on(stop > seqvar_size(old));
         bug_on(stop < start);
 
-        width = V2STR(old)->s_width;
+        width = string_width(old);
         len  = stop - start;
-        buf = V2STR(old)->s_unicode + start * width;
+        buf = string_data(old) + start * width;
 
         return stringvar_from_points(buf, width, len, SF_COPY);
 }
@@ -661,13 +475,13 @@ widen_buffer(Object *str, size_t width)
         void *tbuf, *src, *dst, *end;
         size_t n, old_width;
 
-        old_width = V2STR(str)->s_width;
+        old_width = string_width(str);
         bug_on(old_width >= width);
 
         n = seqvar_size(str);
         tbuf = emalloc(n * width);
 
-        src = V2STR(str)->s_unicode;
+        src = string_data(str);
         dst = tbuf;
         /* src end, not dst end */
         end = src + n * old_width;
@@ -701,15 +515,15 @@ find_idx_substr(Object *haystack, Object *needle,
 
         hlen = endpos - startpos;
         nlen = seqvar_size(needle);
-        hwid = V2STR(haystack)->s_width;
-        nwid = V2STR(needle)->s_width;
+        hwid = string_width(haystack);
+        nwid = string_width(needle);
 
         if (hwid < nwid || hlen < nlen) {
                 idx = -1;
         } else {
                 void *found;
-                void *hsrc = V2STR(haystack)->s_unicode + startpos * hwid;
-                void *nsrc = V2STR(needle)->s_unicode;
+                void *hsrc = string_data(haystack) + startpos * hwid;
+                void *nsrc = string_data(needle);
                 if (hwid != nwid)
                         nsrc = widen_buffer(needle, hwid);
                 if (!!(flags & SF_RIGHT))
@@ -720,7 +534,7 @@ find_idx_substr(Object *haystack, Object *needle,
                         idx = -1;
                 else
                         idx = (ssize_t)(found - hsrc) / hwid;
-                if (nsrc != V2STR(needle)->s_unicode)
+                if (nsrc != string_data(needle))
                         efree(nsrc);
         }
         bug_on(idx >= (ssize_t)seqvar_size(haystack));
@@ -784,17 +598,14 @@ padwrite(struct string_writer_t *wr, int padc, size_t padlen)
 static void
 swap_pad(struct string_writer_t *wr, size_t count, size_t padlen)
 {
-        size_t right = wr->pos_i - 1;
+        size_t right = string_writer_size(wr) - 1;
         size_t left = right - padlen;
-        if (!wr->pos_i)
+        if ((ssize_t)right < 0)
                 return;
 
         while (count--) {
-                long rpoint = string_writer_getidx(wr, right);
-                long lpoint = string_writer_getidx(wr, left);
-                bug_on(lpoint < 0 || rpoint < 0);
-                string_writer_setidx(wr, right, lpoint);
-                string_writer_setidx(wr, left, rpoint);
+                string_writer_swapchars(wr, left, right);
+                bug_on((ssize_t)left < 0);
                 left--;
                 right--;
         }
@@ -847,7 +658,7 @@ format2_i(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
                 bug();
         }
 
-        count = wr->pos_i;
+        count = string_writer_size(wr);
         if (!ival) {
                 string_writer_append(wr, '0');
         } else {
@@ -861,7 +672,7 @@ format2_i(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
                 format2_i_helper(wr, uval, base, xchar);
         }
 
-        count = wr->pos_i - count;
+        count = string_writer_size(wr) - count;
         if (count < fa->padlen) {
                 fa->padlen -= count;
                 padwrite(wr, fa->padc, fa->padlen);
@@ -901,7 +712,7 @@ format2_e(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
         double v = realvar_tod(arg);
         double dv = v;
 
-        size_t count = wr->pos_i;
+        size_t count = string_writer_size(wr);
 
         if (dv < 0.0) {
                 string_writer_append(wr, '-');
@@ -965,7 +776,7 @@ format2_e(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
 
         if (!fa->rjust)
                 fa->padc = ' ';
-        count = wr->pos_i - count;
+        count = string_writer_size(wr) - count;
         if (count < fa->padlen) {
                 fa->padlen -= count;
                 padwrite(wr, fa->padc, fa->padlen);
@@ -980,7 +791,7 @@ format2_f(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
 {
         double v = realvar_tod(arg);
         bool have_dot = false;
-        size_t count = wr->pos_i;
+        size_t count = string_writer_size(wr);
 
         if (!isfinite(v)) {
                 if (isnan(v)) {
@@ -1018,7 +829,7 @@ format2_f(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
 
         if (!fa->rjust && !have_dot)
                 fa->padc = ' ';
-        count = wr->pos_i - count;
+        count = string_writer_size(wr) - count;
         if (count < fa->padlen) {
                 fa->padlen -= count;
                 padwrite(wr, fa->padc, fa->padlen);
@@ -1287,7 +1098,7 @@ string_printf(Object *self, Object *args, Object *kwargs)
 
         argi = 0;
         i = 0;
-        string_writer_init(&wr, V2STR(self)->s_width);
+        string_writer_init(&wr, string_width(self));
         while (i < n) {
                 unsigned long point = string_getidx(self, i++);
                 if (point == '%') {
@@ -1366,7 +1177,7 @@ static Object *
 string_getprop_width(Object *self)
 {
         bug_on(!isvar_string(self));
-        return intvar_new(V2STR(self)->s_width);
+        return intvar_new(string_width(self));
 }
 
 /*
@@ -1607,7 +1418,7 @@ string_lrjust(Frame *fr, unsigned int flags)
         if (newlen == selflen)
                 return VAR_NEW_REF(self);
 
-        string_writer_init(&wr, V2STR(self)->s_width);
+        string_writer_init(&wr, string_width(self));
         if (!!(flags & (SF_CENTER | SF_RIGHT))) {
                 while (padlen-- > 0)
                         string_writer_append(&wr, ' ');
@@ -1657,7 +1468,7 @@ string_join(Frame *fr)
                 return seqvar_getitem(arg, 0);
 
         if (n > 2)
-                width = V2STR(self)->s_width;
+                width = string_width(self);
         else
                 width = 1;
         if (!isvar_string(arg)) {
@@ -1673,7 +1484,7 @@ string_join(Frame *fr)
                                         typestr(elem));
                                 return ErrorVar;
                         }
-                        twid = V2STR(elem)->s_width;
+                        twid = string_width(elem);
                         if (width < twid)
                                 width = twid;
                         VAR_DECR_REF(elem);
@@ -1698,8 +1509,8 @@ string_join(Frame *fr)
                 if (seqvar_size(self) == 0)
                         return VAR_NEW_REF(arg);
 
-                if (width < V2STR(arg)->s_width)
-                        width = V2STR(arg)->s_width;
+                if (width < string_width(arg))
+                        width = string_width(arg);
                 string_writer_init(&wr, width);
                 for (i = 0; i < n; i++) {
                         long point = string_getidx(arg, i);
@@ -1836,7 +1647,7 @@ string_expandtabs(Frame *fr)
         if (tabsize < 0)
                 tabsize = 0;
 
-        string_writer_init(&wr, V2STR(self)->s_width);
+        string_writer_init(&wr, string_width(self));
         col = 0;
         nextstop = tabsize;
 
@@ -1944,8 +1755,8 @@ string_lrpartition(Frame *fr, unsigned int flags)
                 td[1] = VAR_NEW_REF(STRCONST_ID(mpty));
                 td[2] = VAR_NEW_REF(STRCONST_ID(mpty));
         } else {
-                size_t wid = V2STR(self)->s_width;
-                void *points = V2STR(self)->s_unicode;
+                size_t wid = string_width(self);
+                void *points = string_data(self);
                 if (idx == 0) {
                         td[0] = VAR_NEW_REF(STRCONST_ID(mpty));
                 } else {
@@ -2074,9 +1885,9 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 goto out;
         }
 
-        hwid = V2STR(self)->s_width;
+        hwid = string_width(self);
         hlen = seqvar_size(self);
-        nwid = V2STR(separg)->s_width;
+        nwid = string_width(separg);
         nlen = seqvar_size(separg);
 
         ret = arrayvar_new(0);
@@ -2085,11 +1896,11 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 goto out;
         }
 
-        hsrc = V2STR(self)->s_unicode;
+        hsrc = string_data(self);
         if (nwid != hwid)
                 nsrc = widen_buffer(separg, hwid);
         else
-                nsrc = V2STR(separg)->s_unicode;
+                nsrc = string_data(separg);
 
         if (!!(flags & SF_RIGHT)) {
                 Object *substr;
@@ -2158,7 +1969,7 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 }
         }
 
-        if (nsrc != V2STR(separg)->s_unicode)
+        if (nsrc != string_data(separg))
                 efree(nsrc);
 
 out:
@@ -2722,7 +2533,7 @@ string_getslice(Object *str, int start, int stop, int step)
 
         /*
          * XXX REVISIT: This assumes it's better to start with width=1,
-         * even if V2STR(str)->s_width > 1, because the >1 non-ASCII
+         * even if string_width(str) > 1, because the >1 non-ASCII
          * chars are rare enough that we'll likely miss them in a slice,
          * therefore the RAM saved outweighs the overhead of an an
          * occasional "oops, we need to resize."
@@ -2911,7 +2722,7 @@ string_format(Object *str, Object *tup)
         nt = seqvar_size(tup);
         i = 0;
         argi = 0;
-        string_writer_init(&wr, V2STR(str)->s_width);
+        string_writer_init(&wr, string_width(str));
         while (i < n) {
                 long point = string_getidx(str, i++);
                 if (point == '{' && i < n) {

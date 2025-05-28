@@ -33,6 +33,7 @@
 #include "objtypes.h"
 #include "var.h"
 #include "vm.h"
+#include "string_writer.h"
 
 /* constructors/destructors for certain C file */
 /* global.c */

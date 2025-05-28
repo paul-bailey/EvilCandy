@@ -25,6 +25,7 @@ evilcandy_SOURCES = \
         src/op.c \
         src/path.c \
         src/reassemble.c \
+        src/string_writer.c \
         src/token.c \
         src/uuid.c \
         src/var.c \
@@ -61,6 +62,7 @@ noinst_HEADERS = \
         inc/instructions.h \
         inc/objtypes.h \
         inc/recursion.h \
+        inc/string_writer.h \
         inc/token.h \
         inc/typedefs.h \
         inc/uarg.h \

@@ -37,8 +37,8 @@
 
 (function(Math) {
     print("Some mathy stuff:");
-    print("\tpi is: %13.10f".format2(Math.pi));
-    print("\te is:  %13.10f".format2(Math.e));
+    print("\tpi is: %13.10f" % [Math.pi]);
+    print("\te is:  %13.10f" % [Math.e]);
     (function(mypow) {
         print(f"\tMy Pow: 4^4 = {mypow(4, 4)}");
     })(function(x, y) {

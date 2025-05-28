@@ -14,6 +14,6 @@ myar.append(234);
 
 print("length(myar)={}".format(length(myar)));
 myar.foreach(function(e, i, priv) {
-        print("\t%2d: %4d (priv=%d)".format2(i, e, priv));
+        print("\t%2d: %4d (priv=%d)" % (i, e, priv));
 }, 1);
 

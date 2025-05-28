@@ -977,7 +977,46 @@ default_fmt_args(struct fmt_args_t *args)
         args->precision = 6;
 }
 
-/* endchr is either '\0' or '}' */
+/*
+ * Lightweight printf-like alternative to format()
+ *
+ * keyword-name, opening '%' or '{' have already been processed.
+ * @endchr is used to determine whether we need to parse closing
+ * '}', in case this is an f-string or .format() function (as opposed
+ * to a string modulo operation).
+ *
+ * Parses
+ *
+ *         [{flags}{pad}.{precition}{conversion}]
+ *
+ * along with closing '}' if @endchr is '}'.  If no specifiers are found,
+ * then defaults will be used.  The default for conversion is nullchar;
+ * calling code must decide what to do if no conversion is found.
+ *
+ *      flags:  - left-justify instead of default right-justify
+ *              0 zero pad instead of default space pad, if permitted
+ *                for conversion specifier & justification
+ *      pad:    Base-10 number of characters to justify with
+ *      precision:
+ *              Base-10 number of significant figures, 6 by default
+ *      conversion:
+ *          if arg is TYPE_INT (or TYPE_FLOAT, converted to TYPE_INT)
+ *              x Hexadecimal, lowercase
+ *              X Hexadecimal, uppercase
+ *              d Integer, signed
+ *              u Integer, unsigned
+ *          if arg is TYPE_FLOAT (or TYPE_INT, converted to TYPE_FLOAT)
+ *              f [-]ddd.dddd notation
+ *              e Exponential notation with lower-case e
+ *              E Exponential notation with upper-case E
+ *          if arg is TYPE_STRING
+ *              s Insert arg string here.  pad is for Unicode characters,
+ *                not necessarily bytes.
+ *
+ * Note, this does not permit length specifiers (h, hh, l, etc.)
+ *
+ * Return: New position in string, or -1 if an error occurred.
+ */
 static ssize_t
 parse_fmt_args(Object *fmt, struct fmt_args_t *args, size_t pos, int endchr)
 {
@@ -1187,54 +1226,6 @@ string_printf(Object *self, Object *args, Object *kwargs)
         }
 
         return stringvar_from_writer(&wr);
-}
-
-/*
- * format2(...)         var args
- *
- * Lightweight printf-like alternative to format()
- *
- * Accepts %[(kwname){flags}{pad}.{precision}]{conversion}
- *      kwname: Surrounded by parentheses.  If used, next value will
- *              be from the keyword dictionary whose name is kwname,
- *              otherwise next value will be the next argument on the
- *              stack.
- *      flags:  - left-justify instead of default right-justify
- *              0 zero pad instead of default space pad, if permitted
- *                for conversion specifier & justification
- *      pad:    Base-10 number of characters to justify with
- *      precision:
- *              Base-10 number of significant figures, 6 by default
- *      conversion:
- *          if arg is TYPE_INT (or TYPE_FLOAT, converted to TYPE_INT)
- *              x Hexadecimal, lowercase
- *              X Hexadecimal, uppercase
- *              d Integer, signed
- *              u Integer, unsigned
- *          if arg is TYPE_FLOAT (or TYPE_INT, converted to TYPE_FLOAT)
- *              f [-]ddd.dddd notation
- *              e Exponential notation with lower-case e
- *              E Exponential notation with upper-case E
- *          if arg is TYPE_STRING
- *              s Insert arg string here.  pad is for Unicode characters,
- *                not necessarily bytes.
- */
-static Object *
-string_format2(Frame *fr)
-{
-        Object *args, *kwargs, *self;
-
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        args = vm_get_arg(fr, 0);
-        bug_on(!args || !isvar_array(args));
-
-        kwargs = vm_get_arg(fr, 1);
-        bug_on(!kwargs || !isvar_dict(kwargs));
-
-        return string_printf(self, args, kwargs);
 }
 
 /* **********************************************************************
@@ -2377,7 +2368,6 @@ static struct type_inittbl_t string_methods[] = {
         V_INITTBL("expandtabs",   string_expandtabs,   1, 1, -1,  0),
         V_INITTBL("find",         string_find,         1, 1, -1, -1),
         V_INITTBL("format",       string_format1,      1, 1,  0, -1),
-        V_INITTBL("format2",      string_format2,      2, 2,  0,  1),
         V_INITTBL("index",        string_index,        1, 1, -1, -1),
         V_INITTBL("isalnum",      string_isalnum,      0, 0, -1, -1),
         V_INITTBL("isalpha",      string_isalpha,      0, 0, -1, -1),

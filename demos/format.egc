@@ -1,7 +1,7 @@
 #!./evilcandy
-print("%-16sWorld!".format2("Hello"));
+print("%-16sWorld!" % ["Hello"]);
 print("Between quotes should look like two chars: '%-2s'"
-       .format2("\U0001f600"));
+       % ["\U0001f600"]);
 print("Do these column numbers look properly justified?");
 (function() {
     for (i, range(5, 125, 20)) {

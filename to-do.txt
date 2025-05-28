@@ -74,8 +74,6 @@ Must Do
 Library/Language Features
 -------------------------
 
-* Support f-strings
-
 * Support generators and comprehensions
 
 * Add serial-port, socket libraries
@@ -99,6 +97,8 @@ Library/Language Features
 
 * Add way to pass arguments to imported scripts, and a way for the
   script to access them.  Maybe a special identifier token like ``$0``.
+
+* **done** Support f-strings
 
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
@@ -133,7 +133,7 @@ Mebbe/Wishlist/Low-prio bugs
 * Preserve token buffer in interactive mode so that the UP arrow will
   recall previous expressions.
 
-* String data type encodes Unicode in utf-8, which is compact, but it
+* **done** String data type encodes Unicode in utf-8, which is compact, but it
   makes for slower processing.  Instead do something like cpython, which
   has an array data-width variable in its meta-data.  C-string
   termination still works, so long as the right uint*_t type is used

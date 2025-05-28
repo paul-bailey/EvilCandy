@@ -623,14 +623,15 @@ widen_buffer(Object *str, size_t width)
 }
 
 static ssize_t
-find_idx(Object *haystack, Object *needle, unsigned int flags)
+find_idx_substr(Object *haystack, Object *needle,
+                unsigned int flags, size_t startpos, size_t endpos)
 {
         ssize_t hwid, nwid, hlen, nlen, idx;
 
         bug_on(!isvar_string(haystack));
         bug_on(!isvar_string(needle));
 
-        hlen = seqvar_size(haystack);
+        hlen = endpos - startpos;
         nlen = seqvar_size(needle);
         hwid = V2STR(haystack)->s_width;
         nwid = V2STR(needle)->s_width;
@@ -639,7 +640,7 @@ find_idx(Object *haystack, Object *needle, unsigned int flags)
                 idx = -1;
         } else {
                 void *found;
-                void *hsrc = V2STR(haystack)->s_unicode;
+                void *hsrc = V2STR(haystack)->s_unicode + startpos * hwid;
                 void *nsrc = V2STR(needle)->s_unicode;
                 if (hwid != nwid)
                         nsrc = widen_buffer(needle, hwid);
@@ -656,6 +657,13 @@ find_idx(Object *haystack, Object *needle, unsigned int flags)
         }
         bug_on(idx >= (ssize_t)seqvar_size(haystack));
         return idx;
+}
+
+static inline ssize_t
+find_idx(Object *haystack, Object *needle, unsigned int flags)
+{
+        return find_idx_substr(haystack, needle,
+                               flags, 0, seqvar_size(haystack));
 }
 
 
@@ -1610,10 +1618,10 @@ string_capitalize(Frame *fr)
         newbuf = dst = emalloc(STRING_NBYTES(self) + 1);
 
         if ((c = *src++) != '\0')
-                *dst++ = isascii(c) ? toupper(c) : c;
+                *dst++ = c < 128 ? toupper(c) : c;
 
         while ((c = *src++) != '\0')
-                *dst++ = isascii(c) ? tolower(c) : c;
+                *dst++ = c < 128 ? tolower(c) : c;
 
         *dst = '\0';
         return stringvar_newf(newbuf, SF_COPY);
@@ -1914,19 +1922,6 @@ string_removesuffix(Frame *fr)
         return string_removelr(fr, SF_RIGHT);
 }
 
-/* helper to string_lrsplit */
-static void
-append_str_or_empty(Object *arr, const char *s)
-{
-        if (*s) {
-                Object *tmp = stringvar_newf((char *)s, SF_COPY);
-                array_append(arr, tmp);
-                VAR_DECR_REF(tmp);
-        } else {
-                array_append(arr, STRCONST_ID(mpty));
-        }
-}
-
 static Object *
 string_lrsplit(Frame *fr, unsigned int flags)
 {
@@ -1935,10 +1930,9 @@ string_lrsplit(Frame *fr, unsigned int flags)
         Object *kw = vm_get_arg(fr, 0);
         Object *separg, *maxarg;
         Object *ret;
-        char newsrc_stack[LRSPLIT_STACK_SIZE];
-        const char *sep;
-        char *newsrc;
-        int maxsplit, seplen;
+        int maxsplit;
+        size_t hwid, hlen, nwid, nlen;
+        void *hsrc, *nsrc;
         bool combine = false;
 
         bug_on(!self || !isvar_string(self));
@@ -1956,6 +1950,7 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 VAR_INCR_REF(separg);
         }
 
+
         if (arg_type_check(separg, &StringType) == RES_ERROR) {
                 ret = ErrorVar;
                 goto out;
@@ -1970,60 +1965,94 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 ret = ErrorVar;
                 goto out;
         }
-        sep = string_cstring(separg);
-        seplen = STRING_NBYTES(separg);
-        /*
-         * FIXME: Since we have stringvar_newn now,
-         * we don't need to do this anymore.
-         */
-        if (STRING_NBYTES(self) + 1 >= LRSPLIT_STACK_SIZE) {
-                newsrc = estrdup(string_cstring(self));
-        } else {
-                newsrc = newsrc_stack;
-                strcpy(newsrc, string_cstring(self));
-        }
+
+
+        hwid = V2STR(self)->s_width;
+        hlen = seqvar_size(self);
+        nwid = V2STR(separg)->s_width;
+        nlen = seqvar_size(separg);
+
         ret = arrayvar_new(0);
+        if (hlen < nlen || hwid < nwid) {
+                array_append(ret, self);
+                goto out;
+        }
+
+        hsrc = V2STR(self)->s_unicode;
+        if (nwid != hwid)
+                nsrc = widen_buffer(separg, hwid);
+        else
+                nsrc = V2STR(separg)->s_unicode;
+
         if (!!(flags & SF_RIGHT)) {
-                while (maxsplit != 0) {
-                        char *s;
-                        maxsplit--;
-
-                        s = strrstr(newsrc, sep);
-                        if (!s)
+                Object *substr;
+                while (hlen > nlen && maxsplit-- != 0) {
+                        ssize_t idx;
+                        void *found;
+                        found = memrmem(hsrc, hlen, nsrc, nlen);
+                        if (!found)
                                 break;
-
-                        memset(s, 0, seplen);
-                        append_str_or_empty(ret, s + seplen);
-
-                        while (combine && ((int)(s - newsrc) >= seplen)
-                               && memcmp(s - seplen, sep, seplen) == 0) {
-                                s -= seplen;
-                                memset(s, 0, seplen);
+                        idx = (found - hsrc) / hwid;
+                        bug_on(idx > seqvar_size(self));
+                        if (idx + nlen == hlen) {
+                                if (!combine)
+                                        array_append(ret, STRCONST_ID(mpty));
+                        } else {
+                                substr = stringvar_from_substr(self, idx + nlen, hlen);
+                                array_append(ret, substr);
+                                VAR_DECR_REF(substr);
                         }
+                        if (!combine && idx + nlen != hlen &&
+                            idx == 0 && maxsplit-- != 0) {
+                                /* last sep */
+                                array_append(ret, STRCONST_ID(mpty));
+                        }
+                        hlen = idx;
                 }
-                append_str_or_empty(ret, newsrc);
+                if (hlen) {
+                        substr = stringvar_from_substr(self, 0, hlen);
+                        array_append(ret, substr);
+                        VAR_DECR_REF(substr);
+                }
                 array_reverse(ret);
         } else {
-                char *tsrc = newsrc;
-                while (maxsplit != 0) {
-                        char *s;
-                        maxsplit--;
+                Object *substr;
+                size_t start = 0;
+                while (start < hlen && maxsplit-- != 0) {
+                        ssize_t idx;
+                        void *found;
+                        void *th = hsrc + start * hwid;
 
-                        s = strstr(tsrc, sep);
-                        if (!s)
+                        found = memmem(th, hlen - start, nsrc, nlen);
+                        if (!found)
                                 break;
 
-                        memset(s, 0, seplen);
-                        append_str_or_empty(ret, tsrc);
-                        tsrc = s + seplen;
-                        while (combine && memcmp(tsrc, sep, seplen) == 0)
-                                tsrc += seplen;
+                        idx = (found - hsrc) / hwid;
+                        bug_on(idx > seqvar_size(self));
+                        if (idx == start) {
+                                if (!combine)
+                                        array_append(ret, STRCONST_ID(mpty));
+                        } else {
+                                substr = stringvar_from_substr(self, start, idx);
+                                array_append(ret, substr);
+                                VAR_DECR_REF(substr);
+                        }
+                        if (!combine && idx + nlen == hlen &&
+                            idx != start && maxsplit-- != 0) {
+                                /* last sep */
+                                array_append(ret, STRCONST_ID(mpty));
+                        }
+                        start = idx + nlen;
                 }
-
-                append_str_or_empty(ret, tsrc);
+                if (start < hlen) {
+                        substr = stringvar_from_substr(self, start, hlen);
+                        array_append(ret, substr);
+                        VAR_DECR_REF(substr);
+                }
         }
-        if (newsrc != newsrc_stack)
-                efree(newsrc);
+
+        if (nsrc != V2STR(separg)->s_unicode)
+                efree(nsrc);
 
 out:
         VAR_DECR_REF(separg);
@@ -2567,7 +2596,7 @@ string_modulo(Object *str, Object *arg)
         } else {
                 err_setstr(TypeError,
                            "'x' in str %% x must be a list, tuple, or dictionary");
-                return ErrorVar;
+                return NULL;
         }
 }
 

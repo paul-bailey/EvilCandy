@@ -3,6 +3,7 @@
 #include "token.h"
 #include <setjmp.h>
 #include <stdlib.h>
+#include <unistd.h> /* isatty */
 
 /* Token errors, args to longjmp(state->env) */
 enum {
@@ -61,9 +62,13 @@ struct token_state_t {
         char fstring;
         size_t fstring_pos;
         jmp_buf env;
+        const char *prompt;
 };
 
 static void token_state_free_(struct token_state_t *state, bool free_self);
+
+static const char *EVILCANDY_PS1 = "evc> ";
+static const char *EVILCANDY_PS2 = " ... ";
 
 /* may be in identifier */
 static inline bool
@@ -83,6 +88,12 @@ static int
 tok_next_line(struct token_state_t *state)
 {
         int res = -1;
+
+        if (state->prompt) {
+                fprintf(stderr, "%s", state->prompt);
+                fflush(stderr);
+                state->prompt = EVILCANDY_PS2;
+        }
 
         if (state->fp)
                 res = egetline(&state->line, &state->_slen, state->fp);
@@ -743,6 +754,10 @@ token_init_state(struct token_state_t *state, FILE *fp, const char *filename)
          * is more overhead than it's worth
          */
         state->dedup = fp ? dictvar_new() : NULL;
+        if (fp && isatty(fileno(fp)))
+                state->prompt = EVILCANDY_PS1;
+        else
+                state->prompt = NULL;
 }
 
 #define TOKBUF(state_) ((struct token_t *)(state_)->pgm.s)

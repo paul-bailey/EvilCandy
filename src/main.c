@@ -176,6 +176,8 @@ run_tty(void)
                         VAR_DECR_REF(ex);
                 }
         }
+        fprintf(stderr, "\n");
+        fflush(stderr);
 }
 
 int

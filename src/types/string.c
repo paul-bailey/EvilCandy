@@ -1336,53 +1336,79 @@ string_strip(Frame *fr)
 static Object *
 string_replace(Frame *fr)
 {
-        struct buffer_t b;
-        Object *self    = get_this(fr);
-        Object *vneedle = frame_get_arg(fr, 0);
-        Object *vrepl   = frame_get_arg(fr, 1);
-        const char *haystack, *needle, *end;
-        size_t needle_len;
+        struct string_writer_t wr;
+        Object *haystack, *needle, *repl;
+        size_t hlen, nlen, hwid, nwid, start;
+        void *hsrc, *nsrc;
+        size_t wr_wid;
 
-        if (arg_type_check(self, &StringType) == RES_ERROR)
+        haystack = vm_get_this(fr);
+        needle = vm_get_arg(fr, 0);
+        repl = vm_get_arg(fr, 1);
+
+        if (arg_type_check(haystack, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(vneedle, &StringType) == RES_ERROR)
+        if (arg_type_check(needle, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(vrepl, &StringType) == RES_ERROR)
+        if (arg_type_check(repl, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        buffer_init(&b);
+        nwid = string_width(needle);
+        hwid = string_width(haystack);
+        nlen = seqvar_size(needle);
+        hlen = seqvar_size(haystack);
 
-        /* end not technically needed, but in case of match() bugs */
-        haystack = V2CSTR(self);
-        end = haystack + STRING_LENGTH(self);
-        needle = V2CSTR(vneedle);
-        needle_len = STRING_LENGTH(vneedle);
+        if (hlen < nlen || hwid < nwid || nlen == 0)
+                return VAR_NEW_REF(haystack);
 
-        if (!haystack || end == haystack) {
-                buffer_putc(&b, '\0');
-                goto done;
+        hsrc = string_data(haystack);
+        if (nwid != hwid)
+                nsrc = widen_buffer(needle, hwid);
+        else
+                nsrc = string_data(needle);
+
+        /*
+         * We don't know if repl will remove widest chars in haystack,
+         * nor do we know if repl, which could have larger chars, is
+         * even going to be inserted, so assume the smaller of the
+         * two sizes and correct ourselves later.
+         */
+        wr_wid = string_width(repl);
+        if (wr_wid > hwid)
+                wr_wid = hwid;
+        string_writer_init(&wr, wr_wid);
+
+        start = 0;
+        while (start < hlen) {
+                size_t idx;
+                void *found;
+                void *th = hsrc + start * hwid;
+
+                found = memmem(th, hlen - start, nsrc, nlen);
+                if (!found) {
+                        if (start == 0)
+                                goto return_self;
+                        string_writer_appendb(&wr, th, hwid, hlen - start);
+                        break;
+                }
+
+                idx = (size_t)(found - hsrc) / hwid;
+                bug_on(idx >= hlen);
+                if (idx != start)
+                        string_writer_appendb(&wr, th, hwid, idx - start);
+                string_writer_append_strobj(&wr, repl);
+                start = idx + nlen;
         }
+        if (nsrc != string_data(needle))
+                efree(nsrc);
 
-        if (!needle || !needle_len) {
-                buffer_puts(&b, V2CSTR(self));
-                goto done;
-        }
+        return stringvar_from_writer(&wr);
 
-        while (*haystack && haystack < end) {
-                ssize_t size;
-                void *found = strstr(haystack, needle);
-                if (!found)
-                         break;
-                size = (char *)found - haystack;
-                buffer_nputs(&b, haystack, size);
-                buffer_puts(&b, V2CSTR(vrepl));
-                haystack += size + needle_len;
-        }
-        bug_on(haystack > end);
-        if (*haystack != '\0')
-                buffer_puts(&b, haystack);
-done:
-        return stringvar_newf(buffer_trim(&b), 0);
+return_self:
+        string_writer_destroy(&wr);
+        if (nsrc != string_data(needle))
+                efree(nsrc);
+        return VAR_NEW_REF(haystack);
 }
 
 static Object *

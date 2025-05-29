@@ -26,8 +26,8 @@ evilcandy_SOURCES = \
         src/op.c \
         src/path.c \
         src/reassemble.c \
-        src/str2enum.c \
         src/string_writer.c \
+        src/strto.c \
         src/token.c \
         src/utf8.c \
         src/uuid.c \

@@ -26,21 +26,12 @@ bytesvar_newf(const unsigned char *buf, size_t len, unsigned int flags)
 }
 
 /* XXX: DRY violation with string.c */
-static bool is_alnum(unsigned int c) { return c < 128 && isalnum(c); }
-static bool is_alpha(unsigned int c) { return c < 128 && isalpha(c); }
-static bool is_ascii(unsigned int c) { return c < 128; }
-static bool is_digit(unsigned int c) { return c < 128 && isdigit(c); }
-static bool is_lower(unsigned int c) { return c < 128 && islower(c); }
-static bool is_space(unsigned int c) { return c < 128 && isspace(c); }
-static bool is_upper(unsigned int c) { return c < 128 && isupper(c); }
-static unsigned int to_upper(unsigned int c)
-        { return c < 128 ? toupper(c) : c; }
-static unsigned int to_lower(unsigned int c)
-        { return c < 128 ? tolower(c) : c; }
-static unsigned int
-to_swapcase(unsigned int c)
+static unsigned long
+to_swapcase(unsigned long c)
 {
-        return is_lower(c) ? toupper(c) : (is_upper(c) ? tolower(c) : c);
+        return evc_islower(c)
+                ? toupper(c)
+                : (evc_isupper(c) ? tolower(c) : c);
 }
 
 /*
@@ -1036,9 +1027,9 @@ do_bytes_capitalize(Frame *fr)
 
         newbuf = dst = emalloc(selflen);
         if (selflen)
-                dst[0] = to_upper(self[0]);
+                dst[0] = evc_toupper(self[0]);
         for (i = 1; i < selflen; i++)
-                dst[i] = to_lower(self[i]);
+                dst[i] = evc_tolower(self[i]);
         return bytesvar_newf(newbuf, selflen, 0);
 }
 
@@ -1099,7 +1090,7 @@ do_bytes_expandtabs(Frame *fr)
 }
 
 static Object *
-bytes_is(Frame *fr, bool (*tst)(unsigned int))
+bytes_is(Frame *fr, bool (*tst)(unsigned long))
 {
         Object *self = vm_get_this(fr);
         const unsigned char *p8;
@@ -1120,47 +1111,46 @@ bytes_is(Frame *fr, bool (*tst)(unsigned int))
         return VAR_NEW_REF(gbl.one);
 }
 
-
 static Object *
 do_bytes_isalnum(Frame *fr)
 {
-        return bytes_is(fr, is_alnum);
+        return bytes_is(fr, evc_isalnum);
 }
 
 static Object *
 do_bytes_isalpha(Frame *fr)
 {
-        return bytes_is(fr, is_alpha);
+        return bytes_is(fr, evc_isalpha);
 }
 
 static Object *
 do_bytes_isascii(Frame *fr)
 {
-        return bytes_is(fr, is_ascii);
+        return bytes_is(fr, evc_isascii);
 }
 
 static Object *
 do_bytes_isdigit(Frame *fr)
 {
-        return bytes_is(fr, is_digit);
+        return bytes_is(fr, evc_isdigit);
 }
 
 static Object *
 do_bytes_islower(Frame *fr)
 {
-        return bytes_is(fr, is_lower);
+        return bytes_is(fr, evc_islower);
 }
 
 static Object *
 do_bytes_isspace(Frame *fr)
 {
-        return bytes_is(fr, is_space);
+        return bytes_is(fr, evc_isspace);
 }
 
 static Object *
 do_bytes_isupper(Frame *fr)
 {
-        return bytes_is(fr, is_upper);
+        return bytes_is(fr, evc_isupper);
 }
 
 static Object *
@@ -1181,10 +1171,10 @@ do_bytes_istitle(Frame *fr)
         len = seqvar_size(self);
         for (i = 0; i < len; i++) {
                 int c = p8[i];
-                if (!is_alpha(c)) {
+                if (!evc_isalpha(c)) {
                         first = true;
                 } else if (first) {
-                        if (is_lower(c))
+                        if (evc_islower(c))
                                 return VAR_NEW_REF(gbl.zero);
                         first = false;
                 }
@@ -1193,7 +1183,7 @@ do_bytes_istitle(Frame *fr)
 }
 
 static Object *
-bytes_convert_case(Frame *fr, unsigned int (*convert)(unsigned int))
+bytes_convert_case(Frame *fr, unsigned long (*convert)(unsigned long))
 {
         Object *self;
         unsigned char *dst;
@@ -1219,7 +1209,7 @@ bytes_convert_case(Frame *fr, unsigned int (*convert)(unsigned int))
 static Object *
 do_bytes_lower(Frame *fr)
 {
-        return bytes_convert_case(fr, to_lower);
+        return bytes_convert_case(fr, evc_tolower);
 }
 
 static Object *
@@ -1231,7 +1221,7 @@ do_bytes_swapcase(Frame *fr)
 static Object *
 do_bytes_upper(Frame *fr)
 {
-        return bytes_convert_case(fr, to_upper);
+        return bytes_convert_case(fr, evc_toupper);
 }
 
 static Object *
@@ -1302,7 +1292,7 @@ do_bytes_title(Frame *fr)
         first = true;
         for (i = 0; i < selflen; i++) {
                 unsigned int c = self[i];
-                if (is_alpha(c)) {
+                if (evc_isalpha(c)) {
                         if (first) {
                                 c = toupper(c);
                                 first = false;

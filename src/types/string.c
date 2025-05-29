@@ -73,14 +73,6 @@ string_data(Object *str)
         return V2STR(str)->s_unicode;
 }
 
-static bool is_alnum(unsigned int c) { return c < 128 && isalnum(c); }
-static bool is_alpha(unsigned int c) { return c < 128 && isalpha(c); }
-static bool is_digit(unsigned int c) { return c < 128 && isdigit(c); }
-static bool is_printable(unsigned int c) { return c < 128 && isprint(c); }
-static bool is_space(unsigned int c) { return c < 128 && isspace(c); }
-static bool is_upper(unsigned int c) { return c < 128 && isupper(c); }
-static bool is_lower(unsigned int c) { return c < 128 && islower(c); }
-
 static long
 string_getidx(Object *str, size_t idx)
 {
@@ -464,8 +456,7 @@ again:
         return RES_OK;
 
 err:
-        if (wr.p.p)
-                efree(wr.p.p);
+        string_writer_destroy(&wr);
         return RES_ERROR;
 }
 
@@ -964,7 +955,7 @@ parse_fmt_args(Object *fmt, struct fmt_args_t *args, size_t pos, int endchr)
                 }
         }
 
-        while (is_digit(point)) {
+        while (evc_isdigit(point)) {
                 args->padlen *= 10;
                 args->padlen += (point - '0');
                 if (pos == n)
@@ -977,7 +968,7 @@ parse_fmt_args(Object *fmt, struct fmt_args_t *args, size_t pos, int endchr)
                 if (pos == n)
                         goto eos;
                 point = string_getidx(fmt, pos++);
-                while (is_digit(point)) {
+                while (evc_isdigit(point)) {
                         args->precision *= 10;
                         args->precision += (point - '0');
                         if (pos == n)
@@ -1568,10 +1559,10 @@ string_capitalize(Frame *fr)
         newbuf = dst = emalloc(STRING_NBYTES(self) + 1);
 
         if ((c = *src++) != '\0')
-                *dst++ = c < 128 ? toupper(c) : c;
+                *dst++ = evc_toupper(c);
 
         while ((c = *src++) != '\0')
-                *dst++ = c < 128 ? tolower(c) : c;
+                *dst++ = evc_tolower(c);
 
         *dst = '\0';
         return stringvar_newf(newbuf, SF_COPY);
@@ -2166,7 +2157,7 @@ string_is1(Frame *fr, bool (*cb)(Object *))
 }
 
 static Object *
-string_is2(Frame *fr, bool (*tst)(unsigned int c))
+string_is2(Frame *fr, bool (*tst)(unsigned long c))
 {
         Object *ret;
         Object *self = vm_get_this(fr);
@@ -2202,12 +2193,12 @@ is_ident(Object *str)
         bug_on(n == 0);
 
         point = string_getidx(str, 0);
-        if (point != '_' && !is_alpha(point))
+        if (point != '_' && !evc_isalpha(point))
                 return false;
 
         for (i = 1; i < n; i++) {
                 point = string_getidx(str, i);
-                if (!is_alnum(point) && point != '_')
+                if (!evc_isalnum(point) && point != '_')
                         return false;
         }
         return true;
@@ -2221,10 +2212,10 @@ is_title(Object *str)
         bug_on(n == 0);
         for (i = 0; i < n; i++) {
                 long point = string_getidx(str, i);
-                if (!is_alpha(point)) {
+                if (!evc_isalpha(point)) {
                         first = true;
                 } else if (first) {
-                        if (is_lower(point))
+                        if (evc_islower(point))
                                 return false;
                         first = false;
                 }
@@ -2239,10 +2230,10 @@ static Object *string_istitle(Frame *fr)
         { return string_is1(fr, is_title); }
 
 static Object *string_isalnum(Frame *fr)
-        { return string_is2(fr, is_alnum); }
+        { return string_is2(fr, evc_isalnum); }
 
 static Object *string_isalpha(Frame *fr)
-        { return string_is2(fr, is_alpha); }
+        { return string_is2(fr, evc_isalpha); }
 
 /* FIXME: Skip the scan, just return V2STR(self)->s_ascii. */
 /* named funny, because string_isascii is an API func */
@@ -2259,16 +2250,16 @@ string_isascii_mthd(Frame *fr)
 }
 
 static Object *string_isdigit(Frame *fr)
-        { return string_is2(fr, is_digit); }
+        { return string_is2(fr, evc_isdigit); }
 
 static Object *string_isprintable(Frame *fr)
-        { return string_is2(fr, is_printable); }
+        { return string_is2(fr, evc_isprint); }
 
 static Object *string_isspace(Frame *fr)
-        { return string_is2(fr, is_space); }
+        { return string_is2(fr, evc_isspace); }
 
 static Object *string_isupper(Frame *fr)
-        { return string_is2(fr, is_upper); }
+        { return string_is2(fr, evc_isupper); }
 
 /*
  * string case-swapping & helpers
@@ -2290,12 +2281,12 @@ string_title(Frame *fr)
         dst = newbuf = emalloc(STRING_NBYTES(self) + 1);
         first = true;
         while ((c = *src++) != '\0') {
-                if (c < 128 && isalpha(c)) {
+                if (evc_isalpha(c)) {
                         if (first) {
-                                c = toupper(c);
+                                c = evc_toupper(c);
                                 first = false;
                         } else {
-                                c = tolower(c);
+                                c = evc_tolower(c);
                         }
                 } else {
                         first = true;
@@ -2308,7 +2299,7 @@ string_title(Frame *fr)
 }
 
 static Object *
-string_to(Frame *fr, int (*cb)(unsigned int))
+string_to(Frame *fr, unsigned long (*cb)(unsigned long))
 {
         Object *self;
         const char *src;
@@ -2328,18 +2319,14 @@ string_to(Frame *fr, int (*cb)(unsigned int))
         return stringvar_newf(newbuf, 0);
 }
 
-static int to_lower(unsigned int c)
-        { return c < 128 ? tolower(c) : c; }
-static int to_upper(unsigned int c)
-        { return c < 128 ? toupper(c) : c; }
-static int
-to_swap(unsigned int c)
+static unsigned long
+to_swap(unsigned long c)
 {
         if (c < 128) {
-                if (isupper(c))
-                        c = tolower(c);
-                else if (islower(c))
-                        c = toupper(c);
+                if (evc_isupper(c))
+                        c = evc_tolower(c);
+                else if (evc_islower(c))
+                        c = evc_toupper(c);
         }
         return c;
 }
@@ -2347,7 +2334,7 @@ to_swap(unsigned int c)
 static Object *
 string_lower(Frame *fr)
 {
-        return string_to(fr, to_lower);
+        return string_to(fr, evc_tolower);
 }
 
 static Object *
@@ -2359,7 +2346,7 @@ string_swapcase(Frame *fr)
 static Object *
 string_upper(Frame *fr)
 {
-        return string_to(fr, to_upper);
+        return string_to(fr, evc_toupper);
 }
 
 static struct type_inittbl_t string_methods[] = {
@@ -2437,7 +2424,7 @@ string_str(Object *v)
                 } else if (c == BKSL) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, BKSL);
-                } else if (c < 128 && isspace(c)) {
+                } else if (evc_isspace(c)) {
                         switch (c) {
                         case ' ': /* this one's ok */
                                 buffer_putc(&b, c);
@@ -2460,7 +2447,7 @@ string_str(Object *v)
                         }
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, c);
-                } else if (c < 128 && !isgraph(c)) {
+                } else if (!evc_isgraph(c)) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, ((c >> 6) & 0x03) + '0');
                         buffer_putc(&b, ((c >> 3) & 0x07) + '0');
@@ -2806,9 +2793,9 @@ string_format(Object *str, Object *tup)
                                         goto bad_format;
                                 i = newpos;
                         } else {
-                                if (is_digit(point)) {
+                                if (evc_isdigit(point)) {
                                         long newargi = 0;
-                                        while (is_digit(point)) {
+                                        while (evc_isdigit(point)) {
                                                 newargi *= 10;
                                                 newargi += (point - '0');
                                                 if (i == n)

@@ -74,21 +74,38 @@ string_data(Object *str)
 }
 
 static long
+string_getidx_raw(size_t width, const void *unicode, size_t idx)
+{
+        if (width == 1) {
+                return ((uint8_t *)unicode)[idx];
+        } else if (width == 2) {
+                return ((uint16_t *)unicode)[idx];
+        } else {
+                bug_on(width != 4);
+                return ((uint32_t *)unicode)[idx];
+        }
+}
+
+/* Only used by stringvar_from_points, otherwise violates immutability */
+static void
+string_setidx_raw(size_t width, void *unicode,
+                  size_t idx, unsigned long point)
+{
+        if (width == 1) {
+                ((uint8_t *)unicode)[idx] = point;
+        } else if (width == 2) {
+                ((uint16_t *)unicode)[idx] = point;
+        } else {
+                bug_on(width != 4);
+                ((uint32_t *)unicode)[idx] = point;
+        }
+}
+
+static long
 string_getidx(Object *str, size_t idx)
 {
-        if (idx >= seqvar_size(str))
-                return -1;
-        switch (V2STR(str)->s_width) {
-        case 1:
-                return ((uint8_t *)V2STR(str)->s_unicode)[idx];
-        case 2:
-                return ((uint16_t *)V2STR(str)->s_unicode)[idx];
-        case 4:
-                return ((uint32_t *)V2STR(str)->s_unicode)[idx];
-        default:
-                bug();
-                return 0;
-        }
+        bug_on(idx >= seqvar_size(str));
+        return string_getidx_raw(string_width(str), string_data(str), idx);
 }
 
 static void
@@ -134,45 +151,10 @@ stringvar_newf(char *cstr, unsigned int flags)
          * it, we never hash.
          */
         vs->s_hash = 0;
-        vs->s_unicode = utf8_decode(vs->s, &vs->s_width, &vs->s_enc_len,
-                                    &vs->s_ascii);
+        vs->s_unicode = utf8_decode(vs->s, &vs->s_width,
+                                    &vs->s_enc_len, &vs->s_ascii);
         seqvar_set_size(ret, vs->s_enc_len);
         return ret;
-}
-
-static unsigned long
-point_from_raw_buf(const void *buf, size_t idx, size_t width)
-{
-        const void *p = buf + idx * width;
-        switch (width) {
-        default:
-                bug();
-        case 1:
-                return *(uint8_t *)p;
-        case 2:
-                return *(uint16_t *)p;
-        case 4:
-                return *(uint32_t *)p;
-        }
-}
-
-static void
-point_to_raw_buf(void *buf, size_t idx, size_t width, unsigned long point)
-{
-        void *p = buf + idx * width;
-        switch (width) {
-        default:
-                bug();
-        case 1:
-                *(uint8_t *)p = point;
-                break;
-        case 2:
-                *(uint16_t *)p = point;
-                break;
-        case 4:
-                *(uint32_t *)p = point;
-                break;
-        }
 }
 
 static size_t
@@ -204,7 +186,7 @@ stringvar_from_points(void *points, size_t width,
         ascii = 1;
         buffer_init(&b);
         for (i = 0; i < len; i++) {
-                uint32_t point = point_from_raw_buf(points, i, width);
+                uint32_t point = string_getidx_raw(width, points, i);
                 if (point > maxchr)
                         maxchr = point;
 
@@ -251,9 +233,10 @@ stringvar_from_points(void *points, size_t width,
                                 vs->s_unicode = emalloc(len * correct_width);
                                 for (i = 0; i < len; i++) {
                                         long point;
-                                        point = point_from_raw_buf(points, i, width);
-                                        point_to_raw_buf(vs->s_unicode, i,
-                                                         correct_width, point);
+                                        point = string_getidx_raw(width,
+                                                        points, i);
+                                        string_setidx_raw(correct_width,
+                                                        vs->s_unicode, i, point);
                                 }
                                 vs->s_width = correct_width;
                         }
@@ -2470,6 +2453,7 @@ string_str(Object *v)
                                 sprintf(buf, "%04x", (int)c);
                                 buffer_puts(&b, buf);
                         } else {
+                                /* XXX Hex is more compact than octal */
                                 buffer_putc(&b, ((c >> 6) & 0x03) + '0');
                                 buffer_putc(&b, ((c >> 3) & 0x07) + '0');
                                 buffer_putc(&b, (c & 0x07) + '0');

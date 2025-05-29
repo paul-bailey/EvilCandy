@@ -4,11 +4,13 @@ print("Between quotes should look like two chars: '%-2s'"
        % ["\U0001f600"]);
 print("Do these column numbers look properly justified?");
 (function() {
+    /* modulo string */
     for (i, range(5, 125, 20)) {
         print("%-4d%04d 0x%08X" % (i, i, i));
     }
+    /* f-string */
     for (i, range(5, 125, 20)) {
-        print("%12.6E %12.4f %4d" % (i, i, i));
+        print(f"{i:12.6E} {i:12.4f} {i:4d}");
     }
 })();
 

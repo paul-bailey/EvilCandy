@@ -522,6 +522,34 @@ find_idx(Object *haystack, Object *needle, unsigned int flags)
                                flags, 0, seqvar_size(haystack));
 }
 
+/*
+ * Starting with @startpoint (known to be between '0' and '9' inclusive),
+ * parse @str from @pos, to complete the number, and return the number.
+ *
+ * Return: Positive base-10 integer value, or -1 if number too big to fit
+ *         into a signed int.
+ */
+static int
+str_finish_digit(Object *str, size_t *pos, long startpoint)
+{
+        size_t len = seqvar_size(str);
+        size_t tpos = *pos;
+        int res = startpoint - '0';
+        while (tpos < len) {
+                long point = string_getidx(str, tpos);
+                if (point < '0' || point > '9')
+                        break;
+                if (res > INT_MAX / 10) {
+                        err_setstr(RangeError, "Number to high");
+                        return -1;
+                }
+                res = res * 10 + (point - '0');
+                tpos++;
+        }
+        *pos = tpos;
+        return res;
+}
+
 
 /* **********************************************************************
  *                      format2 and helpers
@@ -938,9 +966,10 @@ parse_fmt_args(Object *fmt, struct fmt_args_t *args, size_t pos, int endchr)
                 }
         }
 
-        while (evc_isdigit(point)) {
-                args->padlen *= 10;
-                args->padlen += (point - '0');
+        if (point < '0' || point > '9') {
+                args->padlen = str_finish_digit(fmt, &pos, point);
+                if ((int)args->padlen < 0)
+                        return -1;
                 if (pos == n)
                         goto eos;
                 point = string_getidx(fmt, pos++);
@@ -951,9 +980,10 @@ parse_fmt_args(Object *fmt, struct fmt_args_t *args, size_t pos, int endchr)
                 if (pos == n)
                         goto eos;
                 point = string_getidx(fmt, pos++);
-                while (evc_isdigit(point)) {
-                        args->precision *= 10;
-                        args->precision += (point - '0');
+                if (point < '0' || point > '9') {
+                        args->precision = str_finish_digit(fmt, &pos, point);
+                        if ((int)args->precision < 0)
+                                return -1;
                         if (pos == n)
                                 goto eos;
                         point = string_getidx(fmt, pos++);
@@ -2536,6 +2566,7 @@ string_cmpz(Object *a)
         return s ? s[0] == '\0' : true;
 }
 
+/* TODO: if arg=string, replace '%[fmt-args]' with arg */
 static Object *
 string_modulo(Object *str, Object *arg)
 {
@@ -2783,15 +2814,9 @@ string_format(Object *str, Object *tup)
                                 i = newpos;
                         } else {
                                 if (evc_isdigit(point)) {
-                                        long newargi = 0;
-                                        while (evc_isdigit(point)) {
-                                                newargi *= 10;
-                                                newargi += (point - '0');
-                                                if (i == n)
-                                                        goto bad_format;
-                                                point = string_getidx(str, i++);
-                                        }
-                                        argi = newargi;
+                                        argi = str_finish_digit(str, &i, point);
+                                        if ((int)argi < 0)
+                                                goto bad_format;
                                 }
                                 /*
                                  * TODO: if point is ident, use

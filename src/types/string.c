@@ -1587,18 +1587,45 @@ static Object *
 string_count(Frame *fr)
 {
         int count;
-        Object *self = vm_get_this(fr);
-        Object *arg = vm_get_arg(fr, 0);
+        Object *haystack, *needle;
+        size_t hlen, nlen, hwid, nwid;
+        void *hsrc, *nsrc;
 
-        if (arg_type_check(self, &StringType) == RES_ERROR)
+        haystack = vm_get_this(fr);
+        needle = vm_get_arg(fr, 0);
+        if (arg_type_check(haystack, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(arg, &StringType) == RES_ERROR)
+        if (arg_type_check(needle, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        /* XXX: Consistent to do with encoded C strings? */
-        count = memcount(string_cstring(self), STRING_NBYTES(self),
-                         string_cstring(arg), STRING_NBYTES(arg));
+        hlen = seqvar_size(haystack);
+        nlen = seqvar_size(needle);
+        hwid = string_width(haystack);
+        nwid = string_width(needle);
+        if (hlen < nlen || hwid < nwid || hlen == 0 || nlen == 0) {
+                count = 0;
+                goto done;
+        }
+        hsrc = string_data(haystack);
+        if (nwid != hwid)
+                nsrc = widen_buffer(needle, hwid);
+        else
+                nsrc = string_data(needle);
 
+        size_t i = 0;
+        count = 0;
+        while (i + nlen <= hlen) {
+                if (!memcmp(hsrc + i * hwid, nsrc, nlen * hwid)) {
+                        count++;
+                        i += nlen;
+                } else {
+                        i++;
+                }
+        }
+        if (nsrc != string_data(needle))
+                efree(nsrc);
+
+done:
         return count ? intvar_new(count) : VAR_NEW_REF(gbl.zero);
 }
 

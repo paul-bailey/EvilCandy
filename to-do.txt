@@ -74,6 +74,8 @@ Must Do
 Library/Language Features
 -------------------------
 
+* Parse UnicodeData.txt to make a Unicode version of ctype.h
+
 * Support generators and comprehensions
 
 * Add serial-port, socket libraries

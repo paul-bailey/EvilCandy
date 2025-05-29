@@ -61,6 +61,8 @@ initialize_string_consts(void)
 {
         /* Keep sync'd with evcenums.h */
         static const char *STRCONST_CSTR[N_STRCONST] = {
+                STRCONST_CSTR(byteorder),
+                STRCONST_CSTR(encoding),
                 STRCONST_CSTR(end),
                 STRCONST_CSTR(file),
                 STRCONST_CSTR(keepends),

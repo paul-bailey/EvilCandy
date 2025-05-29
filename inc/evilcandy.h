@@ -130,6 +130,16 @@ extern FILE *find_import(const char *cur_path, const char *file_name,
 extern void pop_path(FILE *fp);
 extern FILE *push_path(const char *filename);
 
+/* str2enum.c */
+struct str2enum_t {
+        const char *s;
+        int v;
+};
+extern enum result_t str2enum(const struct str2enum_t *t,
+                              const char *s, int *value);
+extern enum result_t strobj2enum(const struct str2enum_t *t, Object *str,
+                              int *value, int suppress, const char *what);
+
 /* types/array.c */
 extern Object *arrayvar_new(int n_items);
 extern Object *arrayvar_from_stack(Object **items, int n_items, bool consume);
@@ -160,7 +170,8 @@ extern Object *floatvar_new(double value);
 /* types/floats.c */
 extern Object *floatsvar_from_bytes(Object *v,
                                     enum floats_enc_t enc, int le);
-extern Object *floatsvar_from_list(Object *v);
+extern Object *floatsvar_from_array(Object **data, size_t n);
+extern Object *floatsvar_from_text(Object *str, const char *sep);
 
 /* types/function.c */
 extern Object *funcvar_new_user(Object *ex);

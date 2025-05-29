@@ -523,27 +523,10 @@ do_min(Frame *fr)
         return res;
 }
 
-struct str2enum_t {
-        const char *s;
-        int v;
-};
-
-/* XXX: This seems basic enough to put in helpers.c */
-static const struct str2enum_t *
-str2enum(const struct str2enum_t *t, const char *s)
-{
-        while (t->s != NULL) {
-                if (!strcmp(t->s, s))
-                        return t;
-                t++;
-        }
-        return NULL;
-}
-
 static Object *
 do_floats(Frame *fr)
 {
-        static const struct str2enum_t floats_enc_strs[] = {
+        static const struct str2enum_t floats_binenc_strs[] = {
                 { .s = "binary64", .v = FLOATS_BINARY64 },
                 { .s = "binary32", .v = FLOATS_BINARY32 },
                 { .s = "uint64",   .v = FLOATS_UINT64 },
@@ -551,69 +534,83 @@ do_floats(Frame *fr)
                 { .s = NULL }
         };
         static const struct str2enum_t floats_endian_strs[] = {
-                { .s = "network",       .v = 0 },
-                { .s = "bigendian",     .v = 0 },
-                { .s = "big-endian",    .v = 0 },
-                { .s = "be",            .v = 0 },
-                { .s = "littleendian",  .v = 1 },
-                { .s = "little-endian", .v = 1 },
-                { .s = "le",            .v = 1 },
+                { .s = "big",           .v = 0 },
+                { .s = "little",        .v = 1 },
                 { NULL }
         };
 
-        Object *v, *enc_arg, *le_arg;
-        const char *s_enc, *s_le;
-        enum floats_enc_t enc;
-        int le, argc;
-        const struct str2enum_t *t;
+        Object *src, *kw, *separg, *encarg, *endarg, *ret;
 
-        argc = vm_get_argc(fr);
-        bug_on(argc == 0);
-        v = vm_get_arg(fr, 0);
-        if (isvar_array(v)) {
-                if (argc > 1) {
-                        err_setstr(ArgumentError,
-                                   "floats() accepts only one argument if list");
-                        return ErrorVar;
+        src = vm_get_arg(fr, 0);
+        kw = vm_get_arg(fr, 1);
+
+        bug_on(!src);
+        bug_on(!kw || !isvar_dict(kw));
+
+        dict_unpack(kw,
+                STRCONST_ID(sep),       &separg, NullVar,
+                STRCONST_ID(encoding),  &encarg, NullVar,
+                STRCONST_ID(byteorder), &endarg, NullVar,
+                NULL);
+
+        /* guilty until proven innocent */
+        ret = ErrorVar;
+        if ((encarg != NullVar && !isvar_string(encarg)) ||
+            (separg != NullVar && !isvar_string(separg)) ||
+            (endarg != NullVar && !isvar_string(endarg))) {
+                err_setstr(TypeError,
+                           "floats() accepts only string-type keyword arguments");
+                goto out;
+        }
+
+        if (isvar_array(src) || isvar_tuple(src)) {
+                size_t len = seqvar_size(src);
+                Object **data = isvar_array(src)
+                                ? array_get_data(src)
+                                : tuple_get_data(src);
+                /*
+                 * Ignore encoding, len.  Exception will be set by
+                 * floatsvar_from_array() if it fails.
+                 */
+                ret = floatsvar_from_array(data, len);
+        } else if (isvar_bytes(src)) {
+                int le, enc;
+                if (encarg == NullVar) {
+                        err_setstr(ValueError,
+                                   "Cannot create floats from bytes without encoding");
+                        goto out;
                 }
-                return floatsvar_from_list(v);
-        } else if (!isvar_bytes(v)) {
-                err_setstr(TypeError,
-                           "Invalid type '%s' for floats()",
-                           typestr(v));
-                return ErrorVar;
+                if (strobj2enum(floats_binenc_strs, encarg,
+                                &enc, 0, "encoding") == RES_ERROR) {
+                        goto out;
+                }
+
+                if (endarg == NullVar) {
+                        le = 0;
+                } else {
+                        if (strobj2enum(floats_endian_strs, endarg,
+                                        &le, 0, "byteorder") == RES_ERROR) {
+                                goto out;
+                        }
+                }
+                ret = floatsvar_from_bytes(src, enc, le);
+        } else if (isvar_string(src)) {
+                const char *sep;
+                if (separg == NullVar)
+                        sep = NULL;
+                else
+                        sep = string_cstring(separg);
+                ret = floatsvar_from_text(src, sep);
+        } else {
+                err_setstr(ValueError, "Invalid type '%s' for floats()",
+                           typestr(src));
         }
 
-        /* bytes version */
-        enc_arg = vm_get_arg(fr, 1);
-        le_arg = vm_get_arg(fr, 2);
-        bug_on(!enc_arg);
-        if (!le_arg) {
-                err_setstr(TypeError,
-                        "Required: endianness argument for floats(bytes)");
-                return ErrorVar;
-        }
-        if (arg_type_check(enc_arg, &StringType) != RES_OK)
-                return ErrorVar;
-        if (arg_type_check(le_arg, &StringType) != RES_OK)
-                return ErrorVar;
-        s_enc = string_cstring(enc_arg);
-        s_le  = string_cstring(le_arg);
-
-        t = str2enum(floats_enc_strs, s_enc);
-        if (!t) {
-                err_setstr(ValueError, "Invalid encoding '%s'", s_enc);
-                return ErrorVar;
-        }
-        enc = t->v;
-
-        t = str2enum(floats_endian_strs, s_le);
-        if (!t) {
-                err_setstr(ValueError, "Invalid endianness '%s'", s_le);
-                return ErrorVar;
-        }
-        le = t->v;
-        return floatsvar_from_bytes(v, enc, le);
+out:
+        VAR_DECR_REF(separg);
+        VAR_DECR_REF(encarg);
+        VAR_DECR_REF(endarg);
+        return ret;
 }
 
 static Object *
@@ -642,7 +639,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("abs",    do_abs,    1, 1, -1, -1),
         V_INITTBL("all",    do_all,    1, 1, -1, -1),
         V_INITTBL("any",    do_any,    1, 1, -1, -1),
-        V_INITTBL("floats", do_floats, 1, 3, -1, -1),
+        V_INITTBL("floats", do_floats, 2, 2, -1,  1),
         V_INITTBL("int",    do_int,    1, 2, -1, -1),
         V_INITTBL("length", do_length, 1, 1, -1, -1),
         V_INITTBL("list",   do_list,   1, 1, -1, -1),

@@ -77,7 +77,9 @@ enum result_t {
  */
 enum {
         /* enum after STRCONST_IDX_ is same as string */
-        STRCONST_IDX_end = 0,
+        STRCONST_IDX_byteorder = 0,
+        STRCONST_IDX_encoding,
+        STRCONST_IDX_end,
         STRCONST_IDX_file,
         STRCONST_IDX_keepends,
         STRCONST_IDX_maxsplit,

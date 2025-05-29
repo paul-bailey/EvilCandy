@@ -4,8 +4,19 @@
  *            would be too cumbersome.
  */
 #include <evilcandy.h>
+#include <errno.h>
+#include <stdlib.h>
 
 #define V2FLTS(v_)      ((struct floatsvar_t *)(v_))
+
+static Object *
+floatsvar_new(double *data, size_t n)
+{
+        Object *ret = var_new(&FloatsType);
+        seqvar_set_size(ret, n);
+        V2FLTS(ret)->data = data;
+        return ret;
+}
 
 static Object *
 floats_str(Object *self)
@@ -73,7 +84,6 @@ floats_cat(Object *a, Object *b)
 {
         /* # of floats, not bytes */
         size_t alen, blen, clen;
-        Object *c;
         double *adat, *bdat, *cdat;
 
         bug_on(!isvar_floats(a));
@@ -89,10 +99,7 @@ floats_cat(Object *a, Object *b)
         memcpy(cdat, adat, alen * sizeof(double));
         memcpy(&cdat[alen], bdat, blen * sizeof(double));
 
-        c = var_new(&FloatsType);
-        seqvar_set_size(c, clen);
-        V2FLTS(c)->data = cdat;
-        return c;
+        return floatsvar_new(cdat, clen);
 }
 
 static Object *
@@ -199,18 +206,23 @@ struct type_t FloatsType = {
         .prop_getsets = NULL,
 };
 
+/**
+ * floatsvar_from_array - Build a floats object from an array
+ *                        of float-type objects.
+ * @src: Array of objects.  These will be checked for correct type.
+ *       Valid types are floats or integers.
+ * @n:   Array size of @src.
+ *
+ * Return:  A new floats object, or ErrorVar if @src contains
+ * invalid types.
+ */
 Object *
-floatsvar_from_list(Object *v)
+floatsvar_from_array(Object **src, size_t n)
 {
-        Object *ret, **src, **end;
-        size_t n;
+        Object **end;
         double *new_data, *dst;
 
-        bug_on(!isvar_array(v));
-
-        n = seqvar_size(v);
         new_data = emalloc(sizeof(*dst) * n);
-        src = array_get_data(v);
         end = src + n;
         if (n == 0 || !src) {
                 err_setstr(ValueError, "List is empty");
@@ -234,10 +246,58 @@ floatsvar_from_list(Object *v)
                 dst++;
                 src++;
         }
-        ret = var_new(&FloatsType);
-        V2FLTS(ret)->data = new_data;
-        seqvar_set_size(ret, n);
-        return ret;
+        return floatsvar_new(new_data, n);
+}
+
+/* Helper to floatsvar_from_text - slide ws or sep */
+static char *
+slidesep(const char *src, const char *sep)
+{
+        int c;
+        while ((c = *src) != '\0' && isspace(c)
+                        && (!sep || strchr(sep, c) != NULL)) {
+                src++;
+        }
+        return (char *)src;
+}
+
+/**
+ * floatsvar_from_text - Build a floats object from a string
+ * @v: Text containing floating-point values
+ * @sep: If NULL, expect only whitespace to delimit values, otherwise,
+ *      sep is a set of all non-whitespace characters to skip.
+ *
+ * Return: New floats object, or ErrorVar if @str is malformed.
+ */
+Object *
+floatsvar_from_text(Object *str, const char *sep)
+{
+        struct buffer_t b;
+        const char *src;
+        size_t count;
+
+        bug_on(!isvar_string(str));
+        src = string_cstring(str);
+        errno = 0;
+        buffer_init(&b);
+        count = 0;
+        src = slidesep(src, sep);
+        while (*src) {
+                double d;
+                char *endptr;
+
+                d = strtod(src, &endptr);
+                if (!!errno || endptr == src) {
+                        err_setstr(ValueError,
+                                   "floats string contains invalid characters");
+                        buffer_free(&b);
+                        return ErrorVar;
+                }
+                buffer_putd(&b, &d, sizeof(d));
+                src = slidesep(endptr, sep);
+                count++;
+        }
+        return floatsvar_new(buffer_trim(&b), count);
 }
 
 static uint64_t
@@ -277,7 +337,6 @@ unpack32(const unsigned char *data, int le)
 Object *
 floatsvar_from_bytes(Object *v, enum floats_enc_t enc, int le)
 {
-        Object *ret;
         const unsigned char *data, *src, *end;
         double *new_data, *dst;
         size_t n, srcwid, n_dst;
@@ -356,10 +415,7 @@ floatsrc:
                 src += srcwid;
                 dst++;
         }
-        ret = var_new(&FloatsType);
-        seqvar_set_size(ret, n_dst);
-        V2FLTS(ret)->data = new_data;
-        return ret;
+        return floatsvar_new(new_data, n_dst);
 
 uintsrc:
         new_data = emalloc(n_dst * sizeof(double));
@@ -379,10 +435,7 @@ uintsrc:
                 src += srcwid;
                 dst++;
         }
-        ret = var_new(&FloatsType);
-        seqvar_set_size(ret, n_dst);
-        V2FLTS(ret)->data = new_data;
-        return ret;
+        return floatsvar_new(new_data, n_dst);
 
 esize:
         err_setstr(ValueError,

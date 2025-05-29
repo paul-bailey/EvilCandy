@@ -1546,26 +1546,31 @@ string_join(Frame *fr)
 static Object *
 string_capitalize(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        const char *src;
-        char *dst;
-        char *newbuf;
-        int c;
+        Object *self;
+        size_t i, n;
+        long point;
+        struct string_writer_t wr;
 
+        self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        src = string_cstring(self);
-        newbuf = dst = emalloc(STRING_NBYTES(self) + 1);
+        n = seqvar_size(self);
+        if (!n)
+                return VAR_NEW_REF(self);
 
-        if ((c = *src++) != '\0')
-                *dst++ = evc_toupper(c);
+        point = string_getidx(self, 0);
+        bug_on(point < 0);
+        if (n == 1 && evc_isupper(point))
+                return VAR_NEW_REF(self);
 
-        while ((c = *src++) != '\0')
-                *dst++ = evc_tolower(c);
-
-        *dst = '\0';
-        return stringvar_newf(newbuf, SF_COPY);
+        string_writer_init(&wr, string_width(self));
+        string_writer_append(&wr, evc_toupper(point));
+        for (i = 1; i < n; i++) {
+                point = string_getidx(self, i);
+                string_writer_append(&wr, evc_tolower(point));
+        }
+        return stringvar_from_writer(&wr);
 }
 
 static Object *

@@ -2268,55 +2268,55 @@ static Object *
 string_title(Frame *fr)
 {
         Object *self;
-        const char *src;
-        char *dst, *newbuf;
-        unsigned int c;
         bool first;
+        size_t i, n;
+        struct string_writer_t wr;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        src = string_cstring(self);
-        dst = newbuf = emalloc(STRING_NBYTES(self) + 1);
+        /* XXX: Do I know that evc_toupper/lower do not change width? */
+        string_writer_init(&wr, string_width(self));
+        n = seqvar_size(self);
         first = true;
-        while ((c = *src++) != '\0') {
-                if (evc_isalpha(c)) {
+        for (i = 0; i < n; i++) {
+                long point = string_getidx(self, i);
+                bug_on(point < 0);
+                if (evc_isalpha(point)) {
                         if (first) {
-                                c = evc_toupper(c);
+                                point = evc_toupper(point);
                                 first = false;
                         } else {
-                                c = evc_tolower(c);
+                                point = evc_tolower(point);
                         }
                 } else {
                         first = true;
                 }
-                *dst++ = c;
+                string_writer_append(&wr, point);
         }
-
-        *dst = '\0';
-        return stringvar_newf(newbuf, 0);
+        return stringvar_from_writer(&wr);
 }
 
 static Object *
 string_to(Frame *fr, unsigned long (*cb)(unsigned long))
 {
         Object *self;
-        const char *src;
-        char *dst, *newbuf;
-        unsigned int c;
+        size_t i, n;
+        struct string_writer_t wr;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        src = string_cstring(self);
-        dst = newbuf = emalloc(STRING_NBYTES(self) + 1);
-        while ((c = *src++) != '\0')
-                *dst++ = cb(c);
-
-        *dst = '\0';
-        return stringvar_newf(newbuf, 0);
+        string_writer_init(&wr, string_width(self));
+        n = seqvar_size(self);
+        for (i = 0; i < n; i++) {
+                long point = string_getidx(self, i);
+                bug_on(point < 0);
+                string_writer_append(&wr, cb(point));
+        }
+        return stringvar_from_writer(&wr);
 }
 
 static unsigned long

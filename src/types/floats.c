@@ -10,18 +10,26 @@
 struct floatsvar_t {
         struct seqvar_t base;
         double *data;
+        bool have_stats;
 };
+
+static inline void
+floats_dirty(Object *v)
+{
+        V2FLTS(v)->have_stats = false;
+}
 
 static inline double *
 floats_get_data(Object *v)
 {
-        return ((struct floatsvar_t *)v)->data;
+        return V2FLTS(v)->data;
 }
 
 static inline void
 floats_set_data(Object *v, double *data, size_t ndat)
 {
         V2FLTS(v)->data = data;
+        floats_dirty(v);
         seqvar_set_size(v, ndat);
 }
 
@@ -192,6 +200,8 @@ floats_setslice(Object *flts, int start, int stop, int step, Object *val)
                 dst = floats_get_data(flts);
                 i = 0;
                 n = seqvar_size(val);
+                if (cmp(start, stop))
+                        floats_dirty(flts);
                 while (cmp(start, stop)) {
                         double d;
                         bug_on(start >= seqvar_size(flts));
@@ -262,6 +272,7 @@ floats_setitem(Object *self, int i, Object *child)
         } else {
                 floats_delete_chunk(self, i, i + 1);
         }
+        floats_dirty(self);
         return RES_OK;
 }
 

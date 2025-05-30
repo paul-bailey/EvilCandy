@@ -2978,6 +2978,7 @@ struct operator_methods_t string_opm = {
 };
 
 struct type_t StringType = {
+        .flags  = 0,
         .name   = "string",
         .opm    = &string_opm,
         .cbm    = string_methods,

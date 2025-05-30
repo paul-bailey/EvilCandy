@@ -23,6 +23,7 @@ struct floatsvar_t {
         double sumsq;
         double sumdsq;
         double mean;
+        double t0;
 };
 
 static inline void
@@ -115,6 +116,7 @@ floatsvar_new(double *data, size_t n)
 {
         Object *ret = var_new(&FloatsType);
         floats_set_data(ret, data, n);
+        V2FLTS(ret)->t0 = 0.0;
         return ret;
 }
 
@@ -305,6 +307,7 @@ floats_setslice(Object *flts, int start, int stop, int step, Object *val)
                                 i++;
                                 j++;
                         }
+                        efree(fsrc);
                         floats_set_data(flts, dst, newsize);
                 }
         }
@@ -447,11 +450,19 @@ floats_any(Object *self)
         return floats_allany(self, false);
 }
 
-static Object *
-floats_getprop_length(Object *self)
+static enum result_t
+obj2double(Object *obj, double *d)
 {
-        bug_on(!isvar_floats(self));
-        return intvar_new(seqvar_size(self));
+        if (isvar_int(obj)) {
+                *d = (double)intvar_toll(obj);
+        } else if (isvar_float(obj)) {
+                *d = floatvar_tod(obj);
+        } else {
+                err_setstr(TypeError, "Expected real number but got '%s'",
+                           typestr(obj));
+                return RES_ERROR;
+        }
+        return RES_OK;
 }
 
 /* Get a real-number arg and convert to double if necessary */
@@ -460,16 +471,82 @@ arg2double(Frame *fr, int argno, double *d)
 {
         Object *arg = vm_get_arg(fr, argno);
         bug_on(!arg);
-        if (isvar_int(arg)) {
-                *d = (double)intvar_toll(arg);
-        } else if (isvar_float(arg)) {
-                *d = floatvar_tod(arg);
-        } else {
-                err_setstr(TypeError, "Expected real number but got '%s'",
-                           typestr(arg));
+        return obj2double(arg, d);
+}
+
+static Object *
+floats_getprop_length(Object *self)
+{
+        bug_on(!isvar_floats(self));
+        return intvar_new(seqvar_size(self));
+}
+
+static Object *
+floats_getprop_t0(Object *self)
+{
+        bug_on(!isvar_floats(self));
+        return floatvar_new(V2FLTS(self)->t0);
+}
+
+static enum result_t
+floats_setprop_t0(Object *self, Object *val)
+{
+        double d;
+        bug_on(!isvar_floats(self));
+        if (obj2double(val, &d) == RES_ERROR)
                 return RES_ERROR;
-        }
+        V2FLTS(self)->t0 = d;
         return RES_OK;
+}
+
+/*
+ * TODO: add kwarg shave=true to remove convolution tail, normalize=true
+ * FIXME: What about T0 for f and g?
+ * XXX: Separate calls for new signal, or in-place signal.
+ */
+static Object *
+do_floats_convolve(Frame *fr)
+{
+        /* self=f, arg=g, using familiar convolution f * g convention */
+        Object *self, *arg;
+        double *pf, *pg, *pc;
+        size_t i, nf, ng, nc;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &FloatsType) == RES_ERROR)
+                return ErrorVar;
+        arg = vm_get_arg(fr, 0);
+        if (arg_type_check(arg, &FloatsType) == RES_ERROR)
+                return ErrorVar;
+
+        nf = seqvar_size(self);
+        ng = seqvar_size(arg);
+        pf = floats_get_data(self);
+        pg = floats_get_data(arg);
+
+        nc = nf + ng - 1;
+        pc = emalloc(nc * sizeof(double));
+
+        for (i = 0; i < nc; i++) {
+                /* Sum all products of overlaps, g is reversed */
+                ssize_t foffs; /* signed for <0 test */
+                double sum = 0.0;
+                size_t j = ng - 1;
+                while ((foffs = (i - (ng - 1 - j))) >= 0) {
+                        if (foffs < nf)
+                                sum += pf[foffs] * pg[j];
+                        /*
+                         * foffs >= nf means we're near the end of algo.
+                         * Continue loop until foffs < nf, final overlaps.
+                         */
+                        j--;
+                }
+                pc[i] = sum;
+        }
+        efree(pf);
+        floats_set_data(self, pc, nc);
+        V2FLTS(self)->t0 += V2FLTS(arg)->t0;
+        return NULL;
 }
 
 static Object *
@@ -572,11 +649,21 @@ static const struct seq_fastiter_t floats_fast_iter = {
 };
 
 static const struct type_prop_t floats_prop_getsets[] = {
-        { .name = "length", .getprop = floats_getprop_length, .setprop = NULL },
-        { .name = NULL },
+        {
+                .name = "length",
+                .getprop = floats_getprop_length,
+                .setprop = NULL,
+        }, {
+                .name = "t0",
+                .getprop = floats_getprop_t0,
+                .setprop = floats_setprop_t0,
+        }, {
+                .name = NULL,
+        },
 };
 
 static const struct type_inittbl_t floats_cb_methods[] = {
+        V_INITTBL("convolve",   do_floats_convolve,     1, 1, -1, -1),
         V_INITTBL("gain",       do_floats_gain,         1, 1, -1, -1),
         V_INITTBL("offset",     do_floats_offset,       1, 1, -1, -1),
         V_INITTBL("mean",       do_floats_mean,         0, 0, -1, -1),

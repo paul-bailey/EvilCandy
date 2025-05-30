@@ -538,6 +538,9 @@ var_setattr(Object *v, Object *key, Object *attr)
                         err_setstr(KeyError, "key may not be empty");
                         return RES_ERROR;
                 }
+                /*
+                 * FIXME: If this fails, try setting property.
+                 */
                 return map->setitem(v, key, attr);
         } else if (isvar_tuple(key)) {
                 int start, stop, step;

@@ -199,6 +199,7 @@ static const struct operator_methods_t complex_primitives = {
 };
 
 struct type_t ComplexType = {
+        .flags  = OBF_NUMBER,
         .name   = "complex",
         .opm    = &complex_primitives,
         .cbm    = complex_methods,

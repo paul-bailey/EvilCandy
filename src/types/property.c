@@ -29,6 +29,7 @@ property_str(Object *self)
 }
 
 struct type_t PropertyType = {
+        .flags  = 0,
         .name   = "property",
         .opm    = NULL,
         .cbm    = NULL,

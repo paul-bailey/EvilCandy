@@ -1410,6 +1410,7 @@ static const struct seq_methods_t bytes_seq_methods = {
 };
 
 struct type_t BytesType = {
+        .flags  = 0,
         .name   = "bytes",
         .opm    = NULL,
         .cbm    = bytes_cb_methods,

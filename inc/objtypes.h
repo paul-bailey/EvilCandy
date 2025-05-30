@@ -147,6 +147,12 @@ struct type_prop_t {
         enum result_t (*setprop)(Object *self, Object *value);
 };
 
+/* .flags field in struct type_t */
+enum {
+        OBF_NUMBER      = 0x01,
+        OBF_REAL        = 0x02,
+};
+
 /**
  * struct type_t - Used to get info about a typedef
  * @name:       Name of the type
@@ -189,6 +195,7 @@ struct type_prop_t {
  *              must be terminated with an item whose .name is NULL.
  */
 struct type_t {
+        unsigned int flags;
         const char *name;
         struct var_mem_t *freelist;
         size_t n_freelist;
@@ -274,8 +281,11 @@ static inline bool isvar_floats(Object *v)
 static inline bool isvar_star(Object *v)
         { return v->v_type == &StarType; }
 
+static inline bool isvar_number(Object *v)
+        { return !!(v->v_type->flags & OBF_NUMBER); }
 static inline bool isvar_real(Object *v)
-        { return isvar_float(v) || isvar_int(v); }
+        { return isvar_int(v) || isvar_float(v); }
+        // { return !!(v->v_type->flags & OBF_REAL); }
 static inline bool isvar_seq(Object *v)
         { return v->v_type->sqm != NULL; }
 static inline bool isvar_seq_readable(Object *v)

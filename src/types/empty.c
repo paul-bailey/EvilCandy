@@ -32,6 +32,7 @@ empty_str(Object *v)
 }
 
 struct type_t EmptyType = {
+        .flags  = 0,
         .name   = "empty",
         .opm    = NULL,
         .cbm    = NULL,

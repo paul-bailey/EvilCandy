@@ -143,6 +143,16 @@ var_initialize_type(struct type_t *tp)
 {
         tp->methods = dictvar_new();
 
+        /*
+         * Sanity-check this, if a sequential var is readable,
+         * that means both its getitem AND getslice methods are
+         * non-NULL.
+         */
+        /* TODO: Enable this when I make it true */
+#if 0
+        bug_on(tp->sqm && (!!tp->sqm->getitem  != !!tp->sqm->getslice));
+#endif
+
         Object *dict = tp->methods;
         const struct type_inittbl_t *t = tp->cbm;
         if (t) while (t->name != NULL) {

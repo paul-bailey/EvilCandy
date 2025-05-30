@@ -224,6 +224,7 @@ static const struct operator_methods_t float_primitives = {
 };
 
 struct type_t FloatType = {
+        .flags  = OBF_NUMBER | OBF_REAL,
         .name   = "float",
         .opm    = &float_primitives,
         .cbm    = float_methods,

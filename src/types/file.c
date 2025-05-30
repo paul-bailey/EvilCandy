@@ -311,6 +311,7 @@ static const struct type_inittbl_t file_cb_methods[] = {
 };
 
 struct type_t FileType = {
+        .flags  = 0,
         .name   = "file",
         .opm    = NULL,
         .cbm    = file_cb_methods,

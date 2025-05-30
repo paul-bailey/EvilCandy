@@ -134,6 +134,7 @@ static const struct type_inittbl_t range_cb_methods[] = {
 };
 
 struct type_t RangeType = {
+        .flags  = 0,
         .name   = "range",
         .opm    = NULL,
         .cbm    = range_cb_methods,

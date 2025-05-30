@@ -352,6 +352,7 @@ static const struct operator_methods_t int_primitives = {
 };
 
 struct type_t IntType = {
+        .flags  = OBF_NUMBER | OBF_REAL,
         .name   = "integer",
         .opm    = &int_primitives,
         .cbm    = int_methods,

@@ -457,6 +457,7 @@ static const struct type_prop_t tuple_prop_getsets[] = {
 };
 
 struct type_t TupleType = {
+        .flags  = 0,
         .name = "tuple",
         .opm = NULL,
         .cbm = tuple_cb_methods,

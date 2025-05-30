@@ -374,6 +374,7 @@ func_reset(Object *func)
 }
 
 struct type_t FunctionType = {
+        .flags  = 0,
         .name   = "function",
         .opm    = NULL,
         .cbm    = NULL,

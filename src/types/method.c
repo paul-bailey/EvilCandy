@@ -107,6 +107,7 @@ method_reset(Object *meth)
 }
 
 struct type_t MethodType = {
+        .flags  = 0,
         .name   = "method",
         .opm    = NULL,
         .cbm    = NULL,

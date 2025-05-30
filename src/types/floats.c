@@ -345,6 +345,7 @@ static const struct seq_methods_t floats_seq_methods = {
 };
 
 struct type_t FloatsType = {
+        .flags  = 0,
         .name   = "floats",
         .opm    = NULL,
         .cbm    = NULL,

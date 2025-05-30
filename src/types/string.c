@@ -60,6 +60,12 @@ enum {
  *                      Common Helpers
  ***********************************************************************/
 
+static inline bool
+isdigit_ascii(long pt)
+{
+        return pt >= '0' && pt <= '9';
+}
+
 static inline size_t
 string_width(Object *str)
 {
@@ -534,9 +540,10 @@ str_finish_digit(Object *str, size_t *pos, long startpoint)
         size_t len = seqvar_size(str);
         size_t tpos = *pos;
         int res = startpoint - '0';
+        bug_on(!isdigit_ascii(startpoint));
         while (tpos < len) {
                 long point = string_getidx(str, tpos);
-                if (point < '0' || point > '9')
+                if (!isdigit_ascii(point))
                         break;
                 if (res > INT_MAX / 10) {
                         err_setstr(RangeError, "Number to high");
@@ -965,7 +972,7 @@ parse_fmt_args(Object *fmt, struct fmt_args_t *args, size_t pos, int endchr)
                 }
         }
 
-        if (point < '0' || point > '9') {
+        if (isdigit_ascii(point)) {
                 args->padlen = str_finish_digit(fmt, &pos, point);
                 if ((int)args->padlen < 0)
                         return -1;
@@ -979,7 +986,7 @@ parse_fmt_args(Object *fmt, struct fmt_args_t *args, size_t pos, int endchr)
                 if (pos == n)
                         goto eos;
                 point = string_getidx(fmt, pos++);
-                if (point < '0' || point > '9') {
+                if (isdigit_ascii(point)) {
                         args->precision = str_finish_digit(fmt, &pos, point);
                         if ((int)args->precision < 0)
                                 return -1;
@@ -2889,7 +2896,7 @@ string_format(Object *str, Object *tup)
                                         goto bad_format;
                                 i = newpos;
                         } else {
-                                if (evc_isdigit(point)) {
+                                if (isdigit_ascii(point)) {
                                         argi = str_finish_digit(str, &i, point);
                                         if ((int)argi < 0)
                                                 goto bad_format;

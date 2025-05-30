@@ -41,6 +41,7 @@ xptr_str(Object *v)
 }
 
 struct type_t XptrType = {
+        .flags  = 0,
         .name   = "[executable]",
         .opm    = NULL,
         .cbm    = NULL,

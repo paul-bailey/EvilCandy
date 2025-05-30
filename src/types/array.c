@@ -784,6 +784,7 @@ static const struct type_prop_t array_prop_getsets[] = {
 };
 
 struct type_t ArrayType = {
+        .flags = 0,
         .name = "list",
         .opm = NULL,
         .cbm = array_cb_methods,

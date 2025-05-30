@@ -74,6 +74,7 @@ id_str(Object *v)
 }
 
 struct type_t IdType = {
+        .flags  = 0,
         .name   = "[internal-use ID]",
         .opm    = NULL,
         .cbm    = NULL,
@@ -87,6 +88,7 @@ struct type_t IdType = {
 };
 
 struct type_t UuidptrType = {
+        .flags  = 0,
         .name   = "[internal-use UUID]",
         .opm    = NULL,
         .cbm    = NULL,

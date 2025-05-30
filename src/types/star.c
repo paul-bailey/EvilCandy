@@ -48,6 +48,7 @@ star_reset(Object *star)
 }
 
 struct type_t StarType = {
+        .flags  = 0,
         .name   = "star",
         .opm    = NULL,
         .cbm    = NULL,

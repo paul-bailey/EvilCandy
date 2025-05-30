@@ -940,7 +940,8 @@ static const struct map_methods_t dict_map_methods = {
 };
 
 struct type_t DictType = {
-        .name = "dictionary",
+        .flags  = 0,
+        .name   = "dictionary",
         .opm    = NULL,
         .cbm    = dict_cb_methods,
         .mpm    = &dict_map_methods,

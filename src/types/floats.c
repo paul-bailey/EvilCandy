@@ -7,6 +7,17 @@
 
 #define V2FLTS(v_)      ((struct floatsvar_t *)(v_))
 
+struct floatsvar_t {
+        struct seqvar_t base;
+        double *data;
+};
+
+static inline double *
+floats_get_data(Object *v)
+{
+        return ((struct floatsvar_t *)v)->data;
+}
+
 static inline void
 floats_set_data(Object *v, double *data, size_t ndat)
 {

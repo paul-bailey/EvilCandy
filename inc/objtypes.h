@@ -319,15 +319,6 @@ struct tuplevar_t {
         Object **items;
 };
 
-/*
- * Do not confuse 'floats' with 'float'!
- * This is the array, the one above is the single item.
- */
-struct floatsvar_t {
-        struct seqvar_t base;
-        double *data;
-};
-
 struct bytesvar_t {
         struct seqvar_t base;
         unsigned char *b_buf;
@@ -358,8 +349,6 @@ static inline Object **array_get_data(Object *v)
         { return ((struct arrayvar_t *)v)->items; }
 static inline Object **tuple_get_data(Object *v)
         { return ((struct tuplevar_t *)v)->items; }
-static inline double *floats_get_data(Object *v)
-        { return ((struct floatsvar_t *)v)->data; }
 static inline unsigned char *bytes_get_data(Object *v)
         { return ((struct bytesvar_t *)v)->b_buf; }
 extern int intvar_toi(Object *v);

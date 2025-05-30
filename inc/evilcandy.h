@@ -142,7 +142,7 @@ extern FILE *find_import(const char *cur_path, const char *file_name,
 extern void pop_path(FILE *fp);
 extern FILE *push_path(const char *filename);
 
-/* str2enum.c */
+/* strto.c */
 struct str2enum_t {
         const char *s;
         int v;
@@ -151,6 +151,9 @@ extern enum result_t str2enum(const struct str2enum_t *t,
                               const char *s, int *value);
 extern enum result_t strobj2enum(const struct str2enum_t *t, Object *str,
                               int *value, int suppress, const char *what);
+extern enum result_t evc_strtod(const char *s, char **endptr, double *d);
+extern enum result_t evc_strtol(const char *s, char **endptr,
+                                int base, long long *v);
 
 /* types/array.c */
 extern Object *arrayvar_new(int n_items);

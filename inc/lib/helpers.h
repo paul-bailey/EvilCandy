@@ -38,6 +38,8 @@ static inline bool isodigit(int c) { return c >= '0' && c <= '7'; }
 static inline bool isquote(int c) { return c == '"' || c == '\''; }
 extern int bit_count64(uint64_t v);
 extern const char *notdir(const char *path);
+extern char *slide(const char *s, const char *sep);
+
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \
         ((type *)((uintptr_t)((void *)(x)) - offsetof(type, member)))

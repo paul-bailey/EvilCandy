@@ -32,7 +32,6 @@
 #include <evilcandy.h>
 #include <errno.h>
 #include <math.h>
-#include <stdlib.h> /* strtol and friends */
 
 /* user argument limits */
 enum {

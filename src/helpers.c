@@ -101,6 +101,7 @@ strchr_nonnull(const char *charset, int c)
         return NULL;
 }
 
+/* FIXME: Need a width arg */
 /**
  * memcount - Count the non-overlapping occurrances of @needle within
  *            @haystack.
@@ -202,5 +203,25 @@ bit_count64(uint64_t v)
         v = (v & 0x0000ffff0000ffffull) + ((v >> 16) & 0x0000ffff0000ffffull);
         v = (v & 0x00000000ffffffffull) + ((v >> 32) & 0x00000000ffffffffull);
         return (int)v;
+}
+
+/**
+ * slide - skip whitespace and separators
+ * @src: Input string
+ * @sep: If NULL, only skip whitespace.  If not NULL, this is a set
+ *      of characters to skip in addition to whitespace.
+ *
+ * Return: Pointer into @s of the first non-whitespace, non-@sep
+ *         character.
+ */
+char *
+slide(const char *src, const char *sep)
+{
+        int c;
+        while ((c = *src) != '\0' && isspace(c)
+                        && (!sep || strchr(sep, c) != NULL)) {
+                src++;
+        }
+        return (char *)src;
 }
 

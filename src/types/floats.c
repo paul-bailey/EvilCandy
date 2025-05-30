@@ -4,8 +4,6 @@
  *            would be too cumbersome.
  */
 #include <evilcandy.h>
-#include <errno.h>
-#include <stdlib.h>
 
 #define V2FLTS(v_)      ((struct floatsvar_t *)(v_))
 
@@ -249,18 +247,6 @@ floatsvar_from_array(Object **src, size_t n)
         return floatsvar_new(new_data, n);
 }
 
-/* Helper to floatsvar_from_text - slide ws or sep */
-static char *
-slidesep(const char *src, const char *sep)
-{
-        int c;
-        while ((c = *src) != '\0' && isspace(c)
-                        && (!sep || strchr(sep, c) != NULL)) {
-                src++;
-        }
-        return (char *)src;
-}
-
 /**
  * floatsvar_from_text - Build a floats object from a string
  * @v: Text containing floating-point values
@@ -278,23 +264,21 @@ floatsvar_from_text(Object *str, const char *sep)
 
         bug_on(!isvar_string(str));
         src = string_cstring(str);
-        errno = 0;
         buffer_init(&b);
         count = 0;
-        src = slidesep(src, sep);
+        src = slide(src, sep);
         while (*src) {
                 double d;
                 char *endptr;
 
-                d = strtod(src, &endptr);
-                if (!!errno || endptr == src) {
+                if (evc_strtod(src, &endptr, &d) == RES_ERROR) {
                         err_setstr(ValueError,
                                    "floats string contains invalid characters");
                         buffer_free(&b);
                         return ErrorVar;
                 }
                 buffer_putd(&b, &d, sizeof(d));
-                src = slidesep(endptr, sep);
+                src = slide(endptr, sep);
                 count++;
         }
         return floatsvar_new(buffer_trim(&b), count);

@@ -2,7 +2,6 @@
 #include <evilcandy.h>
 #include "token.h"
 #include <setjmp.h>
-#include <stdlib.h>
 #include <unistd.h> /* isatty */
 
 /* Token errors, args to longjmp(state->env) */
@@ -614,6 +613,14 @@ tokenize_helper(struct token_state_t *state, int *line)
         return RES_ERROR;
 }
 
+static int
+bad_literal(struct token_state_t *state, const char *what)
+{
+        err_setstr(SyntaxError, "Error in %s literal '%s'",
+                   what, state->tok.s);
+        return RES_ERROR;
+}
+
 /* Get the next token from the current input file. */
 static int
 tokenize(struct token_state_t *state)
@@ -658,29 +665,38 @@ tokenize(struct token_state_t *state)
                         oc.line = line;
                         oc.v = bytesvar_from_source(state->tok.s);
                         if (oc.v == ErrorVar) {
-                                err_setstr(SyntaxError,
-                                        "Error in bytes literal %s",
-                                        state->tok.s);
+                                ret = bad_literal(state, "bytes");
                                 oc.v = NULL;
-                                ret = RES_ERROR;
                         }
                         break;
                 case OC_INTEGER:
                     {
-                        long long i = strtoul(state->tok.s, NULL, 0);
-                        oc.v = intvar_new(i);
+                        long long i;
+                        if (evc_strtol(state->tok.s, NULL, 0, &i) == RES_ERROR) {
+                                ret = bad_literal(state, "integer");
+                        } else {
+                                oc.v = intvar_new(i);
+                        }
                         break;
                     }
                 case OC_FLOAT:
                     {
-                        double f = strtod(state->tok.s, NULL);
-                        oc.v = floatvar_new(f);
+                        double f;
+                        if (evc_strtod(state->tok.s, NULL, &f) == RES_ERROR) {
+                                ret = bad_literal(state, "double");
+                        } else {
+                                oc.v = floatvar_new(f);
+                        }
                         break;
                     }
                 case OC_COMPLEX:
                     {
-                        double im = strtod(state->tok.s, NULL);
-                        oc.v = complexvar_new(0.0, im);
+                        double im;
+                        if (evc_strtod(state->tok.s, NULL, &im) == RES_ERROR) {
+                                ret = bad_literal(state, "double");
+                        } else {
+                                oc.v = complexvar_new(0.0, im);
+                        }
                         break;
                     }
                 case OC_IDENTIFIER:
@@ -692,10 +708,8 @@ tokenize(struct token_state_t *state)
                         oc.line = line;
                         oc.v = stringvar_from_source(state->tok.s, true);
                         if (oc.v == ErrorVar) {
-                                err_setstr(SyntaxError,
-                                        "Error in string literal %s",
-                                        state->tok.s);
-                                return RES_ERROR;
+                                ret = bad_literal(state, "string");
+                                oc.v = NULL;
                         }
                         break;
                 default:

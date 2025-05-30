@@ -4,19 +4,31 @@
  *            would be too cumbersome.
  */
 #include <evilcandy.h>
+#include <math.h>
 
 #define V2FLTS(v_)      ((struct floatsvar_t *)(v_))
+
+enum {
+        FF_HAVE_SUM     = 0x01,
+        FF_HAVE_SUMSQ   = 0x02,
+        FF_HAVE_SUMDSQ  = 0x04,
+        FF_HAVE_MEAN    = 0x08,
+};
 
 struct floatsvar_t {
         struct seqvar_t base;
         double *data;
-        bool have_stats;
+        unsigned int have_stats;
+        double sum;
+        double sumsq;
+        double sumdsq;
+        double mean;
 };
 
 static inline void
 floats_dirty(Object *v)
 {
-        V2FLTS(v)->have_stats = false;
+        V2FLTS(v)->have_stats = 0;
 }
 
 static inline double *
@@ -38,6 +50,64 @@ floats_get_datum(Object *v, size_t idx)
 {
         bug_on(idx >= seqvar_size(v));
         return V2FLTS(v)->data[idx];
+}
+
+static double
+samplediv(double num, size_t n)
+{
+        if (n > 0)
+                return num / (double)n;
+        else if (num > 0.0)
+                return INFINITY;
+        else if (num < 0.0)
+                return -INFINITY;
+        else
+                return 0.0;
+}
+
+static void
+floats_update_sum(Object *v)
+{
+        struct floatsvar_t *fv = V2FLTS(v);
+        size_t i, n;
+        double *data, sum, sumsq;
+
+        data = floats_get_data(v);
+        n = seqvar_size(v);
+
+        sum = 0;
+        sumsq = 0;
+        for (i = 0; i < n; i++) {
+                sum += data[i];
+                sumsq += data[i] * data[i];
+        }
+        fv->sum = sum;
+        fv->sumsq = sumsq;
+        fv->mean = samplediv(sum, n);
+        fv->have_stats |= FF_HAVE_SUM | FF_HAVE_SUMSQ | FF_HAVE_MEAN;
+}
+
+static void
+floats_update_sumdiff(Object *v)
+{
+        struct floatsvar_t *fv = V2FLTS(v);
+        size_t i, n;
+        double *data, sumdsq, mean;
+
+        if (!(fv->have_stats & FF_HAVE_MEAN))
+                floats_update_sum(v);
+
+        data = floats_get_data(v);
+        n = seqvar_size(v);
+
+        mean = fv->mean;
+        sumdsq = 0;
+        for (i = 0; i < n; i++) {
+                double diff = data[i] - mean;
+                sumdsq += diff * diff;
+        }
+        fv->sumdsq = sumdsq;
+        fv->have_stats |= FF_HAVE_SUMDSQ;
 }
 
 static Object *
@@ -384,6 +454,116 @@ floats_getprop_length(Object *self)
         return intvar_new(seqvar_size(self));
 }
 
+/* Get a real-number arg and convert to double if necessary */
+static enum result_t
+arg2double(Frame *fr, int argno, double *d)
+{
+        Object *arg = vm_get_arg(fr, argno);
+        bug_on(!arg);
+        if (isvar_int(arg)) {
+                *d = (double)intvar_toll(arg);
+        } else if (isvar_float(arg)) {
+                *d = floatvar_tod(arg);
+        } else {
+                err_setstr(TypeError, "Expected real number but got '%s'",
+                           typestr(arg));
+                return RES_ERROR;
+        }
+        return RES_OK;
+}
+
+static Object *
+do_floats_gain(Frame *fr)
+{
+        Object *self;
+        double arg, *data;
+        size_t i, n;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &FloatsType) == RES_ERROR)
+                return ErrorVar;
+        if (arg2double(fr, 0, &arg) == RES_ERROR)
+                return ErrorVar;
+
+        n = seqvar_size(self);
+        data = floats_get_data(self);
+        for (i = 0; i < n; i++)
+                data[i] *= arg;
+
+        if (n)
+                floats_dirty(self);
+        return NULL;
+}
+
+static Object *
+do_floats_offset(Frame *fr)
+{
+        Object *self;
+        double arg, *data;
+        size_t i, n;
+
+        self = vm_get_this(fr);
+        if (arg_type_check(self, &FloatsType) == RES_ERROR)
+                return ErrorVar;
+        if (arg2double(fr, 0, &arg) == RES_ERROR)
+                return ErrorVar;
+
+        n = seqvar_size(self);
+        data = floats_get_data(self);
+        for (i = 0; i < n; i++)
+                data[i] += arg;
+
+        if (n)
+                floats_dirty(self);
+        return NULL;
+}
+
+static Object *
+do_floats_mean(Frame *fr)
+{
+        struct floatsvar_t *fv;
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &FloatsType) == RES_ERROR)
+                return ErrorVar;
+        fv = V2FLTS(self);
+        if (!(fv->have_stats & FF_HAVE_MEAN))
+                floats_update_sum(self);
+        return floatvar_new(fv->mean);
+}
+
+/* TODO: 'bessel=true' keyword arg for N-1 instead of N */
+static Object *
+do_floats_stddev(Frame *fr)
+{
+        double d;
+        size_t n;
+        struct floatsvar_t *fv;
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &FloatsType) == RES_ERROR)
+                return ErrorVar;
+        fv = V2FLTS(self);
+        n = seqvar_size(self);
+        if (!(fv->have_stats & FF_HAVE_SUMDSQ))
+                floats_update_sumdiff(self);
+        d = samplediv(fv->sumdsq, n);
+        if (isfinite(d))
+                d = sqrt(d);
+        return floatvar_new(d);
+}
+
+static Object *
+do_floats_sum(Frame *fr)
+{
+        struct floatsvar_t *fv;
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &FloatsType) == RES_ERROR)
+                return ErrorVar;
+        fv = V2FLTS(self);
+        if (!(fv->have_stats & FF_HAVE_SUM))
+                floats_update_sum(self);
+        return floatvar_new(fv->sum);
+}
+
 static const struct seq_fastiter_t floats_fast_iter = {
         .max    = floats_max,
         .min    = floats_min,
@@ -394,6 +574,15 @@ static const struct seq_fastiter_t floats_fast_iter = {
 static const struct type_prop_t floats_prop_getsets[] = {
         { .name = "length", .getprop = floats_getprop_length, .setprop = NULL },
         { .name = NULL },
+};
+
+static const struct type_inittbl_t floats_cb_methods[] = {
+        V_INITTBL("gain",       do_floats_gain,         1, 1, -1, -1),
+        V_INITTBL("offset",     do_floats_offset,       1, 1, -1, -1),
+        V_INITTBL("mean",       do_floats_mean,         0, 0, -1, -1),
+        V_INITTBL("stddev",     do_floats_stddev,       0, 0, -1, -1),
+        V_INITTBL("sum",        do_floats_sum,          0, 0, -1, -1),
+        TBLEND,
 };
 
 static const struct seq_methods_t floats_seq_methods = {
@@ -411,7 +600,7 @@ struct type_t FloatsType = {
         .flags  = 0,
         .name   = "floats",
         .opm    = NULL,
-        .cbm    = NULL,
+        .cbm    = floats_cb_methods,
         .mpm    = NULL,
         .sqm    = &floats_seq_methods,
         .size   = sizeof(struct floatsvar_t),

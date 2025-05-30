@@ -256,30 +256,29 @@ floatsvar_from_array(Object **src, size_t n)
  * Return: New floats object, or ErrorVar if @str is malformed.
  */
 Object *
-floatsvar_from_text(Object *str, const char *sep)
+floatsvar_from_text(Object *str, Object *sep)
 {
         struct buffer_t b;
-        const char *src;
-        size_t count;
+        size_t count, pos, len;
 
         bug_on(!isvar_string(str));
-        src = string_cstring(str);
+        bug_on(sep != NULL && sep != NullVar && !isvar_string(sep));
+
         buffer_init(&b);
         count = 0;
-        src = slide(src, sep);
-        while (*src) {
+        len = seqvar_size(str);
+        pos = string_slide(str, sep, 0);
+        while (pos < len) {
                 double d;
-                char *endptr;
-
-                if (evc_strtod(src, &endptr, &d) == RES_ERROR) {
+                if (string_tod(str, &pos, &d) == RES_ERROR) {
                         err_setstr(ValueError,
                                    "floats string contains invalid characters");
                         buffer_free(&b);
                         return ErrorVar;
                 }
                 buffer_putd(&b, &d, sizeof(d));
-                src = slide(endptr, sep);
                 count++;
+                pos = string_slide(str, sep, pos);
         }
         return floatsvar_new(buffer_trim(&b), count);
 }

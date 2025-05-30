@@ -34,6 +34,7 @@
 #include "var.h"
 #include "vm.h"
 #include "string_writer.h"
+#include "string_reader.h"
 
 /* constructors/destructors for certain C file */
 /* global.c */
@@ -154,6 +155,7 @@ extern enum result_t strobj2enum(const struct str2enum_t *t, Object *str,
 extern enum result_t evc_strtod(const char *s, char **endptr, double *d);
 extern enum result_t evc_strtol(const char *s, char **endptr,
                                 int base, long long *v);
+extern enum result_t string_tod(Object *str, size_t *pos, double *v);
 
 /* types/array.c */
 extern Object *arrayvar_new(int n_items);
@@ -186,7 +188,7 @@ extern Object *floatvar_new(double value);
 extern Object *floatsvar_from_bytes(Object *v,
                                     enum floats_enc_t enc, int le);
 extern Object *floatsvar_from_array(Object **data, size_t n);
-extern Object *floatsvar_from_text(Object *str, const char *sep);
+extern Object *floatsvar_from_text(Object *str, Object *sep);
 
 /* types/function.c */
 extern Object *funcvar_new_user(Object *ex);
@@ -253,6 +255,8 @@ extern Object *stringvar_nocopy(const char *cstr);
 extern hash_t string_update_hash(Object *v);
 extern long string_ord(Object *str, size_t idx);
 extern Object *string_format(Object *str, Object *tup);
+extern size_t string_slide(Object *str, Object *sep, size_t startpos);
+extern bool string_chr(Object *str, long pt);
 
 /* types/tuple.c */
 extern enum result_t tuple_validate(Object *tup, const char *descr,

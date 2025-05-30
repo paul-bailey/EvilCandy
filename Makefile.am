@@ -65,6 +65,7 @@ noinst_HEADERS = \
         inc/instructions.h \
         inc/objtypes.h \
         inc/recursion.h \
+        inc/string_reader.h \
         inc/string_writer.h \
         inc/token.h \
         inc/typedefs.h \

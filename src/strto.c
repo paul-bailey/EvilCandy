@@ -103,3 +103,80 @@ evc_strtol(const char *s, char **endptr, int base, long long *v)
         return RES_OK;
 }
 
+/**
+ * string_tod - Like evc_strtod, but for string objects
+ * @str: String object expressing floating point value
+ * @pos: Start position.  This may not be NULL.  It will store the final
+ *       position as well.
+ * @result: Result
+ *
+ * Return: RES_ERROR or RES_OK.  No exception will be set.
+ *
+ * Note: This does not slide across any leading whitespace.
+ */
+enum result_t
+string_tod(Object *str, size_t *pos, double *reslt)
+{
+        struct buffer_t b;
+        struct string_reader_t rd;
+        long pt;
+        double d;
+        char *endptr;
+        enum result_t res;
+
+        string_reader_init(&rd, str, *pos);
+        buffer_init(&b);
+
+        pt = string_reader_getc(&rd);
+        if (pt == '+' || pt == '-') {
+                buffer_putc(&b, pt);
+                pt = string_reader_getc(&rd);
+        }
+        while (pt >= '0' && pt <= '9') {
+                buffer_putc(&b, pt);
+                pt = string_reader_getc(&rd);
+        }
+        if (pt == '.') {
+                buffer_putc(&b, pt);
+                pt = string_reader_getc(&rd);
+                while (pt >= '0' && pt <= '9') {
+                        buffer_putc(&b, pt);
+                        pt = string_reader_getc(&rd);
+                }
+        }
+        if (pt == 'e' || pt == 'E') {
+                buffer_putc(&b, pt);
+                pt = string_reader_getc(&rd);
+                if (pt == '+' || pt == '-') {
+                        buffer_putc(&b, pt);
+                        pt = string_reader_getc(&rd);
+                }
+                while (pt >= '0' && pt <= '9') {
+                        buffer_putc(&b, pt);
+                        pt = string_reader_getc(&rd);
+                }
+        }
+        if (buffer_size(&b) == 0)
+                return RES_ERROR;
+
+        errno = 0;
+        d = strtod(b.s, &endptr);
+        if (errno || *endptr != '\0') {
+                res = RES_ERROR;
+        } else {
+                size_t newpos = string_reader_getpos(&rd);
+                /*
+                 * We want pos to be AT the last read character (an
+                 * invalid character we didn't use), but unless we hit
+                 * the end of the string (pt < 0), it's currently one
+                 * PAST the last read character.
+                 */
+                if (pt >= 0L)
+                        newpos--;
+                *pos = newpos;
+                *reslt = d;
+                res = RES_OK;
+        }
+        buffer_free(&b);
+        return res;
+}

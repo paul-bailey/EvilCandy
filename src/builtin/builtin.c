@@ -595,12 +595,8 @@ do_floats(Frame *fr)
                 }
                 ret = floatsvar_from_bytes(src, enc, le);
         } else if (isvar_string(src)) {
-                const char *sep;
-                if (separg == NullVar)
-                        sep = NULL;
-                else
-                        sep = string_cstring(separg);
-                ret = floatsvar_from_text(src, sep);
+                /* Supported because we could be reading this from file */
+                ret = floatsvar_from_text(src, separg);
         } else {
                 err_setstr(ValueError, "Invalid type '%s' for floats()",
                            typestr(src));

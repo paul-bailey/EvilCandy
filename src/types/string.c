@@ -2659,6 +2659,83 @@ string_hasitem(Object *str, Object *substr)
  *                           API functions
  * *********************************************************************/
 
+void
+string_reader_init(struct string_reader_t *rd,
+                   Object *str, size_t startpos)
+{
+        bug_on(!isvar_string(str));
+        rd->str = str;
+        rd->dat = string_data(str);
+        rd->wid = string_width(str);
+        rd->len = seqvar_size(str);
+        if (startpos > rd->len)
+                startpos = rd->len;
+        rd->pos = startpos;
+}
+
+long
+string_reader_getc__(size_t wid, void *dat, size_t pos)
+{
+        return string_getidx_raw(wid, dat, pos);
+}
+
+/* like strchr, but for string objects, and only returns truth value */
+bool
+string_chr(Object *str, long pt)
+{
+        size_t i, n, w;
+        void *p;
+
+        bug_on(!isvar_string(str));
+
+        n = seqvar_size(str);
+        w = string_width(str);
+        p = string_data(str);
+
+        for (i = 0; i < n; i++) {
+                if (string_getidx_raw(w, p, i) == pt)
+                        return true;
+        }
+
+        return false;
+}
+
+/**
+ * string_slide - similar to slide in helpers.c, but for string objects.
+ * @str:        The string to slide across
+ * @delims:     Character set of delimiters to skip
+ * @pos:        Starting position to slide from
+ *
+ * If @delims are NULL or set to NullVar, skip only whitespace.
+ * Otherwise skip any matching characters in @delims.
+ *
+ * Return: New position
+ */
+size_t
+string_slide(Object *str, Object *delims, size_t pos)
+{
+        size_t slen;
+
+        bug_on(!isvar_string(str));
+        bug_on(delims != NULL &&
+               delims != NullVar &&
+               !isvar_string(delims));
+
+        if (delims == NullVar)
+                delims = NULL;
+
+        slen = seqvar_size(str);
+        while (pos < slen) {
+                long point = string_getidx(str, pos);
+                if (!evc_isspace(point) &&
+                    !(delims && string_chr(delims, point))) {
+                        break;
+                }
+                pos++;
+        }
+        return pos;
+}
+
 /**
  * stringvar_new - Get a string var
  * @cstr: C-string to set string to, or NULL to do that later

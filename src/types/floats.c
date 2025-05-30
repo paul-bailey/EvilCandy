@@ -69,6 +69,146 @@ floats_hasitem(Object *self, Object *fval)
         return false;
 }
 
+static bool slice_cmp_lt(int a, int b) { return a < b; }
+static bool slice_cmp_gt(int a, int b) { return a > b; }
+
+static Object *
+floats_getslice(Object *flts, int start, int stop, int step)
+{
+        struct buffer_t b;
+        bool (*cmp)(int, int);
+        double *data;
+        size_t newsize;
+
+        bug_on(!isvar_floats(flts));
+
+        if (start == stop)
+                return floatsvar_new(NULL, 0);
+
+        data = V2FLTS(flts)->data;
+        buffer_init(&b);
+        cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
+
+        while (cmp(start, stop)) {
+                bug_on(start >= seqvar_size(flts));
+                buffer_putd(&b, &data[start], sizeof(double));
+                start += step;
+        }
+        newsize = buffer_size(&b) / sizeof(double);
+        return floatsvar_new(buffer_trim(&b), newsize);
+}
+
+/* ...start <= deletion zone < stop... */
+static void
+floats_delete_chunk(Object *flts, size_t start, size_t stop)
+{
+        double *dat = V2FLTS(flts)->data;
+        size_t n = seqvar_size(flts);
+        size_t newlen = n - (stop - start);
+        bug_on(start >= n);
+        if (stop == start)
+                return;
+        if (stop < n)
+                memmove(&dat[start], &dat[stop], (n - stop) * sizeof(double));
+        dat = erealloc(dat, newlen * sizeof(double));
+        V2FLTS(flts)->data = dat;
+        seqvar_set_size(flts, newlen);
+}
+
+static enum result_t
+floats_setslice(Object *flts, int start, int stop, int step, Object *val)
+{
+        bug_on(!isvar_floats(flts));
+        if (!val) {
+                /* delete slice */
+                err_setstr(NotImplementedError,
+                           "Floats slice deletion not yet supported");
+                return RES_ERROR;
+        } else {
+                /* insert/add slice */
+                Object **osrc = NULL;
+                double *fsrc = NULL;
+                double *dst;
+                size_t i, n;
+                bool (*cmp)(int, int);
+
+                bug_on(!isvar_seq(val));
+                if (isvar_array(val)) {
+                        osrc = array_get_data(val);
+                } else if (isvar_tuple(val)) {
+                        osrc = tuple_get_data(val);
+                } else if (isvar_floats(val)) {
+                        fsrc = V2FLTS(val)->data;
+                } else {
+                        err_setstr(TypeError,
+                                   "Cannot set floats slice from type %s",
+                                   typestr(val));
+                        return RES_ERROR;
+                }
+
+                n = (stop - start) / step;
+                bug_on((int)n < 0);
+                if (n < seqvar_size(val) && stop > start && step != 1) {
+                        err_setstr(ValueError, "Cannot extend list for step > 1");
+                        return RES_ERROR;
+                }
+
+                if (osrc) {
+                        /* Validate this */
+                        for (i = 0; i < seqvar_size(val); i++) {
+                                if (!isvar_float(osrc[i])) {
+                                        err_setstr(TypeError,
+                                                "Expect float in sequence but found %s",
+                                                typestr(osrc[i]));
+                                        return RES_ERROR;
+                                }
+                        }
+                }
+
+                cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
+                dst = V2FLTS(flts)->data;
+                i = 0;
+                n = seqvar_size(val);
+                while (cmp(start, stop)) {
+                        double d;
+                        bug_on(start >= seqvar_size(flts));
+                        if (i >= n) {
+                                /* end of src, delete rest */
+                                if (step < 0)
+                                        break;
+                                floats_delete_chunk(flts, start, seqvar_size(flts));
+                                return RES_OK;
+                        }
+                        if (osrc)
+                                d = floatvar_tod(osrc[i]);
+                        else
+                                d = fsrc[i];
+                        dst[start] = d;
+                        start += step;
+                        i++;
+                }
+
+                if (step == 1 && i < n) {
+                        size_t j = seqvar_size(flts);
+                        size_t newsize = j + n - i;
+                        dst = erealloc(dst, newsize * sizeof(double));
+                        while (i < n) {
+                                double d;
+                                if (osrc)
+                                        d = floatvar_tod(osrc[i]);
+                                else
+                                        d = fsrc[i];
+                                dst[j] = d;
+                                i++;
+                                j++;
+                        }
+                        V2FLTS(flts)->data = dst;
+                        seqvar_set_size(flts, newsize);
+                }
+        }
+        return RES_OK;
+}
+
 static Object *
 floats_getitem(Object *self, int idx)
 {
@@ -174,6 +314,13 @@ floats_any(Object *self)
         return floats_allany(self, false);
 }
 
+static Object *
+floats_getprop_length(Object *self)
+{
+        bug_on(!isvar_floats(self));
+        return intvar_new(seqvar_size(self));
+}
+
 static const struct seq_fastiter_t floats_fast_iter = {
         .max    = floats_max,
         .min    = floats_min,
@@ -181,10 +328,17 @@ static const struct seq_fastiter_t floats_fast_iter = {
         .all    = floats_all,
 };
 
+static const struct type_prop_t floats_prop_getsets[] = {
+        { .name = "length", .getprop = floats_getprop_length, .setprop = NULL },
+        { .name = NULL },
+};
+
 static const struct seq_methods_t floats_seq_methods = {
         .getitem        = floats_getitem,
         .setitem        = NULL, /* XXX: make immutable? */
         .hasitem        = floats_hasitem,
+        .getslice       = floats_getslice,
+        .setslice       = floats_setslice,
         .cat            = floats_cat,
         .sort           = NULL,
         .fast_iter      = &floats_fast_iter,
@@ -201,7 +355,7 @@ struct type_t FloatsType = {
         .cmp    = floats_cmp,
         .cmpz   = floats_cmpz,
         .reset  = floats_reset,
-        .prop_getsets = NULL,
+        .prop_getsets = floats_prop_getsets,
 };
 
 /**

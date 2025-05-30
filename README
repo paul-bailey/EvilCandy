@@ -90,6 +90,9 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
 * It is single-threaded, and it will probably remain that way at least
   for a while.
 
+* It does not support externally-linkable modules.  Currently all the
+  C code has to be compiled into a single binary.
+
 * It is loaded with thrown-together code that needs refactoring and
   make-professional-ing.  There is not a lot of portability checking,
   for example, nor is there much rigorous boundary checking for things

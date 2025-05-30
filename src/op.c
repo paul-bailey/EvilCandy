@@ -15,10 +15,10 @@ get_binop_method(Object *a, Object *b)
         struct type_t *at = a->v_type;
         struct type_t *bt = b->v_type;
 
-        if (at->opm == NULL || bt->opm == NULL ||
-            isvar_seq(a) || isvar_seq(b)) {
+        if (!isvar_number(a) || !isvar_number(b))
                 return NULL;
-        }
+
+        bug_on(!at->opm || !bt->opm);
 
         if (at == &ComplexType)
                 return at->opm;
@@ -60,17 +60,24 @@ Object *
 qop_mod(Object *a, Object *b)
 {
         const struct operator_methods_t *opm;
+        if ((opm = get_binop_method(a, b)) != NULL) {
+                if (!opm->mod)
+                        goto err;
+
+                return opm->mod(a, b);
+        }
+
+        /* '"" % ()' is OK but '() % ""' is not */
         if (isvar_string(a)) {
                 /* Don't check b, let the string lib sort that out */
                 opm = a->v_type->opm;
                 bug_on(!opm || !opm->mod);
-        } else if ((opm = get_binop_method(a, b)) == NULL
-                   || opm->mod == NULL) {
-                err_permit2("%", a, b);
-                return NULL;
+                return opm->mod(a, b);
         }
-        bug_on(!opm->mod);
-        return opm->mod(a, b);
+
+err:
+        err_permit2("%", a, b);
+        return NULL;
 }
 
 Object *

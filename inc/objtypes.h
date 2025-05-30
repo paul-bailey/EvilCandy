@@ -284,8 +284,7 @@ static inline bool isvar_star(Object *v)
 static inline bool isvar_number(Object *v)
         { return !!(v->v_type->flags & OBF_NUMBER); }
 static inline bool isvar_real(Object *v)
-        { return isvar_int(v) || isvar_float(v); }
-        // { return !!(v->v_type->flags & OBF_REAL); }
+        { return !!(v->v_type->flags & OBF_REAL); }
 static inline bool isvar_seq(Object *v)
         { return v->v_type->sqm != NULL; }
 static inline bool isvar_seq_readable(Object *v)

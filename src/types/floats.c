@@ -7,12 +7,25 @@
 
 #define V2FLTS(v_)      ((struct floatsvar_t *)(v_))
 
+static inline void
+floats_set_data(Object *v, double *data, size_t ndat)
+{
+        V2FLTS(v)->data = data;
+        seqvar_set_size(v, ndat);
+}
+
+static inline double
+floats_get_datum(Object *v, size_t idx)
+{
+        bug_on(idx >= seqvar_size(v));
+        return V2FLTS(v)->data[idx];
+}
+
 static Object *
 floatsvar_new(double *data, size_t n)
 {
         Object *ret = var_new(&FloatsType);
-        seqvar_set_size(ret, n);
-        V2FLTS(ret)->data = data;
+        floats_set_data(ret, data, n);
         return ret;
 }
 
@@ -61,7 +74,7 @@ floats_hasitem(Object *self, Object *fval)
                 return false;
         }
         n = seqvar_size(self);
-        data = V2FLTS(self)->data;
+        data = floats_get_data(self);
         for (i = 0; i < n; i++) {
                 if (data[i] == d)
                         return true;
@@ -85,7 +98,7 @@ floats_getslice(Object *flts, int start, int stop, int step)
         if (start == stop)
                 return floatsvar_new(NULL, 0);
 
-        data = V2FLTS(flts)->data;
+        data = floats_get_data(flts);
         buffer_init(&b);
         cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
 
@@ -102,7 +115,7 @@ floats_getslice(Object *flts, int start, int stop, int step)
 static void
 floats_delete_chunk(Object *flts, size_t start, size_t stop)
 {
-        double *dat = V2FLTS(flts)->data;
+        double *dat = floats_get_data(flts);
         size_t n = seqvar_size(flts);
         size_t newlen = n - (stop - start);
         bug_on(start >= n);
@@ -111,8 +124,7 @@ floats_delete_chunk(Object *flts, size_t start, size_t stop)
         if (stop < n)
                 memmove(&dat[start], &dat[stop], (n - stop) * sizeof(double));
         dat = erealloc(dat, newlen * sizeof(double));
-        V2FLTS(flts)->data = dat;
-        seqvar_set_size(flts, newlen);
+        floats_set_data(flts, dat, newlen);
 }
 
 static enum result_t
@@ -138,7 +150,7 @@ floats_setslice(Object *flts, int start, int stop, int step, Object *val)
                 } else if (isvar_tuple(val)) {
                         osrc = tuple_get_data(val);
                 } else if (isvar_floats(val)) {
-                        fsrc = V2FLTS(val)->data;
+                        fsrc = floats_get_data(val);
                 } else {
                         err_setstr(TypeError,
                                    "Cannot set floats slice from type %s",
@@ -166,7 +178,7 @@ floats_setslice(Object *flts, int start, int stop, int step, Object *val)
                 }
 
                 cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
-                dst = V2FLTS(flts)->data;
+                dst = floats_get_data(flts);
                 i = 0;
                 n = seqvar_size(val);
                 while (cmp(start, stop)) {
@@ -202,8 +214,7 @@ floats_setslice(Object *flts, int start, int stop, int step, Object *val)
                                 i++;
                                 j++;
                         }
-                        V2FLTS(flts)->data = dst;
-                        seqvar_set_size(flts, newsize);
+                        floats_set_data(flts, dst, newsize);
                 }
         }
         return RES_OK;
@@ -214,9 +225,39 @@ floats_getitem(Object *self, int idx)
 {
         bug_on(!isvar_floats(self));
         bug_on(idx < 0 || idx >= seqvar_size(self));
-        return floatvar_new(V2FLTS(self)->data[idx]);
+        return floatvar_new(floats_get_datum(self, idx));
 }
 
+static enum result_t
+floats_setitem(Object *self, int i, Object *child)
+{
+        bug_on(!isvar_floats(self));
+        bug_on(i >= seqvar_size(self));
+        if (child) {
+                double d, *data;
+
+                if (isvar_int(child)) {
+                        d = (double)intvar_toll(child);
+                } else if (isvar_float(child)) {
+                        d = floatvar_tod(child);
+                } else {
+                        err_setstr(TypeError, "Expected: real number");
+                        return RES_ERROR;
+                }
+
+                data = floats_get_data(self);
+                data[i] = d;
+                /* TODO; mark changed */
+        } else {
+                floats_delete_chunk(self, i, i + 1);
+        }
+        return RES_OK;
+}
+
+/*
+ * XXX: This means I can't use '+' for offset or '*' for gain.
+ *      Is that what I really want?
+ */
 static Object *
 floats_cat(Object *a, Object *b)
 {
@@ -229,8 +270,8 @@ floats_cat(Object *a, Object *b)
 
         alen = seqvar_size(a);
         blen = seqvar_size(b);
-        adat = V2FLTS(a)->data;
-        bdat = V2FLTS(b)->data;
+        adat = floats_get_data(a);
+        bdat = floats_get_data(b);
 
         clen = alen + blen;
         cdat = emalloc(clen * sizeof(double));
@@ -335,7 +376,7 @@ static const struct type_prop_t floats_prop_getsets[] = {
 
 static const struct seq_methods_t floats_seq_methods = {
         .getitem        = floats_getitem,
-        .setitem        = NULL, /* XXX: make immutable? */
+        .setitem        = floats_setitem,
         .hasitem        = floats_hasitem,
         .getslice       = floats_getslice,
         .setslice       = floats_setslice,

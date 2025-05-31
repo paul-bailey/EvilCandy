@@ -232,19 +232,66 @@ floats_delete_chunk(Object *flts, size_t start, size_t stop)
 static enum result_t
 floats_setslice(Object *flts, int start, int stop, int step, Object *val)
 {
+        bool (*cmp)(int, int);
+
         bug_on(!isvar_floats(flts));
+
+        cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
+
         if (!val) {
                 /* delete slice */
-                err_setstr(NotImplementedError,
-                           "Floats slice deletion not yet supported");
-                return RES_ERROR;
+                size_t i, j, slice_size, dst_size, src_size;
+                double *dst, *src;
+
+                /* First check if the deletion is one big chunk */
+                if (step == -1) {
+                        bug_on(stop > start);
+                        floats_delete_chunk(flts, stop + 1, start + 1);
+                        return RES_OK;
+                } else if (step == 1) {
+                        floats_delete_chunk(flts, start, stop);
+                        return RES_OK;
+                }
+
+                /*
+                 * Interval deletion.  Rather than do a bunch of calls
+                 * to floats_delete_chunk(), in most cases it will be
+                 * faster to just allocate a new array and put the items
+                 * not marked for deletion into that.
+                 */
+                slice_size = var_slice_size(start, stop, step);
+                src_size = seqvar_size(flts);
+                dst_size = src_size - slice_size;
+                dst = emalloc(dst_size * sizeof(*dst));
+                src = floats_get_data(flts);
+
+                if (step < 0) {
+                        int tmp = stop + 1;
+                        stop = start + 1;
+                        start = tmp;
+                        step = -step;
+                }
+
+                j = 0;
+                for (i = 0; i < src_size; i++) {
+                        if (i == start) {
+                                start += step;
+                                continue;
+                        }
+                        bug_on(j >= dst_size);
+                        dst[j++] = src[i];
+                }
+                bug_on(j != dst_size);
+                efree(src);
+                floats_set_data(flts, dst, dst_size);
+                return RES_OK;
+
         } else {
                 /* insert/add slice */
                 Object **osrc = NULL;
                 double *fsrc = NULL;
                 double *dst;
                 size_t i, n;
-                bool (*cmp)(int, int);
 
                 bug_on(!isvar_seq(val));
                 if (isvar_array(val)) {
@@ -260,8 +307,7 @@ floats_setslice(Object *flts, int start, int stop, int step, Object *val)
                         return RES_ERROR;
                 }
 
-                n = (stop - start) / step;
-                bug_on((int)n < 0);
+                n = var_slice_size(start, stop, step);
                 if (n < seqvar_size(val) && stop > start && step != 1) {
                         err_setstr(ValueError, "Cannot extend list for step > 1");
                         return RES_ERROR;
@@ -279,7 +325,6 @@ floats_setslice(Object *flts, int start, int stop, int step, Object *val)
                         }
                 }
 
-                cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
                 dst = floats_get_data(flts);
                 i = 0;
                 n = seqvar_size(val);

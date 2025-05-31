@@ -179,20 +179,42 @@ array_getslice(Object *obj, int start, int stop, int step)
 static enum result_t
 array_setslice(Object *obj, int start, int stop, int step, Object *val)
 {
+        bool (*cmp)(int, int);
+
         bug_on(!isvar_array(obj));
 
         if (start == stop)
                 return RES_OK;
 
+        cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;
         if (!val) {
                 /* delete slice */
-                err_setstr(NotImplementedError,
-                           "List slice deletion not yet supported");
-                return RES_ERROR;
+                if (step == -1)  {
+                        bug_on(stop > start);
+                        array_delete_chunk(obj, stop + 1, start - stop);
+                        return RES_OK;
+                } else if (step == 1) {
+                        array_delete_chunk(obj, start, stop - start);
+                        return RES_OK;
+                }
+
+                /*
+                 * XXX REVISIT: Lots of memmoves, probably lots of reallocs.
+                 * Quicker to create a new Object array and put the inverse
+                 * of slice into new one.
+                 */
+                while (cmp(start, stop)) {
+                        array_delete_chunk(obj, start, 1);
+                        start += step;
+                        if (step > 0) {
+                                stop--;
+                                start--;
+                        }
+                }
+                return RES_OK;
         } else {
                 /* insert/add slice */
                 Object **dst, **src;
-                bool (*cmp)(int, int);
                 int src_i;
                 size_t n;
 
@@ -212,8 +234,7 @@ array_setslice(Object *obj, int start, int stop, int step, Object *val)
                         return RES_ERROR;
                 }
 
-                n = (stop - start) / step;
-                bug_on((int)n < 0);
+                n = var_slice_size(start, stop, step);
                 if (n < seqvar_size(val) && stop > start && step != 1) {
                         err_setstr(ValueError, "Cannot extend list for step > 1");
                         return RES_ERROR;

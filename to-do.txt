@@ -28,6 +28,7 @@ Must Do
   - **done** Get prompt working
   - Add support for deleting elements and global variables
   - Make consistent and accurate error reporting
+  - Add an editline-like UI for interactive mode.
 
 * **done** Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
 

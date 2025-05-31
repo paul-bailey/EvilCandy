@@ -133,7 +133,18 @@ floats_str(Object *self)
 static int
 floats_cmp(Object *a, Object *b)
 {
-        return OP_CMP((uintptr_t)a, (uintptr_t)b);
+        size_t na, nb;
+        double *pa, *pb;
+        bug_on(!isvar_floats(a) || !isvar_floats(b));
+        na = seqvar_size(a);
+        nb = seqvar_size(b);
+        pa = floats_get_data(a);
+        pb = floats_get_data(b);
+        if (na < nb)
+                return -1;
+        else if (nb < na)
+                return 1;
+        return memcmp(pa, pb, na * sizeof(double));
 }
 
 static bool

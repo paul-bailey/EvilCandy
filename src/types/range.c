@@ -123,6 +123,7 @@ static const struct seq_methods_t range_seq_methods = {
         .getitem        = range_getitem,
         .setitem        = NULL,
         .hasitem        = range_hasitem,
+        /* TODO: add getslice */
         .cat            = NULL,
         .sort           = NULL,
 };

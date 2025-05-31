@@ -51,12 +51,31 @@
  * @FE_CONTINUE: We're the start of a loop where 'continue' may
  *          break us out.
  * @FE_TOP: We're the top-level statement in interactive mode.
- * There used to be more, but they went obsolete.
+ * @FEE_MASK: OR flags with this to turn it into one of the
+ *          three mutually-exclusive arguments to
+ *          assemble_primary_elements
+ * @FEE_EVAL: Call to assemble_primary_elements from expression.
+ *          Elements are to be treated as read-only, assignment
+ *          operators are not allowed.
+ * @FEE_ASGN: Call to assemble_primary_elements from statement.
+ *          Check for assignment operators.
+ * @FEE_DEL: Call to assemble_primary_elements from statement.
+ *          At the final element in the 'a.b.c...' expression,
+ *          Add instruction to delete that one.
  */
 enum {
         FE_FOR          = 0x01,
         FE_CONTINUE     = 0x02,
-        FE_TOP          = 0x04
+        FE_TOP          = 0x04,
+
+        /*
+         * bits 4-5, three mutually-exclusive arguments to
+         * assemble_primary_elements.
+         */
+        FEE_EVAL        = 0x00, /* use with FEE_MASK */
+        FEE_ASGN        = 0x10,
+        FEE_DEL         = 0x20,
+        FEE_MASK        = 0x30,
 };
 
 #define as_err(a, e) longjmp((a)->env, e)
@@ -89,7 +108,7 @@ static void assemble_stmt(struct assemble_t *a, unsigned int flags,
                           int continueto);
 static void assemble_expr5_atomic(struct assemble_t *a);
 static int assemble_primary_elements(struct assemble_t *a,
-                                     bool may_assign);
+                                     unsigned int flags);
 
 
 /* i is ARRAY size, not number of bytes! */
@@ -958,7 +977,7 @@ static void
 assemble_expr4_elems(struct assemble_t *a)
 {
         assemble_expr5_atomic(a);
-        assemble_primary_elements(a, false);
+        assemble_primary_elements(a, FEE_EVAL);
 }
 
 static void
@@ -1209,27 +1228,35 @@ assemble_preassign(struct assemble_t *a, int t)
         }
 }
 
-/*
- * Helper to assemble_primary_elements
- * return value of true means "done, return zero"
- * false means "carry on"
- */
 static int
-setattr_if_assign(struct assemble_t *a)
+maybe_modattr(struct assemble_t *a, unsigned int flags)
 {
-        int t = as_lex(a);
-        if (istok_assign(t)) {
-                if (t == OC_EQ) {
-                        assemble_expr(a);
-                } else {
-                        add_instr(a, INSTR_LOADATTR, 0, 0);
-                        assemble_preassign(a, t);
+        if (flags == FEE_DEL) {
+                int t = as_lex(a);
+                if (istok_indirection(t)) {
+                        as_unlex(a);
+                        return 0;
                 }
-                add_instr(a, INSTR_SETATTR, 0, 0);
+                add_instr(a, INSTR_DELATTR, 0, 0);
                 return 1;
+        } else if (flags == FEE_ASGN) {
+                int t = as_lex(a);
+                if (istok_assign(t)) {
+                        if (t == OC_EQ) {
+                                assemble_expr(a);
+                        } else {
+                                add_instr(a, INSTR_LOADATTR, 0, 0);
+                                assemble_preassign(a, t);
+                        }
+                        add_instr(a, INSTR_SETATTR, 0, 0);
+                        return 1;
+                }
+                as_unlex(a);
+                return 0;
+        } else {
+                bug_on(flags != FEE_EVAL);
+                return 0;
         }
-        as_unlex(a);
-        return 0;
 }
 
 /*
@@ -1240,14 +1267,15 @@ setattr_if_assign(struct assemble_t *a)
  * Return: 1 if an evaluated item is dangling on the stack, 0 if not
  */
 static int
-assemble_primary_elements(struct assemble_t *a, bool may_assign)
+assemble_primary_elements(struct assemble_t *a, unsigned int flags)
 {
+        flags &= FEE_MASK;
         while (istok_indirection(a->oc->t)) {
                 switch (a->oc->t) {
                 case OC_PER:
                         as_errlex(a, OC_IDENTIFIER);
                         ainstr_load_const(a, a->oc);
-                        if (may_assign && setattr_if_assign(a))
+                        if (maybe_modattr(a, flags))
                                 return 0;
                         add_instr(a, INSTR_GETATTR, 0, 0);
                         break;
@@ -1255,7 +1283,7 @@ assemble_primary_elements(struct assemble_t *a, bool may_assign)
                 case OC_LBRACK:
                         assemble_slice(a);
                         if (as_lex(a) == OC_RBRACK) {
-                                if (may_assign && setattr_if_assign(a))
+                                if (maybe_modattr(a, flags))
                                         return 0;
                                 as_unlex(a);
                         }
@@ -1266,6 +1294,16 @@ assemble_primary_elements(struct assemble_t *a, bool may_assign)
                 case OC_LPAR:
                         as_unlex(a);
                         assemble_call_func(a);
+                        /*
+                         * XXX: I don't know a faster way to do this
+                         * without spaghettifying the code.
+                         */
+                        if (flags == FEE_DEL &&
+                            !istok_indirection(as_peek(a, false))) {
+                                err_setstr(SyntaxError,
+                                           "Trying to delete function call");
+                                as_err(a, AE_GEN);
+                        }
                         break;
 
                 default:
@@ -1275,7 +1313,7 @@ assemble_primary_elements(struct assemble_t *a, bool may_assign)
                 as_lex(a);
         }
 
-        if (may_assign && a->oc->t == OC_SEMI)
+        if (!!flags && a->oc->t == OC_SEMI)
                 as_unlex(a);
 
         return 1;
@@ -1289,7 +1327,7 @@ assemble_primary_elements__(struct assemble_t *a)
                 as_unlex(a);
                 return 1;
         }
-        return assemble_primary_elements(a, true);
+        return assemble_primary_elements(a, FEE_ASGN);
 }
 
 /* return 1 if item left on the stack, 0 if not */
@@ -1346,6 +1384,48 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                 ainstr_load_symbol(a, &name, pos);
                 return assemble_primary_elements__(a);
         }
+}
+
+static void
+assemble_delete(struct assemble_t *a)
+{
+        struct token_t name;
+        token_pos_t pos;
+
+        as_lex(a);
+        pos = as_savetok(a, &name);
+
+        as_lex(a);
+        if (istok_indirection(a->oc->t)) {
+                if (name.t != OC_THIS && name.t != OC_IDENTIFIER)
+                        goto baddelete;
+                ainstr_load_symbol(a, &name, pos);
+                assemble_primary_elements(a, FEE_DEL);
+        } else {
+                /*
+                 * Cannot delete variables, but we can reduce their
+                 * memory footprint by reassigning them to NULL.
+                 *
+                 * XXX REVISIT: Deletion is not impossible, nor am I
+                 * following EMCAScript, so maybe allow true deletion
+                 * from the namespace after all; it would allow
+                 * redeclaration, which could come in handy.
+                 */
+                if (name.t != OC_IDENTIFIER)
+                        goto baddelete;
+
+                as_unlex(a);
+                ainstr_load_symbol(a, &name, pos);
+                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+                ainstr_assign_symbol(a, &name, pos);
+        }
+        return;
+
+baddelete:
+        /* back up for more accurate error reporting */
+        as_unlex(a);
+        err_setstr(SyntaxError, "Invalid expression for delete");
+        as_err(a, AE_GEN);
 }
 
 /* common to assemble_declarator_stmt and assemble_foreach */
@@ -1745,6 +1825,9 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         as_lex(a);
         /* cases return early if semicolon not expected at the end */
         switch (a->oc->t) {
+        case OC_DELETE:
+                assemble_delete(a);
+                return;
         case OC_EOF:
                 return;
         case OC_IDENTIFIER:

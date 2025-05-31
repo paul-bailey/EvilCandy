@@ -698,6 +698,20 @@ do_loadattr(Frame *fr, instruction_t ii)
 }
 
 static int
+do_delattr(Frame *fr, instruction_t ii)
+{
+        Object *obj, *key;
+        int res;
+
+        key = pop(fr);
+        obj = pop(fr);
+        res = var_delattr(obj, key);
+        VAR_DECR_REF(key);
+        VAR_DECR_REF(obj);
+        return res;
+}
+
+static int
 do_foreach_setup(Frame *fr, instruction_t ii)
 {
         /*

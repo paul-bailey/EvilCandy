@@ -95,7 +95,7 @@ DEFTUPLE
 DEFSTAR
 
 ##
-#   GET/SET/LOADATTR
+#   GET/SET/LOAD/DELATTR
 #
 # GETATTR pops the key and containing object off the stack, and pushes
 # requested item onto the stack.
@@ -110,6 +110,7 @@ DEFSTAR
 GETATTR
 SETATTR
 LOADATTR
+DELATTR
 
 ##
 #   'for' loop stuff

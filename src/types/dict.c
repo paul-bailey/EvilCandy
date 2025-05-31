@@ -511,8 +511,11 @@ dict_insert(Object *dict, Object *key,
                         bug_on(d->d_used != seqvar_size(dict) + 1);
                         seqvar_set_size(dict, d->d_used);
                 }
-        } else if (d->d_keys[i] != NULL) {
+        } else {
                 /* remove */
+                if (d->d_keys[i] == NULL)
+                        return RES_ERROR;
+
                 VAR_DECR_REF(d->d_vals[i]);
                 VAR_DECR_REF(d->d_keys[i]);
                 d->d_keys[i] = BUCKET_DEAD;

@@ -493,7 +493,7 @@ badtype:
 }
 
 /**
- * var_has_attr - Implement the has keyword
+ * var_hasattr - Implement the has keyword
  * @haystack: the lval 'a' of 'a has b'
  * @needle:   the rval 'b' of 'a has b'
  *
@@ -517,7 +517,7 @@ var_hasattr(Object *haystack, Object *needle)
 }
 
 /**
- * var_set_attr - Generalized set-attribute
+ * var_setattr - Generalized set-attribute
  * @v:          Variable whose attribute we're setting
  * @key:        Variable storing the index number or name
  * @attr:       Variable storing the attribute to set.  This will be
@@ -543,6 +543,11 @@ var_setattr(Object *v, Object *key, Object *attr)
                                 return ret;
                         /* still here, fall through, try property */
                 }
+
+                /* may not delete built-in properties */
+                if (!attr)
+                        goto badtype;
+
                 err_clear();
                 prop = dict_getitem(v->v_type->methods, key);
                 if (prop && isvar_property(prop)) {

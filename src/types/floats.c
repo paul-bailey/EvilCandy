@@ -512,7 +512,6 @@ floats_setprop_t0(Object *self, Object *val)
 
 /*
  * TODO: add kwarg shave=true to remove convolution tail, normalize=true
- * FIXME: What about T0 for f and g?
  * XXX: Separate calls for new signal, or in-place signal.
  */
 static Object *

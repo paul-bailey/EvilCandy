@@ -64,6 +64,7 @@ ANDEQ           '&='            assign
 EQ3             '==='
 NEQ3            '!=='
 LSHIFT3         '>>>'
+DELETE          "delete"
 FUNC            "function"
 LET             "let"
 THIS            "this"

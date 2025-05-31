@@ -141,7 +141,7 @@ tuple_getslice(Object *obj, int start, int stop, int step)
 
         bug_on(!isvar_tuple(obj));
 
-        dst_n = (stop - start) / step;
+        dst_n = var_slice_size(start, stop, step);
         bug_on(dst_n < 0);
         ret = tuplevar_new(dst_n);
 

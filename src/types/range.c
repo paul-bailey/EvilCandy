@@ -19,7 +19,6 @@ struct rangevar_t {
 Object *
 rangevar_new(long long start, long long stop, long long step)
 {
-        ssize_t len;
         Object *ret = var_new(&RangeType);
         struct rangevar_t *r = V2R(ret);
         r->start = start;
@@ -28,18 +27,7 @@ rangevar_new(long long start, long long stop, long long step)
 
         /* calling code should have checked this */
         bug_on(!step);
-
-        /* calculate length */
-        if (stop > start && step > 0) {
-                len = (stop - start) / step;
-        } else if (stop < start && step < 0) {
-                len = -((stop - start) / step);
-        } else {
-                len = 0;
-        }
-        if (len < 0)
-                len = -len;
-        RANGE_SETLEN(ret, len);
+        seqvar_set_size(ret, var_slice_size(start, stop, step));
         return ret;
 }
 
@@ -111,13 +99,20 @@ range_str(Object *v)
 }
 
 static Object *
-range_len(Frame *fr)
+range_getprop_length(Object *self)
 {
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &RangeType) == RES_ERROR)
-                return ErrorVar;
         return intvar_new(RANGE_LEN(self));
 }
+
+static const struct type_prop_t range_prop_getsets[] = {
+        {
+                .name = "length",
+                .getprop = range_getprop_length,
+                .setprop = NULL,
+        }, {
+                .name = NULL,
+        },
+};
 
 static const struct seq_methods_t range_seq_methods = {
         .getitem        = range_getitem,
@@ -129,7 +124,6 @@ static const struct seq_methods_t range_seq_methods = {
 };
 
 static const struct type_inittbl_t range_cb_methods[] = {
-        V_INITTBL("len",     range_len,           0, 0, -1, -1),
         V_INITTBL("foreach", var_foreach_generic, 1, 2, -1, -1),
         TBLEND,
 };
@@ -145,5 +139,6 @@ struct type_t RangeType = {
         .str    = range_str,
         .cmp    = range_cmp,
         .reset  = NULL,
+        .prop_getsets = range_prop_getsets,
 };
 

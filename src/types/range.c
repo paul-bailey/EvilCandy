@@ -49,6 +49,32 @@ range_getitem(Object *rng, int idx)
         return intvar_new(resi);
 }
 
+static bool slice_cmp_lt(int a, int b) { return a < b; }
+static bool slice_cmp_gt(int a, int b) { return a > b; }
+
+/*
+ * range_getslice - A little pointless, since range creation involves
+ *                  what's essentially a slice, but this makes it so
+ *                  var.c code can be agnostic of our type, and assume
+ *                  any sequence with a .getitem also has a .getslice.
+ */
+static Object *
+range_getslice(Object *rng, int start, int stop, int step)
+{
+        Object *ret;
+        bool (*cmp)(int, int);
+
+        cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
+        ret = arrayvar_new(0);
+        while (cmp(start, stop)) {
+                Object *val = range_getitem(rng, start);
+                array_append(ret, val);
+                VAR_DECR_REF(val);
+                start += step;
+        }
+        return ret;
+}
+
 static bool
 range_hasitem(Object *rng, Object *item)
 {
@@ -118,7 +144,7 @@ static const struct seq_methods_t range_seq_methods = {
         .getitem        = range_getitem,
         .setitem        = NULL,
         .hasitem        = range_hasitem,
-        /* TODO: add getslice */
+        .getslice       = range_getslice,
         .cat            = NULL,
         .sort           = NULL,
 };

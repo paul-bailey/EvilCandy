@@ -530,18 +530,27 @@ enum result_t
 var_setattr(Object *v, Object *key, Object *attr)
 {
         if (isvar_string(key)) {
-                const char *ks = string_cstring(key);
+                Object *prop;
+                enum result_t ret;
                 const struct map_methods_t *map = v->v_type->mpm;
-                if (!map || !map->setitem)
-                        goto badtype;
-                if (!ks || ks[0] == '\0') {
-                        err_setstr(KeyError, "key may not be empty");
-                        return RES_ERROR;
+                if (map && map->setitem) {
+                        if (seqvar_size(key) == 0) {
+                                err_setstr(KeyError, "key may not be empty");
+                                return RES_ERROR;
+                        }
+                        ret = map->setitem(v, key, attr);
+                        if (ret == RES_OK)
+                                return ret;
+                        /* still here, fall through, try property */
                 }
-                /*
-                 * FIXME: If this fails, try setting property.
-                 */
-                return map->setitem(v, key, attr);
+                err_clear();
+                prop = dict_getitem(v->v_type->methods, key);
+                if (prop && isvar_property(prop)) {
+                        ret = property_set(prop, v, attr);
+                        VAR_DECR_REF(prop);
+                        return ret;
+                }
+                goto badtype;
         } else if (isvar_tuple(key)) {
                 int start, stop, step;
                 const struct seq_methods_t *seq = v->v_type->sqm;

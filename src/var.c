@@ -362,6 +362,25 @@ malformed:
 }
 
 /**
+ * var_slice_size - Get size of a slice
+ * @start: start index (inclusive)
+ * @stop:  stop index (exclusive)
+ * @step:  steps between indices
+ *
+ * Return: size of slice
+ */
+size_t
+var_slice_size(ssize_t start, ssize_t stop, ssize_t step)
+{
+        ssize_t res;
+        if (step > 0)
+                res = (stop - start + step - 1) / step;
+        else
+                res = (stop - start + step + 1) / step;
+        return res < 0 ? 0 : res;
+}
+
+/**
  * seqvar_arg2idx - Helper functions for sequential objects to translate
  *                  an index argument (which may be <0) into an index >= 0
  * @obj:  Object being de-referenced

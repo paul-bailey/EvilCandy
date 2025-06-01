@@ -65,8 +65,10 @@ initialize_string_consts(void)
                 STRCONST_CSTR(encoding),
                 STRCONST_CSTR(end),
                 STRCONST_CSTR(file),
+                STRCONST_CSTR(imag),
                 STRCONST_CSTR(keepends),
                 STRCONST_CSTR(maxsplit),
+                STRCONST_CSTR(real),
                 STRCONST_CSTR(sep),
                 STRCONST_CSTR(sorted),
                 STRCONST_CSTR(tabsize),
@@ -109,6 +111,7 @@ initialize_global_object(void)
         gbl.eight       = intvar_new(8LL);
         gbl.empty_bytes = bytesvar_new((unsigned char *)"", 0);
         gbl.spc_bytes   = bytesvar_new((unsigned char *)" ", 1);
+        gbl.fzero       = floatvar_new(0.0);
 
         o = dict_getitem_cstr(GlobalObject, "_builtins");
         dict_add_to_globals(o);
@@ -163,6 +166,7 @@ cfile_deinit_global(void)
         VAR_DECR_REF(gbl.eight);
         VAR_DECR_REF(gbl.empty_bytes);
         VAR_DECR_REF(gbl.spc_bytes);
+        VAR_DECR_REF(gbl.fzero);
 
         for (i = 0; i < N_STRCONST; i++)
                 VAR_DECR_REF(gbl.strconsts[i]);

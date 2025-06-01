@@ -177,6 +177,114 @@ do_complex_conjugate(Frame *fr)
         return complexvar_new(creal(c), -cimag(c));
 }
 
+/* TODO: move these to err.c */
+static void
+err_notreal(const char *tpname)
+{
+        err_setstr(TypeError, "Expected real number but got %s", tpname);
+}
+
+static void
+err_doublearg(const char *argname)
+{
+        err_setstr(ArgumentError, "Argument '%s' already set", argname);
+}
+
+static enum result_t
+assert_arg_real(Object *x, const char *what)
+{
+        if (!isvar_real(x)) {
+                err_notreal(typestr(x));
+                return RES_ERROR;
+        }
+        return RES_OK;
+}
+
+static Object *
+complex_create(Frame *fr)
+{
+        Object *args, *kwargs, *realarg, *imagarg, *ret;
+        size_t argc;
+        int nkw;
+        double real, imag;
+
+        args = vm_get_arg(fr, 0);
+        kwargs = vm_get_arg(fr, 1);
+        bug_on(!args || !isvar_array(args));
+        bug_on(!kwargs || !isvar_dict(kwargs));
+
+        /* guilty until proven innocent */
+        ret = ErrorVar;
+
+        dict_unpack(kwargs,
+                STRCONST_ID(real),      &realarg,       NullVar,
+                STRCONST_ID(imag),      &imagarg,       NullVar,
+                NULL);
+
+        nkw = 0;
+        if (realarg != NullVar)
+                nkw++;
+        if (imagarg != NullVar)
+                nkw++;
+
+        argc = seqvar_size(args);
+        if (argc + nkw > 2) {
+                err_setstr(ArgumentError,
+                           "Expected at most 2 args but got %d",
+                           (int)(argc + nkw));
+                goto out;
+        }
+
+        switch (argc) {
+        default:
+        case 0:
+                break;
+        case 1:
+                if (realarg != NullVar) {
+                        err_doublearg("real");
+                        goto out;
+                }
+                realarg = array_getitem(args, 0);
+                break;
+        case 2:
+                realarg = array_getitem(args, 0);
+                imagarg = array_getitem(args, 1);
+                break;
+        }
+
+        if (realarg == NullVar) {
+                VAR_DECR_REF(realarg);
+                realarg = VAR_NEW_REF(gbl.fzero);
+        }
+
+        if (isvar_complex(realarg)) {
+                if (imagarg != NullVar) {
+                        err_doublearg("imag");
+                        goto out;
+                }
+                VAR_DECR_REF(imagarg);
+                /* ref already produced */
+                return realarg;
+        }
+
+        if (imagarg == NullVar) {
+                VAR_DECR_REF(imagarg);
+                imagarg = VAR_NEW_REF(gbl.fzero);
+        }
+        if (assert_arg_real(realarg, "real") == RES_ERROR)
+                goto out;
+        if (assert_arg_real(imagarg, "imag") == RES_ERROR)
+                goto out;
+
+        real = realvar_tod(realarg);
+        imag = realvar_tod(imagarg);
+        ret = complexvar_new(real, imag);
+out:
+        VAR_DECR_REF(realarg);
+        VAR_DECR_REF(imagarg);
+        return ret;
+}
+
 static const struct type_prop_t complex_prop_getsets[] = {
         { .name = "real", .getprop = complex_getreal, .setprop = NULL },
         { .name = "imag", .getprop = complex_getimag, .setprop = NULL },
@@ -208,6 +316,7 @@ struct type_t ComplexType = {
         .cmp    = complex_cmp,
         .cmpz   = complex_cmpz,
         .prop_getsets = complex_prop_getsets,
+        .create = complex_create,
 };
 
 Object *

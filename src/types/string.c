@@ -81,14 +81,11 @@ string_data(Object *str)
 static long
 string_getidx_raw(size_t width, const void *unicode, size_t idx)
 {
-        if (width == 1) {
-                return ((uint8_t *)unicode)[idx];
-        } else if (width == 2) {
-                return ((uint16_t *)unicode)[idx];
-        } else {
-                bug_on(width != 4);
-                return ((uint32_t *)unicode)[idx];
-        }
+        /*
+         * Repurpose this function, since the string_reader_t struct
+         * is not required for it.
+         */
+        return string_reader_getc__(width, unicode, idx);
 }
 
 /* Only used by stringvar_from_points, otherwise violates immutability */
@@ -2678,12 +2675,6 @@ string_reader_init(struct string_reader_t *rd,
         if (startpos > rd->len)
                 startpos = rd->len;
         rd->pos = startpos;
-}
-
-long
-string_reader_getc__(size_t wid, void *dat, size_t pos)
-{
-        return string_getidx_raw(wid, dat, pos);
 }
 
 /* like strchr, but for string objects, and only returns truth value */

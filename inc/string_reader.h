@@ -10,10 +10,20 @@ struct string_reader_t {
         size_t pos;
 };
 
+static inline long
+string_reader_getc__(size_t wid, const void *dat, size_t pos)
+{
+        if (wid == 1)
+                return (long)((uint8_t *)dat)[pos];
+        if (wid == 2)
+                return (long)((uint16_t *)dat)[pos];
+        bug_on(wid != 4);
+        return (long)((uint32_t *)dat)[pos];
+}
+
 /* types/string.c */
 extern void string_reader_init(struct string_reader_t *rd,
                                Object *str, size_t startpos);
-extern long string_reader_getc__(size_t wid, void *dat, size_t pos);
 
 static inline long
 string_reader_getc(struct string_reader_t *rd)

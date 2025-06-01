@@ -187,6 +187,60 @@ array_getslice(Object *obj, int start, int stop, int step)
         return ret;
 }
 
+static Object **
+slice_src(Object *x)
+{
+        if (isvar_array(x)) {
+                return array_get_data(x);
+        } else if (isvar_tuple(x)) {
+                return tuple_get_data(x);
+        } else {
+                err_setstr(TypeError,
+                           "Cannot set list slice from type %s",
+                           typestr(x));
+                return NULL;
+        }
+}
+
+static enum result_t
+array_setslice_1step(Object *obj, int start,
+                        int stop, int step, Object *val)
+{
+        Object **src, **dst;
+        ssize_t nslc, nsrc, ndiff, i, k;
+
+        bug_on(!isvar_array(obj));
+
+        dst = array_get_data(obj);
+        src = slice_src(val);
+        if (!src)
+                return RES_ERROR;
+
+        if (step < 0) {
+                int tmp = stop + 1;
+                stop = start + 1;
+                start = tmp;
+                step = -step;
+        }
+
+        nslc = stop - start;
+        nsrc = seqvar_size(val);
+        ndiff = nsrc - nslc;
+        k = ndiff >= 0 ? nslc : nsrc;
+        for (i = 0; i < k; i++) {
+                VAR_DECR_REF(dst[i + start]);
+                dst[i + start] = VAR_NEW_REF(src[i]);
+        }
+        if (ndiff > 0) {
+                array_insert_chunk(obj, start + k,
+                                   &src[k], ndiff);
+        } else if (ndiff < 0) {
+                array_delete_chunk(obj, start + k, -ndiff);
+        }
+
+        return RES_OK;
+}
+
 static enum result_t
 array_setslice(Object *obj, int start, int stop, int step, Object *val)
 {
@@ -231,25 +285,25 @@ array_setslice(Object *obj, int start, int stop, int step, Object *val)
 
                 bug_on(!isvar_seq(val));
 
+                if (step == 1 || step == -1) {
+                        return array_setslice_1step(obj, start,
+                                                    stop, step, val);
+                }
+
                 cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;
                 dst = array_get_data(obj);
 
-                if (isvar_array(val)) {
-                        src = array_get_data(val);
-                } else if (isvar_tuple(val)) {
-                        src = tuple_get_data(val);
-                } else {
-                        err_setstr(TypeError,
-                                   "Cannot set list slice from type %s",
-                                   typestr(val));
+                if ((src = slice_src(val)) == NULL)
                         return RES_ERROR;
-                }
 
                 n = var_slice_size(start, stop, step);
                 if (n < seqvar_size(val) && stop > start && step != 1) {
-                        err_setstr(ValueError, "Cannot extend list for step > 1");
+                        err_setstr(ValueError,
+                                   "Cannot extend list for step=%d",
+                                   step);
                         return RES_ERROR;
                 }
+
 
                 src_i = 0;
                 n = seqvar_size(val);
@@ -272,14 +326,6 @@ array_setslice(Object *obj, int start, int stop, int step, Object *val)
                         src_i++;
                 }
 
-                if (step == 1) {
-                        if (seqvar_size(val) > src_i) {
-                                n = seqvar_size(val) - src_i;
-                                bug_on(start > seqvar_size(obj));
-                                array_insert_chunk(obj, start,
-                                                   &src[src_i], n);
-                        }
-                }
                 return RES_OK;
         }
 }

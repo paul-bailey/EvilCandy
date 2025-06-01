@@ -90,6 +90,11 @@ evc_strtol(const char *s, char **endptr, int base, long long *v)
                 sign = 1LL;
         }
 
+        /*
+         * GNU/Linux has no problem parsing '0b', but that's apparently
+         * not standard.  So, while we're at it, also allow the very-not-
+         * standard '0o' header.
+         */
         if (base == 0) {
                 if (s[0] == '0') {
                         if (s[1] == 'x' || s[1] == 'X') {

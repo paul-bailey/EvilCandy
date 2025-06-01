@@ -783,6 +783,29 @@ do_array_reverse(Frame *fr)
         return NULL;
 }
 
+static Object *
+array_create(Frame *fr)
+{
+        Object *arg, *args;
+
+        args = vm_get_arg(fr, 0);
+        bug_on(!args || !isvar_array(args));
+        if (seqvar_size(args) != 1) {
+                err_setstr(ArgumentError,
+                           "Expected 1 arg but got %d",
+                           seqvar_size(args));
+                return ErrorVar;
+        }
+
+        arg = array_borrowitem(args, 0);
+        if (!isvar_seq(arg) && !isvar_dict(arg)) {
+                err_setstr(TypeError, "Invalid type '%s' for list()",
+                           typestr(arg));
+                return ErrorVar;
+        }
+        return var_listify(arg);
+}
+
 static const struct type_inittbl_t array_cb_methods[] = {
         V_INITTBL("allocated",  do_array_allocated,  0, 0, -1, -1),
         V_INITTBL("append",     do_array_append,     1, 1, -1, -1),
@@ -827,4 +850,5 @@ struct type_t ArrayType = {
         .cmp = array_cmp,
         .reset = array_reset,
         .prop_getsets = array_prop_getsets,
+        .create = array_create,
 };

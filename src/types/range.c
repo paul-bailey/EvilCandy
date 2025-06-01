@@ -16,7 +16,7 @@ struct rangevar_t {
 #define RANGE_LEN(v_)           seqvar_size(v_)
 #define RANGE_SETLEN(v_, n_)    do { seqvar_set_size(v_, (n_)); } while (0)
 
-Object *
+static Object *
 rangevar_new(long long start, long long stop, long long step)
 {
         Object *ret = var_new(&RangeType);
@@ -130,6 +130,60 @@ range_getprop_length(Object *self)
         return intvar_new(RANGE_LEN(self));
 }
 
+static Object *
+range_create(Frame *fr)
+{
+        Object *arg, *args;
+        int argc, start, stop, step;
+
+        args = vm_get_arg(fr, 0);
+        bug_on(!args || !isvar_array(args));
+        argc = seqvar_size(args);
+        if (argc < 1 || argc > 3) {
+                err_setstr(ArgumentError, "Expected: 1 to 3 args");
+                return ErrorVar;
+        }
+        /* defaults */
+        start = 0LL;
+        step  = 1LL;
+        switch (argc) {
+        case 1:
+                arg = array_borrowitem(args, 0);
+                if (!isvar_int(arg))
+                        goto needint;
+                stop  = intvar_toi(arg);
+                break;
+        case 3:
+        case 2:
+                arg = array_borrowitem(args, 0);
+                if (!isvar_int(arg))
+                        goto needint;
+                start = intvar_toi(arg);
+                arg = array_borrowitem(args, 1);
+                if (!isvar_int(arg))
+                        goto needint;
+                stop = intvar_toi(arg);
+                if (argc == 2)
+                        break;
+                /* case 3, fall through */
+                arg = array_borrowitem(args, 2);
+                if (!isvar_int(arg))
+                        goto needint;
+                step = intvar_toi(arg);
+        }
+        if (err_occurred()) {
+                err_clear();
+                err_setstr(ValueError,
+                           "Range values currently must fit in type 'int'");
+                return ErrorVar;
+        }
+        return rangevar_new(start, stop, step);
+
+needint:
+        err_argtype("integer");
+        return ErrorVar;
+}
+
 static const struct type_prop_t range_prop_getsets[] = {
         {
                 .name = "length",
@@ -166,5 +220,6 @@ struct type_t RangeType = {
         .cmp    = range_cmp,
         .reset  = NULL,
         .prop_getsets = range_prop_getsets,
+        .create = range_create,
 };
 

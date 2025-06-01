@@ -188,12 +188,6 @@ extern enum result_t file_write(Object *file, Object *data);
 /* types/float.c */
 extern Object *floatvar_new(double value);
 
-/* types/floats.c */
-extern Object *floatsvar_from_bytes(Object *v,
-                                    enum floats_enc_t enc, int le);
-extern Object *floatsvar_from_array(Object **data, size_t n);
-extern Object *floatsvar_from_text(Object *str, Object *sep);
-
 /* types/function.c */
 extern Object *funcvar_new_user(Object *ex);
 extern Object *funcvar_new_intl(Object *(*cb)(Frame *),
@@ -241,10 +235,6 @@ extern Object *propertyvar_new(const struct type_prop_t *props);
 extern Object *property_get(Object *prop, Object *owner);
 extern enum result_t property_set(Object *prop,
                                   Object *owner, Object *value);
-
-/* types/range.c */
-extern Object *rangevar_new(long long start,
-                        long long stop, long long step);
 
 /* types/star.c */
 extern Object *starvar_new(Object *x);

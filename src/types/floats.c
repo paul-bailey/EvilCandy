@@ -2,6 +2,11 @@
  * floats.c - A more compact array for use with large amounts of numbers.
  *            Intended for statistics and DSP, where ListType objects
  *            would be too cumbersome.
+ *
+ * TODO: This is not very useful unless I can get it working as a streaming
+ * module, unless users are willing to use tons of RAM with operations like
+ * file-to-bytes, bytes-to-floats, floats operation, floats-to-file.  Normal-
+ * sized floats arrays can just as well be operated on as lists or tuples.
  */
 #include <evilcandy.h>
 #include <math.h>
@@ -696,63 +701,6 @@ do_floats_sum(Frame *fr)
         return floatvar_new(fv->sum);
 }
 
-static const struct seq_fastiter_t floats_fast_iter = {
-        .max    = floats_max,
-        .min    = floats_min,
-        .any    = floats_any,
-        .all    = floats_all,
-};
-
-static const struct type_prop_t floats_prop_getsets[] = {
-        {
-                .name = "length",
-                .getprop = floats_getprop_length,
-                .setprop = NULL,
-        }, {
-                .name = "t0",
-                .getprop = floats_getprop_t0,
-                .setprop = floats_setprop_t0,
-        }, {
-                .name = NULL,
-        },
-};
-
-static const struct type_inittbl_t floats_cb_methods[] = {
-        V_INITTBL("convolve",   do_floats_convolve,     1, 1, -1, -1),
-        V_INITTBL("gain",       do_floats_gain,         1, 1, -1, -1),
-        V_INITTBL("offset",     do_floats_offset,       1, 1, -1, -1),
-        V_INITTBL("mean",       do_floats_mean,         0, 0, -1, -1),
-        V_INITTBL("stddev",     do_floats_stddev,       0, 0, -1, -1),
-        V_INITTBL("sum",        do_floats_sum,          0, 0, -1, -1),
-        TBLEND,
-};
-
-static const struct seq_methods_t floats_seq_methods = {
-        .getitem        = floats_getitem,
-        .setitem        = floats_setitem,
-        .hasitem        = floats_hasitem,
-        .getslice       = floats_getslice,
-        .setslice       = floats_setslice,
-        .cat            = floats_cat,
-        .sort           = NULL,
-        .fast_iter      = &floats_fast_iter,
-};
-
-struct type_t FloatsType = {
-        .flags  = 0,
-        .name   = "floats",
-        .opm    = NULL,
-        .cbm    = floats_cb_methods,
-        .mpm    = NULL,
-        .sqm    = &floats_seq_methods,
-        .size   = sizeof(struct floatsvar_t),
-        .str    = floats_str,
-        .cmp    = floats_cmp,
-        .cmpz   = floats_cmpz,
-        .reset  = floats_reset,
-        .prop_getsets = floats_prop_getsets,
-};
-
 /**
  * floatsvar_from_array - Build a floats object from an array
  *                        of float-type objects.
@@ -763,7 +711,7 @@ struct type_t FloatsType = {
  * Return:  A new floats object, or ErrorVar if @src contains
  * invalid types.
  */
-Object *
+static Object *
 floatsvar_from_array(Object **src, size_t n)
 {
         Object **end;
@@ -804,7 +752,7 @@ floatsvar_from_array(Object **src, size_t n)
  *
  * Return: New floats object, or ErrorVar if @str is malformed.
  */
-Object *
+static Object *
 floatsvar_from_text(Object *str, Object *sep)
 {
         struct buffer_t b;
@@ -866,7 +814,7 @@ unpack32(const unsigned char *data, int le)
                 return data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3];
 }
 
-Object *
+static Object *
 floatsvar_from_bytes(Object *v, enum floats_enc_t enc, int le)
 {
         const unsigned char *data, *src, *end;
@@ -974,4 +922,159 @@ esize:
                    "bytes size must be an exact multiple of the size specified");
         return ErrorVar;
 }
+
+static Object *
+floats_create(Frame *fr)
+{
+        static const struct str2enum_t floats_binenc_strs[] = {
+                { .s = "binary64", .v = FLOATS_BINARY64 },
+                { .s = "binary32", .v = FLOATS_BINARY32 },
+                { .s = "uint64",   .v = FLOATS_UINT64 },
+                { .s = "uint32",   .v = FLOATS_UINT32 },
+                { .s = NULL }
+        };
+        static const struct str2enum_t floats_endian_strs[] = {
+                { .s = "big",           .v = 0 },
+                { .s = "little",        .v = 1 },
+                { NULL }
+        };
+
+        Object *varargs, *src, *kw, *separg, *encarg, *endarg, *ret;
+
+        varargs = vm_get_arg(fr, 0);
+        kw = vm_get_arg(fr, 1);
+
+        bug_on(!varargs || !isvar_array(varargs));
+        bug_on(!kw || !isvar_dict(kw));
+
+        if (seqvar_size(varargs) != 1) {
+                err_setstr(ArgumentError,
+                        "Expected 1 arg but got %d",
+                        seqvar_size(varargs));
+                return ErrorVar;
+        }
+
+        src = array_borrowitem(varargs, 0);
+
+        dict_unpack(kw,
+                STRCONST_ID(sep),       &separg, NullVar,
+                STRCONST_ID(encoding),  &encarg, NullVar,
+                STRCONST_ID(byteorder), &endarg, NullVar,
+                NULL);
+
+        /* guilty until proven innocent */
+        ret = ErrorVar;
+        if ((encarg != NullVar && !isvar_string(encarg)) ||
+            (separg != NullVar && !isvar_string(separg)) ||
+            (endarg != NullVar && !isvar_string(endarg))) {
+                err_setstr(TypeError,
+                           "floats() accepts only string-type keyword arguments");
+                goto out;
+        }
+
+        if (isvar_array(src) || isvar_tuple(src)) {
+                size_t len = seqvar_size(src);
+                Object **data = isvar_array(src)
+                                ? array_get_data(src)
+                                : tuple_get_data(src);
+                /*
+                 * Ignore encoding, len.  Exception will be set by
+                 * floatsvar_from_array() if it fails.
+                 */
+                ret = floatsvar_from_array(data, len);
+        } else if (isvar_bytes(src)) {
+                int le, enc;
+                if (encarg == NullVar) {
+                        err_setstr(ValueError,
+                                   "Cannot create floats from bytes without encoding");
+                        goto out;
+                }
+                if (strobj2enum(floats_binenc_strs, encarg,
+                                &enc, 0, "encoding") == RES_ERROR) {
+                        goto out;
+                }
+
+                if (endarg == NullVar) {
+                        le = 0;
+                } else {
+                        if (strobj2enum(floats_endian_strs, endarg,
+                                        &le, 0, "byteorder") == RES_ERROR) {
+                                goto out;
+                        }
+                }
+                ret = floatsvar_from_bytes(src, enc, le);
+        } else if (isvar_string(src)) {
+                /* Supported because we could be reading this from file */
+                ret = floatsvar_from_text(src, separg);
+        } else {
+                err_setstr(ValueError, "Invalid type '%s' for floats()",
+                           typestr(src));
+        }
+
+out:
+        VAR_DECR_REF(separg);
+        VAR_DECR_REF(encarg);
+        VAR_DECR_REF(endarg);
+        return ret;
+}
+
+
+static const struct seq_fastiter_t floats_fast_iter = {
+        .max    = floats_max,
+        .min    = floats_min,
+        .any    = floats_any,
+        .all    = floats_all,
+};
+
+static const struct type_prop_t floats_prop_getsets[] = {
+        {
+                .name = "length",
+                .getprop = floats_getprop_length,
+                .setprop = NULL,
+        }, {
+                .name = "t0",
+                .getprop = floats_getprop_t0,
+                .setprop = floats_setprop_t0,
+        }, {
+                .name = NULL,
+        },
+};
+
+static const struct type_inittbl_t floats_cb_methods[] = {
+        V_INITTBL("convolve",   do_floats_convolve,     1, 1, -1, -1),
+        V_INITTBL("gain",       do_floats_gain,         1, 1, -1, -1),
+        V_INITTBL("offset",     do_floats_offset,       1, 1, -1, -1),
+        V_INITTBL("mean",       do_floats_mean,         0, 0, -1, -1),
+        V_INITTBL("stddev",     do_floats_stddev,       0, 0, -1, -1),
+        V_INITTBL("sum",        do_floats_sum,          0, 0, -1, -1),
+        TBLEND,
+};
+
+static const struct seq_methods_t floats_seq_methods = {
+        .getitem        = floats_getitem,
+        .setitem        = floats_setitem,
+        .hasitem        = floats_hasitem,
+        .getslice       = floats_getslice,
+        .setslice       = floats_setslice,
+        .cat            = floats_cat,
+        .sort           = NULL,
+        .fast_iter      = &floats_fast_iter,
+};
+
+struct type_t FloatsType = {
+        .flags  = 0,
+        .name   = "floats",
+        .opm    = NULL,
+        .cbm    = floats_cb_methods,
+        .mpm    = NULL,
+        .sqm    = &floats_seq_methods,
+        .size   = sizeof(struct floatsvar_t),
+        .str    = floats_str,
+        .cmp    = floats_cmp,
+        .cmpz   = floats_cmpz,
+        .reset  = floats_reset,
+        .prop_getsets = floats_prop_getsets,
+        .create = floats_create,
+};
+
 

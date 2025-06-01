@@ -206,57 +206,6 @@ do_exists(Frame *fr)
 }
 
 static Object *
-do_range(Frame *fr)
-{
-        int argc = vm_get_argc(fr);
-        int start, stop, step;
-        Object *arg;
-        if (argc < 1 || argc > 3) {
-                err_setstr(ArgumentError, "Expected: 1 to 3 args");
-                return ErrorVar;
-        }
-        /* defaults */
-        start = 0LL;
-        step  = 1LL;
-        switch (argc) {
-        case 1:
-                arg = vm_get_arg(fr, 0);
-                if (!isvar_int(arg))
-                        goto needint;
-                stop  = intvar_toi(arg);
-                break;
-        case 3:
-        case 2:
-                arg = vm_get_arg(fr, 0);
-                if (!isvar_int(arg))
-                        goto needint;
-                start = intvar_toi(arg);
-                arg = vm_get_arg(fr, 1);
-                if (!isvar_int(arg))
-                        goto needint;
-                stop = intvar_toi(arg);
-                if (argc == 2)
-                        break;
-                /* case 3, fall through */
-                arg = vm_get_arg(fr, 2);
-                if (!isvar_int(arg))
-                        goto needint;
-                step = intvar_toi(arg);
-        }
-        if (err_occurred()) {
-                err_clear();
-                err_setstr(ValueError,
-                           "Range values currently must fit in type 'int'");
-                return ErrorVar;
-        }
-        return rangevar_new(start, stop, step);
-
-needint:
-        err_argtype("integer");
-        return ErrorVar;
-}
-
-static Object *
 do_abs(Frame *fr)
 {
         const struct operator_methods_t *opm;
@@ -323,34 +272,6 @@ do_length(Frame *fr)
                            typestr(v));
                 return ErrorVar;
         }
-}
-
-static Object *
-do_list(Frame *fr)
-{
-        Object *v = vm_get_arg(fr, 0);
-        bug_on(!v);
-
-        if (!isvar_seq(v) && !isvar_dict(v)) {
-                err_setstr(TypeError, "Invalid type '%s' for list()",
-                           typestr(v));
-                return ErrorVar;
-        }
-        return var_listify(v);
-}
-
-static Object *
-do_tuple(Frame *fr)
-{
-        Object *v = vm_get_arg(fr, 0);
-        bug_on(!v);
-
-        if (!isvar_seq(v) && !isvar_dict(v)) {
-                err_setstr(TypeError, "Invalid type '%s' for list()",
-                           typestr(v));
-                return ErrorVar;
-        }
-        return var_tuplify(v);
 }
 
 static Object *
@@ -446,92 +367,6 @@ do_min(Frame *fr)
 }
 
 static Object *
-do_floats(Frame *fr)
-{
-        static const struct str2enum_t floats_binenc_strs[] = {
-                { .s = "binary64", .v = FLOATS_BINARY64 },
-                { .s = "binary32", .v = FLOATS_BINARY32 },
-                { .s = "uint64",   .v = FLOATS_UINT64 },
-                { .s = "uint32",   .v = FLOATS_UINT32 },
-                { .s = NULL }
-        };
-        static const struct str2enum_t floats_endian_strs[] = {
-                { .s = "big",           .v = 0 },
-                { .s = "little",        .v = 1 },
-                { NULL }
-        };
-
-        Object *src, *kw, *separg, *encarg, *endarg, *ret;
-
-        src = vm_get_arg(fr, 0);
-        kw = vm_get_arg(fr, 1);
-
-        bug_on(!src);
-        bug_on(!kw || !isvar_dict(kw));
-
-        dict_unpack(kw,
-                STRCONST_ID(sep),       &separg, NullVar,
-                STRCONST_ID(encoding),  &encarg, NullVar,
-                STRCONST_ID(byteorder), &endarg, NullVar,
-                NULL);
-
-        /* guilty until proven innocent */
-        ret = ErrorVar;
-        if ((encarg != NullVar && !isvar_string(encarg)) ||
-            (separg != NullVar && !isvar_string(separg)) ||
-            (endarg != NullVar && !isvar_string(endarg))) {
-                err_setstr(TypeError,
-                           "floats() accepts only string-type keyword arguments");
-                goto out;
-        }
-
-        if (isvar_array(src) || isvar_tuple(src)) {
-                size_t len = seqvar_size(src);
-                Object **data = isvar_array(src)
-                                ? array_get_data(src)
-                                : tuple_get_data(src);
-                /*
-                 * Ignore encoding, len.  Exception will be set by
-                 * floatsvar_from_array() if it fails.
-                 */
-                ret = floatsvar_from_array(data, len);
-        } else if (isvar_bytes(src)) {
-                int le, enc;
-                if (encarg == NullVar) {
-                        err_setstr(ValueError,
-                                   "Cannot create floats from bytes without encoding");
-                        goto out;
-                }
-                if (strobj2enum(floats_binenc_strs, encarg,
-                                &enc, 0, "encoding") == RES_ERROR) {
-                        goto out;
-                }
-
-                if (endarg == NullVar) {
-                        le = 0;
-                } else {
-                        if (strobj2enum(floats_endian_strs, endarg,
-                                        &le, 0, "byteorder") == RES_ERROR) {
-                                goto out;
-                        }
-                }
-                ret = floatsvar_from_bytes(src, enc, le);
-        } else if (isvar_string(src)) {
-                /* Supported because we could be reading this from file */
-                ret = floatsvar_from_text(src, separg);
-        } else {
-                err_setstr(ValueError, "Invalid type '%s' for floats()",
-                           typestr(src));
-        }
-
-out:
-        VAR_DECR_REF(separg);
-        VAR_DECR_REF(encarg);
-        VAR_DECR_REF(endarg);
-        return ret;
-}
-
-static Object *
 do_ord(Frame *fr)
 {
         Object *str = vm_get_arg(fr, 0);
@@ -557,16 +392,12 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("abs",    do_abs,    1, 1, -1, -1),
         V_INITTBL("all",    do_all,    1, 1, -1, -1),
         V_INITTBL("any",    do_any,    1, 1, -1, -1),
-        V_INITTBL("floats", do_floats, 2, 2, -1,  1),
         V_INITTBL("length", do_length, 1, 1, -1, -1),
-        V_INITTBL("list",   do_list,   1, 1, -1, -1),
         V_INITTBL("min",    do_min,    1, 1,  0, -1),
         V_INITTBL("max",    do_max,    1, 1,  0, -1),
         V_INITTBL("ord",    do_ord,    1, 1, -1, -1),
         V_INITTBL("print",  do_print,  2, 2,  0,  1),
-        V_INITTBL("range",  do_range,  1, 3, -1, -1),
         V_INITTBL("setnl",  do_setnl,  1, 1, -1, -1),
-        V_INITTBL("tuple",  do_tuple,  1, 1, -1, -1),
         V_INITTBL("typeof", do_typeof, 1, 1, -1, -1),
         /* XXX: maybe exit should be a method of __gbl__._sys */
         V_INITTBL("exit",   do_exit,   0, 0, -1, -1),

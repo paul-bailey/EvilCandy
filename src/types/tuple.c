@@ -434,6 +434,28 @@ nope:
         return RES_ERROR;
 }
 
+static Object *
+tuple_create(Frame *fr)
+{
+        Object *arg, *args;
+
+        args = vm_get_arg(fr, 0);
+        bug_on(!args || !isvar_array(args));
+        if (seqvar_size(args) != 1) {
+                err_setstr(TypeError,
+                           "Expected exactly one argument but got %d",
+                           seqvar_size(args));
+                return ErrorVar;
+        }
+        arg = array_borrowitem(args, 0);
+        if (!isvar_seq(arg) && !isvar_dict(arg)) {
+                err_setstr(TypeError, "Invalid type '%s' for list()",
+                           typestr(arg));
+                return ErrorVar;
+        }
+        return var_tuplify(arg);
+}
+
 static const struct type_inittbl_t tuple_cb_methods[] = {
         V_INITTBL("foreach", var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("count",   do_tuple_count,      1, 1, -1, -1),
@@ -468,5 +490,6 @@ struct type_t TupleType = {
         .cmp = tuple_cmp,
         .reset = tuple_reset,
         .prop_getsets = tuple_prop_getsets,
+        .create = tuple_create,
 };
 

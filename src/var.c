@@ -200,6 +200,7 @@ var_initialize_type(struct type_t *tp)
 
 static struct type_t *const VAR_TYPES_TBL[] = {
         &ArrayType,
+        &TupleType,
         &EmptyType,
         &FloatType,
         &ComplexType,
@@ -210,6 +211,7 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &DictType,
         &StringType,
         &BytesType,
+        &PropertyType,
         &RangeType,
         &UuidptrType,
         &IdType,

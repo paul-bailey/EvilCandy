@@ -221,7 +221,7 @@ float_create(Frame *fr)
                            "Expected at most 1 arg, got %lu", seqvar_size(args));
                 return ErrorVar;
         } else if (argc == 0) {
-                return floatvar_new(0.0);
+                return VAR_NEW_REF(gbl.fzero);
         }
         arg = array_getitem(args, 0);
         bug_on(!arg);

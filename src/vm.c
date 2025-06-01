@@ -1146,8 +1146,14 @@ vm_add_global(Object *name, Object *var)
 {
         /* cfile_init_vm should have been called first */
         int res;
-        bug_on(!symbol_table);
         bug_on(!isvar_string(name));
+        /*
+         * Hack alert!! This could get called during early init
+         * before cfile_init_vm has been called, but we need it
+         * anyway.
+         */
+        if (!symbol_table)
+                symbol_table = dictvar_new();
         res = dict_setitem_exclusive(symbol_table, name, var);
         bug_on(res != RES_OK);
         (void)res;
@@ -1183,7 +1189,8 @@ vm_symbol_exists(Object *key)
 void
 cfile_init_vm(void)
 {
-        symbol_table = dictvar_new();
+        if (!symbol_table)
+                symbol_table = dictvar_new();
 
         vm_stack = emalloc(sizeof(Object *) * VM_STACK_SIZE);
         vm_stack_end = vm_stack + VM_STACK_SIZE - 1;
@@ -1194,8 +1201,9 @@ cfile_deinit_vm(void)
 {
         struct list_t *li, *tmp;
 
-        VAR_DECR_REF(symbol_table);
-        /* XXX: any way to clear the stack vars? */
+        if (symbol_table)
+                VAR_DECR_REF(symbol_table);
+
         efree(vm_stack);
 
         /* For-real-this-time free the VM frames */
@@ -1204,5 +1212,7 @@ cfile_deinit_vm(void)
                 list_remove(li);
                 efree(fr);
         }
+        symbol_table = NULL;
+        vm_stack = vm_stack_end = NULL;
 }
 

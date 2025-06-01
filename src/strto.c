@@ -103,12 +103,30 @@ evc_strtol(const char *s, char **endptr, int base, long long *v)
         return RES_OK;
 }
 
+/* rd will have updated position if return value is true */
+static bool
+string_reader_match(struct string_reader_t *rd, const char *s)
+{
+        const unsigned char *us = (unsigned char *)s;
+        size_t pos = string_reader_getpos(rd);
+        long csrc;
+        while ((csrc = *us++) != '\0') {
+                long c = string_reader_getc(rd);
+                if (c != csrc) {
+                        string_reader_setpos(rd, pos);
+                        return false;
+                }
+        }
+        return true;
+}
+
 /*
  * This assumes that the next 'e' or 'E' after number is an exponent;
  * it cannot be the start of a new token.
  */
 static ssize_t
-string_span_float(struct string_reader_t *rd, int *may_be_int)
+string_span_float(struct string_reader_t *rd,
+                  int *may_be_int, bool interpret_enums)
 {
         long c;
         size_t startpos, n_ival, n_remval;
@@ -118,6 +136,17 @@ string_span_float(struct string_reader_t *rd, int *may_be_int)
         c = string_reader_getc(rd);
         if (c != '+' && c != '-')
                 string_reader_ungetc(rd, c);
+
+        if (c >= 0 && interpret_enums) {
+                if (string_reader_match(rd, "inf")) {
+                        c = string_reader_getc(rd);
+                        goto done;
+                }
+                if (string_reader_match(rd, "nan")) {
+                        c = string_reader_getc(rd);
+                        goto done;
+                }
+        }
 
         n_ival = 0;
         do {
@@ -157,6 +186,7 @@ string_span_float(struct string_reader_t *rd, int *may_be_int)
                         return -1;
         }
 
+done:
         if (may_be_int)
                 *may_be_int = maybeint;
         return string_reader_getpos_lastread(rd, c) - startpos;
@@ -183,7 +213,11 @@ strtod_scanonly(const char *s, int *may_be_int)
         ssize_t nscanned;
 
         string_reader_init_cstring(&rd, s);
-        nscanned = string_span_float(&rd, may_be_int);
+        /*
+         * FIXME: We're assuming this is called from tokenizer, hence
+         * interpret_enums is false, but that may not forever be the case.
+         */
+        nscanned = string_span_float(&rd, may_be_int, false);
         return nscanned < 0 ? NULL : (char *)s + nscanned;
 }
 
@@ -214,7 +248,7 @@ string_tod(Object *str, size_t *pos, double *reslt)
 
         string_reader_init(&rd, str, *pos);
         /* Interpret ints as floats */
-        nscanned = string_span_float(&rd, NULL);
+        nscanned = string_span_float(&rd, NULL, true);
         /* == 0 is just as much of an error */
         if (nscanned <= 0)
                 return RES_ERROR;

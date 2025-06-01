@@ -152,6 +152,10 @@ static const struct type_inittbl_t math_inittbl[] = {
 static Object *
 create_math_instance(Frame *fr)
 {
+        /*
+         * TODO: Not just the methods, but also values like inf, nan, etc.,
+         * which have no way of being expressed in the language.
+         */
         return dictvar_from_methods(NULL, math_inittbl);
 }
 

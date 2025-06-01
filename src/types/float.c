@@ -207,6 +207,54 @@ float_conjugate(Frame *fr)
         return VAR_NEW_REF(self);
 }
 
+static Object *
+float_create(Frame *fr)
+{
+        size_t argc;
+        Object *args, *arg;
+
+        args = vm_get_arg(fr, 0);
+        bug_on(!isvar_array(args));
+        argc = seqvar_size(args);
+        if (argc > 1) {
+                err_setstr(ArgumentError,
+                           "Expected at most 1 arg, got %lu", seqvar_size(args));
+                return ErrorVar;
+        } else if (argc == 0) {
+                return floatvar_new(0.0);
+        }
+        arg = array_getitem(args, 0);
+        bug_on(!arg);
+        VAR_DECR_REF(arg); /* just borrowing */
+
+        if (isvar_float(arg)) {
+                return VAR_NEW_REF(arg);
+        } else if (isvar_int(arg)) {
+                double d = (double)intvar_toll(arg);
+                return floatvar_new(d);
+        } else if (isvar_string(arg)) {
+                size_t pos;
+                double d;
+                pos = string_slide(arg, NULL, 0);
+                if (string_tod(arg, &pos, &d) == RES_ERROR)
+                        goto badstring;
+                if (string_slide(arg, NULL, pos) != seqvar_size(arg))
+                        goto badstring;
+                return floatvar_new(d);
+        } else {
+                err_setstr(TypeError,
+                           "Expected real number or string but got '%s'",
+                           typestr(arg));
+                return ErrorVar;
+        }
+
+badstring:
+        bug_on(!isvar_string(arg));
+        err_setstr(ValueError, "Could not parse as float: '%s'",
+                   string_cstring(arg));
+        return ErrorVar;
+}
+
 static const struct type_inittbl_t float_methods[] = {
         V_INITTBL("conjugate", float_conjugate, 0, 0, -1, -1),
         TBLEND,
@@ -232,5 +280,6 @@ struct type_t FloatType = {
         .str    = float_str,
         .cmp    = float_cmp,
         .cmpz   = float_cmpz,
+        .create = float_create,
 };
 

@@ -187,6 +187,15 @@ var_initialize_type(struct type_t *tp)
 
                 p++;
         }
+
+        if (tp->create) {
+                Object *v, *k;
+                k = stringvar_new(tp->name);
+                v = var_from_format("<xMmok>", tp->create, 2, 2, 0, 1);
+                vm_add_global(k, v);
+                VAR_DECR_REF(k);
+                VAR_DECR_REF(v);
+        }
 }
 
 static struct type_t *const VAR_TYPES_TBL[] = {

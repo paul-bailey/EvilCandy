@@ -382,39 +382,16 @@ static int
 get_tok_number(struct token_state_t *state)
 {
         char *pc, *start;
-        int ret;
+        int ret, may_be_int;
 
         if (get_tok_int_hdr(state))
                 return OC_INTEGER;
 
-        pc = start = state->s;
+        start = state->s;
 
-        while (isdigit((int)*pc))
-                ++pc;
-
-        if (pc == start)
+        pc = strtod_scanonly(start, &may_be_int);
+        if (!pc)
                 return 0;
-
-        ret = OC_INTEGER;
-        if (*pc == '.' || *pc == 'e' || *pc == 'E') {
-                ret = OC_FLOAT;
-                if (*pc == '.')
-                        ++pc;
-                while (isdigit(*pc))
-                        ++pc;
-                if (*pc == 'e' || *pc == 'E') {
-                        char *e = pc;
-                        ++pc;
-                        if (*pc == '-' || *pc == '+') {
-                                ++e;
-                                ++pc;
-                        }
-                        while (isdigit(*pc))
-                                ++pc;
-                        if (pc == e)
-                                goto malformed;
-                }
-        }
 
         if (*pc == 'j' || *pc == 'J') {
                 ret = OC_COMPLEX;
@@ -425,8 +402,15 @@ get_tok_number(struct token_state_t *state)
                  */
                 if (tokc_isident(*pc))
                         goto malformed;
+        } else if (may_be_int) {
+                ret = OC_INTEGER;
+        } else {
+                ret = OC_FLOAT;
+                if (tokc_isident(*pc))
+                        goto malformed;
         }
 
+        bug_on(pc == start);
         while (start < pc)
                 buffer_putc(&state->tok, *start++);
         state->s = pc;

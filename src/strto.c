@@ -103,6 +103,90 @@ evc_strtol(const char *s, char **endptr, int base, long long *v)
         return RES_OK;
 }
 
+/*
+ * This assumes that the next 'e' or 'E' after number is an exponent;
+ * it cannot be the start of a new token.
+ */
+static ssize_t
+string_span_float(struct string_reader_t *rd, int *may_be_int)
+{
+        long c;
+        size_t startpos, n_ival, n_remval;
+        bool maybeint = true;
+
+        startpos = string_reader_getpos(rd);
+        c = string_reader_getc(rd);
+        if (c != '+' && c != '-')
+                string_reader_ungetc(rd, c);
+
+        n_ival = 0;
+        do {
+                c = string_reader_getc(rd);
+                n_ival++;
+        } while (c >= '0' && c <= '9');
+        n_ival--;
+        if (n_ival == 0 && c < 0)
+                return -1;
+
+        n_remval = 0;
+        if (c == '.') {
+                maybeint = false;
+                do {
+                        c = string_reader_getc(rd);
+                        n_remval++;
+                } while (c >= '0' && c <= '9');
+                n_remval--;
+        }
+        if (n_ival == 0 && n_remval == 0)
+                return -1;
+
+        if (c == 'e' || c == 'E') {
+                size_t n_expval;
+                maybeint = false;
+                c = string_reader_getc(rd);
+                if (c != '+' && c != '-')
+                        string_reader_ungetc(rd, c);
+
+                n_expval = 0;
+                do {
+                        c = string_reader_getc(rd);
+                        n_expval++;
+                } while (c >= '0' && c <= '9');
+                n_expval--;
+                if (n_expval == 0)
+                        return -1;
+        }
+
+        if (may_be_int)
+                *may_be_int = maybeint;
+        return string_reader_getpos_lastread(rd, c) - startpos;
+}
+
+/**
+ * strtod_scanonly - Skip past the characters of a valid floating-point
+ *                   expression.
+ * @s:          C string to skip across
+ * @may_be_int: If non-NULL, stores true if the expression found in @s may
+ *              be either floating point or integer; false if the
+ *              expression is definitely floating point.
+ *
+ * Return: Pointer to the first character in @s after the number, or NULL
+ *      if @s does not contain a valid floating-point expression.
+ *
+ * Warning: This does not skip over any leading whitespace or delimiters.
+ *      Calling code must do that first.
+ */
+char *
+strtod_scanonly(const char *s, int *may_be_int)
+{
+        struct string_reader_t rd;
+        ssize_t nscanned;
+
+        string_reader_init_cstring(&rd, s);
+        nscanned = string_span_float(&rd, may_be_int);
+        return nscanned < 0 ? NULL : (char *)s + nscanned;
+}
+
 /**
  * string_tod - Like evc_strtod, but for string objects
  * @str: String object expressing floating point value
@@ -112,71 +196,44 @@ evc_strtol(const char *s, char **endptr, int base, long long *v)
  *
  * Return: RES_ERROR or RES_OK.  No exception will be set.
  *
- * Note: This does not slide across any leading whitespace.
+ * Notes:
+ *      1. This does not slide across any leading whitespace.
+ *      2. Integer expressions will be interpreted as floating-point
+ *         values.
  */
 enum result_t
 string_tod(Object *str, size_t *pos, double *reslt)
 {
         struct buffer_t b;
         struct string_reader_t rd;
-        long pt;
         double d;
         char *endptr;
-        enum result_t res;
+        enum result_t ret;
+        size_t i;
+        ssize_t nscanned;
 
         string_reader_init(&rd, str, *pos);
-        buffer_init(&b);
-
-        pt = string_reader_getc(&rd);
-        if (pt == '+' || pt == '-') {
-                buffer_putc(&b, pt);
-                pt = string_reader_getc(&rd);
-        }
-        while (pt >= '0' && pt <= '9') {
-                buffer_putc(&b, pt);
-                pt = string_reader_getc(&rd);
-        }
-        if (pt == '.') {
-                buffer_putc(&b, pt);
-                pt = string_reader_getc(&rd);
-                while (pt >= '0' && pt <= '9') {
-                        buffer_putc(&b, pt);
-                        pt = string_reader_getc(&rd);
-                }
-        }
-        if (pt == 'e' || pt == 'E') {
-                buffer_putc(&b, pt);
-                pt = string_reader_getc(&rd);
-                if (pt == '+' || pt == '-') {
-                        buffer_putc(&b, pt);
-                        pt = string_reader_getc(&rd);
-                }
-                while (pt >= '0' && pt <= '9') {
-                        buffer_putc(&b, pt);
-                        pt = string_reader_getc(&rd);
-                }
-        }
-        if (buffer_size(&b) == 0)
+        /* Interpret ints as floats */
+        nscanned = string_span_float(&rd, NULL);
+        /* == 0 is just as much of an error */
+        if (nscanned <= 0)
                 return RES_ERROR;
-
-        errno = 0;
+        string_reader_init(&rd, str, *pos);
+        buffer_init(&b);
+        for (i = 0; i < nscanned; i++) {
+                long c = string_reader_getc(&rd);
+                bug_on(c < 0 || c > 127);
+                buffer_putc(&b, c);
+        }
+        bug_on(!b.s);
         d = strtod(b.s, &endptr);
         if (errno || *endptr != '\0') {
-                res = RES_ERROR;
+                ret = RES_ERROR;
         } else {
-                size_t newpos = string_reader_getpos(&rd);
-                /*
-                 * We want pos to be AT the last read character (an
-                 * invalid character we didn't use), but unless we hit
-                 * the end of the string (pt < 0), it's currently one
-                 * PAST the last read character.
-                 */
-                if (pt >= 0L)
-                        newpos--;
-                *pos = newpos;
                 *reslt = d;
-                res = RES_OK;
+                *pos += nscanned;
+                ret = RES_OK;
         }
         buffer_free(&b);
-        return res;
+        return ret;
 }

@@ -156,6 +156,7 @@ extern enum result_t evc_strtod(const char *s, char **endptr, double *d);
 extern enum result_t evc_strtol(const char *s, char **endptr,
                                 int base, long long *v);
 extern enum result_t string_tod(Object *str, size_t *pos, double *v);
+extern char *strtod_scanonly(const char *s, int *may_be_int);
 
 /* types/array.c */
 extern Object *arrayvar_new(int n_items);

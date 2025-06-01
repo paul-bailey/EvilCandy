@@ -2668,7 +2668,6 @@ string_reader_init(struct string_reader_t *rd,
                    Object *str, size_t startpos)
 {
         bug_on(!isvar_string(str));
-        rd->str = str;
         rd->dat = string_data(str);
         rd->wid = string_width(str);
         rd->len = seqvar_size(str);

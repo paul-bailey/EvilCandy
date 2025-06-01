@@ -355,6 +355,23 @@ get_tok_int_hdr(struct token_state_t *state)
                 }
                 break;
 
+        case 'o':
+        case 'O':
+                buffer_putc(tok, *pc++);
+                buffer_putc(tok, *pc++);
+                if (!isodigit(*pc))
+                        goto e_malformed;
+                while (isodigit(*pc)) {
+                        /*
+                         * XXX still could overflow.
+                         * should be 21 & last digit <= '1'
+                         */
+                        if (count++ >= 22)
+                                goto e_toobig;
+                        buffer_putc(tok, *pc++);
+                }
+                break;
+
         default:
                 /* decimal int or float */
                 return false;

@@ -401,6 +401,17 @@ get_tok_number(struct token_state_t *state)
         char *pc, *start;
         int ret, may_be_int;
 
+        /*
+         * Do not include sign with number, instead let assembler
+         * perform unary-prefix operation on it.  Rationale: If we
+         * include the sign here just to save load time, '1 - 2'
+         * would be three tokens ['1', '-', '2'], while '1-2' whould
+         * be two tokens ['1', '-2'], which would cause a syntax error
+         * in the assembler's eval parser.
+         */
+        if (state->s[0] == '-' || state->s[0] == '+')
+                return 0;
+
         if (get_tok_int_hdr(state))
                 return OC_INTEGER;
 

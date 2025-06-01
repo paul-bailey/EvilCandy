@@ -307,84 +307,6 @@ do_any(Frame *fr)
 }
 
 static Object *
-do_int(Frame *fr)
-{
-        Object *v = vm_get_arg(fr, 0);
-        Object *b = vm_get_arg(fr, 1);
-
-        if (isvar_complex(v)) {
-                err_setstr(TypeError,
-                           "%s type invalid for int().  Did you mean abs()?",
-                           typestr(v));
-                return ErrorVar;
-        }
-
-        if (isvar_int(v) || isvar_float(v)) {
-                if (b) {
-                        err_setstr(ArgumentError,
-                                "base argument invalid when converting type %s",
-                                typestr(v));
-                        return ErrorVar;
-                }
-                if (isvar_int(v)) {
-                        VAR_INCR_REF(v);
-                        return v;
-                }
-                return intvar_new((long long)floatvar_tod(v));
-        }
-
-        if (isvar_string(v)) {
-                int base;
-                const char *s = string_cstring(v);
-                char *endptr;
-                long long ival;
-
-                if (b) {
-                        if (!isvar_int(b)) {
-                                err_setstr(TypeError,
-                                        "base argument must be an integer");
-                                return ErrorVar;
-                        }
-                        base = intvar_toi(b);
-                        if (base < 2 || err_occurred()) {
-                                err_clear();
-                                err_setstr(ValueError,
-                                           "Base argument %lld out of range",
-                                           intvar_toll(b));
-                                return ErrorVar;
-                        }
-                } else {
-                        base = 10;
-                }
-                errno = 0;
-                while (*s != '\0' && isspace((int)(*s)))
-                        s++;
-                ival = strtoll(s, &endptr, base);
-                if (errno || endptr == s)
-                        goto bad;
-                s = endptr;
-                while (*s != '\0' && isspace((int)(*s)))
-                        s++;
-                if (*s != '\0')
-                        goto bad;
-
-                return intvar_new(ival);
-
-bad:
-                if (!errno)
-                        errno = EINVAL;
-                err_setstr(ValueError,
-                          "Cannot convert string '%s' base %d to int (%s)",
-                          string_cstring(v), base, strerror(errno));
-                return ErrorVar;
-        }
-
-        err_setstr(TypeError,
-                "Invalid type '%s' for int()", typestr(v));
-        return ErrorVar;
-}
-
-static Object *
 do_length(Frame *fr)
 {
         Object *v = vm_get_arg(fr, 0);
@@ -636,7 +558,6 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("all",    do_all,    1, 1, -1, -1),
         V_INITTBL("any",    do_any,    1, 1, -1, -1),
         V_INITTBL("floats", do_floats, 2, 2, -1,  1),
-        V_INITTBL("int",    do_int,    1, 2, -1, -1),
         V_INITTBL("length", do_length, 1, 1, -1, -1),
         V_INITTBL("list",   do_list,   1, 1, -1, -1),
         V_INITTBL("min",    do_min,    1, 1,  0, -1),

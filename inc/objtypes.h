@@ -193,11 +193,11 @@ enum {
  *              write-only properties.  This may be NULL if there are no
  *              built-in properties for the type; if not NULL, the array
  *              must be terminated with an item whose .name is NULL.
- * @create:     Built-in function callback to create a new instance. The
- *              frame arguments are 0: list containing the va args, and
- *              1: dictionary containing the keyword args.  Each type may
- *              have its own rules about how many va args if any are
- *              necessary.
+ * @create:     May be NULL.  Built-in function callback to create a new
+ *              instance. The frame arguments are 0: list containing the
+ *              va args, and 1: dictionary containing the keyword args.
+ *              Each type may have its own rules about how many va args
+ *              if any are necessary.
  */
 struct type_t {
         unsigned int flags;

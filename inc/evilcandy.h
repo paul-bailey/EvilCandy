@@ -156,6 +156,8 @@ extern enum result_t evc_strtod(const char *s, char **endptr, double *d);
 extern enum result_t evc_strtol(const char *s, char **endptr,
                                 int base, long long *v);
 extern enum result_t string_tod(Object *str, size_t *pos, double *v);
+extern enum result_t string_toll(Object *str, int base,
+                                 size_t *pos, long long *reslt);
 extern char *strtod_scanonly(const char *s, int *may_be_int);
 
 /* types/array.c */
@@ -165,6 +167,7 @@ extern enum result_t array_setitem(Object *array, int i, Object *child);
 extern Object *array_getitem(Object *array, int idx);
 extern enum result_t array_append(Object *array, Object *child);
 extern void array_reverse(Object *array);
+extern Object *array_borrowitem(Object *array, int idx);
 
 /* types/bytes.c */
 extern Object *bytesvar_new(const unsigned char *buf, size_t len);

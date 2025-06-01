@@ -303,6 +303,89 @@ int_conjugate(Frame *fr)
         return VAR_NEW_REF(self);
 }
 
+static Object *
+int_create(Frame *fr)
+{
+        size_t argc;
+        Object *arg, *v, *b;
+
+        arg = vm_get_arg(fr, 0);
+        bug_on(!arg || !isvar_array(arg));
+        argc = seqvar_size(arg);
+        switch (argc) {
+        case 0:
+                return VAR_NEW_REF(gbl.zero);
+        case 1:
+                v = array_borrowitem(arg, 0);
+                b = NULL;
+                break;
+        case 2:
+                v = array_borrowitem(arg, 0);
+                b = array_borrowitem(arg, 1);
+                if (isvar_real(v)) {
+                        err_setstr(ArgumentError,
+                                "base argument invalid when converting type %s",
+                                typestr(v));
+                        return ErrorVar;
+                }
+                break;
+        default:
+                err_setstr(ArgumentError,
+                           "Expected at most 2 arguments but got %d",
+                           argc);
+                return ErrorVar;
+        }
+
+        if (isvar_complex(v)) {
+                err_setstr(TypeError,
+                           "%s type invalid for int().  Did you mean abs()?",
+                           typestr(v));
+                return ErrorVar;
+        } else if (isvar_int(v)) {
+                return VAR_NEW_REF(v);
+        } else if (isvar_float(v)) {
+                return intvar_new((long long)floatvar_tod(v));
+        } else if (isvar_string(v)) {
+                int base;
+                size_t pos;
+                long long ival;
+
+                if (b) {
+                        if (!isvar_int(b)) {
+                                err_setstr(TypeError,
+                                        "base argument must be an integer");
+                                return ErrorVar;
+                        }
+                        base = intvar_toi(b);
+                        if (base < 2 || base > 36 || err_occurred()) {
+                                err_clear();
+                                err_setstr(ValueError,
+                                           "Base argument %lld out of range",
+                                           intvar_toll(b));
+                                return ErrorVar;
+                        }
+                } else {
+                        base = 0;
+                }
+                pos = string_slide(v, NULL, 0);
+                if (string_toll(v, base, &pos, &ival) == RES_ERROR)
+                        goto bad;
+                if (string_slide(v, NULL, pos) != seqvar_size(v))
+                        goto bad;
+                return intvar_new(ival);
+
+bad:
+                err_setstr(ValueError,
+                          "Cannot convert string '%s' base %d to int",
+                          string_cstring(v), base);
+                return ErrorVar;
+        }
+
+        err_setstr(TypeError,
+                "Invalid type '%s' for int()", typestr(v));
+        return ErrorVar;
+}
+
 Object *
 intvar_new(long long initval)
 {
@@ -362,5 +445,6 @@ struct type_t IntType = {
         .str    = int_str,
         .cmpz   = int_cmpz,
         .cmp    = int_cmp,
+        .create = int_create,
 };
 

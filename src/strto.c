@@ -90,6 +90,41 @@ evc_strtol(const char *s, char **endptr, int base, long long *v)
                 sign = 1LL;
         }
 
+        if (base == 0) {
+                if (s[0] == '0') {
+                        if (s[1] == 'x' || s[1] == 'X') {
+                                s += 2;
+                                base = 16;
+                        } else if (s[1] == 'b' || s[1] == 'B') {
+                                s += 2;
+                                base = 2;
+                        } else if (s[1] == 'o' || s[1] == 'O') {
+                                s += 2;
+                                base = 8;
+                        } else {
+                                base = 8;
+                        }
+                }
+        } else if (s[0] == '0') {
+                int c;
+                switch (base) {
+                case 2:
+                        c = 'B';
+                        break;
+                case 8:
+                        c = 'O';
+                        break;
+                case 16:
+                        c = 'X';
+                        break;
+                default:
+                        c = 0;
+                }
+
+                if (c && (s[1] == c || s[1] == ('a' - 'A') + c))
+                        s += 2;
+        }
+
         errno = 0;
         res = strtoull(s, &ep2, base);
         if (errno || ep2 == s) {
@@ -271,3 +306,88 @@ string_tod(Object *str, size_t *pos, double *reslt)
         buffer_free(&b);
         return ret;
 }
+
+/* skip '0x', '0o' or '0b' */
+static int
+string_toll_header(struct string_reader_t *rd, int base, size_t startpos)
+{
+        long c, c2;
+        switch (base) {
+        case 2:
+                c2 = 'B';
+                break;
+        case 8:
+                c2 = 'O';
+                break;
+        case 16:
+                c2 = 'X';
+                break;
+        default:
+                return false;
+        }
+        c = string_reader_getc(rd);
+        if (c != '0')
+                goto nope;
+        c = string_reader_getc(rd);
+        if (c != c2 && c != (c2 + ('a' - 'A')))
+                goto nope;
+        return true;
+
+nope:
+        string_reader_setpos(rd, startpos);
+        return false;
+}
+
+int
+isinbase(long c, int base)
+{
+        if (c < 0 || c > 127 || !isalnum(c))
+                return false;
+        if (base <= 10)
+                return c >= '0' && c - '0' < base;
+        return isdigit(c) || (toupper(c) - ('A' - 10) < base);
+}
+
+enum result_t
+string_toll(Object *str, int base, size_t *pos, long long *reslt)
+{
+        struct buffer_t b;
+        struct string_reader_t rd;
+        size_t hdrpos, startpos, len;
+        long c;
+        char *endptr;
+
+        startpos = *pos;
+        string_reader_init(&rd, str, startpos);
+
+        c = string_reader_getc(&rd);
+        if (c != '-' && c != '+')
+                string_reader_ungetc(&rd, c);
+        hdrpos = string_reader_getpos(&rd);
+        if (!string_toll_header(&rd, base, hdrpos) && base == 0)
+                base = 10;
+        do {
+                c = string_reader_getc(&rd);
+        } while (isinbase(c, base));
+        string_reader_ungetc(&rd, c);
+        *pos = string_reader_getpos(&rd);
+        len = *pos - hdrpos;
+        if (!len)
+                return RES_ERROR;
+
+        len += hdrpos - startpos;
+        string_reader_init(&rd, str, startpos);
+        buffer_init(&b);
+        while (len--) {
+                long c = string_reader_getc(&rd);
+                bug_on(c < 0 || c > 127);
+                buffer_putc(&b, c);
+        }
+        /* XXX: the '0o' header will result in an error here */
+        if (evc_strtol(b.s, &endptr, base, reslt) == RES_ERROR)
+                return RES_ERROR;
+        if (*endptr != '\0') /* XXX: Error, or bug? */
+                return RES_ERROR;
+        return RES_OK;
+}
+

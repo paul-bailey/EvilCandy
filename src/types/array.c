@@ -71,6 +71,17 @@ array_getitem(Object *array, int idx)
 }
 
 /**
+ * like array_getitem, but do not consume reference
+ */
+Object *
+array_borrowitem(Object *array, int idx)
+{
+        Object *ret = array_getitem(array, idx);
+        VAR_DECR_REF(ret);
+        return ret;
+}
+
+/**
  * array_reverse - Reverse the order of an array
  */
 void

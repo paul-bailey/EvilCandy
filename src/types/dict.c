@@ -22,6 +22,7 @@
  * @d_shrink_size:      Next threshold for shrinking
  * @d_keys:             Array of keys
  * @d_vals:             Array of values, whose indices match those of keys.
+ * @d_lock:             Display lock
  *
  * d_keys and d_vals are allocated in one call each time the table resizes.
  * d_vals points at d_keys[d_size].
@@ -35,6 +36,7 @@ struct dictvar_t {
         size_t d_shrink_size;
         Object **d_keys;
         Object **d_vals;
+        int d_lock;
 };
 
 #define V2D(v)          ((struct dictvar_t *)(v))
@@ -254,6 +256,22 @@ dict_clear(struct dictvar_t *dict)
 {
         dict_clear_noresize(dict);
         maybe_shrink_table(dict);
+}
+
+static enum result_t
+dict_lock(struct dictvar_t *dict)
+{
+        if (dict->d_lock)
+                return RES_ERROR;
+        dict->d_lock++;
+        return dict->d_lock;
+}
+
+static void
+dict_unlock(struct dictvar_t *dict)
+{
+        dict->d_lock--;
+        bug_on(dict->d_lock < 0);
 }
 
 
@@ -679,12 +697,12 @@ dict_str(Object *o)
         int count;
         Object *ret;
 
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
-
         bug_on(!isvar_dict(o));
-
         d = V2D(o);
+
+        if (dict_lock(d) == RES_ERROR)
+                return VAR_NEW_REF(STRCONST_ID(locked_dict_str));
+
         buffer_init(&b);
         buffer_putc(&b, '{');
 
@@ -712,7 +730,7 @@ dict_str(Object *o)
         buffer_putc(&b, '}');
         ret = stringvar_from_buffer(&b);
 
-        RECURSION_END_FUNC();
+        dict_unlock(d);
         return ret;
 }
 

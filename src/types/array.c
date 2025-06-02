@@ -105,7 +105,6 @@ array_insert_chunk(Object *array, int at,
         struct arrayvar_t *h = V2ARR(array);
         size_t i, size = seqvar_size(array);
 
-        /* FIXME: move lock check to calling funcs */
         if (h->lock) {
                 err_locked();
                 return RES_ERROR;
@@ -539,12 +538,16 @@ array_cat(Object *a, Object *b)
 static Object *
 array_str(Object *t)
 {
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
-
         struct buffer_t b;
         Object *ret;
-        size_t i, n = seqvar_size(t);
+        size_t i, n;
+
+        if (V2ARR(t)->lock)
+                return VAR_NEW_REF(STRCONST_ID(locked_array_str));
+        V2ARR(t)->lock = true;
+
+        n = seqvar_size(t);
+
         buffer_init(&b);
         buffer_putc(&b, '[');
 
@@ -560,8 +563,7 @@ array_str(Object *t)
         buffer_putc(&b, ']');
         ret = stringvar_from_buffer(&b);
 
-        RECURSION_END_FUNC();
-
+        V2ARR(t)->lock = false;
         return ret;
 }
 

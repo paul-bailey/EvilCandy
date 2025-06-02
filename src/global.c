@@ -75,6 +75,8 @@ initialize_string_consts(void)
                 [STRCONST_IDX_spc] = " ",
                 [STRCONST_IDX_mpty] = "",
                 [STRCONST_IDX_wtspc] = " \r\n\t\v\f",
+                [STRCONST_IDX_locked_array_str] = "[...]",
+                [STRCONST_IDX_locked_dict_str] = "{...}",
         };
 
         int i;

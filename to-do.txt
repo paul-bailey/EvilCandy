@@ -1,6 +1,11 @@
 Bugs
 ----
 
+* BUSs 6/2025:
+
+        * "global x = ...something which causes error" is unpredictable
+          whether x is declared or not after the exception is thrown.
+
 * BUGs 5/2025:
 
         * Object mem leak, four not garbage-collected whenever there's a
@@ -16,6 +21,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Fill in .create methods for remaining data types that need it.
   - Fill in math, io libraries
   - Fill in built-in methods for strings, arrays, etc.
   - Fill in __gbl__._sys
@@ -29,6 +35,12 @@ Must Do
   - **done** Add support for deleting elements and global variables
   - Make consistent and accurate error reporting
   - Add an editline-like UI for interactive mode.
+
+* **done** Fix cyclic GC hazard in var_str() for lists and dictionaries, there's no
+  reason why it should have to cause a fatal recursion error.
+
+* If recursion error occurs during runtime (not load time), then unwind as
+  if it was a normal exception; do not just panic and quit.
 
 * **done** Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
 

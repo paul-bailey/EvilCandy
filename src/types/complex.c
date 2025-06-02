@@ -177,19 +177,6 @@ do_complex_conjugate(Frame *fr)
         return complexvar_new(creal(c), -cimag(c));
 }
 
-/* TODO: move these to err.c */
-static void
-err_notreal(const char *tpname)
-{
-        err_setstr(TypeError, "Expected real number but got %s", tpname);
-}
-
-static void
-err_doublearg(const char *argname)
-{
-        err_setstr(ArgumentError, "Argument '%s' already set", argname);
-}
-
 static enum result_t
 assert_arg_real(Object *x, const char *what)
 {

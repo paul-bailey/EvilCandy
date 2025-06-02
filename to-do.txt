@@ -22,7 +22,7 @@ Must Do
   When this is complete I could start thinking about version numbers.
 
   - Fill in .create methods for remaining data types that need it.
-  - Fill in math, io libraries
+  - Fill in math, cmath, io libraries
   - Fill in built-in methods for strings, arrays, etc.
   - Fill in __gbl__._sys
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
@@ -35,6 +35,8 @@ Must Do
   - **done** Add support for deleting elements and global variables
   - Make consistent and accurate error reporting
   - Add an editline-like UI for interactive mode.
+
+* Make dictionary iterable without requiring the creation of a new list.
 
 * **done** Fix cyclic GC hazard in var_str() for lists and dictionaries, there's no
   reason why it should have to cause a fatal recursion error.

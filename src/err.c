@@ -325,6 +325,18 @@ err_errno(const char *msg, ...)
         }
 }
 
+void
+err_notreal(const char *tpname)
+{
+        err_setstr(TypeError, "Expected real number but got %s", tpname);
+}
+
+void
+err_doublearg(const char *argname)
+{
+        err_setstr(ArgumentError, "Argument '%s' already set", argname);
+}
+
 bool
 err_occurred(void)
 {

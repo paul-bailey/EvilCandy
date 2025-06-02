@@ -1026,7 +1026,7 @@ floats_create(Frame *fr)
                         goto out;
                 }
                 if (strobj2enum(floats_binenc_strs, encarg,
-                                &enc, 0, "encoding") == RES_ERROR) {
+                                &enc, 0, "encoding", 1) == RES_ERROR) {
                         goto out;
                 }
 
@@ -1034,7 +1034,7 @@ floats_create(Frame *fr)
                         le = 0;
                 } else {
                         if (strobj2enum(floats_endian_strs, endarg,
-                                        &le, 0, "byteorder") == RES_ERROR) {
+                                        &le, 0, "byteorder", 1) == RES_ERROR) {
                                 goto out;
                         }
                 }

@@ -6,21 +6,32 @@
 #include <errno.h>
 
 enum result_t
-str2enum(const struct str2enum_t *t, const char *s, int *value)
+str2enum(const struct str2enum_t *t, const char *s,
+         int *value, bool nocase)
 {
-        while (t->s != NULL) {
-                if (!strcmp(t->s, s)) {
-                        *value = t->v;
-                        return RES_OK;
+        if (nocase) {
+                while (t->s != NULL) {
+                        if (!strcasecmp(t->s, s)) {
+                                *value = t->v;
+                                return RES_OK;
+                        }
+                        t++;
                 }
-                t++;
+        } else {
+                while (t->s != NULL) {
+                        if (!strcmp(t->s, s)) {
+                                *value = t->v;
+                                return RES_OK;
+                        }
+                        t++;
+                }
         }
         return RES_ERROR;
 }
 
 enum result_t
 strobj2enum(const struct str2enum_t *t, Object *str, int *value,
-            int suppress, const char *what)
+            int suppress, const char *what, bool nocase)
 {
         const char *s;
 
@@ -30,7 +41,7 @@ strobj2enum(const struct str2enum_t *t, Object *str, int *value,
                 return RES_ERROR;
         }
         s = string_cstring(str);
-        if (str2enum(t, s, value) == RES_ERROR) {
+        if (str2enum(t, s, value, nocase) == RES_ERROR) {
                 if (!suppress) {
                         err_setstr(ValueError, "Invalid %s value: '%s'",
                                    what, s);

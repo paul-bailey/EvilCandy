@@ -93,6 +93,8 @@ extern void err_locked(void);
 extern void err_permit(const char *op, Object *var);
 extern void err_permit2(const char *op, Object *a, Object *b);
 extern void err_errno(const char *msg, ...);
+extern void err_notreal(const char *tpname);
+extern void err_doublearg(const char *argname);
 
 /* disassemble.c */
 extern void disassemble(FILE *fp, Object *ex,
@@ -149,9 +151,10 @@ struct str2enum_t {
         int v;
 };
 extern enum result_t str2enum(const struct str2enum_t *t,
-                              const char *s, int *value);
-extern enum result_t strobj2enum(const struct str2enum_t *t, Object *str,
-                              int *value, int suppress, const char *what);
+                              const char *s, int *value, bool nocase);
+extern enum result_t strobj2enum(const struct str2enum_t *t,
+                                 Object *str, int *value, int suppress,
+                                 const char *what, bool nocase);
 extern enum result_t evc_strtod(const char *s, char **endptr, double *d);
 extern enum result_t evc_strtol(const char *s, char **endptr,
                                 int base, long long *v);

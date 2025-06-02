@@ -1344,6 +1344,202 @@ do_bytes_zfill(Frame *fr)
         return bytesvar_newf(newbuf, newlen, 0);
 }
 
+static enum result_t
+bytes_unpack_int(unsigned char *p, Object *seq, size_t idx)
+{
+        long long ival;
+        Object *x = seqvar_getitem(seq, idx);
+        enum result_t ret = RES_ERROR;
+        if (!isvar_int(x)) {
+                err_setstr(TypeError,
+                           "Expected int in sequence but found %s",
+                           typestr(x));
+                goto out;
+        }
+        ival = intvar_toll(x);
+        if (ival < 0LL || ival > 255LL) {
+                err_setstr(ValueError,
+                           "Expected value between 0 and 255 but found %lld",
+                           ival);
+                goto out;
+        }
+        *p = (unsigned char)ival;
+        ret = RES_OK;
+
+out:
+        VAR_DECR_REF(x);
+        return ret;
+}
+
+static void
+err_decoding(long val, size_t idx, const char *reason)
+{
+        err_setstr(ValueError,
+                "Cannot decode ordinal %lu at pos %lu: %s",
+                val, idx, reason);
+}
+
+static Object *
+bytes_from_string_arg_1wide(Object *str, long max)
+{
+        size_t n, i;
+        unsigned char *buf;
+
+        n = seqvar_size(str);
+        bug_on(!n);
+        buf = emalloc(n);
+        for (i = 0; i < n; i++) {
+                long ord = string_ord(str, i);
+                bug_on(ord < 0);
+                if (ord > max) {
+                        err_decoding(ord, i, "value out of range");
+                        goto err;
+                }
+                buf[i] = ord;
+        }
+        return bytesvar_newf(buf, n, 0);
+
+err:
+        efree(buf);
+        return ErrorVar;
+}
+
+static Object *
+bytes_from_string_arg_utf8(Object *str)
+{
+        struct buffer_t b;
+        size_t i, n;
+        n = seqvar_size(str);
+        bug_on(!n);
+        buffer_init(&b);
+        for (i = 0; i < n; i++) {
+                long ord = string_ord(str, i);
+                bug_on(ord < 0);
+                if (!utf8_valid_unicode(ord)) {
+                        err_decoding(ord, i, "invalid Unicode for UTF-8");
+                        goto err;
+                }
+                utf8_encode(ord, &b);
+        }
+        n = buffer_size(&b);
+        return bytesvar_newf(buffer_trim(&b), n, 0);
+
+err:
+        buffer_free(&b);
+        return ErrorVar;
+}
+
+static Object *
+bytes_from_string_arg(Object *str, Object *args, int argc, Frame *fr)
+{
+        enum {
+                BYTES_ENC_UTF8,
+                BYTES_ENC_ASCII,
+                BYTES_ENC_LATIN1,
+        };
+        static const struct str2enum_t ENCODINGS[] = {
+                { .s = "utf-8",   .v = BYTES_ENC_UTF8 },
+                { .s = "utf8",    .v = BYTES_ENC_UTF8 },
+                { .s = "latin1",  .v = BYTES_ENC_LATIN1 },
+                { .s = "latin-1", .v = BYTES_ENC_LATIN1 },
+                { .s = "ascii",   .v = BYTES_ENC_ASCII },
+                { .s = NULL, 0 },
+        };
+        Object *encarg, *kwargs;
+        int encoding;
+
+        kwargs = vm_get_arg(fr, 1);
+        bug_on(!kwargs || !isvar_dict(kwargs));
+
+        encarg = dict_getitem(kwargs, STRCONST_ID(encoding));
+        if (encarg) {
+                if (argc > 1) {
+                        err_doublearg("encoding");
+                        goto err_have_encarg;
+                }
+        } else if (argc >= 2) {
+                encarg = array_getitem(args, 1);
+                bug_on(!encarg);
+        } else {
+                err_setstr(ArgumentError,
+                           "string argument to bytes() requires 'encoding'");
+                return ErrorVar;
+        }
+        if (!isvar_string(encarg)) {
+                err_setstr(TypeError, "'encoding' must be string");
+                goto err_have_encarg;
+        }
+        if (strobj2enum(ENCODINGS, encarg, &encoding, 0, "encoding", 1)
+            == RES_ERROR) {
+                goto err_have_encarg;
+        }
+
+        VAR_DECR_REF(encarg);
+        if (seqvar_size(str) == 0)
+                return VAR_NEW_REF(gbl.empty_bytes);
+        switch (encoding) {
+        default:
+                bug();
+        case BYTES_ENC_UTF8:
+                return bytes_from_string_arg_utf8(str);
+        case BYTES_ENC_ASCII:
+                return bytes_from_string_arg_1wide(str, 127);
+        case BYTES_ENC_LATIN1:
+                return bytes_from_string_arg_1wide(str, 255);
+        }
+
+err_have_encarg:
+        VAR_DECR_REF(encarg);
+        return ErrorVar;
+}
+
+static Object *
+bytes_create(Frame *fr)
+{
+        Object *args, *val;
+        size_t argc;
+
+        args = vm_get_arg(fr, 0);
+        bug_on(!args || !isvar_array(args));
+        argc = seqvar_size(args);
+
+        if (!argc)
+                return VAR_NEW_REF(gbl.empty_bytes);
+
+        val = array_borrowitem(args, 0);
+        if (isvar_int(val)) {
+                unsigned char *buf;
+                int n = intvar_toi(val);
+                if (err_occurred())
+                        return ErrorVar;
+                buf = ecalloc(n);
+                return bytesvar_newf(buf, n, 0);
+        }
+        if (isvar_bytes(val))
+                return VAR_NEW_REF(val);
+        if (isvar_seq(val) && !isvar_string(val)) {
+                size_t i, n;
+                unsigned char *buf;
+                n = seqvar_size(val);
+                if (!n)
+                        return VAR_NEW_REF(gbl.empty_bytes);
+                buf = emalloc(n);
+                for (i = 0; i < n; i++) {
+                        if (bytes_unpack_int(&buf[i], val, i)
+                            == RES_ERROR) {
+                                efree(buf);
+                                return ErrorVar;
+                        }
+                }
+                return bytesvar_newf(buf, n, 0);
+        }
+        if (isvar_string(val))
+                return bytes_from_string_arg(val, args, argc, fr);
+        err_setstr(TypeError, "Invalid type for bytes(): %s",
+                   typestr(val));
+        return ErrorVar;
+}
+
 static Object *
 bytes_getprop_length(Object *self)
 {
@@ -1422,5 +1618,6 @@ struct type_t BytesType = {
         .cmpz   = bytes_cmpz,
         .reset  = bytes_reset,
         .prop_getsets = bytes_prop_getsets,
+        .create = bytes_create,
 };
 

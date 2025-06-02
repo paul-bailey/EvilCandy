@@ -26,7 +26,7 @@ Must Do
   - **done** Add ``===`` or ``is`` or both
   - **done** Add slice assignment
   - **done** Get prompt working
-  - Add support for deleting elements and global variables
+  - **done** Add support for deleting elements and global variables
   - Make consistent and accurate error reporting
   - Add an editline-like UI for interactive mode.
 

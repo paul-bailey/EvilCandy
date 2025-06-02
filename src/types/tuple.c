@@ -153,8 +153,8 @@ tuple_getslice(Object *obj, int start, int stop, int step)
         dst = tuple_get_data(ret);
         dst_i = 0;
         while (cmp(start, stop)) {
-                dst[dst_i] = src[start];
-                VAR_INCR_REF(dst[dst_i]);
+                VAR_DECR_REF(dst[dst_i]);
+                dst[dst_i] = VAR_NEW_REF(src[start]);
 
                 start += step;
                 dst_i++;

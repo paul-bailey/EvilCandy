@@ -183,10 +183,6 @@ array_getslice(Object *obj, int start, int stop, int step)
         src = array_get_data(obj);
 
         while (cmp(start, stop)) {
-                /*
-                 * XXX: there is no 'tuple_append',
-                 * and for good reason.
-                 */
                 array_append(ret, src[start]);
                 start += step;
         }

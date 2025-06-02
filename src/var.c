@@ -337,7 +337,7 @@ tup2slice(Object *obj, Object *tup, int *start, int *stop, int *step)
                 if (i < 0)
                         i = 0;
         } else if (i >= size) {
-                i = size - 1;
+                i = size;
         }
 
         if (j < 0) {
@@ -465,6 +465,7 @@ var_getattr(Object *v, Object *key)
                 bug_on(!ret);
                 return ret;
         } else if (isvar_tuple(key)) {
+                size_t seqsize;
                 int start, stop, step;
                 const struct seq_methods_t *sqm = v->v_type->sqm;
                 if (!sqm || !sqm->getslice)
@@ -473,6 +474,18 @@ var_getattr(Object *v, Object *key)
                         bug_on(!err_occurred());
                         return ErrorVar;
                 }
+
+                /* Cannot slice an empty sequence */
+                if ((seqsize = seqvar_size(v)) == 0)
+                        return VAR_NEW_REF(v);
+
+                /*
+                 * For setslice this could == size, but for getslice we
+                 * need this to be safely in range.
+                 */
+                if (start >= seqsize)
+                        start = seqsize - 1;
+
                 return sqm->getslice(v, start, stop, step);
         } else if (isvar_string(key)) {
                 /*
@@ -595,8 +608,6 @@ var_setattr(Object *v, Object *key, Object *attr)
                         bug_on(!err_occurred());
                         return RES_ERROR;
                 }
-                if (stop == start)
-                        return RES_OK;
                 return seq->setslice(v, start, stop, step, attr);
         } else if (isvar_int(key)) {
                 int i;

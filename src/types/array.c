@@ -165,10 +165,16 @@ array_getslice(Object *obj, int start, int stop, int step)
 {
         Object *ret, **src;
         bool (*cmp)(int, int);
+        size_t n;
 
         bug_on(!isvar_array(obj));
 
         ret = arrayvar_new(0);
+
+        n = seqvar_size(obj);
+        if (start >= n)
+                start = n - 1;
+        bug_on(start < 0);
 
         if (start == stop)
                 return ret;
@@ -216,6 +222,8 @@ array_setslice_1step(Object *obj, int start,
         if (!src)
                 return RES_ERROR;
 
+        bug_on(!isvar_seq(val));
+
         if (step < 0) {
                 int tmp = stop + 1;
                 stop = start + 1;
@@ -224,6 +232,9 @@ array_setslice_1step(Object *obj, int start,
         }
 
         nslc = stop - start;
+        /* could happend if [length(obj):] */
+        if (nslc < 0)
+                nslc = 0;
         nsrc = seqvar_size(val);
         ndiff = nsrc - nslc;
         k = ndiff >= 0 ? nslc : nsrc;
@@ -244,86 +255,78 @@ array_setslice_1step(Object *obj, int start,
 static enum result_t
 array_setslice(Object *obj, int start, int stop, int step, Object *val)
 {
-        bool (*cmp)(int, int);
+        size_t selfsize;
 
         bug_on(!isvar_array(obj));
 
-        if (start == stop)
-                return RES_OK;
-
-        cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;
-        if (!val) {
-                /* delete slice */
-                if (step == -1)  {
-                        bug_on(stop > start);
-                        array_delete_chunk(obj, stop + 1, start - stop);
-                        return RES_OK;
-                } else if (step == 1) {
+        selfsize = seqvar_size(obj);
+        if (step == 1 || step == -1) {
+                if (val) {
+                        return array_setslice_1step(obj, start,
+                                                    stop, step, val);
+                } else {
+                        if (step == -1) {
+                                size_t tmp = stop + 1;
+                                stop = start + 1;
+                                start = tmp;
+                                step = -step;
+                        }
                         array_delete_chunk(obj, start, stop - start);
                         return RES_OK;
                 }
+        }
+
+        if (!val) {
+                /* delete slice */
+                if (step < 0) {
+                        size_t slclen = var_slice_size(start, stop, step);
+                        stop = start + 1;
+                        start = stop - 1 + step * (slclen - 1);
+                        step = -step;
+                }
+                bug_on(start < 0 || stop < 0);
+                if (stop > selfsize)
+                        stop = selfsize;
 
                 /*
                  * XXX REVISIT: Lots of memmoves, probably lots of reallocs.
                  * Quicker to create a new Object array and put the inverse
-                 * of slice into new one.
+                 * of slice into new one.  See floats.c for ex.
                  */
-                while (cmp(start, stop)) {
+                while (start < stop) {
                         array_delete_chunk(obj, start, 1);
-                        start += step;
-                        if (step > 0) {
-                                stop--;
-                                start--;
-                        }
+                        start += step - 1;
+                        stop--;
                 }
                 return RES_OK;
         } else {
                 /* insert/add slice */
                 Object **dst, **src;
-                int src_i;
-                size_t n;
+                ssize_t slclen, i;
 
-                bug_on(!isvar_seq(val));
+                if (stop >= selfsize)
+                        stop = selfsize;
 
-                if (step == 1 || step == -1) {
-                        return array_setslice_1step(obj, start,
-                                                    stop, step, val);
-                }
-
-                cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;
                 dst = array_get_data(obj);
-
                 if ((src = slice_src(val)) == NULL)
                         return RES_ERROR;
 
-                n = var_slice_size(start, stop, step);
-                if (n < seqvar_size(val) && stop > start && step != 1) {
+                bug_on(!isvar_seq(val));
+
+                slclen = var_slice_size(start, stop, step);
+                if (start >= selfsize || slclen != seqvar_size(val)) {
                         err_setstr(ValueError,
-                                   "Cannot extend list for step=%d",
+                                   "Cannot extend slice for step=%d",
                                    step);
                         return RES_ERROR;
                 }
 
-
-                src_i = 0;
-                n = seqvar_size(val);
-                while (cmp(start, stop)) {
-                        if (src_i >= seqvar_size(val)) {
-                                /*
-                                 * No more src.  Delete the rest, unless
-                                 * we were stepping down.
-                                 */
-                                if (step < 0)
-                                        break;
-                                array_delete_chunk(obj, start,
-                                                seqvar_size(obj) - start);
-                                return RES_OK;
-                        }
+                for (i = 0; i < slclen; start += step, i++) {
+                        bug_on(step < 0 && start <= stop);
+                        bug_on(step > 0 && start >= stop);
                         VAR_DECR_REF(dst[start]);
-                        VAR_INCR_REF(src[src_i]);
-                        dst[start] = src[src_i];
-                        start += step;
-                        src_i++;
+                        VAR_INCR_REF(src[i]);
+                        dst[start] = src[i];
                 }
 
                 return RES_OK;

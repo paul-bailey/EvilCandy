@@ -234,14 +234,96 @@ floats_delete_chunk(Object *flts, size_t start, size_t stop)
         floats_set_data(flts, dat, newlen);
 }
 
+struct slicearg_t {
+        Object **osrc;
+        double *fsrc;
+        ssize_t len;
+};
+
+static enum result_t
+validate_setslice_arg(Object *val, struct slicearg_t *sa)
+{
+        sa->osrc = NULL;
+        sa->fsrc = NULL;
+        if (isvar_array(val)) {
+                sa->osrc = array_get_data(val);
+        } else if (isvar_tuple(val)) {
+                sa->osrc = tuple_get_data(val);
+        } else if (isvar_floats(val)) {
+                sa->fsrc = floats_get_data(val);
+        } else {
+                err_setstr(TypeError,
+                           "Cannot set floats slice from type %s",
+                           typestr(val));
+                return RES_ERROR;
+        }
+        sa->len = seqvar_size(val);
+        if (sa->osrc) {
+                size_t i;
+                for (i = 0; i < sa->len; i++) {
+                        if (!isvar_real(sa->osrc[i])) {
+                                err_setstr(TypeError,
+                                        "Expect real number in sequence but found %s",
+                                        typestr(sa->osrc[i]));
+                                return RES_ERROR;
+                        }
+                }
+        }
+        return RES_OK;
+}
+
+static enum result_t
+floats_setslice_1step(Object *flts, int start,
+                      int stop, int step, struct slicearg_t *sa)
+{
+        double *dst;
+        ssize_t nslc, ndiff, i;
+        if (step < 0) {
+                int tmp = stop + 1;
+                stop = start + 1;
+                start = tmp;
+                step = -step;
+        }
+
+        nslc = stop - start;
+        if (nslc < 0)
+                nslc = 0;
+        ndiff = sa->len - nslc;
+        if (ndiff != 0) {
+                size_t selflen = seqvar_size(flts);
+                double *old = floats_get_data(flts);
+                dst = emalloc((selflen + ndiff) * sizeof(double));
+                memcpy(dst, old, start * sizeof(double));
+                if (stop < selflen) {
+                        memcpy(&dst[start + sa->len], &old[stop],
+                               (selflen - stop) * sizeof(double));
+                }
+        } else {
+                dst = floats_get_data(flts);
+        }
+
+        bug_on(!!sa->fsrc == !!sa->osrc);
+        for (i = 0; i < sa->len; i++) {
+                double d;
+                if (sa->fsrc) {
+                        d = sa->fsrc[i];
+                } else {
+                        d = realvar_tod(sa->osrc[i]);
+                }
+                dst[i + start] = d;
+        }
+        if (ndiff != 0) {
+                double *old = floats_get_data(flts);
+                efree(old);
+                floats_set_data(flts, dst, seqvar_size(flts) + ndiff);
+        }
+        return RES_OK;
+}
+
 static enum result_t
 floats_setslice(Object *flts, int start, int stop, int step, Object *val)
 {
-        bool (*cmp)(int, int);
-
         bug_on(!isvar_floats(flts));
-
-        cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
 
         if (!val) {
                 /* delete slice */
@@ -293,83 +375,37 @@ floats_setslice(Object *flts, int start, int stop, int step, Object *val)
 
         } else {
                 /* insert/add slice */
-                Object **osrc = NULL;
-                double *fsrc = NULL;
+                struct slicearg_t sa;
                 double *dst;
-                size_t i, n;
+                size_t i, slclen;
 
-                bug_on(!isvar_seq(val));
-                if (isvar_array(val)) {
-                        osrc = array_get_data(val);
-                } else if (isvar_tuple(val)) {
-                        osrc = tuple_get_data(val);
-                } else if (isvar_floats(val)) {
-                        fsrc = floats_get_data(val);
-                } else {
-                        err_setstr(TypeError,
-                                   "Cannot set floats slice from type %s",
-                                   typestr(val));
+                if (validate_setslice_arg(val, &sa) == RES_ERROR)
                         return RES_ERROR;
-                }
 
-                n = var_slice_size(start, stop, step);
-                if (n < seqvar_size(val) && stop > start && step != 1) {
-                        err_setstr(ValueError, "Cannot extend list for step > 1");
-                        return RES_ERROR;
-                }
+                slclen = var_slice_size(start, stop, step);
 
-                if (osrc) {
-                        /* Validate this */
-                        for (i = 0; i < seqvar_size(val); i++) {
-                                if (!isvar_float(osrc[i])) {
-                                        err_setstr(TypeError,
-                                                "Expect float in sequence but found %s",
-                                                typestr(osrc[i]));
-                                        return RES_ERROR;
-                                }
-                        }
+                if (step == 1 || step == -1) {
+                        return floats_setslice_1step(flts, start, stop,
+                                                     step, &sa);
                 }
 
                 dst = floats_get_data(flts);
-                i = 0;
-                n = seqvar_size(val);
-                if (cmp(start, stop))
-                        floats_dirty(flts);
-                while (cmp(start, stop)) {
-                        double d;
-                        bug_on(start >= seqvar_size(flts));
-                        if (i >= n) {
-                                /* end of src, delete rest */
-                                if (step < 0)
-                                        break;
-                                floats_delete_chunk(flts, start, seqvar_size(flts));
-                                return RES_OK;
-                        }
-                        if (osrc)
-                                d = floatvar_tod(osrc[i]);
-                        else
-                                d = fsrc[i];
-                        dst[start] = d;
-                        start += step;
-                        i++;
+                if (start >= seqvar_size(flts) || slclen != sa.len) {
+                        err_setstr(ValueError,
+                                   "Cannot extend slice for step=%d",
+                                   step);
+                        return RES_ERROR;
                 }
 
-                if (step == 1 && i < n) {
-                        size_t j = seqvar_size(flts);
-                        size_t newsize = j + n - i;
-                        dst = erealloc(dst, newsize * sizeof(double));
-                        while (i < n) {
-                                double d;
-                                if (osrc)
-                                        d = floatvar_tod(osrc[i]);
-                                else
-                                        d = fsrc[i];
-                                dst[j] = d;
-                                i++;
-                                j++;
-                        }
-                        efree(fsrc);
-                        floats_set_data(flts, dst, newsize);
+                for (i = 0; i < slclen; start += step, i++) {
+                        double d;
+                        bug_on(step < 0 && start <= stop);
+                        bug_on(step > 0 && start >= stop);
+                        if (sa.osrc)
+                                d = realvar_tod(sa.osrc[i]);
+                        else
+                                d = sa.fsrc[i];
+                        dst[start] = d;
                 }
         }
         return RES_OK;

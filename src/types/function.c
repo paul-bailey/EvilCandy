@@ -96,8 +96,10 @@ function_call(Frame *fr, bool have_dict)
         struct funcvar_t *fh;
         int i;
 
-        if (!isvar_function(fr->func))
+        if (!isvar_function(fr->func)) {
+                err_setstr(ValueError, "Object is not callable");
                 goto err;
+        }
 
         fh = V2FUNC(fr->func);
         bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);

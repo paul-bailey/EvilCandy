@@ -913,7 +913,7 @@ default_fmt_args(struct fmt_args_t *args)
  *
  * Parses
  *
- *         [{flags}{pad}.{precition}{conversion}]
+ *         [{flags}{pad}.{precision}{conversion}]
  *
  * along with closing '}' if @endchr is '}'.  If no specifiers are found,
  * then defaults will be used.  The default for conversion is nullchar;

@@ -1348,8 +1348,9 @@ static enum result_t
 bytes_unpack_int(unsigned char *p, Object *seq, size_t idx)
 {
         long long ival;
-        Object *x = seqvar_getitem(seq, idx);
         enum result_t ret = RES_ERROR;
+        Object *x = seqvar_getitem(seq, idx);
+        bug_on(!x);
         if (!isvar_int(x)) {
                 err_setstr(TypeError,
                            "Expected int in sequence but found %s",
@@ -1430,83 +1431,51 @@ err:
 }
 
 static Object *
-bytes_from_string_arg(Object *str, Object *args, int argc, Frame *fr)
+bytes_create_with_encoding(Object *val, Object *encarg)
 {
         enum {
-                BYTES_ENC_UTF8,
-                BYTES_ENC_ASCII,
-                BYTES_ENC_LATIN1,
+                CODEC_UTF8,
+                CODEC_ASCII,
+                CODEC_LATIN1,
         };
         static const struct str2enum_t ENCODINGS[] = {
-                { .s = "utf-8",   .v = BYTES_ENC_UTF8 },
-                { .s = "utf8",    .v = BYTES_ENC_UTF8 },
-                { .s = "latin1",  .v = BYTES_ENC_LATIN1 },
-                { .s = "latin-1", .v = BYTES_ENC_LATIN1 },
-                { .s = "ascii",   .v = BYTES_ENC_ASCII },
+                { .s = "utf-8",   .v = CODEC_UTF8 },
+                { .s = "utf8",    .v = CODEC_UTF8 },
+                { .s = "latin1",  .v = CODEC_LATIN1 },
+                { .s = "latin-1", .v = CODEC_LATIN1 },
+                { .s = "ascii",   .v = CODEC_ASCII },
                 { .s = NULL, 0 },
         };
-        Object *encarg, *kwargs;
         int encoding;
 
-        kwargs = vm_get_arg(fr, 1);
-        bug_on(!kwargs || !isvar_dict(kwargs));
-
-        encarg = dict_getitem(kwargs, STRCONST_ID(encoding));
-        if (encarg) {
-                if (argc > 1) {
-                        err_doublearg("encoding");
-                        goto err_have_encarg;
-                }
-        } else if (argc >= 2) {
-                encarg = array_getitem(args, 1);
-                bug_on(!encarg);
-        } else {
-                err_setstr(ArgumentError,
-                           "string argument to bytes() requires 'encoding'");
+        if (!isvar_string(val)) {
+                err_setstr(TypeError,
+                        "bytes() cannot decode %s object", typestr(val));
                 return ErrorVar;
         }
-        if (!isvar_string(encarg)) {
-                err_setstr(TypeError, "'encoding' must be string");
-                goto err_have_encarg;
-        }
+
         if (strobj2enum(ENCODINGS, encarg, &encoding, 0, "encoding", 1)
             == RES_ERROR) {
-                goto err_have_encarg;
+                return ErrorVar;
         }
 
-        VAR_DECR_REF(encarg);
-        if (seqvar_size(str) == 0)
+        if (seqvar_size(val) == 0)
                 return VAR_NEW_REF(gbl.empty_bytes);
         switch (encoding) {
         default:
                 bug();
-        case BYTES_ENC_UTF8:
-                return bytes_from_string_arg_utf8(str);
-        case BYTES_ENC_ASCII:
-                return bytes_from_string_arg_1wide(str, 127);
-        case BYTES_ENC_LATIN1:
-                return bytes_from_string_arg_1wide(str, 255);
+        case CODEC_UTF8:
+                return bytes_from_string_arg_utf8(val);
+        case CODEC_ASCII:
+                return bytes_from_string_arg_1wide(val, 127);
+        case CODEC_LATIN1:
+                return bytes_from_string_arg_1wide(val, 255);
         }
-
-err_have_encarg:
-        VAR_DECR_REF(encarg);
-        return ErrorVar;
 }
 
 static Object *
-bytes_create(Frame *fr)
+bytes_create_without_encoding(Object *val)
 {
-        Object *args, *val;
-        size_t argc;
-
-        args = vm_get_arg(fr, 0);
-        bug_on(!args || !isvar_array(args));
-        argc = seqvar_size(args);
-
-        if (!argc)
-                return VAR_NEW_REF(gbl.empty_bytes);
-
-        val = array_borrowitem(args, 0);
         if (isvar_int(val)) {
                 unsigned char *buf;
                 int n = intvar_toi(val);
@@ -1517,9 +1486,14 @@ bytes_create(Frame *fr)
         }
         if (isvar_bytes(val))
                 return VAR_NEW_REF(val);
-        if (isvar_seq(val) && !isvar_string(val)) {
+        if (isvar_seq(val)) {
                 size_t i, n;
                 unsigned char *buf;
+                if (isvar_string(val)) {
+                        err_setstr(TypeError,
+                                "bytes string arg requires encoding");
+                        return ErrorVar;
+                }
                 n = seqvar_size(val);
                 if (!n)
                         return VAR_NEW_REF(gbl.empty_bytes);
@@ -1533,11 +1507,59 @@ bytes_create(Frame *fr)
                 }
                 return bytesvar_newf(buf, n, 0);
         }
-        if (isvar_string(val))
-                return bytes_from_string_arg(val, args, argc, fr);
         err_setstr(TypeError, "Invalid type for bytes(): %s",
                    typestr(val));
         return ErrorVar;
+}
+
+static Object *
+bytes_create(Frame *fr)
+{
+        Object *args, *kwargs, *encoding, *ret;
+        size_t argc;
+
+        args = vm_get_arg(fr, 0);
+        kwargs = vm_get_arg(fr, 1);
+        bug_on(!args || !isvar_array(args));
+        bug_on(!kwargs || !isvar_dict(kwargs));
+
+        ret = ErrorVar;
+        argc = seqvar_size(args);
+        encoding = dict_getitem(kwargs, STRCONST_ID(encoding));
+        if (encoding) {
+                if (argc > 1) {
+                        err_doublearg("encoding");
+                        goto out;
+                } else if (argc == 0) {
+                        err_setstr(TypeError, "Nothing to encode");
+                        goto out;
+                }
+        } else if (argc > 1) {
+                encoding = array_getitem(args, 1);
+                bug_on(!encoding);
+        }
+        if (encoding && !isvar_string(encoding)) {
+                err_setstr(TypeError,
+                           "Expected: encoding=string but got %s",
+                           typestr(encoding));
+                goto out;
+        }
+
+        if (argc == 0) {
+                ret = VAR_NEW_REF(gbl.empty_bytes);
+        } else {
+                Object *val = array_borrowitem(args, 0);
+                bug_on(!val);
+                if (encoding)
+                        ret = bytes_create_with_encoding(val, encoding);
+                else
+                        ret = bytes_create_without_encoding(val);
+        }
+
+out:
+        if (encoding)
+                VAR_DECR_REF(encoding);
+        return ret;
 }
 
 static Object *

@@ -58,6 +58,10 @@ utf8_decode_one(const unsigned char *src, unsigned char **endptr)
 {
         unsigned int c = *src++;
         long point = -1;
+        if (c < 128) {
+                *endptr = (unsigned char *)(c ? src : src - 1);
+                return c;
+        }
         do {
                 if ((c & 0xf8u) == 0xf0u) {
                         point = decode_one_point(src, endptr, c & 0x07u, 3);

@@ -106,6 +106,22 @@ enum {
         FMODE_PROTECT   = 0x08, /* "don't truly close on 'close'" */
 };
 
+/*
+ * Text and file codecs, enumerations for
+ * the "encoding" arg to a number of builtin functions
+ * where "ascii" or "ascii_us", etc, would become
+ * CODEC_ASCII
+ */
+enum {
+        CODEC_UTF8,
+        CODEC_ASCII,
+        CODEC_LATIN1,
+        /*
+         * TODO: binary file codecs, like aiff, wav, bmp...
+         *       Will be useful for floats data type.
+         */
+};
+
 /* Floats encoding, @enc arg to floatsvar_from_bytes */
 enum floats_enc_t {
         FLOATS_BINARY64, FLOATS_BINARY32,

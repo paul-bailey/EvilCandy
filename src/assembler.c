@@ -1037,6 +1037,19 @@ assemble_binary_operators_r(struct assemble_t *a,
                 if (t->tok < 0)
                         return;
 
+                /*
+                 * XXX REVISIT: If INSTR_LOGIAL_OR/AND, add branching
+                 * instructions to skip runtime evaluation if
+                 *      a) instruction is OR and first value is true
+                 *      b) instruction is AND and first value is false
+                 * Why that's a problem:  If I do that, then the block
+                 * cannot be reduced in assemble_post(), unless we had a
+                 * method right here to tell that both values are const.
+                 * Otherwise we'd need assemble_post() to do way more
+                 * sophisticated stuff, like figure out whether or not
+                 * an entire 'if (CONST) {...}' block of code could be
+                 * eliminated.
+                 */
                 as_lex(a);
                 assemble_binary_operators_r(a, tbl + 1);
                 if (tbl->opcode < 0)
@@ -1127,8 +1140,13 @@ assemble_expr1_ternary(struct assemble_t *a)
 {
         assemble_expr2_binary(a);
         if (a->oc->t == OC_QUEST) {
+                int b_end = as_next_label(a);
+                int b_if_false = as_next_label(a);
+                add_instr(a, INSTR_B_IF, 0, b_if_false);
                 as_lex(a);
                 assemble_expr2_binary(a);
+                add_instr(a, INSTR_B, 0, b_end);
+                as_set_label(a, b_if_false);
                 if (a->oc->t != OC_COLON) {
                         err_setstr(SyntaxError,
                                    "Expected: ':' in ternary expression");
@@ -1136,8 +1154,7 @@ assemble_expr1_ternary(struct assemble_t *a)
                 }
                 as_lex(a);
                 assemble_expr2_binary(a);
-
-                add_instr(a, INSTR_TERNARY, 0, 0);
+                as_set_label(a, b_end);
         }
 }
 

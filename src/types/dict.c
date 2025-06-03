@@ -26,8 +26,8 @@
  *                      in @d_keys/@d_vals.  Used for iterating.
  * @d_lock:             Display lock
  *
- * d_keys and d_vals are allocated in one call each time the table resizes.
- * d_vals points at d_keys[d_size].
+ * d_keys, d_vals, and d_map are allocated in one call each time the
+ * table resizes.  The allocation pointer is at d_keys.
  */
 struct dictvar_t {
         struct seqvar_t base;
@@ -79,7 +79,7 @@ index_write(struct dictvar_t *d, size_t idx, ssize_t val)
 }
 
 static ssize_t
-index_read(void *p, size_t dsize, size_t idx)
+index_read__(void *p, size_t dsize, size_t idx)
 {
         bug_on(dsize > INT_MAX);
         if (dsize > 0x7fff)
@@ -91,6 +91,12 @@ index_read(void *p, size_t dsize, size_t idx)
                 ssize_t ret = ((int8_t *)p)[idx];
                 return ret >= 128 ? -1 : ret;
         }
+}
+
+static ssize_t
+index_read(struct dictvar_t *d, size_t idx)
+{
+        return index_read__(d->d_map, d->d_size, idx);
 }
 
 static size_t
@@ -208,7 +214,7 @@ transfer_table(struct dictvar_t *dict, size_t old_size)
                 Object *k;
                 hash_t hash;
 
-                i = index_read(old_map, old_size, m);
+                i = index_read__(old_map, old_size, m);
                 if (i < 0)
                         continue;
 
@@ -741,6 +747,55 @@ dict_add_to_globals(Object *dict)
 
                 vm_add_global(k, d->d_vals[i]);
         }
+}
+
+/**
+ * dict_iter - Iterate through a dictionary in the order that
+ *             entries were inserted.
+ * @dict: Dictionary to traverse
+ * @iter: Set this to zero for first item, then use return value of
+ *        dict_iter for remaining items.
+ * @k:    Variable to store next key
+ * @v:    Variable to store next value
+ *
+ * Return: Next value to pass as @iter, or -1 if the dictionary has been
+ * fully traversed.
+ *
+ * Note: References will be produced for @k and @v if they are not NULL.
+ *
+ * FIXME: .d_map preserves insertion ORDER, but it does not preserve
+ * insertion INDEX number.  That will change for a given entry if an
+ * earlier insertion (lower .d_map index) is removed and the table
+ * resizes.  This means that while table growth doesn't mess up this
+ * function, table shrinking does, because certain key/value pairs might
+ * get skipped over.
+ */
+ssize_t
+dict_iter(Object *dict, ssize_t iter, Object **k, Object **v)
+{
+        struct dictvar_t *d;
+
+        /* Only bad internal code could cause this, not user script */
+        bug_on(iter < 0);
+        /* Surely caller wants at least one of these */
+        bug_on(!k && !v);
+
+        d = V2D(dict);
+        for (; iter < d->d_size; iter++) {
+                Object *key;
+                ssize_t index = index_read(d, iter);
+                if (index < 0)
+                        continue;
+                key = d->d_keys[index];
+                if (key == NULL || key == BUCKET_DEAD)
+                        continue;
+                if (k)
+                        *k = VAR_NEW_REF(key);
+                if (v)
+                        *v = VAR_NEW_REF(d->d_vals[index]);
+                return iter + 1;
+        }
+        return -1;
 }
 
 /* **********************************************************************

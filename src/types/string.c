@@ -2445,7 +2445,7 @@ string_str(Object *v)
                 } else if (c == BKSL) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, BKSL);
-                } else if (evc_isspace(c)) {
+                } else if (c < 128 && evc_isspace(c)) {
                         switch (c) {
                         case ' ': /* this one's ok */
                                 buffer_putc(&b, c);
@@ -2468,7 +2468,7 @@ string_str(Object *v)
                         }
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, c);
-                } else if (!evc_isgraph(c)) {
+                } else if (c < 128 && !evc_isgraph(c)) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, ((c >> 6) & 0x03) + '0');
                         buffer_putc(&b, ((c >> 3) & 0x07) + '0');
@@ -2658,6 +2658,146 @@ string_hasitem(Object *str, Object *substr)
         return idx >= 0;
 }
 
+static Object *
+string_from_encoded_obj(Object *obj, Object *encarg)
+{
+        static const struct str2enum_t ENCODINGS[] = {
+                { .s = "utf-8",   .v = CODEC_UTF8 },
+                { .s = "utf8",    .v = CODEC_UTF8 },
+                { .s = "latin1",  .v = CODEC_LATIN1 },
+                { .s = "latin-1", .v = CODEC_LATIN1 },
+                { .s = "ascii",   .v = CODEC_ASCII },
+                { .s = NULL, 0 },
+        };
+        int encoding;
+        size_t n;
+        const unsigned char *data;
+        char *buf;
+
+        if (!isvar_bytes(obj)) {
+                err_setstr(TypeError,
+                        "string() cannot encode %s object", typestr(obj));
+                return ErrorVar;
+        }
+        if (strobj2enum(ENCODINGS, encarg, &encoding, 0, "encoding", 1)
+            == RES_ERROR) {
+                return ErrorVar;
+        }
+
+        n = seqvar_size(obj);
+        if (n == 0)
+                return VAR_NEW_REF(STRCONST_ID(mpty));
+
+        data = bytes_get_data(obj);
+
+        if (encoding == CODEC_LATIN1)
+                return stringvar_from_points((void *)data, 1, n, SF_COPY);
+
+        if (encoding == CODEC_ASCII) {
+                /* Pre-check before allocating buffer below */
+                size_t i;
+                for (i = 0; i < n; i++) {
+                        if ((unsigned int)data[i] > 127) {
+                                err_setstr(ValueError,
+                                        "value %d at position %ld is not ASCII",
+                                        (unsigned int)data[i], i);
+                                return ErrorVar;
+                        }
+                }
+        }
+
+        /*
+         * FIXME: If CODEC_UTF8, do not pre-allocate buf like this.
+         * Requires changing utf8_decode_one() so that it takes a
+         * length argument, since data[] is not nullchar-terminated.
+         */
+        buf = emalloc(n + 1);
+        memcpy(buf, data, n);
+        buf[n] = '\0';
+        if (encoding == CODEC_UTF8) {
+                unsigned char *s;
+                struct string_writer_t wr;
+                string_writer_init(&wr, 1);
+                s = (unsigned char *)buf;
+                while (*s != '\0') {
+                        unsigned char *endptr;
+                        long point = utf8_decode_one(s, &endptr);
+                        if (point < 0L) {
+                                /*
+                                 * We're being more strict here than in
+                                 * string_parse().  I'd rather be more
+                                 * consistent, but I noticed Python does
+                                 * the same thing.
+                                 */
+                                size_t idx = (size_t)((char *)s - buf);
+                                err_setstr(ValueError,
+                                        "value %d at position %ld is not valid UTF-8",
+                                        (unsigned int)data[idx], idx);
+                                efree(buf);
+                                string_writer_destroy(&wr);
+                                return ErrorVar;
+                        }
+                        string_writer_append(&wr, point);
+                        s = endptr;
+                }
+                efree(buf);
+                return stringvar_from_writer(&wr);
+        } else {
+                bug_on(encoding != CODEC_ASCII);
+                return stringvar_newf(buf, 0);
+        }
+}
+
+static Object *
+string_create(Frame *fr)
+{
+        Object *args, *kwargs, *encoding, *ret;
+        int argc;
+
+        args = vm_get_arg(fr, 0);
+        kwargs = vm_get_arg(fr, 1);
+        bug_on(!args || !isvar_array(args));
+        bug_on(!kwargs || !isvar_dict(kwargs));
+
+        ret = ErrorVar;
+        argc = seqvar_size(args);
+        encoding = dict_getitem(kwargs, STRCONST_ID(encoding));
+        if (encoding) {
+                if (argc > 1) {
+                        err_doublearg("encoding");
+                        goto out;
+                } else if (argc == 0) {
+                        err_setstr(TypeError, "Nothing to decode");
+                        goto out;
+                }
+        } else if (argc > 1) {
+                encoding = array_getitem(args, 1);
+                bug_on(!encoding);
+        }
+        if (encoding && !isvar_string(encoding)) {
+                err_setstr(TypeError,
+                           "Expected: encoding=string but got %s",
+                           typestr(encoding));
+                goto out;
+        }
+
+        if (argc == 0) {
+                ret = VAR_NEW_REF(STRCONST_ID(mpty));
+        } else {
+                Object *val = array_borrowitem(args, 0);
+                bug_on(!val);
+                if (encoding)
+                        ret = string_from_encoded_obj(val, encoding);
+                else if (isvar_string(val))
+                        ret = VAR_NEW_REF(val);
+                else
+                        ret = var_str(val);
+        }
+out:
+        if (encoding)
+                VAR_DECR_REF(encoding);
+        return ret;
+}
 
 /* **********************************************************************
  *                           API functions
@@ -2980,6 +3120,7 @@ struct type_t StringType = {
         .cmpz   = string_cmpz,
         .reset  = string_reset,
         .prop_getsets = string_prop_getsets,
+        .create = string_create,
 };
 
 

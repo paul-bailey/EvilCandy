@@ -22,6 +22,8 @@
  * @d_shrink_size:      Next threshold for shrinking
  * @d_keys:             Array of keys
  * @d_vals:             Array of values, whose indices match those of keys.
+ * @d_map:              Array mapping entries in order to their indices
+ *                      in @d_keys/@d_vals.  Used for iterating.
  * @d_lock:             Display lock
  *
  * d_keys and d_vals are allocated in one call each time the table resizes.
@@ -36,6 +38,7 @@ struct dictvar_t {
         size_t d_shrink_size;
         Object **d_keys;
         Object **d_vals;
+        void *d_map;
         int d_lock;
 };
 
@@ -57,6 +60,51 @@ struct dictvar_t {
  */
 enum { INIT_SIZE = 16 };
 
+static void
+index_write__(void *p, size_t dsize, size_t idx, ssize_t val)
+{
+        bug_on(dsize > INT_MAX);
+        if (dsize > 0x7fff)
+                ((int32_t *)p)[idx] = val;
+        else if (dsize > 0x7f)
+                ((int16_t *)p)[idx] = val;
+        else
+                ((int8_t *)p)[idx] = val;
+}
+
+static void
+index_write(struct dictvar_t *d, size_t idx, ssize_t val)
+{
+        index_write__(d->d_map, d->d_size, idx, val);
+}
+
+static ssize_t
+index_read(void *p, size_t dsize, size_t idx)
+{
+        bug_on(dsize > INT_MAX);
+        if (dsize > 0x7fff)
+                return ((int32_t *)p)[idx];
+        else if (dsize > 0x7f)
+                return ((int16_t *)p)[idx];
+        else {
+                /* Not so sure 8-bit signed is universally supported */
+                ssize_t ret = ((int8_t *)p)[idx];
+                return ret >= 128 ? -1 : ret;
+        }
+}
+
+static size_t
+index_width(size_t dsize)
+{
+        bug_on(dsize > INT_MAX);
+        if (dsize > 0x7fff)
+                return sizeof(int32_t);
+        else if (dsize > 0x7f)
+                return sizeof(int16_t);
+        else
+                return sizeof(int8_t);
+}
+
 /*
  * d_keys and d_vals will be clobbered, they're assumed to have
  * been saved.
@@ -64,9 +112,14 @@ enum { INIT_SIZE = 16 };
 static void
 bucket_alloc(struct dictvar_t *dict)
 {
-        /* x2 because keys and vals are alloc'd together */
-        dict->d_keys = ecalloc(sizeof(Object *) * dict->d_size * 2);
-        dict->d_vals = &dict->d_keys[dict->d_size];
+        /* d_keys, d_vals, and d_map are all alloc'd together */
+        size_t nelem = dict->d_size;
+        size_t wid = index_width(nelem);
+        dict->d_keys = emalloc(nelem * (sizeof(Object *) * 2 + wid));
+        dict->d_vals = &dict->d_keys[nelem];
+        dict->d_map = (void *)(&dict->d_vals[nelem]);
+        memset(dict->d_keys, 0, sizeof(Object *) * 2 * nelem);
+        /* Don't need to memset map, that's done in transfer_table() */
 }
 
 static bool
@@ -79,6 +132,12 @@ str_key_match(Object *key1, Object *key2)
                || (string_hash(key1) == string_hash(key2)
                    && !strcmp(string_cstring(key1),
                               string_cstring(key2)));
+}
+
+static void
+append_to_map(struct dictvar_t *dict, int i)
+{
+        index_write(dict, dict->d_count, i);
 }
 
 static inline int
@@ -132,35 +191,57 @@ seek_helper(struct dictvar_t *dict, Object *key)
 static void
 transfer_table(struct dictvar_t *dict, size_t old_size)
 {
-        int i, j, count;
+        ssize_t i;  /* Old keys/vals index */
+        ssize_t j;  /* New keys/vals index */
+        ssize_t m;  /* Old map index */
+        ssize_t n;  /* New map index */
+        ssize_t iwid;
         Object **old_keys = dict->d_keys;
         Object **old_vals = dict->d_vals;
+        void *old_map = dict->d_map;
 
         bucket_alloc(dict);
 
-        count = 0;
-        for (i = 0; i < old_size; i++) {
+        n = 0;
+        for (m = 0; m < old_size; m++) {
                 unsigned long perturb;
-                Object *k = old_keys[i];
+                Object *k;
                 hash_t hash;
 
+                i = index_read(old_map, old_size, m);
+                if (i < 0)
+                        continue;
+
+                k = old_keys[i];
                 if (k == NULL || k == BUCKET_DEAD)
                         continue;
 
                 hash = string_hash(k);
                 bug_on(!hash);
+
                 perturb = hash;
                 j = bucketi(dict, hash);
                 while (dict->d_keys[j] != NULL) {
                         perturb >>= 5;
                         j = bucketi(dict, j * 5 + perturb + 1);
                 }
-                dict->d_keys[j] = old_keys[i];
+                dict->d_keys[j] = k; /* ie 'old_keys[i]' */
                 dict->d_vals[j] = old_vals[i];
-                count++;
+                bug_on(index < 0);
+                index_write(dict, n, j);
+                n++;
         }
 
-        dict->d_count = dict->d_used = count;
+        dict->d_count = dict->d_used = n;
+
+        /* Default remaining d_map to -1 */
+        iwid = index_width(dict->d_size);
+        memset(dict->d_map + n * iwid,
+               -1, (dict->d_size - n) * iwid);
+        /*
+         * old_vals, old_map were alloc'd with old_keys, so they're
+         * freed here too.
+         */
         efree(old_keys);
 }
 
@@ -404,6 +485,7 @@ dictvar_new(void)
         d->d_count = 0;
         refresh_grow_markers(d);
         bucket_alloc(d);
+        memset(d->d_map, -1, INIT_SIZE);
         return o;
 }
 
@@ -525,6 +607,7 @@ dict_insert(Object *dict, Object *key,
 
                         VAR_INCR_REF(key);
                         VAR_INCR_REF(attr);
+                        append_to_map(d, i);
                         insert_common(d, key, attr, i);
                         bug_on(d->d_used != seqvar_size(dict) + 1);
                         seqvar_set_size(dict, d->d_used);

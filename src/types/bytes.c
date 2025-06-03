@@ -1613,8 +1613,6 @@ static const struct type_inittbl_t bytes_cb_methods[] = {
         V_INITTBL("title",        do_bytes_title,        0, 0, -1, -1),
         V_INITTBL("upper",        do_bytes_upper,        0, 0, -1, -1),
         V_INITTBL("zfill",        do_bytes_zfill,        1, 1, -1, -1),
-
-        /* TODO: lstrip, just, etc. */
         TBLEND,
 };
 

@@ -284,6 +284,40 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                                 continue;
 
                         left = rodata[ip->arg2];
+                        if (ip2->code == INSTR_B_IF) {
+                                int cond = ip2->arg1;
+                                enum result_t status;
+                                if (var_cmpz(left, &status) == !cond) {
+                                        /*
+                                         * Would be nice if I could just
+                                         * check if branch-forward and then
+                                         * delete the whole block between,
+                                         * but I have no idea if other code
+                                         * might branch into it.
+                                         */
+                                        ip->code = INSTR_B;
+                                        ip->arg1 = 0;
+                                        /*
+                                         * Not arg2+1! This is still an
+                                         * abstract label, not no. of instr!
+                                         */
+                                        ip->arg2 = ip2->arg2;
+                                        ip2->code = INSTR_NOP;
+                                } else {
+                                        ip->code = INSTR_NOP;
+                                        ip2->code = INSTR_NOP;
+                                }
+                                /*
+                                 * All user-visible data must have a
+                                 * .cmpz, so this would be a bug.
+                                 */
+                                bug_on(status == RES_ERROR);
+                                bug_on(err_occurred());
+                                ip = ip2;
+                                reduced = true;
+                                reduced_once = true;
+                                continue;
+                        }
                         if (ip2->code != INSTR_LOAD_CONST) {
                                 result = try_unaryop(left, ip2);
                                 ip3 = ip2;

@@ -147,6 +147,11 @@ THROW
 B_IF
 B
 
+# Placeholder which during post-assembly should either turn into
+# B_IF or disappear entirely.  It's used for knowing whether or not
+# to delete a certain block of code.
+B_IF_DEL
+
 # The usu. unary operators.  None of these are in-place.  Replace
 # variable on stack with a new variable that is the result of the
 # operation.

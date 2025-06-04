@@ -816,6 +816,14 @@ do_b_if(Frame *fr, instruction_t ii)
 }
 
 static int
+do_b_if_del(Frame *fr, instruction_t ii)
+{
+        /* Should have been replace by do_b_if in assemble_post() */
+        bug();
+        return RES_ERROR;
+}
+
+static int
 do_b(Frame *fr, instruction_t ii)
 {
         fr->ppii += ii.arg2;

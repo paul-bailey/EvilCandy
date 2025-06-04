@@ -1142,7 +1142,7 @@ assemble_expr1_ternary(struct assemble_t *a)
         if (a->oc->t == OC_QUEST) {
                 int b_end = as_next_label(a);
                 int b_if_false = as_next_label(a);
-                add_instr(a, INSTR_B_IF, 0, b_if_false);
+                add_instr(a, INSTR_B_IF_DEL, 0, b_if_false);
                 as_lex(a);
                 assemble_expr2_binary(a);
                 add_instr(a, INSTR_B, 0, b_end);
@@ -1579,7 +1579,7 @@ assemble_if(struct assemble_t *a)
         while (a->oc->t == OC_IF) {
                 int jmpend = as_next_label(a);
                 assemble_expr(a);
-                add_instr(a, INSTR_B_IF, 0, jmpelse);
+                add_instr(a, INSTR_B_IF_DEL, 0, jmpelse);
                 assemble_stmt(a, 0, 0);
                 add_instr(a, INSTR_B, 0, true_jmpend);
                 as_set_label(a, jmpelse);
@@ -1618,7 +1618,7 @@ assemble_while(struct assemble_t *a)
         assemble_expr(a);
         as_errlex(a, OC_RPAR);
 
-        add_instr(a, INSTR_B_IF, 0, breakto);
+        add_instr(a, INSTR_B_IF_DEL, 0, breakto);
         assemble_stmt(a, FE_CONTINUE, start);
         add_instr(a, INSTR_B, 0, start);
 

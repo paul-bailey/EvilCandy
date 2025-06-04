@@ -33,6 +33,8 @@ static bool
 instr_uses_jump(instruction_t ii)
 {
         switch (ii.code) {
+        case INSTR_B_IF_DEL:
+                bug();
         case INSTR_B:
         case INSTR_B_IF:
         case INSTR_FOREACH_ITER:
@@ -255,6 +257,17 @@ seek_rodata(struct assemble_t *a, struct as_frame_t *fr, Object *obj)
         return ret;
 }
 
+static void
+replace_fake_instructions(struct assemble_t *a, struct as_frame_t *fr)
+{
+        instruction_t *idata = (instruction_t *)fr->af_instr.s;
+        size_t i, n = as_frame_ninstr(fr);
+        for (i = 0; i < n; i++) {
+                if (idata[i].code == INSTR_B_IF_DEL)
+                        idata[i].code = INSTR_B_IF;
+        }
+}
+
 /* reduce_const_operands but for just one function */
 static void
 reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
@@ -285,6 +298,51 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                                 continue;
 
                         left = rodata[ip->arg2];
+                        if (ip2->code == INSTR_B_IF_DEL) {
+                                short label;
+                                instruction_t *ilabel;
+                                short *labels = (short *)fr->af_labels.s;
+                                int cond = ip2->arg1;
+                                enum result_t status;
+                                if (var_cmpz(left, &status) == !cond) {
+                                        label = labels[ip2->arg2];
+                                        ilabel = idata + label;
+                                        while (ip < ilabel) {
+                                                ip->code = INSTR_NOP;
+                                                ip++;
+                                        }
+                                        if (ip != ilabel)
+                                                ip = ip2;
+                                } else {
+                                        ip->code = INSTR_NOP;
+                                        /*
+                                         * A branch instruction immediately
+                                         * before label either branches back
+                                         * or skip an 'else' statement or
+                                         * ternary third expression.  'for'
+                                         * loops are an exception, but they
+                                         * do not use the B_IF_DEL instruction.
+                                         */
+                                        label = labels[ip2->arg2];
+                                        ip2->code = INSTR_NOP;
+                                        ip = idata + label - 1;
+                                        if (ip->code == INSTR_B) {
+                                                label = labels[ip->arg2];
+                                                ilabel = idata + label;
+                                                while (ip < ilabel) {
+                                                        ip->code = INSTR_NOP;
+                                                        ip++;
+                                                }
+                                                if (ip != ilabel)
+                                                        ip = ip2;
+                                        } else {
+                                                ip = ip2;
+                                        }
+                                }
+                                reduced = true;
+                                reduced_once = true;
+                                continue;
+                        }
                         if (ip2->code == INSTR_B_IF) {
                                 int cond = ip2->arg1;
                                 enum result_t status;
@@ -382,6 +440,67 @@ reduce_const_operands(struct assemble_t *a)
 }
 
 /*
+ * Some instructions that use labels may have been removed.
+ * Remove any labels that are no longer needed.
+ *
+ * TODO: This is purely cosmetic, to make disassembly less cluttered with
+ * artifacts of labels that don't get referenced anywhere.  But it has
+ * no bearing on execution of the code.  Make this action be an option
+ * in configure.ac or Makefile.am
+ */
+static void
+remove_unused_labels(struct assemble_t *a, struct as_frame_t *fr)
+{
+        enum { STACK_NLABEL = 32, STACK_NINSTR = 128 };
+        short *labels = (short *)fr->af_labels.s;
+        instruction_t *instrs = (instruction_t *)fr->af_instr.s;
+        size_t nlabel = as_frame_nlabel(fr);
+        size_t ninstr = as_frame_ninstr(fr);
+        char used_stack[STACK_NLABEL];
+        char jumpy_stack[STACK_NINSTR];
+        char *used, *jumpy;
+        ssize_t i, j;
+
+        if (nlabel <= STACK_NLABEL)
+                used = used_stack;
+        else
+                used = emalloc(nlabel);
+        if (ninstr <= STACK_NINSTR)
+                jumpy = jumpy_stack;
+        else
+                jumpy = emalloc(ninstr);
+        memset(used, 0, nlabel);
+        memset(jumpy, 0, ninstr);
+
+        for (i = 0; i < ninstr; i++) {
+                if (instr_uses_jump(instrs[i])) {
+                        jumpy[i] = 1;
+                        used[instrs[i].arg2] = 1;
+                }
+        }
+
+        for (i = nlabel - 1; i >= 0; i--) {
+                if (used[i])
+                        continue;
+                memmove(&labels[i], &labels[i+1],
+                        (nlabel-i-1) * sizeof(short));
+                for (j = 0; j < ninstr; j++) {
+                        if (jumpy[j] && instrs[j].arg2 > i)
+                                instrs[j].arg2--;
+                }
+                nlabel--;
+        }
+
+        if (used != used_stack)
+                efree(used);
+        if (jumpy != jumpy_stack)
+                efree(jumpy);
+
+        /* XXX: Low-level buffer management */
+        fr->af_labels.p = nlabel * sizeof(short);
+}
+
+/*
  * Jump instructions' arg2 currently holds a label number.
  * Convert that into an offset from the program counter.
  */
@@ -392,6 +511,8 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
         short *labels;
         instruction_t *instrs;
         struct as_frame_t *frsav;
+
+        remove_unused_labels(a, fr);
 
         labels  = (short *)fr->af_labels.s;
 
@@ -521,6 +642,12 @@ assemble_post(struct assemble_t *a)
 
         list_foreach(li, &a->finished_frames) {
                 struct as_frame_t *fr = list2frame(li);
+                /*
+                 * Do this before resolving jump labels,
+                 * because some "fake" instructions exist
+                 * within.
+                 */
+                replace_fake_instructions(a, fr);
                 resolve_jump_labels(a, fr);
         }
 

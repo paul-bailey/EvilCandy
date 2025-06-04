@@ -239,6 +239,7 @@ remove_nop_instructions(struct assemble_t *a, struct as_frame_t *fr)
 
                 /* XXX No! low-level manipulation of buffer! */
                 b->p -= amount * sizeof(instruction_t);
+                i = after;
         }
 }
 

@@ -214,6 +214,10 @@ remove_nop_instructions(struct assemble_t *a, struct as_frame_t *fr)
         struct buffer_t *b = &fr->af_instr;
         instruction_t *idata = (instruction_t *)b->s;
 
+        /*
+         * FIXME: The sum-total lengths in the memmove calls will be
+         * shorter if we do this from the top instead of the bottom.
+         */
         i = 0;
         while (i < (n_instr = as_frame_ninstr(fr))) {
                 if (idata[i].code != INSTR_NOP) {
@@ -263,12 +267,21 @@ replace_fake_instructions(struct assemble_t *a, struct as_frame_t *fr)
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
         size_t i, n = as_frame_ninstr(fr);
         for (i = 0; i < n; i++) {
+                /*
+                 * B_IF_DEL only exists to let optimizer know if
+                 * code between branch and label is deletable should
+                 * it be unreachable.  At execution time it should be
+                 * B_IF instead.
+                 */
                 if (idata[i].code == INSTR_B_IF_DEL)
                         idata[i].code = INSTR_B_IF;
         }
 }
 
-/* reduce_const_operands but for just one function */
+/*
+ * reduce_const_operands but for just one function.
+ * This also reduces LOAD_CONST+conditional jump instruction pairs.
+ */
 static void
 reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
 {
@@ -299,6 +312,10 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
 
                         left = rodata[ip->arg2];
                         if (ip2->code == INSTR_B_IF_DEL) {
+                                /*
+                                 * LOAD_CONST + B_IF_DEL means that
+                                 * something is unreachable.  Delete it.
+                                 */
                                 short label;
                                 instruction_t *ilabel;
                                 short *labels = (short *)fr->af_labels.s;
@@ -317,11 +334,9 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                                         ip->code = INSTR_NOP;
                                         /*
                                          * A branch instruction immediately
-                                         * before label either branches back
-                                         * or skip an 'else' statement or
-                                         * ternary third expression.  'for'
-                                         * loops are an exception, but they
-                                         * do not use the B_IF_DEL instruction.
+                                         * before label either branches back,
+                                         * skips an 'else' statement, or skips
+                                         * a third ternary expression.
                                          */
                                         label = labels[ip2->arg2];
                                         ip2->code = INSTR_NOP;
@@ -329,6 +344,11 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                                         if (ip->code == INSTR_B) {
                                                 label = labels[ip->arg2];
                                                 ilabel = idata + label;
+                                                /*
+                                                 * If backwards jump, this
+                                                 * 'while' loop will be skipped
+                                                 * so nothing will be deleted.
+                                                 */
                                                 while (ip < ilabel) {
                                                         ip->code = INSTR_NOP;
                                                         ip++;
@@ -343,17 +363,21 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                                 reduced_once = true;
                                 continue;
                         }
+
                         if (ip2->code == INSTR_B_IF) {
+                                /*
+                                 * LOAD_CONST + B_IF can be reduced to
+                                 * just B or nothing at all.
+                                 *
+                                 * Do not delete 'unreachable' code, because
+                                 * B_IF is for things like branching backwards
+                                 * or the convoluted C-style 'for' loops.  The
+                                 * instruction would be B_IF_DEL if deleting
+                                 * unreachable code was permitted here.
+                                 */
                                 int cond = ip2->arg1;
                                 enum result_t status;
                                 if (var_cmpz(left, &status) == !cond) {
-                                        /*
-                                         * Would be nice if I could just
-                                         * check if branch-forward and then
-                                         * delete the whole block between,
-                                         * but I have no idea if other code
-                                         * might branch into it.
-                                         */
                                         ip->code = INSTR_B;
                                         ip->arg1 = 0;
                                         /*
@@ -366,10 +390,6 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                                         ip->code = INSTR_NOP;
                                         ip2->code = INSTR_NOP;
                                 }
-                                /*
-                                 * All user-visible data must have a
-                                 * .cmpz, so this would be a bug.
-                                 */
                                 bug_on(status == RES_ERROR);
                                 bug_on(err_occurred());
                                 ip = ip2;
@@ -377,6 +397,13 @@ reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
                                 reduced_once = true;
                                 continue;
                         }
+
+                        /*
+                         * ip2 is not a branch instruction.  Check if the
+                         * instruction sequence is a unary operator on a
+                         * const or a binary operator on two consts.
+                         */
+
                         if (ip2->code != INSTR_LOAD_CONST) {
                                 result = try_unaryop(left, ip2);
                                 ip3 = ip2;

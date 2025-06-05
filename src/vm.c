@@ -806,21 +806,22 @@ endloop:
 static int
 do_b_if(Frame *fr, instruction_t ii)
 {
-        int status;
+        enum result_t status;
         Object *v = pop(fr);
-        bool cond = !var_cmpz(v, &status);
-        if (!status && (bool)ii.arg1 == cond)
+        bool condx = !!(ii.arg1 & IARG_COND_COND);
+        bool condy = !var_cmpz(v, &status);
+        if (status != RES_OK)
+                return status;
+        if (condx == condy) {
                 fr->ppii += ii.arg2;
-        VAR_DECR_REF(v);
+                if (!!(ii.arg1 & IARG_COND_SAVEF))
+                        push(fr, v);
+                else
+                        VAR_DECR_REF(v);
+        } else {
+                VAR_DECR_REF(v);
+        }
         return status;
-}
-
-static int
-do_b_if_del(Frame *fr, instruction_t ii)
-{
-        /* Should have been replace by do_b_if in assemble_post() */
-        bug();
-        return RES_ERROR;
 }
 
 static int

@@ -54,6 +54,20 @@ enum {
         IARG_POP_PRINT, /* print me if in interactive */
 };
 
+/* B_IF arg1.  These are flags, not sequential enums */
+enum {
+        /* mask of boolean condition for jumping */
+        IARG_COND_COND = 1,
+        /* push condition back onto stack before jumping */
+        IARG_COND_SAVEF = 2,
+        /*
+         * tells assemble_post() that if condition is const, then the
+         * code skipped by this jump is unreachable and may be deleted
+         * during optimization.
+         */
+        IARG_COND_DELF  = 4,
+};
+
 /**
  * DOC: Instructions
  *

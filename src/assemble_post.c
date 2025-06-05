@@ -33,8 +33,6 @@ static bool
 instr_uses_jump(instruction_t ii)
 {
         switch (ii.code) {
-        case INSTR_B_IF_DEL:
-                bug();
         case INSTR_B:
         case INSTR_B_IF:
         case INSTR_FOREACH_ITER:
@@ -166,12 +164,6 @@ try_binop(Object *left, Object *right, instruction_t *ii)
         case INSTR_RSHIFT:
                 func = qop_rshift;
                 break;
-        case INSTR_LOGICAL_OR:
-                func = var_logical_or;
-                break;
-        case INSTR_LOGICAL_AND:
-                func = var_logical_and;
-                break;
         case INSTR_CMP:
             {
                 bool cmp = var_compare_iarg(left, right, ii->arg1);
@@ -264,267 +256,448 @@ seek_rodata(struct assemble_t *a, struct as_frame_t *fr, Object *obj)
 static void
 replace_fake_instructions(struct assemble_t *a, struct as_frame_t *fr)
 {
-        instruction_t *idata = (instruction_t *)fr->af_instr.s;
-        size_t i, n = as_frame_ninstr(fr);
-        for (i = 0; i < n; i++) {
-                /*
-                 * B_IF_DEL only exists to let optimizer know if
-                 * code between branch and label is deletable should
-                 * it be unreachable.  At execution time it should be
-                 * B_IF instead.
-                 */
-                if (idata[i].code == INSTR_B_IF_DEL)
-                        idata[i].code = INSTR_B_IF;
+        /* Currently nothing to do */
+        ;
+}
+
+static instruction_t *
+next_instr(instruction_t *ii)
+{
+        /* Don't need an end because INSTR_END terminates the array */
+        do {
+                ii++;
+        } while (ii->code == INSTR_NOP);
+        return ii;
+}
+
+static instruction_t *
+prev_instr(instruction_t *base, instruction_t *ii)
+{
+        /* shouldn't pass base to this function */
+        bug_on(ii == base);
+        do {
+                ii--;
+        } while (ii->code == INSTR_NOP && ii > base);
+        return ii;
+}
+
+/* start <= NOP < end, end is exclusive */
+static void
+nopify(instruction_t *start, instruction_t *end)
+{
+        while (start < end) {
+                start->code = INSTR_NOP;
+                start = next_instr(start);
         }
 }
 
 /*
- * reduce_const_operands but for just one function.
- * This also reduces LOAD_CONST+conditional jump instruction pairs.
+ * If there's a bug in this file it's probably here.  Disabling this
+ * function means that there may be more jump instructions and a lot of
+ * unreachable code that won't get deleted.  Unreachable code is not the
+ * worst thing in the world; there are likely too few instructions for
+ * locality of reference to take a hit.
+ *
+ * FIXME: This can be and ought to be greatly simplified now, because I
+ * no longer need to delete blocks of code; instead I just need to reduce
+ * these to unconditional branches where appropriate.
+ *
+ * Need to consider the following scenarios
+ *      instr           flags   action
+ *                      ds  c
+ * A    LOAD_CONST          c   Delete both these instructions; delete the
+ *      B_IF            10  c   part we're skipping past.
+ *
+ * B    LOAD_CONST          c   Delete both these instructions; if command
+ *      B_IF            10 !c   before jump location is unconditional jump,
+ *                              Delete all of that jump's skipped code.
+ *
+ * C    LOAD_CONST          c   Change to unconditional jump B
+ *      B_IF            00  c
+ *
+ * D    LOAD_CONST          c   Delete both these instructions, let instr's
+ *      B_IF            00 !c   fall through.
+ *
+ * E1   LOAD_CONST          c   Delete block skipped over, but do not delete
+ *      B_IF (1b)       11  c   these instrs.
+ *      ...
+ *  1b: ...
+ *
+ * E2   LOAD_CONST          c   If last instr in not-skipped block is B,
+ *      B_IF (1b)       11 !c   delete the else block, but keep these instrs.
+ *      ...                     If it is not B, keep block but delete these
+ *  1b: ...                     instrs.
+ *
+ * F    LOAD_CONST          c   Delete first jump (second instruction),
+ *      B_IF (1 instr)  x1  x   this will turn into one of A...D on a
+ *      B_IF            x0  x   future pass.  Ignore if jump is not to next
+ *                              instruction.  Bug if next instruction is not
+ *                              'B_IF x0x'.
+ *
+ * Any two B_IF's in a row with their s-flag set is also a bug.
  */
-static void
-reduce_const_operands_(struct assemble_t *a, struct as_frame_t *fr)
+static bool
+simplify_conditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
 {
-        bool reduced, reduced_once;
-        int n_instr;
+        bool reduced;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
         Object **rodata = as_frame_rodata(fr);
+        instruction_t *ip = idata;
 
-        reduced_once = false;
-        n_instr = as_frame_ninstr(fr);
-        do {
-                instruction_t *ip = idata;
-                instruction_t *stop = ip + n_instr;
+        reduced = false;
+        while (ip->code != INSTR_END) {
+                instruction_t *ip2;
+                Object *left;
+                bool cond1, cond2, do_jump;
+                enum result_t status;
+                int arg1;
 
-                reduced = false;
-                for (ip = idata; ip < stop; ip++) {
-                        instruction_t *ip2, *ip3;
-                        Object *left, *result;
+                ip2 = next_instr(ip);
+                if (ip2->code == INSTR_END)
+                        break;
 
-                        if (ip->code != INSTR_LOAD_CONST)
-                                continue;
+                if (ip->code != INSTR_LOAD_CONST ||
+                    ip2->code != INSTR_B_IF) {
+                        ip = ip2;
+                        continue;
+                }
+                left = rodata[ip->arg2];
+                cond1 = !var_cmpz(left, &status);
+                bug_on(status == RES_ERROR);
+                arg1 = ip2->arg1 & ~IARG_COND_COND;
+                cond2 = !!(ip2->arg1 & IARG_COND_COND);
+                do_jump = (cond1 == cond2);
 
-                        ip2 = ip+1;
-                        while (ip2->code == INSTR_NOP && ip2 < stop - 1)
-                                ip2++;
-                        if (ip2 >= stop - 1)
-                                continue;
-
-                        left = rodata[ip->arg2];
-                        if (ip2->code == INSTR_B_IF_DEL) {
-                                /*
-                                 * LOAD_CONST + B_IF_DEL means that
-                                 * something is unreachable.  Delete it.
-                                 */
-                                short label;
-                                instruction_t *ilabel;
-                                short *labels = (short *)fr->af_labels.s;
-                                int cond = ip2->arg1;
-                                enum result_t status;
-                                if (var_cmpz(left, &status) == !cond) {
-                                        label = labels[ip2->arg2];
-                                        ilabel = idata + label;
-                                        while (ip < ilabel) {
-                                                ip->code = INSTR_NOP;
-                                                ip++;
-                                        }
-                                        if (ip != ilabel)
-                                                ip = ip2;
-                                } else {
-                                        ip->code = INSTR_NOP;
-                                        /*
-                                         * A branch instruction immediately
-                                         * before label either branches back,
-                                         * skips an 'else' statement, or skips
-                                         * a third ternary expression.
-                                         */
-                                        label = labels[ip2->arg2];
-                                        ip2->code = INSTR_NOP;
-                                        ip = idata + label - 1;
-                                        if (ip->code == INSTR_B) {
-                                                label = labels[ip->arg2];
-                                                ilabel = idata + label;
-                                                /*
-                                                 * If backwards jump, this
-                                                 * 'while' loop will be skipped
-                                                 * so nothing will be deleted.
-                                                 */
-                                                while (ip < ilabel) {
-                                                        ip->code = INSTR_NOP;
-                                                        ip++;
-                                                }
-                                                if (ip != ilabel)
-                                                        ip = ip2;
-                                        } else {
-                                                ip = ip2;
-                                        }
-                                }
+                if ((arg1 & (IARG_COND_DELF | IARG_COND_SAVEF))
+                    == IARG_COND_DELF) {
+                        /* case A & B */
+                        short *labels = (short *)fr->af_labels.s;
+                        instruction_t *where = idata + labels[ip2->arg2];
+                        if (do_jump) {
+                                nopify(ip, where);
+                                ip = where;
                                 reduced = true;
-                                reduced_once = true;
-                                continue;
-                        }
-
-                        if (ip2->code == INSTR_B_IF) {
-                                /*
-                                 * LOAD_CONST + B_IF can be reduced to
-                                 * just B or nothing at all.
-                                 *
-                                 * Do not delete 'unreachable' code, because
-                                 * B_IF is for things like branching backwards
-                                 * or the convoluted C-style 'for' loops.  The
-                                 * instruction would be B_IF_DEL if deleting
-                                 * unreachable code was permitted here.
-                                 */
-                                int cond = ip2->arg1;
-                                enum result_t status;
-                                if (var_cmpz(left, &status) == !cond) {
-                                        ip->code = INSTR_B;
-                                        ip->arg1 = 0;
-                                        /*
-                                         * Not arg2+1! This is still an
-                                         * abstract label, not no. of instr!
-                                         */
-                                        ip->arg2 = ip2->arg2;
-                                        ip2->code = INSTR_NOP;
-                                } else {
-                                        ip->code = INSTR_NOP;
-                                        ip2->code = INSTR_NOP;
-                                }
-                                bug_on(status == RES_ERROR);
-                                bug_on(err_occurred());
-                                ip = ip2;
-                                reduced = true;
-                                reduced_once = true;
-                                continue;
-                        }
-
-                        /*
-                         * ip2 is not a branch instruction.  Check if the
-                         * instruction sequence is a unary operator on a
-                         * const or a binary operator on two consts.
-                         */
-
-                        if (ip2->code != INSTR_LOAD_CONST) {
-                                result = try_unaryop(left, ip2);
-                                ip3 = ip2;
                         } else {
-                                Object *right;
+                                instruction_t *wherenext;
+                                where = prev_instr(idata, where);
+                                if (where->code != INSTR_B) {
+                                        ip = ip2;
+                                        continue;
+                                }
 
-                                ip3 = ip2+1;
-                                while (ip3 < stop && ip3->code == INSTR_NOP)
-                                        ip3++;
-                                if (ip3 == stop)
-                                        break;
-
-                                right = rodata[ip2->arg2];
-                                result = try_binop(left, right, ip3);
+                                wherenext = idata + labels[where->arg2];
+                                if (where >= wherenext) {
+                                        ip = ip2;
+                                        continue;
+                                }
+                                ip->code = INSTR_NOP;
+                                ip2->code = INSTR_NOP;
+                                nopify(where, wherenext);
+                                reduced = true;
+                                ip = wherenext;
                         }
-
-                        /*
-                         * NULL means either ip3 wasn't a bin-op or an
-                         * error occurred.  Suppress errors for now, this
-                         * could be in a try/catch statement.
-                         *
-                         * XXX if error, this will be repeated until
-                         * entire scan runs through without setting
-                         * @reduced below.
-                         */
-                        if (result == NULL) {
-                                err_clear();
-                                continue;
+                } else if (arg1 == 0) {
+                        /* Case C & D */
+                        if (do_jump) {
+                                ip->code = INSTR_B;
+                                ip->arg1 = 0;
+                                ip->arg2 = ip2->arg2;
+                                ip2->code = INSTR_NOP;
+                        } else {
+                                ip->code = INSTR_NOP;
+                                ip2->code = INSTR_NOP;
                         }
-
-                        ip->arg2 = seek_rodata(a, fr, result);
-                        ip2->code = INSTR_NOP;
-                        if (ip3 != ip2)
-                                ip3->code = INSTR_NOP;
-                        /* iterator will update to ip3+1 */
-                        ip = ip3;
+                        ip = next_instr(ip2);
                         reduced = true;
-                        reduced_once = true;
+                } else if (!!(arg1 & IARG_COND_SAVEF)) {
+                        /* Could be case E or F */
+                        short *labels = (short *)fr->af_labels.s;
+                        instruction_t *ip3, *ip4;
+                        ip3 = next_instr(ip2);
+                        ip4 = idata + labels[ip2->arg2];
+                        if (ip4 == ip3) {
+                                /* Case F */
+                                bug_on(ip3->code != INSTR_B_IF);
+                                bug_on(!!(ip3->arg1 & IARG_COND_SAVEF));
+                                ip2->code = INSTR_NOP;
+                                reduced = true;
+                                ip = ip3;
+                        } else if (ip4 > ip2 &&
+                                   !!(arg1 & IARG_COND_DELF)) {
+                                /* Case E */
+                                if (do_jump) {
+                                        nopify(ip3, ip4);
+                                        reduced = true;
+                                        ip = ip4;
+                                } else {
+                                        ip3 = prev_instr(idata, ip4);
+                                        if (ip3->code != INSTR_B) {
+                                                ip->code = INSTR_NOP;
+                                                ip2->code = INSTR_NOP;
+                                                ip = next_instr(ip2);
+                                                reduced = true;
+                                                continue;
+                                        }
+                                        ip4 = idata + labels[ip3->arg2];
+                                        if (ip4 < ip3) {
+                                                ip = ip2;
+                                                continue;
+                                        }
+                                        nopify(ip3, ip4);
+                                        reduced = true;
+                                        ip = ip4;
+                                }
+                        } else {
+                                ip = ip2;
+                        }
+                } else {
+                        ip = ip2;
+                }
+        }
+        return reduced;
+}
+
+/*
+ * In some cases, we've reduced down to branching to the very next
+ * instruction.  Remove this trivial branch instruction.  We do not
+ * bother trying to delete code between 'B ... label' in this pass.
+ */
+static bool
+simplify_unconditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
+{
+        bool reduced;
+        instruction_t *idata = (instruction_t *)fr->af_instr.s;
+        short *labels = (short *)fr->af_labels.s;
+        instruction_t *ip = idata;
+
+        reduced = false;
+        while (ip->code != INSTR_END) {
+                instruction_t *ip2, *ip3;
+                if (ip->code != INSTR_B) {
+                        ip = next_instr(ip);
+                        continue;
                 }
 
-        } while (reduced);
-
-        if (reduced_once) {
-                remove_nop_instructions(a, fr);
-                remove_unused_rodata(fr);
+                ip2 = idata + labels[ip->arg2];
+                ip3 = next_instr(ip);
+                if (ip2 == ip3) {
+                        ip->code = INSTR_NOP;
+                        reduced = true;
+                }
+                ip = ip3;
         }
+        return reduced;
 }
 
-/*
- * For any A operator B where A and B are both consts, perform the
- * operation here and reduce it to just a single LOAD_CONST instruction
- */
-static void
-reduce_const_operands(struct assemble_t *a)
+static bool
+simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr)
 {
-        struct list_t *li;
-        list_foreach(li, &a->finished_frames) {
-                struct as_frame_t *fr = list2frame(li);
-                reduce_const_operands_(a, fr);
+        bool reduced;
+        instruction_t *idata = (instruction_t *)fr->af_instr.s;
+        Object **rodata = as_frame_rodata(fr);
+        instruction_t *ip = idata;
+
+        reduced = false;
+        while (ip->code != INSTR_END) {
+                instruction_t *ip2, *ip3;
+                Object *left, *result;
+
+                bug_on(ip >= &idata[as_frame_ninstr(fr)]);
+
+                if (ip->code != INSTR_LOAD_CONST) {
+                        ip = next_instr(ip);
+                        continue;
+                }
+
+                ip2 = next_instr(ip);
+                if (ip2->code == INSTR_END)
+                        break;
+
+                left = rodata[ip->arg2];
+
+                bug_on(ip >= &idata[as_frame_ninstr(fr)]);
+                if (ip2->code != INSTR_LOAD_CONST) {
+                        result = try_unaryop(left, ip2);
+                        ip3 = ip2;
+                } else {
+                        Object *right;
+
+                        ip3 = next_instr(ip2);
+                        if (ip3->code == INSTR_END)
+                                break;
+
+                        right = rodata[ip2->arg2];
+                        result = try_binop(left, right, ip3);
+                }
+
+                /*
+                 * NULL means either ip3 wasn't a bin-op or an error
+                 * occurred.  Suppress errors for now, this could be in a
+                 * try/catch statement.
+                 *
+                 * XXX if error, need to mark instruction positions as
+                 * unreduceable so I'm not repeating at these points for
+                 * every scan.
+                 */
+                if (result == NULL) {
+                        err_clear();
+                        ip = ip3;
+                        continue;
+                }
+
+                ip->arg2 = seek_rodata(a, fr, result);
+                ip2->code = INSTR_NOP;
+                if (ip3 != ip2)
+                        ip3->code = INSTR_NOP;
+                ip = next_instr(ip3);
+                reduced = true;
         }
+        return reduced;
 }
 
-/*
- * Some instructions that use labels may have been removed.
- * Remove any labels that are no longer needed.
- *
- * TODO: This is purely cosmetic, to make disassembly less cluttered with
- * artifacts of labels that don't get referenced anywhere.  But it has
- * no bearing on execution of the code.  Make this action be an option
- * in configure.ac or Makefile.am
- */
-static void
-remove_unused_labels(struct assemble_t *a, struct as_frame_t *fr)
+static bool
+remove_unreachable_code(struct assemble_t *a, struct as_frame_t *fr)
 {
-        enum { STACK_NLABEL = 32, STACK_NINSTR = 128 };
+        instruction_t *idata = (instruction_t *)fr->af_instr.s;
         short *labels = (short *)fr->af_labels.s;
-        instruction_t *instrs = (instruction_t *)fr->af_instr.s;
         size_t nlabel = as_frame_nlabel(fr);
         size_t ninstr = as_frame_ninstr(fr);
-        char used_stack[STACK_NLABEL];
-        char jumpy_stack[STACK_NINSTR];
-        char *used, *jumpy;
-        ssize_t i, j;
+        instruction_t *ip;
+        bool reduced;
+
+        /*
+         * This is not the most thorough way to check for deletion.
+         * If we get something like:
+         *         B   2
+         *         B   1
+         *         ...
+         *      1:
+         *         ...
+         *      2:
+         * then testing whether the outer B...2 can be removed will
+         * yield 'no' because the inner label '1' is still valid.
+         *
+         * I'm OK with this flaw, because
+         *   1) there's hardly any unreachable code left; IARG_COND_DELF
+         *      already took care of most of it.
+         *   2) the alternative (as far as I can figure on my current
+         *      coffee ration) is a nearly O(n*n) algorithm, and
+         *   3) it isn't worth more than the following algorithm anyway,
+         *      since our only benefits are the removal of a single
+         *      branch instruction and a microscopic improvement in
+         *      locality of reference.
+         *
+         * XXX: Consider using the O(n*n) algorithm after all if it's
+         * known that the script being loaded is marked for printing to
+         * an .evcd file; future loads will then skip all this
+         * optimization crap.
+         */
+        reduced = false;
+        for (ip = idata; ip < &idata[ninstr]; ip++) {
+                size_t j;
+                instruction_t *end;
+                if (ip->code != INSTR_B)
+                        continue;
+                end = idata + labels[ip->arg2];
+                if (end < ip)
+                        continue;
+                for (j = 0; j < nlabel; j++) {
+                        if (j == ip->arg2)
+                                continue;
+                        if (labels[j] >= (short)(ip - idata) &&
+                            labels[j] < (short)(end - idata)) {
+                                break;
+                        }
+                }
+                if (j != nlabel)
+                        continue;
+                nopify(ip, end);
+                reduced = true;
+                /* minus one because it's in the 'for' iterator */
+                ip = end - 1;
+        }
+        return reduced;
+}
+
+enum {
+        STACK_NLABEL = 32,
+        STACK_NINSTR = 128
+};
+
+static void
+mark_unused_labels(struct assemble_t *a, struct as_frame_t *fr)
+{
+        short *labels;
+        instruction_t *instrs;
+        size_t i, nlabel, ninstr;
+        char *used, used_stack[STACK_NLABEL];
+
+        labels = (short *)fr->af_labels.s;
+        instrs = (instruction_t *)fr->af_instr.s;
+        nlabel = as_frame_nlabel(fr);
+        ninstr = as_frame_ninstr(fr);
 
         if (nlabel <= STACK_NLABEL)
                 used = used_stack;
         else
                 used = emalloc(nlabel);
-        if (ninstr <= STACK_NINSTR)
-                jumpy = jumpy_stack;
-        else
-                jumpy = emalloc(ninstr);
         memset(used, 0, nlabel);
-        memset(jumpy, 0, ninstr);
 
         for (i = 0; i < ninstr; i++) {
-                if (instr_uses_jump(instrs[i])) {
-                        jumpy[i] = 1;
+                if (instr_uses_jump(instrs[i]))
                         used[instrs[i].arg2] = 1;
-                }
         }
 
-        for (i = nlabel - 1; i >= 0; i--) {
-                if (used[i])
-                        continue;
-                memmove(&labels[i], &labels[i+1],
-                        (nlabel-i-1) * sizeof(short));
-                for (j = 0; j < ninstr; j++) {
-                        if (jumpy[j] && instrs[j].arg2 > i)
-                                instrs[j].arg2--;
-                }
-                nlabel--;
+        for (i = 0; i < nlabel; i++) {
+                if (!used[i])
+                        labels[i] = -1;
         }
 
         if (used != used_stack)
                 efree(used);
-        if (jumpy != jumpy_stack)
-                efree(jumpy);
+}
 
-        /* XXX: Low-level buffer management */
-        fr->af_labels.p = nlabel * sizeof(short);
+/*
+ * Optimize out any instruction or group of instructions that can be
+ * reduced due to them operating on known consts.
+ * EvilCandy is not yet srmt enough for loop invariants or things
+ * like that.
+ */
+static void
+optimize_instructions(struct assemble_t *a)
+{
+        struct list_t *li;
+        list_foreach(li, &a->finished_frames) {
+                struct as_frame_t *fr = list2frame(li);
+                bool reduced, reduced_once;
+                reduced_once = false;
+                do {
+                        reduced = false;
+                        if (simplify_const_operands(a, fr))
+                                reduced = true;
+                        if (simplify_conditional_jumps(a, fr))
+                                reduced = true;
+                        if (simplify_unconditional_jumps(a, fr))
+                                reduced = true;
+                        if (reduced)
+                                reduced_once = true;
+                } while (reduced);
+
+                mark_unused_labels(a, fr);
+                if (remove_unreachable_code(a, fr)) {
+                        reduced_once = true;
+                        /*
+                         * Gotta call this again; I had to call it before
+                         * remove_unreachable_code, to prevent it from
+                         * getting confused with unused labels.
+                         */
+                        mark_unused_labels(a, fr);
+                }
+                if (reduced_once) {
+                        remove_nop_instructions(a, fr);
+                        remove_unused_rodata(fr);
+                }
+        }
 }
 
 /*
@@ -534,12 +707,11 @@ remove_unused_labels(struct assemble_t *a, struct as_frame_t *fr)
 static void
 resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
 {
-        int i, n_instr;
+        size_t i, n_instr, n_label;
         short *labels;
         instruction_t *instrs;
         struct as_frame_t *frsav;
-
-        remove_unused_labels(a, fr);
+        struct buffer_t labelbuf;
 
         labels  = (short *)fr->af_labels.s;
 
@@ -552,7 +724,8 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
         for (i = 0; i < n_instr; i++) {
                 if (instr_uses_jump(instrs[i])) {
                         instruction_t *ii = &instrs[i];
-                        bug_on(ii->arg2 >= as_frame_nlabel(fr));
+                        bug_on((unsigned)ii->arg2 >= as_frame_nlabel(fr));
+                        bug_on(labels[ii->arg2] < 0);
                         /*
                          * label holds a positive offset from start of
                          * instructions. We want signed offset from
@@ -564,6 +737,26 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
                 }
         }
         a->fr = frsav;
+
+        /*
+         * Reduce 'unneeded' jump labels.  (We actually don't need
+         * any of them anymore.)
+         *
+         * XXX: This is purely cosmetic, for the disassembly.  It's
+         * probably better to get rid of labels in XptrType object
+         * altogether, and let disassembler rebuild them from the
+         * instructions, since human-readable disassembly is the
+         * exception rather than the rule.
+         */
+        n_label = as_frame_nlabel(fr);
+        buffer_init(&labelbuf);
+        for (i = 0; i < n_label; i++) {
+                if (labels[i] < 0)
+                        continue;
+                buffer_putd(&labelbuf, &labels[i], sizeof(labels[i]));
+        }
+        buffer_free(&fr->af_labels);
+        memcpy(&fr->af_labels, &labelbuf, sizeof(labelbuf));
 }
 
 static struct as_frame_t *
@@ -665,7 +858,7 @@ assemble_post(struct assemble_t *a)
 {
         struct list_t *li;
 
-        reduce_const_operands(a);
+        optimize_instructions(a);
 
         list_foreach(li, &a->finished_frames) {
                 struct as_frame_t *fr = list2frame(li);

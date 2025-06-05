@@ -514,6 +514,7 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                         as_lex(a);
                         as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
+                        add_instr(a, INSTR_END, 0, 0);
                         /* we know we have return so we can skip */
                         return;
                 }
@@ -1027,6 +1028,16 @@ assemble_binary_operators_r(struct assemble_t *a,
                 return;
         }
 
+        /*
+         * XXX: Policy: changing assemble_binary_operators' tables means
+         * making sure this is still OK every time.
+         */
+        bool logical = tbl->opcode < 0 &&
+                       (tbl->toktbl->opcode == INSTR_LOGICAL_AND ||
+                         tbl->toktbl->opcode == INSTR_LOGICAL_OR);
+        int label = -1;
+        bool have_operator = 0;
+
         assemble_binary_operators_r(a, tbl + 1);
         do {
                 const struct token_to_opcode_t *t;
@@ -1035,28 +1046,35 @@ assemble_binary_operators_r(struct assemble_t *a,
                                 break;
                 }
                 if (t->tok < 0)
-                        return;
+                        break;
 
-                /*
-                 * XXX REVISIT: If INSTR_LOGIAL_OR/AND, add branching
-                 * instructions to skip runtime evaluation if
-                 *      a) instruction is OR and first value is true
-                 *      b) instruction is AND and first value is false
-                 * Why that's a problem:  If I do that, then the block
-                 * cannot be reduced in assemble_post(), unless we had a
-                 * method right here to tell that both values are const.
-                 * Otherwise we'd need assemble_post() to do way more
-                 * sophisticated stuff, like figure out whether or not
-                 * an entire 'if (CONST) {...}' block of code could be
-                 * eliminated.
-                 */
+                if (!have_operator && logical)
+                        label = as_next_label(a);
+                have_operator = true;
+
+                if (logical) {
+                        int cond = (t->opcode != INSTR_LOGICAL_AND)
+                                     | IARG_COND_SAVEF | IARG_COND_DELF;
+                        add_instr(a, INSTR_B_IF, cond, label);
+                        bug_on(label < 0);
+                }
+
                 as_lex(a);
                 assemble_binary_operators_r(a, tbl + 1);
-                if (tbl->opcode < 0)
-                        add_instr(a, t->opcode, 0, 0);
-                else
-                        add_instr(a, tbl->opcode, t->opcode, 0);
+
+                if (!logical) {
+                        if (tbl->opcode < 0)
+                                add_instr(a, t->opcode, 0, 0);
+                        else
+                                add_instr(a, tbl->opcode, t->opcode, 0);
+                }
+
         } while (tbl->loop);
+
+        if (logical && have_operator) {
+                as_set_label(a, label);
+                bug_on(label < 0);
+        }
 }
 
 /* Parse and compile operators with left- and right-side operands */
@@ -1142,7 +1160,7 @@ assemble_expr1_ternary(struct assemble_t *a)
         if (a->oc->t == OC_QUEST) {
                 int b_end = as_next_label(a);
                 int b_if_false = as_next_label(a);
-                add_instr(a, INSTR_B_IF_DEL, 0, b_if_false);
+                add_instr(a, INSTR_B_IF, IARG_COND_DELF, b_if_false);
                 as_lex(a);
                 assemble_expr2_binary(a);
                 add_instr(a, INSTR_B, 0, b_end);
@@ -1579,7 +1597,7 @@ assemble_if(struct assemble_t *a)
         while (a->oc->t == OC_IF) {
                 int jmpend = as_next_label(a);
                 assemble_expr(a);
-                add_instr(a, INSTR_B_IF_DEL, 0, jmpelse);
+                add_instr(a, INSTR_B_IF, IARG_COND_DELF, jmpelse);
                 assemble_stmt(a, 0, 0);
                 add_instr(a, INSTR_B, 0, true_jmpend);
                 as_set_label(a, jmpelse);
@@ -1618,7 +1636,7 @@ assemble_while(struct assemble_t *a)
         assemble_expr(a);
         as_errlex(a, OC_RPAR);
 
-        add_instr(a, INSTR_B_IF_DEL, 0, breakto);
+        add_instr(a, INSTR_B_IF, IARG_COND_DELF, breakto);
         assemble_stmt(a, FE_CONTINUE, start);
         add_instr(a, INSTR_B, 0, start);
 

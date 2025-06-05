@@ -65,6 +65,17 @@ static const char *CMP_NAMES[] = {
         IARG(NEQ3),
 };
 
+static const char *B_IF_ARGNAME[] = {
+        "0",
+        "1",
+        "S0",
+        "S1",
+        "D0",
+        "D1",
+        "DS0",
+        "DS1",
+};
+
 /* note, i evaluated twice */
 #define SAFE_NAME(arr, i) \
         (i >= ARRAY_SIZE(arr##_NAMES) ? undefstr : arr##_NAMES[i])
@@ -72,11 +83,12 @@ static const char *CMP_NAMES[] = {
 static const char *undefstr = "<!undefined>";
 
 static int
-line_to_label(unsigned int line, struct xptrvar_t *ex)
+line_to_label(unsigned int line, short *labels, size_t nlabel)
 {
         int i;
-        for (i = 0; i < ex->n_label; i++) {
-                if (ex->label[i] == line)
+        bug_on(!labels && nlabel > 0);
+        for (i = 0; i < nlabel; i++) {
+                if (labels[i] == line)
                         return i;
         }
         return -1;
@@ -186,9 +198,10 @@ disassemble_start(FILE *fp, const char *sourcefile_name, unsigned int flags)
 }
 
 static void
-disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i, unsigned int flags)
+disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i,
+         short *labels, size_t nlabel, unsigned int flags)
 {
-        int label = line_to_label(i, ex);
+        int label = line_to_label(i, labels, nlabel);
         size_t len = 0;
         const char *argname;
 
@@ -224,6 +237,9 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i, unsigned int flags)
         case INSTR_POP:
                 argname = SAFE_NAME(POP, ii->arg1);
                 break;
+        case INSTR_B_IF:
+                argname = B_IF_ARGNAME[ii->arg1 & 7];
+                break;
         default:
                 argname = NULL;
         }
@@ -235,10 +251,11 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i, unsigned int flags)
         if (!!(flags & DF_VERBOSE)) {
                 enum { COMNTPOS = 16 };
                 if (instr_uses_jump(*ii)) {
+                        short label = line_to_label(i + ii->arg2 + 1,
+                                                    labels, nlabel);
                         if (len < COMNTPOS)
                                 spaces(fp, COMNTPOS - len);
-                        fprintf(fp, "# label %d",
-                                line_to_label(i + ii->arg2 + 1, ex));
+                        fprintf(fp, "# label %d", label);
                 } else if (instr_uses_rodata(*ii)) {
                         if (len < COMNTPOS)
                                 spaces(fp, COMNTPOS - len);
@@ -249,19 +266,52 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i, unsigned int flags)
         fputc('\n', fp);
 }
 
+static short *
+build_labels(struct xptrvar_t *ex, size_t *nlabel)
+{
+        size_t i;
+        struct buffer_t lbuf;
+        buffer_init(&lbuf);
+        for (i = 0; i < ex->n_instr; i++) {
+                short newlabel;
+                size_t j, n;
+
+                if (!instr_uses_jump(ex->instr[i]))
+                        continue;
+
+                newlabel = (short)i + ex->instr[i].arg2 + 1;
+                n = buffer_size(&lbuf) / sizeof(short);
+                for (j = 0; j < n; j++) {
+                        if (((short *)(lbuf.s))[j] == newlabel)
+                                break;
+                }
+                if (j != n)
+                        continue;
+                buffer_putd(&lbuf, &newlabel, sizeof(short));
+        }
+        *nlabel = buffer_size(&lbuf) / sizeof(short);
+        return *nlabel ? buffer_trim(&lbuf) : NULL;
+}
+
 static void
 disassemble_recursive(FILE *fp, struct xptrvar_t *ex, unsigned int flags)
 {
         int i;
+        size_t nlabel;
+        short *labels = NULL;
+
         fprintf(fp, ".start <%p>\n", ex);
         if (!!(flags & DF_VERBOSE)) {
                 fprintf(fp, "# in file \"%s\"\n", ex->file_name);
                 fprintf(fp, "# starting at line %d\n", ex->file_line);
+                labels = build_labels(ex, &nlabel);
         }
 
-        for (i = 0; i < ex->n_instr; i++) {
-                disinstr(fp, ex, i, flags);
-        }
+        for (i = 0; i < ex->n_instr; i++)
+                disinstr(fp, ex, i, labels, nlabel, flags);
+
+        if (labels)
+                efree(labels);
 
         putc('\n', fp);
         dump_rodata(fp, ex);

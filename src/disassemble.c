@@ -99,7 +99,8 @@ spaces(FILE *fp, int n)
 } while (0)
 
 static void
-print_rodata_str(FILE *fp, struct xptrvar_t *ex, unsigned int i)
+print_rodata_str(FILE *fp, struct xptrvar_t *ex,
+                 unsigned int i, bool in_comment)
 {
         Object *v;
 
@@ -119,7 +120,24 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex, unsigned int i)
                 fprintf(fp, "<%p>", v);
         } else {
                 Object *str = var_str(v);
-                fprintf(fp, "%s", string_cstring(str));
+                if (in_comment) {
+                        const char *s = string_cstring(str);
+                        size_t len = strlen(s);
+                        if (len > 20) {
+                                len = 20;
+                                while (len--)
+                                        fputc(*s++, fp);
+                                fprintf(fp, "...");
+                        } else {
+                                fprintf(fp, "%s", s);
+                        }
+                } else {
+                        /*
+                         * Need to print whole thing no matter how
+                         * long it is.
+                         */
+                        fprintf(fp, "%s", string_cstring(str));
+                }
                 VAR_DECR_REF(str);
         }
 }
@@ -130,7 +148,7 @@ dump_rodata(FILE *fp, struct xptrvar_t *ex)
         int i;
         for (i = 0; i < ex->n_rodata; i++) {
                 fprintf(fp, ".rodata ");
-                print_rodata_str(fp, ex, i);
+                print_rodata_str(fp, ex, i, false);
                 putc('\n', fp);
         }
 }
@@ -172,6 +190,7 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i, unsigned int flags)
 {
         int label = line_to_label(i, ex);
         size_t len = 0;
+        const char *argname;
 
         instruction_t *ii = &ex->instr[i];
         if (label >= 0) {
@@ -188,71 +207,46 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i, unsigned int flags)
         switch (ii->code) {
         case INSTR_ASSIGN:
         case INSTR_LOAD:
-                fprintf(fp, "%s, %hd\n",
-                        SAFE_NAME(PTR, ii->arg1), ii->arg2);
+                argname = SAFE_NAME(PTR, ii->arg1);
                 break;
-
         case INSTR_FUNC_SETATTR:
-                fprintf(fp, "%s, %hd\n",
-                        SAFE_NAME(FUNC_ATTRARG, ii->arg1), ii->arg2);
+                argname = SAFE_NAME(FUNC_ATTRARG, ii->arg1);
                 break;
         case INSTR_CALL_FUNC:
-                fprintf(fp, "%s, %hd\n",
-                        SAFE_NAME(FUNCARG, ii->arg1), ii->arg2);
+                argname = SAFE_NAME(FUNCARG, ii->arg1);
                 break;
-
         case INSTR_CMP:
-                fprintf(fp, "%s, %hd\n",
-                        SAFE_NAME(CMP, ii->arg1), ii->arg2);
+                argname = SAFE_NAME(CMP, ii->arg1);
                 break;
-
         case INSTR_PUSH_BLOCK:
-                fprintf(fp, "%s, %hd\n",
-                        SAFE_NAME(BLOCK, ii->arg1), ii->arg2);
+                argname = SAFE_NAME(BLOCK, ii->arg1);
                 break;
-
         case INSTR_POP:
-                fprintf(fp, "%s, %hd\n",
-                        SAFE_NAME(POP, ii->arg1), ii->arg2);
+                argname = SAFE_NAME(POP, ii->arg1);
                 break;
+        default:
+                argname = NULL;
+        }
+        if (argname)
+                len = fprintf(fp, "%s, %hd", argname, ii->arg2);
+        else
+                len = fprintf(fp, "%hhd, %hd", ii->arg1, ii->arg2);
 
-        case INSTR_B:
-        case INSTR_B_IF:
-                len = fprintf(fp, "%d, %hd", ii->arg1, ii->arg2);
-                if (!!(flags & DF_VERBOSE)) {
-                        if (len < 16)
-                                spaces(fp, 16 - len);
+        if (!!(flags & DF_VERBOSE)) {
+                enum { COMNTPOS = 16 };
+                if (instr_uses_jump(*ii)) {
+                        if (len < COMNTPOS)
+                                spaces(fp, COMNTPOS - len);
                         fprintf(fp, "# label %d",
                                 line_to_label(i + ii->arg2 + 1, ex));
-                }
-                putc('\n', fp);
-                break;
-
-        case INSTR_LOAD_CONST:
-                len = fprintf(fp, "%d, %hd", ii->arg1, ii->arg2);
-                if (!!(flags & DF_VERBOSE)) {
-                        if (len < 16)
-                                spaces(fp, 16 - len);
+                } else if (instr_uses_rodata(*ii)) {
+                        if (len < COMNTPOS)
+                                spaces(fp, COMNTPOS - len);
                         fprintf(fp, "# ");
-                        print_rodata_str(fp, ex, ii->arg2);
+                        print_rodata_str(fp, ex, ii->arg2, true);
                 }
-                putc('\n', fp);
-                break;
-
-        case INSTR_SYMTAB:
-                len = fprintf(fp, "%d, %hd", ii->arg1, ii->arg2);
-                if (!!(flags & DF_VERBOSE)) {
-                        if (len < 16)
-                                spaces(fp, 16 - len);
-                        fprintf(fp, "# ");
-                        print_rodata_str(fp, ex, ii->arg2);
-                }
-                putc('\n', fp);
-                break;
-
-        default:
-                fprintf(fp, "%d, %hd\n", ii->arg1, ii->arg2);
         }
+        fputc('\n', fp);
 }
 
 static void

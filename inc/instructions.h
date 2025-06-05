@@ -4,6 +4,7 @@
 #include "instruction_defs.h"
 #include <lib/list.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* PUSH_PTR/PUSH_COPY arg1 enumerations */
 enum {
@@ -93,5 +94,36 @@ typedef struct {
         uint8_t arg1;
         int16_t arg2;
 } instruction_t;
+
+static inline bool
+instr_uses_rodata(instruction_t ii)
+{
+        switch (ii.code) {
+        case INSTR_LOAD_CONST:
+        case INSTR_SYMTAB:
+        case INSTR_DEFFUNC:
+                return true;
+        case INSTR_LOAD:
+        case INSTR_ASSIGN:
+                return ii.arg1 == IARG_PTR_SEEK;
+        default:
+                return false;
+        }
+}
+
+static inline bool
+instr_uses_jump(instruction_t ii)
+{
+        switch (ii.code) {
+        case INSTR_B:
+        case INSTR_B_IF:
+        case INSTR_FOREACH_ITER:
+                return true;
+        case INSTR_PUSH_BLOCK:
+                return ii.arg1 != IARG_BLOCK;
+        default:
+                return false;
+        }
+}
 
 #endif /* EGQ_INSTRUCTIONS_H */

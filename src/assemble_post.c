@@ -9,42 +9,6 @@
 #include "assemble_priv.h"
 
 /*
- * FIXME: These two functions ought to be automated in some way from
- * tools/instructions and tools/gen.  If I change up the instructions
- * these could end up being wrong.
- */
-static bool
-instr_uses_rodata(instruction_t ii)
-{
-        switch (ii.code) {
-        case INSTR_LOAD_CONST:
-        case INSTR_SYMTAB:
-        case INSTR_DEFFUNC:
-                return true;
-        case INSTR_LOAD:
-        case INSTR_ASSIGN:
-                return ii.arg1 == IARG_PTR_SEEK;
-        default:
-                return false;
-        }
-}
-
-static bool
-instr_uses_jump(instruction_t ii)
-{
-        switch (ii.code) {
-        case INSTR_B:
-        case INSTR_B_IF:
-        case INSTR_FOREACH_ITER:
-                return true;
-        case INSTR_PUSH_BLOCK:
-                return ii.arg1 != IARG_BLOCK;
-        default:
-                return false;
-        }
-}
-
-/*
  * If we simplified some operations on consts, then some .rodata may no
  * longer be necessary.  If so, this garbage collects that and adjust
  * instructions' .rodata offsets as necessary.

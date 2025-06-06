@@ -234,6 +234,24 @@ funcvar_alloc(int magic)
 }
 
 /**
+ * function_get_executable - Return XptrType object if @func is user-
+ *                           defined, or NULL if not.
+ *
+ * This produces a reference for the return value;
+ */
+Object *
+function_get_executable(Object *func)
+{
+        struct funcvar_t *fh = V2FUNC(func);
+        bug_on(!isvar_function(func));
+
+        if (fh->f_magic != FUNC_USER)
+                return NULL;
+
+        return VAR_NEW_REF((Object *)fh->f_ex);
+}
+
+/**
  * funcvar_new_intl - create a builtin function var
  * @cb: Callback that executes the function.  It may pass the Frame
  *      to vm_get_this and vm_get_arg to retrieve its "this" and

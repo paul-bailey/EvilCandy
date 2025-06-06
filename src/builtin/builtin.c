@@ -387,11 +387,54 @@ do_ord(Frame *fr)
         return intvar_new(ord);
 }
 
+static Object *
+do_disassemble(Frame *fr)
+{
+        /* TODO: optional file arg */
+        Object *method = NULL;
+        Object *func = vm_get_arg(fr, 0);
+        Object *ex;
+        if (!func) {
+                err_setstr(ArgumentError, "Expected: function");
+                return ErrorVar;
+        }
+
+        if (isvar_method(func)) {
+                enum result_t status;
+                Object *tmp;
+                method = func;
+                status = methodvar_tofunc(method, &func, &tmp);
+                bug_on(status == RES_ERROR);
+                (void)status;
+                VAR_DECR_REF(tmp);
+                func = tmp;
+                bug_on(!isvar_function(func));
+        } else if (!isvar_function(func)) {
+                err_setstr(TypeError,
+                           "Cannot disassemble uncallable '%s'",
+                           typestr(func));
+                return ErrorVar;
+        }
+
+        ex = function_get_executable(func);
+        if (method)
+                VAR_DECR_REF(func);
+        if (!ex) {
+                err_setstr(TypeError,
+                           "Cannot disassemble internal function");
+                return ErrorVar;
+        }
+        disassemble_lite(stdout, ex);
+        VAR_DECR_REF(ex);
+        return NULL;
+}
+
 static const struct type_inittbl_t builtin_inittbl[] = {
         /*         name     callback  min max opt kw */
         V_INITTBL("abs",    do_abs,    1, 1, -1, -1),
         V_INITTBL("all",    do_all,    1, 1, -1, -1),
         V_INITTBL("any",    do_any,    1, 1, -1, -1),
+        V_INITTBL("disassemble", do_disassemble, 1, 1, -1, -1),
         V_INITTBL("length", do_length, 1, 1, -1, -1),
         V_INITTBL("min",    do_min,    1, 1,  0, -1),
         V_INITTBL("max",    do_max,    1, 1,  0, -1),

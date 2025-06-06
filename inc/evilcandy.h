@@ -201,6 +201,7 @@ extern Object *function_call(Frame *fr, bool have_dict);
 extern void function_add_closure(Object *func, Object *clo);
 extern void function_add_default(Object *func,
                         Object *deflt, int argno);
+extern Object *function_get_executable(Object *func);
 
 /* types/integer.c */
 extern Object *intvar_new(long long value);

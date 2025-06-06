@@ -26,8 +26,6 @@ Must Do
   - Fill in built-in methods for strings, arrays, etc.
   - Fill in __gbl__._sys
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
-  - Add __gbl__._debug and let disassembly of functions be printable
-    in interactive mode without the -d option
   - Finish path resolution
   - **done** Add ``===`` or ``is`` or both
   - **done** Add slice assignment
@@ -91,6 +89,8 @@ Must Do
 Library/Language Features
 -------------------------
 
+* Have dictionaries support keys other than strings
+
 * Parse UnicodeData.txt to make a Unicode version of ctype.h
 
 * Support generators and comprehensions
@@ -122,11 +122,11 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
-* Use more sophisticated branching instructions for conditional tests,
+* **done** Use more sophisticated branching instructions for conditional tests,
   where "<true stmt> ||" or "<false stmt> &&" will skip runtime-evaluation
   of the remainder of the statement inside that atomic block.
 
-* At assemble_post() time, reduce ternary operators to a single expression
+* **done** At assemble_post() time, reduce ternary operators to a single expression
   if the "a" of "a?b:c" is const.
 
 * Replace stack arrangement of FOREACH_ITER to use an iterator of the

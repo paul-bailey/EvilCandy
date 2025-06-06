@@ -17,8 +17,6 @@ xptr_reset(Object *v)
         }
         if (ex->file_name)
                 efree(ex->file_name);
-        if (ex->label)
-                efree(ex->label);
 }
 
 static int
@@ -71,8 +69,6 @@ xptrvar_new(const struct xptr_cfg_t *cfg)
         x->n_rodata     = cfg->n_rodata;
         x->n_instr      = cfg->n_instr;
         x->rodata       = cfg->rodata;
-        x->label        = cfg->label;
-        x->n_label      = cfg->n_label;
         x->file_name    = estrdup(cfg->file_name);
         x->file_line    = cfg->file_line;
         return v;

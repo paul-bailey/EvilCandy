@@ -14,9 +14,6 @@
  * @rodata:     Constants used by the function
  * @n_instr:    Number of opcodes
  * @n_rodata:   Number of constants
- * @label:      Labels.  Unused at execution stage, except to make the
- *              disassembly more readable.
- * @n_label:    Number of labels
  * @file_name:  Name of source file where this was defined
  * @file_line:  Starting line in source file where this was defined
  * @nref:       Reference count, for garbage collection
@@ -77,8 +74,6 @@ struct xptrvar_t {
         int n_instr;
         int n_rodata;
         /* cold items used by disassembly and serializer */
-        short *label;
-        int n_label;
         char *file_name;
         int file_line;
 };

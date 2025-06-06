@@ -562,39 +562,6 @@ remove_unreachable_code(struct assemble_t *a, struct as_frame_t *fr)
         return reduced;
 }
 
-static void
-mark_unused_labels(struct assemble_t *a, struct as_frame_t *fr)
-{
-        short *labels;
-        instruction_t *instrs;
-        size_t i, nlabel, ninstr;
-        char *used, used_stack[STACK_NLABEL];
-
-        labels = (short *)fr->af_labels.s;
-        instrs = (instruction_t *)fr->af_instr.s;
-        nlabel = as_frame_nlabel(fr);
-        ninstr = as_frame_ninstr(fr);
-
-        if (nlabel <= STACK_NLABEL)
-                used = used_stack;
-        else
-                used = emalloc(nlabel);
-        memset(used, 0, nlabel);
-
-        for (i = 0; i < ninstr; i++) {
-                if (instr_uses_jump(instrs[i]))
-                        used[instrs[i].arg2] = 1;
-        }
-
-        for (i = 0; i < nlabel; i++) {
-                if (!used[i])
-                        labels[i] = -1;
-        }
-
-        if (used != used_stack)
-                efree(used);
-}
-
 /*
  * Optimize out any instruction or group of instructions that can be
  * reduced due to them operating on known consts.
@@ -641,11 +608,10 @@ optimize_instructions(struct assemble_t *a)
 static void
 resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
 {
-        size_t i, n_instr, n_label;
+        size_t i, n_instr;
         short *labels;
         instruction_t *instrs;
         struct as_frame_t *frsav;
-        struct buffer_t labelbuf;
 
         labels  = (short *)fr->af_labels.s;
 
@@ -671,30 +637,6 @@ resolve_jump_labels(struct assemble_t *a, struct as_frame_t *fr)
                 }
         }
         a->fr = frsav;
-
-        /*
-         * Reduce 'unneeded' jump labels.  (We actually don't need
-         * any of them anymore.)
-         *
-         * XXX: This has absolutely no benefit beyond reducing the
-         * size of the labels array in memory a tiny bit.  It's
-         * probably better to get rid of labels in XptrType object
-         * altogether, and let disassembler rebuild them from the
-         * instructions, since human-readable disassembly is the
-         * exception rather than the rule.
-         */
-        if (false) {
-                mark_unused_labels(a, fr);
-                n_label = as_frame_nlabel(fr);
-                buffer_init(&labelbuf);
-                for (i = 0; i < n_label; i++) {
-                        if (labels[i] < 0)
-                                continue;
-                        buffer_putd(&labelbuf, &labels[i], sizeof(labels[i]));
-                }
-                buffer_free(&fr->af_labels);
-                memcpy(&fr->af_labels, &labelbuf, sizeof(labelbuf));
-        }
 }
 
 static struct as_frame_t *
@@ -765,10 +707,8 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
                 struct xptr_cfg_t cfg;
                 cfg.file_name   = a->file_name;
                 cfg.file_line   = fr->line;
-                cfg.n_label     = as_frame_nlabel(fr);
                 cfg.n_rodata    = as_frame_nconst(fr);
                 cfg.n_instr     = as_frame_ninstr(fr);
-                cfg.label       = buffer_trim(&fr->af_labels);
                 cfg.rodata      = buffer_trim(&fr->af_rodata);
                 cfg.instr       = buffer_trim(&fr->af_instr);
                 x = (struct xptrvar_t *)xptrvar_new(&cfg);

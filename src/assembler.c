@@ -369,7 +369,12 @@ ainstr_load_const_int(struct assemble_t *a, long long ival)
         Object *iobj;
         int idx;
 
-        iobj = intvar_new(ival);
+        if (ival == 1)
+                iobj = VAR_NEW_REF(gbl.one);
+        else if (ival == 0)
+                iobj = VAR_NEW_REF(gbl.zero);
+        else
+                iobj = intvar_new(ival);
         idx = assemble_seek_rodata(a, iobj);
         VAR_DECR_REF(iobj);
 

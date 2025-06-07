@@ -3,6 +3,25 @@
  *      'front-load' mean the same thing.  This will make for a sluggish
  *      load time, unless we get a good serialization scheme working, so
  *      that this stuff only happens when a byte-code file doesn't exist.
+ *
+ * XXX REVISIT: A lot of the LOAD_CONST checks in this file can be both
+ * LOAD_CONST and PUSH_LOCAL, since PUSH_LOCAL followed immediately by an
+ * operator instruction or a B_IF instruction cannot mean "declare a
+ * local variable"; instead it must mean "LOAD_CONST (null)"; (The reason
+ * it doubles up for this purpose is because we don't waste space storing
+ * NullVar in .rodata.)  So we could do one of the following:
+ *      1. Every place in this file check if LOAD_CONST _or_ PUSH_LOCAL,
+ *         or if that's considered too dangerous or has too many corner-
+ *         cases...
+ *      2: have assembler.c only use PUSH_LOCAL for declaring variables,
+ *         and have this file replace LOAD_CONST (null) with PUSH_LOCAL
+ *         after we have finished optimization.
+ *      3: create a new instruction LOAD_NULL which does the same thing
+ *         as PUSH_LOCAL.
+ * We also have scenarios where DEFDICT, DEFTUPLE, and DEFLIST may take
+ * all LOAD_CONST's for their definitions, in which we could replace
+ * these instructions with DEFDICT_CONST, etc., start allowing tuples in
+ * .rodata, and adding these to the checks along with LOAD_CONST.
  */
 #include <evilcandy.h>
 #include <xptr.h>

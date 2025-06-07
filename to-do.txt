@@ -91,6 +91,8 @@ Library/Language Features
 
 * Have dictionaries support keys other than strings
 
+* Support labelled statements
+
 * Parse UnicodeData.txt to make a Unicode version of ctype.h
 
 * Support generators and comprehensions

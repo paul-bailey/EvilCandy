@@ -95,6 +95,12 @@ typedef struct {
         int16_t arg2;
 } instruction_t;
 
+/*
+ * XXX: At the cost of turning one instruction into two, we could change
+ * some of these to LOAD_CONST + instruction, so that only LOAD_CONST
+ * uses rodata.  It's a performance hit, but it's way less error-prone
+ * whenever we're making changes to time to the instruction set.
+ */
 static inline bool
 instr_uses_rodata(instruction_t ii)
 {

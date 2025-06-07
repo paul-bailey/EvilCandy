@@ -331,32 +331,19 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
 static void
 as_set_label(struct assemble_t *a, int jmp)
 {
-        unsigned short *data;
-        unsigned long n_instr;
-        struct as_frame_t *fr = a->fr;
-        bug_on(jmp >= as_frame_nlabel(fr));
-        data = (unsigned short *)fr->af_labels.s;
-        n_instr = as_frame_ninstr(fr);
-        /*
-         * Limit to 15 bits instead of 16, because the final jump arg
-         * will be directional.  We need an extended-arg method for
-         * instructions before we can support Functions of Unusual Size.
-         */
-        if (n_instr > 32767) {
+        unsigned long val = as_frame_ninstr(a->fr);
+        if (val > 32767) {
                 err_setstr(RangeError,
                            "Cannot compile: instruction set too large for jump labels");
                 as_err(a, AE_GEN);
         }
-        data[jmp] = (unsigned short)n_instr;
+        assemble_frame_set_label(a->fr, jmp, val);
 }
 
 static int
 as_next_label(struct assemble_t *a)
 {
-        /* XXX initialize to < 0 to sanity check later? */
-        short v = 0;
-        buffer_putd(&a->fr->af_labels, &v, sizeof(short));
-        return as_frame_nlabel(a->fr) - 1;
+        return assemble_frame_next_label(a->fr);
 }
 
 static int
@@ -2171,6 +2158,30 @@ void
 assemble_add_instr(struct assemble_t *a, int opcode, int arg1, int arg2)
 {
         add_instr(a, opcode, arg1, arg2);
+}
+
+int
+assemble_frame_next_label(struct as_frame_t *fr)
+{
+        /* XXX initialize to < 0 to sanity check later? */
+        short v = 0;
+        buffer_putd(&fr->af_labels, &v, sizeof(short));
+        return as_frame_nlabel(fr) - 1;
+}
+
+void
+assemble_frame_set_label(struct as_frame_t *fr, int jmp, unsigned long val)
+{
+        unsigned short *data;
+        bug_on(jmp >= as_frame_nlabel(fr));
+        data = (unsigned short *)fr->af_labels.s;
+        /*
+         * Limit to 15 bits instead of 16, because the final jump arg
+         * will be directional.  We need an extended-arg method for
+         * instructions before we can support Functions of Unusual Size.
+         */
+        bug_on(val > 32767);
+        data[jmp] = (unsigned short)val;
 }
 
 /* will return -1 and set exc. if line is longer than @max */

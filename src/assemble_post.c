@@ -16,7 +16,7 @@
  *
  * The primary benefits are minimal: if certain values in program-flow
  * conditional expressions are known consts, then there may be fewer
- * branch instructions, fewer LOAD_CONST instrucitons, and better
+ * branch instructions, fewer LOAD_CONST instructions, and better
  * locality of reference.
  *
  * XXX: ought to go in configure.ac
@@ -252,40 +252,18 @@ next_instr(instruction_t *ii)
 }
 
 /*
- * FIXME: Some bug when this is 1, but I can't find it (it's late).
- * Debug this and use it; it deletes a lot of unwanted code.
- */
-#define USE_DELF 1
-
-/*
  * Reduce LOAD_CONST + B_IF to either nothing or B, depending whether
  * or not the conditions match.
  *
  * Need to consider the following scenarios
  *      instr           flags   action
  *                      ds  c
+ *
  * A    LOAD_CONST          c   Change to unconditional jump B
  *      B_IF            00  c
  *
  * B    LOAD_CONST          c   Delete both these instructions, let instr's
  *      B_IF            00 !c   fall through.
- *
- * C    LOAD_CONST          c   Delete these instructions and all the code
- *      B_IF (fwd)      10  c   below it until the jump label is reached.
- *
- * D    LOAD_CONST          c   Treat as identical to B.  If there was an
- *      B_IF            10 !c   'else' clause, an unconditional B skips over
- *                              that, and remove_unreachable_code will take
- *                              care of it.
- *
- * Do nothing if IARG_COND_SAVEF ('s' in above table) is set.  This is for
- * jumps in the middle of compound statements, which wouldn't be that hard
- * to manage, **except** that if there's a sequence of &&'s or ||'s in a
- * row, they all branch to the same label, and we cannot tell (without more
- * processing that its worth) whether or not they all follow LOAD_CONST.
- *
- *      "Bugs are not optimizations"
- *              -Sun Tzu, Winston Churchill, or somebody
  */
 static bool
 simplify_conditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
@@ -294,12 +272,11 @@ simplify_conditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
         instruction_t *ip;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
         Object **rodata = as_frame_rodata(fr);
-        const short *labels = (short *)fr->af_labels.s;
 
         ip = idata;
         reduced = false;
         while (ip->code != INSTR_END) {
-                instruction_t *ip2, *ip3;
+                instruction_t *ip2;
                 Object *left;
                 bool cond1, cond2, do_jump;
                 enum result_t status;
@@ -314,8 +291,6 @@ simplify_conditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
                         continue;
                 }
 
-                ip3 = idata + labels[ip2->arg2];
-
                 left = rodata[ip->arg2];
                 cond1 = !var_cmpz(left, &status);
                 bug_on(status == RES_ERROR);
@@ -323,20 +298,12 @@ simplify_conditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
                 do_jump = (cond1 == cond2);
 
                 if (do_jump) {
-                        /* A or C */
+                        /* scenario A */
                         ip->code = INSTR_NOP;
                         ip2->code = INSTR_B;
-                        if (!!(ip2->arg1 & IARG_COND_DELF) &&
-                            ip3 > ip) {
-                                while (ip < ip3) {
-                                        ip->code = INSTR_NOP;
-                                        ip++;
-                                }
-                        } else {
-                                ip2->arg1 = 0;
-                        }
+                        ip2->arg1 = 0;
                 } else {
-                        /* B or D */
+                        /* scenario B */
                         ip->code = INSTR_NOP;
                         ip2->code = INSTR_NOP;
                 }
@@ -348,14 +315,13 @@ simplify_conditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
 }
 
 /*
- * Given
- *      B_IF  xSx, 1b
- * where '1b' points to the very next instruction, remove S.
+ * Get rid of IARG_COND_SAVEF by changing where we jump to.
  *
- * The reason for this is because IARG_COND_SAVEF pushes the condition
- * back onto the stack if it does not jump, but here the jump-or-not-jump
- * condition is the same (due to some earlier reduction of instructions
- * in this optimization loop).
+ * These SAVEF flags are easy enough to implement, but they make the
+ * disassembly confusing af, since we do or do not pop the condition off
+ * the stack depending on whether we jump or not.  So go through the
+ * effort of removing them; it has the added benefit of fewer B_IF
+ * instructions in the program flow path.
  */
 static bool
 remove_save_flags(struct assemble_t *a, struct as_frame_t *fr)
@@ -365,23 +331,79 @@ remove_save_flags(struct assemble_t *a, struct as_frame_t *fr)
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
         const short *labels = (short *)fr->af_labels.s;
 
-        reduced = false;
         ip = idata;
+        reduced = false;
         while (ip->code != INSTR_END) {
                 instruction_t *ip2, *ip3;
-                ip2 = next_instr(ip);
+                bool cond1, cond2;
+
                 if (ip->code != INSTR_B_IF ||
                     !(ip->arg1 & IARG_COND_SAVEF)) {
-                        ip = ip2;
+                        ip = next_instr(ip);
                         continue;
                 }
-                ip3 = idata + labels[ip->arg2];
-                if (ip3 != ip2) {
-                        ip = ip2;
+
+                cond1 = !!(ip->arg1 & IARG_COND_COND);
+                ip2 = idata + labels[ip->arg2];
+                if (ip2->code != INSTR_B_IF ||
+                    !!(ip2->arg1 & IARG_COND_SAVEF)) {
+                        /*
+                         * We go FORWARDS from the first instance of the
+                         * same-label B_IF(SAVEF), to make sure we get
+                         * all of them for the same label in a row.
+                         * However, we go BACKWARDS from the last set of
+                         * these whose terminating B_IF has no
+                         * IARG_COND_SAVEF.  Otherwise we'd have no way
+                         * to keep track of our state.  So we have to
+                         * skip this ip/ip2 combo for now; we'll hit it
+                         * again on a future call.
+                         *
+                         * XXX: I'd like to speed this up and do it
+                         * recursively, skipping all the iterations of
+                         * do-while(reduced), but the only algo I can
+                         * think up cannot use tail-call optimization;
+                         * that's necessary if we have like a zillion of
+                         * these little guys.
+                         */
+                        ip = next_instr(ip);
                         continue;
                 }
-                ip->arg1 &= ~IARG_COND_SAVEF;
-                ip = ip2;
+                cond2 = !!(ip2->arg1 & IARG_COND_COND);
+                if (cond1 != cond2) {
+                        short newlabel = assemble_frame_next_label(fr);
+                        unsigned long newlptr = (unsigned long)(next_instr(ip2) - idata);
+                        assemble_frame_set_label(fr, newlabel, newlptr);
+                        /* reassign, since a realloc may have occurred */
+                        labels = (short *)fr->af_labels.s;
+                        ip3 = next_instr(ip);
+                        while (ip3 < ip2) {
+                                if (ip3->code == ip->code &&
+                                    ip3->arg2 == ip->arg2 &&
+                                    !!(ip3->arg1 & IARG_COND_SAVEF)) {
+                                        ip3->arg1 &= ~IARG_COND_SAVEF;
+                                        ip3->arg2 = newlabel;
+                                }
+                                ip3 = next_instr(ip3);
+                        }
+                        ip->arg1 &= ~IARG_COND_SAVEF;
+                        ip->arg2 = newlabel;
+                } else {
+                        /* cond1 == cond2 */
+                        ip3 = next_instr(ip);
+                        while (ip3 < ip2) {
+                                if (ip3->code == ip->code &&
+                                    ip3->arg2 == ip->arg2 &&
+                                    !!(ip3->arg1 & IARG_COND_SAVEF)) {
+                                        bug_on(ip3->arg1 != ip->arg1);
+                                        ip3->arg1 &= ~IARG_COND_SAVEF;
+                                        ip3->arg2 = ip2->arg2;
+                                }
+                                ip3 = next_instr(ip3);
+                        }
+                        ip->arg1 &= ~IARG_COND_SAVEF;
+                        ip->arg2 = ip2->arg2;
+                }
+                ip = next_instr(ip2);
                 reduced = true;
         }
         return reduced;
@@ -518,8 +540,7 @@ traverse_code(const instruction_t *idata, const short *labels,
 {
         while (ip->code != INSTR_END && !hits[ip - idata]) {
                 hits[ip - idata] = 1;
-                if (ip->code == INSTR_B ||
-                    ip->code == INSTR_B_IF) {
+                if (instr_uses_jump(*ip)) {
                         traverse_code(idata, labels,
                                       hits, idata + labels[ip->arg2]);
                         if (ip->code == INSTR_B)
@@ -528,8 +549,6 @@ traverse_code(const instruction_t *idata, const short *labels,
                 }
                 ip++;
         }
-        if (ip->code == INSTR_END)
-                hits[ip - idata] = 1;
 }
 
 static bool
@@ -550,7 +569,8 @@ remove_unreachable_code(struct assemble_t *a, struct as_frame_t *fr)
         traverse_code(idata, labels, hits, idata);
 
         reduced = false;
-        for (i = 0; i < ninstr; i++) {
+        /* -1 to not accidentally NOP-ify INSTR_END */
+        for (i = 0; i < ninstr-1; i++) {
                 if (!hits[i]) {
                         if (idata[i].code != INSTR_NOP)
                                 reduced = true;
@@ -578,6 +598,14 @@ optimize_instructions(struct assemble_t *a)
                 reduced_once = false;
                 do {
                         reduced = false;
+                        if (remove_save_flags(a, fr))
+                                reduced = true;
+                        if (reduced)
+                                reduced_once = true;
+                } while (reduced);
+
+                do {
+                        reduced = false;
                         if (simplify_const_operands(a, fr))
                                 reduced = true;
                         if (TRY_SIMPLIFY_LABELS) {
@@ -586,8 +614,6 @@ optimize_instructions(struct assemble_t *a)
                                 if (simplify_unconditional_jumps(a, fr))
                                         reduced = true;
                                 if (remove_unreachable_code(a, fr))
-                                        reduced = true;
-                                if (remove_save_flags(a, fr))
                                         reduced = true;
                         }
                         if (reduced)

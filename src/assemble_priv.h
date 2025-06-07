@@ -98,6 +98,9 @@ extern void assemble_frame_push(struct assemble_t *a, long long funcno);
 extern void assemble_frame_pop(struct assemble_t *a);
 extern void assemble_add_instr(struct assemble_t *a, int opcode,
                                int arg1, int arg2);
+extern int assemble_frame_next_label(struct as_frame_t *fr);
+extern void assemble_frame_set_label(struct as_frame_t *fr,
+                                     int jmp, unsigned long val);
 
 /* assemble_post.c */
 extern struct xptrvar_t *assemble_post(struct assemble_t *a);

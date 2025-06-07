@@ -516,7 +516,7 @@ static int
 do_deffunc(Frame *fr, instruction_t ii)
 {
         Object *func;
-        Object *x = RODATA(fr, ii);
+        Object *x = pop(fr);
         bug_on(!isvar_xptr(x));
         func = funcvar_new_user(x);
         push(fr, func);

@@ -359,6 +359,14 @@ ainstr_load_const(struct assemble_t *a, struct token_t *oc)
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
+static void
+ainstr_load_const_obj(struct assemble_t *a, Object *obj)
+{
+        int idx = assemble_seek_rodata(a, obj);
+        VAR_DECR_REF(obj);
+        add_instr(a, INSTR_LOAD_CONST, 0, idx);
+}
+
 /*
  * like ainstr_load_const but from an integer, not token, since
  * loading zero is common enough.
@@ -367,7 +375,6 @@ static void
 ainstr_load_const_int(struct assemble_t *a, long long ival)
 {
         Object *iobj;
-        int idx;
 
         if (ival == 1)
                 iobj = VAR_NEW_REF(gbl.one);
@@ -375,10 +382,7 @@ ainstr_load_const_int(struct assemble_t *a, long long ival)
                 iobj = VAR_NEW_REF(gbl.zero);
         else
                 iobj = intvar_new(ival);
-        idx = assemble_seek_rodata(a, iobj);
-        VAR_DECR_REF(iobj);
-
-        add_instr(a, INSTR_LOAD_CONST, 0, idx);
+        ainstr_load_const_obj(a, iobj);
 }
 
 static void
@@ -528,12 +532,10 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
         int minargs = 0;
         int optarg = -1;
         int kwarg = -1;
-        Object *id_o;
 
         /* placeholder for XptrType, resolved in assemble_frame_to_xptr() */
-        id_o = idvar_new(funcno);
-        add_instr(a, INSTR_DEFFUNC, 0, assemble_seek_rodata(a, id_o));
-        VAR_DECR_REF(id_o);
+        ainstr_load_const_obj(a, idvar_new(funcno));
+        add_instr(a, INSTR_DEFFUNC, 0, 0);
         assemble_frame_push(a, funcno);
 
         as_errlex(a, OC_LPAR);

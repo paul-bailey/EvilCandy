@@ -251,6 +251,17 @@ next_instr(instruction_t *ii)
         return ii;
 }
 
+static instruction_t *
+prev_instr(instruction_t *base, instruction_t *ii)
+{
+        if (ii == base)
+                return NULL;
+        do {
+                ii--;
+        } while (ii->code == INSTR_NOP && ii > base);
+        return ii->code == INSTR_NOP ? NULL : ii;
+}
+
 /*
  * Reduce LOAD_CONST + B_IF to either nothing or B, depending whether
  * or not the conditions match.
@@ -413,30 +424,50 @@ remove_save_flags(struct assemble_t *a, struct as_frame_t *fr)
  * In some cases, we've reduced down to branching to the very next
  * instruction.  Remove this trivial branch instruction.  We do not
  * bother trying to delete code between 'B ... label' in this pass.
+ *
+ * We cannot do this for every conditional jump, because we'd have to
+ * delete everything previous which resulted in the condition being
+ * loaded onto the stack.  We can at least be sure of LOAD or LOAD_CONST.
  */
 static bool
-simplify_unconditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
+remove_trivial_jumps(struct assemble_t *a, struct as_frame_t *fr)
 {
         bool reduced;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
         short *labels = (short *)fr->af_labels.s;
-        instruction_t *ip = idata;
+        instruction_t *ip, *iplast;
 
         reduced = false;
-        while (ip->code != INSTR_END) {
-                instruction_t *ip2, *ip3;
-                if (ip->code != INSTR_B) {
-                        ip = next_instr(ip);
-                        continue;
-                }
+        for (ip = idata, iplast = NULL;
+             ip->code != INSTR_END; iplast = ip, ip = next_instr(ip)) {
 
-                ip2 = idata + labels[ip->arg2];
-                ip3 = next_instr(ip);
-                if (ip2 == ip3) {
-                        ip->code = INSTR_NOP;
-                        reduced = true;
+                instruction_t *ip2, *ip3;
+
+                if (ip->code != INSTR_B && ip->code != INSTR_B_IF)
+                        continue;
+
+                ip2 = next_instr(ip);
+                ip3 = idata + labels[ip->arg2];
+                if (ip2 != ip3)
+                        continue;
+
+                if (ip->code == INSTR_B_IF) {
+                        /* No instruction before B_IF?!?! */
+                        bug_on(iplast == NULL);
+                        if ((iplast->code != INSTR_LOAD
+                             && iplast->code != INSTR_LOAD_CONST)) {
+                                /*
+                                 * Previous instructions too complicated
+                                 * to reverse-engineer, we'll have to let
+                                 * this one stay put.
+                                 */
+                                continue;
+                        }
+                        iplast->code = INSTR_NOP;
+                        iplast = prev_instr(idata, ip);
                 }
-                ip = ip3;
+                ip->code = INSTR_NOP;
+                reduced = true;
         }
         return reduced;
 }
@@ -611,7 +642,7 @@ optimize_instructions(struct assemble_t *a)
                         if (TRY_SIMPLIFY_LABELS) {
                                 if (simplify_conditional_jumps(a, fr))
                                         reduced = true;
-                                if (simplify_unconditional_jumps(a, fr))
+                                if (remove_trivial_jumps(a, fr))
                                         reduced = true;
                                 if (remove_unreachable_code(a, fr))
                                         reduced = true;

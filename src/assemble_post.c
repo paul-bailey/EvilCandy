@@ -563,8 +563,7 @@ enum {
  * marked for deletion.
  *
  * I'm OK with this flaw, because...
- *   1) There's hardly any unreachable code left; IARG_COND_DELF already
- *      took care of most of it.
+ *   1) Unreachable code is the exception rather than the rule.
  *   2) The better alternative would require a completely different
  *      parser, so I can do this at parse time instead of at compile
  *      time.  The only 'reliable' method for doing this with just

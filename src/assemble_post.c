@@ -743,8 +743,8 @@ struct xptrvar_t *
 assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
 {
         struct xptrvar_t *x;
-        instruction_t *instrs;
-        int i, n_instr;
+        Object **rodata;
+        int i, n_rodata;
 
         /*
          * Resolve any nested function defintions from a magic number to
@@ -761,26 +761,21 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
         RECURSION_DECLARE_FUNC();
         RECURSION_START_FUNC(RECURSION_MAX);
 
-        instrs = (instruction_t *)fr->af_instr.s;
-        n_instr = as_frame_ninstr(fr);
-        for (i = 0; i < n_instr; i++) {
-                instruction_t *ii = &instrs[i];
-                struct as_frame_t *child;
-                Object **rodata;
+        n_rodata = as_frame_nconst(fr);
+        rodata = as_frame_rodata(fr);
+        for (i = 0; i < n_rodata; i++) {
                 long long idval;
+                struct as_frame_t *child;
+                Object *obj;
 
-                if (ii->code != INSTR_DEFFUNC)
+                obj = rodata[i];
+                if (obj->v_type != &IdType)
                         continue;
-
-                bug_on(as_frame_nconst(fr) <= ii->arg2);
-                rodata = as_frame_rodata(fr);
-                idval = idvar_toll(rodata[ii->arg2]);
-
+                idval = idvar_toll(obj);
                 child = func_label_to_frame(a, idval);
                 bug_on(!child || child == fr);
-
-                VAR_DECR_REF(rodata[ii->arg2]);
-                rodata[ii->arg2] = (Object *)assemble_frame_to_xptr(a, child);
+                VAR_DECR_REF(rodata[i]);
+                rodata[i] = (Object *)assemble_frame_to_xptr(a, child);
         }
 
         do {

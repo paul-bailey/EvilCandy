@@ -367,6 +367,12 @@ ainstr_load_const_obj(struct assemble_t *a, Object *obj)
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
+static void
+ainstr_load_null(struct assemble_t *a)
+{
+        ainstr_load_const_obj(a, VAR_NEW_REF(NullVar));
+}
+
 /*
  * like ainstr_load_const but from an integer, not token, since
  * loading zero is common enough.
@@ -415,8 +421,8 @@ static void
 ainstr_return_null(struct assemble_t *a)
 {
         /*
-         * Identical to PUSH_LOCAL and RETURN_VALUE, but this is one
-         * instruction fewer.
+         * Identical to LOAD_CONST (null) and RETURN_VALUE, but this is
+         * one instruction fewer.
          */
         add_instr(a, INSTR_END, 0, 0);
 }
@@ -470,7 +476,7 @@ assemble_slice(struct assemble_t *a)
                                 }
                                 ainstr_load_const_int(a, 0);
                         } else if (i == 1) {
-                                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+                                ainstr_load_null(a);
                         } else {
                                 ainstr_load_const_int(a, 1);
                         }
@@ -942,7 +948,7 @@ assemble_expr5_atomic(struct assemble_t *a)
                  * This is still part of the evaluation, so no need
                  * for fakestack_declare().
                  */
-                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+                ainstr_load_null(a);
                 break;
 
         case OC_FUNC:
@@ -1449,7 +1455,7 @@ assemble_delete(struct assemble_t *a)
 
                 as_unlex(a);
                 ainstr_load_symbol(a, &name, pos);
-                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+                ainstr_load_null(a);
                 ainstr_assign_symbol(a, &name, pos);
         }
         return;

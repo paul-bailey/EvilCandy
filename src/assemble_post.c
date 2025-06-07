@@ -22,6 +22,10 @@
  * all LOAD_CONST's for their definitions, in which we could replace
  * these instructions with DEFDICT_CONST, etc., start allowing tuples in
  * .rodata, and adding these to the checks along with LOAD_CONST.
+ *
+ * XXX REVISIT: There's a lot of PUSH_BLOCK instructions that can be
+ * reduced in this file as well.  In particular, check for a lack of
+ * 'break' or 'continue' in block.
  */
 #include <evilcandy.h>
 #include <xptr.h>

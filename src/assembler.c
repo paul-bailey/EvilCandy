@@ -1073,6 +1073,10 @@ assemble_binary_operators_r(struct assemble_t *a,
 static void
 assemble_expr2_binary(struct assemble_t *a)
 {
+        /*
+         * FIXME: Lots of tables means lots of recursion, without the
+         * relief of tail-call optimization.
+         */
         static const struct token_to_opcode_t POW_TOK2OP[] = {
                 { .tok = OC_POW,    .opcode = INSTR_POW },
                 { .tok = -1 }
@@ -1463,7 +1467,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
         bug_on(global && name == NULL);
         if (global) {
                 namei = as_seek_rodata_tok(a, name);
-                add_instr(a, INSTR_SYMTAB, 0, namei);
+                add_instr(a, INSTR_NEW_GLOBAL, 0, namei);
         } else {
                 namei = fakestack_declare(a, name ? name->s : NULL);
                 add_instr(a, INSTR_PUSH_LOCAL, 0, 0);

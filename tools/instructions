@@ -46,7 +46,7 @@ ASSIGN
 # Like assign, but specifically for the global symbol table.
 # arg2 is an offset from base of .rodata telling where
 # the string name of the symbol is.
-SYMTAB
+NEW_GLOBAL
 
 # pop top of stack and return its value
 RETURN_VALUE

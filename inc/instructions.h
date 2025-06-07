@@ -106,7 +106,7 @@ instr_uses_rodata(instruction_t ii)
 {
         switch (ii.code) {
         case INSTR_LOAD_CONST:
-        case INSTR_SYMTAB:
+        case INSTR_NEW_GLOBAL:
         case INSTR_DEFFUNC:
                 return true;
         case INSTR_LOAD:

@@ -451,7 +451,7 @@ do_assign(Frame *fr, instruction_t ii)
 }
 
 static int
-do_symtab(Frame *fr, instruction_t ii)
+do_new_global(Frame *fr, instruction_t ii)
 {
         int res;
         Object *name = RODATA(fr, ii);

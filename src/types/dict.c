@@ -564,7 +564,8 @@ dict_getitem(Object *o, Object *key)
 
         d = V2D(o);
         bug_on(!isvar_dict(o));
-        bug_on(!valid_key_type(key));
+        if (!valid_key_type(key))
+                return NULL;
 
         i = seek_helper(d, key);
         if (d->d_keys[i] == NULL)

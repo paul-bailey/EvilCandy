@@ -60,6 +60,12 @@ struct dictvar_t {
  */
 enum { INIT_SIZE = 16 };
 
+static inline bool
+valid_key_type(Object *key)
+{
+        return isvar_string(key) || isvar_int(key);
+}
+
 static void
 index_write__(void *p, size_t dsize, size_t idx, ssize_t val)
 {
@@ -129,15 +135,20 @@ bucket_alloc(struct dictvar_t *dict)
 }
 
 static bool
-str_key_match(Object *key1, Object *key2)
+key_match(Object *key1, Object *key2)
 {
-        bug_on(!isvar_string(key1) || !isvar_string(key2));
-
-        /* fast-path "==", since these still sometimes are literal()'d */
-        return key1 == key2
-               || (string_hash(key1) == string_hash(key2)
-                   && !strcmp(string_cstring(key1),
-                              string_cstring(key2)));
+        if (key1 == key2)
+                return true;
+        if (key1->v_type != key2->v_type)
+                return false;
+        if (isvar_string(key1)) {
+                return string_hash(key1) == string_hash(key2)
+                       && !strcmp(string_cstring(key1),
+                                  string_cstring(key2));
+        }
+        if (isvar_int(key1))
+                return intvar_toll(key1) == intvar_toll(key2);
+        return false;
 }
 
 static void
@@ -152,15 +163,24 @@ bucketi(struct dictvar_t *dict, hash_t hash)
         return hash & (dict->d_size - 1);
 }
 
+static inline hash_t
+dictkey_hash(Object *key)
+{
+        if (isvar_string(key))
+                return string_update_hash(key);
+        bug_on(!isvar_int(key));
+        return intvar_toll(key);
+}
+
 static int
 seek_helper(struct dictvar_t *dict, Object *key)
 {
         Object *k;
-        hash_t hash = string_update_hash(key);
+        hash_t hash = dictkey_hash(key);
         unsigned long perturb = hash;
         int i = bucketi(dict, hash);
         while ((k = dict->d_keys[i]) != NULL) {
-                if (k != BUCKET_DEAD && str_key_match(k, key))
+                if (k != BUCKET_DEAD && key_match(k, key))
                         break;
                 /*
                  * Collision or dead entry.
@@ -312,7 +332,7 @@ static void
 insert_common(struct dictvar_t *dict, Object *key,
               Object *data, int i)
 {
-        bug_on(!isvar_string(key));
+        bug_on(!valid_key_type(key));
         dict->d_keys[i] = key;
         dict->d_vals[i] = data;
         dict->d_count++;
@@ -425,7 +445,7 @@ dict_unpack(Object *obj, ...)
                 ppv = va_arg(ap, Object **);
                 deflt = va_arg(ap, Object *);
 
-                bug_on(!isvar_string(k));
+                bug_on(valid_key_type(k));
                 bug_on(!ppv);
                 bug_on(!deflt);
 
@@ -544,7 +564,7 @@ dict_getitem(Object *o, Object *key)
 
         d = V2D(o);
         bug_on(!isvar_dict(o));
-        bug_on(!isvar_string(key));
+        bug_on(!valid_key_type(key));
 
         i = seek_helper(d, key);
         if (d->d_keys[i] == NULL)
@@ -577,7 +597,7 @@ enum {
 
 static enum result_t
 dict_insert(Object *dict, Object *key,
-              Object *attr, unsigned int flags)
+            Object *attr, unsigned int flags)
 {
         int i;
         struct dictvar_t *d;
@@ -586,7 +606,12 @@ dict_insert(Object *dict, Object *key,
         bug_on(!!(flags & DF_SWAP) && attr == NULL);
         bug_on((flags & (DF_SWAP|DF_EXCL)) == (DF_SWAP|DF_EXCL));
         bug_on(!isvar_dict(dict));
-        bug_on(!isvar_string(key));
+
+        if (!valid_key_type(key)) {
+                err_setstr(TypeError, "Invalid type for dict key: '%s'",
+                           typestr(key));
+                return RES_ERROR;
+        }
 
         d = V2D(dict);
 
@@ -688,6 +713,8 @@ dict_unique(Object *dict, const char *key)
         keycopy = stringvar_new(key);
         i = seek_helper(d, keycopy);
         if (d->d_keys[i] != NULL) {
+                /* dict_unique must be used only on string-only dicts */
+                bug_on(!isvar_string(d->d_keys[i]));
                 VAR_DECR_REF(keycopy);
                 return (char *)string_cstring(d->d_keys[i]);
         }
@@ -848,20 +875,20 @@ dict_str(Object *o)
         count = 0;
         for (i = 0; i < d->d_size; i++) {
                 Object *k = d->d_keys[i];
-                Object *item;
+                Object *vstr, *kstr;
                 if (k == NULL || k == BUCKET_DEAD)
                         continue;
 
                 if (count > 0)
                         buffer_puts(&b, ", ");
 
-                buffer_putc(&b, '\'');
-                buffer_puts(&b, string_cstring(k));
-                buffer_puts(&b, "': ");
-
-                item = var_str(d->d_vals[i]);
-                buffer_puts(&b, string_cstring(item));
-                VAR_DECR_REF(item);
+                kstr = var_str(d->d_keys[i]);
+                vstr = var_str(d->d_vals[i]);
+                buffer_puts(&b, string_cstring(kstr));
+                buffer_puts(&b, ": ");
+                buffer_puts(&b, string_cstring(vstr));
+                VAR_DECR_REF(vstr);
+                VAR_DECR_REF(kstr);
 
                 count++;
         }
@@ -1050,9 +1077,11 @@ do_dict_purloin(Frame *fr)
 
                 i = seek_helper(d, key);
                 if (d->d_keys[i] == NULL) {
+                        Object *kstr = var_str(key);
                         err_setstr(KeyError,
                                    "Cannot purloin %s: does not exist",
-                                   string_cstring(key));
+                                   kstr);
+                        VAR_DECR_REF(kstr);
                         return ErrorVar;
                 }
                 purloin_one(&d->d_vals[i]);

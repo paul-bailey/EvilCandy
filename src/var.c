@@ -425,6 +425,59 @@ seqvar_arg2idx(Object *obj, Object *iarg, int *idx)
         return RES_OK;
 }
 
+Object *
+var_getattr_map(Object *v, Object *key)
+{
+        /*
+         * first check if v maps it. If failed, check the
+         * built-in methods.
+         */
+        Object *ret;
+        const struct map_methods_t *mpm = v->v_type->mpm;
+        if (mpm && mpm->getitem) {
+                ret = mpm->getitem(v, key);
+                if (ret)
+                        goto found;
+        }
+
+        /* try built-in methods or properties */
+
+        /* ...whose key must be a string */
+        if (!isvar_string(key))
+                goto badtype;
+
+        ret = dict_getitem(v->v_type->methods, key);
+        if (ret) {
+                if (isvar_property(ret)) {
+                        Object *tmp = property_get(ret, v);
+                        VAR_DECR_REF(ret);
+                        /* XXX if prop is func, swap below? */
+                        return tmp;
+                }
+                goto found;
+        }
+
+        err_setstr(KeyError, "%s object has no attribute %s",
+                   typestr(v), string_cstring(key));
+        return ErrorVar;
+
+found:
+        /*
+         * Save "owner" with function, so when it's called it
+         * knows who its "this" is.
+         */
+        if (isvar_function(ret)) {
+                Object *tmp = ret;
+                ret = methodvar_new(tmp, v);
+                VAR_DECR_REF(tmp);
+        }
+        return ret;
+
+        /* else, invalid key, fall through */
+badtype:
+        err_attribute("get", key, v);
+        return ErrorVar;
+}
 
 /**
  * var_getattr - Generalized get-attribute
@@ -454,7 +507,7 @@ var_getattr(Object *v, Object *key)
                 int i;
                 const struct seq_methods_t *sqm = v->v_type->sqm;
                 if (!sqm || !sqm->getitem)
-                        goto badtype;
+                        return var_getattr_map(v, key);
 
                 i = var_realindex(v, intvar_toll(key));
                 if (i < 0) {
@@ -488,45 +541,7 @@ var_getattr(Object *v, Object *key)
 
                 return sqm->getslice(v, start, stop, step);
         } else if (isvar_string(key)) {
-                /*
-                 * first check if v maps it. If failed, check the
-                 * built-in methods.
-                 */
-                Object *ret;
-                const struct map_methods_t *mpm = v->v_type->mpm;
-                if (mpm && mpm->getitem) {
-                        ret = mpm->getitem(v, key);
-                        if (ret)
-                                goto found;
-                }
-
-                /* still here? try built-in methods or properties */
-                ret = dict_getitem(v->v_type->methods, key);
-                if (ret) {
-                        if (isvar_property(ret)) {
-                                Object *tmp = property_get(ret, v);
-                                VAR_DECR_REF(ret);
-                                /* XXX if prop is func, swap below? */
-                                return tmp;
-                        }
-                        goto found;
-                }
-
-                err_setstr(KeyError, "%s object has no attribute %s",
-                           typestr(v), string_cstring(key));
-                return ErrorVar;
-
-found:
-                /*
-                 * Save "owner" with function, so when it's called it
-                 * knows who its "this" is.
-                 */
-                if (isvar_function(ret)) {
-                        Object *tmp = ret;
-                        ret = methodvar_new(tmp, v);
-                        VAR_DECR_REF(tmp);
-                }
-                return ret;
+                return var_getattr_map(v, key);
         }
 
         /* else, invalid key, fall through */
@@ -559,6 +574,44 @@ var_hasattr(Object *haystack, Object *needle)
         return false;
 }
 
+static enum result_t
+var_setattr_map(Object *v, Object *key, Object *attr)
+{
+        Object *prop;
+        enum result_t ret;
+        const struct map_methods_t *map = v->v_type->mpm;
+        if (!map || !map->setitem)
+                goto badtype;
+
+        if (isvar_string(key) && seqvar_size(key) == 0) {
+                err_setstr(KeyError, "key may not be empty");
+                return RES_ERROR;
+        }
+        ret = map->setitem(v, key, attr);
+        if (ret == RES_OK)
+                return ret;
+
+        /* try property, whose key must be string */
+        if (!isvar_string(key))
+                goto badtype;
+
+        /* may not delete built-in properties */
+        if (!attr)
+                goto badtype;
+
+        err_clear();
+        prop = dict_getitem(v->v_type->methods, key);
+        if (prop && isvar_property(prop)) {
+                ret = property_set(prop, v, attr);
+                VAR_DECR_REF(prop);
+                return ret;
+        }
+
+badtype:
+        err_attribute("set", key, v);
+        return RES_ERROR;
+}
+
 /**
  * var_setattr - Generalized set-attribute
  * @v:          Variable whose attribute we're setting
@@ -573,32 +626,7 @@ enum result_t
 var_setattr(Object *v, Object *key, Object *attr)
 {
         if (isvar_string(key)) {
-                Object *prop;
-                enum result_t ret;
-                const struct map_methods_t *map = v->v_type->mpm;
-                if (map && map->setitem) {
-                        if (seqvar_size(key) == 0) {
-                                err_setstr(KeyError, "key may not be empty");
-                                return RES_ERROR;
-                        }
-                        ret = map->setitem(v, key, attr);
-                        if (ret == RES_OK)
-                                return ret;
-                        /* still here, fall through, try property */
-                }
-
-                /* may not delete built-in properties */
-                if (!attr)
-                        goto badtype;
-
-                err_clear();
-                prop = dict_getitem(v->v_type->methods, key);
-                if (prop && isvar_property(prop)) {
-                        ret = property_set(prop, v, attr);
-                        VAR_DECR_REF(prop);
-                        return ret;
-                }
-                goto badtype;
+                return var_setattr_map(v, key, attr);
         } else if (isvar_tuple(key)) {
                 int start, stop, step;
                 const struct seq_methods_t *seq = v->v_type->sqm;
@@ -613,7 +641,7 @@ var_setattr(Object *v, Object *key, Object *attr)
                 int i;
                 const struct seq_methods_t *seq = v->v_type->sqm;
                 if (!seq || !seq->setitem)
-                        goto badtype;
+                        return var_setattr_map(v, key, attr);
 
                 i = var_realindex(v, intvar_toll(key));
                 if (i < 0) {

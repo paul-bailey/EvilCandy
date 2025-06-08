@@ -700,7 +700,8 @@ assemble_objdef(struct assemble_t *a)
                         assemble_expr(a);
                         as_errlex(a, OC_RBRACK);
                 } else if (a->oc->t == OC_IDENTIFIER
-                           || a->oc->t == OC_STRING) {
+                           || a->oc->t == OC_STRING
+                           || a->oc->t == OC_INTEGER) {
                         /* key is literal text */
                         ainstr_load_const(a, a->oc);
                 } else if (a->oc->t == OC_RBRACE) {
@@ -708,7 +709,7 @@ assemble_objdef(struct assemble_t *a)
                         break;
                 } else {
                         err_setstr(SyntaxError,
-                                "Dictionary key must be either an identifier or string");
+                                "Uncomputed dictionary key must a single-token expression");
                         as_err(a, AE_EXPECT);
                 }
                 as_lex(a);

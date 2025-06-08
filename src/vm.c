@@ -584,8 +584,8 @@ do_defdict(Frame *fr, instruction_t ii)
         for (i = 0; i < (2 * n); i += 2) {
                 Object *k = arr[i];
                 Object *v = arr[i+1];
-                bug_on(!isvar_string(k));
                 if (dict_setitem(obj, k, v) != RES_OK) {
+                        bug_on(!err_occurred());
                         /* unwind the rest and fail */
                         while (i < n) {
                                 VAR_DECR_REF(arr[i]);

@@ -692,6 +692,7 @@ dict_unique(Object *dict, const char *key)
                 return (char *)string_cstring(d->d_keys[i]);
         }
 
+        append_to_map(d, i);
         insert_common(d, keycopy, keycopy, i);
         seqvar_set_size(dict, d->d_used);
 

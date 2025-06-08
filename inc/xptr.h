@@ -84,8 +84,6 @@ struct xptr_cfg_t {
         int n_instr;
         Object **rodata;
         int n_rodata;
-        short *label;
-        int n_label;
         int file_line;
         const char *file_name;
 };

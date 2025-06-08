@@ -519,6 +519,7 @@ do_deffunc(Frame *fr, instruction_t ii)
         Object *x = pop(fr);
         bug_on(!isvar_xptr(x));
         func = funcvar_new_user(x);
+        VAR_DECR_REF(x);
         push(fr, func);
         return 0;
 }
@@ -810,17 +811,14 @@ do_b_if(Frame *fr, instruction_t ii)
         Object *v = pop(fr);
         bool condx = !!(ii.arg1 & IARG_COND_COND);
         bool condy = !var_cmpz(v, &status);
-        if (status != RES_OK)
-                return status;
-        if (condx == condy) {
+        if (status == RES_OK && condx == condy) {
                 fr->ppii += ii.arg2;
-                if (!!(ii.arg1 & IARG_COND_SAVEF))
+                if (!!(ii.arg1 & IARG_COND_SAVEF)) {
                         push(fr, v);
-                else
-                        VAR_DECR_REF(v);
-        } else {
-                VAR_DECR_REF(v);
+                        VAR_INCR_REF(v);
+                }
         }
+        VAR_DECR_REF(v);
         return status;
 }
 

@@ -60,9 +60,8 @@ RETURN_VALUE
 #       function
 CALL_FUNC
 
-# create a user-function variable and push it on the stack
-# arg2 tells where in .rodata the struct executable_t is
-# to use for this function.
+# create a user-function variable and push it on the stack.
+# Stack top is the struct executable_t to use for the new function.
 DEFFUNC
 
 # usually exists shortly after DEFFUNC.  Some evaluation has

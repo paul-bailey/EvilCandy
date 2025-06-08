@@ -23,7 +23,9 @@ PUSH_LOCAL
 
 # Load a variable or const and push it onto the stack.
 LOAD_CONST
-LOAD
+LOAD_LOCAL
+# arg2 points to name in .rodata
+LOAD_GLOBAL
 
 # pop last item off the stack and consume its reference.
 POP
@@ -41,7 +43,9 @@ CONTINUE
 #     - arg2 is an offset index
 #     - arg1 tells what arg2 is an offset of: frame pointer,
 #       .rodata, etc.
-ASSIGN
+ASSIGN_LOCAL
+# arg2 points to name in .rodata
+ASSIGN_GLOBAL
 
 # Like assign, but specifically for the global symbol table.
 # arg2 is an offset from base of .rodata telling where

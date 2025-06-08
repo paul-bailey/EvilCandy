@@ -25,7 +25,6 @@ static const char *PTR_NAMES[] = {
         IARGP(AP),
         IARGP(FP),
         IARGP(CP),
-        IARGP(SEEK),
         IARGP(THIS)
 };
 
@@ -70,10 +69,6 @@ static const char *B_IF_ARGNAME[] = {
         "1",
         "S0",
         "S1",
-        "D0",
-        "D1",
-        "DS0",
-        "DS1",
 };
 
 /* note, i evaluated twice */
@@ -218,8 +213,8 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i,
 
         fprintf(fp, "%8s%-16s", "", instruction_name(ii->code));
         switch (ii->code) {
-        case INSTR_ASSIGN:
-        case INSTR_LOAD:
+        case INSTR_ASSIGN_LOCAL:
+        case INSTR_LOAD_LOCAL:
                 argname = SAFE_NAME(PTR, ii->arg1);
                 break;
         case INSTR_FUNC_SETATTR:
@@ -238,7 +233,7 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i,
                 argname = SAFE_NAME(POP, ii->arg1);
                 break;
         case INSTR_B_IF:
-                argname = B_IF_ARGNAME[ii->arg1 & 7];
+                argname = B_IF_ARGNAME[ii->arg1 & 3];
                 break;
         default:
                 argname = NULL;

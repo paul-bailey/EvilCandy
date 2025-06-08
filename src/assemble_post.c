@@ -8,10 +8,13 @@
  * may take all LOAD_CONST's for their definitions, in which we could
  * replace these instructions with DEFDICT_CONST, etc., start allowing
  * tuples in .rodata, and adding these to the checks along with LOAD_CONST.
+ * Requires reassemble to have a better parse-from-text method than I
+ * currently have, otherwise need to just make a binary cache file.
  *
  * XXX REVISIT: There's a lot of PUSH_BLOCK instructions that can be
  * reduced in this file as well.  In particular, check for a lack of
- * 'break' or 'continue' in block.
+ * 'break' or 'continue' in block.  For exceptions, maybe use a parallel
+ * exception table like Python uses, to forgo PUSH_BLOCK for exceptions.
  */
 #include <evilcandy.h>
 #include <xptr.h>
@@ -463,7 +466,7 @@ remove_trivial_jumps(struct assemble_t *a, struct as_frame_t *fr)
                 if (ip->code == INSTR_B_IF) {
                         /* No instruction before B_IF?!?! */
                         bug_on(iplast == NULL);
-                        if ((iplast->code != INSTR_LOAD
+                        if ((iplast->code != INSTR_LOAD_LOCAL
                              && iplast->code != INSTR_LOAD_CONST)) {
                                 /*
                                  * Previous instructions too complicated
@@ -554,7 +557,7 @@ enum {
 
 /*
  * helper to remove_unreachable_code - Traverse both paths of
- * INSTR_B_IF, one path of INSTR_B; recursive to fulfull this.
+ * INSTR_B_IF/PUSH_BLOCK, one path of INSTR_B; recursive to fulfull this.
  *
  * This is not the most thorough way to check for deletion.  'if' state-
  * ments in particular have B_IF branching into an unreachable area (see

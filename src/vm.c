@@ -77,34 +77,6 @@ RODATA(Frame *fr, instruction_t ii)
 
 #endif /* DEBUG */
 
-static Object *
-symbol_seek(Object *name)
-{
-        Object *ret;
-
-        bug_on(!isvar_string(name));
-
-        ret = dict_getitem(symbol_table, name);
-        if (!ret) {
-                err_setstr(NameError, "Symbol %s not found",
-                           string_cstring(name));
-        } else {
-                /*
-                 * See where used below.  dict_getitem produced a
-                 * reference, but so will do_load, since VARPTR might
-                 * give it something from the stack instead of here.
-                 * So consume one reference to keep it balanced.
-                 *
-                 * FIXME: Hazardous to have to know this here and make
-                 * such unclean code.  By making separate opcodes --
-                 * LOAD_NAME apart from LOAD, ASSIGN_NAME apart from
-                 * ASSIGN -- we won't have this problem.
-                 */
-                VAR_DECR_REF(ret);
-        }
-        return ret;
-}
-
 static int
 symbol_put(Frame *fr, Object *name, Object *v)
 {
@@ -185,29 +157,6 @@ vmframe_free(Frame *fr)
         if (fr->func)
                 VAR_DECR_REF(fr->func);
         list_add_tail(&fr->alloc_list, &vframe_free_list);
-}
-
-static inline __attribute__((always_inline)) Object *
-VARPTR(Frame *fr, instruction_t ii)
-{
-        switch (ii.arg1) {
-        case IARG_PTR_AP:
-                return fr->stack[fr->ap + ii.arg2];
-        case IARG_PTR_FP:
-                return fr->stack[ii.arg2];
-        case IARG_PTR_CP:
-                bug_on(!fr->clo);
-                return fr->clo[ii.arg2];
-        case IARG_PTR_SEEK: {
-                Object *name = RODATA(fr, ii);
-                return symbol_seek(name);
-        }
-        case IARG_PTR_THIS:
-                bug_on(!fr || !fr->owner);
-                return fr->owner;
-        }
-        bug();
-        return NULL;
 }
 
 static struct block_t *
@@ -292,14 +241,6 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
                 bug_on(!fr->clo);
                 ppto = fr->clo + ii.arg2;
                 break;
-        case IARG_PTR_SEEK:
-            {
-                /* Global variable or attribute in namespace */
-                Object *key = RODATA(fr, ii);
-                int ret = symbol_put(fr, key, from);
-                VAR_DECR_REF(from);
-                return ret;
-            }
         case IARG_PTR_THIS:
                 err_setstr(TypeError, "You may not assign `this'");
                 return RES_ERROR;
@@ -365,16 +306,51 @@ do_load_const(Frame *fr, instruction_t ii)
         return 0;
 }
 
-/* ie. 'load variable', not the 'load' keyword */
 static int
-do_load(Frame *fr, instruction_t ii)
+do_load_local(Frame *fr, instruction_t ii)
 {
-        Object *p = VARPTR(fr, ii);
-        if (!p)
-                return -1;
+        Object *p;
+        switch (ii.arg1) {
+        case IARG_PTR_AP:
+                p = fr->stack[fr->ap + ii.arg2];
+                break;
+        case IARG_PTR_FP:
+                p = fr->stack[ii.arg2];
+                break;
+        case IARG_PTR_CP:
+                bug_on(!fr->clo);
+                p = fr->clo[ii.arg2];
+                break;
+        case IARG_PTR_THIS:
+                bug_on(!fr || !fr->owner);
+                p = fr->owner;
+                break;
+        default:
+                bug();
+                return RES_ERROR;
+        }
         VAR_INCR_REF(p);
         push(fr, p);
-        return 0;
+        return RES_OK;
+}
+
+static int
+do_load_global(Frame *fr, instruction_t ii)
+{
+        Object *p, *name;
+
+        name = RODATA(fr, ii);
+        bug_on(!isvar_string(name));
+
+        p = dict_getitem(symbol_table, name);
+        if (!p) {
+                err_setstr(NameError, "Symbol %s not found",
+                           string_cstring(name));
+                return RES_ERROR;
+        }
+
+        push(fr, p);
+        return RES_OK;
 }
 
 static int
@@ -444,10 +420,23 @@ do_continue(Frame *fr, instruction_t ii)
 }
 
 static int
-do_assign(Frame *fr, instruction_t ii)
+do_assign_local(Frame *fr, instruction_t ii)
 {
         Object *from = pop(fr);
         return assign_complete(fr, ii, from);
+}
+
+static int
+do_assign_global(Frame *fr, instruction_t ii)
+{
+        Object *from, *key;
+        int ret;
+
+        from = pop(fr);
+        key = RODATA(fr, ii);
+        ret = symbol_put(fr, key, from);
+        VAR_DECR_REF(from);
+        return ret;
 }
 
 static int

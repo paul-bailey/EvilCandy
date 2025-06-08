@@ -124,6 +124,9 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
+* Replace IARG_PTR_SEEK with assign/load opcodes which are different for
+  global and local variables.
+
 * **done** Use more sophisticated branching instructions for conditional tests,
   where "<true stmt> ||" or "<false stmt> &&" will skip runtime-evaluation
   of the remainder of the statement inside that atomic block.

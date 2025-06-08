@@ -11,7 +11,6 @@ enum {
         IARG_PTR_AP = 0,
         IARG_PTR_FP,
         IARG_PTR_CP,
-        IARG_PTR_SEEK,
         IARG_PTR_THIS   /* ""   "" */
 };
 
@@ -110,10 +109,9 @@ instr_uses_rodata(instruction_t ii)
         switch (ii.code) {
         case INSTR_LOAD_CONST:
         case INSTR_NEW_GLOBAL:
+        case INSTR_LOAD_GLOBAL:
+        case INSTR_ASSIGN_GLOBAL:
                 return true;
-        case INSTR_LOAD:
-        case INSTR_ASSIGN:
-                return ii.arg1 == IARG_PTR_SEEK;
         default:
                 return false;
         }

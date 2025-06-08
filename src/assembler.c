@@ -752,7 +752,7 @@ assemble_fstring(struct assemble_t *a)
 
 /*
  * helper to ainstr_load_symbol, @name is not in local namespace,
- * check enclosing function before resorting to IARG_PTR_SEEK
+ * check enclosing function before resorting to LOAD_GLOBAL
  */
 static int
 maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
@@ -809,7 +809,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
  * ainstr_load/assign_symbol
  *
  * @name:  name of symbol, token assumed to be saved from a->oc already.
- * @instr: either INSTR_LOAD, or INSTR_ASSIGN
+ * @instr: either INSTR_LOAD_LOCAL, or INSTR_ASSIGN_LOCAL
  * @pos:   Saved token position when saving name; needed to maybe pass to
  *         seek_or_add const
  */
@@ -824,20 +824,26 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
                 add_instr(a, instr, IARG_PTR_CP, idx);
         } else {
                 int namei = as_seek_rodata_tok(a, name);
-                add_instr(a, instr, IARG_PTR_SEEK, namei);
+                if (instr == INSTR_ASSIGN_LOCAL) {
+                        instr = INSTR_ASSIGN_GLOBAL;
+                } else {
+                        bug_on(instr != INSTR_LOAD_LOCAL);
+                        instr = INSTR_LOAD_GLOBAL;
+                }
+                add_instr(a, instr, 0, namei);
         }
 }
 
 static void
 ainstr_load_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
 {
-        ainstr_load_or_assign(a, name, INSTR_LOAD, pos);
+        ainstr_load_or_assign(a, name, INSTR_LOAD_LOCAL, pos);
 }
 
 static void
 ainstr_assign_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
 {
-        ainstr_load_or_assign(a, name, INSTR_ASSIGN, pos);
+        ainstr_load_or_assign(a, name, INSTR_ASSIGN_LOCAL, pos);
 }
 
 static void
@@ -964,7 +970,7 @@ assemble_expr5_atomic(struct assemble_t *a)
                 assemble_funcdef(a, true);
                 break;
         case OC_THIS:
-                add_instr(a, INSTR_LOAD, IARG_PTR_THIS, 0);
+                add_instr(a, INSTR_LOAD_LOCAL, IARG_PTR_THIS, 0);
                 break;
         default:
                 as_err(a, AE_BADTOK);
@@ -1379,7 +1385,7 @@ assemble_this(struct assemble_t *a, unsigned int flags)
          * We do not allow
          *      this = value...
          */
-        add_instr(a, INSTR_LOAD, IARG_PTR_THIS, 0);
+        add_instr(a, INSTR_LOAD_LOCAL, IARG_PTR_THIS, 0);
         return assemble_primary_elements__(a);
 }
 
@@ -1395,7 +1401,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         if (a->oc->t == OC_EQ) {
                 /*
                  * x = value;
-                 * Don't load, INSTR_ASSIGN knows where from frame
+                 * Don't load, INSTR_ASSIGN_LOCAL knows where from frame
                  * pointer to store 'value'
                  */
                 assemble_expr(a);
@@ -1516,11 +1522,12 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         /* for initializers, only '=', not '+=' or such */
         as_errlex(a, OC_EQ);
 
-        /* XXX: is the extra LOAD/POP necessary? */
         ainstr_load_symbol(a, &name, pos);
         assemble_expr(a);
-        add_instr(a, INSTR_ASSIGN,
-                  tok == OC_LET ? IARG_PTR_AP : IARG_PTR_SEEK, namei);
+        if (tok == OC_LET)
+                add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, namei);
+        else
+                add_instr(a, INSTR_ASSIGN_GLOBAL, 0, namei);
         add_instr(a, INSTR_POP, 0, 0);
 }
 

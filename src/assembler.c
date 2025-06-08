@@ -709,12 +709,13 @@ assemble_objdef(struct assemble_t *a)
                         break;
                 } else {
                         err_setstr(SyntaxError,
-                                "Uncomputed dictionary key must a single-token expression");
+                                "Invalid token for uncomputed dictionary key");
                         as_err(a, AE_EXPECT);
                 }
                 as_lex(a);
                 if (a->oc->t != OC_COLON) {
-                        err_setstr(SyntaxError, "Expected: ':'");
+                        err_setstr(SyntaxError,
+                                "Uncomputed dictionary key must a single-token expression");
                         as_err(a, AE_EXPECT);
                 }
                 assemble_expr(a);

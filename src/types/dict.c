@@ -445,7 +445,7 @@ dict_unpack(Object *obj, ...)
                 ppv = va_arg(ap, Object **);
                 deflt = va_arg(ap, Object *);
 
-                bug_on(valid_key_type(k));
+                bug_on(!valid_key_type(k));
                 bug_on(!ppv);
                 bug_on(!deflt);
 

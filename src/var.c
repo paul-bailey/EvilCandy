@@ -291,10 +291,10 @@ cfile_deinit_var(void)
  *
  * Return: converted index or -1 if out of range.
  */
-static int
+static ssize_t
 var_realindex(Object *v, long long idx)
 {
-        int i;
+        ssize_t i;
         size_t n;
 
         bug_on(!hasvar_len(v));
@@ -303,7 +303,7 @@ var_realindex(Object *v, long long idx)
         if (idx < INT_MIN || idx > INT_MAX)
                 return -1;
 
-        i = (int)idx;
+        i = (ssize_t)idx;
         n = seqvar_size(v);
 
         /* convert '[-i]' to '[size-i]' */
@@ -425,7 +425,11 @@ seqvar_arg2idx(Object *obj, Object *iarg, int *idx)
         return RES_OK;
 }
 
-Object *
+/*
+ * Either @v is a dictionary or @key is a string, which could be for a
+ * built-in method or property of @v, whatever @v's type.
+ */
+static Object *
 var_getattr_map(Object *v, Object *key)
 {
         /*
@@ -479,6 +483,62 @@ badtype:
         return ErrorVar;
 }
 
+static Object *
+var_getattr_seq(Object *v, Object *key)
+{
+        const struct seq_methods_t *sqm = v->v_type->sqm;
+        bug_on(!sqm);
+        if (isvar_int(key)) {
+                Object *ret;
+                ssize_t i;
+                if (!sqm->getitem)
+                        goto badtype;
+
+                i = var_realindex(v, intvar_toll(key));
+                if (i < 0) {
+                        err_index(key);
+                        return ErrorVar;
+                }
+                ret = sqm->getitem(v, i);
+                bug_on(!ret);
+                return ret;
+        } else if (isvar_tuple(key)) {
+                size_t seqsize;
+                int start, stop, step;
+                if (!sqm->getslice)
+                        goto badtype;
+                if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {
+                        bug_on(!err_occurred());
+                        return ErrorVar;
+                }
+
+                /* Cannot slice an empty sequence */
+                if ((seqsize = seqvar_size(v)) == 0)
+                        return VAR_NEW_REF(v);
+
+                /*
+                 * For setslice this could == size, but for getslice we
+                 * need this to be safely in range.
+                 */
+                if (start >= seqsize)
+                        start = seqsize - 1;
+
+                return sqm->getslice(v, start, stop, step);
+        } else {
+                goto badkey;
+        }
+
+badtype:
+        err_attribute("get", key, v);
+        return ErrorVar;
+
+badkey:
+        err_setstr(TypeError,
+                   "Invalid key type '%s' type for sequence type '%s'",
+                   typestr(key), typestr(v));
+        return ErrorVar;
+}
+
 /**
  * var_getattr - Generalized get-attribute
  * @v:  Variable whose attribute we're seeking
@@ -502,52 +562,14 @@ badtype:
 Object *
 var_getattr(Object *v, Object *key)
 {
-        if (isvar_int(key)) {
-                Object *ret;
-                int i;
-                const struct seq_methods_t *sqm = v->v_type->sqm;
-                if (!sqm || !sqm->getitem)
-                        return var_getattr_map(v, key);
-
-                i = var_realindex(v, intvar_toll(key));
-                if (i < 0) {
-                        err_index(key);
-                        return ErrorVar;
-                }
-                ret = sqm->getitem(v, i);
-                bug_on(!ret);
-                return ret;
-        } else if (isvar_tuple(key)) {
-                size_t seqsize;
-                int start, stop, step;
-                const struct seq_methods_t *sqm = v->v_type->sqm;
-                if (!sqm || !sqm->getslice)
-                        goto badtype;
-                if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {
-                        bug_on(!err_occurred());
-                        return ErrorVar;
-                }
-
-                /* Cannot slice an empty sequence */
-                if ((seqsize = seqvar_size(v)) == 0)
-                        return VAR_NEW_REF(v);
-
-                /*
-                 * For setslice this could == size, but for getslice we
-                 * need this to be safely in range.
-                 */
-                if (start >= seqsize)
-                        start = seqsize - 1;
-
-                return sqm->getslice(v, start, stop, step);
-        } else if (isvar_string(key)) {
+        if (isvar_map(v) || isvar_string(key)) {
                 return var_getattr_map(v, key);
+        } else if (isvar_seq(v)) {
+                return var_getattr_seq(v, key);
+        } else {
+                err_attribute("get", key, v);
+                return ErrorVar;
         }
-
-        /* else, invalid key, fall through */
-badtype:
-        err_attribute("get", key, v);
-        return ErrorVar;
 }
 
 /**
@@ -574,6 +596,10 @@ var_hasattr(Object *haystack, Object *needle)
         return false;
 }
 
+/*
+ * Either @v is a dictionary or @key is a string, which could mean to
+ * set a property in @v, regardless of @v's type.
+ */
 static enum result_t
 var_setattr_map(Object *v, Object *key, Object *attr)
 {
@@ -612,6 +638,47 @@ badtype:
         return RES_ERROR;
 }
 
+static enum result_t
+var_setattr_seq(Object *v, Object *key, Object *attr)
+{
+        const struct seq_methods_t *seq = v->v_type->sqm;
+        bug_on(!seq);
+        if (isvar_tuple(key)) {
+                int start, stop, step;
+                if (!seq->setslice)
+                        goto badtype;
+                if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {
+                        bug_on(!err_occurred());
+                        return RES_ERROR;
+                }
+                return seq->setslice(v, start, stop, step, attr);
+        } else if (isvar_int(key)) {
+                int i;
+                if (!seq->setitem)
+                        goto badtype;
+
+                i = var_realindex(v, intvar_toll(key));
+                if (i < 0) {
+                        err_index(key);
+                        return RES_ERROR;
+                }
+
+                return seq->setitem(v, i, attr);
+        } else {
+                goto badkey;
+        }
+
+badtype:
+        err_attribute("set", key, v);
+        return RES_ERROR;
+
+badkey:
+        err_setstr(TypeError,
+                   "Invalid key type '%s' type for sequence type '%s'",
+                   typestr(key), typestr(v));
+        return RES_ERROR;
+}
+
 /**
  * var_setattr - Generalized set-attribute
  * @v:          Variable whose attribute we're setting
@@ -625,38 +692,14 @@ badtype:
 enum result_t
 var_setattr(Object *v, Object *key, Object *attr)
 {
-        if (isvar_string(key)) {
+        if (isvar_map(v) || isvar_string(key)) {
                 return var_setattr_map(v, key, attr);
-        } else if (isvar_tuple(key)) {
-                int start, stop, step;
-                const struct seq_methods_t *seq = v->v_type->sqm;
-                if (!seq || !seq->setslice)
-                        goto badtype;
-                if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {
-                        bug_on(!err_occurred());
-                        return RES_ERROR;
-                }
-                return seq->setslice(v, start, stop, step, attr);
-        } else if (isvar_int(key)) {
-                int i;
-                const struct seq_methods_t *seq = v->v_type->sqm;
-                if (!seq || !seq->setitem)
-                        return var_setattr_map(v, key, attr);
-
-                i = var_realindex(v, intvar_toll(key));
-                if (i < 0) {
-                        err_index(key);
-                        return RES_ERROR;
-                }
-
-                return seq->setitem(v, i, attr);
+        } else if (isvar_seq(v)) {
+                return var_setattr_seq(v, key, attr);
         } else {
-                goto badtype;
+                err_attribute("set", key, v);
+                return RES_ERROR;
         }
-
-badtype:
-        err_attribute("set", key, v);
-        return RES_ERROR;
 }
 
 /**

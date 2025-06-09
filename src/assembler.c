@@ -994,6 +994,7 @@ assemble_expr3_unarypre(struct assemble_t *a)
 {
         if (istok_unarypre(a->oc->t)) {
                 int op, t = a->oc->t;
+
                 if (t == OC_TILDE)
                         op = INSTR_BITWISE_NOT;
                 else if (t == OC_MINUS)
@@ -1004,7 +1005,8 @@ assemble_expr3_unarypre(struct assemble_t *a)
                         op = -1;
 
                 as_lex(a);
-                assemble_expr4_elems(a);
+                /* recurse, we could have something like !! */
+                assemble_expr3_unarypre(a);
 
                 if (op >= 0)
                         add_instr(a, op, 0, 0);

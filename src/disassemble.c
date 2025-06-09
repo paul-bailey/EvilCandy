@@ -300,6 +300,9 @@ disassemble_recursive(FILE *fp, struct xptrvar_t *ex, unsigned int flags)
                 fprintf(fp, "# in file \"%s\"\n", ex->file_name);
                 fprintf(fp, "# starting at line %d\n", ex->file_line);
                 labels = build_labels(ex, &nlabel);
+        } else {
+                labels = NULL;
+                nlabel = 0;
         }
 
         for (i = 0; i < ex->n_instr; i++)

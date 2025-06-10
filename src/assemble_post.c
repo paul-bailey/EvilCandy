@@ -467,6 +467,7 @@ remove_trivial_jumps(struct assemble_t *a, struct as_frame_t *fr)
                         /* No instruction before B_IF?!?! */
                         bug_on(iplast == NULL);
                         if ((iplast->code != INSTR_LOAD_LOCAL
+                             && iplast->code != INSTR_LOAD_GLOBAL
                              && iplast->code != INSTR_LOAD_CONST)) {
                                 /*
                                  * Previous instructions too complicated

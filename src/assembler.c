@@ -1465,7 +1465,6 @@ assemble_delete(struct assemble_t *a)
                         goto baddelete;
 
                 as_unlex(a);
-                ainstr_load_symbol(a, &name, pos);
                 ainstr_load_null(a);
                 ainstr_assign_symbol(a, &name, pos);
         }
@@ -1734,10 +1733,6 @@ assemble_foreach(struct assemble_t *a)
         as_set_label(a, breakto);
 }
 
-/*
- * breakto_else here is for the unusual case if break is encountered inside
- * in the `else' of a `for...else' block, otherwise it isn't used.
- */
 static void
 assemble_for_cstyle(struct assemble_t *a)
 {

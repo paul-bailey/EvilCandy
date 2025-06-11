@@ -34,8 +34,8 @@ do_print(Frame *fr)
                     NULL);
         n = seqvar_size(arg);
         if (n == 0) {
-                err_va_minargs(arg, 1);
-                res = ErrorVar;
+                if (file_write(file, end) != RES_OK)
+                        res = ErrorVar;
                 goto done;
         }
 

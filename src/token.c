@@ -259,6 +259,7 @@ get_tok_fstring(struct token_state_t *state)
                         }
                         buffer_putc(&state->tok, c);
                 }
+                state->fstring = '\0';
                 return OC_STRING;
         }
 

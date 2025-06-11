@@ -407,9 +407,12 @@ get_tok_number(struct token_state_t *state)
          * Do not include sign with number, instead let assembler
          * perform unary-prefix operation on it.  Rationale: If we
          * include the sign here just to save load time, '1 - 2'
-         * would be three tokens ['1', '-', '2'], while '1-2' whould
+         * would be three tokens ['1', '-', '2'], while '1-2' would
          * be two tokens ['1', '-2'], which would cause a syntax error
          * in the assembler's eval parser.
+         *
+         * XXX: This permits scenarios I should probably not allow, e.g.
+         * "- - -1" will be treated as a valid expression for negative one.
          */
         if (state->s[0] == '-' || state->s[0] == '+')
                 return 0;

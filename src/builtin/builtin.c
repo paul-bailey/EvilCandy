@@ -3,25 +3,12 @@
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
 
-/*
- * function.c does not trap too small var-args, some callbacks do not
- * consider 0 args an error, others do.
- */
-/* XXX: move to var.c, consolidate with types/function.c */
-static void
-err_varargs(int expect, int got)
-{
-        err_setstr(ArgumentError,
-                   "Missing argument: expected at least %d but got %d",
-                   expect, got);
-}
-
 static Object *
 do_typeof(Frame *fr)
 {
         Object *p = frame_get_arg(fr, 0);
         if (!p) {
-                err_setstr(ArgumentError, "Expected: any data type");
+                err_frame_minargs(fr, 1);
                 return ErrorVar;
         }
         return stringvar_new(typestr(p));
@@ -47,7 +34,7 @@ do_print(Frame *fr)
                     NULL);
         n = seqvar_size(arg);
         if (n == 0) {
-                err_varargs(1, 0);
+                err_va_minargs(arg, 1);
                 res = ErrorVar;
                 goto done;
         }
@@ -105,7 +92,7 @@ do_import(Frame *fr)
         int status;
 
         if (!file_name || !mode) {
-                err_setstr(ArgumentError, "Expected: import(MODULE, MODE)");
+                err_frame_minargs(fr, 2);
                 return ErrorVar;
         }
         if (!isvar_string(file_name) || !isvar_string(mode)) {
@@ -211,7 +198,7 @@ do_abs(Frame *fr)
         const struct operator_methods_t *opm;
         Object *v = vm_get_arg(fr, 0);
         if (!v) {
-                err_setstr(ArgumentError, "Expected: number");
+                err_frame_minargs(fr, 1);
                 return ErrorVar;
         }
         opm = v->v_type->opm;
@@ -230,7 +217,7 @@ do_all(Frame *fr)
         bool result;
         Object *v = vm_get_arg(fr, 0);
         if (!v) {
-                err_setstr(ArgumentError, "Expected: sequential object");
+                err_frame_minargs(fr, 1);
                 return ErrorVar;
         }
         result = var_all(v, &status);
@@ -246,7 +233,7 @@ do_any(Frame *fr)
         bool result;
         Object *v = vm_get_arg(fr, 0);
         if (!v) {
-                err_setstr(ArgumentError, "Expected: sequential object");
+                err_frame_minargs(fr, 1);
                 return ErrorVar;
         }
         result = var_any(v, &status);
@@ -285,7 +272,7 @@ do_max(Frame *fr)
         bug_on(!isvar_array(arg));
         n = seqvar_size(arg);
         if (n == 0) {
-                err_varargs(1, 0);
+                err_va_minargs(arg, 1);
                 return ErrorVar;
         }
         if (n == 1) {
@@ -331,7 +318,7 @@ do_min(Frame *fr)
         bug_on(!isvar_array(arg));
         n = seqvar_size(arg);
         if (n == 0) {
-                err_varargs(1, 0);
+                err_va_minargs(arg, 1);
                 return ErrorVar;
         }
         if (n == 1) {
@@ -395,7 +382,7 @@ do_disassemble(Frame *fr)
         Object *func = vm_get_arg(fr, 0);
         Object *ex;
         if (!func) {
-                err_setstr(ArgumentError, "Expected: function");
+                err_frame_minargs(fr, 1);
                 return ErrorVar;
         }
 

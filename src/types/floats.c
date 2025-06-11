@@ -984,9 +984,7 @@ floats_create(Frame *fr)
         bug_on(!kw || !isvar_dict(kw));
 
         if (seqvar_size(varargs) != 1) {
-                err_setstr(ArgumentError,
-                        "Expected 1 arg but got %d",
-                        seqvar_size(varargs));
+                err_exactargs(seqvar_size(varargs), 1);
                 return ErrorVar;
         }
 

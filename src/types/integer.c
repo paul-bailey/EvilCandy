@@ -323,16 +323,14 @@ int_create(Frame *fr)
                 v = array_borrowitem(arg, 0);
                 b = array_borrowitem(arg, 1);
                 if (isvar_real(v)) {
-                        err_setstr(ArgumentError,
+                        err_setstr(TypeError,
                                 "base argument invalid when converting type %s",
                                 typestr(v));
                         return ErrorVar;
                 }
                 break;
         default:
-                err_setstr(ArgumentError,
-                           "Expected at most 2 arguments but got %d",
-                           argc);
+                err_maxargs(argc, 2);
                 return ErrorVar;
         }
 

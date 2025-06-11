@@ -21,6 +21,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Finalize closure behavior, be more like theoretical closures.
   - Fill in .create methods for remaining data types that need it.
   - Fill in math, cmath, io libraries
   - Fill in built-in methods for strings, arrays, etc.
@@ -89,9 +90,13 @@ Must Do
 Library/Language Features
 -------------------------
 
-* Have dictionaries support keys other than strings
+* **done** Have dictionaries support keys other than strings
 
 * Support labelled statements
+
+* Support tuple unpacking assignment, eg. "(x, y) = (1, 2);"
+
+* Support switch statements.
 
 * Parse UnicodeData.txt to make a Unicode version of ctype.h
 
@@ -124,7 +129,7 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
-* Replace IARG_PTR_SEEK with assign/load opcodes which are different for
+* **done** Replace IARG_PTR_SEEK with assign/load opcodes which are different for
   global and local variables.
 
 * **done** Use more sophisticated branching instructions for conditional tests,

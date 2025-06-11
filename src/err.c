@@ -349,6 +349,44 @@ err_clear(void)
         replace_exception(NULL);
 }
 
+static void
+err_nargs(int nargs, int expect, const char *what)
+{
+        err_setstr(ArgumentError, "Expected %s%d args but got %d",
+                   what, expect, nargs);
+}
+
+void
+err_exactargs(int nargs, int expect)
+{
+        err_nargs(nargs, expect, "");
+}
+
+void
+err_minargs(int nargs, int expect)
+{
+        err_nargs(nargs, expect, "at least ");
+}
+
+void
+err_frame_minargs(Frame *fr, int expect)
+{
+        err_minargs(vm_get_argc(fr), expect);
+}
+
+void
+err_va_minargs(Object *varargs, int expect)
+{
+        bug_on(!isvar_seq(varargs));
+        err_minargs(seqvar_size(varargs), expect);
+}
+
+void
+err_maxargs(int nargs, int expect)
+{
+        err_nargs(nargs, expect, "at most ");
+}
+
 /*
  * slow-path completion of arg_type_check() in uarg.h.
  * figure out what error message to print and return an error value

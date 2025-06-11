@@ -140,7 +140,10 @@ range_create(Frame *fr)
         bug_on(!args || !isvar_array(args));
         argc = seqvar_size(args);
         if (argc < 1 || argc > 3) {
-                err_setstr(ArgumentError, "Expected: 1 to 3 args");
+                if (argc < 1)
+                        err_minargs(1, argc);
+                else
+                        err_maxargs(3, argc);
                 return ErrorVar;
         }
         /* defaults */

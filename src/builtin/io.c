@@ -21,8 +21,10 @@ do_open(Frame *fr)
                 return ErrorVar;
         name = string_cstring(vname);
         mode = string_cstring(vmode);
-        if (name == NULL || mode == NULL) {
-                err_setstr(ArgumentError, "Expected: NAME MODE");
+        if (seqvar_size(vname) == 0 || seqvar_size(vmode) == 0) {
+                err_setstr(TypeError,
+                           "%s may not be empty",
+                           (seqvar_size(vname) == 0) ? "name" : "mode");
                 return ErrorVar;
         }
 

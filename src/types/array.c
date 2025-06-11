@@ -838,9 +838,7 @@ array_create(Frame *fr)
         args = vm_get_arg(fr, 0);
         bug_on(!args || !isvar_array(args));
         if (seqvar_size(args) != 1) {
-                err_setstr(ArgumentError,
-                           "Expected 1 arg but got %d",
-                           seqvar_size(args));
+                err_minargs(seqvar_size(args), 1);
                 return ErrorVar;
         }
 

@@ -64,15 +64,11 @@ function_argc_check(struct funcvar_t *fh, int argc)
         int min = fh->f_minargs;
         int max = fh->f_maxargs;
         if (argc < min) {
-                err_setstr(ArgumentError,
-                           "Expected at least %d args but got %d",
-                           min, argc);
+                err_minargs(argc, min);
                 return RES_ERROR;
         }
         if (max >= 0 && argc > max) {
-                err_setstr(ArgumentError,
-                           "Expected at most %d args but got %d",
-                           max, argc);
+                err_maxargs(argc, max);
                 return RES_ERROR;
         }
         return RES_OK;
@@ -137,7 +133,7 @@ function_call(Frame *fr, bool have_dict)
                 vargs = &fr->stack[fh->f_optind];
                 n = fr->ap - fh->f_optind;
                 if (n < 0) {
-                        err_setstr(ArgumentError, "Missing argument");
+                        err_minargs(n, fh->f_optind);
                         if (dict && !have_dict)
                                 VAR_DECR_REF(dict);
                         goto err;

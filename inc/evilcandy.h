@@ -95,6 +95,11 @@ extern void err_permit2(const char *op, Object *a, Object *b);
 extern void err_errno(const char *msg, ...);
 extern void err_notreal(const char *tpname);
 extern void err_doublearg(const char *argname);
+extern void err_exactargs(int nargs, int expect);
+extern void err_minargs(int nargs, int expect);
+extern void err_frame_minargs(Frame *fr, int expect);
+extern void err_va_minargs(Object *varargs, int expect);
+extern void err_maxargs(int nargs, int expect);
 
 /* disassemble.c */
 extern void disassemble(FILE *fp, Object *ex,

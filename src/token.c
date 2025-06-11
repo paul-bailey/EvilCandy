@@ -394,7 +394,8 @@ e_malformed:
 /*
  * Get and interpret number literal.
  *
- * Return: 'i' if integer, 'f' if float, 0 if token is not a number.
+ * Return: OC_INTEGER, OC_FLOAT, OC_COMPLEX, or 0 if not a numerical
+ * token.
  */
 static int
 get_tok_number(struct token_state_t *state)
@@ -496,18 +497,8 @@ skip_whitespace(struct token_state_t *state)
 }
 
 /*
- * returns:
- * 'd' OR'd with ((delim<<8)|flags) if token was a delimiter
- * 'k' OR'd with code<<8 for keyword if token was a keyword
- * 'q' if quoted string.
- * 'b' if bytes
- * 'i' if integer
- * 'f' if float
- * 'u' if identifier
- * EOF if end of file
- *
- * RES_ERROR if bad or unparseable token.  Do not de-reference
- * token data if this happens.
+ * Return: OC_xxx enum (always positive) or RES_ERROR if unparseable
+ *         token.
  */
 static int
 tokenize_helper(struct token_state_t *state, int *line)

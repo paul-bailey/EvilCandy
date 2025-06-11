@@ -85,6 +85,8 @@ extern void err_print(FILE *fp, Object *exc);
 extern void err_print_last(FILE *fp);
 extern bool err_occurred(void);
 extern void err_clear(void);
+
+/* errmsg.c */
 extern void err_attribute(const char *getorset,
                           Object *deref, Object *obj);
 extern void err_index(Object *index);

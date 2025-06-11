@@ -79,6 +79,13 @@ done:
         return res;
 }
 
+/*
+ * TODO: Get rid of 'x'/'r' arg, take optional/keyword args, and
+ * pass them to script by appending them to an array in global variables,
+ * perhaps something like sys.scriptargs[-1].  Then pop them off when
+ * script returns.  It won't be thread-safe, but I won't be multi-threaded
+ * for some time.
+ */
 static Object *
 do_import(Frame *fr)
 {

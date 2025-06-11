@@ -14,6 +14,7 @@ evilcandy_SOURCES = \
         src/ctype.c \
         src/disassemble.c \
         src/err.c \
+        src/errmsg.c \
         src/ewrappers.c \
         src/find_import.c \
         src/global.c \

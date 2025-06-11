@@ -149,7 +149,7 @@ arg_type_check_failed(Object *v, struct type_t *want)
         } else {
                 bug_on(v->v_type == want);
                 err_setstr(TypeError,
-                           "Invalid type for argument '%s': '%s'"
+                           "Invalid type for argument '%s': '%s'",
                            want->name, typestr(v));
         }
         return RES_ERROR;

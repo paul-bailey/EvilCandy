@@ -1,6 +1,11 @@
 Bugs
 ----
 
+* bugs 2/2026:
+
+        * assert fails in var_sanity_check_types_tbl() when exiting with
+          the exit() function instead of normal end of script.
+
 * BUSs 6/2025:
 
         * "global x = ...something which causes error" is unpredictable

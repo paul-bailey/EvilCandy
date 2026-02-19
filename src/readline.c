@@ -41,7 +41,8 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
         rl_instream = inpsave;
 
         if (*linep) {
-                add_history(*linep);
+                if (**linep)
+                        add_history(*linep);
 
                 /* all I know is it's at least this amount */
                 *size = strlen(*linep);

@@ -14,6 +14,8 @@
  * @fp:         Input stream.  There's no reason I can think of why this
  *              is not stdin and not a TTY.
  * @prompt:     Prompt to print for this line.
+ *
+ * Return: Number of characters retrieved, or -1 if EOF or error.
  */
 ssize_t
 myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
@@ -31,7 +33,8 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
         inpsave = rl_instream;
         rl_instream = fp;
 
-        free(*linep);
+        if (*linep)
+                free(*linep);
 
         *linep = readline(prompt);
         rl_instream = inpsave;

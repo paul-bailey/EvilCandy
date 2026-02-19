@@ -3,6 +3,9 @@ Bugs
 
 * BUGs 2/2026:
 
+        * When using readline, ^D is not interpreted as EOF during the
+          first prompt.
+
         * assert fails in var_sanity_check_types_tbl() when exiting with
           the exit() function instead of normal end of script.
 

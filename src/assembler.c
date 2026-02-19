@@ -1499,6 +1499,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         struct token_t name;
         token_pos_t pos;
         int namei;
+        bool global;
 
         if (!!(flags & FE_FOR)) {
                 char *what = tok == OC_LET ? "let" : "global";
@@ -1516,7 +1517,25 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 as_err(a, AE_EXPECT);
         }
         pos = as_savetok(a, &name);
-        namei = assemble_declare(a, &name, tok == OC_GBL);
+
+        /*
+         * FIXME: Philosophical conundrum:
+         *
+         *      In interactive mode, stack variables at the top level
+         *      (not in a loop or function) are popped immediately before
+         *      the next line.  Should we silently make them global
+         *      anyway? Or should we require user to just know to use
+         *      global variables in interactive mode?
+         *
+         *      The former case has subtle implications in case user
+         *      imports a script from the command line.  Same for the
+         *      latter, but at least the user could "see" what's really
+         *      happening.  So I've chosen the latter case. To change
+         *      this to the former case, use
+         *              (tok == OC_GBL) || !!(flags & FE_TOP)
+         */
+        global = tok == OC_GBL;
+        namei = assemble_declare(a, &name, global);
 
         /* if no assign, return early */
         if (as_peek(a, false) == OC_SEMI)
@@ -1527,10 +1546,10 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         ainstr_load_symbol(a, &name, pos);
         assemble_expr(a);
-        if (tok == OC_LET)
-                add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, namei);
-        else
+        if (global)
                 add_instr(a, INSTR_ASSIGN_GLOBAL, 0, namei);
+        else
+                add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, namei);
         add_instr(a, INSTR_POP, 0, 0);
 }
 
@@ -1866,8 +1885,6 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         int need_pop = 0;
         int pop_arg = !!(flags & FE_TOP) ? IARG_POP_PRINT : IARG_POP_NORMAL;
 
-        flags &= ~FE_TOP;
-
         as_lex(a);
         /* cases return early if semicolon not expected at the end */
         switch (a->oc->t) {
@@ -1923,7 +1940,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 assemble_for(a);
                 return;
         case OC_LBRACE:
-                assemble_block_stmt(a, flags, continueto);
+                assemble_block_stmt(a, flags & ~FE_TOP, continueto);
                 return;
         case OC_DO:
                 assemble_do(a);

@@ -80,14 +80,15 @@ noinst_HEADERS = \
         inc/lib/list.h \
         tools/gen.h
 
+if WANT_READLINE
+evilcandy_LDADD=-lreadline
+endif
+
 evilcandydir=${datadir}/evilcandy
 evilcandy_CPPFLAGS=\
  -I$(top_srcdir)/inc \
  -DRCDATADIR=\"$(evilcandydir)\" \
  -Wall
-
-evilcandy_LDADD= \
- -lreadline
 
 dist_evilcandy_DATA= \
         lib/io.evc \

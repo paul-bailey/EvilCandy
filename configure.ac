@@ -28,6 +28,25 @@ AC_CHECK_FUNCS([strrchrnul strrspn strrstr])
 
 dnl TODO: Check all the headers, AC_CHECK_HEADERS
 
+have_readline=no
+AC_CHECK_LIB([readline], [readline],
+        [AC_DEFINE([HAVE_READLINE],[1],
+                   [Define to 1 if you have the realine function])
+         AC_CHECK_LIB([readline], [add_history],
+                      [AC_DEFINE([HAVE_ADD_HISTORY],[1],
+                                 [Define to 1 if you have the add_history function])
+                       have_readline=yes
+                      ])
+])
+AS_VAR_IF([have_readline], [yes],
+        [AC_CHECK_HEADERS([readline/readline.h readline/history.h],
+                          , [have_readline=no])
+])
+AS_VAR_IF([have_readline], [yes], ,
+          [AC_MSG_ERROR([readline headers missing])
+])
+AM_CONDITIONAL([WANT_READLINE], [test x$have_readline = "xyes"])
+
 dnl TODO: This is for all the functions of questionable availabilty
 dnl not covered in individual checks above
 AC_CHECK_FUNCS([atexit clock])

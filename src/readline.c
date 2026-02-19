@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 /* FIXME: Add editline alternative; FSF have their heads up ykw. */
+#ifdef HAVE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -50,3 +51,20 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
                 return -1;
         }
 }
+#else /* !HAVE_READLINE */
+
+/*
+ * If readline is unavailable, just use getline() and live with the
+ * lousy UI that comes with it.
+ */
+ssize_t
+myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
+{
+        if (prompt) {
+                fprintf(stderr, "%s", prompt);
+                fflush(stderr);
+        }
+        return egetline(linep, size, fp);
+}
+
+#endif /* !HAVE_READLINE */

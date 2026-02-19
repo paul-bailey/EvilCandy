@@ -92,7 +92,8 @@ tok_next_line(struct token_state_t *state)
 
         if (state->tty) {
                 bug_on(!state->fp);
-                res = myreadline(&state->line, &state->_slen, state->fp, state->prompt);
+                res = myreadline(&state->line, &state->_slen,
+                                 state->fp, state->prompt);
                 state->prompt = EVILCANDY_PS2;
         } else {
                 res = egetline(&state->line, &state->_slen, state->fp);

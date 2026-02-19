@@ -838,6 +838,10 @@ enum {
         V_ANY, V_ALL
 };
 
+/*
+ * TODO: Make an object out of this,
+ * use it for FOREACH_SETUP
+ */
 struct iterable_t {
         Object *v;
         Object *dict;

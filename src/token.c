@@ -35,6 +35,7 @@ enum {
  * @ntok:       Number of tokens in @pgm
  * @nexttok:    Next token in @pgm to get with get_tok()
  * @eof:        True if @fp has reached EOF
+ * @tty:        True if @fp is a terminal
  * @fstring:    single- or double-quote char if tokenizer is in the middle
  *              of an F-string, nullchar otherwise.
  * @env:        Jump buffer, USE ONLY IN THE tokenize_helper() CONTEXT!
@@ -58,6 +59,7 @@ struct token_state_t {
         int ntok;
         int nexttok;
         bool eof;
+        bool tty;
         char fstring;
         size_t fstring_pos;
         jmp_buf env;
@@ -88,14 +90,13 @@ tok_next_line(struct token_state_t *state)
 {
         int res = -1;
 
-        if (state->prompt) {
-                fprintf(stderr, "%s", state->prompt);
-                fflush(stderr);
+        if (state->tty) {
+                bug_on(!state->fp);
+                res = myreadline(&state->line, &state->_slen, state->fp, state->prompt);
                 state->prompt = EVILCANDY_PS2;
-        }
-
-        if (state->fp)
+        } else {
                 res = egetline(&state->line, &state->_slen, state->fp);
+        }
 
         if (res != -1) {
                 state->s = state->line;
@@ -762,10 +763,13 @@ token_init_state(struct token_state_t *state, FILE *fp, const char *filename)
          * is more overhead than it's worth
          */
         state->dedup = fp ? dictvar_new() : NULL;
-        if (fp && isatty(fileno(fp)))
+        if (fp && isatty(fileno(fp))) {
+                state->tty = true;
                 state->prompt = EVILCANDY_PS1;
-        else
+        } else {
+                state->tty = false;
                 state->prompt = NULL;
+        }
 }
 
 #define TOKBUF(state_) ((struct token_t *)(state_)->pgm.s)

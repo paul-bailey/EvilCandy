@@ -152,6 +152,10 @@ extern FILE *find_import(const char *cur_path, const char *file_name,
 extern void pop_path(FILE *fp);
 extern FILE *push_path(const char *filename);
 
+/* readline.c */
+extern ssize_t myreadline(char **linep, size_t *size,
+                          FILE *fp, const char *prompt);
+
 /* strto.c */
 struct str2enum_t {
         const char *s;

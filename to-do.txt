@@ -38,9 +38,11 @@ Must Do
   - **done** Get prompt working
   - **done** Add support for deleting elements and global variables
   - Make consistent and accurate error reporting
-  - Add an editline-like UI for interactive mode.
+  - **done** Add an editline-like UI for interactive mode.
   - Robustulate the widths of indices.  They should all be size_t or
     ssize_t, not int.
+
+* Autoconfify editline/readline
 
 * Make dictionary iterable without requiring the creation of a new list.
 

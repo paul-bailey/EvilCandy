@@ -26,6 +26,7 @@ evilcandy_SOURCES = \
         src/main.c \
         src/op.c \
         src/path.c \
+        src/readline.c \
         src/reassemble.c \
         src/string_writer.c \
         src/strto.c \
@@ -84,6 +85,9 @@ evilcandy_CPPFLAGS=\
  -I$(top_srcdir)/inc \
  -DRCDATADIR=\"$(evilcandydir)\" \
  -Wall
+
+evilcandy_LDADD= \
+ -lreadline
 
 dist_evilcandy_DATA= \
         lib/io.evc \

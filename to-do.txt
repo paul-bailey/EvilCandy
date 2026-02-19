@@ -1,12 +1,12 @@
 Bugs
 ----
 
-* bugs 2/2026:
+* BUGs 2/2026:
 
         * assert fails in var_sanity_check_types_tbl() when exiting with
           the exit() function instead of normal end of script.
 
-* BUSs 6/2025:
+* BUGs 6/2025:
 
         * "global x = ...something which causes error" is unpredictable
           whether x is declared or not after the exception is thrown.
@@ -26,38 +26,30 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Fix "no top-level stack in interactive mode" awkwardness
   - Finalize closure behavior, be more like theoretical closures.
   - Fill in .create methods for remaining data types that need it.
-  - Fill in math, cmath, io libraries
+  - Fill in math, cmath, io, socket libraries
   - Fill in built-in methods for strings, arrays, etc.
   - Fill in __gbl__._sys
-  - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
   - Finish path resolution
+  - Make consistent and accurate error reporting
+  - Robustulate the widths of indices.  They should all be size_t or
+    ssize_t, not int.
+  - **done** Add an editline-like UI for interactive mode.
   - **done** Add ``===`` or ``is`` or both
   - **done** Add slice assignment
   - **done** Get prompt working
   - **done** Add support for deleting elements and global variables
-  - Make consistent and accurate error reporting
-  - **done** Add an editline-like UI for interactive mode.
-  - Robustulate the widths of indices.  They should all be size_t or
-    ssize_t, not int.
-
-* Autoconfify editline/readline
+  - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
 
 * Make dictionary iterable without requiring the creation of a new list.
-
-* **done** Fix cyclic GC hazard in var_str() for lists and dictionaries, there's no
-  reason why it should have to cause a fatal recursion error.
 
 * If recursion error occurs during runtime (not load time), then unwind as
   if it was a normal exception; do not just panic and quit.
 
-* **done** Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
-
 * Replace ``has`` with ``in``, you're doing no one any favors by making
   up something new.
-
-* **done** Make sure operator order follows either JavaScript or Python.
 
 * Make sure all built-in types have a .cmpz method.
 
@@ -94,10 +86,17 @@ Must Do
 
 * Fix the cyclic-reference problem in GC.
 
+* **done** Autoconfify readline
+
+* **done** Fix cyclic GC hazard in var_str() for lists and dictionaries, there's no
+  reason why it should have to cause a fatal recursion error.
+
+* **done** Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
+
+* **done** Make sure operator order follows either JavaScript or Python.
+
 Library/Language Features
 -------------------------
-
-* **done** Have dictionaries support keys other than strings
 
 * Support labelled statements
 
@@ -108,8 +107,6 @@ Library/Language Features
 * Parse UnicodeData.txt to make a Unicode version of ctype.h
 
 * Support generators and comprehensions
-
-* Add serial-port, socket libraries
 
 * Add ``decorate`` method for dictionaries, so that user-defined objects
   can be added, anded, divided, etc.
@@ -133,18 +130,10 @@ Library/Language Features
 
 * **done** Support f-strings
 
+* **done** Have dictionaries support keys other than strings
+
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
-
-* **done** Replace IARG_PTR_SEEK with assign/load opcodes which are different for
-  global and local variables.
-
-* **done** Use more sophisticated branching instructions for conditional tests,
-  where "<true stmt> ||" or "<false stmt> &&" will skip runtime-evaluation
-  of the remainder of the statement inside that atomic block.
-
-* **done** At assemble_post() time, reduce ternary operators to a single expression
-  if the "a" of "a?b:c" is const.
 
 * Replace stack arrangement of FOREACH_ITER to use an iterator of the
   sort used in var.c, any/all/max/min functions.  This ought to speed
@@ -166,8 +155,18 @@ Mebbe/Wishlist/Low-prio bugs
 * Replace jmp_buf in token.c with either fussier management of helper
   functions' return values, or with a big damn get_tok function.
 
-* Preserve token buffer in interactive mode so that the UP arrow will
+* **done** Preserve token buffer in interactive mode so that the UP arrow will
   recall previous expressions.
+
+* **done** Replace IARG_PTR_SEEK with assign/load opcodes which are different for
+  global and local variables.
+
+* **done** Use more sophisticated branching instructions for conditional tests,
+  where "<true stmt> ||" or "<false stmt> &&" will skip runtime-evaluation
+  of the remainder of the statement inside that atomic block.
+
+* **done** At assemble_post() time, reduce ternary operators to a single expression
+  if the "a" of "a?b:c" is const.
 
 * **done** String data type encodes Unicode in utf-8, which is compact, but it
   makes for slower processing.  Instead do something like cpython, which

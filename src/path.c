@@ -152,6 +152,7 @@ push_path_from(const char *requested_file, const char *refpath, bool script)
 
         fp = fopen(newpath, "r");
         if (fp) {
+                /* TODO: Check that @fp is not a directory. */
                 Object *bc, *bcnew;
                 char *notdir;
 

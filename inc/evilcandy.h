@@ -70,6 +70,9 @@ extern Object *sys_getitem_cstr(const char *key);
 /* assembler.c */
 extern Object *assemble(const char *filename,
                         FILE *fp, bool toeof, int *status);
+/* cwd.c */
+extern Object *evc_getcwd(void);
+
 /* ctype.c */
 extern bool evc_isalnum(unsigned long c);
 extern bool evc_isalpha(unsigned long c);

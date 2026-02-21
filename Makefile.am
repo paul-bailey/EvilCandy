@@ -12,6 +12,7 @@ evilcandy_SOURCES = \
         src/assemble_post.c \
         src/buffer.c \
         src/ctype.c \
+        src/cwd.c \
         src/disassemble.c \
         src/err.c \
         src/errmsg.c \

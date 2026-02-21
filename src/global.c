@@ -6,7 +6,6 @@
  *      and such.
  */
 #include <evilcandy.h>
-#include <unistd.h> /* FIXME: for getcwd, which shouldn't be here */
 
 struct global_t gbl;
 
@@ -65,18 +64,9 @@ static void
 initialize_global_object(void)
 {
         Object *k, *o;
-        char *cwd;
-
-        /*
-         * FIXME: move to platform abstraction layer,
-         * then save char* result as a string object in gbl.
-         */
-        cwd = getcwd(NULL, 0);
-        if (!cwd)
-                fail("oom");
 
         /* gotta set this early because moduleinit_sys needs it */
-        gbl.cwd = stringvar_nocopy(cwd);
+        gbl.cwd = evc_getcwd();
 
         GlobalObject = dictvar_new();
         moduleinit_sys();

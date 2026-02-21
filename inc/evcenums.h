@@ -89,6 +89,8 @@ enum {
         STRCONST_IDX_sorted,
         STRCONST_IDX_tabsize,
         STRCONST_IDX__sys,
+        STRCONST_IDX_import_path,
+        STRCONST_IDX_breadcrumbs,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,

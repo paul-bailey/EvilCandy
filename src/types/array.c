@@ -351,7 +351,7 @@ array_sort(Object *array)
  * array_setitem - Callback for sequence .setitem method
  * @array: Array to set an item in.
  * @i:     Index into the array to set the item
- * @child: New item to set into @array.  WARNING!! DO NOT let @child be NULL.
+ * @child: New item to set into @array. If NULL, delete and shift
  *
  * Has extern linkage since some internal code needs it.
  */

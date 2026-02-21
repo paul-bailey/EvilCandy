@@ -35,21 +35,16 @@ Object *ValueError;
 #define STDIO_FMT          "s/fnsmi/"
 #define STDIO_ARGS(X, Y)   #X, X, "<" #X ">", FMODE_##Y | FMODE_PROTECT
 static void
-moduleinit_sys(void)
+moduleinit_sys(Object *cwd)
 {
         Object *o, *k;
         /* FIXME: Wrap portability layer around getcwd */
-        char *wd = getcwd(NULL, 0);
-        if (!wd)
-                fail("oom");
-        o = var_from_format("{" STDIO_FMT STDIO_FMT STDIO_FMT "s[]s[ss]}",
+        o = var_from_format("{" STDIO_FMT STDIO_FMT STDIO_FMT "s[]s[Os]}",
                             STDIO_ARGS(stdin, READ),
                             STDIO_ARGS(stdout, WRITE),
                             STDIO_ARGS(stderr, WRITE),
                             "breadcrumbs",
-                            "import_path", wd, RCDATADIR);
-        efree(wd);
-
+                            "import_path", cwd, RCDATADIR);
         k = stringvar_new("_sys");
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
@@ -104,6 +99,8 @@ initialize_string_consts(void)
                 STRCONST_CSTR(sorted),
                 STRCONST_CSTR(tabsize),
                 STRCONST_CSTR(_sys),
+                STRCONST_CSTR(import_path),
+                STRCONST_CSTR(breadcrumbs),
                 [STRCONST_IDX_spc] = " ",
                 [STRCONST_IDX_mpty] = "",
                 [STRCONST_IDX_wtspc] = " \r\n\t\v\f",
@@ -120,10 +117,20 @@ initialize_string_consts(void)
 static void
 initialize_global_object(void)
 {
-        Object *k, *o;
+        Object *k, *o, *cwdo;
+        char *cwd;
+
+        /*
+         * FIXME: move to platform abstraction layer,
+         * then save char* result as a string object in gbl.
+         */
+        cwd = getcwd(NULL, 0);
+        if (!cwd)
+                fail("oom");
+        cwdo = stringvar_nocopy(cwd);
 
         GlobalObject = dictvar_new();
-        moduleinit_sys();
+        moduleinit_sys(cwdo);
         moduleinit_builtin();
         moduleinit_math();
         moduleinit_io();
@@ -146,6 +153,7 @@ initialize_global_object(void)
         gbl.empty_bytes = bytesvar_new((unsigned char *)"", 0);
         gbl.spc_bytes   = bytesvar_new((unsigned char *)" ", 1);
         gbl.fzero       = floatvar_new(0.0);
+        gbl.cwd         = cwdo;
 
         o = dict_getitem_cstr(GlobalObject, "_builtins");
         dict_add_to_globals(o);
@@ -206,6 +214,7 @@ cfile_deinit_global(void)
         VAR_DECR_REF(gbl.empty_bytes);
         VAR_DECR_REF(gbl.spc_bytes);
         VAR_DECR_REF(gbl.fzero);
+        VAR_DECR_REF(gbl.cwd);
 
         for (i = 0; i < N_STRCONST; i++)
                 VAR_DECR_REF(gbl.strconsts[i]);

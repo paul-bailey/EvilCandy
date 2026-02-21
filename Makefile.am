@@ -16,7 +16,6 @@ evilcandy_SOURCES = \
         src/err.c \
         src/errmsg.c \
         src/ewrappers.c \
-        src/find_import.c \
         src/global.c \
         src/hash.c \
         src/helpers.c \

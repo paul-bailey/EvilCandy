@@ -141,6 +141,19 @@ file_str(Object *v)
         }                                                 \
 } while (0)
 
+static void
+close_common(struct filevar_t *f)
+{
+        if (!f->f_binary)
+                fflush(f->f_fp);
+        if (!(f->f_mode & FMODE_PROTECT))
+                fclose(f->f_fp);
+        f->f_mode   = 0;
+        f->f_fp     = NULL;
+        f->f_eof    = false;
+        f->f_binary = false;
+}
+
 static Object *
 do_close(Frame *fr)
 {
@@ -150,16 +163,29 @@ do_close(Frame *fr)
         self = vm_get_this(fr);
         RETURN_IF_BAD_FILE(self);
         f = V2F(self);
-
-        if (!f->f_binary)
-                fflush(f->f_fp);
-        if (!(f->f_mode & FMODE_PROTECT))
-                fclose(f->f_fp);
-        f->f_mode   = 0;
-        f->f_fp     = NULL;
-        f->f_eof    = false;
-        f->f_binary = false;
+        close_common(f);
         return NULL;
+}
+
+/* close without closing fd - returns dup'd fd */
+static Object *
+do_fpclose(Frame *fr)
+{
+        Object *self;
+        struct filevar_t *f;
+        int newfd;
+
+        self = vm_get_this(fr);
+        RETURN_IF_BAD_FILE(self);
+        f = V2F(self);
+
+        newfd = dup(fileno(f->f_fp));
+        if (newfd < 0) {
+                err_errno("file.close() dup failed");
+                return ErrorVar;
+        }
+        close_common(f);
+        return intvar_new(newfd);
 }
 
 static Object *
@@ -296,9 +322,27 @@ file_getclosed(Object *file)
         return intvar_new(res);
 }
 
+static Object *
+file_fileno(Object *file)
+{
+        struct filevar_t *f = V2F(file);
+        bug_on(!isvar_file(file));
+
+        /*
+         * Do not throw an error when reading this property while
+         * the file is closed.
+         * Instead, reply a file descriptor of -1.
+         */
+        if (!f->f_fp)
+                return VAR_NEW_REF(gbl.neg_one);
+
+        return intvar_new(fileno(f->f_fp));
+}
+
 static const struct type_prop_t file_prop_getsets[] = {
         { .name = "eof", .getprop = file_geteof, .setprop = NULL },
         { .name = "closed", .getprop = file_getclosed, .setprop = NULL },
+        { .name = "fileno", .getprop = file_fileno, .setprop = NULL },
         { .name = NULL },
 };
 
@@ -307,6 +351,7 @@ static const struct type_inittbl_t file_cb_methods[] = {
         V_INITTBL("read",       do_read,        0, 1, -1, -1),
         V_INITTBL("write",      do_write,       1, 1, -1, -1),
         V_INITTBL("close",      do_close,       0, 0, -1, -1),
+        V_INITTBL("fpclose",    do_fpclose,     0, 0, -1, -1),
         TBLEND,
 };
 

@@ -12,7 +12,7 @@ count_items(const char *s, int endchar)
 {
         int count = 0;
         int depth = 0;
-        while (*s != '\0' && *s != endchar) {
+        while (*s != '\0' && (depth > 0 || *s != endchar)) {
                 switch (*s) {
                 case '<':
                 case '(':
@@ -41,6 +41,7 @@ count_items(const char *s, int endchar)
                 };
                 s++;
         }
+        bug_on(depth != 0);
 
         bug_on(*s != endchar);
         return count;
@@ -54,27 +55,24 @@ var_make_dict(const char *fmt, va_list ap, char **endptr)
 {
         Object *dict = dictvar_new();
         int count = count_items(fmt, '}');
-        if (count == 0) {
-                fmt++;
-                goto done;
-        }
-        bug_on(!!(count & 1));
+        if (count > 0) {
+                bug_on(!!(count & 1));
 
-        for (; count > 0; count -= 2) {
-                Object *k, *v;
-                enum result_t res;
-                k = var_vmake(fmt, ap, endptr);
-                fmt = *endptr;
-                v = var_vmake(fmt, ap, endptr);
-                fmt = *endptr;
-                bug_on(!isvar_string(k));
-                res = dict_setitem(dict, k, v);
-                bug_on(res != RES_OK);
-                (void)res;
-                VAR_DECR_REF(v);
-                VAR_DECR_REF(k);
+                for (; count > 0; count -= 2) {
+                        Object *k, *v;
+                        enum result_t res;
+                        k = var_vmake(fmt, ap, endptr);
+                        fmt = *endptr;
+                        v = var_vmake(fmt, ap, endptr);
+                        fmt = *endptr;
+                        bug_on(!isvar_string(k));
+                        res = dict_setitem(dict, k, v);
+                        bug_on(res != RES_OK);
+                        (void)res;
+                        VAR_DECR_REF(v);
+                        VAR_DECR_REF(k);
+                }
         }
-done:
         bug_on(*fmt != '}');
         *endptr = (char *)fmt + 1;
         return dict;
@@ -85,18 +83,14 @@ var_make_tuple(const char *fmt, va_list ap, char **endptr)
 {
         int i, count = count_items(fmt, ')');
         Object *tuple = tuplevar_new(count);
-        if (count == 0) {
-                fmt++;
-                goto done;
+        if (count > 0) {
+                Object **data = tuple_get_data(tuple);
+                for (i = 0; i < count; i++) {
+                        data[i] = var_vmake(fmt, ap, endptr);
+                        fmt = *endptr;
+                }
         }
 
-        Object **data = tuple_get_data(tuple);
-        for (i = 0; i < count; i++) {
-                data[i] = var_vmake(fmt, ap, endptr);
-                fmt = *endptr;
-        }
-
-done:
         bug_on(*fmt != ')');
         *endptr = (char *)fmt + 1;
         return tuple;
@@ -107,11 +101,6 @@ var_make_array(const char *fmt, va_list ap, char **endptr)
 {
         int i, count = count_items(fmt, ']');
         Object *array = arrayvar_new(count);
-        if (count == 0) {
-                fmt++;
-                goto done;
-        }
-
         for (i = 0; i < count; i++) {
                 Object *item = var_vmake(fmt, ap, endptr);
                 fmt = *endptr;
@@ -119,7 +108,6 @@ var_make_array(const char *fmt, va_list ap, char **endptr)
                 VAR_DECR_REF(item);
         }
 
-done:
         bug_on(*fmt != ']');
         *endptr = (char *)fmt + 1;
         return array;

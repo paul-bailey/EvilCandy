@@ -38,6 +38,7 @@ evilcandy_SOURCES = \
         src/builtin/builtin.c \
         src/builtin/io.c \
         src/builtin/math.c \
+        src/builtin/sys.c \
         src/types/array.c \
         src/types/bytes.c \
         src/types/complex.c \

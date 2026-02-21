@@ -59,6 +59,13 @@ extern void moduleinit_builtin(void);
 extern void moduleinit_math(void);
 /* builtin/io.c */
 extern void moduleinit_io(void);
+/* builtin/sys.c */
+extern void moduleinit_sys(void);
+
+/* Other C hooks to built-in modules */
+/* builtin/sys.c */
+extern Object *sys_getitem(Object *key);
+extern Object *sys_getitem_cstr(const char *key);
 
 /* assembler.c */
 extern Object *assemble(const char *filename,
@@ -147,10 +154,6 @@ extern Object *qop_negate(Object *v);
 /* find_import.c */
 extern FILE *find_import(const char *cur_path, const char *file_name,
                          char *pathfill, size_t size);
-
-/* global.c (TODO: should be in builtin/sys.c */
-extern Object *sys_getitem(Object *key);
-extern Object *sys_getitem_cstr(const char *key);
 
 /* path.c */
 extern void pop_path(FILE *fp);

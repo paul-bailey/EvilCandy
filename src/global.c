@@ -28,59 +28,6 @@ Object *SystemError;
 Object *TypeError;
 Object *ValueError;
 
-/*
- * XXX: This is small, but it will probably get bigger.
- * It should be builtin/sys.c.
- */
-#define STDIO_FMT          "s/fnsmi/"
-#define STDIO_ARGS(X, Y)   #X, X, "<" #X ">", FMODE_##Y | FMODE_PROTECT
-static void
-moduleinit_sys(Object *cwd)
-{
-        Object *o, *k;
-        /* FIXME: Wrap portability layer around getcwd */
-        o = var_from_format("{" STDIO_FMT STDIO_FMT STDIO_FMT "s[]s[Os]}",
-                            STDIO_ARGS(stdin, READ),
-                            STDIO_ARGS(stdout, WRITE),
-                            STDIO_ARGS(stderr, WRITE),
-                            "breadcrumbs",
-                            "import_path", cwd, RCDATADIR);
-        k = stringvar_new("_sys");
-        dict_setitem(GlobalObject, k, o);
-        VAR_DECR_REF(k);
-
-        k = stringvar_new("sys");
-        vm_add_global(k, o);
-        VAR_DECR_REF(k);
-
-        VAR_DECR_REF(o);
-}
-#undef STDIO_ARGS
-#undef STDIO_FMT
-
-Object *
-sys_getitem(Object *key)
-{
-        Object *ret, *o;
-
-        o = dict_getitem(GlobalObject, STRCONST_ID(_sys));
-        bug_on(!o);
-        ret = dict_getitem(o, key);
-        VAR_DECR_REF(o);
-        return ret;
-}
-
-Object *
-sys_getitem_cstr(const char *key)
-{
-        Object *ret, *okey;
-
-        okey = stringvar_new(key);
-        ret = sys_getitem(okey);
-        VAR_DECR_REF(okey);
-        return ret;
-}
-
 #define STRCONST_CSTR(X) [STRCONST_IDX_##X] = #X
 static void
 initialize_string_consts(void)
@@ -117,7 +64,7 @@ initialize_string_consts(void)
 static void
 initialize_global_object(void)
 {
-        Object *k, *o, *cwdo;
+        Object *k, *o;
         char *cwd;
 
         /*
@@ -127,10 +74,12 @@ initialize_global_object(void)
         cwd = getcwd(NULL, 0);
         if (!cwd)
                 fail("oom");
-        cwdo = stringvar_nocopy(cwd);
+
+        /* gotta set this early because moduleinit_sys needs it */
+        gbl.cwd = stringvar_nocopy(cwd);
 
         GlobalObject = dictvar_new();
-        moduleinit_sys(cwdo);
+        moduleinit_sys();
         moduleinit_builtin();
         moduleinit_math();
         moduleinit_io();
@@ -153,7 +102,6 @@ initialize_global_object(void)
         gbl.empty_bytes = bytesvar_new((unsigned char *)"", 0);
         gbl.spc_bytes   = bytesvar_new((unsigned char *)" ", 1);
         gbl.fzero       = floatvar_new(0.0);
-        gbl.cwd         = cwdo;
 
         o = dict_getitem_cstr(GlobalObject, "_builtins");
         dict_add_to_globals(o);

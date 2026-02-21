@@ -6,6 +6,7 @@
  *      and such.
  */
 #include <evilcandy.h>
+#include <unistd.h> /* FIXME: for getcwd, which shouldn't be here */
 
 struct global_t gbl;
 
@@ -37,10 +38,17 @@ static void
 moduleinit_sys(void)
 {
         Object *o, *k;
-        o = var_from_format("{" STDIO_FMT STDIO_FMT STDIO_FMT "}",
+        /* FIXME: Wrap portability layer around getcwd */
+        char *wd = getcwd(NULL, 0);
+        if (!wd)
+                fail("oom");
+        o = var_from_format("{" STDIO_FMT STDIO_FMT STDIO_FMT "s[]s[ss]}",
                             STDIO_ARGS(stdin, READ),
                             STDIO_ARGS(stdout, WRITE),
-                            STDIO_ARGS(stderr, WRITE));
+                            STDIO_ARGS(stderr, WRITE),
+                            "breadcrumbs",
+                            "import_path", wd, RCDATADIR);
+        efree(wd);
 
         k = stringvar_new("_sys");
         dict_setitem(GlobalObject, k, o);
@@ -54,6 +62,29 @@ moduleinit_sys(void)
 }
 #undef STDIO_ARGS
 #undef STDIO_FMT
+
+Object *
+sys_getitem(Object *key)
+{
+        Object *ret, *o;
+
+        o = dict_getitem(GlobalObject, STRCONST_ID(_sys));
+        bug_on(!o);
+        ret = dict_getitem(o, key);
+        VAR_DECR_REF(o);
+        return ret;
+}
+
+Object *
+sys_getitem_cstr(const char *key)
+{
+        Object *ret, *okey;
+
+        okey = stringvar_new(key);
+        ret = sys_getitem(okey);
+        VAR_DECR_REF(okey);
+        return ret;
+}
 
 #define STRCONST_CSTR(X) [STRCONST_IDX_##X] = #X
 static void
@@ -72,6 +103,7 @@ initialize_string_consts(void)
                 STRCONST_CSTR(sep),
                 STRCONST_CSTR(sorted),
                 STRCONST_CSTR(tabsize),
+                STRCONST_CSTR(_sys),
                 [STRCONST_IDX_spc] = " ",
                 [STRCONST_IDX_mpty] = "",
                 [STRCONST_IDX_wtspc] = " \r\n\t\v\f",
@@ -134,6 +166,12 @@ void
 cfile_init_global(void)
 {
         initialize_string_consts();
+        /*
+         * Keep this before initialize_global_object - We need it for
+         * early calls to arrayvar_new(size) when size>0.
+         */
+        NullVar  = emptyvar_new();
+
         initialize_global_object();
 
         MAKE_EXCEPTION(ArgumentError);
@@ -151,7 +189,6 @@ cfile_init_global(void)
         MAKE_EXCEPTION(ValueError);
 
         ErrorVar = stringvar_new("If you can see this from the console, this is a BUG!!!\n");
-        NullVar  = emptyvar_new();
 }
 
 void

@@ -59,6 +59,8 @@ extern void moduleinit_builtin(void);
 extern void moduleinit_math(void);
 /* builtin/io.c */
 extern void moduleinit_io(void);
+/* builtin/socket.c */
+extern void moduleinit_socket(void);
 /* builtin/sys.c */
 extern void moduleinit_sys(void);
 

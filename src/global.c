@@ -73,6 +73,7 @@ initialize_global_object(void)
         moduleinit_builtin();
         moduleinit_math();
         moduleinit_io();
+        moduleinit_socket();
 
         k = stringvar_new("__gbl__");
         vm_add_global(k, GlobalObject);

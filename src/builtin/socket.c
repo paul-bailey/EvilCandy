@@ -1,24 +1,5 @@
-/*
- * TODO: Rewrite to be entirely a dict instead of a new
- *       built-in class.
- */
 #include <evilcandy.h>
 #include <sys/socket.h>
-
-/* FIXME: need to de-initialize these at end of program */
-static bool socketvar_init = false;
-
-/* forward-declared so it could be put beneath SocketType */
-static bool isvar_socket(Object *skobj);
-
-struct socketvar_t {
-        Object base;
-        int fd;
-        int domain;
-        int type;
-};
-
-#define O2SK(o_)        ((struct socketvar_t *)(o_))
 
 /**
  * intenum_toul - Interpret a function argument when it is expected to be
@@ -65,94 +46,10 @@ err:
         return -1;
 }
 
-static Object *
-socket_str(Object *skobj)
-{
-        struct buffer_t b;
-        bug_on(!isvar_socket(skobj));
-
-        buffer_init(&b);
-        /* TODO: Status, better ID */
-        buffer_printf(&b, "<socket %p>", skobj);
-        return stringvar_from_buffer(&b);
-}
-
-static int
-socket_cmp(Object *a, Object *b)
-{
-        int fda, fdb;
-
-        bug_on(!isvar_socket(a) || !isvar_socket(b));
-
-        fda = O2SK(a)->fd;
-        fdb = O2SK(b)->fd;
-
-        return OP_CMP(fda, fdb);
-}
-
-static bool
-socket_cmpz(Object *skobj)
-{
-        return 0;
-}
-
-static void
-socket_reset(Object *skobj)
-{
-        /* TODO: delete everything in skobj */
-#warning "not implemented yet; mem leaks will be detected"
-}
-
-static const struct type_prop_t socket_prop_getsets[] = {
-        /* TODO: status and properties of socket */
-        { .name = NULL },
-};
-static const struct type_inittbl_t socket_cb_methods[] = {
-        /* TODO: listen, bind, send, etc. */
-        TBLEND,
-};
-
-static struct type_t SocketType = {
-        .flags  = 0,
-        .name   = "socket",
-        .opm    = NULL,
-        .cbm    = socket_cb_methods,
-        .mpm    = NULL,
-        .sqm    = NULL,
-        .size   = sizeof(struct socketvar_t),
-        .str    = socket_str,
-        .cmp    = socket_cmp,
-        .cmpz   = socket_cmpz,
-        .reset  = socket_reset,
-        .prop_getsets   = socket_prop_getsets,
-};
-
-static bool
-isvar_socket(Object *skobj)
-{
-        return skobj->v_type == &SocketType;
-}
-
-static Object *
-socketvar_new(int fd, int domain, int type)
-{
-        Object *skobj;
-        struct socketvar_t *sk;
-
-        if (!socketvar_init) {
-                var_initialize_type(&SocketType);
-                socketvar_init = true;
-        }
-        skobj = var_new(&SocketType);
-        sk = O2SK(skobj);
-
-        sk->domain = domain;
-        sk->type = type;
-        sk->fd = fd;
-        return skobj;
-}
-
-/* TODO: kwargs, default to AF_UNIX, SOCK_STREAM */
+/*
+ * TODO: kwargs, default to AF_UNIX, SOCK_STREAM,
+ * option to make socketpair instead of single socket.
+ */
 static Object *
 do_socket(Frame *fr)
 {
@@ -161,6 +58,7 @@ do_socket(Frame *fr)
                 SOCK_STREAM, SOCK_DGRAM, SOCK_SEQPACKET, -1
         };
         int fd, domain, type;
+        Object *skobj;
 
         domain = intenum_toul(frame_get_arg(fr, 0), VALID_DOMAINS, "domain");
         if (domain < 0)
@@ -169,17 +67,49 @@ do_socket(Frame *fr)
         if (type < 0)
                 return ErrorVar;
 
+        /*
+         * FIXME: fd is an integer, so there's no way to know to close
+         * it if this socket goes out of scope.  This requires one of
+         * the following solutions:
+         *
+         * 1. Use a FileType var instead of fd
+         * 2. Add policy that user must take care to close fd before
+         *    socket goes out of scope
+         * 3. Add policy that if a dict has a '__cleanup__' entry and
+         *    it's a function, execute that from dict_reset().
+         * 4. Make a field in struct dictvar_t called .cleanup, a C-only
+         *    (no VM or frames) function. Have a dict.c's .reset() call
+         *    this callback if it was installed.
+         *
+         * These all suck. #1 is heavy-handed, since a socket might only
+         * wish to do some light-weight IPC stuff. #2 damn near
+         * guarantees the piling up of zombie sockets, since programmers
+         * of high-level languages tend to be sloppy.  #3 would be best,
+         * but the frame handle is not passed to VAR_DECR_REF(), which
+         * means we can't make downstream calls to vm_exec_func() from an
+         * object's .reset method. #4 solves this, but only for built-in
+         * dicts like this one; it doesn't allow for a user-defined
+         * cleanup function written in the script.
+         */
         fd = socket(domain, type, 0);
         if (fd < 0) {
                 err_errno("Cannot create socket");
                 return ErrorVar;
         }
 
-        return socketvar_new(fd, domain, type);
+        skobj = var_from_format("{sisisisO}",
+                                "fd", fd, "domain", domain,
+                                "type", type, "addr", NullVar);
+
+        /*
+         * TODO: fill skobj with bind, accept, listen, etc.,
+         * probably with a struct type_inittbl_t
+         */
+        return skobj;
 }
 
 static const struct type_inittbl_t socket_inittbl[] = {
-        /* TODO: socketpair */
+        /* TODO: socketpair, or else get rid of this extra layer */
         V_INITTBL("socket", do_socket, 2, 2, -1, -1),
         TBLEND,
 };
@@ -234,26 +164,5 @@ moduleinit_socket(void)
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
-}
-
-
-/*
- * FIXME: Better than below, have code near initdict and
- * var_initialize_type call something like var_schedule_cleanup
- * for de-init.
- */
-
-/* Exists for symmetry with cfile_deinit_socket */
-void
-cfile_init_socket(void)
-{
-        ;
-}
-
-void
-cfile_deinit_socket(void)
-{
-#warning "not used yet; mem leaks will be detected"
-        /* TODO: typedef destroy SocketType */
 }
 

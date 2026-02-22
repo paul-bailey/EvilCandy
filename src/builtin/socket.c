@@ -6,7 +6,6 @@
 #include <sys/socket.h>
 
 /* FIXME: need to de-initialize these at end of program */
-static Object *socket_enums = NULL;
 static bool socketvar_init = false;
 
 /* forward-declared so it could be put beneath SocketType */
@@ -38,11 +37,11 @@ intenum_toul(Object *enumstr, const int *valid, const char *argname)
         int ret;
 
         bug_on(!enumstr); /* 'arg exists' was checked upstream */
-        bug_on(!socket_enums);
+        bug_on(!gbl.socket_enums);
 
         if (arg_type_check(enumstr, &StringType) != 0)
                 return -1;
-        enumi = dict_getitem(socket_enums, enumstr);
+        enumi = dict_getitem(gbl.socket_enums, enumstr);
         if (!enumi) {
                 VAR_DECR_REF(enumi);
                 goto err;
@@ -101,6 +100,7 @@ static void
 socket_reset(Object *skobj)
 {
         /* TODO: delete everything in skobj */
+#warning "not implemented yet; mem leaks will be detected"
 }
 
 static const struct type_prop_t socket_prop_getsets[] = {
@@ -205,13 +205,13 @@ initdict(void)
         };
         const struct dtbl_t *t;
 
-        bug_on(socket_enums != NULL);
-        socket_enums = dictvar_new();
+        bug_on(gbl.socket_enums != NULL);
+        gbl.socket_enums = dictvar_new();
 
         for (t = dtbl; t->name != NULL; t++) {
                 Object *v = intvar_new(t->e);
                 Object *k = stringvar_new(t->name);
-                dict_setitem(socket_enums, k, v);
+                dict_setitem(gbl.socket_enums, k, v);
                 VAR_DECR_REF(v);
                 VAR_DECR_REF(k);
         }
@@ -220,7 +220,7 @@ initdict(void)
 static Object *
 create_socket_instance(Frame *fr)
 {
-        if (!socket_enums)
+        if (!gbl.socket_enums)
                 initdict();
         return dictvar_from_methods(NULL, socket_inittbl);
 }
@@ -254,8 +254,6 @@ void
 cfile_deinit_socket(void)
 {
 #warning "not used yet; mem leaks will be detected"
-        if (socket_enums)
-                VAR_DECR_REF(socket_enums);
         /* TODO: typedef destroy SocketType */
 }
 

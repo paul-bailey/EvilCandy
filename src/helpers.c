@@ -50,6 +50,20 @@ strrstr(const char *haystack, const char *needle)
 }
 #endif /* HAVE_STRRSTR */
 
+/*
+ * So the compiler sez to me one day, 'Hey, we support this, but we used
+ * to not, so I'm just gonna warn you anyway, ok buddy?'...
+ */
+#ifndef HAVE_STRCHRNUL
+char *
+strchrnul(const char *s, int c)
+{
+        while (*s != '\0' && *s != c)
+                s++;
+        return (char *)s;
+}
+#endif
+
 #ifndef HAVE_STRRCHRNUL
 /* Amazinglly, this is not in every C library */
 char *

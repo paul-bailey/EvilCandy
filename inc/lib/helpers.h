@@ -14,6 +14,9 @@ extern char *strrstr(const char *haystack, const char *needle);
 #ifndef HAVE_STRRSPN
 extern size_t strrspn(const char *s, const char *charset, const char *end);
 #endif
+#ifndef HAVE_STRCHRNUL
+extern char *strchrnul(const char *s, int c);
+#endif
 #ifndef HAVE_STRRCHRNUL
 extern char *strrchrnul(const char *s, int c);
 #endif

@@ -77,7 +77,8 @@ Object *
 array_borrowitem(Object *array, int idx)
 {
         Object *ret = array_getitem(array, idx);
-        VAR_DECR_REF(ret);
+        if (ret)
+                VAR_DECR_REF(ret);
         return ret;
 }
 

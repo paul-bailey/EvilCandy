@@ -12,33 +12,28 @@ struct evc_sockaddr_t {
 };
 
 /**
- * intenum_toul - Interpret a function argument when it is expected to be
- *                text enumerating an integer >= zero.
- * @enumstr: Argument from the script, which is expected to be a string
- *           enumerating the value.
- * @valid:   Array of permitted values for this argument.
+ * intarg_toul - Interpret a function argument when it is expected to be
+ *               text enumerating an integer >= zero.
+ * @arg: Function argument, which is expected to be a positive integer.
+ * @valid: Array of permitted values for this argument, or NULL to allow
+ *         any positive value.
  * @argname: Name of argument, for error text.
  *
  * Return: Interpreted enumeration or -1 if invalid argument.
  */
 static int
-intenum_toul(Object *enumstr, const int *valid, const char *argname)
+intarg_toul(Object *arg, const int *valid, const char *argname)
 {
-        Object *enumi;
         int ret;
 
-        bug_on(!enumstr); /* 'arg exists' was checked upstream */
+        bug_on(!arg); /* 'arg exists' was checked upstream */
         bug_on(!gbl.socket_enums);
 
-        if (arg_type_check(enumstr, &StringType) != 0)
+        if (arg_type_check(arg, &IntType) != 0)
                 return -1;
-        enumi = dict_getitem(gbl.socket_enums, enumstr);
-        if (!enumi) {
-                VAR_DECR_REF(enumi);
-                goto err;
-        }
-        ret = intvar_toi(enumi);
-        VAR_DECR_REF(enumi);
+        ret = intvar_toi(arg);
+        if (err_occurred())
+                return -1;
 
         if (valid) {
                 while (*valid >= 0) {
@@ -46,14 +41,15 @@ intenum_toul(Object *enumstr, const int *valid, const char *argname)
                                 return ret;
                         valid++;
                 }
-                goto err;
+                ret = -1;
+        }
+
+        if (ret < 0) {
+                err_setstr(ValueError, "invalid %s arg: %d",
+                           argname, ret);
+                ret = -1;
         }
         return ret;
-
-err:
-        err_setstr(ValueError, "invalid %s arg: %s",
-                   argname, string_cstring(enumstr));
-        return -1;
 }
 
 static void
@@ -285,10 +281,10 @@ do_socket(Frame *fr)
         int fd, domain, type;
         Object *skobj;
 
-        domain = intenum_toul(frame_get_arg(fr, 0), VALID_DOMAINS, "domain");
+        domain = intarg_toul(frame_get_arg(fr, 0), VALID_DOMAINS, "domain");
         if (domain < 0)
                 return ErrorVar;
-        type = intenum_toul(frame_get_arg(fr, 1), VALID_TYPES, "type");
+        type = intarg_toul(frame_get_arg(fr, 1), VALID_TYPES, "type");
         if (type < 0)
                 return ErrorVar;
 

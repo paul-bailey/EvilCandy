@@ -2,11 +2,14 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/un.h>
+#include <arpa/inet.h>
 
 struct evc_sockaddr_t {
         union {
                 struct sockaddr sa;
+                /* Used for AF_INET */
                 struct sockaddr_in in;
+                /* Used for AF_UNIX */
                 struct sockaddr_un un;
         };
 };
@@ -101,8 +104,8 @@ out_noref:
  *      will reduce it if actual address is smaller
  */
 static enum result_t __attribute__((unused))
-socket_unpack_address_(Object *skobj,
-                       struct evc_sockaddr_t *addr, Object *name)
+socket_unpack_addr_(Object *skobj,
+                    struct evc_sockaddr_t *addr, Object *name)
 {
         enum result_t res = RES_ERROR;
         Object *ao = dict_getitem(skobj, name);
@@ -124,15 +127,15 @@ out_noref:
 }
 
 static enum result_t __attribute__((unused))
-socket_unpack_address(Object *skobj, struct evc_sockaddr_t *addr)
+socket_unpack_addr(Object *skobj, struct evc_sockaddr_t *addr)
 {
-        return socket_unpack_address_(skobj, addr, STRCONST_ID(addr));
+        return socket_unpack_addr_(skobj, addr, STRCONST_ID(addr));
 }
 
 static enum result_t __attribute__((unused))
-socket_unpack_raddress(Object *skobj, struct evc_sockaddr_t *addr)
+socket_unpack_raddr(Object *skobj, struct evc_sockaddr_t *addr)
 {
-        return socket_unpack_address_(skobj, addr, STRCONST_ID(raddr));
+        return socket_unpack_addr_(skobj, addr, STRCONST_ID(raddr));
 }
 
 /* FIXME: is it too naive to have the address be just a string? */
@@ -181,7 +184,117 @@ do_bind(Frame *fr)
 static Object *
 do_connect(Frame *fr)
 {
-        err_setstr(NotImplementedError, "connect not implemented");
+        int fd, domain;
+        Object *skobj, *ao, *addrarg;
+        struct evc_sockaddr_t raddr;
+        const char *addrstr;
+        socklen_t addrlen;
+
+        memset(&raddr, 0, sizeof(raddr));
+
+        /*
+         * XXX REVISIT: some implementations of connect (2) interpret
+         * a NULL address argument as "disconnect".  Maybe do the same
+         * here?
+         */
+        skobj = vm_get_this(fr);
+        addrarg = vm_get_arg(fr, 0);
+        if (arg_type_check(addrarg, &StringType) == RES_ERROR)
+                return ErrorVar;
+
+        if (socket_unpack_fd(skobj, &fd) < 0)
+                return ErrorVar;
+        if (fd < 0) {
+                err_setstr(TypeError, "socket has been closed");
+                return ErrorVar;
+        }
+        if (socket_unpack_domain(skobj, &domain) < 0)
+                return ErrorVar;
+
+        ao = dict_getitem(skobj, STRCONST_ID(raddr));
+        if (!ao)
+                ao = VAR_NEW_REF(NullVar);
+
+        if (ao != NullVar) {
+                if (!isvar_bytes(ao)) {
+                        skerr_mismatch(STRCONST_ID(raddr));
+                        goto err_aoref;
+                }
+                /*
+                 * TODO: Determine from this.type whether we may
+                 * disconnect from old remote address. For SOCK_STREAM,
+                 * this is generally not done, but I don't see why it
+                 * should be impossible.
+                 */
+        }
+
+        addrstr = string_cstring(addrarg);
+
+        /* Create new address object from arg */
+        switch (domain) {
+        case AF_INET:
+            {
+                /*
+                 * Expect "#.#.#.#[:#]" where the ':' delimits IP address
+                 * from the port number.
+                 */
+                char *port = strchr(addrstr, ':');
+                /*
+                 * TODO: Wrap inet_addr with checks for things like
+                 * "<broadcast>" or "localhost".  It's not clear that
+                 * inet_addr() manages these things in a portable way.
+                 */
+                raddr.in.sin_addr.s_addr = inet_addr(addrstr);
+
+                if (port) {
+                        long long v;
+                        char *endptr;
+                        if (evc_strtol(port + 1, &endptr, 10, &v) < 0 ||
+                            v < 0 || v > 65535 || *endptr != '\0') {
+                                err_setstr(ValueError, "Invalid port number");
+                                goto err_aoref;
+                        }
+                        raddr.in.sin_port = htons((uint16_t)v);
+                }
+                raddr.in.sin_family = domain;
+                addrlen = sizeof(struct sockaddr_in);
+                break;
+            }
+        case AF_UNIX:
+            {
+                if (strlen(addrstr) > (sizeof(raddr.un.sun_path) - 1)) {
+                        err_setstr(ValueError, "Path name too long");
+                        goto err_aoref;
+                }
+                /* use sockaddr_un */
+                strcpy(raddr.un.sun_path, addrstr);
+                raddr.un.sun_family = domain;
+                addrlen = sizeof(struct sockaddr_un);
+                break;
+            }
+
+        default:
+                /* TODO: support INET6 */
+                skerr_mismatch(STRCONST_ID(domain));
+                goto err_aoref;
+        }
+
+        VAR_DECR_REF(ao);
+
+        ao = bytesvar_new((unsigned char *)&raddr, sizeof(raddr));
+        dict_setitem(skobj, STRCONST_ID(raddr), ao);
+        VAR_DECR_REF(ao);
+
+        if (connect(fd, &raddr.sa, addrlen) < 0) {
+                err_errno("Failed to connect");
+                dict_setitem(skobj, STRCONST_ID(raddr), NULL);
+                return ErrorVar;
+        }
+
+        return NULL;
+
+err_aoref:
+        VAR_DECR_REF(ao);
         return ErrorVar;
 }
 
@@ -357,6 +470,7 @@ initdict(void)
 #define DTB(n_) { .e = n_, .name = #n_ }
                 DTB(AF_UNIX),
                 DTB(AF_INET),
+                /* TODO: support INET6 */
                 DTB(PF_UNIX),
                 DTB(PF_INET),
                 /* TODO: The rest of the AF_.../PF_... */

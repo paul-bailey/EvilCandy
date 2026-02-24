@@ -288,6 +288,7 @@ extern enum result_t tuple_validate(Object *tup, const char *descr,
 extern Object *tuplevar_from_stack(Object **items, int n_items, bool consume);
 extern Object *tuplevar_new(int n_items);
 extern Object *tuple_getitem(Object *tup, int idx);
+extern Object *tuple_borrowitem(Object *tup, int idx);
 
 /* utf8.c */
 extern int utf8_subscr_str(const char *src, size_t idx, char *dest);

@@ -194,6 +194,15 @@ tuple_getitem(Object *tup, int idx)
         return va->items[idx];
 }
 
+Object *
+tuple_borrowitem(Object *tup, int idx)
+{
+        Object *ret = tuple_getitem(tup, idx);
+        if (ret)
+                VAR_DECR_REF(ret);
+        return ret;
+}
+
 /* **********************************************************************
  *              Built-in methods
  ***********************************************************************/

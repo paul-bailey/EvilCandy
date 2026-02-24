@@ -1,8 +1,10 @@
 #include <evilcandy.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sys/un.h>
 #include <arpa/inet.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
 
 struct evc_sockaddr_t {
         union {
@@ -13,6 +15,114 @@ struct evc_sockaddr_t {
                 struct sockaddr_un un;
         };
 };
+
+/* return length of struct sockaddr used */
+static ssize_t
+dom2alen(int domain)
+{
+        switch (domain) {
+        case AF_INET:
+                return sizeof(struct sockaddr_in);
+        case AF_UNIX:
+                return sizeof(struct sockaddr_un);
+        default:
+                return -1;
+        }
+}
+
+static enum result_t
+parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
+{
+        /* TODO: Manage 'broadcast' (=255.255.255.255). */
+        /* TODO: Use @domain arg, currently only allowing IPv4 */
+        /* TODO: Does one of the below methods support "localhost"? */
+        memset(sa, 0, sizeof(*sa));
+        if (inet_pton(AF_INET, name, &sa->in.sin_addr) > 0) {
+                sa->in.sin_family = AF_INET;
+                sa->in.sin_len = sizeof(sa->in);
+                return RES_OK;
+        } else {
+                /* Not a name? Perform name resolution */
+                struct addrinfo hints, *info;
+                int res;
+                size_t addrlen = sizeof(sa->in);
+                memset(&hints, 0, sizeof(hints));
+                hints.ai_family = domain;
+                res = getaddrinfo(name, NULL, &hints, &info);
+                if (res) {
+                        err_setstr(SystemError,
+                                   "Cannot get address of '%s' (%s)",
+                                   name, gai_strerror(res));
+                        return RES_ERROR;
+                }
+                if (info->ai_addrlen != addrlen) {
+                        err_setstr(TypeError,
+                                   "Unexpected address length for %s",
+                                   name);
+                        freeaddrinfo(info);
+                        return RES_ERROR;
+                }
+                memcpy(&sa->in, info->ai_addr, addrlen);
+                freeaddrinfo(info);
+                return RES_OK;
+        }
+}
+
+static ssize_t
+parse_address_arg(struct evc_sockaddr_t *sa, Object *arg, int domain)
+{
+        if (domain == AF_UNIX) {
+                const char *name;
+                if (!isvar_string(arg)) {
+                        err_setstr(TypeError, "expected: socket file name");
+                        return RES_ERROR;
+                }
+                name = string_cstring(arg);
+                if (strlen(name) > (sizeof(sa->un.sun_path) - 1)) {
+                        err_setstr(ValueError, "socket path name too long");
+                        return RES_ERROR;
+                }
+                memset(sa, 0, sizeof(*sa));
+                sa->un.sun_family = domain;
+                strcpy(sa->un.sun_path, name);
+                return RES_OK;
+        }
+
+        if (domain == AF_INET) {
+                const char *name;
+                int port;
+                if (isvar_tuple(arg)) {
+                        if (tuple_validate(arg, "si", false) == RES_ERROR) {
+                                err_setstr(TypeError, "expected: (HOST, PORT)");
+                                return RES_ERROR;
+                        }
+                        name = string_cstring(tuple_borrowitem(arg, 0));
+                        port = intvar_toi(tuple_borrowitem(arg, 1));
+                        if (err_occurred() || port < 0 || port > 65535) {
+                                err_setstr(ValueError,
+                                           "port %d out of range", port);
+                                return RES_ERROR;
+                        }
+                } else if (isvar_string(arg)) {
+                        port = 0;
+                        name = string_cstring(arg);
+                } else {
+                        err_setstr(TypeError, "Expected: tuple or string");
+                        return RES_ERROR;
+                }
+                if (parse_ip_addr(name, sa, domain) == RES_ERROR)
+                        return RES_ERROR;
+                /*
+                 * memset to zero occurs in parse_ip_addr,
+                 * so hold off setting port until now.
+                 */
+                sa->in.sin_port = port;
+                return RES_OK;
+        }
+
+        err_setstr(NotImplementedError, "Domain not implemented");
+        return -1;
+}
 
 /**
  * intarg_toul - Interpret a function argument when it is expected to be
@@ -187,10 +297,7 @@ do_connect(Frame *fr)
         int fd, domain;
         Object *skobj, *ao, *addrarg;
         struct evc_sockaddr_t raddr;
-        const char *addrstr;
-        socklen_t addrlen;
-
-        memset(&raddr, 0, sizeof(raddr));
+        ssize_t addrlen;
 
         /*
          * XXX REVISIT: some implementations of connect (2) interpret
@@ -199,8 +306,7 @@ do_connect(Frame *fr)
          */
         skobj = vm_get_this(fr);
         addrarg = vm_get_arg(fr, 0);
-        if (arg_type_check(addrarg, &StringType) == RES_ERROR)
-                return ErrorVar;
+        bug_on(!addrarg);
 
         if (socket_unpack_fd(skobj, &fd) < 0)
                 return ErrorVar;
@@ -211,91 +317,40 @@ do_connect(Frame *fr)
         if (socket_unpack_domain(skobj, &domain) < 0)
                 return ErrorVar;
 
+        if (parse_address_arg(&raddr, addrarg, domain) == RES_ERROR)
+                return ErrorVar;
+
         ao = dict_getitem(skobj, STRCONST_ID(raddr));
-        if (!ao)
-                ao = VAR_NEW_REF(NullVar);
-
-        if (ao != NullVar) {
-                if (!isvar_bytes(ao)) {
-                        skerr_mismatch(STRCONST_ID(raddr));
-                        goto err_aoref;
-                }
-                /*
-                 * TODO: Determine from this.type whether we may
-                 * disconnect from old remote address. For SOCK_STREAM,
-                 * this is generally not done, but I don't see why it
-                 * should be impossible.
-                 */
-        }
-
-        addrstr = string_cstring(addrarg);
-
-        /* Create new address object from arg */
-        switch (domain) {
-        case AF_INET:
-            {
-                /*
-                 * Expect "#.#.#.#[:#]" where the ':' delimits IP address
-                 * from the port number.
-                 */
-                char *port = strchr(addrstr, ':');
-                /*
-                 * TODO: Wrap inet_addr with checks for things like
-                 * "<broadcast>" or "localhost".  It's not clear that
-                 * inet_addr() manages these things in a portable way.
-                 */
-                raddr.in.sin_addr.s_addr = inet_addr(addrstr);
-
-                if (port) {
-                        long long v;
-                        char *endptr;
-                        if (evc_strtol(port + 1, &endptr, 10, &v) < 0 ||
-                            v < 0 || v > 65535 || *endptr != '\0') {
-                                err_setstr(ValueError, "Invalid port number");
-                                goto err_aoref;
+        if (ao) {
+                if (ao != NullVar) {
+                        if (!isvar_bytes(ao)) {
+                                skerr_mismatch(STRCONST_ID(raddr));
+                                VAR_DECR_REF(ao);
+                                return ErrorVar;
                         }
-                        raddr.in.sin_port = htons((uint16_t)v);
+                        /*
+                         * TODO: Determine from this.type whether we may
+                         * disconnect from old remote address. For SOCK_STREAM,
+                         * this is generally not done, but I don't see why it
+                         * should be impossible.
+                         */
                 }
-                raddr.in.sin_family = domain;
-                addrlen = sizeof(struct sockaddr_in);
-                break;
-            }
-        case AF_UNIX:
-            {
-                if (strlen(addrstr) > (sizeof(raddr.un.sun_path) - 1)) {
-                        err_setstr(ValueError, "Path name too long");
-                        goto err_aoref;
-                }
-                /* use sockaddr_un */
-                strcpy(raddr.un.sun_path, addrstr);
-                raddr.un.sun_family = domain;
-                addrlen = sizeof(struct sockaddr_un);
-                break;
-            }
-
-        default:
-                /* TODO: support INET6 */
-                skerr_mismatch(STRCONST_ID(domain));
-                goto err_aoref;
+                VAR_DECR_REF(ao);
         }
-
-        VAR_DECR_REF(ao);
 
         ao = bytesvar_new((unsigned char *)&raddr, sizeof(raddr));
         dict_setitem(skobj, STRCONST_ID(raddr), ao);
         VAR_DECR_REF(ao);
 
+        /* we should have caught that when parsing address */
+        bug_on((addrlen = dom2alen(domain)) < 0);
         if (connect(fd, &raddr.sa, addrlen) < 0) {
                 err_errno("Failed to connect");
-                dict_setitem(skobj, STRCONST_ID(raddr), NULL);
+                dict_setitem(skobj, STRCONST_ID(raddr), NullVar);
                 return ErrorVar;
         }
 
         return NULL;
-
-err_aoref:
-        VAR_DECR_REF(ao);
-        return ErrorVar;
 }
 
 /*

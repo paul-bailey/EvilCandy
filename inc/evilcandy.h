@@ -252,6 +252,7 @@ extern char *dict_unique(Object *dict, const char *key);
 extern void dict_unpack(Object *obj, ...);
 extern ssize_t dict_iter(Object *dict, ssize_t iter,
                          Object **k, Object **v);
+extern int dict_copyto(Object *to, Object *from);
 
 /* types/method.c */
 extern int methodvar_tofunc(Object *meth,

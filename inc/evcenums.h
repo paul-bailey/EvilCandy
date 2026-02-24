@@ -91,6 +91,12 @@ enum {
         STRCONST_IDX__sys,
         STRCONST_IDX_import_path,
         STRCONST_IDX_breadcrumbs,
+        STRCONST_IDX_fd,
+        STRCONST_IDX_domain,
+        STRCONST_IDX_type,
+        STRCONST_IDX_proto,
+        STRCONST_IDX_addr,
+        STRCONST_IDX_raddr,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,

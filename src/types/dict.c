@@ -901,7 +901,8 @@ dict_str(Object *o)
         return ret;
 }
 
-static int
+/* Confirm that @to and @from are dicts BEFORE calling this */
+int
 dict_copyto(Object *to, Object *from)
 {
         int i;

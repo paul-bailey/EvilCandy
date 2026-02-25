@@ -36,6 +36,7 @@ evilcandy_SOURCES = \
         src/var.c \
         src/var_from_format.c \
         src/vm.c \
+        src/vm_getargs.c \
         src/builtin/builtin.c \
         src/builtin/io.c \
         src/builtin/math.c \

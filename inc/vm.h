@@ -64,6 +64,10 @@ static inline int vm_get_argc(Frame *fr)
 /* execute_loop shared between vm.c and function.c, else private */
 extern Object *execute_loop(Frame *fr);
 
+/* vm_getargs.c */
+extern enum result_t vm_getargs(Frame *fr, const char *fmt, ...);
+extern enum result_t vm_getargs_sv(Object *sv, const char *fmt, ...);
+
 /* TODO: Get rid of references to frame_get_arg */
 # define frame_get_arg(fr, i)   vm_get_arg(fr, i)
 # define get_this(fr)           vm_get_this(fr)

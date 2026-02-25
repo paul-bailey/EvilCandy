@@ -94,26 +94,18 @@ parse_address_arg(struct evc_sockaddr_t *sa, Object *arg, int domain)
 
         if (domain == AF_INET) {
                 const char *name;
-                int port;
-                if (isvar_tuple(arg)) {
-                        if (tuple_validate(arg, "si", false) == RES_ERROR) {
-                                err_setstr(TypeError, "expected: (HOST, PORT)");
-                                return RES_ERROR;
-                        }
-                        name = string_cstring(tuple_borrowitem(arg, 0));
-                        port = intvar_toi(tuple_borrowitem(arg, 1));
-                        if (err_occurred() || port < 0 || port > 65535) {
-                                err_setstr(ValueError,
-                                           "port %d out of range", port);
-                                return RES_ERROR;
-                        }
-                } else if (isvar_string(arg)) {
-                        port = 0;
-                        name = string_cstring(arg);
-                } else {
-                        err_setstr(TypeError, "expected: tuple or string");
+                long long port;
+                if (vm_getargs_sv(arg, "(si)", &name, &port)
+                    == RES_ERROR) {
+                        /* TODO: clearerr if string, try again */
                         return RES_ERROR;
                 }
+                if (port < 0 || port > 65535) {
+                        err_setstr(ValueError,
+                                   "port %lld out of range", port);
+                        return RES_ERROR;
+                }
+
                 if (parse_ip_addr(name, sa, domain) == RES_ERROR)
                         return RES_ERROR;
                 /*
@@ -128,45 +120,20 @@ parse_address_arg(struct evc_sockaddr_t *sa, Object *arg, int domain)
         return -1;
 }
 
-/**
- * intarg_toul - Interpret a function argument when it is expected to be
- *               text enumerating an integer >= zero.
- * @arg: Function argument, which is expected to be a positive integer.
- * @valid: Array of permitted values for this argument, or NULL to allow
- *         any positive value.
- * @argname: Name of argument, for error text.
- *
- * Return: Interpreted enumeration or -1 if invalid argument.
- */
-static int
-intarg_toul(Object *arg, const int *valid, const char *argname)
+static enum result_t
+validate_int(long long ival, const int *tbl, const char *argname)
 {
-        int ret;
-
-        bug_on(!arg); /* 'arg exists' was checked upstream */
-        bug_on(!gbl.socket_enums);
-
-        if (arg_type_check(arg, &IntType) != 0)
-                return -1;
-        ret = intvar_toi(arg);
-        if (err_occurred())
-                return -1;
-
-        if (valid) {
-                while (*valid >= 0) {
-                        if (ret == *valid)
-                                return ret;
-                        valid++;
+        if (ival > 0LL && ival <= INT_MAX) {
+                while (*tbl >= 0) {
+                        if ((int)ival == *tbl)
+                                return RES_OK;
+                        tbl++;
                 }
-                ret = -1;
         }
 
-        if (ret < 0) {
-                err_setstr(ValueError, "invalid %s arg: %d",
-                           argname, ret);
-                ret = -1;
-        }
-        return ret;
+        err_setstr(ValueError, "invalid %s arg: %lld",
+                   argname, ival);
+        return RES_ERROR;
 }
 
 static void
@@ -514,15 +481,19 @@ do_socket(Frame *fr)
                 SOCK_RAW,
                 -1
         };
-        int fd, domain, type;
+        long long fd, domain, type, protocol;
         Object *skobj;
 
-        domain = intarg_toul(frame_get_arg(fr, 0), VALID_DOMAINS, "domain");
-        if (domain < 0)
+        if (vm_getargs(fr, "iii", &domain, &type, &protocol) == RES_ERROR)
                 return ErrorVar;
-        type = intarg_toul(frame_get_arg(fr, 1), VALID_TYPES, "type");
-        if (type < 0)
+        if (validate_int(domain, VALID_DOMAINS, "domain") == RES_ERROR)
                 return ErrorVar;
+        if (validate_int(type, VALID_TYPES, "type") == RES_ERROR)
+                return ErrorVar;
+        if (protocol < 0) {
+                err_setstr(TypeError, "protocol cannot be a negative number");
+                return ErrorVar;
+        }
 
         /*
          * FIXME: fd is an integer, so there's no way to know to close
@@ -548,17 +519,17 @@ do_socket(Frame *fr)
          * dicts like this one; it doesn't allow for a user-defined
          * cleanup function written in the script.
          */
-        fd = socket(domain, type, 0);
+        fd = socket(domain, type, protocol);
         if (fd < 0) {
                 err_errno("Cannot create socket");
                 return ErrorVar;
         }
 
-        skobj = var_from_format("{OiOiOiOOOOOO}",
+        skobj = var_from_format("{OiOiOiOiOOOO}",
                                 STRCONST_ID(fd),     fd,
                                 STRCONST_ID(domain), domain,
                                 STRCONST_ID(type),   type,
-                                STRCONST_ID(proto),  NullVar,
+                                STRCONST_ID(proto),  protocol,
                                 STRCONST_ID(addr),   NullVar,
                                 STRCONST_ID(raddr),  NullVar);
 
@@ -579,7 +550,7 @@ do_socket(Frame *fr)
 
 static const struct type_inittbl_t socket_inittbl[] = {
         /* TODO: gethostbyname, socketpair, getaddrinfo */
-        V_INITTBL("socket",  do_socket,  2, 2, -1, -1),
+        V_INITTBL("socket",  do_socket,  3, 3, -1, -1),
         TBLEND,
 };
 

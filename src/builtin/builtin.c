@@ -18,20 +18,26 @@ static Object *
 do_print(Frame *fr)
 {
         size_t i, n;
-        Object *arg, *kw, *file, *sep, *end;
+        Object *arg, *file, *sep, *end;
         enum result_t status;
         Object *res = NULL;
 
-        arg = vm_get_arg(fr, 0);
-        kw = vm_get_arg(fr, 1);
-        bug_on(!arg || !isvar_array(arg));
-        bug_on(!kw || !isvar_dict(kw));
+        arg = sep = file = end = NULL;
+        if (vm_getargs(fr, "<[]>{|<s></><s>}:print",
+                       &arg,
+                       STRCONST_ID(sep), &sep,
+                       STRCONST_ID(file), &file,
+                       STRCONST_ID(end), &end) == RES_ERROR) {
+                return ErrorVar;
+        }
+        bug_on(!arg);
+        if (!sep)
+                sep = STRCONST_ID(spc);
+        if (!file)
+                file = gbl.stdout_file;
+        if (!end)
+                end = gbl.nl;
 
-        dict_unpack(kw,
-                    STRCONST_ID(sep),  &sep,  STRCONST_ID(spc),
-                    STRCONST_ID(file), &file, gbl.stdout_file,
-                    STRCONST_ID(end),  &end,  gbl.nl,
-                    NULL);
         n = seqvar_size(arg);
         if (n == 0) {
                 if (file_write(file, end) != RES_OK)
@@ -73,9 +79,6 @@ do_print(Frame *fr)
         }
 
 done:
-        VAR_DECR_REF(sep);
-        VAR_DECR_REF(file);
-        VAR_DECR_REF(end);
         return res;
 }
 
@@ -89,42 +92,32 @@ done:
 static Object *
 do_import(Frame *fr)
 {
-        Object *file_name = frame_get_arg(fr, 0);
-        Object *mode      = frame_get_arg(fr, 1);
+        const char *file_name;
+        long mode;
         Object *res;
         Object *ex;
-        const char *modestr, *fnamestr;
         enum { R, X } how;
         FILE *fp;
         int status;
 
-        if (!file_name || !mode) {
-                err_frame_minargs(fr, 2);
+        if (vm_getargs(fr, "sc", &file_name, &mode) == RES_ERROR)
                 return ErrorVar;
-        }
-        if (!isvar_string(file_name) || !isvar_string(mode)) {
-                err_setstr(TypeError, "import: file name and mode should be strings");
-                return ErrorVar;
-        }
 
-        modestr = string_cstring(mode);
-        if (!strcmp(modestr, "r")) {
+        if (mode == 'r') {
                 how = R; /* read script and return it as a function */
-        } else if (!strcmp(modestr, "x")) {
+        } else if (mode == 'x') {
                 how = X; /* execute script and return its results */
         } else {
                 err_setstr(ValueError, "import: incorrect MODE argument");
                 return ErrorVar;
         }
 
-        fnamestr = string_cstring(file_name);
-
-        fp = push_path(fnamestr);
+        fp = push_path(file_name);
         if (!fp) {
-                err_errno("Cannot access '%s' properly", fnamestr);
+                err_errno("Cannot access '%s' properly", file_name);
                 return ErrorVar;
         }
-        ex = assemble(fnamestr, fp, true, &status);
+        ex = assemble(file_name, fp, true, &status);
         pop_path(fp);
 
         /* we're assembling top, so ex should be NULL if error */
@@ -133,7 +126,7 @@ do_import(Frame *fr)
         if (!ex) {
                 if (!err_occurred()) {
                         err_setstr(RuntimeError,
-                                   "Failed to import module '%s'", fnamestr);
+                                   "Failed to import module '%s'", file_name);
                 }
                 return ErrorVar;
         }

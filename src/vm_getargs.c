@@ -22,7 +22,8 @@
  * 'i'  Get a long long integer. varg is a pointer to 'long long'.
  *      uarg is an integer object
  * 's'  Get a C string.  varg is a pointer to "char *".  uarg is a string
- *      object.
+ *      object.  Warning!! This is a pointer into the Object's data, so
+ *      if it needs to be saved for later, it should be copied.
  * 'c'  Get a single-character string's Unicode point. varg is a pointer
  *      to "long *".  uarg is a string object whose size must be 1.
  * 'f'  Get a floating-point value. varg is a pointer to "double *".

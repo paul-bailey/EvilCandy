@@ -11,22 +11,12 @@ do_open(Frame *fr)
 {
         const char *name, *mode, *ps;
         unsigned int modeflags;
+        Object *vname;
         FILE *fp;
-        Object *vname = vm_get_arg(fr, 0);
-        Object *vmode = vm_get_arg(fr, 1);
 
-        if (arg_type_check(vname, &StringType) != 0)
-                return ErrorVar;
-        if (arg_type_check(vmode, &StringType) != 0)
+        if (vm_getargs(fr, "<s>s", &vname, &mode) == RES_ERROR)
                 return ErrorVar;
         name = string_cstring(vname);
-        mode = string_cstring(vmode);
-        if (seqvar_size(vname) == 0 || seqvar_size(vmode) == 0) {
-                err_setstr(TypeError,
-                           "%s may not be empty",
-                           (seqvar_size(vname) == 0) ? "name" : "mode");
-                return ErrorVar;
-        }
 
         modeflags = 0;
         for (ps = mode; *ps != '\0'; ps++) {

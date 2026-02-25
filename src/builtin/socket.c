@@ -42,7 +42,7 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
                 sa->in.sin_len = sizeof(sa->in);
                 return RES_OK;
         } else {
-                /* Not a name? Perform name resolution */
+                /* Not of the n.n.n.n format? Perform name resolution */
                 struct addrinfo hints, *info;
                 int res;
                 size_t addrlen = sizeof(sa->in);
@@ -55,6 +55,10 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
                                    name, gai_strerror(res));
                         return RES_ERROR;
                 }
+                /*
+                 * FIXME: Cycle through list, find info which has
+                 * matching domain.
+                 */
                 if (info->ai_addrlen != addrlen) {
                         err_setstr(TypeError,
                                    "Unexpected address length for %s",
@@ -107,7 +111,7 @@ parse_address_arg(struct evc_sockaddr_t *sa, Object *arg, int domain)
                         port = 0;
                         name = string_cstring(arg);
                 } else {
-                        err_setstr(TypeError, "Expected: tuple or string");
+                        err_setstr(TypeError, "expected: tuple or string");
                         return RES_ERROR;
                 }
                 if (parse_ip_addr(name, sa, domain) == RES_ERROR)
@@ -209,6 +213,19 @@ out_noref:
 #define socket_unpack_type(sk, p)       socket_unpack__(sk, p, type)
 #define socket_unpack_proto(sk, p)      socket_unpack__(sk, p, proto)
 
+static enum result_t
+socket_unpack_open_fd(Object *skobj, int *fd)
+{
+        if (socket_unpack_fd(skobj, fd) < 0)
+                return RES_ERROR;
+        if (fd < 0) {
+                err_setstr(TypeError, "socket has been closed");
+                return RES_ERROR;
+        }
+        /* XXX: any sanity checks on fd? */
+        return RES_OK;
+}
+
 /*
  * @addr_len is set by user to size allocated for @addr; this function
  *      will reduce it if actual address is smaller
@@ -277,6 +294,45 @@ do_accept(Frame *fr)
 static Object *
 do_bind(Frame *fr)
 {
+        int fd, domain;
+        Object *skobj, *ao, *addrarg;
+        struct evc_sockaddr_t sa;
+        ssize_t addrlen;
+
+        skobj = vm_get_this(fr);
+        addrarg = vm_get_arg(fr, 0);
+        bug_on(!addrarg);
+
+        if (socket_unpack_open_fd(skobj, &fd) == RES_ERROR)
+                return ErrorVar;
+        if (socket_unpack_domain(skobj, &domain) == RES_ERROR)
+                return ErrorVar;
+        if (parse_address_arg(&sa, addrarg, domain) == RES_ERROR)
+                return ErrorVar;
+        ao = dict_getitem(skobj, STRCONST_ID(addr));
+        if (ao) {
+                /*
+                 * Technically not needed, but bind (2) sets errno to
+                 * the very uninformative EINVAL in this case.
+                 */
+                err_setstr(ValueError, "already bound to an address");
+                VAR_DECR_REF(ao);
+                return ErrorVar;
+        }
+
+        addrlen = dom2alen(domain);
+        bug_on(addrlen < 0);
+
+        ao = bytesvar_new((unsigned char *)&sa, addrlen);
+        dict_setitem(skobj, STRCONST_ID(addr), ao);
+        VAR_DECR_REF(ao);
+
+        if (bind(fd, &sa.sa, addrlen) < 0) {
+                err_errno("bind() failed");
+                dict_setitem(skobj, STRCONST_ID(addr), NullVar);
+                return ErrorVar;
+        }
+
         err_setstr(NotImplementedError, "bind not implemented");
         return ErrorVar;
 }
@@ -296,7 +352,7 @@ do_connect(Frame *fr)
 {
         int fd, domain;
         Object *skobj, *ao, *addrarg;
-        struct evc_sockaddr_t raddr;
+        struct evc_sockaddr_t sa;
         ssize_t addrlen;
 
         /*
@@ -308,16 +364,12 @@ do_connect(Frame *fr)
         addrarg = vm_get_arg(fr, 0);
         bug_on(!addrarg);
 
-        if (socket_unpack_fd(skobj, &fd) < 0)
+        if (socket_unpack_open_fd(skobj, &fd) < 0)
                 return ErrorVar;
-        if (fd < 0) {
-                err_setstr(TypeError, "socket has been closed");
-                return ErrorVar;
-        }
         if (socket_unpack_domain(skobj, &domain) < 0)
                 return ErrorVar;
 
-        if (parse_address_arg(&raddr, addrarg, domain) == RES_ERROR)
+        if (parse_address_arg(&sa, addrarg, domain) == RES_ERROR)
                 return ErrorVar;
 
         ao = dict_getitem(skobj, STRCONST_ID(raddr));
@@ -338,13 +390,14 @@ do_connect(Frame *fr)
                 VAR_DECR_REF(ao);
         }
 
-        ao = bytesvar_new((unsigned char *)&raddr, sizeof(raddr));
+        addrlen = dom2alen(domain);
+        bug_on(addrlen < 0);
+
+        ao = bytesvar_new((unsigned char *)&sa, addrlen);
         dict_setitem(skobj, STRCONST_ID(raddr), ao);
         VAR_DECR_REF(ao);
 
-        /* we should have caught that when parsing address */
-        bug_on((addrlen = dom2alen(domain)) < 0);
-        if (connect(fd, &raddr.sa, addrlen) < 0) {
+        if (connect(fd, &sa.sa, addrlen) < 0) {
                 err_errno("Failed to connect");
                 dict_setitem(skobj, STRCONST_ID(raddr), NullVar);
                 return ErrorVar;
@@ -363,8 +416,23 @@ do_connect(Frame *fr)
 static Object *
 do_listen(Frame *fr)
 {
-        err_setstr(NotImplementedError, "listen not implemented");
-        return ErrorVar;
+        Object *skobj, *bklo;
+        int fd, backlog;
+
+        skobj = vm_get_this(fr);
+        bklo = vm_get_arg(fr, 0);
+        if (arg_type_check(bklo, &IntType) == RES_ERROR)
+                return ErrorVar;
+        if (socket_unpack_open_fd(skobj, &fd) == RES_ERROR)
+                return ErrorVar;
+        backlog = intvar_toi(bklo);
+        if (err_occurred())
+                return ErrorVar;
+        if (listen(fd, backlog) < 0) {
+                err_errno("failed to listen");
+                return ErrorVar;
+        }
+        return NULL;
 }
 
 /*

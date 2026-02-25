@@ -16,11 +16,18 @@
  * "uarg" in this file), and the variadic C arguments which collect them
  * (which I'll call "varg").  All vargs are pointers.
  *
- * 'b'  Get integer that can fit into a byte. varg is a pointer to an
- *      'int'.  uarg is either a bytes object of size 1 or an integer
- *      object whose value is from 0 to 255.
- * 'i'  Get a long long integer. varg is a pointer to 'long long'.
- *      uarg is an integer object
+ * 'b'  Get integer that can fit into a byte. varg is a pointer to
+ *      "char".  uarg is either a bytes object of size 1 or an integer
+ *      object whose value is from -128 to 255.  Calling code should deal
+ *      with the sign bit its own way.
+ * 'h'  Get integer that cna fit into a short.  varg is a pointer to
+ *      "short".  uarg is an integer object whose value is from -32768 to
+ *      65535.  Calling code should deal with the sign bit its own way.
+ * 'i'  Get a long long integer. varg is a pointer to "int".  uarg is an
+ *      integer object whose positive value may not exceed the range of
+ *      INT_MIN...UINT_MAX.
+ * 'l'  Get a long long integer. varg is a pointer to 'long long'.
+ *      uarg is an integer object.
  * 's'  Get a C string.  varg is a pointer to "char *".  uarg is a string
  *      object.  Warning!! This is a pointer into the Object's data, so
  *      if it needs to be saved for later, it should be copied.
@@ -436,23 +443,57 @@ convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
                                               argno, fname);
                                 return RES_ERROR;
                         }
-                        *((int *)pv) = ival & 0xffu;
+                        *((unsigned char *)pv) = ival & 0xffu;
                 } else if (isvar_int(uarg)) {
-                        int ival = intvar_toi(uarg);
-                        if (err_occurred() || ival < 0 || ival > 255) {
+                        long long ival = intvar_toll(uarg);
+                        if (ival < -128 || ival > 255) {
                                 vmerr_generic("expected: value from 0...255",
                                               argno, fname);
                                 return RES_ERROR;
                         }
-                        *((int *)pv) = ival;
+                        *((unsigned char *)pv) = ival & 0xffu;
                 } else {
                         vmerr_type_mismatch(argno, fname, uarg, &IntType);
                         return RES_ERROR;
                 }
                 break;
 
+        case 'h':
+            {
+                long long ival;
+                if (!isvar_int(uarg)) {
+                        vmerr_type_mismatch(argno, fname, uarg, &IntType);
+                        return RES_ERROR;
+                }
+                ival = intvar_toll(uarg);
+                if (ival < -32768 || ival > 65535) {
+                        vmerr_generic("expected: value from -32768...65535",
+                                      argno, fname);
+                        return RES_ERROR;
+                }
+                *((short *)pv) = (int)ival & 0xffffu;
+                break;
+            }
+
         case 'i':
-                /* long integer */
+            {
+                /* integer */
+                long long ival;
+                if (!isvar_int(uarg)) {
+                        vmerr_type_mismatch(argno, fname, uarg, &IntType);
+                        return RES_ERROR;
+                }
+                ival = intvar_toll(uarg);
+                if (ival < INT_MIN || ival > UINT_MAX) {
+                        vmerr_generic("value must fit within a C int",
+                                      argno, fname);
+                        return RES_ERROR;
+                }
+                *((int *)pv) = (int)ival;
+                break;
+            }
+
+        case 'l':
                 if (!isvar_int(uarg)) {
                         vmerr_type_mismatch(argno, fname, uarg, &IntType);
                         return RES_ERROR;

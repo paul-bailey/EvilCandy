@@ -94,18 +94,12 @@ parse_address_arg(struct evc_sockaddr_t *sa, Object *arg, int domain)
 
         if (domain == AF_INET) {
                 const char *name;
-                long long port;
-                if (vm_getargs_sv(arg, "(si)", &name, &port)
+                unsigned short port;
+                if (vm_getargs_sv(arg, "(sh)", &name, &port)
                     == RES_ERROR) {
                         /* TODO: clearerr if string, try again */
                         return RES_ERROR;
                 }
-                if (port < 0 || port > 65535) {
-                        err_setstr(ValueError,
-                                   "port %lld out of range", port);
-                        return RES_ERROR;
-                }
-
                 if (parse_ip_addr(name, sa, domain) == RES_ERROR)
                         return RES_ERROR;
                 /*
@@ -120,19 +114,23 @@ parse_address_arg(struct evc_sockaddr_t *sa, Object *arg, int domain)
         return -1;
 }
 
+/*
+ * validate_int - Check that @ival is positive and matches one of the
+ *                enumerated values in @tbl, which terminates with -1.
+ *                @argname is for error reporting.
+ */
 static enum result_t
-validate_int(long long ival, const int *tbl, const char *argname)
+validate_int(int ival, const int *tbl, const char *argname)
 {
-        if (ival > 0LL && ival <= INT_MAX) {
+        if (ival > 0LL) {
                 while (*tbl >= 0) {
-                        if ((int)ival == *tbl)
+                        if (ival == *tbl)
                                 return RES_OK;
                         tbl++;
                 }
         }
 
-        err_setstr(ValueError, "invalid %s arg: %lld",
-                   argname, ival);
+        err_setstr(ValueError, "invalid %s arg: %d", argname, ival);
         return RES_ERROR;
 }
 
@@ -481,7 +479,7 @@ do_socket(Frame *fr)
                 SOCK_RAW,
                 -1
         };
-        long long fd, domain, type, protocol;
+        int fd, domain, type, protocol;
         Object *skobj;
 
         if (vm_getargs(fr, "iii", &domain, &type, &protocol) == RES_ERROR)

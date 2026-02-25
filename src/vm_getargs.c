@@ -136,7 +136,7 @@ vmerr_type_mismatch(int argno, const char *fname, Object *arg, struct type_t *ty
         if (fname)
                 p += snprintf(p, end - p, "%s() ", fname);
         if (argno >= 0)
-                p += snprintf(p, end - p, "argument %d", argno + 1);
+                p += snprintf(p, end - p, "argument %d ", argno + 1);
         p += snprintf(p, end - p, "expected %s but got %s",
                       type->name, typestr(arg));
         if (p == end)
@@ -160,9 +160,9 @@ vmerr_generic(const char *msg, int argno, const char *fname)
         if (fname)
                 p += snprintf(p, end-p, "%s() ", fname);
         if (argno >= 0)
-                p += snprintf(p, end-p, "argument %d", argno + 1);
+                p += snprintf(p, end-p, "argument %d ", argno + 1);
         if (msg)
-                p += snprintf(p, end-p, " %s", msg);
+                p += snprintf(p, end-p, "%s", msg);
         if (p == end)
                 p--;
         *p = '\0';
@@ -439,7 +439,7 @@ convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
                         if (seqvar_size(uarg) == 1) {
                                 ival = bytes_get_data(uarg)[0];
                         } else if (seqvar_size(uarg) != 0) {
-                                vmerr_generic("expected: value from 0...255",
+                                vmerr_generic("expected value from -128...255",
                                               argno, fname);
                                 return RES_ERROR;
                         }
@@ -447,7 +447,7 @@ convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
                 } else if (isvar_int(uarg)) {
                         long long ival = intvar_toll(uarg);
                         if (ival < -128 || ival > 255) {
-                                vmerr_generic("expected: value from 0...255",
+                                vmerr_generic("expected value from -128...255",
                                               argno, fname);
                                 return RES_ERROR;
                         }
@@ -467,7 +467,7 @@ convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
                 }
                 ival = intvar_toll(uarg);
                 if (ival < -32768 || ival > 65535) {
-                        vmerr_generic("expected: value from -32768...65535",
+                        vmerr_generic("expected value from -32768...65535",
                                       argno, fname);
                         return RES_ERROR;
                 }

@@ -73,7 +73,8 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
 }
 
 static ssize_t
-parse_address_arg(struct evc_sockaddr_t *sa, Object *arg, int domain)
+parse_address_arg(struct evc_sockaddr_t *sa, Object *arg,
+                  int domain, const char *fname)
 {
         if (domain == AF_UNIX) {
                 const char *name;
@@ -95,7 +96,13 @@ parse_address_arg(struct evc_sockaddr_t *sa, Object *arg, int domain)
         if (domain == AF_INET) {
                 const char *name;
                 unsigned short port;
-                if (vm_getargs_sv(arg, "(sh)", &name, &port)
+                /*
+                 * XXX: don't wanna do this, since fname is only needed
+                 * for the error path.
+                 */
+                char buf[32];
+                snprintf(buf, sizeof(buf)-1, "(sh):%s", fname);
+                if (vm_getargs_sv(arg, buf, &name, &port)
                     == RES_ERROR) {
                         /* TODO: clearerr if string, try again */
                         return RES_ERROR;
@@ -272,7 +279,7 @@ do_bind(Frame *fr)
                 return ErrorVar;
         if (socket_unpack_domain(skobj, &domain) == RES_ERROR)
                 return ErrorVar;
-        if (parse_address_arg(&sa, addrarg, domain) == RES_ERROR)
+        if (parse_address_arg(&sa, addrarg, domain, "bind") == RES_ERROR)
                 return ErrorVar;
         ao = dict_getitem(skobj, STRCONST_ID(addr));
         if (ao) {
@@ -334,8 +341,10 @@ do_connect(Frame *fr)
         if (socket_unpack_domain(skobj, &domain) < 0)
                 return ErrorVar;
 
-        if (parse_address_arg(&sa, addrarg, domain) == RES_ERROR)
+        if (parse_address_arg(&sa, addrarg, domain, "connect")
+            == RES_ERROR) {
                 return ErrorVar;
+        }
 
         ao = dict_getitem(skobj, STRCONST_ID(raddr));
         if (ao) {

@@ -1484,7 +1484,7 @@ static Object *
 string_join(Frame *fr)
 {
         struct string_writer_t wr;
-        Object *self = get_this(fr);
+        Object *self = vm_get_this(fr);
         Object *arg = vm_get_arg(fr, 0);
         size_t i, n, width;
 

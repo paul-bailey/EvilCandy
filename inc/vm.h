@@ -68,8 +68,4 @@ extern Object *execute_loop(Frame *fr);
 extern enum result_t vm_getargs(Frame *fr, const char *fmt, ...);
 extern enum result_t vm_getargs_sv(Object *sv, const char *fmt, ...);
 
-/* TODO: Get rid of references to frame_get_arg */
-# define frame_get_arg(fr, i)   vm_get_arg(fr, i)
-# define get_this(fr)           vm_get_this(fr)
-
 #endif /* EVILCANDY_VM_H */

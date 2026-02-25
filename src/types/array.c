@@ -573,7 +573,7 @@ static Object *
 do_array_append(Frame *fr)
 {
         Object *self, *arg;
-        self = get_this(fr);
+        self = vm_get_this(fr);
         arg = vm_get_arg(fr, 0);
 
         if (arg_type_check(self, &ArrayType) == RES_ERROR)

@@ -6,7 +6,7 @@
 static Object *
 do_typeof(Frame *fr)
 {
-        Object *p = frame_get_arg(fr, 0);
+        Object *p = vm_get_arg(fr, 0);
         if (!p) {
                 err_frame_minargs(fr, 1);
                 return ErrorVar;
@@ -152,7 +152,7 @@ do_import(Frame *fr)
 static Object *
 do_exit(Frame *fr)
 {
-        Object *p = frame_get_arg(fr, 0);
+        Object *p = vm_get_arg(fr, 0);
         if (p && isvar_string(p))
                 printf("%s\n", string_cstring(p));
         exit(0);
@@ -167,7 +167,7 @@ do_exit(Frame *fr)
 static Object *
 do_setnl(Frame *fr)
 {
-        Object *nl = frame_get_arg(fr, 0);
+        Object *nl = vm_get_arg(fr, 0);
         if (!isvar_string(nl)) {
                 err_argtype("string");
                 return ErrorVar;

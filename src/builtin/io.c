@@ -12,8 +12,8 @@ do_open(Frame *fr)
         const char *name, *mode, *ps;
         unsigned int modeflags;
         FILE *fp;
-        Object *vname = frame_get_arg(fr, 0);
-        Object *vmode = frame_get_arg(fr, 1);
+        Object *vname = vm_get_arg(fr, 0);
+        Object *vmode = vm_get_arg(fr, 1);
 
         if (arg_type_check(vname, &StringType) != 0)
                 return ErrorVar;

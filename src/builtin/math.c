@@ -7,7 +7,7 @@
 static int
 get_floatarg(Frame *fr, int argno, double *d)
 {
-        Object *x = frame_get_arg(fr, argno);
+        Object *x = vm_get_arg(fr, argno);
         bug_on(!x);
         if (isvar_float(x)) {
                 *d = floatvar_tod(x);

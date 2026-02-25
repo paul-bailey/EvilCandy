@@ -943,7 +943,7 @@ err:
 static Object *
 do_dict_delitem(Frame *fr)
 {
-        Object *self = get_this(fr);
+        Object *self = vm_get_this(fr);
         Object *name = vm_get_arg(fr, 0);
 
         if (arg_type_check(self, &DictType) == RES_ERROR)
@@ -1014,7 +1014,7 @@ do_dict_values(Frame *fr)
 static Object *
 do_dict_copy(Frame *fr)
 {
-        Object *self = get_this(fr);
+        Object *self = vm_get_this(fr);
         Object *ret = dictvar_new();
 
         if (arg_type_check(self, &DictType) == RES_ERROR)
@@ -1058,7 +1058,7 @@ static Object *
 do_dict_purloin(Frame *fr)
 {
         int i;
-        Object *self = get_this(fr);
+        Object *self = vm_get_this(fr);
         Object *key  = vm_get_arg(fr, 0);
         struct dictvar_t *d = V2D(self);
 

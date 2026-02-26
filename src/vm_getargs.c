@@ -8,6 +8,9 @@
  * its own more independent C file, and also unpack tuples, arrays,
  * and dictionaries.
  *
+ * TODO: Add 'e' for enum... expect two va_arg() values, one for a table
+ *       of non-negative numbers, the other to store the value.
+ *
  * FORMAT STRINGS
  * --------------
  *
@@ -32,8 +35,8 @@
  *      object.  Warning!! This is a pointer into the Object's data, so
  *      if it needs to be saved for later, it should be copied.
  * 'c'  Get a single-character string's Unicode point. varg is a pointer
- *      to "long *".  uarg is a string object whose size must be 1.
- * 'f'  Get a floating-point value. varg is a pointer to "double *".
+ *      to "long".  uarg is a string object whose size must be 1.
+ * 'f'  Get a floating-point value. varg is a pointer to "double".
  *      uarg is a floating-point object.
  * '.'  Skip this argument or numerical index.
  *

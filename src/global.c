@@ -53,6 +53,7 @@ initialize_string_consts(void)
                 STRCONST_CSTR(proto),
                 STRCONST_CSTR(addr),
                 STRCONST_CSTR(raddr),
+                STRCONST_CSTR(flags),
                 [STRCONST_IDX_spc] = " ",
                 [STRCONST_IDX_mpty] = "",
                 [STRCONST_IDX_wtspc] = " \r\n\t\v\f",

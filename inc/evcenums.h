@@ -97,6 +97,7 @@ enum {
         STRCONST_IDX_proto,
         STRCONST_IDX_addr,
         STRCONST_IDX_raddr,
+        STRCONST_IDX_flags,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,

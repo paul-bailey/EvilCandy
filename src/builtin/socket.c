@@ -15,6 +15,8 @@
  */
 #include <unistd.h> /* for close() */
 
+static Object *socket_create(int fd, int domain, int type, int proto);
+
 struct evc_sockaddr_t {
         union {
                 struct sockaddr sa;
@@ -52,8 +54,74 @@ dom2alen(int domain)
         }
 }
 
+static void
+skerr(Object *exc, const char *msg, const char *fname)
+{
+        err_setstr(exc, "%s%s%s",
+                   fname ? fname : "", fname ? "(): " : "", msg);
+}
+
+static void
+skerr_gai(const char *msg, const char *fname, int gaires)
+{
+        err_setstr(SystemError, "%s%s%s (%s)",
+                   fname ? fname : "", fname ? "(): " : "", msg,
+                   gai_strerror(gaires));
+}
+
+static void
+skerr_notimpl(const char *msg, const char *fname)
+{
+        skerr(NotImplementedError, msg, fname);
+}
+
+static void
+skerr_syscall(const char *fname)
+{
+        err_errno("%s%ssystem call failed",
+                  fname ? fname : "", fname ? "(): " : "");
+}
+
+static void
+skerr_length(const char *fname)
+{
+        skerr(TypeError, "[maybe bug!] unexpected address length", fname);
+}
+
+/*
+ * Helper to recvfrom and accept.
+ * Convert a struct sockaddr into an object that can be used as an
+ * argument to sendto.
+ */
+static Object *
+addr2obj(struct socketvar_t *skv, struct evc_sockaddr_t *sa,
+         size_t addrlen, const char *fname)
+{
+        if (addrlen != skv->addrlen) {
+                skerr_length(fname);
+                return NULL;
+        }
+        switch (skv->domain) {
+        case AF_INET:
+                return var_from_format("(si)", inet_ntoa(sa->in.sin_addr),
+                                       sa->in.sin_port);
+        case AF_UNIX:
+                /*
+                 * FIXME: I happen to know that .sun_len is a BSD thing
+                 * but not a Linux thing.  Look elsewhere to see how
+                 * other projects portable-ize this.
+                 */
+                return stringvar_newn(sa->un.sun_path, sa->un.sun_len);
+        default:
+                skerr_notimpl("unsupported address family", fname);
+                return NULL;
+        }
+}
+
+/* helper to obj2addr - fill @sa with IP address expressed by @name */
 static enum result_t
-parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
+parse_ip_addr(const char *name, struct evc_sockaddr_t *sa,
+              int domain, const char *fname)
 {
         /* TODO: Manage 'broadcast' (=255.255.255.255). */
         /* TODO: Use @domain arg, currently only allowing IPv4 */
@@ -63,6 +131,7 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
                 sa->in.sin_family = domain;
                 sa->in.sin_len = sizeof(sa->in);
                 sa->in.sin_addr.s_addr = INADDR_ANY;
+                return RES_OK;
         }
         if (inet_pton(AF_INET, name, &sa->in.sin_addr) > 0) {
                 sa->in.sin_family = domain;
@@ -77,9 +146,7 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
                 hints.ai_family = domain;
                 res = getaddrinfo(name, NULL, &hints, &info);
                 if (res) {
-                        err_setstr(SystemError,
-                                   "Cannot get address of '%s' (%s)",
-                                   name, gai_strerror(res));
+                        skerr_gai("cannot get address", fname, res);
                         return RES_ERROR;
                 }
                 /*
@@ -89,9 +156,7 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
                  * be returned.
                  */
                 if (info->ai_addrlen != addrlen) {
-                        err_setstr(TypeError,
-                                   "Unexpected address length for %s",
-                                   name);
+                        skerr_length(fname);
                         freeaddrinfo(info);
                         return RES_ERROR;
                 }
@@ -102,18 +167,18 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
 }
 
 static enum result_t
-parse_address_arg_(struct evc_sockaddr_t *sa, Object *arg,
-                   int domain, const char *fmt)
+obj2addr_(struct evc_sockaddr_t *sa, Object *arg, int domain,
+          const char *fmt, const char *fname)
 {
         if (domain == AF_UNIX) {
                 const char *name;
                 if (!isvar_string(arg)) {
-                        err_setstr(TypeError, "expected: socket file name");
+                        skerr(TypeError, "expected: file name", fname);
                         return RES_ERROR;
                 }
                 name = string_cstring(arg);
                 if (strlen(name) > (sizeof(sa->un.sun_path) - 1)) {
-                        err_setstr(ValueError, "socket path name too long");
+                        skerr(ValueError, "path name too long", fname);
                         return RES_ERROR;
                 }
                 memset(sa, 0, sizeof(*sa));
@@ -130,7 +195,7 @@ parse_address_arg_(struct evc_sockaddr_t *sa, Object *arg,
                         /* TODO: clearerr if string, try again */
                         return RES_ERROR;
                 }
-                if (parse_ip_addr(name, sa, domain) == RES_ERROR)
+                if (parse_ip_addr(name, sa, domain, fname) == RES_ERROR)
                         return RES_ERROR;
                 /*
                  * memset to zero occurs in parse_ip_addr,
@@ -140,12 +205,19 @@ parse_address_arg_(struct evc_sockaddr_t *sa, Object *arg,
                 return RES_OK;
         }
 
-        err_setstr(NotImplementedError, "Domain not implemented");
+        skerr_notimpl("domain not implemented", fname);
         return -1;
 }
 
-#define parse_address_arg(sa, arg, dom, fname_) \
-        parse_address_arg_(sa, arg, dom, fname_ ? "(sh):" #fname_ : "(sh)")
+/*
+ * Helper to send, bind, connect.
+ * Convert an address argument into a struct sockaddr.
+ * Opposite of addr2obj.
+ *
+ * @fname must be a literal, not a variable.
+ */
+#define obj2addr(sa, arg, dom, fname_) \
+        obj2addr_(sa, arg, dom, "(sh):" fname_, fname_)
 
 /*
  * validate_int - Check that @ival is positive and matches one of the
@@ -167,6 +239,9 @@ validate_int(int ival, const int *tbl, const char *argname)
         return RES_ERROR;
 }
 
+/*
+ * If @check_open, fail if socket has been previously closed.
+ */
 static struct socketvar_t *
 socket_get_priv(Object *skobj, const char *fname, bool check_open)
 {
@@ -183,8 +258,7 @@ socket_get_priv(Object *skobj, const char *fname, bool check_open)
         /* We're borrowing this, not storing it */
         VAR_DECR_REF(po);
 
-        if (!isvar_bytes(po) ||
-            seqvar_size(po) != sizeof(struct socketvar_t)) {
+        if (!isvar_bytes(po) || seqvar_size(po) != sizeof(*skv)) {
                 msg = "socket's '_priv' field malformed";
                 goto err;
         }
@@ -197,22 +271,51 @@ socket_get_priv(Object *skobj, const char *fname, bool check_open)
         return skv;
 
 err:
-        err_setstr(TypeError, "%s%s%s",
-                   fname ? fname : "", fname ? "(): " : "", msg);
+        skerr(TypeError, msg, fname);
         return NULL;
 
 }
 
-/*
- * remote_sk = sk.accept();
- *
- * remote_sk's is a socket whose address will be the address of the
- * remote host.
- */
+/* (client, addr) = sk.accept() */
 static Object *
 do_accept(Frame *fr)
 {
-        err_setstr(NotImplementedError, "accept not implemented");
+        struct socketvar_t *skv;
+        Object *skobj, *sknew, *ret, *ao;
+        struct evc_sockaddr_t sa;
+        socklen_t addrlen;
+        int newfd;
+
+        skobj = vm_get_this(fr);
+        skv = socket_get_priv(skobj, "accept", 1);
+        if (!skv)
+                return ErrorVar;
+
+        if ((newfd = accept(skv->fd, &sa.sa, &addrlen)) < 0) {
+                skerr_syscall("accept");
+                return ErrorVar;
+        }
+
+        if (addrlen != skv->addrlen) {
+                skerr_length("accept");
+                goto err_closefd;
+        }
+
+        ao = addr2obj(skv, &sa, addrlen, "accept");
+        if (!ao)
+                goto err_closefd;
+
+        sknew = socket_create(newfd, skv->domain,
+                              skv->type, skv->proto);
+        bug_on(!sknew || sknew == ErrorVar);
+
+        ret = var_from_format("(OO)", sknew, ao);
+        VAR_DECR_REF(ao);
+        VAR_DECR_REF(sknew);
+        return ret;
+
+err_closefd:
+        close(newfd);
         return ErrorVar;
 }
 
@@ -242,15 +345,13 @@ do_bind(Frame *fr)
         if (!skv)
                 return ErrorVar;
 
-        if (parse_address_arg(&sa, addrarg, skv->domain, "bind")
-            == RES_ERROR) {
+        if (obj2addr(&sa, addrarg, skv->domain, "bind") == RES_ERROR)
                 return ErrorVar;
-        }
 
         bug_on(skv->addrlen < 0);
 
         if (bind(skv->fd, &sa.sa, skv->addrlen) < 0) {
-                err_errno("bind() failed");
+                skerr_syscall("bind");
                 return ErrorVar;
         }
         return NULL;
@@ -286,15 +387,13 @@ do_connect(Frame *fr)
         if (!skv)
                 return ErrorVar;
 
-        if (parse_address_arg(&sa, addrarg, skv->domain, "connect")
-            == RES_ERROR) {
+        if (obj2addr(&sa, addrarg, skv->domain, "connect") == RES_ERROR)
                 return ErrorVar;
-        }
 
         bug_on(skv->addrlen < 0);
 
         if (connect(skv->fd, &sa.sa, skv->addrlen) < 0) {
-                err_errno("Failed to connect");
+                skerr_syscall("connect");
                 return ErrorVar;
         }
 
@@ -323,7 +422,7 @@ do_listen(Frame *fr)
                 return ErrorVar;
 
         if (listen(skv->fd, backlog) < 0) {
-                err_errno("failed to listen");
+                skerr_syscall("listen");
                 return ErrorVar;
         }
         return NULL;
@@ -352,10 +451,10 @@ recv_cb(struct socketvar_t *skv, void *buf, size_t len, int flags, void *data)
 
 /* common to recv and recvfrom */
 static Object *
-recv_common(Frame *fr,
+recv_common_(Frame *fr,
             ssize_t (*cb)(struct socketvar_t *, void *,
                           size_t, int, void *),
-            void *data)
+            void *data, const char *fmt, const char *fname)
 {
         struct socketvar_t *skv;
         Object *skobj;
@@ -367,17 +466,17 @@ recv_common(Frame *fr,
         flags = 0;
         length = 0;
         skobj = vm_get_this(fr);
-        if (vm_getargs(fr, "l{|i}:recvfrom", &length,
+        if (vm_getargs(fr, fmt, &length,
                        STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
         }
-        skv = socket_get_priv(skobj, "recvfrom", 1);
+
+        skv = socket_get_priv(skobj, fname, 1);
         if (!skv)
                 return ErrorVar;
 
         if (length < 0LL) {
-                err_setstr(ValueError,
-                           "recv() may not use a negative buffer size");
+                skerr(ValueError, "negative buffer size", fname);
                 return ErrorVar;
         }
         buf = emalloc(length);
@@ -385,7 +484,7 @@ recv_common(Frame *fr,
                 errno = 0;
                 n = cb(skv, buf, length, flags, data);
                 if (n < 0 && errno != EINTR) {
-                        err_errno("recvfrom(): system call failed");
+                        skerr_syscall(fname);
                         efree(buf);
                         return ErrorVar;
                 }
@@ -394,6 +493,10 @@ recv_common(Frame *fr,
                 buf = erealloc(buf, n ? n : 1);
         return bytesvar_nocopy(buf, n);
 }
+
+/* fname must be a literal, not a variable. */
+#define recv_common(fr_, cb_, data_, fname_) \
+        recv_common_(fr_, cb_, data_, "l{|i}:" fname_, fname_)
 
 /*
  * msg = sk.recv(length, [flags=0]);
@@ -407,31 +510,7 @@ recv_common(Frame *fr,
 static Object *
 do_recv(Frame *fr)
 {
-        return recv_common(fr, recv_cb, NULL);
-}
-
-/*
- * helper to do_recvfrom - convert a struct sockaddr into an object that
- *                         can be used as an argument to sendto.
- */
-static Object *
-addr2obj(int domain, struct evc_sockaddr_t *sa, size_t addrlen)
-{
-        if (addrlen != dom2alen(domain)) {
-                err_setstr(SystemError, "address family mismatch");
-                return NULL;
-        }
-        switch (domain) {
-        case AF_INET:
-                return var_from_format("(si)", inet_ntoa(sa->in.sin_addr),
-                                       sa->in.sin_port);
-        case AF_UNIX:
-                return stringvar_newn(sa->un.sun_path, sa->un.sun_len);
-        default:
-                err_setstr(NotImplementedError,
-                           "unsupported address family");
-                return NULL;
-        }
+        return recv_common(fr, recv_cb, NULL, "recv");
 }
 
 /*
@@ -449,11 +528,11 @@ do_recvfrom(Frame *fr)
         Object *msg, *ao, *ret;
 
         memset(&rdat, 0, sizeof(rdat));
-        msg = recv_common(fr, recvfrom_cb, &rdat);
+        msg = recv_common(fr, recvfrom_cb, &rdat, "recvfrom");
         if (msg == ErrorVar)
                 return ErrorVar;
 
-        ao = addr2obj(rdat.skv->domain, &rdat.sa, rdat.addrlen);
+        ao = addr2obj(rdat.skv, &rdat.sa, rdat.addrlen, "recvfrom");
         if (!ao) {
                 VAR_DECR_REF(msg);
                 return ErrorVar;
@@ -487,7 +566,7 @@ send_wrapper(int fd, const void *buf, size_t bufsize, int flags,
                         /* XXX: what about EAGAIN, EWOULDBLOCK? */
                         if (errno == EINTR)
                                 continue;
-                        err_errno("send(): send system call failed");
+                        skerr_syscall(addr ? "sendto" : "send");
                         return RES_ERROR;
                 }
                 buf += n;
@@ -545,7 +624,7 @@ do_send(Frame *fr)
          * TODO: verify flags, add enumerations for them.
          */
         if (addrarg) {
-                if (parse_address_arg(&addr, addrarg, skv->domain, "send")
+                if (obj2addr(&addr, addrarg, skv->domain, "send")
                     == RES_ERROR) {
                         return ErrorVar;
                 }
@@ -589,7 +668,7 @@ do_close(Frame *fr)
 
         ret = NULL;
         if (close(skv->fd)) {
-                err_errno("socket close() failed");
+                skerr_syscall("close");
                 ret = ErrorVar;
                 /* Set to <0 anyway, so fall through */
         }
@@ -604,19 +683,6 @@ do_close(Frame *fr)
 static Object *
 do_socket(Frame *fr)
 {
-        static const struct type_inittbl_t sockmethods_inittbl[] = {
-                V_INITTBL("accept",   do_accept,   0, 0, -1, -1),
-                V_INITTBL("bind",     do_bind,     1, 1, -1, -1),
-                V_INITTBL("connect",  do_connect,  1, 1, -1, -1),
-                V_INITTBL("listen",   do_listen,   1, 1, -1, -1),
-                V_INITTBL("recv",     do_recv,     2, 2, -1,  1),
-                V_INITTBL("recvfrom", do_recvfrom, 1, 1, -1, -1),
-                V_INITTBL("send",     do_send,     2, 2, -1,  1),
-                V_INITTBL("close",    do_close,    0, 0, -1, -1),
-                /* TODO: [gs]etsockopt and common ioctl wrappers */
-                TBLEND,
-        };
-
         static const int VALID_DOMAINS[] = {
                 AF_INET,
                 AF_UNIX,
@@ -630,8 +696,6 @@ do_socket(Frame *fr)
                 -1
         };
         int fd, domain, type, protocol;
-        Object *skobj, *priv;
-        struct socketvar_t *skv;
 
         if (vm_getargs(fr, "iii", &domain, &type, &protocol) == RES_ERROR)
                 return ErrorVar;
@@ -640,7 +704,8 @@ do_socket(Frame *fr)
         if (validate_int(type, VALID_TYPES, "type") == RES_ERROR)
                 return ErrorVar;
         if (protocol < 0) {
-                err_setstr(TypeError, "protocol cannot be a negative number");
+                skerr(TypeError, "protocol may not be a negative number",
+                      "socket");
                 return ErrorVar;
         }
 
@@ -649,7 +714,8 @@ do_socket(Frame *fr)
          * it if this socket goes out of scope.  This requires one of
          * the following solutions:
          *
-         * 1. Use a FileType var instead of fd
+         * 1. Use a FileType var instead of fd, requires additional
+         *    dict entry apart from _priv.
          * 2. Add policy that user must take care to close fd before
          *    socket goes out of scope
          * 3. Add policy that if a dict has a '__cleanup__' entry and
@@ -670,9 +736,30 @@ do_socket(Frame *fr)
          */
         fd = socket(domain, type, protocol);
         if (fd < 0) {
-                err_errno("Cannot create socket");
+                skerr_syscall("socket");
                 return ErrorVar;
         }
+
+        return socket_create(fd, domain, type, protocol);
+}
+
+static Object *
+socket_create(int fd, int domain, int type, int proto)
+{
+        static const struct type_inittbl_t sockmethods_inittbl[] = {
+                V_INITTBL("accept",   do_accept,   0, 0, -1, -1),
+                V_INITTBL("bind",     do_bind,     1, 1, -1, -1),
+                V_INITTBL("connect",  do_connect,  1, 1, -1, -1),
+                V_INITTBL("listen",   do_listen,   1, 1, -1, -1),
+                V_INITTBL("recv",     do_recv,     2, 2, -1,  1),
+                V_INITTBL("recvfrom", do_recvfrom, 1, 1, -1, -1),
+                V_INITTBL("send",     do_send,     2, 2, -1,  1),
+                V_INITTBL("close",    do_close,    0, 0, -1, -1),
+                /* TODO: [gs]etsockopt and common ioctl wrappers */
+                TBLEND,
+        };
+        struct socketvar_t *skv;
+        Object *priv, *skobj;
 
         /*
          * pre-allocated rather than declared on stack, in case
@@ -682,7 +769,7 @@ do_socket(Frame *fr)
         skv->fd          = fd;
         skv->domain      = domain;
         skv->type        = type;
-        skv->proto       = protocol;
+        skv->proto       = proto;
         skv->addrlen     = dom2alen(domain);
 
         /*

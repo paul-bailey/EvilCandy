@@ -253,9 +253,7 @@ do_bind(Frame *fr)
                 err_errno("bind() failed");
                 return ErrorVar;
         }
-
-        err_setstr(NotImplementedError, "bind not implemented");
-        return ErrorVar;
+        return NULL;
 }
 
 /*

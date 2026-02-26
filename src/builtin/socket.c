@@ -331,6 +331,72 @@ do_listen(Frame *fr)
         return NULL;
 }
 
+struct recv_data_t {
+        struct evc_sockaddr_t sa;
+        socklen_t addrlen;
+        struct socketvar_t *skv;
+};
+
+static ssize_t
+recvfrom_cb(struct socketvar_t *skv, void *buf, size_t len, int flags, void *data)
+{
+        struct recv_data_t *rdat = (struct recv_data_t *)data;
+        rdat->skv = skv;
+        return recvfrom(skv->fd, buf, len, flags,
+                        &rdat->sa.sa, &rdat->addrlen);
+}
+
+static ssize_t
+recv_cb(struct socketvar_t *skv, void *buf, size_t len, int flags, void *data)
+{
+        return recv(skv->fd, buf, len, flags);
+}
+
+/* common to recv and recvfrom */
+static Object *
+recv_common(Frame *fr,
+            ssize_t (*cb)(struct socketvar_t *, void *,
+                          size_t, int, void *),
+            void *data)
+{
+        struct socketvar_t *skv;
+        Object *skobj;
+        int flags;
+        long long length;
+        ssize_t n;
+        void *buf;
+
+        flags = 0;
+        length = 0;
+        skobj = vm_get_this(fr);
+        if (vm_getargs(fr, "l{|i}:recvfrom", &length,
+                       STRCONST_ID(flags), &flags) == RES_ERROR) {
+                return ErrorVar;
+        }
+        skv = socket_get_priv(skobj, "recvfrom", 1);
+        if (!skv)
+                return ErrorVar;
+
+        if (length < 0LL) {
+                err_setstr(ValueError,
+                           "recv() may not use a negative buffer size");
+                return ErrorVar;
+        }
+        buf = emalloc(length);
+        do {
+                errno = 0;
+                n = cb(skv, buf, length, flags, data);
+                if (n < 0 && errno != EINTR) {
+                        err_errno("recvfrom(): system call failed");
+                        efree(buf);
+                        return ErrorVar;
+                }
+        } while (n < 0);
+        if (n != length)
+                buf = erealloc(buf, n ? n : 1);
+        return bytesvar_nocopy(buf, n);
+}
+
 /*
  * msg = sk.recv(length, [flags=0]);
  *
@@ -343,58 +409,31 @@ do_listen(Frame *fr)
 static Object *
 do_recv(Frame *fr)
 {
-        struct socketvar_t *skv;
-        Object *skobj;
-        int flags;
-        long long length;
-        ssize_t n;
-        void *buf;
+        return recv_common(fr, recv_cb, NULL);
+}
 
-        flags = 0;
-        length = 0;
-        skobj = vm_get_this(fr);
-        if (vm_getargs(fr, "l{|i}:recv", &length,
-                       STRCONST_ID(flags), &flags) == RES_ERROR) {
-                return ErrorVar;
+/*
+ * helper to do_recvfrom - convert a struct sockaddr into an object that
+ *                         can be used as an argument to sendto.
+ */
+static Object *
+addr2obj(int domain, struct evc_sockaddr_t *sa, size_t addrlen)
+{
+        if (addrlen != dom2alen(domain)) {
+                err_setstr(SystemError, "address family mismatch");
+                return NULL;
         }
-        skv = socket_get_priv(skobj, "recv", 1);
-        if (!skv)
-                return ErrorVar;
-
-        if (length < 0LL) {
-                err_setstr(ValueError,
-                           "recv() may not use a negative buffer size");
-                return ErrorVar;
+        switch (domain) {
+        case AF_INET:
+                return var_from_format("(si)", inet_ntoa(sa->in.sin_addr),
+                                       sa->in.sin_port);
+        case AF_UNIX:
+                return stringvar_newn(sa->un.sun_path, sa->un.sun_len);
+        default:
+                err_setstr(NotImplementedError,
+                           "unsupported address family");
+                return NULL;
         }
-
-        /*
-         * XXX: Ought to hard-cap length here. What if someone is
-         * trying to download a terrabyte of data?
-         */
-        buf = emalloc(length);
-        do {
-                errno = 0;
-                n = recv(skv->fd, buf, length, flags);
-                /* XXX: What about EWOULDBLOCK, EAGAIN? */
-                if (n < 0 && errno != EINTR) {
-                        err_errno("recv(): system call failed");
-                        efree(buf);
-                        return ErrorVar;
-                }
-        } while (n < 0);
-
-        /*
-         * XXX: n <= length always, so I am assuming realloc() will only
-         * mess with some internal bookkeepping metadata, and never do a
-         * big time-consuming memcpy.  But this kind of behavior, while
-         * common-sense, is not standard.
-         */
-        if (n != length) {
-                /* guarantee at least 1 byte */
-                buf = erealloc(buf, n ? n : 1);
-        }
-
-        return bytesvar_nocopy(buf, n);
 }
 
 /*
@@ -408,9 +447,25 @@ do_recv(Frame *fr)
 static Object *
 do_recvfrom(Frame *fr)
 {
-        err_setstr(NotImplementedError, "recvfrom not implemented");
-        return ErrorVar;
+        struct recv_data_t rdat;
+        Object *msg, *ao, *ret;
+
+        memset(&rdat, 0, sizeof(rdat));
+        msg = recv_common(fr, recvfrom_cb, &rdat);
+        if (msg == ErrorVar)
+                return ErrorVar;
+
+        ao = addr2obj(rdat.skv->domain, &rdat.sa, rdat.addrlen);
+        if (!ao) {
+                VAR_DECR_REF(msg);
+                return ErrorVar;
+        }
+        ret = var_from_format("(OO)", msg, ao);
+        VAR_DECR_REF(msg);
+        VAR_DECR_REF(ao);
+        return ret;
 }
+
 
 /*
  * send_wrapper - helper to do_send, block until all data is sent or
@@ -621,6 +676,10 @@ do_socket(Frame *fr)
                 return ErrorVar;
         }
 
+        /*
+         * pre-allocated rather than declared on stack, in case
+         * bytesvar_new packs skv into unaligned buffer.
+         */
         skv = emalloc(sizeof(*skv));
         skv->fd          = fd;
         skv->domain      = domain;

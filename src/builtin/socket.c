@@ -9,6 +9,12 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
+/*
+ * XXX: This for one function, maybe have an abstraction-layer file.
+ * cf. Python, fileutils.c
+ */
+#include <unistd.h> /* for close() */
+
 struct evc_sockaddr_t {
         union {
                 struct sockaddr sa;
@@ -17,6 +23,19 @@ struct evc_sockaddr_t {
                 /* Used for AF_UNIX */
                 struct sockaddr_un un;
         };
+};
+
+/*
+ * No Object head, because this isn't an actual object,
+ * since a socket is just a dictionary.  It's a struct
+ * stored as '_priv' in the socket dict.
+ */
+struct socketvar_t {
+        int fd;
+        int domain;
+        int type;
+        int proto;
+        size_t addrlen;
 };
 
 /* return length of struct sockaddr used */
@@ -40,8 +59,13 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
         /* TODO: Use @domain arg, currently only allowing IPv4 */
         /* TODO: Does one of the below methods support "localhost"? */
         memset(sa, 0, sizeof(*sa));
+        if (name[0] == '\0') {
+                sa->in.sin_family = domain;
+                sa->in.sin_len = sizeof(sa->in);
+                sa->in.sin_addr.s_addr = INADDR_ANY;
+        }
         if (inet_pton(AF_INET, name, &sa->in.sin_addr) > 0) {
-                sa->in.sin_family = AF_INET;
+                sa->in.sin_family = domain;
                 sa->in.sin_len = sizeof(sa->in);
                 return RES_OK;
         } else {
@@ -60,7 +84,9 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
                 }
                 /*
                  * FIXME: Cycle through list, find info which has
-                 * matching domain.
+                 * matching domain.  I don't think hints.ai_family
+                 * guarantees only results with matching domain will
+                 * be returned.
                  */
                 if (info->ai_addrlen != addrlen) {
                         err_setstr(TypeError,
@@ -76,8 +102,8 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa, int domain)
 }
 
 static enum result_t
-parse_address_arg(struct evc_sockaddr_t *sa, Object *arg,
-                  int domain, const char *fname)
+parse_address_arg_(struct evc_sockaddr_t *sa, Object *arg,
+                   int domain, const char *fmt)
 {
         if (domain == AF_UNIX) {
                 const char *name;
@@ -99,13 +125,7 @@ parse_address_arg(struct evc_sockaddr_t *sa, Object *arg,
         if (domain == AF_INET) {
                 const char *name;
                 unsigned short port;
-                /*
-                 * XXX: don't wanna do this, since fname is only needed
-                 * for the error path.
-                 */
-                char buf[32];
-                snprintf(buf, sizeof(buf)-1, "(sh):%s", fname);
-                if (vm_getargs_sv(arg, buf, &name, &port)
+                if (vm_getargs_sv(arg, fmt, &name, &port)
                     == RES_ERROR) {
                         /* TODO: clearerr if string, try again */
                         return RES_ERROR;
@@ -123,6 +143,9 @@ parse_address_arg(struct evc_sockaddr_t *sa, Object *arg,
         err_setstr(NotImplementedError, "Domain not implemented");
         return -1;
 }
+
+#define parse_address_arg(sa, arg, dom, fname_) \
+        parse_address_arg_(sa, arg, dom, fname_ ? "(sh):" #fname_ : "(sh)")
 
 /*
  * validate_int - Check that @ival is positive and matches one of the
@@ -144,61 +167,40 @@ validate_int(int ival, const int *tbl, const char *argname)
         return RES_ERROR;
 }
 
-static void
-skerr_field(const char *how, Object *what)
+static struct socketvar_t *
+socket_get_priv(Object *skobj, const char *fname, bool check_open)
 {
-        bug_on(!what || !isvar_string(what));
-        err_setstr(TypeError, "Socket %s '%s' field",
-                   how, string_cstring(what));
-}
+        Object *po;
+        const char *msg;
+        struct socketvar_t *skv;
 
-#define skerr_missing(what)     skerr_field("missing", what)
-#define skerr_mismatch(what)    skerr_field("has invalid", what)
-
-static enum result_t __attribute__((unused))
-socket_unpack_int(Object *skobj, Object *name, int *x)
-{
-        enum result_t res = RES_ERROR;
-        Object *xo = dict_getitem(skobj, name);
-        if (!xo) {
-                skerr_missing(name);
-                goto out_noref;
+        po = dict_getitem(skobj, STRCONST_ID(_priv));
+        if (!po) {
+                msg = "socket is missing its '_priv' field";
+                goto err;
         }
-        if (!isvar_int(xo)) {
-                skerr_mismatch(name);
-                goto out_ref;
-        }
-        *x = intvar_toi(xo);
-        if (err_occurred()) {
-                skerr_mismatch(name);
-                goto out_ref;
-        }
-        res = RES_OK;
-out_ref:
-        VAR_DECR_REF(xo);
-out_noref:
-        return res;
-}
 
-#define socket_unpack__(sk, p, what) \
-        socket_unpack_int(sk, STRCONST_ID(what), p)
+        /* We're borrowing this, not storing it */
+        VAR_DECR_REF(po);
 
-#define socket_unpack_fd(sk, p)         socket_unpack__(sk, p, fd)
-#define socket_unpack_domain(sk, p)     socket_unpack__(sk, p, domain)
-#define socket_unpack_type(sk, p)       socket_unpack__(sk, p, type)
-#define socket_unpack_proto(sk, p)      socket_unpack__(sk, p, proto)
-
-static enum result_t
-socket_unpack_open_fd(Object *skobj, int *fd)
-{
-        if (socket_unpack_fd(skobj, fd) < 0)
-                return RES_ERROR;
-        if (fd < 0) {
-                err_setstr(TypeError, "socket has been closed");
-                return RES_ERROR;
+        if (!isvar_bytes(po) ||
+            seqvar_size(po) != sizeof(struct socketvar_t)) {
+                msg = "socket's '_priv' field malformed";
+                goto err;
         }
-        /* XXX: any sanity checks on fd? */
-        return RES_OK;
+
+        skv = (struct socketvar_t *)bytes_get_data(po);
+        if (check_open && skv->fd < 0)  {
+                msg = "socket closed";
+                goto err;
+        }
+        return skv;
+
+err:
+        err_setstr(TypeError, "%s%s%s",
+                   fname ? fname : "", fname ? "(): " : "", msg);
+        return NULL;
+
 }
 
 /*
@@ -228,26 +230,26 @@ do_accept(Frame *fr)
 static Object *
 do_bind(Frame *fr)
 {
-        int fd, domain;
+        struct socketvar_t *skv;
         Object *skobj, *addrarg;
         struct evc_sockaddr_t sa;
-        ssize_t addrlen;
 
         skobj = vm_get_this(fr);
         addrarg = vm_get_arg(fr, 0);
         bug_on(!addrarg);
 
-        if (socket_unpack_open_fd(skobj, &fd) == RES_ERROR)
-                return ErrorVar;
-        if (socket_unpack_domain(skobj, &domain) == RES_ERROR)
-                return ErrorVar;
-        if (parse_address_arg(&sa, addrarg, domain, "bind") == RES_ERROR)
+        skv = socket_get_priv(skobj, "bind", 1);
+        if (!skv)
                 return ErrorVar;
 
-        addrlen = dom2alen(domain);
-        bug_on(addrlen < 0);
+        if (parse_address_arg(&sa, addrarg, skv->domain, "bind")
+            == RES_ERROR) {
+                return ErrorVar;
+        }
 
-        if (bind(fd, &sa.sa, addrlen) < 0) {
+        bug_on(skv->addrlen < 0);
+
+        if (bind(skv->fd, &sa.sa, skv->addrlen) < 0) {
                 err_errno("bind() failed");
                 return ErrorVar;
         }
@@ -269,10 +271,9 @@ do_bind(Frame *fr)
 static Object *
 do_connect(Frame *fr)
 {
-        int fd, domain;
+        struct socketvar_t *skv;
         Object *skobj, *addrarg;
         struct evc_sockaddr_t sa;
-        ssize_t addrlen;
 
         /*
          * XXX REVISIT: some implementations of connect (2) interpret
@@ -283,20 +284,18 @@ do_connect(Frame *fr)
         addrarg = vm_get_arg(fr, 0);
         bug_on(!addrarg);
 
-        if (socket_unpack_open_fd(skobj, &fd) < 0)
-                return ErrorVar;
-        if (socket_unpack_domain(skobj, &domain) < 0)
+        skv = socket_get_priv(skobj, "connect", 1);
+        if (!skv)
                 return ErrorVar;
 
-        if (parse_address_arg(&sa, addrarg, domain, "connect")
+        if (parse_address_arg(&sa, addrarg, skv->domain, "connect")
             == RES_ERROR) {
                 return ErrorVar;
         }
 
-        addrlen = dom2alen(domain);
-        bug_on(addrlen < 0);
+        bug_on(skv->addrlen < 0);
 
-        if (connect(fd, &sa.sa, addrlen) < 0) {
+        if (connect(skv->fd, &sa.sa, skv->addrlen) < 0) {
                 err_errno("Failed to connect");
                 return ErrorVar;
         }
@@ -314,19 +313,18 @@ do_connect(Frame *fr)
 static Object *
 do_listen(Frame *fr)
 {
-        Object *skobj, *bklo;
-        int fd, backlog;
+        struct socketvar_t *skv;
+        Object *skobj;
+        int backlog;
 
         skobj = vm_get_this(fr);
-        bklo = vm_get_arg(fr, 0);
-        if (arg_type_check(bklo, &IntType) == RES_ERROR)
+        if (vm_getargs(fr, "i", &backlog) == RES_ERROR)
                 return ErrorVar;
-        if (socket_unpack_open_fd(skobj, &fd) == RES_ERROR)
+        skv = socket_get_priv(skobj, "listen", 1);
+        if (!skv)
                 return ErrorVar;
-        backlog = intvar_toi(bklo);
-        if (err_occurred())
-                return ErrorVar;
-        if (listen(fd, backlog) < 0) {
+
+        if (listen(skv->fd, backlog) < 0) {
                 err_errno("failed to listen");
                 return ErrorVar;
         }
@@ -345,8 +343,9 @@ do_listen(Frame *fr)
 static Object *
 do_recv(Frame *fr)
 {
+        struct socketvar_t *skv;
         Object *skobj;
-        int flags, fd;
+        int flags;
         long long length;
         ssize_t n;
         void *buf;
@@ -355,9 +354,11 @@ do_recv(Frame *fr)
         length = 0;
         skobj = vm_get_this(fr);
         if (vm_getargs(fr, "l{|i}:recv", &length,
-                       STRCONST_ID(flags), &flags) == RES_ERROR)
+                       STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
-        if (socket_unpack_open_fd(skobj, &fd) == RES_ERROR)
+        }
+        skv = socket_get_priv(skobj, "recv", 1);
+        if (!skv)
                 return ErrorVar;
 
         if (length < 0LL) {
@@ -366,31 +367,38 @@ do_recv(Frame *fr)
                 return ErrorVar;
         }
 
-        /* XXX: Ought to hard-cap length here */
+        /*
+         * XXX: Ought to hard-cap length here. What if someone is
+         * trying to download a terrabyte of data?
+         */
         buf = emalloc(length);
-        for (;;) {
-                n = recv(fd, buf, length, flags);
-                if (n > 0)
-                        break;
+        do {
+                errno = 0;
+                n = recv(skv->fd, buf, length, flags);
                 /* XXX: What about EWOULDBLOCK, EAGAIN? */
-                if (errno == EINTR)
-                        continue;
-                err_errno("recv(): system call failed");
-                efree(buf);
-                return ErrorVar;
-        }
+                if (n < 0 && errno != EINTR) {
+                        err_errno("recv(): system call failed");
+                        efree(buf);
+                        return ErrorVar;
+                }
+        } while (n < 0);
 
         /*
-         * XXX: Surely there are better ways of determining
-         * whether or not a realloc is called for.
+         * XXX: n <= length always, so I am assuming realloc() will only
+         * mess with some internal bookkeepping metadata, and never do a
+         * big time-consuming memcpy.  But this kind of behavior, while
+         * common-sense, is not standard.
          */
-        if (length - n > 1024)
-                buf = erealloc(buf, n);
+        if (n != length) {
+                /* guarantee at least 1 byte */
+                buf = erealloc(buf, n ? n : 1);
+        }
+
         return bytesvar_nocopy(buf, n);
 }
 
 /*
- * res = sk.recvfrom(flags);
+ * res = sk.recvfrom(bufsize, [flags=0]);
  *
  * @flags is the same as with sk.recv.
  * @res is a tuple of the form (msg, addr)
@@ -457,8 +465,9 @@ send_wrapper(int fd, const void *buf, size_t bufsize, int flags,
 static Object *
 do_send(Frame *fr)
 {
+        struct socketvar_t *skv;
         Object *msg, *addrarg, *skobj;
-        int flags, fd, domain;
+        int flags;
         struct evc_sockaddr_t addr;
         size_t addrlen;
         struct sockaddr *sa;
@@ -469,25 +478,26 @@ do_send(Frame *fr)
         flags = 0;
 
         skobj = vm_get_this(fr);
-        if (socket_unpack_open_fd(skobj, &fd) == RES_ERROR)
+        skv = socket_get_priv(skobj, "send", 1);
+        if (!skv)
                 return ErrorVar;
-        if (socket_unpack_domain(skobj, &domain) == RES_ERROR)
-                return ErrorVar;
+
         if (vm_getargs(fr, "<bs>{|i<*>}:send", &msg,
                         STRCONST_ID(flags), &flags,
                         STRCONST_ID(addr), &addrarg) == RES_ERROR) {
                 return ErrorVar;
         }
+
         /*
          * TODO: verify flags, add enumerations for them.
          */
         if (addrarg) {
-                if (parse_address_arg(&addr, addrarg, domain, "send")
+                if (parse_address_arg(&addr, addrarg, skv->domain, "send")
                     == RES_ERROR) {
                         return ErrorVar;
                 }
                 sa = &addr.sa;
-                addrlen = dom2alen(domain);
+                addrlen = skv->addrlen;
         } else {
                 sa = NULL;
                 addrlen = 0;
@@ -502,11 +512,36 @@ do_send(Frame *fr)
                 bufsize = seqvar_size(msg);
         }
 
-        if (send_wrapper(fd, buf, bufsize, flags, sa, addrlen)
+        if (send_wrapper(skv->fd, buf, bufsize, flags, sa, addrlen)
             == RES_ERROR) {
                 return ErrorVar;
         }
         return NULL;
+}
+
+static Object *
+do_close(Frame *fr)
+{
+        struct socketvar_t *skv;
+        Object *skobj, *ret;
+
+        skobj = vm_get_this(fr);
+        skv = socket_get_priv(skobj, "close", 0);
+        if (!skv)
+                return ErrorVar;
+
+        /* Be like Python: close may be called more than once. */
+        if (skv->fd < 0)
+                return NULL;
+
+        ret = NULL;
+        if (close(skv->fd)) {
+                err_errno("socket close() failed");
+                ret = ErrorVar;
+                /* Set to <0 anyway, so fall through */
+        }
+        skv->fd = -1;
+        return ret;
 }
 
 /*
@@ -516,6 +551,19 @@ do_send(Frame *fr)
 static Object *
 do_socket(Frame *fr)
 {
+        static const struct type_inittbl_t sockmethods_inittbl[] = {
+                V_INITTBL("accept",   do_accept,   0, 0, -1, -1),
+                V_INITTBL("bind",     do_bind,     1, 1, -1, -1),
+                V_INITTBL("connect",  do_connect,  1, 1, -1, -1),
+                V_INITTBL("listen",   do_listen,   1, 1, -1, -1),
+                V_INITTBL("recv",     do_recv,     2, 2, -1,  1),
+                V_INITTBL("recvfrom", do_recvfrom, 1, 1, -1, -1),
+                V_INITTBL("send",     do_send,     2, 2, -1,  1),
+                V_INITTBL("close",    do_close,    0, 0, -1, -1),
+                /* TODO: [gs]etsockopt and common ioctl wrappers */
+                TBLEND,
+        };
+
         static const int VALID_DOMAINS[] = {
                 AF_INET,
                 AF_UNIX,
@@ -529,7 +577,8 @@ do_socket(Frame *fr)
                 -1
         };
         int fd, domain, type, protocol;
-        Object *skobj;
+        Object *skobj, *priv;
+        struct socketvar_t *skv;
 
         if (vm_getargs(fr, "iii", &domain, &type, &protocol) == RES_ERROR)
                 return ErrorVar;
@@ -572,24 +621,28 @@ do_socket(Frame *fr)
                 return ErrorVar;
         }
 
-        skobj = var_from_format("{OiOiOiOi}",
-                                STRCONST_ID(fd),     fd,
-                                STRCONST_ID(domain), domain,
-                                STRCONST_ID(type),   type,
-                                STRCONST_ID(proto),  protocol);
+        skv = emalloc(sizeof(*skv));
+        skv->fd          = fd;
+        skv->domain      = domain;
+        skv->type        = type;
+        skv->proto       = protocol;
+        skv->addrlen     = dom2alen(domain);
 
-        static const struct type_inittbl_t sockmethods_inittbl[] = {
-                V_INITTBL("accept",   do_accept,   0, 0, -1, -1),
-                V_INITTBL("bind",     do_bind,     1, 1, -1, -1),
-                V_INITTBL("connect",  do_connect,  1, 1, -1, -1),
-                V_INITTBL("listen",   do_listen,   1, 1, -1, -1),
-                V_INITTBL("recv",     do_recv,     2, 2, -1,  1),
-                V_INITTBL("recvfrom", do_recvfrom, 1, 1, -1, -1),
-                V_INITTBL("send",     do_send,     2, 2, -1,  1),
-                /* TODO: [gs]etsockopt and common ioctl wrappers */
-                TBLEND,
-        };
-        return dictvar_from_methods(skobj, sockmethods_inittbl);
+        /*
+         * Forgive me for what I am about to do...
+         * Here I am making a supposedly immutable bytes object which I
+         * will modify and mutate throughout the lifespan of this socket
+         * object.  I still need to implement something like Python's
+         * bytearray class to do this properly.
+         */
+        priv = bytesvar_nocopy((unsigned char *)skv, sizeof(*skv));
+
+        skobj = dictvar_from_methods(NULL, sockmethods_inittbl);
+
+        dict_setitem(skobj, STRCONST_ID(_priv), priv);
+        VAR_DECR_REF(priv);
+
+        return skobj;
 }
 
 static const struct type_inittbl_t socket_inittbl[] = {
@@ -616,6 +669,10 @@ initdict(void)
                 DTB(SOCK_DGRAM),
                 DTB(SOCK_SEQPACKET),
                 DTB(SOCK_RAW),
+                DTB(MSG_OOB),
+                DTB(MSG_PEEK),
+                DTB(MSG_WAITALL),
+                DTB(MSG_DONTROUTE),
 #undef DTB
                 { -1, NULL },
         };

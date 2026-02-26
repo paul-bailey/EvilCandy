@@ -84,6 +84,9 @@ function_argc_check(struct funcvar_t *fh, int argc)
  *
  * Return: The function result, or ErrorVar if there was an error here or
  *      in the function called.
+ *
+ * XXX REVISIT: For functions that don't use dict, just push NullVar onto
+ * the stack, then we don't need to add @have_dict to this function's API
  */
 Object *
 function_call(Frame *fr, bool have_dict)
@@ -111,6 +114,13 @@ function_call(Frame *fr, bool have_dict)
                 dict = fr->stack[fr->ap - 1];
                 fr->ap--;
         } else if (fh->f_kwind >= 0) {
+                /*
+                 * I would love to change this to something like
+                 * "dict = VAR_NEW_REF(gbl.empty_dict)", but it's
+                 * possible for a script function to stuff an item
+                 * into its keyword-arg dictionary.  So make them
+                 * always be unique.
+                 */
                 dict = dictvar_new();
         }
         /* else, leave dict NULL */
@@ -182,6 +192,15 @@ function_call(Frame *fr, bool have_dict)
         if (fh->f_magic == FUNC_USER)
                 fr->ex = fh->f_ex;
 
+        /*
+         * FIXME: Way to fix our problem of not being able to call any
+         * VM code from VAR_DECR_REF() (and therefore not being able to
+         * call any user-defined destructors)...
+         * Right here, push fr onto an "active frame stack" and pop it
+         * off before returning results of f_cb or execute_loop.  That
+         * way we can still find the "current frame", even when fr was
+         * not passed as an argument.
+         */
         if (fh->f_magic == FUNC_INTERNAL) {
                 bug_on(!fh->f_cb);
                 return fh->f_cb(fr);

@@ -1,0 +1,20 @@
+let sock = import('socket.evc', 'x');
+
+let sk = sock.socket(sock.AF_INET, sock.SOCK_DGRAM, 0);
+try {
+    /* TODO: support 'localhost'? */
+    let ipaddr = '127.0.0.1';
+    let port = 8192;
+    let res;
+
+    sk.bind(('', port+1));
+    sk.sendto('Hello world!', (ipaddr, port));
+    res = sk.recvfrom(64*1024);
+    sk.close();
+    print(f'received reply \'{string(res[0], "utf-8")}\'');
+} catch (e) {
+    sk.close();
+    throw(e);
+}
+print("done");
+

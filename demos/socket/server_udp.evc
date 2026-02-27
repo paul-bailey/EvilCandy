@@ -1,0 +1,18 @@
+let sock = import('socket.evc', 'x');
+
+let sk = sock.socket(sock.AF_INET, sock.SOCK_DGRAM, 0);
+try {
+    sk.bind(('127.0.0.1', 8192));
+    let res = sk.recvfrom(1024 * 64);
+    let ipaddr = res[1][0];
+    let port = res[1][1];
+    print(f'Received data from {ipaddr}:{port}');
+    print(f'data: {res[0]}');
+    sk.sendto(b'hello back to you!', res[1]);
+    sk.close();
+} catch (e) {
+    sk.close();
+    throw(e);
+}
+print("done");
+

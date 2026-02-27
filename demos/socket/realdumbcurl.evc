@@ -1,0 +1,90 @@
+#!evilcandy
+// realdumbcurl.evc - Get an HTTP file from somewhere.  This will most
+// likely get a 404, 301, or 302 page, since most servers now only
+// support HTTPS.  But that should be good enough for demo purposes.
+// Play around with the host, port, and uri variables.
+let host    = 'www.nytimes.com';
+let port    = 80;
+let uri     = '/sitemap.xml';
+
+let curl = (function() {
+    // The stuff outside of this IIFE is a demo; the stuff inside will, I
+    // hope, get developed enough to put into lib, so that users can import
+    // something like 'HTTPServer.evc'.
+
+    // Return an object with two methods...
+    //  .get(ipaddr[, port])    Get an HTTP file from somewhere
+    //  .close()                Close the underlying connection
+    //
+    // Most webservers do not use port 80 anymore, so the response will most
+    // likely be a 404 or 302 error.  That's ok, because the real purpose of
+    // this is just to test my socket library.  As the library grows, so will
+    // this demo.
+    let sk = (function() {
+        let sock = import('socket.evc', 'x');
+        let FAMILY = sock.AF_INET;
+        let TYPE   = sock.SOCK_STREAM;
+        return sock.socket(FAMILY, TYPE, 0);
+    })();
+
+    let cleanup = function(sk) {
+        sk.close();
+    };
+
+    return {
+        'get': function(url, *port) {
+            let BUFSIZE = 64 * 1024;
+            url = url.rsplit(sep='/');
+            if (port.length == 0)
+                port = 80;
+            else
+                port = port[0];
+
+            let host = url[0];
+            let uri = '/' + url[1];
+            let addr = (host, port);
+            let buf = b'';
+
+            try {
+                let header;
+                let b;
+
+                if (host[0:4] == 'www.')
+                    host = host[4:];
+                header = f'GET {uri} HTTP/1.1\r\n'
+                       + f'Host: {host}\r\n'
+                       + f'Connection: close\r\n\r\n';
+                sk.connect(addr);
+                sk.send(header);
+                // XXX: if no server on this port, the
+                // 'Connection: close' field might not be
+                // interpreted, so we need to add some
+                // timeouts to our socket library.
+                do {
+                    b = sk.recv(BUFSIZE);
+                    buf += b;
+                } while (b.length > 0);
+            } catch (e) {
+                cleanup(sk);
+                throw e;
+            }
+            return buf;
+        },
+        'close': function() {
+            cleanup(sk);
+        }
+    };
+})();
+
+let url  = host + uri;
+let data = b'';
+
+try {
+    data = curl.get(url, port);
+    curl.close();
+} catch (e) {
+    curl.close();
+    throw(e);
+}
+print(string(data, 'utf-8'));
+

@@ -858,14 +858,8 @@ socket_create(int fd, int domain, int type, int proto)
         return skobj;
 }
 
-static const struct type_inittbl_t socket_inittbl[] = {
-        /* TODO: gethostbyname, socketpair, getaddrinfo */
-        V_INITTBL("socket",  do_socket,  3, 3, -1, -1),
-        TBLEND,
-};
-
-static void
-initdict(void)
+static Object *
+create_socket_instance(Frame *fr)
 {
         static const struct dtbl_t {
                 int e;
@@ -889,28 +883,24 @@ initdict(void)
 #undef DTB
                 { -1, NULL },
         };
-        const struct dtbl_t *t;
 
-        bug_on(gbl.socket_enums != NULL);
-        gbl.socket_enums = dictvar_new();
+        static const struct type_inittbl_t socket_inittbl[] = {
+                /* TODO: gethostbyname, socketpair, getaddrinfo */
+                V_INITTBL("socket",  do_socket,  3, 3, -1, -1),
+                TBLEND,
+        };
+
+        const struct dtbl_t *t;
+        Object *skobj = dictvar_new();
 
         for (t = dtbl; t->name != NULL; t++) {
                 Object *v = intvar_new(t->e);
                 Object *k = stringvar_new(t->name);
-                dict_setitem(gbl.socket_enums, k, v);
+                dict_setitem(skobj, k, v);
                 VAR_DECR_REF(v);
                 VAR_DECR_REF(k);
         }
-}
 
-static Object *
-create_socket_instance(Frame *fr)
-{
-        Object *skobj;
-        if (!gbl.socket_enums)
-                initdict();
-        skobj = dictvar_new();
-        dict_copyto(skobj, gbl.socket_enums);
         return dictvar_from_methods(skobj, socket_inittbl);
 }
 

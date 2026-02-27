@@ -46,6 +46,9 @@ Must Do
   - **done** Add support for deleting elements and global variables
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
 
+* Add way to call user-code destructor from VAR_DECR_REF without having
+  to pass frame to macro.
+
 * Make dictionary iterable without requiring the creation of a new list.
 
 * If recursion error occurs during runtime (not load time), then unwind as

@@ -20,7 +20,6 @@ struct global_t {
         Object *spc_bytes;
         Object *fzero;
         Object *cwd;
-        Object *socket_enums;
 };
 
 #define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])

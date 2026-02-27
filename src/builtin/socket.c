@@ -147,7 +147,7 @@ addr2obj(struct socketvar_t *skv, struct evc_sockaddr_t *sa,
         switch (skv->domain) {
         case AF_INET:
                 return var_from_format("(si)", inet_ntoa(sa->in.sin_addr),
-                                       sa->in.sin_port);
+                                       ntohs(sa->in.sin_port));
         case AF_UNIX:
             {
                 size_t pathlen = sizeof(sa->un.sun_path);
@@ -496,8 +496,11 @@ recvfrom_cb(struct socketvar_t *skv, void *buf, size_t len, int flags, void *dat
 {
         struct recv_data_t *rdat = (struct recv_data_t *)data;
         rdat->skv = skv;
-        return recvfrom(skv->fd, buf, len, flags,
-                        &rdat->sa.sa, &rdat->addrlen);
+        /* Make sure this is filled in, otherwise we'll not get our address */
+        rdat->addrlen = rdat->skv->addrlen;
+        ssize_t ret = recvfrom(skv->fd, buf, len, flags,
+                                &rdat->sa.sa, &rdat->addrlen);
+        return ret;
 }
 
 static ssize_t
@@ -817,7 +820,7 @@ socket_create(int fd, int domain, int type, int proto)
                 V_INITTBL("connect",  do_connect,  1, 1, -1, -1),
                 V_INITTBL("listen",   do_listen,   1, 1, -1, -1),
                 V_INITTBL("recv",     do_recv,     2, 2, -1,  1),
-                V_INITTBL("recvfrom", do_recvfrom, 1, 1, -1, -1),
+                V_INITTBL("recvfrom", do_recvfrom, 2, 2, -1,  1),
                 V_INITTBL("send",     do_send,     2, 2, -1,  1),
                 V_INITTBL("sendto",   do_sendto,   3, 3, -1,  2),
                 V_INITTBL("close",    do_close,    0, 0, -1, -1),

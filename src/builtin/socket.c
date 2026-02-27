@@ -1,3 +1,44 @@
+/*
+ * socket.c - Implementation of BSD-like sockets for EvilCandy
+ *
+ * ADDRESS EXPRESSIONS
+ * -------------------
+ *
+ * The EvilCandy object types for network addresses (as arguments to
+ * sendto and bind or results from accept and recvfrom) are different,
+ * based on the socket's address family. In EvilCandy code, they are
+ * expressed like this:
+ *
+ * - For AF_UNIX, address is a string, eg.
+ *      '/path/to/socket/file'
+ *
+ * - For AF_INET, address is a (IP, PORT) tuple, where IP is a string
+ *   and PORT is an integer from 0 to 65535, eg.
+ *      ('www.google.com', 443)
+ *      ('192.168.1.5', 23)
+ *
+ * "Address family" is called "domain" in the code below because one,
+ * it's just one word; and two, the socket(2) man page for macOS also
+ * calls address families "domains."
+ *
+ * API
+ * ---
+ *
+ * This bears way more resemblance to the C API than JavaScript does.
+ * The C callbacks for socket methods are the do_XXX() functions below,
+ * see comments atop these functions for documentation on specific
+ * methods.  The basic methods are:
+ *
+ * sk = socket()           Create a socket
+ * sk.accept()             Accept a connection to a socket
+ * sk.bind()               Bind a name to a socket
+ * sk.connect()            Initiate a connection on a socket
+ * sk.listen()             Listen for connections on a socket
+ * sk.recv()               Receive data from a connected socket
+ * sk.recvfrom()           Receive data from a non-connected socket
+ * sk.send()               Send data over a socket
+ * sk.close()              Close a socket
+ */
 #include <evilcandy.h>
 #include <errno.h>
 
@@ -101,41 +142,55 @@ addr2obj(struct socketvar_t *skv, struct evc_sockaddr_t *sa,
                 skerr_length(fname);
                 return NULL;
         }
+
         switch (skv->domain) {
         case AF_INET:
                 return var_from_format("(si)", inet_ntoa(sa->in.sin_addr),
                                        sa->in.sin_port);
         case AF_UNIX:
+            {
+                size_t pathlen = sizeof(sa->un.sun_path);
                 /*
-                 * FIXME: I happen to know that .sun_len is a BSD thing
-                 * but not a Linux thing.  Look elsewhere to see how
-                 * other projects portable-ize this.
+                 * sa should have been memset to zero before calling
+                 * recvfrom or accept.  However it's unclear whether
+                 * a path whose length is exactly sizeof(...sun_path) is
+                 * considered valid. If it is, then it will not have a
+                 * nulchar terminator.
+                 *
+                 * Ignore .sun_len, that's not portable and I can't even
+                 * find adequate documentation for it.
                  */
-                return stringvar_newn(sa->un.sun_path, sa->un.sun_len);
+                if (sa->un.sun_path[pathlen-1] == '\0')
+                        pathlen = strlen(sa->un.sun_path);
+                return stringvar_newn(sa->un.sun_path, pathlen);
+            }
         default:
                 skerr_notimpl("unsupported address family", fname);
                 return NULL;
         }
 }
 
-/* helper to obj2addr - fill @sa with IP address expressed by @name */
+/*
+ * helper to obj2addr - fill @sa with IP address expressed by @name
+ * domain is known to be AF_INET.
+ */
 static enum result_t
 parse_ip_addr(const char *name, struct evc_sockaddr_t *sa,
-              int domain, const char *fname)
+              const char *fname)
 {
         /* TODO: Manage 'broadcast' (=255.255.255.255). */
         /* TODO: Use @domain arg, currently only allowing IPv4 */
         /* TODO: Does one of the below methods support "localhost"? */
         memset(sa, 0, sizeof(*sa));
+#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
+        sa->in.sin_len = sizeof(sa->in);
+#endif
+        sa->in.sin_family = AF_INET;
         if (name[0] == '\0') {
-                sa->in.sin_family = domain;
-                sa->in.sin_len = sizeof(sa->in);
                 sa->in.sin_addr.s_addr = INADDR_ANY;
                 return RES_OK;
         }
         if (inet_pton(AF_INET, name, &sa->in.sin_addr) > 0) {
-                sa->in.sin_family = domain;
-                sa->in.sin_len = sizeof(sa->in);
                 return RES_OK;
         } else {
                 /* Not of the n.n.n.n format? Perform name resolution */
@@ -143,7 +198,7 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa,
                 int res;
                 size_t addrlen = sizeof(sa->in);
                 memset(&hints, 0, sizeof(hints));
-                hints.ai_family = domain;
+                hints.ai_family = AF_INET;
                 res = getaddrinfo(name, NULL, &hints, &info);
                 if (res) {
                         skerr_gai("cannot get address", fname, res);
@@ -195,7 +250,7 @@ obj2addr_(struct evc_sockaddr_t *sa, Object *arg, int domain,
                         /* TODO: clearerr if string, try again */
                         return RES_ERROR;
                 }
-                if (parse_ip_addr(name, sa, domain, fname) == RES_ERROR)
+                if (parse_ip_addr(name, sa, fname) == RES_ERROR)
                         return RES_ERROR;
                 /*
                  * memset to zero occurs in parse_ip_addr,
@@ -291,6 +346,7 @@ do_accept(Frame *fr)
         if (!skv)
                 return ErrorVar;
 
+        memset(&sa, 0, sizeof(sa));
         if ((newfd = accept(skv->fd, &sa.sa, &addrlen)) < 0) {
                 skerr_syscall("accept");
                 return ErrorVar;
@@ -514,12 +570,11 @@ do_recv(Frame *fr)
 }
 
 /*
- * res = sk.recvfrom(bufsize, [flags=0]);
+ * (msg, addr) = sk.recvfrom(bufsize, [flags=0]);
  *
  * @flags is the same as with sk.recv.
- * @res is a tuple of the form (msg, addr)
- *      @msg is a bytes object
- *      @addr is the remote address
+ * @msg is a bytes object
+ * @addr is the remote address, whose type depends on address family
  */
 static Object *
 do_recvfrom(Frame *fr)

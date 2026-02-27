@@ -59,6 +59,17 @@ AC_C_BIGENDIAN
 AM_SILENT_RULES([yes])
 AC_DEFINE([_DARWIN_C_SOURCE], [1],
           [Might as well, since Im developing this on Darwin])
+
+dnl all the socket stuff here
+
+AC_CHECK_MEMBERS([struct sockaddr.sa_len],
+        [], [], [[#include <sys/types.h>
+#include <sys/socket.h>]])
+AC_CHECK_MEMBERS([struct sockaddr_un.sun_len],
+        [], [], [[#include <sys/types.h>
+#include <sys/un.h>
+#include <sys/socket.h>]])
+
 AC_OUTPUT
 
 echo \

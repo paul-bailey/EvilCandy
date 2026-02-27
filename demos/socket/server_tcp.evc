@@ -1,5 +1,9 @@
 let sock = import('socket.evc', 'x');
 
+let errprint = function(e) {
+    print(f'interpreter encountered an error: {e}');
+}
+
 let sk = sock.socket(sock.AF_INET, sock.SOCK_STREAM, 0);
 try {
     sk.bind(("", 8192));
@@ -18,14 +22,15 @@ try {
             /* echo something back */
             client.send(b"hello back to you!");
         }
-        client.close();
     } catch (e) {
+        errprint(e);
+        /* don't throw, we're done anyway */
+    } finally {
         client.close();
-        throw(e);
     }
-    sk.close();
 } catch (e) {
+    errprint(e);
+} finally {
     sk.close();
-    throw(e);
 }
 print("done");

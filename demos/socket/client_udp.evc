@@ -10,11 +10,11 @@ try {
     sk.bind(('', port+1));
     sk.sendto('Hello world!', (ipaddr, port));
     res = sk.recvfrom(64*1024);
-    sk.close();
     print(f'received reply \'{string(res[0], "utf-8")}\'');
 } catch (e) {
+    print(f'interpreter encountered an error: {e}');
+} finally {
     sk.close();
-    throw(e);
 }
 print("done");
 

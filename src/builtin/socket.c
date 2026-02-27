@@ -604,11 +604,25 @@ do_recvfrom(Frame *fr)
  * there was an error other than EINTR.
  */
 static enum result_t
-send_wrapper(int fd, const void *buf, size_t bufsize, int flags,
+send_wrapper(int fd, Object *msg, int flags,
              const struct sockaddr *addr, size_t addrlen)
 {
         ssize_t n;
-        const void *end = buf + bufsize;
+        const void *buf, *end;
+        size_t bufsize;
+
+        if (isvar_string(msg)) {
+                buf = string_cstring(msg);
+                /* size must be byte-size, not # of Unicode chars */
+                bufsize = strlen((char *)buf);
+        } else {
+                bug_on(!isvar_bytes(msg));
+
+                buf = bytes_get_data(msg);
+                bufsize = seqvar_size(msg);
+        }
+        end = buf + bufsize;
+
         while (buf < end) {
                 errno = 0;
                 if (addr) {
@@ -630,38 +644,21 @@ send_wrapper(int fd, const void *buf, size_t bufsize, int flags,
 }
 
 /*
- * sk.send(msg, **kwargs)
+ * sk.send(msg, **kwargs), kwargs are { flags: 0 }
  *
- * @kwargs are { flags: 0, addr: null}
- *
- * @msg:        a bytes object containing the message.
+ * @msg:        a string or bytes object
  * @flags:      an integer bitfield of any of the following flags:
  *              MSG_OOB, MSG_DONTROUTE.  If caller does not provide them
  *              then they must be NULL.
- *
- * @addr:       If the address family is AF_INET, then @addr is a tuple
- *              of the form (IPADDR, PORT) where IPADDR is a string and
- *              PORT is an integer from 0 to 65535, eg:
- *                      ("192.168.1.0", 23)
- *              If the address family is AF_UNIX, then @addr is a string
- *              containing a socket file path, eg:
- *                      "/usr/tmp/my_socket_file"
- *              If this file is not used, then the connection address
- *              will be used instead.
  */
 static Object *
 do_send(Frame *fr)
 {
         struct socketvar_t *skv;
-        Object *msg, *addrarg, *skobj;
+        Object *msg, *skobj;
         int flags;
-        struct evc_sockaddr_t addr;
-        size_t addrlen;
-        struct sockaddr *sa;
-        const void *buf;
-        size_t bufsize;
 
-        msg = addrarg = NULL;
+        msg = NULL;
         flags = 0;
 
         skobj = vm_get_this(fr);
@@ -669,38 +666,50 @@ do_send(Frame *fr)
         if (!skv)
                 return ErrorVar;
 
-        if (vm_getargs(fr, "<bs>{|i<*>}:send", &msg,
-                        STRCONST_ID(flags), &flags,
-                        STRCONST_ID(addr), &addrarg) == RES_ERROR) {
+        if (vm_getargs(fr, "<bs>{|i}:send", &msg,
+                        STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
         }
 
-        /*
-         * TODO: verify flags, add enumerations for them.
-         */
-        if (addrarg) {
-                if (obj2addr(&addr, addrarg, skv->domain, "send")
-                    == RES_ERROR) {
-                        return ErrorVar;
-                }
-                sa = &addr.sa;
-                addrlen = skv->addrlen;
-        } else {
-                sa = NULL;
-                addrlen = 0;
-        }
-        if (isvar_string(msg)) {
-                buf = string_cstring(msg);
-                /* size must be byte-size, not # of Unicode chars */
-                bufsize = strlen((char *)buf);
-        } else {
-                bug_on(!isvar_bytes(msg));
-                buf = bytes_get_data(msg);
-                bufsize = seqvar_size(msg);
-        }
+        if (send_wrapper(skv->fd, msg, flags, NULL, 0) == RES_ERROR)
+                return ErrorVar;
+        return NULL;
+}
 
-        if (send_wrapper(skv->fd, buf, bufsize, flags, sa, addrlen)
-            == RES_ERROR) {
+/*
+ * sk.sendto(msg, addr, **wkargs), kwargs are { flags: 0 }
+ *
+ * @msg:        a string or bytes object
+ * @addr:       Address to send to, see top of this file re: addresses
+ * @flags:      an integer bitfield of any of the following flags:
+ *              MSG_OOB, MSG_DONTROUTE.  If caller does not provide them
+ *              then they must be NULL.
+ */
+static Object *
+do_sendto(Frame *fr)
+{
+        struct socketvar_t *skv;
+        struct evc_sockaddr_t addr;
+        Object *skobj, *msg, *ao;
+        int flags;
+
+        skobj = vm_get_this(fr);
+        skv = socket_get_priv(skobj, "sendto", 1);
+        if (!skv)
+                return ErrorVar;
+
+        flags = 0;
+        msg = ao = NULL;
+        if (vm_getargs(fr, "<bs><*>{|i}:sendto", &msg, &ao,
+                        STRCONST_ID(flags), &flags) == RES_ERROR) {
+                return ErrorVar;
+        }
+        bug_on(!msg || !ao); /* vm_getargs shoulda thrown error */
+        if (obj2addr(&addr, ao, skv->domain, "sendto") == RES_ERROR)
+                return ErrorVar;
+
+        if (send_wrapper(skv->fd, msg, flags,
+                         &addr.sa, skv->addrlen) == RES_ERROR) {
                 return ErrorVar;
         }
         return NULL;
@@ -809,6 +818,7 @@ socket_create(int fd, int domain, int type, int proto)
                 V_INITTBL("recv",     do_recv,     2, 2, -1,  1),
                 V_INITTBL("recvfrom", do_recvfrom, 1, 1, -1, -1),
                 V_INITTBL("send",     do_send,     2, 2, -1,  1),
+                V_INITTBL("sendto",   do_sendto,   3, 3, -1,  2),
                 V_INITTBL("close",    do_close,    0, 0, -1, -1),
                 /* TODO: [gs]etsockopt and common ioctl wrappers */
                 TBLEND,

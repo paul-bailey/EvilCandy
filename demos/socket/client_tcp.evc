@@ -1,0 +1,16 @@
+let sock = import('socket.evc', 'x');
+
+let sk = sock.socket(sock.AF_INET, sock.SOCK_STREAM, 0);
+try {
+    /* TODO: support 'localhost'? */
+    let ipaddr = '192.168.1.5';
+    sk.connect((ipaddr, 8192));
+    sk.send('Hello world!');
+    let buf = sk.recv(64*1024);
+    sk.close();
+    print(f'received reply \'{string(buf, "utf-8")}\'');
+} catch (e) {
+    sk.close();
+    throw(e);
+}
+print("done");

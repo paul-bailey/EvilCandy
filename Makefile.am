@@ -95,7 +95,8 @@ evilcandy_CPPFLAGS=\
 
 dist_evilcandy_DATA= \
         lib/io.evc \
-        lib/math.evc
+        lib/math.evc \
+        lib/socket.evc
 
 nodist_evilcandy_SOURCES = \
         inc/instruction_defs.h \

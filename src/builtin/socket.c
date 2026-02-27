@@ -35,8 +35,9 @@
  * sk.connect()            Initiate a connection on a socket
  * sk.listen()             Listen for connections on a socket
  * sk.recv()               Receive data from a connected socket
- * sk.recvfrom()           Receive data from a non-connected socket
- * sk.send()               Send data over a socket
+ * sk.recvfrom()           Receive data from an unconnected socket
+ * sk.send()               Send data over a connected socket
+ * sk.sendto()             Send data over an unconnected socket
  * sk.close()              Close a socket
  */
 #include <evilcandy.h>

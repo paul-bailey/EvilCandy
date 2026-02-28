@@ -3,6 +3,9 @@ Bugs
 
 * BUGs 2/2026:
 
+        * User cannot set a dictionary's property, because the var.c
+          algo will think it's trying to set a dictionary field.
+
         * When using readline, ^D is not interpreted as EOF during the
           first prompt.
 

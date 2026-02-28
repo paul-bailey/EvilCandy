@@ -104,6 +104,18 @@ enum {
         N_STRCONST,
 };
 
+/*
+ * M(odule )N(ame )S(pace) - dictionaries which may or may not get
+ * initialized depending whether or not the program ever uses it.  The
+ * keys could just be in gbl.strconsts[], but I don't even want to use
+ * these if user code will not use them.
+ */
+enum {
+        MNS_SOCKET = 0,
+        MNS_INSNAME,
+        N_MNS,
+};
+
 /* @mode arg to filevar_new */
 enum {
         FMODE_BINARY    = 0x01,

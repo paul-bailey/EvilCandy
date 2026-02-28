@@ -25,6 +25,8 @@
  * @d_map:              Array mapping entries in order to their indices
  *                      in @d_keys/@d_vals.  Used for iterating.
  * @d_lock:             Display lock
+ * @d_udestructor:      Destructor user function call
+ * @d_cdestructor:      Destructor C function call
  *
  * d_keys, d_vals, and d_map are allocated in one call each time the
  * table resizes.  The allocation pointer is at d_keys.
@@ -40,6 +42,8 @@ struct dictvar_t {
         Object **d_vals;
         void *d_map;
         int d_lock;
+        Object *d_udestructor;
+        void (*d_cdestructor)(Object *);
 };
 
 #define V2D(v)          ((struct dictvar_t *)(v))
@@ -827,6 +831,70 @@ dict_iter(Object *dict, ssize_t iter, Object **k, Object **v)
         return -1;
 }
 
+/**
+ * dict_add_udestructor - Add a user-defined destructor
+ * @func: Function to call
+ *
+ * Return: RES_OK or, if @func is invalid, RES_ERROR.  A dictionary
+ * may only have one destructor callback.  If this is called multiple
+ * times, the old destructor will be replaced by the new destructor.
+ */
+enum result_t
+dict_add_udestructor(Object *dict, Object *func)
+{
+        struct dictvar_t *d;
+
+        bug_on(!isvar_dict(dict));
+        if (func == NullVar) {
+                func = NULL;
+        } else if (isvar_method(func)) {
+                if (method_peek_self(func) == dict) {
+                        /*
+                         * Inserting a destructor in the dictionary it
+                         * destroys is a bad idea, because it causes a
+                         * cyclic reference, preventing the dictionary
+                         * from ever getting freed.
+                         */
+                        err_setstr(ValueError,
+                                "dictionary's destructor may not be a method of itself");
+                        return RES_ERROR;
+                }
+        } else if (!isvar_function(func)) {
+                err_setstr(TypeError, "destructor must be a function");
+                return RES_ERROR;
+        }
+
+        d = V2D(dict);
+        if (d->d_udestructor) {
+                VAR_DECR_REF(d->d_udestructor);
+                d->d_udestructor = NULL;
+        }
+        if (func)
+                VAR_INCR_REF(func);
+        d->d_udestructor = func;
+        return RES_OK;
+}
+
+/**
+ * dict_add_cdestructor - Add a C destructor callback
+ * @func: Function to call.
+ *
+ * It would be cleaner to just use dict_add_cdestructor, but this
+ * bypasses artificial overhead.  It has the added benefit that a user's
+ * destructor will not override this.  (A user's destructor will be
+ * called first.)
+ */
+void
+dict_add_cdestructor(Object *dict, void (*func)(Object *))
+{
+        struct dictvar_t *d = V2D(dict);
+
+        bug_on(!isvar_dict(dict));
+        bug_on(d->d_cdestructor);
+
+        d->d_cdestructor = func;
+}
+
 /* **********************************************************************
  *              Built-in Operator Callbacks
  ***********************************************************************/
@@ -851,6 +919,28 @@ dict_reset(Object *o)
 {
         struct dictvar_t *dict = V2D(o);
         bug_on(!isvar_dict(o));
+
+        if (dict->d_udestructor) {
+                Object *func, *res;
+
+                func = dict->d_udestructor;
+                dict->d_udestructor = NULL;
+
+                res = vm_exec_func(NULL, func, 1, &o, 0);
+                /* FIXME: Error return value is unhandled here! */
+                if (res != ErrorVar)
+                        VAR_DECR_REF(res);
+
+                VAR_DECR_REF(func);
+        }
+
+        if (dict->d_cdestructor) {
+                void (*cb)(Object *) = dict->d_cdestructor;
+                dict->d_cdestructor = NULL;
+
+                cb(o);
+        }
+
         dict_clear_noresize(dict);
         efree(dict->d_keys);
 }
@@ -1101,6 +1191,18 @@ do_dict_clear(Frame *fr)
 }
 
 static Object *
+do_dict_setdestructor(Frame *fr)
+{
+        Object *self, *func;
+        enum result_t res;
+
+        self = vm_get_this(fr);
+        func = vm_get_arg(fr, 0);
+        res = dict_add_udestructor(self, func);
+        return res == RES_ERROR ? ErrorVar : NULL;
+}
+
+static Object *
 dict_getprop_length(Object *self)
 {
         bug_on(!isvar_dict(self));
@@ -1115,6 +1217,7 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
         V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
         V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
+        V_INITTBL("setdestructor", do_dict_setdestructor, 1, 1, -1, -1),
         TBLEND,
 };
 

@@ -7,24 +7,29 @@ static const char *INSTR_NAMES[N_INSTR] = {
 #include "disassemble_gen.c.h"
 };
 
-static Object *instr_dict = NULL;
-
-static void
-initdict(void)
+static Object *
+assert_dict_init(void)
 {
-        int i;
-        instr_dict = dictvar_new();
-        for (i = 0; i < N_INSTR; i++) {
-                Object *key, *value;
-                const char *s = INSTR_NAMES[i];
-                if (!s)
-                        continue;
-                key = stringvar_new(s);
-                value = intvar_new(i);
-                dict_setitem(instr_dict, key, value);
-                VAR_DECR_REF(key);
-                VAR_DECR_REF(value);
+        Object *ret = gbl.mns[MNS_INSNAME];
+        if (!ret) {
+                int i;
+                ret = dictvar_new();
+                for (i = 0; i < N_INSTR; i++) {
+                        Object *key, *value;
+                        const char *s = INSTR_NAMES[i];
+                        if (!s)
+                                continue;
+                        key = stringvar_new(s);
+                        value = intvar_new(i);
+                        dict_setitem(ret, key, value);
+                        VAR_DECR_REF(key);
+                        VAR_DECR_REF(value);
+                }
+                gbl.mns[MNS_INSNAME] = ret;
         }
+
+        return ret;
+
 }
 
 const char *
@@ -34,51 +39,20 @@ instruction_name(int opcode)
         return INSTR_NAMES[opcode];
 }
 
-/* return INSTR_xxx enum or -1 if @name does not match */
-int
-instruction_from_name(const char *name)
-{
-        Object *key;
-        int ival;
-        if (!instr_dict)
-                initdict();
-        key = stringvar_new(name);
-        ival = instruction_from_key(key);
-        VAR_DECR_REF(key);
-        return ival;
-}
-
 /* return INSTR_xxx enum or -1 if @key does not match */
 int
 instruction_from_key(Object *key)
 {
-        Object *v;
+        Object *v, *dict;
         int ival;
-        if (!instr_dict)
-                initdict();
-        v = dict_getitem(instr_dict, key);
+
+        dict = assert_dict_init();
+        v = dict_getitem(dict, key);
         if (v == NULL)
                 return -1;
         bug_on(!isvar_int(v));
         ival = intvar_toi(v);
         bug_on(err_occurred() || ival < 0 || ival >= N_INSTR);
         return ival;
-}
-
-/*
- * This function exists just to provide symmetry with
- * cfile_deinit_instruction_name
- */
-void
-cfile_init_instruction_name(void)
-{
-        ;
-}
-
-void
-cfile_deinit_instruction_name(void)
-{
-        if (instr_dict)
-                VAR_DECR_REF(instr_dict);
 }
 

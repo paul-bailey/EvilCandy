@@ -811,6 +811,32 @@ do_socket(Frame *fr)
         return socket_create(fd, domain, type, protocol);
 }
 
+static void
+sock_destructor(Object *skobj)
+{
+        int fd;
+        struct socketvar_t *skv;
+
+        skv = socket_get_priv(skobj, "__destructor__", 0);
+        if (!skv) {
+                DBUG("Possible bug in C function %s: socket missing data",
+                     __FUNCTION__);
+                return;
+        }
+
+        fd = skv->fd;
+        skv->fd = -1;
+        if (fd >= 0)
+                close(fd);
+}
+
+/*
+ * Don't confuse the below functions: create_socket_instance()
+ * creates one instantiation of the socket namespace, while
+ * socket_create() instantiates a single socket.  The latter
+ * is a helper to do_socket() and do_accept().
+ */
+
 static Object *
 socket_create(int fd, int domain, int type, int proto)
 {
@@ -853,6 +879,7 @@ socket_create(int fd, int domain, int type, int proto)
         skobj = dictvar_from_methods(NULL, sockmethods_inittbl);
 
         dict_setitem(skobj, STRCONST_ID(_priv), priv);
+        dict_add_cdestructor(skobj, sock_destructor);
         VAR_DECR_REF(priv);
 
         return skobj;
@@ -861,46 +888,63 @@ socket_create(int fd, int domain, int type, int proto)
 static Object *
 create_socket_instance(Frame *fr)
 {
-        static const struct dtbl_t {
-                int e;
-                const char *name;
-        } dtbl[] = {
-#define DTB(n_) { .e = n_, .name = #n_ }
-                DTB(AF_UNIX),
-                DTB(AF_INET),
-                /* TODO: support INET6 */
-                DTB(PF_UNIX),
-                DTB(PF_INET),
-                /* TODO: The rest of the AF_.../PF_... */
-                DTB(SOCK_STREAM),
-                DTB(SOCK_DGRAM),
-                DTB(SOCK_SEQPACKET),
-                DTB(SOCK_RAW),
-                DTB(MSG_OOB),
-                DTB(MSG_PEEK),
-                DTB(MSG_WAITALL),
-                DTB(MSG_DONTROUTE),
-#undef DTB
-                { -1, NULL },
-        };
-
         static const struct type_inittbl_t socket_inittbl[] = {
                 /* TODO: gethostbyname, socketpair, getaddrinfo */
                 V_INITTBL("socket",  do_socket,  3, 3, -1, -1),
                 TBLEND,
         };
 
-        const struct dtbl_t *t;
         Object *skobj = dictvar_new();
+        Object *enums = gbl.mns[MNS_SOCKET];
+        if (!enums) {
+                /*
+                 * First instance, we need to initialize dict.  Putting
+                 * one of these in gbl means that we have more than one
+                 * dict than there are instances of this library, but it
+                 * forces keys to be globally unique.  So the memory
+                 * footprint is bigger when we don't care (just a couple
+                 * instantiations), but much smaller when we do care
+                 * (many many instantiations).
+                 *
+                 * We don't do this in moduleinit_socket(), because we
+                 * won't know yet if this library will even be used.
+                 */
+                static const struct dtbl_t {
+                        int e;
+                        const char *name;
+                } dtbl[] = {
+#define DTB(n_) { .e = n_, .name = #n_ }
+                        DTB(AF_UNIX),
+                        DTB(AF_INET),
+                        /* TODO: support INET6 */
+                        DTB(PF_UNIX),
+                        DTB(PF_INET),
+                        /* TODO: The rest of the AF_.../PF_... */
+                        DTB(SOCK_STREAM),
+                        DTB(SOCK_DGRAM),
+                        DTB(SOCK_SEQPACKET),
+                        DTB(SOCK_RAW),
+                        DTB(MSG_OOB),
+                        DTB(MSG_PEEK),
+                        DTB(MSG_WAITALL),
+                        DTB(MSG_DONTROUTE),
+#undef DTB
+                        { -1, NULL },
+                };
 
-        for (t = dtbl; t->name != NULL; t++) {
-                Object *v = intvar_new(t->e);
-                Object *k = stringvar_new(t->name);
-                dict_setitem(skobj, k, v);
-                VAR_DECR_REF(v);
-                VAR_DECR_REF(k);
+                const struct dtbl_t *t;
+                enums = dictvar_new();
+
+                for (t = dtbl; t->name != NULL; t++) {
+                        Object *v = intvar_new(t->e);
+                        Object *k = stringvar_new(t->name);
+                        dict_setitem(enums, k, v);
+                        VAR_DECR_REF(v);
+                        VAR_DECR_REF(k);
+                }
+                gbl.mns[MNS_SOCKET] = enums;
         }
-
+        dict_copyto(skobj, enums);
         return dictvar_from_methods(skobj, socket_inittbl);
 }
 

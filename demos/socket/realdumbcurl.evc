@@ -31,6 +31,8 @@ let curl = (function() {
         sk.close();
     };
 
+    sk.setdestructor(function(sk) { sk.close(); });
+
     return {
         'get': function(url, *port) {
             let BUFSIZE = 64 * 1024;

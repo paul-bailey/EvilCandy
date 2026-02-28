@@ -20,6 +20,7 @@ struct global_t {
         Object *spc_bytes;
         Object *fzero;
         Object *cwd;
+        Object *mns[N_MNS];
 };
 
 #define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])

@@ -34,6 +34,7 @@ static Object *symbol_table = NULL;
 /* XXX: Need to be made per-thread */
 static Object **vm_stack;
 static Object **vm_stack_end;
+static Frame *vm_current_frame = NULL;
 
 #define list2vmf(li) container_of(li, Frame, list)
 
@@ -122,7 +123,15 @@ vmframe_alloc(Object *fn, Object *owner,
                 list_init(&ret->alloc_list);
         }
 
-        ret->stack = fr_old ? fr_old->stackptr : vm_stack;
+        if (fr_old) {
+                ret->stack = fr_old->stackptr;
+        } else if (vm_current_frame) {
+                /* probably a destructor called from VAR_DECR_REF */
+                ret->stack = vm_current_frame->stackptr;
+        } else {
+                /* 1st ever call */
+                ret->stack = vm_stack;
+        }
         ret->owner = owner;
         ret->func  = fn;
         ret->ap = argc;
@@ -157,6 +166,14 @@ vmframe_free(Frame *fr)
         if (fr->func)
                 VAR_DECR_REF(fr->func);
         list_add_tail(&fr->alloc_list, &vframe_free_list);
+}
+
+static Frame *
+vm_swap_frame(Frame *new)
+{
+        Frame *ret = vm_current_frame;
+        vm_current_frame = new;
+        return ret;
 }
 
 static struct block_t *
@@ -959,9 +976,9 @@ check_ghost_errors(int res)
         bool e = err_occurred();
 
         if (e && res == RES_OK)
-                fprintf(stderr, "EvilCandy: Ghost error slipped by\n");
+                DBUG1("Ghost error slipped by");
         if (!e && res != RES_OK && res != RES_RETURN)
-                fprintf(stderr, "EvilCandy: Error return but none reported\n");
+                DBUG1("Error return but none reported");
 }
 #else
 # define check_ghost_errors(x_) do { (void)0; } while (0)
@@ -1066,7 +1083,6 @@ vm_exec_script(Object *top_level, Frame *fr_old)
  *              callback
  * @fr_old:     Frame we're currently in
  * @func:       Function to call
- * @owner:      ``this'' to set
  * @arc:        Number of arguments being passed to the function
  * @argv:       Array of arguments
  * @have_dict:  True if last item in argv is dictionary
@@ -1081,7 +1097,7 @@ Object *
 vm_exec_func(Frame *fr_old, Object *func,
              int argc, Object **argv, bool have_dict)
 {
-        Frame *fr;
+        Frame *fr, *tfr;
         Object *res, *owner;
 
         if (isvar_method(func)) {
@@ -1099,9 +1115,19 @@ vm_exec_func(Frame *fr_old, Object *func,
                 VAR_INCR_REF(func);
         }
 
+        /*
+         * XXX REVISIT: How unclean is this! vm_swap_frame() is
+         * assymmetrical w/r/t to the vmframe_alloc/free calls, but the
+         * decision when to swap a frame and then swap it back is very
+         * complicated... We could call vm_exec_func() from WITHIN
+         * vmframe_free(), because the process of freeing stack variables
+         * might trigger a user-defined destructor.
+         */
         fr = vmframe_alloc(func, owner, fr_old, argv, argc);
+        tfr = vm_swap_frame(fr);
         res = function_call(fr, have_dict);
         vmframe_free(fr);
+        vm_swap_frame(tfr);
 
         if (!res)
                 res = VAR_NEW_REF(NullVar);

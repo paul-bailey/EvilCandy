@@ -48,9 +48,6 @@ extern void cfile_deinit_var(void);
 /* vm.c */
 extern void cfile_init_vm(void);
 extern void cfile_deinit_vm(void);
-/* instruction_name.c */
-extern void cfile_init_instruction_name(void);
-extern void cfile_deinit_instruction_name(void);
 
 /* constructors/destructors for built-in modules */
 /* builtin/builtin.c */
@@ -253,6 +250,8 @@ extern void dict_unpack(Object *obj, ...);
 extern ssize_t dict_iter(Object *dict, ssize_t iter,
                          Object **k, Object **v);
 extern int dict_copyto(Object *to, Object *from);
+extern enum result_t dict_add_udestructor(Object *dict, Object *func);
+extern void dict_add_cdestructor(Object *dict, void (*func)(Object *));
 
 /* types/method.c */
 extern int methodvar_tofunc(Object *meth,

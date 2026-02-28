@@ -161,6 +161,11 @@ cfile_deinit_global(void)
         for (i = 0; i < N_STRCONST; i++)
                 VAR_DECR_REF(gbl.strconsts[i]);
 
+        for (i = 0; i < N_MNS; i++) {
+                if (gbl.mns[i])
+                        VAR_DECR_REF(gbl.mns[i]);
+        }
+
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);
         VAR_DECR_REF(IndexError);

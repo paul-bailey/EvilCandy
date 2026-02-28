@@ -122,11 +122,23 @@ var_new(struct type_t *type)
 void
 var_delete__(Object *v)
 {
+        /*
+         * FIXME: See XXX comment in vm_exec_func().  If @v has a user-
+         * defined destructor, it's better to reschedule this cleanup
+         * later rather than right now, to reduce recursion complexity.
+         */
         bug_on(!v);
         bug_on(v->v_refcnt != 0);
         bug_on(!v->v_type);
-        if (v->v_type->reset)
+        if (v->v_type->reset) {
+                /*
+                 * Nudge refcnt back up temporily while callback is
+                 * operating on the object.
+                 */
+                v->v_refcnt++;
                 v->v_type->reset(v);
+                v->v_refcnt = 0;
+        }
 
         var_free(v);
 }

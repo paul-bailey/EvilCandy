@@ -11,13 +11,11 @@ initialize_program(void)
         cfile_init_var();
         cfile_init_vm();
         cfile_init_global();
-        cfile_init_instruction_name();
 }
 
 static void
 end_program(void)
 {
-        cfile_deinit_instruction_name();
         cfile_deinit_global();
         cfile_deinit_vm();
         /* must be last */

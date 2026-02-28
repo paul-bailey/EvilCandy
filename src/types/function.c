@@ -192,15 +192,6 @@ function_call(Frame *fr, bool have_dict)
         if (fh->f_magic == FUNC_USER)
                 fr->ex = fh->f_ex;
 
-        /*
-         * FIXME: Way to fix our problem of not being able to call any
-         * VM code from VAR_DECR_REF() (and therefore not being able to
-         * call any user-defined destructors)...
-         * Right here, push fr onto an "active frame stack" and pop it
-         * off before returning results of f_cb or execute_loop.  That
-         * way we can still find the "current frame", even when fr was
-         * not passed as an argument.
-         */
         if (fh->f_magic == FUNC_INTERNAL) {
                 bug_on(!fh->f_cb);
                 return fh->f_cb(fr);

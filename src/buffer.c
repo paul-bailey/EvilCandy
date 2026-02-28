@@ -118,14 +118,19 @@ buffer_putc(struct buffer_t *buf, int c)
 void
 buffer_puts(struct buffer_t *buf, const char *s)
 {
-        if (s) {
-                int c;
-                while ((c = *s++) != '\0')
-                        buffer_putc(buf, c);
+        if (!s) {
+                /*
+                 * for buffer_puts(buf, ""), ensure a valid pointer to
+                 * an empty string.
+                 */
+                buffer_putc(buf, '\0');
+        } else {
+                size_t len = strlen(s);
+                buffer_maybe_realloc(buf, len + 1);
+                strcpy(buf->s + buf->p, s);
+                buf->p += len;
+                buf->s[buf->p] = '\0';
         }
-
-        /* in case s="", make sure the nul-char termination exists */
-        buffer_putc(buf, '\0');
 }
 
 /**

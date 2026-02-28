@@ -356,18 +356,11 @@ do_min(Frame *fr)
 static Object *
 do_ord(Frame *fr)
 {
-        Object *str = vm_get_arg(fr, 0);
+        Object *str;
         long ord;
 
-        if (arg_type_check(str, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, "<c>:ord", &str) == RES_ERROR)
                 return ErrorVar;
-
-        if (seqvar_size(str) != 1) {
-                err_setstr(ValueError,
-                           "Expected single character but got string of length %ld",
-                           seqvar_size(str));
-                return ErrorVar;
-        }
 
         ord = string_ord(str, 0);
         bug_on(ord < 0L);

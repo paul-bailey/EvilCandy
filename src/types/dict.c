@@ -27,6 +27,7 @@
  * @d_lock:             Display lock
  * @d_udestructor:      Destructor user function call
  * @d_cdestructor:      Destructor C function call
+ * @d_str:              Callback for alternative to dict_str().
  *
  * d_keys, d_vals, and d_map are allocated in one call each time the
  * table resizes.  The allocation pointer is at d_keys.
@@ -42,8 +43,15 @@ struct dictvar_t {
         Object **d_vals;
         void *d_map;
         int d_lock;
+
+        /*
+         * XXX REVISIT: I'd prefer this C file be agnostic to anything
+         * that doesn't treat this class like a pure dictionary.  But
+         * these fields are for very user-class like stuff.
+         */
         Object *d_udestructor;
         void (*d_cdestructor)(Object *);
+        Object *d_str;
 };
 
 #define V2D(v)          ((struct dictvar_t *)(v))
@@ -941,6 +949,12 @@ dict_reset(Object *o)
                 cb(o);
         }
 
+        if (dict->d_str) {
+                Object *func = dict->d_str;
+                dict->d_str = NULL;
+                VAR_DECR_REF(func);
+        }
+
         dict_clear_noresize(dict);
         efree(dict->d_keys);
 }
@@ -956,6 +970,33 @@ dict_str(Object *o)
 
         bug_on(!isvar_dict(o));
         d = V2D(o);
+
+        if (d->d_str) {
+                bool err = err_occurred();
+                ret = vm_exec_func(NULL, d->d_str, 1, &o, 0);
+
+                /* Fast path return user-define representation */
+                if (isvar_string(ret) && seqvar_size(ret) > 0)
+                        return ret;
+
+                /*
+                 * Something went wrong.
+                 * NullVar or ErrorVar.  Fall back to regular
+                 * representation.
+                 */
+                if (ret != ErrorVar) {
+                        /*
+                         * We should bug-trap ret != NullVar, but
+                         * d->d_str could be a user function whose
+                         * actions are out of our control.
+                         */
+                        VAR_DECR_REF(ret);
+                } else if (!err && err_occurred()) {
+                        /* No way to throw exception from here */
+                        err_clear();
+                }
+                ret = NULL;
+        }
 
         if (dict_lock(d) == RES_ERROR)
                 return VAR_NEW_REF(STRCONST_ID(locked_dict_str));
@@ -1026,9 +1067,44 @@ err:
         return ErrorVar;
 }
 
+/**
+ * dict_setstr - Install an alternative to the dictionary's default
+ *               .str() method
+ * @dict:       Dictionary to represent
+ * @cb:         A callable object (function or method) which returns
+ *              a string object, or NullVar if there was an error.
+ *              It should operate on argument 0, NOT 'this'!
+ */
+void
+dict_setstr(Object *dict, Object *cb)
+{
+        Object *oldstr;
+        struct dictvar_t *d = V2D(dict);
+        bug_on(!isvar_dict(dict));
+
+        oldstr = d->d_str;
+        d->d_str = VAR_NEW_REF(cb);
+
+        if (oldstr)
+                VAR_DECR_REF(oldstr);
+}
+
 /* **********************************************************************
  *                      Built-in Methods
  ***********************************************************************/
+
+static Object *
+do_dict_setstr(Frame *fr)
+{
+        Object *self, *func;
+
+        self = vm_get_this(fr);
+        if (vm_getargs(fr, "<x>:dict.setstr", &func) == RES_ERROR)
+                return ErrorVar;
+
+        dict_setstr(self, func);
+        return NULL;
+}
 
 static Object *
 do_dict_delitem(Frame *fr)
@@ -1216,8 +1292,9 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
         V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
-        V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
         V_INITTBL("setdestructor", do_dict_setdestructor, 1, 1, -1, -1),
+        V_INITTBL("setstr",    do_dict_setstr,      1, 1, -1, -1),
+        V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
         TBLEND,
 };
 

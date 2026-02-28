@@ -252,6 +252,7 @@ extern ssize_t dict_iter(Object *dict, ssize_t iter,
 extern int dict_copyto(Object *to, Object *from);
 extern enum result_t dict_add_udestructor(Object *dict, Object *func);
 extern void dict_add_cdestructor(Object *dict, void (*func)(Object *));
+extern void dict_setstr(Object *dict, Object *cb);
 
 /* types/method.c */
 extern int methodvar_tofunc(Object *meth,

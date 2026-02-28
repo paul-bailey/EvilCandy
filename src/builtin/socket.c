@@ -329,7 +329,32 @@ socket_get_priv(Object *skobj, const char *fname, bool check_open)
 err:
         skerr(TypeError, msg, fname);
         return NULL;
+}
 
+static Object *
+socket_str(Frame *fr)
+{
+        Object *skobj;
+        struct socketvar_t *skv;
+        char buf[256];
+
+        skobj = vm_get_arg(fr, 0);
+        bug_on(!skobj || !isvar_dict(skobj));
+
+        skv = socket_get_priv(skobj, ".str", 0);
+
+        /*
+         * See dict_setstr - str method returns NullVar back if it
+         * cannot represent the dict in the predicted way.
+         */
+        if (!skv)
+                return NullVar;
+
+        memset(buf, 0, sizeof(buf));
+
+        /* TODO: Something fancier than this */
+        snprintf(buf, sizeof(buf)-1, "<socket @%p>", skobj);
+        return stringvar_new(buf);
 }
 
 /* (client, addr) = sk.accept() */
@@ -854,7 +879,7 @@ socket_create(int fd, int domain, int type, int proto)
                 TBLEND,
         };
         struct socketvar_t *skv;
-        Object *priv, *skobj;
+        Object *priv, *skobj, *strfunc;
 
         /*
          * pre-allocated rather than declared on stack, in case
@@ -880,6 +905,11 @@ socket_create(int fd, int domain, int type, int proto)
 
         dict_setitem(skobj, STRCONST_ID(_priv), priv);
         dict_add_cdestructor(skobj, sock_destructor);
+
+        strfunc = funcvar_new_intl(socket_str, 1, 1);
+        dict_setstr(skobj, strfunc);
+        VAR_DECR_REF(strfunc);
+
         VAR_DECR_REF(priv);
 
         return skobj;

@@ -366,12 +366,21 @@ do_text_close(Frame *fr)
 static Object *
 text_str(Frame *fr)
 {
+        Object *fo;
         struct textfile_t *ft;
         char buf[256];
+        bool err;
 
-        ft = textfile_fget_priv(fr, NULL, 0);
-        if (!ft)
-                return ErrorVar;
+        err = err_occurred();
+        fo = vm_get_arg(fr, 0);
+        if (!fo || !isvar_dict(fo))
+                return NullVar;
+        ft = textfile_get_priv(fo, NULL, 0);
+        if (!ft) {
+                if (!err)
+                        err_clear();
+                return NullVar;
+        }
         memset(buf, 0, sizeof(buf));
         /* TODO: Also print encoding */
         snprintf(buf, sizeof(buf)-1, "<file name='%s' mode='%s'>",
@@ -450,7 +459,6 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
         Object *fho, *ret, *strfunc;
 
         fh = file_new(fd, sizeof(*fh), cfg);
-
         fh->ft_codec = codec;
         /* FIXME: this should be an argument */
         fh->ft_eol = VAR_NEW_REF(gbl.nl);
@@ -462,6 +470,7 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
         dict_setitem(ret, STRCONST_ID(_priv), fho);
         dict_add_cdestructor(ret, text_destructor);
         dict_setstr(ret, strfunc);
+
         VAR_DECR_REF(strfunc);
         VAR_DECR_REF(fho);
 
@@ -513,16 +522,14 @@ evc_open(struct fileconfig_t *cfg, int oflags, int codec)
                 return ErrorVar;
         }
 
-        if (ret == ErrorVar)
-                close(fd);
-
         return ret;
 }
 
 static Object *
 do_open(Frame *fr)
 {
-        const char *name, *mode, *encoding, *s;
+        const char *name, *mode, *s;
+        Object *encarg = NULL;
         struct fileconfig_t cfg;
         enum result_t res;
         bool binary = false;
@@ -534,12 +541,20 @@ do_open(Frame *fr)
         int flags = 0;
         Object *ret;
 
-        res = vm_getargs(fr, "ss{|sii}:open", &name, &mode,
-                         STRCONST_ID(encoding), &encoding,
+        res = vm_getargs(fr, "ss{|<s>ii}:open", &name, &mode,
+                         STRCONST_ID(encoding), &encarg,
                          STRCONST_ID(closefd), &closefd,
                          STRCONST_ID(buffering), &buffering);
         if (res == RES_ERROR)
                 return ErrorVar;
+
+        if (encarg) {
+                bug_on(!gbl.mns[MNS_CODEC]);
+                res = vm_getargs_sv(gbl.mns[MNS_CODEC],
+                                    "{i}", encarg, &codec);
+                if (res == RES_ERROR)
+                        return ErrorVar;
+        }
 
         cfg.readable = false;
         cfg.writable = false;
@@ -613,7 +628,7 @@ do_open(Frame *fr)
                 return ErrorVar;
         }
 
-        if (binary && encoding) {
+        if (binary && encarg) {
                 err_setstr(ValueError, "cannot use encoding in binary mode");
                 return ErrorVar;
         }

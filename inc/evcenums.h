@@ -115,6 +115,7 @@ enum {
 enum {
         MNS_SOCKET = 0,
         MNS_INSNAME,
+        MNS_CODEC,
         N_MNS,
 };
 

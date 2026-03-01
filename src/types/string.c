@@ -2678,28 +2678,23 @@ string_hasitem(Object *str, Object *substr)
 static Object *
 string_from_encoded_obj(Object *obj, Object *encarg)
 {
-        static const struct str2enum_t ENCODINGS[] = {
-                { .s = "utf-8",   .v = CODEC_UTF8 },
-                { .s = "utf8",    .v = CODEC_UTF8 },
-                { .s = "latin1",  .v = CODEC_LATIN1 },
-                { .s = "latin-1", .v = CODEC_LATIN1 },
-                { .s = "ascii",   .v = CODEC_ASCII },
-                { .s = NULL, 0 },
-        };
         int encoding;
         size_t n;
         const unsigned char *data;
+
+        bug_on(!gbl.mns[MNS_CODEC]);
+        bug_on(!isvar_string(encarg));
+
+        if (vm_getargs_sv(gbl.mns[MNS_CODEC], "{i}",
+                          encarg, &encoding) == RES_ERROR) {
+                return ErrorVar;
+        }
 
         if (!isvar_bytes(obj)) {
                 err_setstr(TypeError,
                         "string() cannot encode %s object", typestr(obj));
                 return ErrorVar;
         }
-        if (strobj2enum(ENCODINGS, encarg, &encoding, 0, "encoding", 1)
-            == RES_ERROR) {
-                return ErrorVar;
-        }
-
         n = seqvar_size(obj);
         if (n == 0)
                 return VAR_NEW_REF(STRCONST_ID(mpty));

@@ -432,9 +432,42 @@ static const struct type_inittbl_t builtin_inittbl[] = {
 void
 moduleinit_builtin(void)
 {
+        static const struct codectbl_t {
+                int e;
+                const char *name;
+        } codectbl[] = {
+                { .e = CODEC_UTF8,   .name = "utf-8"    },
+                { .e = CODEC_UTF8,   .name = "UTF-8"    },
+                { .e = CODEC_UTF8,   .name = "utf8"     },
+                { .e = CODEC_UTF8,   .name = "UTF8"     },
+                { .e = CODEC_LATIN1, .name = "latin1"   },
+                { .e = CODEC_LATIN1, .name = "LATIN1"   },
+                { .e = CODEC_LATIN1, .name = "latin-1"  },
+                { .e = CODEC_LATIN1, .name = "LATIN-1"  },
+                { .e = CODEC_ASCII,  .name = "ascii"    },
+                { .e = CODEC_ASCII,  .name = "ASCII"    },
+                { .e = -1,           .name = NULL       },
+        };
+        const struct codectbl_t *t;
+
         Object *k = stringvar_new("_builtins");
         Object *o = dictvar_from_methods(NULL, builtin_inittbl);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
+
+        /*
+         * Anywhere I could initialize this seems inappropriate, so I'll
+         * just initialize it here.
+         */
+        bug_on(!!gbl.mns[MNS_CODEC]);
+        Object *codecs = dictvar_new();
+        for (t = codectbl; t->name != NULL; t++) {
+                o = intvar_new(t->e);
+                k = stringvar_new(t->name);
+                dict_setitem(codecs, k, o);
+                VAR_DECR_REF(k);
+                VAR_DECR_REF(o);
+        }
+        gbl.mns[MNS_CODEC] = codecs;
 }

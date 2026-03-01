@@ -1433,19 +1433,6 @@ err:
 static Object *
 bytes_create_with_encoding(Object *val, Object *encarg)
 {
-        enum {
-                CODEC_UTF8,
-                CODEC_ASCII,
-                CODEC_LATIN1,
-        };
-        static const struct str2enum_t ENCODINGS[] = {
-                { .s = "utf-8",   .v = CODEC_UTF8 },
-                { .s = "utf8",    .v = CODEC_UTF8 },
-                { .s = "latin1",  .v = CODEC_LATIN1 },
-                { .s = "latin-1", .v = CODEC_LATIN1 },
-                { .s = "ascii",   .v = CODEC_ASCII },
-                { .s = NULL, 0 },
-        };
         int encoding;
 
         if (!isvar_string(val)) {
@@ -1453,9 +1440,11 @@ bytes_create_with_encoding(Object *val, Object *encarg)
                         "bytes() cannot decode %s object", typestr(val));
                 return ErrorVar;
         }
+        bug_on(!isvar_string(encarg));
+        bug_on(!gbl.mns[MNS_CODEC]);
 
-        if (strobj2enum(ENCODINGS, encarg, &encoding, 0, "encoding", 1)
-            == RES_ERROR) {
+        if (vm_getargs_sv(gbl.mns[MNS_CODEC], "{i}",
+                          encarg, &encoding) == RES_ERROR) {
                 return ErrorVar;
         }
 

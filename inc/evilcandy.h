@@ -276,12 +276,15 @@ extern Object *stringvar_newn(const char *cstr, size_t n);
 extern Object *stringvar_from_buffer(struct buffer_t *b);
 extern Object *stringvar_from_source(const char *tokenstr, bool imm);
 extern Object *stringvar_nocopy(const char *cstr);
+extern Object *stringvar_from_binary(const void *data, size_t n, int encoding);
 extern hash_t string_update_hash(Object *v);
 extern long string_ord(Object *str, size_t idx);
 extern Object *string_format(Object *str, Object *tup);
 extern size_t string_slide(Object *str, Object *sep, size_t startpos);
 extern bool string_chr(Object *str, long pt);
-extern ssize_t string_search(Object *haystack, Object *needle);
+extern ssize_t string_search(Object *haystack, Object *needle, size_t startpos);
+extern Object *string_getslice(Object *str, int start, int stop, int step);
+extern Object *string_cat(Object *a, Object *b);
 
 /* types/tuple.c */
 extern enum result_t tuple_validate(Object *tup, const char *descr,
@@ -297,6 +300,8 @@ extern size_t utf8_strgetc(const char *s, char *dst);
 extern void utf8_encode(unsigned long point, struct buffer_t *buf);
 extern long utf8_decode_one(const unsigned char *src,
                             unsigned char **endptr);
+extern long utf8_ndecode_one(const unsigned char *src,
+                             unsigned char **endptr, size_t n);
 extern void *utf8_decode(const char *src, size_t *width,
                          size_t *len, int *ascii);
 static inline bool

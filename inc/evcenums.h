@@ -94,6 +94,8 @@ enum {
         STRCONST_IDX_addr,
         STRCONST_IDX_flags,
         STRCONST_IDX__priv,
+        STRCONST_IDX_closefd,
+        STRCONST_IDX_buffering,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,
@@ -138,6 +140,9 @@ enum {
          * TODO: binary file codecs, like aiff, wav, bmp...
          *       Will be useful for floats data type.
          */
+
+        CODEC_OPEN_DEFAULT = CODEC_UTF8,
+        CODEC_STRING_DEFAULT = CODEC_UTF8,
 };
 
 /* Floats encoding, @enc arg to floatsvar_from_bytes */

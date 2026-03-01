@@ -78,6 +78,43 @@ utf8_decode_one(const unsigned char *src, unsigned char **endptr)
         return point;
 }
 
+/*
+ * utf8_ndecode_one - like utf8_decode_one, but use max-length @n instead
+ *                    of relying on @src to be nulchar terminated.
+ */
+long
+utf8_ndecode_one(const unsigned char *src, unsigned char **endptr, size_t n)
+{
+        bug_on(n < 1);
+        unsigned int c = *src++;
+        long point = -1;
+        if (c < 128) {
+                *endptr = (unsigned char *)(c ? src : src - 1);
+                return c;
+        }
+        n--;
+        do {
+                if ((c & 0xf8u) == 0xf0u) {
+                        if (n < 3)
+                                return -1;
+                        point = decode_one_point(src, endptr, c & 0x07u, 3);
+                } else if ((c & 0xf0u) == 0xe0u) {
+                        if (n < 2)
+                                return -1;
+                        point = decode_one_point(src, endptr, c & 0x0fu, 2);
+                } else if ((c & 0xe0u) == 0xc0u) {
+                        if (n < 1)
+                                return -1;
+                        point = decode_one_point(src, endptr, c & 0x1fu, 1);
+                }
+        } while (0);
+
+        if (point >= 0L && !utf8_valid_unicode(point))
+                point = -1L;
+
+        return point;
+}
+
 /**
  * utf8_decode - Decode a (possibly) UTF-8 encoded C-string, and return
  *               an array of its Unicode points.

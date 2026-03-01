@@ -488,6 +488,7 @@ find_idx_substr(Object *haystack, Object *needle,
 
         bug_on(!isvar_string(haystack));
         bug_on(!isvar_string(needle));
+        bug_on(startpos > endpos);
 
         hlen = endpos - startpos;
         nlen = seqvar_size(needle);
@@ -510,6 +511,8 @@ find_idx_substr(Object *haystack, Object *needle,
                         idx = -1;
                 else
                         idx = (ssize_t)(found - hsrc) / hwid;
+                if (startpos && idx >= 0)
+                        idx += startpos + hwid;
                 if (nsrc != string_data(needle))
                         efree(nsrc);
         }
@@ -2508,7 +2511,11 @@ string_reset(Object *str)
         efree(vs->s);
 }
 
-static Object *
+/**
+ * string_cat - the '+' operator for string, with extern linkage,
+ *              since this is also useful for non-VM stuff.
+ */
+Object *
 string_cat(Object *a, Object *b)
 {
         char *catstr;
@@ -2589,7 +2596,17 @@ string_modulo(Object *str, Object *arg)
 static bool slice_cmp_lt(int a, int b) { return a < b; }
 static bool slice_cmp_gt(int a, int b) { return a > b; }
 
-static Object *
+/**
+ * string_getslice - String's .getslice method, made global so more than
+ *                   just the VM can use it.
+ * @str:        String to get a slice out of
+ * @start:      Start index
+ * @stop:       Last index plus one
+ * @step:       Indices in between, but usually just one
+ *
+ * Return: sub-string
+ */
+Object *
 string_getslice(Object *str, int start, int stop, int step)
 {
         struct string_writer_t wr;
@@ -2672,7 +2689,6 @@ string_from_encoded_obj(Object *obj, Object *encarg)
         int encoding;
         size_t n;
         const unsigned char *data;
-        char *buf;
 
         if (!isvar_bytes(obj)) {
                 err_setstr(TypeError,
@@ -2689,63 +2705,7 @@ string_from_encoded_obj(Object *obj, Object *encarg)
                 return VAR_NEW_REF(STRCONST_ID(mpty));
 
         data = bytes_get_data(obj);
-
-        if (encoding == CODEC_LATIN1)
-                return stringvar_from_points((void *)data, 1, n, SF_COPY);
-
-        if (encoding == CODEC_ASCII) {
-                /* Pre-check before allocating buffer below */
-                size_t i;
-                for (i = 0; i < n; i++) {
-                        if ((unsigned int)data[i] > 127) {
-                                err_setstr(ValueError,
-                                        "value %d at position %ld is not ASCII",
-                                        (unsigned int)data[i], i);
-                                return ErrorVar;
-                        }
-                }
-        }
-
-        /*
-         * FIXME: If CODEC_UTF8, do not pre-allocate buf like this.
-         * Requires changing utf8_decode_one() so that it takes a
-         * length argument, since data[] is not nullchar-terminated.
-         */
-        buf = emalloc(n + 1);
-        memcpy(buf, data, n);
-        buf[n] = '\0';
-        if (encoding == CODEC_UTF8) {
-                unsigned char *s;
-                struct string_writer_t wr;
-                string_writer_init(&wr, 1);
-                s = (unsigned char *)buf;
-                while (*s != '\0') {
-                        unsigned char *endptr;
-                        long point = utf8_decode_one(s, &endptr);
-                        if (point < 0L) {
-                                /*
-                                 * We're being more strict here than in
-                                 * string_parse().  I'd rather be more
-                                 * consistent, but I noticed Python does
-                                 * the same thing.
-                                 */
-                                size_t idx = (size_t)((char *)s - buf);
-                                err_setstr(ValueError,
-                                        "value %d at position %ld is not valid UTF-8",
-                                        (unsigned int)data[idx], idx);
-                                efree(buf);
-                                string_writer_destroy(&wr);
-                                return ErrorVar;
-                        }
-                        string_writer_append(&wr, point);
-                        s = endptr;
-                }
-                efree(buf);
-                return stringvar_from_writer(&wr);
-        } else {
-                bug_on(encoding != CODEC_ASCII);
-                return stringvar_newf(buf, 0);
-        }
+        return stringvar_from_binary(data, n, encoding);
 }
 
 static Object *
@@ -2966,6 +2926,76 @@ stringvar_from_source(const char *tokenstr, bool imm)
         if (status != RES_OK)
                 return ErrorVar;
         return stringvar_from_points(buf, width, len, 0);
+}
+
+/**
+ * stringvar_from_binary - Encode a binary array into a string
+ * @data: Binary data to encode.  This need not be nulchar terminated,
+ *        but it may not contain data that would result in any invalid
+ *        Unicode points (including equal to zero) according to the
+ *        encoding being used.  This data will be copied.
+ * @n:    Size of @data in bytes
+ * @encoding: A CODEC_xxx enumeration
+ *
+ * Return: A new string object, or ErrorVar.
+ *
+ * TODO: This is used by file reads, where a UTF-8-encoded Unicode point
+ * could straddle the end of one buffer and the start of another, so we
+ * need args for straggler_ptr suppress_errors in case that happens.
+ */
+Object *
+stringvar_from_binary(const void *data, size_t n, int encoding)
+{
+        if (encoding == CODEC_LATIN1)
+                return stringvar_from_points((void *)data, 1, n, SF_COPY);
+
+        if (encoding == CODEC_ASCII) {
+                /* Pre-check before allocating buffer below */
+                size_t i;
+                const unsigned char *u8 = data;
+                for (i = 0; i < n; i++) {
+                        if ((unsigned int)u8[i] > 127) {
+                                err_setstr(ValueError,
+                                        "value %d at position %ld is not ASCII",
+                                        (unsigned int)u8[i], i);
+                                return ErrorVar;
+                        }
+                }
+        }
+
+        if (encoding == CODEC_UTF8) {
+                const unsigned char *s, *end;
+                struct string_writer_t wr;
+                string_writer_init(&wr, 1);
+                s = (const unsigned char *)data;
+                end = s + n;
+                while (s < end) {
+                        unsigned char *endptr;
+                        long point = utf8_ndecode_one(s, &endptr, end - s);
+                        if (point < 0L) {
+                                /*
+                                 * We're being more strict here than in
+                                 * string_parse().  I'd rather be more
+                                 * consistent, but I noticed Python does
+                                 * the same thing.
+                                 */
+                                err_setstr(ValueError,
+                                        "data contains invalid UTF-8");
+                                string_writer_destroy(&wr);
+                                return ErrorVar;
+                        }
+                        string_writer_append(&wr, point);
+                        s = endptr;
+                }
+                return stringvar_from_writer(&wr);
+        } else {
+                bug_on(encoding != CODEC_ASCII);
+
+                char *buf = emalloc(n + 1);
+                memcpy(buf, data, n);
+                buf[n] = '\0';
+                return stringvar_newf(buf, 0);
+        }
 }
 
 /**

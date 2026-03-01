@@ -6,8 +6,8 @@
         let f = Io.open(name, "r");
         let s;
         while (true) {
-            s = f.read();
-            if (s == null)
+            s = f.readline();
+            if (s == null || s == "")
                 break;
             // each line should have its own nl
             print(s, end='');

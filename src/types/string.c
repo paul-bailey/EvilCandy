@@ -3087,6 +3087,16 @@ string_update_hash(Object *v)
         return vs->s_hash;
 }
 
+/**
+ * string_search - C hook for string searching
+ */
+ssize_t
+string_search(Object *haystack, Object *needle, size_t startpos)
+{
+        return find_idx_substr(haystack, needle, 0,
+                               startpos, seqvar_size(haystack));
+}
+
 static const struct type_prop_t string_prop_getsets[] = {
         { .name = "length", .getprop = string_getprop_length, .setprop = NULL },
         { .name = "nbytes", .getprop = string_getprop_nbytes, .setprop = NULL },

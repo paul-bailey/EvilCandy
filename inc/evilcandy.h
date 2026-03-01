@@ -281,6 +281,7 @@ extern long string_ord(Object *str, size_t idx);
 extern Object *string_format(Object *str, Object *tup);
 extern size_t string_slide(Object *str, Object *sep, size_t startpos);
 extern bool string_chr(Object *str, long pt);
+extern ssize_t string_search(Object *haystack, Object *needle);
 
 /* types/tuple.c */
 extern enum result_t tuple_validate(Object *tup, const char *descr,

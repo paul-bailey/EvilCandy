@@ -130,6 +130,10 @@ utf8_ndecode_one(const unsigned char *src, unsigned char **endptr, size_t n)
  *              - a newly allocated buffer containing the Unicode points,
  *                even if @width is 1.
  *              - NULL if malformed UTF-8 characters exist in @src.
+ *
+ * FIXME: Makes utf8.c very non-portable, and it's a near DRY violation
+ * with string_writer_decode in string.c.  How is this not the same
+ * essentially as "string_writer_decode(wr, src, len, CODEC_UTF8)"?
  */
 void *
 utf8_decode(const char *src, size_t *width,
@@ -201,3 +205,21 @@ utf8_decode(const char *src, size_t *width,
         return string_writer_finish(&wr, width, len);
 }
 
+/*
+ * Given the starting byte of a UTF-8-encoded Unicode point,
+ * return how many bytes the Unicode point is.
+ * Return 1 if ASCII, 0 if malformed.
+ */
+ssize_t
+utf8_point_enclen(unsigned int startc)
+{
+        if (startc < 128)
+                return 1;
+        if ((startc & 0xf8) == 0xf0)
+                return 4;
+        if ((startc & 0xf0) == 0xe0)
+                return 3;
+        if ((startc & 0xe0) == 0xc0)
+                return 2;
+        return 0;
+}

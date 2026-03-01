@@ -66,18 +66,6 @@ isdigit_ascii(long pt)
         return pt >= '0' && pt <= '9';
 }
 
-static inline size_t
-string_width(Object *str)
-{
-        return V2STR(str)->s_width;
-}
-
-static inline void *
-string_data(Object *str)
-{
-        return V2STR(str)->s_unicode;
-}
-
 static long
 string_getidx_raw(size_t width, const void *unicode, size_t idx)
 {
@@ -110,7 +98,11 @@ string_getidx(Object *str, size_t idx)
         return string_getidx_raw(string_width(str), string_data(str), idx);
 }
 
-static void
+/**
+ * string_writer_append_strobj - Copy decoded string @str
+ *                               into string_writer @wr.
+ */
+void
 string_writer_append_strobj(struct string_writer_t *wr, Object *str)
 {
         string_writer_appendb(wr, string_data(str),
@@ -126,37 +118,34 @@ string_writer_append_strobj(struct string_writer_t *wr, Object *str)
 static Object *
 stringvar_newf(char *cstr, unsigned int flags)
 {
-        struct stringvar_t *vs;
-        Object *ret;
+        struct string_writer_t wr;
+        ssize_t n, max;
 
         if (!cstr) {
                 cstr = "";
                 flags |= SF_COPY;
         }
 
-        ret = var_new(&StringType);
-        vs = V2STR(ret);
-        if (!!(flags & SF_COPY)) {
-                if (cstr[0] == '\0') {
-                        cstr = emalloc(1);
-                        cstr[0] = '\0';
-                        vs->s = cstr;
-                } else {
-                        vs->s = estrdup(cstr);
-                }
-        } else {
-                vs->s = cstr;
+        string_writer_init(&wr, 1);
+        max = strlen(cstr);
+        n = string_writer_decode(&wr, cstr, max, CODEC_UTF8, 1);
+        bug_on(n < 0);
+        if (n != max) {
+                ssize_t n2;
+                n2 = string_writer_decode(&wr, cstr + n,
+                                          max - n, CODEC_LATIN1, 1);
+                bug_on(n2 < 0);
+                n += n2;
         }
-        vs->s_ascii_len = strlen(vs->s);
-        /*
-         * We only hash the first time it's needed.  If we never need
-         * it, we never hash.
-         */
-        vs->s_hash = 0;
-        vs->s_unicode = utf8_decode(vs->s, &vs->s_width,
-                                    &vs->s_enc_len, &vs->s_ascii);
-        seqvar_set_size(ret, vs->s_enc_len);
-        return ret;
+        bug_on(n != max);
+        if (!(flags & SF_COPY)) {
+                /*
+                 * Oops, we copied anyway! Old API,
+                 * we gotta deal with it.
+                 */
+                efree(cstr);
+        }
+        return stringvar_from_writer(&wr);
 }
 
 static size_t
@@ -181,7 +170,9 @@ stringvar_from_points(void *points, size_t width,
         struct stringvar_t *vs;
 
         bug_on((!!len && !points) || (!len && !!points));
-        if (!len)
+
+        /* We're early so we have to check if mpty exists */
+        if (!len && STRCONST_ID(mpty))
                 return VAR_NEW_REF(STRCONST_ID(mpty));
 
         maxchr = 0;
@@ -214,7 +205,7 @@ stringvar_from_points(void *points, size_t width,
         vs->s_ascii     = ascii;
         seqvar_set_size(ret, len);
         if (ascii) {
-                if (!(flags & SF_COPY))
+                if (points && !(flags & SF_COPY))
                         efree(points);
                 vs->s_unicode = vs->s;
         } else {
@@ -253,10 +244,12 @@ stringvar_from_points(void *points, size_t width,
                         vs->s_unicode = points;
                 }
         }
+        bug_on(!vs->s_unicode);
+        bug_on(!vs->s);
         return ret;
 }
 
-static Object *
+Object *
 stringvar_from_writer(struct string_writer_t *wr)
 {
         size_t width, len;
@@ -2851,6 +2844,10 @@ stringvar_new(const char *cstr)
 Object *
 stringvar_newn(const char *cstr, size_t n)
 {
+        /*
+         * TODO: I want to replace this with
+         * return stringvar_from_binary(cstr, n, CODEC_UTF8).
+         */
         char *new;
         size_t len = strlen(cstr);
         if (n > len)
@@ -2924,6 +2921,162 @@ stringvar_from_source(const char *tokenstr, bool imm)
 }
 
 /**
+ * string_writer_decode - Decode a binary array into a string writer
+ * @wr:         String writer, which MUST have been initialized before
+ *              this call.  This function assumes appends to it.
+ * @data:       Data to decode
+ * @n:          Size of @data in bytes
+ * @codec:      A CODEC_xxx enum
+ * @suppress_erros:
+ *              - If @codec is CODEC_UTF8, treat malformed UTF-8 as
+ *                Latin1 and don't throw an error.  Straggling bytes at
+ *                the end will still not be processed if they are not
+ *                valid UTF-8.  To force these into @wr, make a second
+ *                call but change @codec to CODEC_LATIN1.
+ *              - Trivial if @codec is CODEC_LATIN1.
+ *              - DO NOT use for codec == CODEC_ASCII.
+ *              An encoded Unicode point of zero will throw an error
+ *              whether @suppress_errors is true or not.
+ *
+ * Return: - @n if every character was decoded.
+ *         - some positive value less than @n if there exist some
+ *           straggling undecodable characters at the end of @data
+ *           (perhaps because a multi-byte encoding straddles the end of
+ *           this buffer and the start of the next.
+ *         - -1 if the data cannot be decoded according to @codec.
+ *           An exception will be thrown in this case.
+ */
+ssize_t
+string_writer_decode(struct string_writer_t *wr, const void *data,
+                     size_t n, int codec, bool suppress_errors)
+{
+        /*
+         * FIXME: this code goes in string_writer.c, not here.
+         */
+        enum { UTF8_MAX_STRLEN = 4 };
+        const unsigned char *u8, *end;
+
+        /*
+         * Thus far, ASCII input is valid for all @codec choices, so
+         * first stuff all the leading ASCII characters into @wr.
+         * Most of the time, this will be the whole function.
+         */
+
+        u8 = (unsigned char *)data;
+        end = u8 + n;
+
+        while (u8 < end) {
+                int c = *u8 & 0xffu;
+                if (c == 0)
+                        goto zeros;
+                if (c > 127)
+                        break;
+                string_writer_append(wr, c);
+                u8++;
+        }
+        if (u8 == end)
+                return n;
+
+        if (codec == CODEC_ASCII) {
+                bug_on(suppress_errors);
+                err_setstr(ValueError, "input is not ascii");
+                return -1;
+        }
+
+        if (codec == CODEC_LATIN1) {
+                while (u8 < end) {
+                        int c = *u8 & 0xffu;
+                        if (c == 0)
+                                goto zeros;
+                        string_writer_append(wr, c);
+                        u8++;
+                }
+                return n;
+        }
+        bug_on(codec != CODEC_UTF8);
+        end -= UTF8_MAX_STRLEN;
+
+        /*
+         * Fast-ish path where we don't yet fuss over stragglers.
+         * If n was small, this part might get skipped, since end
+         * could be lower than u8
+         */
+        while (u8 < end) {
+                long point;
+                unsigned char *endptr;
+                if (*u8 == 0)
+                        goto zeros;
+                point = utf8_decode_one(u8, &endptr);
+                if (point < 0L) {
+                        if (!suppress_errors)
+                                goto bad_utf8;
+                        /* decode as Latin1 */
+                        string_writer_append(wr, (long)u8[0] & 0xffu);
+                        u8++;
+                } else {
+                        string_writer_append(wr, point);
+                        u8 = endptr;
+                }
+
+                /*
+                 * Try-loop another run of ASCII characters.
+                 * This works best in scenarios where non-ASCII
+                 * is the exception.  In the future, we could add
+                 * a locale-based algorithm picker.
+                 */
+                while (u8 < end) {
+                        point = *u8 & 0xffu;
+                        if (point == 0)
+                                goto zeros;
+                        if (point > 127)
+                                break;
+                        string_writer_append(wr, point);
+                        u8++;
+                }
+        }
+
+        /* try to pick up stragglers */
+        end += UTF8_MAX_STRLEN;
+        while (u8 < end) {
+                unsigned char *endptr;
+                long point = u8[0] & 0xffu;
+                if (point == 0)
+                        goto zeros;
+                if (point < 128) {
+                        string_writer_append(wr, point);
+                        u8++;
+                        continue;
+                }
+                if ((end - u8) < utf8_point_enclen(point)) {
+                        /* stragglers, let calling code deal with them */
+                        break;
+                }
+                point = utf8_decode_one(u8, &endptr);
+                if (point <= 0L) {
+                        if (point == 0L)
+                                goto zeros;
+                        if (!suppress_errors)
+                                goto bad_utf8;
+
+                        /* decode as Latin1 */
+                        string_writer_append(wr, (long)u8[0] & 0xffu);
+                        u8++;
+                } else {
+                        string_writer_append(wr, point);
+                        u8 = endptr;
+                }
+        }
+        return (size_t)((void *)u8 - data);
+
+bad_utf8:
+        err_setstr(ValueError, "Data is not UTF-8 encoded");
+        return -1;
+zeros:
+        err_setstr(ValueError, "Data contains zeros");
+        return -1;
+}
+
+/**
  * stringvar_from_binary - Encode a binary array into a string
  * @data: Binary data to encode.  This need not be nulchar terminated,
  *        but it may not contain data that would result in any invalid
@@ -2941,56 +3094,18 @@ stringvar_from_source(const char *tokenstr, bool imm)
 Object *
 stringvar_from_binary(const void *data, size_t n, int encoding)
 {
-        if (encoding == CODEC_LATIN1)
-                return stringvar_from_points((void *)data, 1, n, SF_COPY);
+        struct string_writer_t wr;
+        ssize_t nput;
 
-        if (encoding == CODEC_ASCII) {
-                /* Pre-check before allocating buffer below */
-                size_t i;
-                const unsigned char *u8 = data;
-                for (i = 0; i < n; i++) {
-                        if ((unsigned int)u8[i] > 127) {
-                                err_setstr(ValueError,
-                                        "value %d at position %ld is not ASCII",
-                                        (unsigned int)u8[i], i);
-                                return ErrorVar;
-                        }
-                }
+        string_writer_init(&wr, 1);
+        nput = string_writer_decode(&wr, data, n, encoding, false);
+        if (nput != n) {
+                /* Do not accept stragglers */
+                err_setstr(ValueError, "data contains invalid characters");
+                string_writer_destroy(&wr);
+                return ErrorVar;
         }
-
-        if (encoding == CODEC_UTF8) {
-                const unsigned char *s, *end;
-                struct string_writer_t wr;
-                string_writer_init(&wr, 1);
-                s = (const unsigned char *)data;
-                end = s + n;
-                while (s < end) {
-                        unsigned char *endptr;
-                        long point = utf8_ndecode_one(s, &endptr, end - s);
-                        if (point < 0L) {
-                                /*
-                                 * We're being more strict here than in
-                                 * string_parse().  I'd rather be more
-                                 * consistent, but I noticed Python does
-                                 * the same thing.
-                                 */
-                                err_setstr(ValueError,
-                                        "data contains invalid UTF-8");
-                                string_writer_destroy(&wr);
-                                return ErrorVar;
-                        }
-                        string_writer_append(&wr, point);
-                        s = endptr;
-                }
-                return stringvar_from_writer(&wr);
-        } else {
-                bug_on(encoding != CODEC_ASCII);
-
-                char *buf = emalloc(n + 1);
-                memcpy(buf, data, n);
-                buf[n] = '\0';
-                return stringvar_newf(buf, 0);
-        }
+        return stringvar_from_writer(&wr);
 }
 
 /**

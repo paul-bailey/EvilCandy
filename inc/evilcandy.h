@@ -304,6 +304,7 @@ extern long utf8_ndecode_one(const unsigned char *src,
                              unsigned char **endptr, size_t n);
 extern void *utf8_decode(const char *src, size_t *width,
                          size_t *len, int *ascii);
+extern ssize_t utf8_point_enclen(unsigned int startc);
 static inline bool
 utf8_valid_unicode(unsigned long point)
 {

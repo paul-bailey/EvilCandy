@@ -3,6 +3,7 @@
 #include <fcntl.h> /* open() */
 #include <errno.h>
 #include <unistd.h>
+#include <sys/stat.h> /* fstat() */
 
 enum {
         FILE_MAGIC = 'F' << 24 | 'I' << 16 | 'L' << 8 | 'E',
@@ -224,6 +225,7 @@ text_read_chunk(struct textfile_t *ft, void *buf, size_t bufsize)
                          */
                         return res;
                 }
+                ft->ft_fdpos += res;
                 buf += res;
         }
         return buf - start;
@@ -234,35 +236,67 @@ text_append_chunk(struct textfile_t *ft)
 {
         enum { CHUNK_SIZE = 256 };
         unsigned char *chunk = emalloc(CHUNK_SIZE);
-        ssize_t n = text_read_chunk(ft, chunk, CHUNK_SIZE);
-        if (n < 0) {
+        unsigned char *readp;
+        ssize_t nread, chunksize, nstraggler;
+
+        readp = chunk;
+        chunksize = CHUNK_SIZE;
+        nstraggler = ft->ft_nstraggler;
+        ft->ft_nstraggler = 0;
+        if (nstraggler) {
+                memcpy(chunk, ft->ft_stragglers, nstraggler);
+                readp += nstraggler;
+                chunksize -= nstraggler;
+        }
+        nread = text_read_chunk(ft, readp, chunksize);
+        if (nread < 0) {
                 /* TODO: need more error handling than just this */
                 efree(chunk);
                 err_errno("readline() system call error");
                 return RES_ERROR;
-        } else if (!n) {
+        } else if (!nread) {
                 ft->ft_eof = true;
-        } else {
+                nread = nstraggler;
+        }
+        nread += nstraggler;
+
+        if (nread) {
                 /*
-                 * FIXME: What if Unicode point straddles end of this read
-                 * and beginning of next?
+                 * XXX REVISIT: I'd prefer just a string_writer,
+                 * so that we don't have to keep creating strings
+                 * and all that.
                  */
-                Object *cho = stringvar_from_binary(chunk, n, ft->ft_codec);
+                struct string_writer_t wr;
+                size_t nappend;
+
+                string_writer_init(&wr, 1);
                 if (ft->ft_buf) {
-                        Object *newbuf = string_cat(ft->ft_buf, cho);
+                        string_writer_append_strobj(&wr, ft->ft_buf);
                         VAR_DECR_REF(ft->ft_buf);
-                        VAR_DECR_REF(cho);
-                        ft->ft_buf = newbuf;
-                } else {
-                        ft->ft_buf = cho;
+                        ft->ft_buf = NULL;
                 }
+
+                nappend = string_writer_decode(&wr, chunk,
+                                               nread, ft->ft_codec, true);
+                if (nappend < 0) {
+                        string_writer_destroy(&wr);
+                        return RES_ERROR;
+                } else if (nappend != nread) {
+                        /* copy new stagglers */
+                        ft->ft_nstraggler = nread - nappend;
+                        bug_on(nstraggler > sizeof(ft->ft_stragglers));
+                        memcpy(ft->ft_stragglers, &chunk[nread],
+                               ft->ft_nstraggler);
+                        ft->ft_nstraggler = nstraggler;
+                }
+                ft->ft_buf = stringvar_from_writer(&wr);
         }
         efree(chunk);
         return RES_OK;
 }
 
 static char *
-readinto(int fd, size_t *size)
+readinto_chunkly(int fd, size_t *size)
 {
         enum { GROWSIZ = 256 };
         char *buf = erealloc(NULL, GROWSIZ);
@@ -270,6 +304,7 @@ readinto(int fd, size_t *size)
         char *p = buf;
         char *end = buf + allocsize;
         for (;;) {
+                /* XXX: wrap text_read_chunk above instead of this */
                 size_t pi;
                 while (p < end) {
                         ssize_t n = read(fd, p, end - p);
@@ -292,6 +327,41 @@ readinto(int fd, size_t *size)
         }
         *size = p - buf;
         return buf;
+}
+
+static char *
+readinto(int fd, off_t pos, size_t *size)
+{
+        struct stat st;
+        size_t allocbytes;
+        char *buf, *p, *end;
+
+        if (fstat(fd, &st) < 0)
+                goto slowpath;
+        if (st.st_size < pos) /* ?!?! */
+                goto slowpath;
+        allocbytes = (size_t)(st.st_size - pos);
+        buf = emalloc(allocbytes);
+        end = buf + allocbytes;
+        p = buf;
+
+        while (p < end) {
+                ssize_t n = read(fd, p, end - p);
+                if (n < 0) {
+                        efree(buf);
+                        err_errno("read system call failed");
+                        return NULL;
+                } else if (n == 0) {
+                        /* ?!?! */
+                        break;
+                }
+                p += n;
+        }
+        *size = p - buf;
+        return buf;
+
+slowpath:
+        return readinto_chunkly(fd, size);
 }
 
 static Object *
@@ -326,7 +396,7 @@ do_text_read(Frame *fr)
          * XXX REVISIT: Better to use fstat at open time to get the file
          * size, then maintain a position marker during open cycle.
          */
-        tbuf = readinto(ft->ft_fd, &nread);
+        tbuf = readinto(ft->ft_fd, ft->ft_fdpos, &nread);
         if (!tbuf) {
                 return ErrorVar;
         } else if (!nread) {
@@ -354,6 +424,7 @@ do_text_readline(Frame *fr)
 {
         Object *ret = NULL;
         ssize_t haveidx = 0;
+        size_t seekpos;
         struct textfile_t *ft = textfile_fget_priv(fr, "readline", 1);
         if (!ft)
                 return ErrorVar;
@@ -363,6 +434,7 @@ do_text_readline(Frame *fr)
                 return ErrorVar;
         }
 
+        seekpos = ft->ft_bufpos;
         while (1) {
                 if (ft->ft_buf) {
                         /*
@@ -370,13 +442,15 @@ do_text_readline(Frame *fr)
                          * and increment that in this loop, so that we don't
                          * end up repeating search of earlier characters.
                          */
-                        haveidx = string_search(ft->ft_buf, ft->ft_eol, ft->ft_bufpos);
+                        haveidx = string_search(ft->ft_buf, ft->ft_eol, seekpos);
                         if (haveidx >= 0) {
                                 /* EOL exists in our buffer */
                                 haveidx += seqvar_size(ft->ft_eol);
                                 bug_on(haveidx > seqvar_size(ft->ft_buf));
                                 break;
                         }
+                        /* Don't re-seek old misses */
+                        seekpos = seqvar_size(ft->ft_buf) - seqvar_size(ft->ft_eol);
                 }
 
                 if (ft->ft_eof) {
@@ -422,7 +496,7 @@ do_text_readline(Frame *fr)
 static Object *
 do_text_write(Frame *fr)
 {
-        const char *str;
+        Object *so;
         ssize_t ret;
         struct textfile_t *ft = textfile_fget_priv(fr, "write", 1);
         if (!ft)
@@ -431,18 +505,32 @@ do_text_write(Frame *fr)
                 err_setstr(TypeError, "file is not writable");
                 return ErrorVar;
         }
-        /*
-         * TODO: Proper write...
-         * - Loop around interrupts, return NULL if no error, not # of
-         *   bytes written.  Let FILE_RAW handle that low-level stuff.
-         * - Get <s>, not s, do proper encoding.  Using C-string only
-         *   works if encoding is UTF-8 or if all its characters happen
-         *   to be ASCII-only.
-         * - Flush per newline.
-         */
-        if (vm_getargs(fr, "s:write", &str) == RES_ERROR)
+        if (vm_getargs(fr, "<s>:write", &so) == RES_ERROR)
                 return ErrorVar;
-        ret = write(ft->ft_fd, str, strlen(str));
+
+        /*
+         * TODO: Should use ft->ft_buf... flush that one and
+         * write until eol, or deliberately add eol here, if
+         * the file is so configured.
+         */
+        if (string_isascii(so) || ft->ft_codec == CODEC_UTF8) {
+                /* Easy thing: Just write the C string as-is */
+                size_t len = string_nbytes(so);
+                ret = write(ft->ft_fd, string_cstring(so), len);
+        } else if (ft->ft_codec == CODEC_ASCII) {
+                err_setstr(ValueError,
+                        "Cannot write non-ascii string to ascii file");
+                return ErrorVar;
+        } else if (string_width(so) > 1) {
+                /* Latin1, but too wide of characters exist */
+                err_setstr(ValueError,
+                        "Unicode points too big for Latin1");
+                return ErrorVar;
+        } else {
+                /* Latin1, good to go */
+                void *data = string_data(so);
+                ret = write(ft->ft_fd, data, seqvar_size(so));
+        }
         return intvar_new(ret);
 }
 

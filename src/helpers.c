@@ -239,3 +239,37 @@ slide(const char *src, const char *sep)
         return (char *)src;
 }
 
+bool
+cstring_is_ascii(const char *s)
+{
+        const char *s2 = cstring_find_nonascii(s);
+        return *s2 == '\0';
+}
+
+char *
+cstring_find_nonascii(const char *s)
+{
+        int c;
+        while ((c = *s) != '\0') {
+                if ((c & 0xffu) > 127)
+                        break;
+                s++;
+        }
+        return (char *)s;
+}
+
+size_t
+mem_find_nonascii_or_zero(const void *data, size_t n)
+{
+        const unsigned char *u8 = data;
+        const unsigned char *end = u8 + n;
+        while (u8 < end) {
+                int c = *u8 & 0xffu;
+                if (c > 127 || c == 0)
+                        break;
+                u8++;
+        }
+        return u8 - (unsigned char *)data;
+}
+
+

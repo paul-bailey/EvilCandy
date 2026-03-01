@@ -22,6 +22,7 @@ struct string_writer_t {
         size_t n_alloc;
 };
 
+/* string_writer.c */
 extern void string_writer_init(struct string_writer_t *wr, size_t width);
 extern void string_writer_append(struct string_writer_t *wr,
                                  unsigned long c);
@@ -40,5 +41,14 @@ string_writer_size(struct string_writer_t *wr)
 {
         return wr->pos_i;
 }
+
+/* types/string.c */
+extern void string_writer_append_strobj(struct string_writer_t *wr,
+                                        Object *str);
+extern ssize_t string_writer_decode(struct string_writer_t *wr,
+                                    const void *data, size_t n,
+                                    int codec, bool suppress_errors);
+extern Object *stringvar_from_writer(struct string_writer_t *wr);
+
 
 #endif /* EVC_STRING_WRITER_H */

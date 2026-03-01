@@ -374,6 +374,11 @@ static inline size_t string_nbytes(Object *v)
         { return ((struct stringvar_t *)v)->s_ascii_len; }
 static inline bool string_isascii(Object *v)
         { return !!((struct stringvar_t *)v)->s_ascii; }
+static inline size_t string_width(Object *v)
+        { return ((struct stringvar_t *)v)->s_width; }
+static inline void *string_data(Object *v)
+        { return ((struct stringvar_t *)v)->s_unicode; }
+
 
 static inline const char *
 string_cstring(Object *v)

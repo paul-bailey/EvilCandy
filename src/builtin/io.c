@@ -261,6 +261,94 @@ text_append_chunk(struct textfile_t *ft)
         return RES_OK;
 }
 
+static char *
+readinto(int fd, size_t *size)
+{
+        enum { GROWSIZ = 256 };
+        char *buf = erealloc(NULL, GROWSIZ);
+        size_t allocsize = GROWSIZ;
+        char *p = buf;
+        char *end = buf + allocsize;
+        for (;;) {
+                size_t pi;
+                while (p < end) {
+                        ssize_t n = read(fd, p, end - p);
+                        if (n < 0) {
+                                efree(buf);
+                                err_errno("read system call failed");
+                                return NULL;
+                        } else if (n == 0) {
+                                break;
+                        }
+                        p += n;
+                }
+                if (p != end)
+                        break;
+                pi = p - buf;
+                allocsize += GROWSIZ;
+                buf = erealloc(buf, allocsize);
+                p = buf + pi;
+                end = p + GROWSIZ;
+        }
+        *size = p - buf;
+        return buf;
+}
+
+static Object *
+do_text_read(Frame *fr)
+{
+        Object *ret;
+        size_t nread;
+        char *tbuf;
+        struct textfile_t *ft = textfile_fget_priv(fr, "readline", 1);
+        if (!ft)
+                return ErrorVar;
+        if (!ft->ft_readable) {
+                err_setstr(TypeError, "file is not readable");
+                return ErrorVar;
+        }
+
+        if (ft->ft_eof) {
+        eof:
+                if (ft->ft_buf) {
+                        ret = ft->ft_buf;
+                        ft->ft_buf = NULL;
+                        /*
+                         * Don't need to produce ref, we're handing
+                         * it off instead.
+                         */
+                } else {
+                        ret = VAR_NEW_REF(STRCONST_ID(mpty));
+                }
+                return ret;
+        }
+        /*
+         * XXX REVISIT: Better to use fstat at open time to get the file
+         * size, then maintain a position marker during open cycle.
+         */
+        tbuf = readinto(ft->ft_fd, &nread);
+        if (!tbuf) {
+                return ErrorVar;
+        } else if (!nread) {
+                ft->ft_eof = true;
+                efree(tbuf);
+                goto eof;
+        }
+        if (ft->ft_buf) {
+                Object *new;
+
+                /* XXX: Surely there's a better way! */
+                new = stringvar_from_binary(tbuf, nread, ft->ft_codec);
+                ret = string_cat(ft->ft_buf, new);
+                VAR_DECR_REF(new);
+                VAR_DECR_REF(ft->ft_buf);
+                ft->ft_buf = NULL;
+                return ret;
+        } else {
+                return stringvar_from_binary(tbuf, nread, ft->ft_codec);
+        }
+}
+
 static Object *
 do_text_readline(Frame *fr)
 {
@@ -269,6 +357,11 @@ do_text_readline(Frame *fr)
         struct textfile_t *ft = textfile_fget_priv(fr, "readline", 1);
         if (!ft)
                 return ErrorVar;
+
+        if (!ft->ft_readable) {
+                err_setstr(TypeError, "file is not readable");
+                return ErrorVar;
+        }
 
         while (1) {
                 if (ft->ft_buf) {
@@ -334,6 +427,10 @@ do_text_write(Frame *fr)
         struct textfile_t *ft = textfile_fget_priv(fr, "write", 1);
         if (!ft)
                 return ErrorVar;
+        if (!ft->ft_writable) {
+                err_setstr(TypeError, "file is not writable");
+                return ErrorVar;
+        }
         /*
          * TODO: Proper write...
          * - Loop around interrupts, return NULL if no error, not # of
@@ -341,6 +438,7 @@ do_text_write(Frame *fr)
          * - Get <s>, not s, do proper encoding.  Using C-string only
          *   works if encoding is UTF-8 or if all its characters happen
          *   to be ASCII-only.
+         * - Flush per newline.
          */
         if (vm_getargs(fr, "s:write", &str) == RES_ERROR)
                 return ErrorVar;
@@ -367,8 +465,9 @@ static Object *
 text_str(Frame *fr)
 {
         Object *fo;
+        const char *codecstr;
         struct textfile_t *ft;
-        char buf[256];
+        struct buffer_t b;
         bool err;
 
         err = err_occurred();
@@ -381,11 +480,25 @@ text_str(Frame *fr)
                         err_clear();
                 return NullVar;
         }
-        memset(buf, 0, sizeof(buf));
-        /* TODO: Also print encoding */
-        snprintf(buf, sizeof(buf)-1, "<file name='%s' mode='%s'>",
-                 ft->ft_name, ft->ft_mode);
-        return stringvar_new(buf);
+
+        switch (ft->ft_codec) {
+        case CODEC_ASCII:
+                codecstr = "ascii";
+                break;
+        case CODEC_LATIN1:
+                codecstr = "latin1";
+                break;
+        case CODEC_UTF8:
+                codecstr = "utf-8";
+                break;
+        default:
+                codecstr = "?";
+        }
+
+        buffer_init(&b);
+        buffer_printf(&b, "<file name='%s' mode='%s' enc='%s'>",
+                 ft->ft_name, ft->ft_mode, codecstr);
+        return stringvar_from_buffer(&b);
 }
 
 static void
@@ -448,6 +561,7 @@ static Object *
 open_text(int fd, struct fileconfig_t *cfg, int codec)
 {
         static const struct type_inittbl_t textfile_cb_methods[] = {
+                V_INITTBL("read",       do_text_read,     0, 0, -1, -1),
                 V_INITTBL("readline",   do_text_readline, 0, 0, -1, -1),
                 V_INITTBL("write",      do_text_write,    1, 1, -1, -1),
                 V_INITTBL("close",      do_text_close,    0, 0, -1, -1),
@@ -670,6 +784,12 @@ moduleinit_io(void)
         Object *o = var_from_format("<xmM>",
                                     create_io_instance, 0, 0);
         dict_setitem(GlobalObject, k, o);
+        VAR_DECR_REF(k);
+        VAR_DECR_REF(o);
+
+        o = var_from_format("<xmMk>", do_open, 3, 3, 2);
+        k = stringvar_new("open");
+        vm_add_global(k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
 }

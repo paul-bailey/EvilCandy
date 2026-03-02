@@ -29,12 +29,6 @@ count_items(const char *s, int endchar)
                         bug_on(!depth);
                         depth--;
                         break;
-                case '/':
-                        s++;
-                        while (*s != '/' && *s != '\0')
-                                s++;
-                        bug_on(*s != '/');
-                        /* fall through */
                 default:
                         if (!depth)
                                 count++;
@@ -172,60 +166,6 @@ var_make_builtin(const char *fmt, va_list ap, char **endptr)
 }
 
 static Object *
-var_make_file(const char *fmt, va_list ap, char **endptr)
-{
-        Object *res;
-        Object *name = NULL;
-        unsigned int mode = (unsigned int)(-1);
-        FILE *fp = NULL;
-
-        /*
-         * Expect exactly 5 chars, something like "/nsmif/"
-         * n is filename, m is mode, f is file pointer
-         * n must be followed by what will build as a string.
-         * m must be followed by what will build as an integer.
-         */
-        while (*fmt != '/') {
-                switch (*fmt) {
-                case 'f':
-                        bug_on(!!fp);
-                        fp = va_arg(ap, FILE *);
-                        fmt++;
-                        continue;
-                case 'n':
-                        bug_on(!!name);
-                        name = var_vmake(fmt + 1, ap, endptr);
-                        bug_on(!isvar_string(name));
-                        fmt = *endptr;
-                        continue;
-                case 'm':
-                    {
-                        Object *tmode;
-                        bug_on((int)mode >= 0);
-                        tmode = var_vmake(fmt + 1, ap, endptr);
-                        bug_on(!isvar_int(tmode));
-                        mode = intvar_toi(tmode);
-                        VAR_DECR_REF(tmode);
-                        fmt = *endptr;
-                        continue;
-                    }
-                default:
-                        bug();
-                }
-        }
-        bug_on((int)mode < 0);
-        bug_on(name == NULL);
-        bug_on(fp == NULL);
-
-        res = filevar_new(fp, name, mode);
-        VAR_DECR_REF(name);
-        bug_on(res == ErrorVar);
-        bug_on(*fmt != '/');
-        *endptr = (char *)fmt+1;
-        return res;
-}
-
-static Object *
 var_vmake(const char *fmt, va_list ap, char **endptr)
 {
         Object *o;
@@ -238,8 +178,6 @@ var_vmake(const char *fmt, va_list ap, char **endptr)
                 return var_make_tuple(fmt, ap, endptr);
         case '<':
                 return var_make_builtin(fmt, ap, endptr);
-        case '/':
-                return var_make_file(fmt, ap, endptr);
         case 'O':
             {
                 o = va_arg(ap, Object *);

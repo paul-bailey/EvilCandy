@@ -383,6 +383,11 @@ convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
                                 type = &ComplexType;
                                 break;
                         case '/':
+                                /*
+                                 * FIXME: deprecated, but I'd still like to
+                                 * use this as an alias for 'dictionary'
+                                 * whose private data is for a file.
+                                 */
                                 type = &FileType;
                                 break;
                         case 'x':

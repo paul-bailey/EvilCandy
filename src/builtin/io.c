@@ -493,20 +493,14 @@ do_text_readline(Frame *fr)
         return ret;
 }
 
-static Object *
-do_text_write(Frame *fr)
+static ssize_t
+do_text_write_(struct textfile_t *ft, Object *so)
 {
-        Object *so;
         ssize_t ret;
-        struct textfile_t *ft = textfile_fget_priv(fr, "write", 1);
-        if (!ft)
-                return ErrorVar;
         if (!ft->ft_writable) {
                 err_setstr(TypeError, "file is not writable");
-                return ErrorVar;
+                return -1;
         }
-        if (vm_getargs(fr, "<s>:write", &so) == RES_ERROR)
-                return ErrorVar;
 
         /*
          * TODO: Should use ft->ft_buf... flush that one and
@@ -520,17 +514,33 @@ do_text_write(Frame *fr)
         } else if (ft->ft_codec == CODEC_ASCII) {
                 err_setstr(ValueError,
                         "Cannot write non-ascii string to ascii file");
-                return ErrorVar;
+                return -1;
         } else if (string_width(so) > 1) {
                 /* Latin1, but too wide of characters exist */
                 err_setstr(ValueError,
                         "Unicode points too big for Latin1");
-                return ErrorVar;
+                return -1;
         } else {
                 /* Latin1, good to go */
                 void *data = string_data(so);
                 ret = write(ft->ft_fd, data, seqvar_size(so));
         }
+        return ret;
+}
+
+static Object *
+do_text_write(Frame *fr)
+{
+        ssize_t ret;
+        Object *so;
+        struct textfile_t *ft = textfile_fget_priv(fr, "write", 1);
+        if (!ft)
+                return ErrorVar;
+        if (vm_getargs(fr, "<s>:write", &so) == RES_ERROR)
+                return ErrorVar;
+        ret = do_text_write_(ft, so);
+        if (ret < 0)
+                return ErrorVar;
         return intvar_new(ret);
 }
 
@@ -585,7 +595,8 @@ text_str(Frame *fr)
 
         buffer_init(&b);
         buffer_printf(&b, "<file name='%s' mode='%s' enc='%s'>",
-                 ft->ft_name, ft->ft_mode, codecstr);
+                      ft->ft_name ? ft->ft_name : "!",
+                      ft->ft_mode, codecstr);
         return stringvar_from_buffer(&b);
 }
 
@@ -663,7 +674,7 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
         fh = file_new(fd, sizeof(*fh), cfg);
         fh->ft_codec = codec;
         /* FIXME: this should be an argument */
-        fh->ft_eol = VAR_NEW_REF(gbl.nl);
+        fh->ft_eol = stringvar_new("\n");
         fho = bytesvar_new((unsigned char *)fh, sizeof(*fh));
 
         strfunc = funcvar_new_intl(text_str, 1, 1);
@@ -717,6 +728,124 @@ evc_open(struct fileconfig_t *cfg, int oflags, int codec)
                 break;
         case FILE_RAW:
                 ret = open_raw(fd, cfg);
+                break;
+        default:
+                bug();
+                /* to keep the compiler happy */
+                return ErrorVar;
+        }
+
+        return ret;
+}
+
+ssize_t
+evc_file_write(Object *fo, Object *data)
+{
+        struct textfile_t *ft;
+        if (!isvar_dict(fo)) {
+                err_setstr(TypeError, "Cannot write: not a file");
+                return -1;
+        }
+        ft = textfile_get_priv(fo, NULL, 1);
+        if (!ft)
+                return -1;
+
+        /* FIXME: proper multiplexing of 'write' callbacks */
+        if (ft->ft_type != FILE_TEXT) {
+                err_setstr(TypeError,
+                        "Write at this level only permitted on text-base files");
+                return -1;
+        }
+        return do_text_write_(ft, data);
+}
+
+/**
+ * evc_file_open - Open fd as an EvilCandy file object
+ * @fd:         Open file descriptor
+ * @name:       Name of file or NULL.  If not NULL, a copy will be stored.
+ * @binary:     If true, open the file in binary mode
+ * @closefd:    If true, close the file when this object is freed
+ * @codec:      Encryption of the file, or -1 to disregard encryption.
+ * @buffering:  If 0, no buffering (invalid for non-binary files).
+ *              If 1, line buffering.  If >1, use a buffer of @buffering
+ *              size.
+ *
+ * Return: File object.  Used as a C hook for program internals to write
+ * to file objects.
+ */
+Object *
+evc_file_open(int fd, const char *name, bool binary,
+              bool closefd, int codec, size_t buffering)
+{
+        Object *ret;
+        char mode[8];
+        char *modep;
+        int oflags;
+        int rwchar;
+        struct fileconfig_t cfg;
+
+        oflags = fcntl(fd, F_GETFL);
+        if (oflags < 0) {
+                err_errno("Cannot get open flags");
+                return ErrorVar;
+        }
+
+        /*
+         * XXX: is this portable? O_RDWR is not a bitfield of O_RDONLY
+         * with O_WRONLY, however standards do not guarantee that behavior
+         */
+        switch (oflags & (O_RDWR | O_RDONLY | O_WRONLY)) {
+        case O_RDWR:
+                cfg.readable = true;
+                cfg.writable = true;
+                break;
+        case O_RDONLY:
+                cfg.readable = true;
+                cfg.writable = false;
+                break;
+        case O_WRONLY:
+                cfg.readable = false;
+                cfg.writable = true;
+                break;
+        default:
+                err_errno("Malformed open flags");
+                return ErrorVar;
+        }
+
+        bug_on(!cfg.readable && !cfg.writable);
+        if (cfg.writable) {
+                if (!!(oflags & O_APPEND))
+                        rwchar = 'a';
+                else if (!!(oflags & O_EXCL))
+                        rwchar = 'x';
+                else
+                        rwchar = 'w';
+        } else {
+                rwchar = 'r';
+        }
+        modep = mode;
+        *modep++ = rwchar;
+        if (binary)
+                *modep++ = 'b';
+        if (cfg.readable && cfg.writable)
+                *modep++ = '+';
+        *modep = '\0';
+
+        cfg.closefd = closefd;
+        cfg.type = binary ? (buffering ? FILE_BINARY : FILE_RAW)
+                          : FILE_TEXT;
+        cfg.name = name ? estrdup(name) : NULL;
+        cfg.mode = estrdup(mode);
+
+        switch (cfg.type) {
+        case FILE_TEXT:
+                ret = open_text(fd, &cfg, codec);
+                break;
+        case FILE_BINARY:
+                ret = open_binary(fd, &cfg);
+                break;
+        case FILE_RAW:
+                ret = open_raw(fd, &cfg);
                 break;
         default:
                 bug();

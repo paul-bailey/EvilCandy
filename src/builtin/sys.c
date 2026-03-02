@@ -1,25 +1,47 @@
 #include <evilcandy.h>
+#include <unistd.h>
 
 #define STDIO_FMT          "s/fnsmi/"
 #define STDIO_ARGS(X, Y)   #X, X, "<" #X ">", FMODE_##Y | FMODE_PROTECT
 
+/*
+ * XXX: Remove this hack-declare
+ */
+extern Object *evc_file_open(int fd, const char *name, bool binary,
+                              bool closefd, int codec, size_t buffering);
 void
 moduleinit_sys(void)
 {
-        Object *o, *k;
+        Object *o, *k, *v;
 
-        o = var_from_format("{" STDIO_FMT
-                                STDIO_FMT
-                                STDIO_FMT
-                                "O[]"
-                                "O[Os]"
-                            "}",
-                            STDIO_ARGS(stdin, READ),
-                            STDIO_ARGS(stdout, WRITE),
-                            STDIO_ARGS(stderr, WRITE),
+        o = var_from_format("{O[]O[Os]}",
                             STRCONST_ID(breadcrumbs),
                             STRCONST_ID(import_path), gbl.cwd, RCDATADIR);
         dict_setitem(GlobalObject, STRCONST_ID(_sys), o);
+
+        v = evc_file_open(STDIN_FILENO, "<stdin>",
+                          false, false, CODEC_UTF8, 1);
+        bug_on(v == ErrorVar);
+        k = stringvar_new("stdin");
+        dict_setitem(o, k, v);
+        VAR_DECR_REF(v);
+        VAR_DECR_REF(k);
+
+        v = evc_file_open(STDOUT_FILENO, "<stdout>",
+                          false, false, CODEC_UTF8, 1);
+        bug_on(v == ErrorVar);
+        k = stringvar_new("stdout");
+        dict_setitem(o, k, v);
+        VAR_DECR_REF(v);
+        VAR_DECR_REF(k);
+
+        k = stringvar_new("stderr");
+        v = evc_file_open(STDERR_FILENO, "<stderr>",
+                          false, false, CODEC_UTF8, 1);
+        bug_on(v == ErrorVar);
+        dict_setitem(o, k, v);
+        VAR_DECR_REF(v);
+        VAR_DECR_REF(k);
 
         k = stringvar_new("sys");
         vm_add_global(k, o);

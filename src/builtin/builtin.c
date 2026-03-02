@@ -14,6 +14,9 @@ do_typeof(Frame *fr)
         return stringvar_new(typestr(p));
 }
 
+/* FIXME: proper place for this */
+ssize_t evc_file_write(Object *fo, Object *data);
+
 static Object *
 do_print(Frame *fr)
 {
@@ -23,7 +26,7 @@ do_print(Frame *fr)
         Object *res = NULL;
 
         arg = sep = file = end = NULL;
-        if (vm_getargs(fr, "<[]>{|<s></><s>}:print",
+        if (vm_getargs(fr, "<[]>{|<s><{}><s>}:print",
                        &arg,
                        STRCONST_ID(sep), &sep,
                        STRCONST_ID(file), &file,
@@ -40,7 +43,7 @@ do_print(Frame *fr)
 
         n = seqvar_size(arg);
         if (n == 0) {
-                if (file_write(file, end) != RES_OK)
+                if (evc_file_write(file, end) < 0)
                         res = ErrorVar;
                 goto done;
         }
@@ -49,7 +52,7 @@ do_print(Frame *fr)
                 Object *p;
 
                 if (i > 0) {
-                        if (file_write(file, sep) != RES_OK) {
+                        if (evc_file_write(file, sep) < 0) {
                                 res = ErrorVar;
                                 break;
                         }
@@ -59,22 +62,22 @@ do_print(Frame *fr)
                 bug_on(!p);
 
                 if (isvar_string(p)) {
-                        status = file_write(file, p);
+                        status = evc_file_write(file, p);
                 } else {
                         Object *xpr = var_str(p);
-                        status = file_write(file, xpr);
+                        status = evc_file_write(file, xpr);
                         VAR_DECR_REF(xpr);
                 }
                 VAR_DECR_REF(p);
-                if (status != RES_OK) {
+                if (status < 0) {
                         res = ErrorVar;
                         break;
                 }
         }
 
         if (res != ErrorVar) {
-                status = file_write(file, end);
-                if (status != RES_OK)
+                status = evc_file_write(file, end);
+                if (status < 0)
                         res = ErrorVar;
         }
 

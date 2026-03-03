@@ -2076,7 +2076,7 @@ assemble_splash_error(struct assemble_t *a)
         line = token_get_this_line(a->prog, &col);
         if (line) {
                 fprintf(stderr, "Suspected error location:\n");
-                fprintf(stderr, "\t%s\t", line);
+                fprintf(stderr, "\t%s\n\t", line);
                 while (col-- > 0)
                         fputc(' ', stderr);
                 fprintf(stderr, "^\n");

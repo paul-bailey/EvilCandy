@@ -5,9 +5,11 @@
 #include <unistd.h>
 #include <sys/stat.h> /* fstat() */
 
-enum {
-        FILE_MAGIC = 'F' << 24 | 'I' << 16 | 'L' << 8 | 'E',
-};
+/*
+ * XXX: See isvar_file().
+ * We need a single header for all our magic numbers, to keep them unique.
+ */
+enum { FILE_MAGIC = 'F' << 24 | 'I' << 16 | 'L' << 8 | 'E' };
 
 enum file_type_t {
         FILE_TEXT,
@@ -740,6 +742,17 @@ evc_file_write(Object *fo, Object *data)
                 return -1;
         }
         return do_text_write_(ft, data);
+}
+
+bool
+isvar_file(Object *o)
+{
+        if (isvar_dict(o)) {
+                struct rawfile_t *fr = dict_get_priv(o);
+                if (fr)
+                        return fr->fr_magic == FILE_MAGIC;
+        }
+        return false;
 }
 
 /**

@@ -384,12 +384,11 @@ convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
                                 break;
                         case '/':
                                 /*
-                                 * FIXME: deprecated, but I'd still like to
-                                 * use this as an alias for 'dictionary'
-                                 * whose private data is for a file.
+                                 * can't use 'type' because it would be dict
                                  */
-                                type = &FileType;
-                                break;
+                                if (isvar_file(uarg))
+                                        match = true;
+                                continue;
                         case 'x':
                                 type = &FunctionType;
                                 break;

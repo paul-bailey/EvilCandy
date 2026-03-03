@@ -26,7 +26,7 @@ do_print(Frame *fr)
         Object *res = NULL;
 
         arg = sep = file = end = NULL;
-        if (vm_getargs(fr, "<[]>{|<s><{}><s>}:print",
+        if (vm_getargs(fr, "<[]>{|<s></><s>}:print",
                        &arg,
                        STRCONST_ID(sep), &sep,
                        STRCONST_ID(file), &file,

@@ -384,7 +384,12 @@ tuple_validate(Object *tup, const char *descr, bool map_function)
                         check = NULL;
                         break;
                 case 'F':
-                        check = &FileType;
+                        /* FIXME: Be consistent and call this '/' */
+                        if (isvar_file(*data))
+                                check = NULL;
+                        else
+                                goto nope;
+
                         break;
                 case 'U':
                         check = &UuidptrType;

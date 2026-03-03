@@ -791,31 +791,6 @@ do_socket(Frame *fr)
                 return ErrorVar;
         }
 
-        /*
-         * FIXME: fd is an integer, so there's no way to know to close
-         * it if this socket goes out of scope.  This requires one of
-         * the following solutions:
-         *
-         * 1. Use a FileType var instead of fd, requires additional
-         *    dict entry apart from _priv.
-         * 2. Add policy that user must take care to close fd before
-         *    socket goes out of scope
-         * 3. Add policy that if a dict has a '__cleanup__' entry and
-         *    it's a function, execute that from dict_reset().
-         * 4. Make a field in struct dictvar_t called .cleanup, a C-only
-         *    (no VM or frames) function. Have a dict.c's .reset() call
-         *    this callback if it was installed.
-         *
-         * These all suck. #1 is heavy-handed, since a socket might only
-         * wish to do some light-weight IPC stuff. #2 damn near
-         * guarantees the piling up of zombie sockets, since programmers
-         * of high-level languages tend to be sloppy.  #3 would be best,
-         * but the frame handle is not passed to VAR_DECR_REF(), which
-         * means we can't make downstream calls to vm_exec_func() from an
-         * object's .reset method. #4 solves this, but only for built-in
-         * dicts like this one; it doesn't allow for a user-defined
-         * cleanup function written in the script.
-         */
         fd = socket(domain, type, protocol);
         if (fd < 0) {
                 skerr_syscall("socket");

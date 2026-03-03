@@ -278,8 +278,7 @@ static inline bool isvar_range(Object *v)
         { return v->v_type == &RangeType; }
 static inline bool isvar_uuidptr(Object *v)
         { return v->v_type == &UuidptrType; }
-static inline bool isvar_file(Object *v)
-        { return v->v_type == &FileType; }
+extern bool isvar_file(Object *v); /*< builtin/io.c */
 static inline bool isvar_property(Object *v)
         { return v->v_type == &PropertyType; }
 static inline bool isvar_floats(Object *v)

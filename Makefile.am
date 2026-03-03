@@ -47,7 +47,6 @@ evilcandy_SOURCES = \
         src/types/complex.c \
         src/types/dict.c \
         src/types/empty.c \
-        src/types/file.c \
         src/types/float.c \
         src/types/floats.c \
         src/types/function.c \

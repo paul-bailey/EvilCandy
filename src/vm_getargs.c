@@ -303,175 +303,200 @@ get_array_args(Object *uarg, const char **fmt, va_list ap,
 }
 
 static enum result_t
+convert_object(int typec, Object *uarg, const char **fmt, va_list ap,
+               unsigned int flags, const char *fname, int argno)
+{
+        Object **ppo;
+        const char *s = *fmt;
+        const char *right = s;
+        bool match;
+        while (*right != '>') {
+                bug_on(*right == '\0');
+                right++;
+        }
+
+        *fmt = right + 1;
+        ppo = va_arg(ap, Object **);
+
+        if (!uarg)
+                return RES_OK;
+
+        /*
+         * Special case: <C> expects a string of length 1.
+         * It makes no sense for something like <CS>, so
+         * treat <C...anything> like a bug
+         */
+        if (s[0] == 'c') {
+                bug_on(s[1] != '>');
+                if (isvar_string(uarg)
+                    && seqvar_size(uarg) == 1) {
+                        *ppo = uarg;
+                        return RES_OK;
+                }
+                vmerr_generic("string must have a size of 1",
+                              argno, fname);
+                return RES_ERROR;
+        }
+
+        /*
+         * Note: this will throw error in case of "<>".
+         * Wildcard objects must be expressed as "<*>".
+         */
+        match = false;
+
+        while (s < right && !match) {
+                int c = *s++;
+                struct type_t *type = NULL;
+                switch (c) {
+                case 's':
+                        type = &StringType;
+                        break;
+                case 'i':
+                        type = &IntType;
+                        break;
+                case 'f':
+                        type = &FloatType;
+                        break;
+                case '*':
+                        match = true;
+                        break;
+
+                        /*
+                         * {[( require complements, just because
+                         * "<{}>{I}" is easier to parse with the
+                         * eyes than "<{>{I}"
+                         */
+                case '{':
+                        type = &DictType;
+                        bug_on(*s != '}');
+                        s++;
+                        break;
+                case '(':
+                        type = &TupleType;
+                        bug_on(*s != ')');
+                        s++;
+                        break;
+                case '[':
+                        type = &ArrayType;
+                        bug_on(*s != ']');
+                        s++;
+                        break;
+
+                case 'b':
+                        type = &BytesType;
+                        break;
+                case 'z':
+                        type = &ComplexType;
+                        break;
+                case '/':
+                        /*
+                         * can't use 'type' because it would be dict
+                         */
+                        if (isvar_file(uarg))
+                                match = true;
+                        continue;
+                case 'x':
+                        type = &FunctionType;
+                        break;
+                case 'r':
+                        type = &RangeType;
+                        break;
+                default:
+                        bug();
+                }
+                if (type && uarg->v_type == type)
+                        match = true;
+        }
+
+        if (!match) {
+                char argnobuf[100];
+                sprintf(argnobuf, " %d", argno + 1);
+                err_setstr(TypeError, "%s%sargument%s invalid type %s",
+                           fname ? fname : "", fname ? "() " : "",
+                           argno >= 0 ? argnobuf : "");
+                return RES_ERROR;
+        }
+        *ppo = uarg;
+        return RES_OK;
+}
+
+static enum result_t
+convert_arr(int typec, Object *uarg, const char **fmt, va_list ap,
+            unsigned int flags, const char *fname, int argno)
+{
+        /* In ASCII, ')' = '(' + 1, the others are +2 */
+        char endchr = typec + 1;
+        if (typec != '(')
+                endchr++;
+
+        /*
+         * To get one of these rather than one of their children,
+         * use <{}>, <[]>, <()>, NOT {}, [], ().
+         */
+        bug_on(**fmt == endchr);
+
+        if (uarg)
+                flags |= GAF_MANDO;
+        return get_array_args(uarg, fmt, ap, flags, fname, endchr, argno);
+}
+
+static enum result_t
+convert_enum(int typec, Object *uarg, const char **fmt, va_list ap,
+            unsigned int flags, const char *fname, int argno)
+{
+        enum result_t res;
+        Object *v;
+        Object *dict = va_arg(ap, Object *);
+        bug_on(!dict || !isvar_dict(dict));
+
+        if (uarg) {
+                v = dict_getitem(dict, uarg);
+                if (!v) {
+                        if (!!(flags & GAF_MANDO)) {
+                                vmerr_notindict(fname, uarg);
+                                return RES_ERROR;
+                        }
+                }
+        } else {
+                v = NULL;
+        }
+        res = convert_arg('i', v, fmt, ap,
+                          flags | GAF_MANDO, fname, argno);
+        if (v)
+                VAR_DECR_REF(v);
+        return res;
+}
+
+
+static enum result_t
 convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
             unsigned int flags, const char *fname, int argno)
 {
-        const char *s = *fmt;
-        int c;
         void *pv;
 
-        s = *fmt;
-        c = typec;
-        bug_on(c == '\0');
+        bug_on(typec == '\0');
 
         if (typec == '<') {
-                Object **ppo;
-                const char *right = s;
-                bool match;
-                while (*right != '>') {
-                        bug_on(*right == '\0');
-                        right++;
-                }
-
-                *fmt = right + 1;
-                ppo = va_arg(ap, Object **);
-
-                if (!uarg)
-                        return RES_OK;
-
-                /*
-                 * Special case: <C> expects a string of length 1.
-                 * It makes no sense for something like <CS>, so
-                 * treat <C...anything> like a bug
-                 */
-                if (s[0] == 'c') {
-                        bug_on(s[1] != '>');
-                        if (isvar_string(uarg)
-                            && seqvar_size(uarg) == 1) {
-                                *ppo = uarg;
-                                return RES_OK;
-                        }
-                        vmerr_generic("string must have a size of 1",
-                                      argno, fname);
-                        return RES_ERROR;
-                }
-
-                /*
-                 * Note: this will throw error in case of "<>".
-                 * Wildcard objects must be expressed as "<*>".
-                 */
-                match = false;
-
-                while (s < right && !match) {
-                        int c = *s++;
-                        struct type_t *type = NULL;
-                        switch (c) {
-                        case 's':
-                                type = &StringType;
-                                break;
-                        case 'i':
-                                type = &IntType;
-                                break;
-                        case 'f':
-                                type = &FloatType;
-                                break;
-                        case '*':
-                                match = true;
-                                break;
-
-                                /*
-                                 * {[( require complements, just because
-                                 * "<{}>{I}" is easier to parse with the
-                                 * eyes than "<{>{I}"
-                                 */
-                        case '{':
-                                type = &DictType;
-                                bug_on(*s != '}');
-                                s++;
-                                break;
-                        case '(':
-                                type = &TupleType;
-                                bug_on(*s != ')');
-                                s++;
-                                break;
-                        case '[':
-                                type = &ArrayType;
-                                bug_on(*s != ']');
-                                s++;
-                                break;
-
-                        case 'b':
-                                type = &BytesType;
-                                break;
-                        case 'z':
-                                type = &ComplexType;
-                                break;
-                        case '/':
-                                /*
-                                 * can't use 'type' because it would be dict
-                                 */
-                                if (isvar_file(uarg))
-                                        match = true;
-                                continue;
-                        case 'x':
-                                type = &FunctionType;
-                                break;
-                        case 'r':
-                                type = &RangeType;
-                                break;
-                        default:
-                                bug();
-                        }
-                        if (type && uarg->v_type == type)
-                                match = true;
-                }
-
-                if (!match) {
-                        char argnobuf[100];
-                        sprintf(argnobuf, " %d", argno + 1);
-                        err_setstr(TypeError, "%s%sargument%s invalid type %s",
-                                   fname ? fname : "", fname ? "() " : "",
-                                   argno >= 0 ? argnobuf : "");
-                        return RES_ERROR;
-                }
-                *ppo = uarg;
-                return RES_OK;
-
+                return convert_object(typec, uarg, fmt, ap,
+                                      flags, fname, argno);
         }
 
         if (strchr("({[", typec) != NULL) {
-                /* In ASCII, ')' = '(' + 1, the others are +2 */
-                char endchr = c + 1;
-                if (typec != '(')
-                        endchr++;
-
-                /*
-                 * To get one of these rather than one of their children,
-                 * use <{}>, <[]>, <()>, NOT {}, [], ().
-                 */
-                bug_on(*s == endchr);
-
-                if (uarg)
-                        flags |= GAF_MANDO;
-                *fmt = s;
-                return get_array_args(uarg, fmt, ap, flags, fname, endchr, argno);
+                return convert_arr(typec, uarg, fmt, ap,
+                                   flags, fname, argno);
         }
 
         if (typec == 'e') {
-                enum result_t res;
-                Object *v;
-                Object *dict = va_arg(ap, Object *);
-                bug_on(!dict || !isvar_dict(dict));
-
-                if (uarg) {
-                        v = dict_getitem(dict, uarg);
-                        if (!v) {
-                                if (!!(flags & GAF_MANDO)) {
-                                        vmerr_notindict(fname, uarg);
-                                        return RES_ERROR;
-                                }
-                        }
-                } else {
-                        v = NULL;
-                }
-                res = convert_arg('i', v, fmt, ap,
-                                  flags | GAF_MANDO, fname, argno);
-                if (v)
-                        VAR_DECR_REF(v);
-                return res;
+                return convert_enum(typec, uarg, fmt, ap,
+                                    flags, fname, argno);
         }
 
-        /* Every item in ap is a pointer of some sort */
+        /*
+         * For everything below, we don't move @fmt and we expect only
+         * one arg from @ap, which is always a pointer.
+         * Once we updated @ap, if @uarg is NULL, nothing more to do,
+         * so bail early.
+         */
         pv = va_arg(ap, void *);
         if (!uarg)
                 return RES_OK;

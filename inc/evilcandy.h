@@ -66,6 +66,11 @@ extern void moduleinit_sys(void);
 extern Object *sys_getitem(Object *key);
 extern Object *sys_getitem_cstr(const char *key);
 
+/* builtin/builtin.c */
+extern ssize_t evc_file_write(Object *fo, Object *data);
+extern Object *evc_file_open(int fd, const char *name, bool binary,
+                             bool closefd, int codec, size_t buffering);
+
 /* assembler.c */
 extern Object *assemble(const char *filename,
                         FILE *fp, bool toeof, int *status);

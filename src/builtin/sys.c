@@ -7,8 +7,6 @@
 /*
  * XXX: Remove this hack-declare
  */
-extern Object *evc_file_open(int fd, const char *name, bool binary,
-                              bool closefd, int codec, size_t buffering);
 void
 moduleinit_sys(void)
 {

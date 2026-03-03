@@ -14,8 +14,6 @@ do_typeof(Frame *fr)
         return stringvar_new(typestr(p));
 }
 
-/* FIXME: proper place for this */
-ssize_t evc_file_write(Object *fo, Object *data);
 
 static Object *
 do_print(Frame *fr)

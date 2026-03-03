@@ -32,6 +32,8 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Add mutable alternative to bytes
+  - Add user-defined properties and decorators to dictionaries.
   - Fix "no top-level stack in interactive mode" awkwardness
   - Finalize closure behavior, be more like theoretical closures.
   - Fill in .create methods for remaining data types that need it.
@@ -48,9 +50,6 @@ Must Do
   - **done** Get prompt working
   - **done** Add support for deleting elements and global variables
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
-
-* Add way to call user-code destructor from VAR_DECR_REF without having
-  to pass frame to macro.
 
 * Make dictionary iterable without requiring the creation of a new list.
 
@@ -104,8 +103,15 @@ Must Do
 
 * **done** Make sure operator order follows either JavaScript or Python.
 
+* **done** Add way to call user-code destructor from VAR_DECR_REF without
+  having to pass frame to macro.
+
 Library/Language Features
 -------------------------
+
+* Add hash to bytes, let it be a valid dictionary key.
+
+* Support some kind of packing library, akin to Python's struct
 
 * Support labelled statements
 
@@ -124,7 +130,8 @@ Library/Language Features
 
 * Support soft keywords
 
-* Add a Matrix/DSP module, something like NumPy for Python
+* Add a Matrix/DSP module, something like NumPy for Python.
+  Replace floats data type with this, but as a module in builtin/
 
 * ^^ also add Tensor module, why not?
 

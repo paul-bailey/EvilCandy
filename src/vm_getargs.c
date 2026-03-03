@@ -575,6 +575,7 @@ vm_getargs_1(Object **items, size_t n, const char **fmt, va_list ap,
                 case '|':
                         bug_on(!(flags & GAF_MANDO));
                         flags &= ~GAF_MANDO;
+                        i--;
                         break;
                 default:
                     {

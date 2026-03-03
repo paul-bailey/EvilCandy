@@ -2669,19 +2669,10 @@ string_hasitem(Object *str, Object *substr)
 }
 
 static Object *
-string_from_encoded_obj(Object *obj, Object *encarg)
+string_from_encoded_obj(Object *obj, int encoding)
 {
-        int encoding;
         size_t n;
         const unsigned char *data;
-
-        bug_on(!gbl.mns[MNS_CODEC]);
-        bug_on(!isvar_string(encarg));
-
-        if (vm_getargs_sv(gbl.mns[MNS_CODEC], "{i}",
-                          encarg, &encoding) == RES_ERROR) {
-                return ErrorVar;
-        }
 
         if (!isvar_bytes(obj)) {
                 err_setstr(TypeError,
@@ -2699,24 +2690,27 @@ string_from_encoded_obj(Object *obj, Object *encarg)
 static Object *
 string_create(Frame *fr)
 {
-        Object *encoding = NULL;
-        Object *encoding2 = NULL;
+        int encoding = -1;
+        int encoding2 = -1;
         Object *what = NULL;
-        if (vm_getargs(fr, "[|<*><s>]{|<s>}:string", &what, &encoding,
-                       STRCONST_ID(encoding), &encoding2) == RES_ERROR) {
+        bug_on(!gbl.mns[MNS_CODEC]);
+        if (vm_getargs(fr, "[|<*>e]{|e}:string", &what,
+                       gbl.mns[MNS_CODEC], &encoding,
+                       STRCONST_ID(encoding),
+                       gbl.mns[MNS_CODEC], &encoding2) == RES_ERROR) {
                 return ErrorVar;
         }
-        if (encoding && encoding2) {
+        if (encoding >= 0 && encoding2 >= 0) {
                 err_doublearg("encoding");
                 return ErrorVar;
         }
-        if (!encoding)
+        if (encoding < 0)
                 encoding = encoding2;
         if (!what)
                 return VAR_NEW_REF(STRCONST_ID(mpty));
         if (isvar_string(what))
                 return VAR_NEW_REF(what);
-        if (encoding)
+        if (encoding >= 0)
                 return string_from_encoded_obj(what, encoding);
         return var_str(what);
 }

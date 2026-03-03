@@ -36,6 +36,9 @@
  *      if it needs to be saved for later, it should be copied.
  * 'c'  Get a single-character string's Unicode point. varg is a pointer
  *      to "long".  uarg is a string object whose size must be 1.
+ * 'e'  Get an integer from text enumerating it.  next TWO vargs are
+ *      first, a dictionary to use, and second, a pointer to int. uarg is
+ *      a key object, typically a string.
  * 'f'  Get a floating-point value. varg is a pointer to "double".
  *      uarg is a floating-point object.
  * '.'  Skip this argument or numerical index.
@@ -172,6 +175,21 @@ vmerr_generic(const char *msg, int argno, const char *fname)
         err_setstr(TypeError, "%s", buf);
 }
 
+static void
+vmerr_notindict(const char *fname, Object *key)
+{
+        const char *name = NULL;
+        const char *spc = "";
+        if (isvar_string(key)) {
+                name = string_cstring(key);
+                spc = " ";
+        }
+
+        err_setstr(TypeError, "%s%smissing%s%s%sitem in dict",
+                   fname ? fname : "", fname ? "() " : "",
+                   spc, name, spc);
+}
+
 static enum result_t
 get_dict_args(Object *dict, const char **fmt, va_list ap,
               unsigned int flags, const char *fname, int argno)
@@ -204,18 +222,14 @@ get_dict_args(Object *dict, const char **fmt, va_list ap,
                         v = dict_getitem(dict, k);
                         if (!v) {
                                 if (!!(flags & GAF_MANDO)) {
-                                        err_setstr(TypeError,
-                                                "%s%smissing %s item in dict",
-                                                fname ? fname : "",
-                                                fname ? "() " : "",
-                                                string_cstring(k));
+                                        vmerr_notindict(fname, k);
                                         return RES_ERROR;
                                 }
                         }
                 } else {
                         v = NULL;
                 }
-                res = convert_arg(c, v, &s, ap, flags, fname, argno);
+                res = convert_arg(c, v, &s, ap, flags|GAF_MANDO, fname, argno);
                 if (v)
                         VAR_DECR_REF(v);
                 if (res == RES_ERROR)
@@ -260,7 +274,7 @@ get_array_args(Object *uarg, const char **fmt, va_list ap,
         }
         if (endchr == '}') {
                 return get_dict_args(uarg, fmt, ap,
-                                     flags, fname, argno);
+                                     flags | GAF_MANDO, fname, argno);
         }
 
         /* still here, process tuple or array */
@@ -431,6 +445,30 @@ convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
                         flags |= GAF_MANDO;
                 *fmt = s;
                 return get_array_args(uarg, fmt, ap, flags, fname, endchr, argno);
+        }
+
+        if (typec == 'e') {
+                enum result_t res;
+                Object *v;
+                Object *dict = va_arg(ap, Object *);
+                bug_on(!dict || !isvar_dict(dict));
+
+                if (uarg) {
+                        v = dict_getitem(dict, uarg);
+                        if (!v) {
+                                if (!!(flags & GAF_MANDO)) {
+                                        vmerr_notindict(fname, uarg);
+                                        return RES_ERROR;
+                                }
+                        }
+                } else {
+                        v = NULL;
+                }
+                res = convert_arg('i', v, fmt, ap,
+                                  flags | GAF_MANDO, fname, argno);
+                if (v)
+                        VAR_DECR_REF(v);
+                return res;
         }
 
         /* Every item in ap is a pointer of some sort */

@@ -1431,20 +1431,11 @@ err:
 }
 
 static Object *
-bytes_create_with_encoding(Object *val, Object *encarg)
+bytes_create_with_encoding(Object *val, int encoding)
 {
-        int encoding;
-
         if (!isvar_string(val)) {
                 err_setstr(TypeError,
                         "bytes() cannot decode %s object", typestr(val));
-                return ErrorVar;
-        }
-        bug_on(!isvar_string(encarg));
-        bug_on(!gbl.mns[MNS_CODEC]);
-
-        if (vm_getargs_sv(gbl.mns[MNS_CODEC], "{i}",
-                          encarg, &encoding) == RES_ERROR) {
                 return ErrorVar;
         }
 
@@ -1504,51 +1495,30 @@ bytes_create_without_encoding(Object *val)
 static Object *
 bytes_create(Frame *fr)
 {
-        Object *args, *kwargs, *encoding, *ret;
-        size_t argc;
-
-        args = vm_get_arg(fr, 0);
-        kwargs = vm_get_arg(fr, 1);
-        bug_on(!args || !isvar_array(args));
-        bug_on(!kwargs || !isvar_dict(kwargs));
-
-        ret = ErrorVar;
-        argc = seqvar_size(args);
-        encoding = dict_getitem(kwargs, STRCONST_ID(encoding));
-        if (encoding) {
-                if (argc > 1) {
-                        err_doublearg("encoding");
-                        goto out;
-                } else if (argc == 0) {
-                        err_setstr(TypeError, "Nothing to encode");
-                        goto out;
-                }
-        } else if (argc > 1) {
-                encoding = array_getitem(args, 1);
-                bug_on(!encoding);
+        int encoding = -1;
+        int encoding2 = -1;
+        Object *what = NULL;
+        bug_on(!gbl.mns[MNS_CODEC]);
+        if (vm_getargs(fr, "[|<*>e]{|e}:bytes", &what,
+                       gbl.mns[MNS_CODEC], &encoding,
+                       STRCONST_ID(encoding),
+                       gbl.mns[MNS_CODEC], &encoding2) == RES_ERROR) {
+                return ErrorVar;
         }
-        if (encoding && !isvar_string(encoding)) {
-                err_setstr(TypeError,
-                           "Expected: encoding=string but got %s",
-                           typestr(encoding));
-                goto out;
+        if (encoding >= 0 && encoding2 >= 0) {
+                err_doublearg("encoding");
+                return ErrorVar;
         }
-
-        if (argc == 0) {
-                ret = VAR_NEW_REF(gbl.empty_bytes);
-        } else {
-                Object *val = array_borrowitem(args, 0);
-                bug_on(!val);
-                if (encoding)
-                        ret = bytes_create_with_encoding(val, encoding);
-                else
-                        ret = bytes_create_without_encoding(val);
-        }
-
-out:
-        if (encoding)
-                VAR_DECR_REF(encoding);
-        return ret;
+        if (encoding < 0)
+                encoding = encoding2;
+        if (!what)
+                return VAR_NEW_REF(gbl.empty_bytes);
+        if (isvar_bytes(what))
+                return VAR_NEW_REF(what);
+        if (encoding >= 0)
+                return bytes_create_with_encoding(what, encoding);
+        else
+                return bytes_create_without_encoding(what);
 }
 
 static Object *

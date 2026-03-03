@@ -25,6 +25,8 @@ enum file_type_t {
  * @fr_eof:      True if file is at end-of-file
  * @fr_closefd:  True to close file descriptor during garbage collection
  * @fr_pos:      Position in the file
+ * @fr_write:    Function for internal C code to call to write
+ * @fr_read:     Function for internal C code to call to read
  */
 struct rawfile_t {
         int fr_magic;
@@ -37,6 +39,8 @@ struct rawfile_t {
         bool fr_eof;
         bool fr_closefd;
         off_t fr_pos;
+        ssize_t (*fr_write)(struct rawfile_t *self, Object *data);
+        Object *(*fr_read)(struct rawfile_t *self, ssize_t size);
 };
 
 struct textfile_t {
@@ -51,6 +55,8 @@ struct textfile_t {
 #define ft_eof          ft_raw.fr_eof
 #define ft_closefd      ft_raw.fr_closefd
 #define ft_fdpos        ft_raw.fr_pos
+#define ft_read         ft_raw.fr_read
+#define ft_write        ft_raw.fr_write
         int ft_codec;
         Object *ft_eol;
         Object *ft_buf;
@@ -71,7 +77,9 @@ struct binfile_t {
 #define fb_readable     fb_raw.fr_readable
 #define fb_eof          fb_raw.fr_eof
 #define fb_closefd      fb_raw.fr_closefd
-#define fb_fdpos        fd_raw.fr_pos
+#define fb_fdpos        fb_raw.fr_pos
+#define fb_read         fb_raw.fr_read
+#define fb_write        fb_raw.fr_write
         Object *fb_buf;
         size_t fb_bufpos;
         off_t fb_upos;
@@ -119,14 +127,27 @@ filerr_malformed(const char *fname)
         filerr(fname, "file's dictionary corrupted");
 }
 
+static void
+filerr_permit(const char *fname, bool iswrite)
+{
+        static const char *unread = "file is not readable";
+        static const char *unwrite = "file is not writable";
+        filerr(fname, iswrite ? unwrite : unread);
+}
+
 static struct rawfile_t *
 file_get_priv(Object *fo, const char *fname,
-              bool check_open, size_t checksize, enum file_type_t type)
+              bool check_open, enum file_type_t type)
 {
         struct rawfile_t *ret;
 
+        if (!isvar_dict(fo)) {
+                filerr(fname, "object is not a file");
+                return NULL;
+        }
         ret = (struct rawfile_t *)dict_get_priv(fo);
-        if (!ret || ret->fr_magic != FILE_MAGIC || ret->fr_type != type) {
+        if (!ret || ret->fr_magic != FILE_MAGIC ||
+            ((int)type >= 0 && ret->fr_type != type)) {
                 filerr_malformed(fname);
                 return NULL;
         }
@@ -141,9 +162,9 @@ file_get_priv(Object *fo, const char *fname,
 static inline struct rawfile_t *
 rawfile_get_priv(Object *fo, const char *fname, bool check_open)
 {
-        return file_get_priv(fo, fname, check_open,
-                             sizeof(struct rawfile_t), FILE_RAW);
+        return file_get_priv(fo, fname, check_open, FILE_RAW);
 }
+
 static struct rawfile_t *
 rawfile_fget_priv(Frame *fr, const char *fname, bool check_open)
 {
@@ -172,16 +193,11 @@ do_iseof(Frame *fr)
                 : VAR_NEW_REF(gbl.zero);
 }
 
-/*
- *              Text-specific callbacks
- */
-
 static inline struct textfile_t *
 textfile_get_priv(Object *fo, const char *fname, bool check_open)
 {
-        return (struct textfile_t *)file_get_priv(fo, fname, check_open,
-                                           sizeof(struct textfile_t),
-                                           FILE_TEXT);
+        return (struct textfile_t *)file_get_priv(fo, fname,
+                                                  check_open, FILE_TEXT);
 }
 
 static struct textfile_t *
@@ -283,16 +299,18 @@ text_append_chunk(struct textfile_t *ft)
 }
 
 static char *
-readinto_chunkly(int fd, size_t *size)
+readinto_chunkly(int fd, size_t *size, ssize_t lim)
 {
         enum { GROWSIZ = 256 };
         char *buf = erealloc(NULL, GROWSIZ);
         size_t allocsize = GROWSIZ;
+        if (lim >= 0 && allocsize > lim)
+                allocsize = lim;
         char *p = buf;
         char *end = buf + allocsize;
         for (;;) {
                 /* XXX: wrap text_read_chunk above instead of this */
-                size_t pi;
+                size_t pi, gs;
                 while (p < end) {
                         ssize_t n = read(fd, p, end - p);
                         if (n < 0) {
@@ -307,17 +325,22 @@ readinto_chunkly(int fd, size_t *size)
                 if (p != end)
                         break;
                 pi = p - buf;
-                allocsize += GROWSIZ;
+                gs = GROWSIZ;
+                if (lim > 0 && allocsize + gs > lim)
+                        gs = lim - allocsize;
+                if (!gs)
+                        break;
+                allocsize += gs;
                 buf = erealloc(buf, allocsize);
                 p = buf + pi;
-                end = p + GROWSIZ;
+                end = p + gs;
         }
         *size = p - buf;
         return buf;
 }
 
 static char *
-readinto(int fd, off_t pos, size_t *size)
+readinto(int fd, off_t pos, size_t *nread, ssize_t lim)
 {
         struct stat st;
         size_t allocbytes;
@@ -328,6 +351,8 @@ readinto(int fd, off_t pos, size_t *size)
         if (st.st_size < pos) /* ?!?! */
                 goto slowpath;
         allocbytes = (size_t)(st.st_size - pos);
+        if (lim >= 0 && allocbytes > lim)
+                allocbytes = lim;
         buf = emalloc(allocbytes);
         end = buf + allocbytes;
         p = buf;
@@ -344,24 +369,22 @@ readinto(int fd, off_t pos, size_t *size)
                 }
                 p += n;
         }
-        *size = p - buf;
+        *nread = p - buf;
         return buf;
 
 slowpath:
-        return readinto_chunkly(fd, size);
+        return readinto_chunkly(fd, nread, lim);
 }
 
 static Object *
-do_text_read(Frame *fr)
+do_text_read_(struct rawfile_t *fr, ssize_t size)
 {
         Object *ret;
         size_t nread;
         char *tbuf;
-        struct textfile_t *ft = textfile_fget_priv(fr, "readline", 1);
-        if (!ft)
-                return ErrorVar;
+        struct textfile_t *ft = (struct textfile_t *)fr;
         if (!ft->ft_readable) {
-                err_setstr(TypeError, "file is not readable");
+                filerr_permit("read", 0);
                 return ErrorVar;
         }
 
@@ -373,6 +396,7 @@ do_text_read(Frame *fr)
                         /*
                          * Don't need to produce ref, we're handing
                          * it off instead.
+                         * FIXME: what if seqvar_size(ret) > size?
                          */
                 } else {
                         ret = VAR_NEW_REF(STRCONST_ID(mpty));
@@ -380,10 +404,11 @@ do_text_read(Frame *fr)
                 return ret;
         }
         /*
-         * XXX REVISIT: Better to use fstat at open time to get the file
-         * size, then maintain a position marker during open cycle.
+         * FIXME: this function here as well as readinto...
+         * need to take ft->ft_buf into account, and also @size
+         * refers to Unicode points, not bytes.
          */
-        tbuf = readinto(ft->ft_fd, ft->ft_fdpos, &nread);
+        tbuf = readinto(ft->ft_fd, ft->ft_fdpos, &nread, size);
         if (!tbuf) {
                 return ErrorVar;
         } else if (!nread) {
@@ -404,6 +429,19 @@ do_text_read(Frame *fr)
         } else {
                 return stringvar_from_binary(tbuf, nread, ft->ft_codec);
         }
+ }
+
+static Object *
+do_text_read(Frame *fr)
+{
+        long long size = -1LL;
+        struct textfile_t *ft = textfile_fget_priv(fr, "read", 1);
+        if (!ft)
+                return ErrorVar;
+        if (vm_getargs(fr, "[|l]:read", &size) == RES_ERROR)
+                return ErrorVar;
+
+        return do_text_read_((struct rawfile_t *)ft, (ssize_t)size);
 }
 
 static Object *
@@ -417,7 +455,7 @@ do_text_readline(Frame *fr)
                 return ErrorVar;
 
         if (!ft->ft_readable) {
-                err_setstr(TypeError, "file is not readable");
+                filerr_permit("readline", 0);
                 return ErrorVar;
         }
 
@@ -481,11 +519,12 @@ do_text_readline(Frame *fr)
 }
 
 static ssize_t
-do_text_write_(struct textfile_t *ft, Object *so)
+do_text_write_(struct rawfile_t *fr, Object *so)
 {
         ssize_t ret;
+        struct textfile_t *ft = (struct textfile_t *)fr;
         if (!ft->ft_writable) {
-                err_setstr(TypeError, "file is not writable");
+                filerr_permit("write", 1);
                 return -1;
         }
 
@@ -525,7 +564,7 @@ do_text_write(Frame *fr)
                 return ErrorVar;
         if (vm_getargs(fr, "<s>:write", &so) == RES_ERROR)
                 return ErrorVar;
-        ret = do_text_write_(ft, so);
+        ret = do_text_write_((struct rawfile_t *)ft, so);
         if (ret < 0)
                 return ErrorVar;
         return intvar_new(ret);
@@ -647,7 +686,7 @@ static Object *
 open_text(int fd, struct fileconfig_t *cfg, int codec)
 {
         static const struct type_inittbl_t textfile_cb_methods[] = {
-                V_INITTBL("read",       do_text_read,     0, 0, -1, -1),
+                V_INITTBL("read",       do_text_read,     1, 1,  0, -1),
                 V_INITTBL("readline",   do_text_readline, 0, 0, -1, -1),
                 V_INITTBL("write",      do_text_write,    1, 1, -1, -1),
                 V_INITTBL("close",      do_text_close,    0, 0, -1, -1),
@@ -662,6 +701,10 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
         fh->ft_codec = codec;
         /* FIXME: this should be an argument */
         fh->ft_eol = stringvar_new("\n");
+        if (cfg->readable)
+                fh->ft_read = do_text_read_;
+        if (cfg->writable)
+                fh->ft_write = do_text_write_;
 
         strfunc = funcvar_new_intl(text_str, 1, 1);
 
@@ -723,27 +766,66 @@ evc_open(struct fileconfig_t *cfg, int oflags, int codec)
         return ret;
 }
 
+/**
+ * evc_file_read - Read from a file
+ * @fo: File object to read from
+ * @size: Number of bytes to read if file is binary
+ *        Number of Unicode points to read if file is text
+ *        -1 to read the whole file
+ *
+ * Return: A bytes object if the file is binary
+ *         A string object if the file is text
+ *         ErrorVar if there was an error.
+ *
+ * This is for the internal C code to read from files.
+ * User code calls @fo's 'read[line]' method.
+ */
+Object *
+evc_file_read(Object *fo, ssize_t size)
+{
+        struct rawfile_t *f;
+        f = file_get_priv(fo, NULL, 1, -1);
+        if (!f)
+                return ErrorVar;
+
+        if (!f->fr_read) {
+                filerr_permit("internal_read", 0);
+                return ErrorVar;
+        }
+        return f->fr_read(f, size);
+}
+
+/**
+ * evc_file_write - Write to a file
+ * @fo: File object to write to
+ * @data: Data to write, either bytes or string,
+ *        depending on the type and mode of the file.
+ *
+ * Return: Number of bytes (not Unicode points) written
+ *         -1 if there was an error.
+ *         XXX: assymetric to evc_file_read w/r/t nbytes
+ *
+ * This is for the internal C code to write to files.
+ * User code calls @fo's 'write' method.
+ */
 ssize_t
 evc_file_write(Object *fo, Object *data)
 {
-        struct textfile_t *ft;
-        if (!isvar_dict(fo)) {
-                err_setstr(TypeError, "Cannot write: not a file");
-                return -1;
-        }
-        ft = textfile_get_priv(fo, NULL, 1);
-        if (!ft)
+        struct rawfile_t *f;
+        f = file_get_priv(fo, NULL, 1, -1);
+        if (!f)
                 return -1;
 
-        /* FIXME: proper multiplexing of 'write' callbacks */
-        if (ft->ft_type != FILE_TEXT) {
-                err_setstr(TypeError,
-                        "Write at this level only permitted on text-base files");
+        if (!f->fr_write) {
+                filerr_permit("internal_write", 1);
                 return -1;
         }
-        return do_text_write_(ft, data);
+        return f->fr_write(f, data);
 }
 
+/**
+ * isvar_file - Return true if @o is a file
+ */
 bool
 isvar_file(Object *o)
 {

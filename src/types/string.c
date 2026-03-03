@@ -2699,52 +2699,26 @@ string_from_encoded_obj(Object *obj, Object *encarg)
 static Object *
 string_create(Frame *fr)
 {
-        Object *args, *kwargs, *encoding, *ret;
-        int argc;
-
-        args = vm_get_arg(fr, 0);
-        kwargs = vm_get_arg(fr, 1);
-        bug_on(!args || !isvar_array(args));
-        bug_on(!kwargs || !isvar_dict(kwargs));
-
-        ret = ErrorVar;
-        argc = seqvar_size(args);
-        encoding = dict_getitem(kwargs, STRCONST_ID(encoding));
-        if (encoding) {
-                if (argc > 1) {
-                        err_doublearg("encoding");
-                        goto out;
-                } else if (argc == 0) {
-                        err_setstr(TypeError, "Nothing to decode");
-                        goto out;
-                }
-        } else if (argc > 1) {
-                encoding = array_getitem(args, 1);
-                bug_on(!encoding);
+        Object *encoding = NULL;
+        Object *encoding2 = NULL;
+        Object *what = NULL;
+        if (vm_getargs(fr, "[|<*><s>]{|<s>}:string", &what, &encoding,
+                       STRCONST_ID(encoding), &encoding2) == RES_ERROR) {
+                return ErrorVar;
         }
-        if (encoding && !isvar_string(encoding)) {
-                err_setstr(TypeError,
-                           "Expected: encoding=string but got %s",
-                           typestr(encoding));
-                goto out;
+        if (encoding && encoding2) {
+                err_doublearg("encoding");
+                return ErrorVar;
         }
-
-        if (argc == 0) {
-                ret = VAR_NEW_REF(STRCONST_ID(mpty));
-        } else {
-                Object *val = array_borrowitem(args, 0);
-                bug_on(!val);
-                if (encoding)
-                        ret = string_from_encoded_obj(val, encoding);
-                else if (isvar_string(val))
-                        ret = VAR_NEW_REF(val);
-                else
-                        ret = var_str(val);
-        }
-out:
+        if (!encoding)
+                encoding = encoding2;
+        if (!what)
+                return VAR_NEW_REF(STRCONST_ID(mpty));
+        if (isvar_string(what))
+                return VAR_NEW_REF(what);
         if (encoding)
-                VAR_DECR_REF(encoding);
-        return ret;
+                return string_from_encoded_obj(what, encoding);
+        return var_str(what);
 }
 
 /* **********************************************************************

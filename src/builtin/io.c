@@ -5,12 +5,6 @@
 #include <unistd.h>
 #include <sys/stat.h> /* fstat() */
 
-/*
- * XXX: See isvar_file().
- * We need a single header for all our magic numbers, to keep them unique.
- */
-enum { FILE_MAGIC = 'F' << 24 | 'I' << 16 | 'L' << 8 | 'E' };
-
 enum file_type_t {
         FILE_TEXT,
         FILE_BINARY,
@@ -103,7 +97,7 @@ file_new(int fd, size_t size, struct fileconfig_t *cfg)
         /* XXX: permit this? It doesn't make sense */
 
         memset(raw, 0, size);
-        raw->fr_magic    = FILE_MAGIC;
+        raw->fr_magic    = DICT_MAGIC_FILE;
         raw->fr_type     = cfg->type;
         raw->fr_fd       = fd;
         raw->fr_mode     = cfg->mode;
@@ -146,7 +140,7 @@ file_get_priv(Object *fo, const char *fname,
                 return NULL;
         }
         ret = (struct rawfile_t *)dict_get_priv(fo);
-        if (!ret || ret->fr_magic != FILE_MAGIC ||
+        if (!ret || ret->fr_magic != DICT_MAGIC_FILE ||
             ((int)type >= 0 && ret->fr_type != type)) {
                 filerr_malformed(fname);
                 return NULL;
@@ -832,7 +826,7 @@ isvar_file(Object *o)
         if (isvar_dict(o)) {
                 struct rawfile_t *fr = dict_get_priv(o);
                 if (fr)
-                        return fr->fr_magic == FILE_MAGIC;
+                        return fr->fr_magic == DICT_MAGIC_FILE;
         }
         return false;
 }

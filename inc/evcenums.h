@@ -153,4 +153,14 @@ enum floats_enc_t {
         FLOATS_INT64, FLOATS_INT32, FLOATS_INT16, FLOATS_INT8
 };
 
+
+/*
+ * Magic numbers for built-in modules to sanity-check the results
+ * of dict_get_priv()
+ */
+enum {
+        DICT_MAGIC_FILE = 'F' << 24 | 'I' << 16 | 'L' << 8 | 'E',
+        DICT_MAGIC_SOCK = 'S' << 24 | 'O' << 16 | 'C' << 8 | 'K',
+};
+
 #endif /* EVILCANDY_EVCENUMS_H */

@@ -69,9 +69,6 @@ struct evc_sockaddr_t {
         };
 };
 
-/* sanity-check value in struct socketvar_t */
-enum { SOCKET_MAGIC = 'S' << 24 | 'O' << 16 | 'C' << 8 | 'K' };
-
 /*
  * No Object head, because this isn't an actual object,
  * since a socket is just a dictionary.  It's a struct
@@ -308,7 +305,7 @@ socket_get_priv(Object *skobj, const char *fname, bool check_open)
         struct socketvar_t *skv;
 
         skv = (struct socketvar_t *)dict_get_priv(skobj);
-        if (!skv || skv->magic  != SOCKET_MAGIC) {
+        if (!skv || skv->magic  != DICT_MAGIC_SOCK) {
                 skerr(TypeError, "[possible bug] data corrupted", fname);
                 return NULL;
         }
@@ -851,7 +848,7 @@ socket_create(int fd, int domain, int type, int proto)
          * bytesvar_new packs skv into unaligned buffer.
          */
         skv = emalloc(sizeof(*skv));
-        skv->magic       = SOCKET_MAGIC;
+        skv->magic       = DICT_MAGIC_SOCK;
         skv->fd          = fd;
         skv->domain      = domain;
         skv->type        = type;

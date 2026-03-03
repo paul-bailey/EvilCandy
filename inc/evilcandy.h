@@ -250,9 +250,10 @@ extern void dict_unpack(Object *obj, ...);
 extern ssize_t dict_iter(Object *dict, ssize_t iter,
                          Object **k, Object **v);
 extern int dict_copyto(Object *to, Object *from);
-extern enum result_t dict_add_udestructor(Object *dict, Object *func);
 extern void dict_add_cdestructor(Object *dict, void (*func)(Object *));
 extern void dict_setstr(Object *dict, Object *cb);
+extern void dict_set_priv(Object *dict, void *priv);
+extern void *dict_get_priv(Object *dict);
 
 /* types/method.c */
 extern int methodvar_tofunc(Object *meth,

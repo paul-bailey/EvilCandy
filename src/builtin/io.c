@@ -121,25 +121,10 @@ static struct rawfile_t *
 file_get_priv(Object *fo, const char *fname,
               bool check_open, size_t checksize, enum file_type_t type)
 {
-        Object *po;
         struct rawfile_t *ret;
 
-        po = dict_getitem(fo, STRCONST_ID(_priv));
-        if (!po) {
-                filerr_malformed(fname);
-                return NULL;
-        }
-
-        /* We're borrowing this, not storing it */
-        VAR_DECR_REF(po);
-
-        if (!isvar_bytes(po) || seqvar_size(po) != checksize) {
-                filerr_malformed(fname);
-                return NULL;
-        }
-
-        ret = (struct rawfile_t *)bytes_get_data(po);
-        if (ret->fr_magic != FILE_MAGIC || ret->fr_type != type) {
+        ret = (struct rawfile_t *)dict_get_priv(fo);
+        if (!ret || ret->fr_magic != FILE_MAGIC || ret->fr_type != type) {
                 filerr_malformed(fname);
                 return NULL;
         }
@@ -669,23 +654,21 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
                 TBLEND,
         };
         struct textfile_t *fh;
-        Object *fho, *ret, *strfunc;
+        Object *ret, *strfunc;
 
         fh = file_new(fd, sizeof(*fh), cfg);
         fh->ft_codec = codec;
         /* FIXME: this should be an argument */
         fh->ft_eol = stringvar_new("\n");
-        fho = bytesvar_new((unsigned char *)fh, sizeof(*fh));
 
         strfunc = funcvar_new_intl(text_str, 1, 1);
 
         ret = dictvar_from_methods(NULL, textfile_cb_methods);
-        dict_setitem(ret, STRCONST_ID(_priv), fho);
+        dict_set_priv(ret, fh);
         dict_add_cdestructor(ret, text_destructor);
         dict_setstr(ret, strfunc);
 
         VAR_DECR_REF(strfunc);
-        VAR_DECR_REF(fho);
 
         return ret;
 }

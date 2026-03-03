@@ -14,6 +14,24 @@
 #include <evilcandy.h>
 
 /**
+ * struct class_t - A dictionary's .d_class points to this or NULL
+ * @c_ureset: User-defined reset callback function, or NULL
+ * @c_creset: Internal reset callback function, or NULL
+ * @c_str:    Way to represent self, alternative to dict_str().
+ *            ***Call vm_get_arg(0), not vm_get_this()!***
+ * @c_priv:   Private data, for built-in objects.  External code would
+ *            not need this, since they can bury their private data in
+ *            closures.  (Technically so can built-in modules, but it's
+ *            faster to just bypass all that overhead.)
+ */
+struct class_t {
+        Object *c_ureset;
+        void (*c_creset)(Object *);
+        Object *c_str;
+        void *c_priv;
+};
+
+/**
  * struct dictvar_t - Descriptor for an object handle
  * @d_size:             Array size of d_keys/d_vals, always a power of 2
  * @d_used:             Active entries in hash table
@@ -25,9 +43,10 @@
  * @d_map:              Array mapping entries in order to their indices
  *                      in @d_keys/@d_vals.  Used for iterating.
  * @d_lock:             Display lock
- * @d_udestructor:      Destructor user function call
- * @d_cdestructor:      Destructor C function call
- * @d_str:              Callback for alternative to dict_str().
+ * @d_class:            If non-NULL, pointer to class methods and info,
+ *                      used for external code or built-in modules, in
+ *                      which dictionaries like user-defined classes
+ *                      rather than pure dictionaries.
  *
  * d_keys, d_vals, and d_map are allocated in one call each time the
  * table resizes.  The allocation pointer is at d_keys.
@@ -43,21 +62,28 @@ struct dictvar_t {
         Object **d_vals;
         void *d_map;
         int d_lock;
-
-        /*
-         * XXX REVISIT: I'd prefer this C file be agnostic to anything
-         * that doesn't treat this class like a pure dictionary.  But
-         * these fields are for very user-class like stuff.
-         */
-        Object *d_udestructor;
-        void (*d_cdestructor)(Object *);
-        Object *d_str;
+        struct class_t *d_class;
 };
 
 #define V2D(v)          ((struct dictvar_t *)(v))
 #define V2SQ(v)         ((struct seqvar_t *)(v))
 #define OBJ_SIZE(v)     seqvar_size(v)
 
+
+/* **********************************************************************
+ *                      .d_class helpers
+ ***********************************************************************/
+
+static struct class_t *
+dict_assert_hasclass(struct dictvar_t *d)
+{
+        if (!d->d_class) {
+                size_t len = sizeof(struct class_t);
+                d->d_class = emalloc(len);
+                memset(d->d_class, 0, len);
+        }
+        return d->d_class;
+}
 
 /* **********************************************************************
  *                      Hash table helpers
@@ -847,10 +873,11 @@ dict_iter(Object *dict, ssize_t iter, Object **k, Object **v)
  * may only have one destructor callback.  If this is called multiple
  * times, the old destructor will be replaced by the new destructor.
  */
-enum result_t
+static enum result_t
 dict_add_udestructor(Object *dict, Object *func)
 {
         struct dictvar_t *d;
+        struct class_t *cls;
 
         bug_on(!isvar_dict(dict));
         if (func == NullVar) {
@@ -873,13 +900,14 @@ dict_add_udestructor(Object *dict, Object *func)
         }
 
         d = V2D(dict);
-        if (d->d_udestructor) {
-                VAR_DECR_REF(d->d_udestructor);
-                d->d_udestructor = NULL;
+        cls = dict_assert_hasclass(d);
+        if (cls->c_ureset) {
+                VAR_DECR_REF(cls->c_ureset);
+                cls->c_ureset = NULL;
         }
         if (func)
                 VAR_INCR_REF(func);
-        d->d_udestructor = func;
+        cls->c_ureset = func;
         return RES_OK;
 }
 
@@ -896,11 +924,14 @@ void
 dict_add_cdestructor(Object *dict, void (*func)(Object *))
 {
         struct dictvar_t *d = V2D(dict);
+        struct class_t *cls;
 
         bug_on(!isvar_dict(dict));
-        bug_on(d->d_cdestructor);
 
-        d->d_cdestructor = func;
+        cls = dict_assert_hasclass(d);
+        bug_on(cls->c_creset);
+
+        cls->c_creset = func;
 }
 
 /* **********************************************************************
@@ -928,31 +959,38 @@ dict_reset(Object *o)
         struct dictvar_t *dict = V2D(o);
         bug_on(!isvar_dict(o));
 
-        if (dict->d_udestructor) {
-                Object *func, *res;
+        if (dict->d_class) {
+                struct class_t *cls = dict->d_class;
 
-                func = dict->d_udestructor;
-                dict->d_udestructor = NULL;
+                if (cls->c_ureset) {
+                        Object *func, *res;
 
-                res = vm_exec_func(NULL, func, 1, &o, 0);
-                /* FIXME: Error return value is unhandled here! */
-                if (res != ErrorVar)
-                        VAR_DECR_REF(res);
+                        func = cls->c_ureset;
+                        cls->c_ureset = NULL;
 
-                VAR_DECR_REF(func);
-        }
+                        res = vm_exec_func(NULL, func, 1, &o, 0);
+                        /* FIXME: Error return value is unhandled here! */
+                        if (res != ErrorVar)
+                                VAR_DECR_REF(res);
 
-        if (dict->d_cdestructor) {
-                void (*cb)(Object *) = dict->d_cdestructor;
-                dict->d_cdestructor = NULL;
+                        VAR_DECR_REF(func);
+                }
 
-                cb(o);
-        }
+                if (cls->c_creset) {
+                        void (*cb)(Object *) = cls->c_creset;
+                        cls->c_creset = NULL;
 
-        if (dict->d_str) {
-                Object *func = dict->d_str;
-                dict->d_str = NULL;
-                VAR_DECR_REF(func);
+                        cb(o);
+                }
+
+                if (cls->c_str) {
+                        Object *func = cls->c_str;
+                        cls->c_str = NULL;
+                        VAR_DECR_REF(func);
+                }
+
+                dict->d_class = NULL;
+                efree(cls);
         }
 
         dict_clear_noresize(dict);
@@ -964,6 +1002,7 @@ dict_str(Object *o)
 {
         struct dictvar_t *d;
         struct buffer_t b;
+        struct class_t *cls;
         int i;
         int count;
         Object *ret;
@@ -971,9 +1010,9 @@ dict_str(Object *o)
         bug_on(!isvar_dict(o));
         d = V2D(o);
 
-        if (d->d_str) {
+        if ((cls = d->d_class) != NULL && cls->c_str != NULL) {
                 bool err = err_occurred();
-                ret = vm_exec_func(NULL, d->d_str, 1, &o, 0);
+                ret = vm_exec_func(NULL, cls->c_str, 1, &o, 0);
 
                 /* Fast path return user-define representation */
                 if (isvar_string(ret) && seqvar_size(ret) > 0)
@@ -1079,14 +1118,50 @@ void
 dict_setstr(Object *dict, Object *cb)
 {
         Object *oldstr;
+        struct class_t *cls;
         struct dictvar_t *d = V2D(dict);
         bug_on(!isvar_dict(dict));
 
-        oldstr = d->d_str;
-        d->d_str = VAR_NEW_REF(cb);
+        cls = dict_assert_hasclass(d);
+        oldstr = cls->c_str;
+        cls->c_str = VAR_NEW_REF(cb);
 
         if (oldstr)
                 VAR_DECR_REF(oldstr);
+}
+
+/**
+ * dict_set_priv - Set a dictionary's private data
+ * @dict:       Dictionary
+ * @priv:       Private data to associate with the instance @dict
+ *
+ * Used by built-in modules which would rather use dictionaries rather
+ * than make too many strict, built-in data types.
+ */
+void
+dict_set_priv(Object *dict, void *priv)
+{
+        struct class_t *cls;
+        struct dictvar_t *d = V2D(dict);
+        bug_on(!isvar_dict(dict));
+
+        cls = dict_assert_hasclass(d);
+
+        /* Only set this once */
+        bug_on(!!cls->c_priv);
+        cls->c_priv = priv;
+}
+
+/**
+ * dict_get_priv - Get private data installed with dict_set_priv()
+ */
+void *
+dict_get_priv(Object *dict)
+{
+        struct dictvar_t *d = V2D(dict);
+        bug_on(!isvar_dict(dict));
+
+        return d->d_class ? d->d_class->c_priv : NULL;
 }
 
 /* **********************************************************************

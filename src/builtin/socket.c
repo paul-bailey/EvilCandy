@@ -69,12 +69,16 @@ struct evc_sockaddr_t {
         };
 };
 
+/* sanity-check value in struct socketvar_t */
+enum { SOCKET_MAGIC = 'S' << 24 | 'O' << 16 | 'C' << 8 | 'K' };
+
 /*
  * No Object head, because this isn't an actual object,
  * since a socket is just a dictionary.  It's a struct
  * stored as '_priv' in the socket dict.
  */
 struct socketvar_t {
+        int magic;
         int fd;
         int domain;
         int type;
@@ -301,34 +305,19 @@ validate_int(int ival, const int *tbl, const char *argname)
 static struct socketvar_t *
 socket_get_priv(Object *skobj, const char *fname, bool check_open)
 {
-        Object *po;
-        const char *msg;
         struct socketvar_t *skv;
 
-        po = dict_getitem(skobj, STRCONST_ID(_priv));
-        if (!po) {
-                msg = "socket is missing its '_priv' field";
-                goto err;
+        skv = (struct socketvar_t *)dict_get_priv(skobj);
+        if (!skv || skv->magic  != SOCKET_MAGIC) {
+                skerr(TypeError, "[possible bug] data corrupted", fname);
+                return NULL;
         }
 
-        /* We're borrowing this, not storing it */
-        VAR_DECR_REF(po);
-
-        if (!isvar_bytes(po) || seqvar_size(po) != sizeof(*skv)) {
-                msg = "socket's '_priv' field malformed";
-                goto err;
-        }
-
-        skv = (struct socketvar_t *)bytes_get_data(po);
         if (check_open && skv->fd < 0)  {
-                msg = "socket closed";
-                goto err;
+                skerr(TypeError, "socket closed", fname);
+                return NULL;
         }
         return skv;
-
-err:
-        skerr(TypeError, msg, fname);
-        return NULL;
 }
 
 static Object *
@@ -853,6 +842,7 @@ sock_destructor(Object *skobj)
         skv->fd = -1;
         if (fd >= 0)
                 close(fd);
+        efree(skv);
 }
 
 /*
@@ -879,13 +869,14 @@ socket_create(int fd, int domain, int type, int proto)
                 TBLEND,
         };
         struct socketvar_t *skv;
-        Object *priv, *skobj, *strfunc;
+        Object *skobj, *strfunc;
 
         /*
          * pre-allocated rather than declared on stack, in case
          * bytesvar_new packs skv into unaligned buffer.
          */
         skv = emalloc(sizeof(*skv));
+        skv->magic       = SOCKET_MAGIC;
         skv->fd          = fd;
         skv->domain      = domain;
         skv->type        = type;
@@ -899,18 +890,14 @@ socket_create(int fd, int domain, int type, int proto)
          * object.  I still need to implement something like Python's
          * bytearray class to do this properly.
          */
-        priv = bytesvar_nocopy((unsigned char *)skv, sizeof(*skv));
-
         skobj = dictvar_from_methods(NULL, sockmethods_inittbl);
 
-        dict_setitem(skobj, STRCONST_ID(_priv), priv);
+        dict_set_priv(skobj, skv);
         dict_add_cdestructor(skobj, sock_destructor);
 
         strfunc = funcvar_new_intl(socket_str, 1, 1);
         dict_setstr(skobj, strfunc);
         VAR_DECR_REF(strfunc);
-
-        VAR_DECR_REF(priv);
 
         return skobj;
 }

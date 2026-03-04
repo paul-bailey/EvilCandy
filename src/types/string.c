@@ -116,10 +116,10 @@ string_writer_append_strobj(struct string_writer_t *wr, Object *str)
  * There used to be more, but they went obsolete.
  */
 static Object *
-stringvar_newf(char *cstr, unsigned int flags)
+stringvar_newf(char *cstr, size_t size, unsigned int flags)
 {
         struct string_writer_t wr;
-        ssize_t n, max;
+        ssize_t n, max = size;
 
         if (!cstr) {
                 cstr = "";
@@ -127,7 +127,6 @@ stringvar_newf(char *cstr, unsigned int flags)
         }
 
         string_writer_init(&wr, 1);
-        max = strlen(cstr);
         n = string_writer_decode(&wr, cstr, max, CODEC_UTF8, 1);
         bug_on(n < 0);
         if (n != max) {
@@ -1888,7 +1887,7 @@ string_removelr(Frame *fr, unsigned int flags)
         else
                 memcpy(newbuf, &haystack[nlen], hlen - nlen);
         newbuf[hlen - nlen] = '\0';
-        return stringvar_newf(newbuf, 0);
+        return stringvar_newf(newbuf, hlen - nlen, 0);
 
 return_self:
         VAR_INCR_REF(self);
@@ -2148,7 +2147,7 @@ string_zfill(Frame *fr)
                 buffer_putc(&b, '0');
         buffer_puts(&b, src);
 
-        return stringvar_newf(buffer_trim(&b), 0);
+        return stringvar_from_buffer(&b);
 }
 
 
@@ -2492,7 +2491,7 @@ string_str(Object *v)
                 }
         }
         buffer_putc(&b, Q);
-        return stringvar_newf(buffer_trim(&b), 0);
+        return stringvar_from_buffer(&b);
 }
 
 static void
@@ -2537,7 +2536,7 @@ string_cat(Object *a, Object *b)
         catstr = emalloc(llen + rlen + 1);
         memcpy(catstr, lval, llen);
         memcpy(catstr + llen, rval, rlen + 1);
-        return stringvar_newf(catstr, 0);
+        return stringvar_newf(catstr, llen + rlen, 0);
 }
 
 static int
@@ -2798,7 +2797,7 @@ string_slide(Object *str, Object *delims, size_t pos)
 Object *
 stringvar_new(const char *cstr)
 {
-        return stringvar_newf((char *)cstr, SF_COPY);
+        return stringvar_newf((char *)cstr, strlen(cstr), SF_COPY);
 }
 
 /**
@@ -2812,17 +2811,7 @@ stringvar_new(const char *cstr)
 Object *
 stringvar_newn(const char *cstr, size_t n)
 {
-        /*
-         * TODO: I want to replace this with
-         * return stringvar_from_binary(cstr, n, CODEC_UTF8).
-         */
-        char *new;
-        size_t len = strlen(cstr);
-        if (n > len)
-                n = len;
-        new = ememdup(cstr, n + 1);
-        new[n] = '\0';
-        return stringvar_newf(new, 0);
+        return stringvar_newf(new, n, SF_COPY);
 }
 
 /**
@@ -2835,7 +2824,7 @@ stringvar_newn(const char *cstr, size_t n)
 Object *
 stringvar_nocopy(const char *cstr)
 {
-        return stringvar_newf((char *)cstr, 0);
+        return stringvar_newf((char *)cstr, strlen(cstr), 0);
 }
 
 /**
@@ -2849,8 +2838,9 @@ stringvar_nocopy(const char *cstr)
 Object *
 stringvar_from_buffer(struct buffer_t *b)
 {
+        size_t len = buffer_size(b);
         char *s = buffer_trim(b);
-        return stringvar_newf(s, 0);
+        return stringvar_newf(s, len, 0);
 }
 
 /**
@@ -2910,7 +2900,7 @@ stringvar_from_source(const char *tokenstr, bool imm)
  *         - some positive value less than @n if there exist some
  *           straggling undecodable characters at the end of @data
  *           (perhaps because a multi-byte encoding straddles the end of
- *           this buffer and the start of the next.
+ *           this buffer and the start of the next.)
  *         - -1 if the data cannot be decoded according to @codec.
  *           An exception will be thrown in this case.
  */

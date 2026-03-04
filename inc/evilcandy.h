@@ -202,6 +202,8 @@ extern Object *bytesvar_new(const unsigned char *buf, size_t len);
 extern Object *bytesvar_from_source(char *src);
 extern const unsigned char *bytes_getbuf(Object *v);
 extern Object *bytesvar_nocopy(const unsigned char *buf, size_t len);
+extern Object *bytes_getslice(Object *bytes, int start, int stop, int step);
+extern Object *bytesvar_new_sg(size_t size, ...);
 
 /* types/comlex.c */
 extern Object *complexvar_new(double real, double imag);

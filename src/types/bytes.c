@@ -109,7 +109,11 @@ bytes_getitem(Object *a, int idx)
 static bool slice_cmp_lt(int a, int b) { return a < b; }
 static bool slice_cmp_gt(int a, int b) { return a > b; }
 
-static Object *
+/**
+ * bytes_getslice - the getslice method for bytes, with extern
+ *                  linkage because it's needed elsewhere in the program.
+ */
+Object *
 bytes_getslice(Object *bytes, int start, int stop, int step)
 {
         unsigned char *src, *dst;
@@ -310,6 +314,51 @@ Object *
 bytesvar_nocopy(const unsigned char *buf, size_t len)
 {
         return bytesvar_newf(buf, len, 0);
+}
+
+/**
+ * bytesvar_new_sg - Create a bytes object from noncontiguous data
+ * @size: Total size to create.
+ *
+ * Return: New bytes object
+ *
+ * The arguments after @size are IN ORDER:
+ *              (void *)data1,
+ *              (size_t)size1,
+ *              ...
+ *              (void *)dataN,
+ *              (size_t)sizeN,
+ *              NULL
+ * The sizes for each data array must sum up to exactly @size
+ */
+Object *
+bytesvar_new_sg(size_t size, ...)
+{
+        va_list ap;
+        void *data, *dst;
+        size_t size_save = size;
+
+        data = dst = emalloc(size);
+
+        va_start(ap, size);
+        while (size) {
+                size_t tlen;
+                const void *src = va_arg(ap, void *);
+
+                /* XXX NULL src should be unreachable */
+                if (!src)
+                        break;
+
+                tlen = va_arg(ap, size_t);
+                bug_on(tlen > size);
+                memcpy(dst, src, tlen);
+                dst += tlen;
+                size -= tlen;
+        }
+        va_end(ap);
+
+        bug_on(size);
+        return bytesvar_newf(data, size_save, 0);
 }
 
 /**

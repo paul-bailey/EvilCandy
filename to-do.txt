@@ -32,6 +32,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Allow string objects to contain nulchars in the middle.
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.
   - Fix "no top-level stack in interactive mode" awkwardness

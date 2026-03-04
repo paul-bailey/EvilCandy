@@ -79,6 +79,10 @@ struct binfile_t {
         off_t fb_upos;
 };
 
+#define CAST_RAW(f_)    ((struct rawfile_t *)(f_))
+#define CAST_TXT(f_)    ((struct textfile_t *)(f_))
+#define CAST_BIN(f_)    ((struct binfile_t *)(f_))
+
 struct fileconfig_t {
         bool readable;
         bool writable;
@@ -184,8 +188,9 @@ rawfile_fget_priv(Frame *fr, const char *fname, bool check_open)
 static inline struct textfile_t *
 textfile_get_priv(Object *fo, const char *fname, bool check_open)
 {
-        return (struct textfile_t *)file_get_priv(fo, fname,
-                                                  check_open, FILE_TEXT);
+        struct rawfile_t *raw;
+        raw = file_get_priv(fo, fname, check_open, FILE_TEXT);
+        return CAST_TXT(raw);
 }
 
 static struct textfile_t *
@@ -305,12 +310,34 @@ raw_read_wrapper(int fd, void *buf, size_t size)
                         if (errno == EINTR)
                                 continue;
                         filerr_sys("read");
-                        efree(buf);
                         return -1;
                 } else if (nread == 0) {
                         break;
                 }
                 p += nread;
+        }
+        return p - buf;
+}
+
+static ssize_t
+raw_write_wrapper(int fd, const void *buf, size_t size)
+{
+        const void *p, *end;
+
+        buf = p = buf;
+        end = buf + size;
+        while (p < end) {
+                ssize_t nwritten;
+
+                errno = 0;
+                nwritten = write(fd, p, end - p);
+                if (nwritten <= 0) {
+                        if (errno == EINTR)
+                                continue;
+                        filerr_sys("write");
+                        return -1;
+                }
+                p += nwritten;
         }
         return p - buf;
 }
@@ -343,8 +370,10 @@ do_raw_read_(struct rawfile_t *raw, ssize_t size)
         /* XXX: SystemError instead of abort? */
         buf = emalloc(size);
         nread = raw_read_wrapper(raw->fr_fd, buf, size);
-        if (nread < 0)
+        if (nread < 0) {
+                efree(buf);
                 return ErrorVar;
+        }
         if (nread != size)
                 buf = erealloc(buf, nread);
         return bytesvar_nocopy(buf, nread);
@@ -353,24 +382,9 @@ do_raw_read_(struct rawfile_t *raw, ssize_t size)
 static ssize_t
 do_raw_write_(struct rawfile_t *raw, Object *bo)
 {
-        ssize_t nwritten;
-        void *buf, *p, *end;
-
-        bug_on(!isvar_bytes(bo));
-        buf = p = bytes_get_data(bo);
-        end = buf + seqvar_size(bo);
-        while (p < end) {
-                errno = 0;
-                nwritten = write(raw->fr_fd, p, end - p);
-                if (nwritten <= 0) {
-                        if (errno == EINTR)
-                                continue;
-                        filerr_sys("write");
-                        return RES_ERROR;
-                }
-                p += nwritten;
-        }
-        return RES_OK;
+        return raw_write_wrapper(raw->fr_fd,
+                                 bytes_get_data(bo),
+                                 seqvar_size(bo));
 }
 
 static Object *
@@ -495,16 +509,6 @@ open_binary(int fd, struct fileconfig_t *cfg)
  *              (Buffered) text files
  ***********************************************************************/
 
-/* helper to text_append_chunk */
-static ssize_t
-text_read_chunk(struct textfile_t *txt, void *buf, size_t bufsize)
-{
-        ssize_t res = raw_read_wrapper(txt->ft_fd, buf, bufsize);
-        if (res > 0)
-                txt->ft_fdpos += res;
-        return res;
-}
-
 static enum result_t
 text_append_chunk(struct textfile_t *txt)
 {
@@ -522,7 +526,7 @@ text_append_chunk(struct textfile_t *txt)
                 readp += nstraggler;
                 chunksize -= nstraggler;
         }
-        nread = text_read_chunk(txt, readp, chunksize);
+        nread = raw_read_wrapper(txt->ft_fd, readp, chunksize);
         if (nread < 0) {
                 /* TODO: need more error handling than just this */
                 efree(chunk);
@@ -531,6 +535,8 @@ text_append_chunk(struct textfile_t *txt)
         } else if (!nread) {
                 txt->ft_eof = true;
                 nread = nstraggler;
+        } else {
+                txt->ft_fdpos += nread;
         }
         nread += nstraggler;
 
@@ -582,18 +588,10 @@ readinto_chunkly(int fd, size_t *size, ssize_t lim)
         for (;;) {
                 /* XXX: wrap text_read_chunk above instead of this */
                 size_t pi, gs;
-                while (p < end) {
-                        ssize_t n = read(fd, p, end - p);
-                        if (n < 0) {
-                                efree(buf);
-                                filerr_sys("read");
-                                return NULL;
-                        } else if (n == 0) {
-                                break;
-                        }
-                        p += n;
-                }
-                if (p != end)
+                ssize_t nread;
+
+                nread = raw_read_wrapper(fd, p, end - p);
+                if (nread != end - p)
                         break;
                 pi = p - buf;
                 gs = GROWSIZ;
@@ -615,6 +613,7 @@ readinto(int fd, off_t pos, size_t *nread, ssize_t lim)
 {
         struct stat st;
         size_t allocbytes;
+        ssize_t n;
         char *buf, *p, *end;
 
         if (fstat(fd, &st) < 0)
@@ -628,19 +627,10 @@ readinto(int fd, off_t pos, size_t *nread, ssize_t lim)
         end = buf + allocbytes;
         p = buf;
 
-        while (p < end) {
-                ssize_t n = read(fd, p, end - p);
-                if (n < 0) {
-                        efree(buf);
-                        filerr_sys("read");
-                        return NULL;
-                } else if (n == 0) {
-                        /* ?!?! */
-                        break;
-                }
-                p += n;
-        }
-        *nread = p - buf;
+        n = raw_read_wrapper(fd, p, end - p);
+        if (n < 0)
+                return NULL;
+        *nread = n;
         return buf;
 
 slowpath:
@@ -648,12 +638,12 @@ slowpath:
 }
 
 static Object *
-do_text_read_(struct rawfile_t *fr, ssize_t size)
+do_text_read_(struct rawfile_t *raw, ssize_t size)
 {
         Object *ret;
         size_t nread;
         char *tbuf;
-        struct textfile_t *txt = (struct textfile_t *)fr;
+        struct textfile_t *txt = CAST_TXT(raw);
         if (txt->ft_eof) {
         eof:
                 if (txt->ft_buf) {
@@ -710,7 +700,7 @@ do_text_read(Frame *fr)
                 filerr_permit("read", 0);
                 return ErrorVar;
         }
-        return do_text_read_((struct rawfile_t *)txt, (ssize_t)size);
+        return do_text_read_(CAST_RAW(txt), (ssize_t)size);
 }
 
 static Object *
@@ -788,36 +778,42 @@ do_text_readline(Frame *fr)
 }
 
 static ssize_t
-do_text_write_(struct rawfile_t *fr, Object *so)
+do_text_write_(struct rawfile_t *raw, Object *so)
 {
-        ssize_t ret;
-        struct textfile_t *txt = (struct textfile_t *)fr;
-        /*
-         * TODO: Should use txt->ft_buf... flush that one and
-         * write until eol, or deliberately add eol here, if
-         * the file is so configured.
-         */
-        if (string_isascii(so) || txt->ft_codec == CODEC_UTF8) {
-                /* Easy thing: Just write the C string as-is */
-                size_t len = string_nbytes(so);
-                ret = write(txt->ft_fd, string_cstring(so), len);
-        } else if (txt->ft_codec == CODEC_ASCII) {
-                err_setstr(ValueError,
-                        "Cannot write non-ascii string to ascii file");
+        const void *data;
+        size_t size;
+
+        switch (CAST_TXT(raw)->ft_codec) {
+        case CODEC_ASCII:
+                if (!string_isascii(so)) {
+                        err_setstr(ValueError,
+                          "Cannot write non-ascii string to ascii file");
+                        return -1;
+                }
+                data = string_cstring(so);
+                size = string_nbytes(so);
+                break;
+
+        case CODEC_UTF8:
+                data = string_cstring(so);
+                size = string_nbytes(so);
+                break;
+
+        case CODEC_LATIN1:
+                if (string_width(so) > 1) {
+                        err_setstr(ValueError,
+                                "Unicode points too big for Latin1");
+                        return -1;
+                }
+                data = string_data(so);
+                size = seqvar_size(so);
+                break;
+
+        default:
+                bug();
                 return -1;
-        } else if (string_width(so) > 1) {
-                /* Latin1, but too wide of characters exist */
-                err_setstr(ValueError,
-                        "Unicode points too big for Latin1");
-                return -1;
-        } else {
-                /* Latin1, good to go */
-                void *data = string_data(so);
-                ret = write(txt->ft_fd, data, seqvar_size(so));
-                if (ret < 0)
-                        filerr_sys("write");
         }
-        return ret;
+        return raw_write_wrapper(raw->fr_fd, data, size);
 }
 
 static Object *
@@ -834,7 +830,7 @@ do_text_write(Frame *fr)
                 filerr_permit("write", 1);
                 return ErrorVar;
         }
-        ret = do_text_write_((struct rawfile_t *)txt, so);
+        ret = do_text_write_(CAST_RAW(txt), so);
         if (ret < 0)
                 return ErrorVar;
         return intvar_new(ret);
@@ -961,40 +957,6 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
  *              Module-level code and API
  ***********************************************************************/
 
-/*
- * C-level version of do_open - kept apart in case we want to call this
- * within the source tree.  Currently, we're just using stdio.h's FILE
- * for the interpreter and stderr.
- */
-static Object *
-evc_open(struct fileconfig_t *cfg, int oflags, int codec)
-{
-        Object *ret;
-        int fd = open(cfg->name, oflags, 0666);
-        if (fd < 0) {
-                err_errno("cannot open %s", cfg->name);
-                return ErrorVar;
-        }
-
-        switch (cfg->type) {
-        case FILE_TEXT:
-                ret = open_text(fd, cfg, codec);
-                break;
-        case FILE_BINARY:
-                ret = open_binary(fd, cfg);
-                break;
-        case FILE_RAW:
-                ret = open_raw(fd, cfg);
-                break;
-        default:
-                bug();
-                /* to keep the compiler happy */
-                return ErrorVar;
-        }
-
-        return ret;
-}
-
 /**
  * evc_file_read - Read from a file
  * @fo: File object to read from
@@ -1066,6 +1028,25 @@ isvar_file(Object *o)
         return false;
 }
 
+/*
+ * Common to user-code open() and C-code evc_file_open().
+ */
+Object *
+finish_open(int fd, struct fileconfig_t *cfg, int codec)
+{
+        switch (cfg->type) {
+        case FILE_TEXT:
+                return open_text(fd, cfg, codec);
+        case FILE_BINARY:
+                return open_binary(fd, cfg);
+        case FILE_RAW:
+                return open_raw(fd, cfg);
+        default:
+                bug();
+                return ErrorVar;
+        }
+}
+
 /**
  * evc_file_open - Open fd as an EvilCandy file object
  * @fd:         Open file descriptor
@@ -1079,6 +1060,9 @@ isvar_file(Object *o)
  *
  * Return: File object.  Used as a C hook for program internals to write
  * to file objects.
+ *
+ * TODO: Add option to limit rw privileges.  stdin, eg. appears as 'w+'
+ * because its underlying file is a terminal with read-write permissions.
  */
 Object *
 evc_file_open(int fd, const char *name, bool binary,
@@ -1144,20 +1128,11 @@ evc_file_open(int fd, const char *name, bool binary,
         cfg.name = name ? estrdup(name) : NULL;
         cfg.mode = estrdup(mode);
 
-        switch (cfg.type) {
-        case FILE_TEXT:
-                ret = open_text(fd, &cfg, codec);
-                break;
-        case FILE_BINARY:
-                ret = open_binary(fd, &cfg);
-                break;
-        case FILE_RAW:
-                ret = open_raw(fd, &cfg);
-                break;
-        default:
-                bug();
-                /* to keep the compiler happy */
-                return ErrorVar;
+        ret = finish_open(fd, &cfg, codec);
+        if (ret == ErrorVar) {
+                if (cfg.name)
+                        efree(cfg.name);
+                efree(cfg.mode);
         }
 
         return ret;
@@ -1177,6 +1152,7 @@ do_open(Frame *fr)
         int closefd = true;
         int codec = CODEC_OPEN_DEFAULT;
         int flags = 0;
+        int fd;
         Object *ret;
 
         res = vm_getargs(fr, "ss{|<s>ii}:open", &name, &mode,
@@ -1282,12 +1258,23 @@ do_open(Frame *fr)
         }
         cfg.name = estrdup(name);
         cfg.mode = estrdup(mode);
-        ret = evc_open(&cfg, flags, codec);
-        if (ret == ErrorVar) {
-                efree(cfg.name);
-                efree(cfg.mode);
+
+        fd = open(cfg.name, flags, 0666);
+        if (fd < 0) {
+                err_errno("cannot open %s", cfg.name);
+                goto err;
         }
+
+        ret = finish_open(fd, &cfg, codec);
+        if (ret == ErrorVar)
+                goto err;
+
         return ret;
+
+err:
+        efree(cfg.name);
+        efree(cfg.mode);
+        return ErrorVar;
 }
 
 static const struct type_inittbl_t io_inittbl[] = {

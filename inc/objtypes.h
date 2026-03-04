@@ -386,5 +386,12 @@ string_cstring(Object *v)
         return ((struct stringvar_t *)v)->s;
 }
 
+static inline void
+buffer_put_strobj(struct buffer_t *buf, Object *v)
+{
+        bug_on(!isvar_string(v));
+        buffer_nputs_all(buf, string_cstring(v), string_nbytes(v));
+}
+
 #endif /* EVILCANDY_OBJTYPES_H */
 

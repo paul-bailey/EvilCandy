@@ -24,7 +24,7 @@ tuple_str(Object *t)
                 if (i > 0)
                         buffer_puts(&b, ", ");
                 item = var_str(V2TUP(t)->items[i]);
-                buffer_puts(&b, string_cstring(item));
+                buffer_put_strobj(&b, item);
                 VAR_DECR_REF(item);
         }
 

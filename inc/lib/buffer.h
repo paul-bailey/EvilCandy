@@ -28,7 +28,9 @@ struct buffer_t {
 
 extern void buffer_init(struct buffer_t *buf);
 extern void buffer_putc(struct buffer_t *buf, int c);
+extern void buffer_putc_strict(struct buffer_t *buf, int c);
 extern void buffer_nputs(struct buffer_t *buf, const char *s, size_t amt);
+extern void buffer_nputs_all(struct buffer_t *buf, const char *s, size_t amt);
 extern void buffer_puts(struct buffer_t *buf, const char *s);
 extern void buffer_free(struct buffer_t *buf);
 extern int buffer_substr(struct buffer_t *buf, int i);

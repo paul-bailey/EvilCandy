@@ -112,25 +112,26 @@ buffer_putc(struct buffer_t *buf, int c)
         buf->s[buf->p] = '\0';
 }
 
+/*
+ * Like buffer_putc, but if @c is a nulchar and not necessarily a
+ * terminator, insert it anyway.
+ */
+void
+buffer_putc_strict(struct buffer_t *buf, int c)
+{
+        buffer_maybe_realloc(buf, 2);
+        buf->s[buf->p] = c;
+        buf->p++;
+        buf->s[buf->p] = '\0';
+}
+
 /**
  * buffer_puts - like buffer_putc, but with a WHOLE STRING!!!
  */
 void
 buffer_puts(struct buffer_t *buf, const char *s)
 {
-        if (!s) {
-                /*
-                 * for buffer_puts(buf, ""), ensure a valid pointer to
-                 * an empty string.
-                 */
-                buffer_putc(buf, '\0');
-        } else {
-                size_t len = strlen(s);
-                buffer_maybe_realloc(buf, len + 1);
-                strcpy(buf->s + buf->p, s);
-                buf->p += len;
-                buf->s[buf->p] = '\0';
-        }
+        buffer_nputs(buf, s, strlen(s));
 }
 
 /**
@@ -140,18 +141,29 @@ buffer_puts(struct buffer_t *buf, const char *s)
 void
 buffer_nputs(struct buffer_t *buf, const char *s, size_t amt)
 {
-        int c;
-        const char *end;
+        size_t len = strlen(s);
+        if (amt > len)
+                amt = len;
+        buffer_nputs_all(buf, s, amt);
+}
 
-        if (!s)
-                return;
-        end = s + amt;
+/**
+ * buffer_nputs_all - Like buffer_nputs, but trust @s to span @amt,
+ *                    possibly inserting null chars in buffer.
+ */
+void
+buffer_nputs_all(struct buffer_t *buf, const char *s, size_t amt)
+{
+        if (!s) {
+                bug_on(!amt);
+                buffer_putc(buf, '\0');
+        } else {
+                buffer_maybe_realloc(buf, amt + 1);
+                memcpy(buf->s + buf->p, s, amt);
+                buf->p += amt;
+                buf->s[buf->p] = '\0';
+        }
 
-        while (s < end && (c = *s++) != '\0')
-                buffer_putc(buf, c);
-
-        /* same reason as in buffer_putc */
-        buffer_putc(buf, '\0');
 }
 
 /**

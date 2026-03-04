@@ -180,9 +180,15 @@ key_match(Object *key1, Object *key2)
         if (key1->v_type != key2->v_type)
                 return false;
         if (isvar_string(key1)) {
-                return string_hash(key1) == string_hash(key2)
-                       && !strcmp(string_cstring(key1),
-                                  string_cstring(key2));
+                size_t n1, n2;
+                if (string_hash(key1) != string_hash(key2))
+                        return false;
+                n1 = string_nbytes(key1);
+                n2 = string_nbytes(key2);
+                if (n1 != n2)
+                        return false;
+                return !memcmp(string_cstring(key1),
+                               string_cstring(key2), n1);
         }
         if (isvar_int(key1))
                 return intvar_toll(key1) == intvar_toll(key2);
@@ -745,16 +751,17 @@ dict_unique(Object *dict, const char *key)
         d = V2D(dict);
         bug_on(!isvar_dict(dict));
 
-        /*
-         * XXX only done at load time, but is it still
-         * time consuming?  This is for **every** token!
-         */
         keycopy = stringvar_new(key);
         i = seek_helper(d, keycopy);
         if (d->d_keys[i] != NULL) {
                 /* dict_unique must be used only on string-only dicts */
                 bug_on(!isvar_string(d->d_keys[i]));
                 VAR_DECR_REF(keycopy);
+                /*
+                 * XXX: Should add a bug check to make sure this return
+                 * value doesn't have embedded nulchars, but that would
+                 * be extremely time-consuming.
+                 */
                 return (char *)string_cstring(d->d_keys[i]);
         }
 
@@ -1055,9 +1062,9 @@ dict_str(Object *o)
 
                 kstr = var_str(d->d_keys[i]);
                 vstr = var_str(d->d_vals[i]);
-                buffer_puts(&b, string_cstring(kstr));
+                buffer_put_strobj(&b, kstr);
                 buffer_puts(&b, ": ");
-                buffer_puts(&b, string_cstring(vstr));
+                buffer_put_strobj(&b, vstr);
                 VAR_DECR_REF(vstr);
                 VAR_DECR_REF(kstr);
 

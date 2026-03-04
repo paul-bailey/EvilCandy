@@ -229,12 +229,19 @@ obj2addr_(struct evc_sockaddr_t *sa, Object *arg, int domain,
 {
         if (domain == AF_UNIX) {
                 const char *name;
+                size_t len;
                 if (!isvar_string(arg)) {
                         skerr(TypeError, "expected: file name", fname);
                         return RES_ERROR;
                 }
                 name = string_cstring(arg);
-                if (strlen(name) > (sizeof(sa->un.sun_path) - 1)) {
+                if ((len = string_nbytes(arg)) != strlen(name)) {
+                        skerr(ValueError,
+                              "path name contains embedded null char",
+                              fname);
+                        return RES_ERROR;
+                }
+                if (len > (sizeof(sa->un.sun_path) - 1)) {
                         skerr(ValueError, "path name too long", fname);
                         return RES_ERROR;
                 }
@@ -628,8 +635,7 @@ send_wrapper(int fd, Object *msg, int flags,
 
         if (isvar_string(msg)) {
                 buf = string_cstring(msg);
-                /* size must be byte-size, not # of Unicode chars */
-                bufsize = strlen((char *)buf);
+                bufsize = string_nbytes(msg);
         } else {
                 bug_on(!isvar_bytes(msg));
 

@@ -127,9 +127,11 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex,
                 fprintf(fp, "<%p>", v);
         } else {
                 Object *str = var_str(v);
+                bug_on(!isvar_string(str) || !string_isascii(str));
                 if (in_comment) {
                         const char *s = string_cstring(str);
-                        size_t len = strlen(s);
+                        size_t len = string_nbytes(str);
+                        /* XXX What if len != strlen(s)? */
                         if (len > 20) {
                                 len = 20;
                                 while (len--)

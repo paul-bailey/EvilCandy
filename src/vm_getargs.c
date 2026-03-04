@@ -32,8 +32,9 @@
  * 'l'  Get a long long integer. varg is a pointer to 'long long'.
  *      uarg is an integer object.
  * 's'  Get a C string.  varg is a pointer to "char *".  uarg is a string
- *      object.  Warning!! This is a pointer into the Object's data, so
- *      if it needs to be saved for later, it should be copied.
+ *      object.  Throw an exception if the result contains embedded null
+ *      chars. WARNING!! This is a pointer into the Object's data, so if
+ *      it needs to be saved for later, it should be copied.
  * 'c'  Get a single-character string's Unicode point. varg is a pointer
  *      to "long".  uarg is a string object whose size must be 1.
  * 'e'  Get an integer from text enumerating it.  next TWO vargs are
@@ -88,6 +89,9 @@
  *
  *      A special exception is <c>, which may not have additional types
  *      specified along with the 'c'.
+ *
+ *      In the case of <s>, vm_getargs() will will not test for nullchar
+ *      in middle of string.
  *
  *      Warning! As with vm_get_arg(), vm_getargs() does not produce any
  *      reference for '<...>' objects passed to callers.  If the calling
@@ -572,12 +576,20 @@ convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
                 break;
 
         case 's':
+            {
+                const char *s;
                 if (!isvar_string(uarg)) {
                         vmerr_type_mismatch(argno, fname, uarg, &StringType);
                         return RES_ERROR;
                 }
-                *((const char **)pv) = string_cstring(uarg);
+                s = string_cstring(uarg);
+                if (strlen(s) != string_nbytes(uarg)) {
+                        vmerr_generic("embedded null char", argno, fname);
+                        return RES_ERROR;
+                }
+                *((const char **)pv) = s;
                 break;
+            }
         case 'c':
                 if (!isvar_string(uarg)) {
                         vmerr_type_mismatch(argno, fname, uarg, &StringType);

@@ -184,7 +184,7 @@ stringvar_from_points(void *points, size_t width,
                         maxchr = point;
 
                 if (point < 128) {
-                        buffer_putc(&b, point);
+                        buffer_putc_strict(&b, point);
                         continue;
                 }
 

@@ -155,7 +155,7 @@ do_exit(Frame *fr)
 {
         Object *p = vm_get_arg(fr, 0);
         if (p && isvar_string(p))
-                printf("%s\n", string_cstring(p));
+                fprintf(stderr, "%s\n", string_cstring(p));
         exit(0);
 
         /*

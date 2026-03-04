@@ -116,6 +116,13 @@ filerr(const char *fname, const char *msg)
 }
 
 static void
+filerr_sys(const char *fname)
+{
+        err_setstr(SystemError, "%s%ssystem call failed",
+                   fname ? fname : "", fname ? "() " : "");
+}
+
+static void
 filerr_malformed(const char *fname)
 {
         filerr(fname, "file's dictionary corrupted");
@@ -128,6 +135,13 @@ filerr_permit(const char *fname, bool iswrite)
         static const char *unwrite = "file is not writable";
         filerr(fname, iswrite ? unwrite : unread);
 }
+
+/*
+ * TYPE##file_get_priv - functions that get private data out of dict.
+ * @fo:    Dictionary
+ * @fname: Name of function (as user would see it), for error reporting
+ * @check_open: if true, throw an exception if the file is not open.
+ */
 
 static struct rawfile_t *
 file_get_priv(Object *fo, const char *fname,
@@ -167,6 +181,25 @@ rawfile_fget_priv(Frame *fr, const char *fname, bool check_open)
         return rawfile_get_priv(fo, fname, check_open);
 }
 
+static inline struct textfile_t *
+textfile_get_priv(Object *fo, const char *fname, bool check_open)
+{
+        return (struct textfile_t *)file_get_priv(fo, fname,
+                                                  check_open, FILE_TEXT);
+}
+
+static struct textfile_t *
+textfile_fget_priv(Frame *fr, const char *fname, bool check_open)
+{
+        Object *fileobj = vm_get_this(fr);
+        bug_on(!isvar_dict(fileobj));
+        return textfile_get_priv(fileobj, fname, check_open);
+}
+
+/* **********************************************************************
+ *                  Any-file callbacks et al.
+ ***********************************************************************/
+
 static Object *
 do_getfd(Frame *fr)
 {
@@ -187,49 +220,293 @@ do_iseof(Frame *fr)
                 : VAR_NEW_REF(gbl.zero);
 }
 
-static inline struct textfile_t *
-textfile_get_priv(Object *fo, const char *fname, bool check_open)
+/*
+ * common to XXX_destructor().
+ * If return value is NULL, destructor should bail early
+ */
+static struct rawfile_t *
+destroy_common(Object *fo)
 {
-        return (struct textfile_t *)file_get_priv(fo, fname,
-                                                  check_open, FILE_TEXT);
+        bool err;
+        struct rawfile_t *raw;
+        int fd;
+        char *s;
+
+        err = err_occurred();
+        raw = rawfile_get_priv(fo, NULL, 0);
+        if (!raw) {
+                if (!err)
+                        err_clear();
+                return NULL;
+        }
+        fd = raw->fr_fd;
+        raw->fr_fd = -1;
+        if (raw->fr_closefd && fd >= 0)
+                close(fd);
+
+        s = raw->fr_name;
+        raw->fr_name = NULL;
+        if (s)
+                efree(s);
+
+        s = raw->fr_mode;
+        raw->fr_mode = NULL;
+        if (s)
+                efree(s);
+
+        return raw;
 }
 
-static struct textfile_t *
-textfile_fget_priv(Frame *fr, const char *fname, bool check_open)
+/*
+ * Common code to get file private from Frame during str method,
+ * since it's error-prone, being a rare case where 'this' is arg 0
+ * instead of vm_get_this().
+ *
+ * If NULL, bail early and return NullVar without producing a ref.
+ */
+static struct rawfile_t *
+file_str_get_priv(Frame *fr)
 {
-        Object *fileobj = vm_get_this(fr);
-        bug_on(!isvar_dict(fileobj));
-        return textfile_get_priv(fileobj, fname, check_open);
+        Object *fo;
+        struct rawfile_t *raw;
+        bool err;
+
+        err = err_occurred();
+        /*
+         * Dict .str alternative acts upon arg 0, not 'this'
+         */
+        fo = vm_get_arg(fr, 0);
+        if (!fo || !isvar_dict(fo))
+                return NULL;
+        raw = rawfile_get_priv(fo, NULL, 0);
+        if (!raw) {
+                if (!err)
+                        err_clear();
+                return NULL;
+        }
+        return raw;
 }
+
+/* **********************************************************************
+ *              Raw (unbuffered binary) files
+ ***********************************************************************/
+
+static ssize_t
+raw_read_wrapper(int fd, void *buf, size_t size)
+{
+        void *p = buf;
+        void *end = buf + size;
+        while (p < end) {
+                ssize_t nread;
+
+                errno = 0;
+                nread = read(fd, p, end-p);
+                if (nread < 0) {
+                        if (errno == EINTR)
+                                continue;
+                        filerr_sys("read");
+                        efree(buf);
+                        return -1;
+                } else if (nread == 0) {
+                        break;
+                }
+                p += nread;
+        }
+        return p - buf;
+}
+
+static Object *
+do_raw_read_(struct rawfile_t *raw, ssize_t size)
+{
+        void *buf;
+        ssize_t nread;
+
+        if (!size) {
+                /* something sus here, but roll with it */
+                return gbl.empty_bytes
+                        ? VAR_NEW_REF(gbl.empty_bytes)
+                        : bytesvar_new((unsigned char *)"", 0);
+        }
+
+        if (size < 0) {
+                struct stat st;
+                if (fstat(raw->fr_fd, &st) < 0 ||
+                    st.st_size < raw->fr_pos) {
+                        err_setstr(SystemError,
+                                "read() cannot stat file%s%s",
+                                raw->fr_name ? " " : "", raw->fr_name);
+                        return ErrorVar;
+                }
+                size = st.st_size;
+        }
+
+        /* XXX: SystemError instead of abort? */
+        buf = emalloc(size);
+        nread = raw_read_wrapper(raw->fr_fd, buf, size);
+        if (nread < 0)
+                return ErrorVar;
+        if (nread != size)
+                buf = erealloc(buf, nread);
+        return bytesvar_nocopy(buf, nread);
+}
+
+static ssize_t
+do_raw_write_(struct rawfile_t *raw, Object *bo)
+{
+        ssize_t nwritten;
+        void *buf, *p, *end;
+
+        bug_on(!isvar_bytes(bo));
+        buf = p = bytes_get_data(bo);
+        end = buf + seqvar_size(bo);
+        while (p < end) {
+                errno = 0;
+                nwritten = write(raw->fr_fd, p, end - p);
+                if (nwritten <= 0) {
+                        if (errno == EINTR)
+                                continue;
+                        filerr_sys("write");
+                        return RES_ERROR;
+                }
+                p += nwritten;
+        }
+        return RES_OK;
+}
+
+static Object *
+do_raw_read(Frame *fr)
+{
+        long long size = -1LL;
+        struct rawfile_t *raw = rawfile_fget_priv(fr, "read", 1);
+        if (!raw)
+                return ErrorVar;
+        if (vm_getargs(fr, "[|l]:read", &size) == RES_ERROR)
+                return ErrorVar;
+
+        if (!raw->fr_readable) {
+                filerr_permit("read", 0);
+                return ErrorVar;
+        }
+
+        return do_raw_read_(raw, (ssize_t)size);
+}
+
+static Object *
+do_raw_write(Frame *fr)
+{
+        ssize_t ret;
+        Object *bo;
+        struct rawfile_t *raw = rawfile_fget_priv(fr, "write", 1);
+        if (!raw)
+                return ErrorVar;
+        if (vm_getargs(fr, "<s>:write", &bo) == RES_ERROR)
+                return ErrorVar;
+        if (!raw->fr_writable) {
+                filerr_permit("write", 1);
+                return ErrorVar;
+        }
+        ret = do_raw_write_(raw, bo);
+        if (ret < 0)
+                return ErrorVar;
+        return intvar_new(ret);
+}
+
+static Object *
+do_raw_close(Frame *fr)
+{
+        int fd;
+        struct rawfile_t *raw = rawfile_fget_priv(fr, "close", 0);
+        if (!raw)
+                return ErrorVar;
+
+        fd = raw->fr_fd;
+        raw->fr_fd = -1;
+        if (fd >= 0)
+                close(fd);
+        return NULL;
+}
+
+static void
+raw_destructor(Object *fo)
+{
+        struct rawfile_t *raw = destroy_common(fo);
+        if (raw)
+                efree(raw);
+}
+
+static Object *
+raw_str(Frame *fr)
+{
+        struct buffer_t b;
+        struct rawfile_t *raw = file_str_get_priv(fr);
+        if (!raw)
+                return NullVar;
+
+        buffer_init(&b);
+        buffer_printf(&b, "<file name='%s' mode='%s'>",
+                        raw->fr_name ? raw->fr_name : "!",
+                        raw->fr_mode);
+        return stringvar_from_buffer(&b);
+}
+
+static Object *
+open_raw(int fd, struct fileconfig_t *cfg)
+{
+        static const struct type_inittbl_t rawfile_cb_methods[] = {
+                V_INITTBL("read",       do_raw_read,     1, 1,  0, -1),
+                V_INITTBL("write",      do_raw_write,    1, 1, -1, -1),
+                V_INITTBL("close",      do_raw_close,    0, 0, -1, -1),
+                V_INITTBL("getfd",      do_getfd,        0, 0, -1, -1),
+                V_INITTBL("iseof",      do_iseof,        0, 0, -1, -1),
+                TBLEND,
+        };
+        struct rawfile_t *raw;
+        Object *ret, *strfunc;
+
+        raw = file_new(fd, sizeof(*raw), cfg);
+        if (cfg->readable)
+                raw->fr_read = do_raw_read_;
+        if (cfg->writable)
+                raw->fr_write = do_raw_write_;
+        strfunc = funcvar_new_intl(raw_str, 1, 1);
+
+        ret = dictvar_from_methods(NULL, rawfile_cb_methods);
+        dict_set_priv(ret, raw);
+        dict_add_cdestructor(ret, raw_destructor);
+        dict_setstr(ret, strfunc);
+
+        VAR_DECR_REF(strfunc);
+
+        return ret;
+}
+
+/* **********************************************************************
+ *              (Buffered) binary files
+ ***********************************************************************/
+
+static Object *
+open_binary(int fd, struct fileconfig_t *cfg)
+{
+        err_setstr(NotImplementedError, "binary files not yet implemented");
+        return ErrorVar;
+}
+
+/* **********************************************************************
+ *              (Buffered) text files
+ ***********************************************************************/
 
 /* helper to text_append_chunk */
 static ssize_t
-text_read_chunk(struct textfile_t *ft, void *buf, size_t bufsize)
+text_read_chunk(struct textfile_t *txt, void *buf, size_t bufsize)
 {
-        void *start = buf;
-        void *end = buf + bufsize;
-        while (buf < end) {
-                errno = 0;
-                ssize_t res = read(ft->ft_fd, buf, end - buf);
-                if (res <= 0) {
-                        if (errno == EINTR)
-                                continue;
-                        if (res == 0)
-                                break;
-                        /*
-                         * FIXME: if buf != start,
-                         * file is in unknown state!
-                         */
-                        return res;
-                }
-                ft->ft_fdpos += res;
-                buf += res;
-        }
-        return buf - start;
+        ssize_t res = raw_read_wrapper(txt->ft_fd, buf, bufsize);
+        if (res > 0)
+                txt->ft_fdpos += res;
+        return res;
 }
 
 static enum result_t
-text_append_chunk(struct textfile_t *ft)
+text_append_chunk(struct textfile_t *txt)
 {
         enum { CHUNK_SIZE = 256 };
         unsigned char *chunk = emalloc(CHUNK_SIZE);
@@ -238,21 +515,21 @@ text_append_chunk(struct textfile_t *ft)
 
         readp = chunk;
         chunksize = CHUNK_SIZE;
-        nstraggler = ft->ft_nstraggler;
-        ft->ft_nstraggler = 0;
+        nstraggler = txt->ft_nstraggler;
+        txt->ft_nstraggler = 0;
         if (nstraggler) {
-                memcpy(chunk, ft->ft_stragglers, nstraggler);
+                memcpy(chunk, txt->ft_stragglers, nstraggler);
                 readp += nstraggler;
                 chunksize -= nstraggler;
         }
-        nread = text_read_chunk(ft, readp, chunksize);
+        nread = text_read_chunk(txt, readp, chunksize);
         if (nread < 0) {
                 /* TODO: need more error handling than just this */
                 efree(chunk);
-                err_errno("readline() system call error");
+                filerr_sys("readline");
                 return RES_ERROR;
         } else if (!nread) {
-                ft->ft_eof = true;
+                txt->ft_eof = true;
                 nread = nstraggler;
         }
         nread += nstraggler;
@@ -267,26 +544,26 @@ text_append_chunk(struct textfile_t *ft)
                 size_t nappend;
 
                 string_writer_init(&wr, 1);
-                if (ft->ft_buf) {
-                        string_writer_append_strobj(&wr, ft->ft_buf);
-                        VAR_DECR_REF(ft->ft_buf);
-                        ft->ft_buf = NULL;
+                if (txt->ft_buf) {
+                        string_writer_append_strobj(&wr, txt->ft_buf);
+                        VAR_DECR_REF(txt->ft_buf);
+                        txt->ft_buf = NULL;
                 }
 
                 nappend = string_writer_decode(&wr, chunk,
-                                               nread, ft->ft_codec, true);
+                                               nread, txt->ft_codec, true);
                 if (nappend < 0) {
                         string_writer_destroy(&wr);
                         return RES_ERROR;
                 } else if (nappend != nread) {
                         /* copy new stagglers */
-                        ft->ft_nstraggler = nread - nappend;
-                        bug_on(nstraggler > sizeof(ft->ft_stragglers));
-                        memcpy(ft->ft_stragglers, &chunk[nread],
-                               ft->ft_nstraggler);
-                        ft->ft_nstraggler = nstraggler;
+                        txt->ft_nstraggler = nread - nappend;
+                        bug_on(nstraggler > sizeof(txt->ft_stragglers));
+                        memcpy(txt->ft_stragglers, &chunk[nread],
+                               txt->ft_nstraggler);
+                        txt->ft_nstraggler = nstraggler;
                 }
-                ft->ft_buf = stringvar_from_writer(&wr);
+                txt->ft_buf = stringvar_from_writer(&wr);
         }
         efree(chunk);
         return RES_OK;
@@ -309,7 +586,7 @@ readinto_chunkly(int fd, size_t *size, ssize_t lim)
                         ssize_t n = read(fd, p, end - p);
                         if (n < 0) {
                                 efree(buf);
-                                err_errno("read system call failed");
+                                filerr_sys("read");
                                 return NULL;
                         } else if (n == 0) {
                                 break;
@@ -355,7 +632,7 @@ readinto(int fd, off_t pos, size_t *nread, ssize_t lim)
                 ssize_t n = read(fd, p, end - p);
                 if (n < 0) {
                         efree(buf);
-                        err_errno("read system call failed");
+                        filerr_sys("read");
                         return NULL;
                 } else if (n == 0) {
                         /* ?!?! */
@@ -376,17 +653,12 @@ do_text_read_(struct rawfile_t *fr, ssize_t size)
         Object *ret;
         size_t nread;
         char *tbuf;
-        struct textfile_t *ft = (struct textfile_t *)fr;
-        if (!ft->ft_readable) {
-                filerr_permit("read", 0);
-                return ErrorVar;
-        }
-
-        if (ft->ft_eof) {
+        struct textfile_t *txt = (struct textfile_t *)fr;
+        if (txt->ft_eof) {
         eof:
-                if (ft->ft_buf) {
-                        ret = ft->ft_buf;
-                        ft->ft_buf = NULL;
+                if (txt->ft_buf) {
+                        ret = txt->ft_buf;
+                        txt->ft_buf = NULL;
                         /*
                          * Don't need to produce ref, we're handing
                          * it off instead.
@@ -399,29 +671,29 @@ do_text_read_(struct rawfile_t *fr, ssize_t size)
         }
         /*
          * FIXME: this function here as well as readinto...
-         * need to take ft->ft_buf into account, and also @size
+         * need to take txt->ft_buf into account, and also @size
          * refers to Unicode points, not bytes.
          */
-        tbuf = readinto(ft->ft_fd, ft->ft_fdpos, &nread, size);
+        tbuf = readinto(txt->ft_fd, txt->ft_fdpos, &nread, size);
         if (!tbuf) {
                 return ErrorVar;
         } else if (!nread) {
-                ft->ft_eof = true;
+                txt->ft_eof = true;
                 efree(tbuf);
                 goto eof;
         }
-        if (ft->ft_buf) {
+        if (txt->ft_buf) {
                 Object *new;
 
                 /* XXX: Surely there's a better way! */
-                new = stringvar_from_binary(tbuf, nread, ft->ft_codec);
-                ret = string_cat(ft->ft_buf, new);
+                new = stringvar_from_binary(tbuf, nread, txt->ft_codec);
+                ret = string_cat(txt->ft_buf, new);
                 VAR_DECR_REF(new);
-                VAR_DECR_REF(ft->ft_buf);
-                ft->ft_buf = NULL;
+                VAR_DECR_REF(txt->ft_buf);
+                txt->ft_buf = NULL;
                 return ret;
         } else {
-                return stringvar_from_binary(tbuf, nread, ft->ft_codec);
+                return stringvar_from_binary(tbuf, nread, txt->ft_codec);
         }
  }
 
@@ -429,13 +701,16 @@ static Object *
 do_text_read(Frame *fr)
 {
         long long size = -1LL;
-        struct textfile_t *ft = textfile_fget_priv(fr, "read", 1);
-        if (!ft)
+        struct textfile_t *txt = textfile_fget_priv(fr, "read", 1);
+        if (!txt)
                 return ErrorVar;
         if (vm_getargs(fr, "[|l]:read", &size) == RES_ERROR)
                 return ErrorVar;
-
-        return do_text_read_((struct rawfile_t *)ft, (ssize_t)size);
+        if (!txt->ft_readable) {
+                filerr_permit("read", 0);
+                return ErrorVar;
+        }
+        return do_text_read_((struct rawfile_t *)txt, (ssize_t)size);
 }
 
 static Object *
@@ -444,69 +719,69 @@ do_text_readline(Frame *fr)
         Object *ret = NULL;
         ssize_t haveidx = 0;
         size_t seekpos;
-        struct textfile_t *ft = textfile_fget_priv(fr, "readline", 1);
-        if (!ft)
+        struct textfile_t *txt = textfile_fget_priv(fr, "readline", 1);
+        if (!txt)
                 return ErrorVar;
 
-        if (!ft->ft_readable) {
+        if (!txt->ft_readable) {
                 filerr_permit("readline", 0);
                 return ErrorVar;
         }
 
-        seekpos = ft->ft_bufpos;
+        seekpos = txt->ft_bufpos;
         while (1) {
-                if (ft->ft_buf) {
+                if (txt->ft_buf) {
                         /*
                          * XXX: change string_search to also take a startpos,
                          * and increment that in this loop, so that we don't
                          * end up repeating search of earlier characters.
                          */
-                        haveidx = string_search(ft->ft_buf, ft->ft_eol, seekpos);
+                        haveidx = string_search(txt->ft_buf, txt->ft_eol, seekpos);
                         if (haveidx >= 0) {
                                 /* EOL exists in our buffer */
-                                haveidx += seqvar_size(ft->ft_eol);
-                                bug_on(haveidx > seqvar_size(ft->ft_buf));
+                                haveidx += seqvar_size(txt->ft_eol);
+                                bug_on(haveidx > seqvar_size(txt->ft_buf));
                                 break;
                         }
                         /* Don't re-seek old misses */
-                        seekpos = seqvar_size(ft->ft_buf) - seqvar_size(ft->ft_eol);
+                        seekpos = seqvar_size(txt->ft_buf) - seqvar_size(txt->ft_eol);
                 }
 
-                if (ft->ft_eof) {
-                        if (ft->ft_buf) {
-                                haveidx = seqvar_size(ft->ft_buf);
+                if (txt->ft_eof) {
+                        if (txt->ft_buf) {
+                                haveidx = seqvar_size(txt->ft_buf);
                                 break;
                         } else {
                                 return VAR_NEW_REF(STRCONST_ID(mpty));
                         }
                 } else {
-                        text_append_chunk(ft);
+                        text_append_chunk(txt);
                 }
         }
 
         /* Return the buffer */
-        bug_on(!ft->ft_buf);
-        bug_on(haveidx <= ft->ft_bufpos);
-        if (ft->ft_bufpos == 0 && haveidx == seqvar_size(ft->ft_buf)) {
+        bug_on(!txt->ft_buf);
+        bug_on(haveidx <= txt->ft_bufpos);
+        if (txt->ft_bufpos == 0 && haveidx == seqvar_size(txt->ft_buf)) {
                 /*
                  * Special rare case: we have exactly a line.  No need to
                  * produce a reference, because we would just consume it
                  * again right here.
                  */
-                ret = ft->ft_buf;
-                ft->ft_buf = NULL;
-                ft->ft_bufpos = 0;
+                ret = txt->ft_buf;
+                txt->ft_buf = NULL;
+                txt->ft_bufpos = 0;
                 return ret;
         }
 
-        bug_on(haveidx > seqvar_size(ft->ft_buf));
-        ret = string_getslice(ft->ft_buf, ft->ft_bufpos,
+        bug_on(haveidx > seqvar_size(txt->ft_buf));
+        ret = string_getslice(txt->ft_buf, txt->ft_bufpos,
                               haveidx, 1);
-        ft->ft_bufpos = haveidx;
-        if (ft->ft_bufpos == seqvar_size(ft->ft_buf)) {
-                Object *tmp = ft->ft_buf;
-                ft->ft_buf = NULL;
-                ft->ft_bufpos = 0;
+        txt->ft_bufpos = haveidx;
+        if (txt->ft_bufpos == seqvar_size(txt->ft_buf)) {
+                Object *tmp = txt->ft_buf;
+                txt->ft_buf = NULL;
+                txt->ft_bufpos = 0;
                 VAR_DECR_REF(tmp);
         }
         return ret;
@@ -516,22 +791,17 @@ static ssize_t
 do_text_write_(struct rawfile_t *fr, Object *so)
 {
         ssize_t ret;
-        struct textfile_t *ft = (struct textfile_t *)fr;
-        if (!ft->ft_writable) {
-                filerr_permit("write", 1);
-                return -1;
-        }
-
+        struct textfile_t *txt = (struct textfile_t *)fr;
         /*
-         * TODO: Should use ft->ft_buf... flush that one and
+         * TODO: Should use txt->ft_buf... flush that one and
          * write until eol, or deliberately add eol here, if
          * the file is so configured.
          */
-        if (string_isascii(so) || ft->ft_codec == CODEC_UTF8) {
+        if (string_isascii(so) || txt->ft_codec == CODEC_UTF8) {
                 /* Easy thing: Just write the C string as-is */
                 size_t len = string_nbytes(so);
-                ret = write(ft->ft_fd, string_cstring(so), len);
-        } else if (ft->ft_codec == CODEC_ASCII) {
+                ret = write(txt->ft_fd, string_cstring(so), len);
+        } else if (txt->ft_codec == CODEC_ASCII) {
                 err_setstr(ValueError,
                         "Cannot write non-ascii string to ascii file");
                 return -1;
@@ -543,7 +813,9 @@ do_text_write_(struct rawfile_t *fr, Object *so)
         } else {
                 /* Latin1, good to go */
                 void *data = string_data(so);
-                ret = write(ft->ft_fd, data, seqvar_size(so));
+                ret = write(txt->ft_fd, data, seqvar_size(so));
+                if (ret < 0)
+                        filerr_sys("write");
         }
         return ret;
 }
@@ -553,12 +825,16 @@ do_text_write(Frame *fr)
 {
         ssize_t ret;
         Object *so;
-        struct textfile_t *ft = textfile_fget_priv(fr, "write", 1);
-        if (!ft)
+        struct textfile_t *txt = textfile_fget_priv(fr, "write", 1);
+        if (!txt)
                 return ErrorVar;
         if (vm_getargs(fr, "<s>:write", &so) == RES_ERROR)
                 return ErrorVar;
-        ret = do_text_write_((struct rawfile_t *)ft, so);
+        if (!txt->ft_writable) {
+                filerr_permit("write", 1);
+                return ErrorVar;
+        }
+        ret = do_text_write_((struct rawfile_t *)txt, so);
         if (ret < 0)
                 return ErrorVar;
         return intvar_new(ret);
@@ -568,12 +844,13 @@ static Object *
 do_text_close(Frame *fr)
 {
         int fd;
-        struct textfile_t *ft = textfile_fget_priv(fr, "close", 0);
-        if (!ft)
+        struct textfile_t *txt = textfile_fget_priv(fr, "close", 0);
+        if (!txt)
                 return ErrorVar;
 
-        fd = ft->ft_fd;
-        ft->ft_fd = -1;
+        /* TODO: If buffer, flush it */
+        fd = txt->ft_fd;
+        txt->ft_fd = -1;
         if (fd >= 0)
                 close(fd);
         return NULL;
@@ -582,24 +859,15 @@ do_text_close(Frame *fr)
 static Object *
 text_str(Frame *fr)
 {
-        Object *fo;
+        struct textfile_t *txt;
         const char *codecstr;
-        struct textfile_t *ft;
         struct buffer_t b;
-        bool err;
 
-        err = err_occurred();
-        fo = vm_get_arg(fr, 0);
-        if (!fo || !isvar_dict(fo))
+        txt = (struct textfile_t *)file_str_get_priv(fr);
+        if (!txt)
                 return NullVar;
-        ft = textfile_get_priv(fo, NULL, 0);
-        if (!ft) {
-                if (!err)
-                        err_clear();
-                return NullVar;
-        }
 
-        switch (ft->ft_codec) {
+        switch (txt->ft_codec) {
         case CODEC_ASCII:
                 codecstr = "ascii";
                 break;
@@ -615,53 +883,30 @@ text_str(Frame *fr)
 
         buffer_init(&b);
         buffer_printf(&b, "<file name='%s' mode='%s' enc='%s'>",
-                      ft->ft_name ? ft->ft_name : "!",
-                      ft->ft_mode, codecstr);
+                      txt->ft_name ? txt->ft_name : "!",
+                      txt->ft_mode, codecstr);
         return stringvar_from_buffer(&b);
 }
 
 static void
 text_destructor(Object *fo)
 {
-        bool err;
-        struct textfile_t *ft;
-        int fd;
-        char *s;
-        Object *o;
+        struct textfile_t *txt = (struct textfile_t *)destroy_common(fo);
+        if (txt) {
+                Object *o;
 
-        err = err_occurred();
-        ft = textfile_get_priv(fo, NULL, 0);
-        if (!ft) {
-                if (!err)
-                        err_clear();
-                /* Can't do anything */
-                return;
+                o = txt->ft_buf;
+                txt->ft_buf = NULL;
+                if (o)
+                        VAR_DECR_REF(o);
+
+                o = txt->ft_eol;
+                txt->ft_eol = NULL;
+                if (o)
+                        VAR_DECR_REF(o);
+
+                efree(txt);
         }
-
-        fd = ft->ft_fd;
-        ft->ft_fd = -1;
-        if (ft->ft_closefd && fd >= 0)
-                close(fd);
-
-        s = ft->ft_name;
-        ft->ft_name = NULL;
-        if (s)
-                efree(s);
-
-        s = ft->ft_mode;
-        ft->ft_mode = NULL;
-        if (s)
-                efree(s);
-
-        o = ft->ft_buf;
-        ft->ft_buf = NULL;
-        if (o)
-                VAR_DECR_REF(o);
-
-        o = ft->ft_eol;
-        ft->ft_eol = NULL;
-        if (o)
-                VAR_DECR_REF(o);
 }
 
 /**
@@ -688,22 +933,22 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
                 V_INITTBL("iseof",      do_iseof,         0, 0, -1, -1),
                 TBLEND,
         };
-        struct textfile_t *fh;
+        struct textfile_t *txt;
         Object *ret, *strfunc;
 
-        fh = file_new(fd, sizeof(*fh), cfg);
-        fh->ft_codec = codec;
+        txt = file_new(fd, sizeof(*txt), cfg);
+        txt->ft_codec = codec;
         /* FIXME: this should be an argument */
-        fh->ft_eol = stringvar_new("\n");
+        txt->ft_eol = stringvar_new("\n");
         if (cfg->readable)
-                fh->ft_read = do_text_read_;
+                txt->ft_read = do_text_read_;
         if (cfg->writable)
-                fh->ft_write = do_text_write_;
+                txt->ft_write = do_text_write_;
 
         strfunc = funcvar_new_intl(text_str, 1, 1);
 
         ret = dictvar_from_methods(NULL, textfile_cb_methods);
-        dict_set_priv(ret, fh);
+        dict_set_priv(ret, txt);
         dict_add_cdestructor(ret, text_destructor);
         dict_setstr(ret, strfunc);
 
@@ -712,19 +957,9 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
         return ret;
 }
 
-static Object *
-open_raw(int fd, struct fileconfig_t *cfg)
-{
-        err_setstr(NotImplementedError, "raw files not yet implemented");
-        return ErrorVar;
-}
-
-static Object *
-open_binary(int fd, struct fileconfig_t *cfg)
-{
-        err_setstr(NotImplementedError, "binary files not yet implemented");
-        return ErrorVar;
-}
+/* **********************************************************************
+ *              Module-level code and API
+ ***********************************************************************/
 
 /*
  * C-level version of do_open - kept apart in case we want to call this
@@ -824,9 +1059,9 @@ bool
 isvar_file(Object *o)
 {
         if (isvar_dict(o)) {
-                struct rawfile_t *fr = dict_get_priv(o);
-                if (fr)
-                        return fr->fr_magic == DICT_MAGIC_FILE;
+                struct rawfile_t *raw = dict_get_priv(o);
+                if (raw)
+                        return raw->fr_magic == DICT_MAGIC_FILE;
         }
         return false;
 }

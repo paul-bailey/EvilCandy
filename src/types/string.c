@@ -310,6 +310,9 @@ again:
                         }
 
                         switch (c) {
+                        case '0':
+                                string_writer_append(&wr, '\0');
+                                continue;
                         case 'a': /* bell - but why? */
                                 string_writer_append(&wr, '\a');
                                 continue;
@@ -356,7 +359,7 @@ again:
                                         /* '0' & 7 happens to be 0 */
                                         v = (v << 3) + (*s & 7);
                                 }
-                                if (v == 0 || v >= 256)
+                                if (v >= 256)
                                         goto err;
                                 string_writer_append(&wr, v);
                                 continue;
@@ -367,8 +370,6 @@ again:
                                 if (!isxdigit(s[0]) || !isxdigit(s[1]))
                                         goto err;
                                 v = x2bin(s[0]) * 16 + x2bin(s[1]);
-                                if (v == 0)
-                                        goto err;
 
                                 s += 2;
                                 string_writer_append(&wr, v);
@@ -386,8 +387,6 @@ again:
                                         point |= x2bin(s[i]);
                                 }
 
-                                if (point == 0)
-                                        goto err;
                                 /* out-of-range for Unicode */
                                 if (!utf8_valid_unicode(point))
                                         goto err;
@@ -2811,7 +2810,7 @@ stringvar_new(const char *cstr)
 Object *
 stringvar_newn(const char *cstr, size_t n)
 {
-        return stringvar_newf(new, n, SF_COPY);
+        return stringvar_newf((char *)cstr, n, SF_COPY);
 }
 
 /**
@@ -2925,8 +2924,6 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
 
         while (u8 < end) {
                 int c = *u8 & 0xffu;
-                if (c == 0)
-                        goto zeros;
                 if (c > 127)
                         break;
                 string_writer_append(wr, c);
@@ -2944,8 +2941,6 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
         if (codec == CODEC_LATIN1) {
                 while (u8 < end) {
                         int c = *u8 & 0xffu;
-                        if (c == 0)
-                                goto zeros;
                         string_writer_append(wr, c);
                         u8++;
                 }
@@ -2962,8 +2957,6 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
         while (u8 < end) {
                 long point;
                 unsigned char *endptr;
-                if (*u8 == 0)
-                        goto zeros;
                 point = utf8_decode_one(u8, &endptr);
                 if (point < 0L) {
                         if (!suppress_errors)
@@ -2984,8 +2977,6 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
                  */
                 while (u8 < end) {
                         point = *u8 & 0xffu;
-                        if (point == 0)
-                                goto zeros;
                         if (point > 127)
                                 break;
                         string_writer_append(wr, point);
@@ -2998,8 +2989,6 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
         while (u8 < end) {
                 unsigned char *endptr;
                 long point = u8[0] & 0xffu;
-                if (point == 0)
-                        goto zeros;
                 if (point < 128) {
                         string_writer_append(wr, point);
                         u8++;
@@ -3011,8 +3000,6 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
                 }
                 point = utf8_decode_one(u8, &endptr);
                 if (point <= 0L) {
-                        if (point == 0L)
-                                goto zeros;
                         if (!suppress_errors)
                                 goto bad_utf8;
 
@@ -3028,9 +3015,6 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
 
 bad_utf8:
         err_setstr(ValueError, "Data is not UTF-8 encoded");
-        return -1;
-zeros:
-        err_setstr(ValueError, "Data contains zeros");
         return -1;
 }
 

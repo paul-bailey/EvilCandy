@@ -315,9 +315,6 @@ extern size_t utf8_strgetc(const char *s, char *dst);
 extern void utf8_encode(unsigned long point, struct buffer_t *buf);
 extern long utf8_decode_one(const unsigned char *src,
                             unsigned char **endptr);
-extern long utf8_ndecode_one(const unsigned char *src,
-                             unsigned char **endptr, size_t n);
-extern ssize_t utf8_point_enclen(unsigned int startc);
 static inline bool
 utf8_valid_unicode(unsigned long point)
 {

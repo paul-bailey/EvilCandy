@@ -60,6 +60,7 @@ struct textfile_t {
         Object *ft_eol;
         Object *ft_buf;
         size_t ft_bufpos;
+        struct utf8_state_t ft_decode_state;
         unsigned char ft_stragglers[8];
         unsigned char ft_nstraggler;
         off_t ft_upos;
@@ -761,7 +762,7 @@ text_append_chunk(struct textfile_t *txt)
                 }
 
                 nappend = string_writer_decode(&wr, chunk,
-                                               nread, txt->ft_codec, true);
+                                               nread, txt->ft_codec, true, NULL);
                 if (nappend < 0) {
                         string_writer_destroy(&wr);
                         return RES_ERROR;

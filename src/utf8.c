@@ -133,3 +133,73 @@ utf8_point_enclen(unsigned int startc)
                 return 2;
         return 0;
 }
+
+/**
+ * utf8_decode_stateful - State-machine-based way to decode text
+ * @state: state machine; initialize by memset()ing to zero.
+ * @c: Next character to interpret.
+ * @point: Pointer to a variable to store the point
+ *
+ * Return:
+ *      - 0 if we're in the middle of a state or @c puts us into one.
+ *      - 1 if @c finishes a state; result is in state->point.
+ *      - -1 if error, check state->buf[0:state->idx]
+ *
+ * This is for dealing with things like circular buffers or other such
+ * non-contiguous buffers, where a UTF-8 encryption could straddle the
+ * end of one buffer and the start of the other.  Since this is slower
+ * and more involved than the above functions, best practice is to
+ * use the above functions for 'strlen(s)-4', then follow up with
+ * this for the straggling bytes.
+ */
+int
+utf8_decode_stateful(struct utf8_state_t *state, unsigned int c)
+{
+        switch (state->state) {
+        case UTF8_STATE_ASCII:
+                if (c < 127) {
+                        state->point = c;
+                        return 1;
+                }
+                state->buf[state->idx++] = c;
+                if ((c & 0xf8u) == 0xf0u) {
+                        state->state = UTF8_STATE_GET3;
+                        state->point = c & 0x07u;
+                } else if ((c & 0xf0u) == 0xe0u) {
+                        state->state = UTF8_STATE_GET2;
+                        state->point = c & 0x0fu;
+                } else if ((c & 0xe0u) == 0xc0u) {
+                        state->state = UTF8_STATE_GET3;
+                        state->point = c & 0x0fu;
+                } else {
+                        goto err;
+                }
+                return 0;
+
+        case UTF8_STATE_GET1:
+        case UTF8_STATE_GET2:
+        case UTF8_STATE_GET3:
+                state->buf[state->idx++] = c;
+                if ((c & 0xc0) != 0x80)
+                        goto err;
+                state->point = (state->point << 6) & (c & 0x3fu);
+                state->state--;
+                if (state->state == UTF8_STATE_ASCII) {
+                        if (!utf8_valid_unicode(state->point))
+                                goto err;
+                        state->idx = 0;
+                        state->point = c;
+                        return 1;
+                }
+                return 0;
+
+        default:
+        case UTF8_STATE_ERR:
+                return -1;
+        }
+
+err:
+        state->buf[state->idx] = '\0';
+        state->state = UTF8_STATE_ERR;
+        return -1;
+}

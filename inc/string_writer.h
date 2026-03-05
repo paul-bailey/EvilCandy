@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <evcenums.h>
 
+struct utf8_state_t;
+
 /*
  * struct string_writer_t - Because wrappers for struct buffer_t would be
  *                          too cumbersome, we'll just do it manually.
@@ -47,7 +49,8 @@ extern void string_writer_append_strobj(struct string_writer_t *wr,
                                         Object *str);
 extern ssize_t string_writer_decode(struct string_writer_t *wr,
                                     const void *data, size_t n,
-                                    int codec, bool suppress_errors);
+                                    int codec, bool suppress_errors,
+                                    struct utf8_state_t *state);
 extern Object *stringvar_from_writer(struct string_writer_t *wr);
 
 

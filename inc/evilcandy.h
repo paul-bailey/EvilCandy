@@ -304,6 +304,21 @@ extern Object *tuple_getitem(Object *tup, int idx);
 extern Object *tuple_borrowitem(Object *tup, int idx);
 
 /* utf8.c */
+struct utf8_state_t {
+        enum {
+                /* Keep this order. Implementation depends on it */
+                UTF8_STATE_ASCII = 0,
+                UTF8_STATE_GET1,
+                UTF8_STATE_GET2,
+                UTF8_STATE_GET3,
+                UTF8_STATE_ERR,
+        } state;
+        char buf[5];
+        long point;
+        size_t idx;
+};
+
+extern int utf8_decode_stateful(struct utf8_state_t *state, unsigned int c);
 extern int utf8_subscr_str(const char *src, size_t idx, char *dest);
 extern size_t utf8_strgetc(const char *s, char *dst);
 extern void utf8_encode(unsigned long point, struct buffer_t *buf);

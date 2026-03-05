@@ -253,6 +253,7 @@ stringvar_newf(char *cstr, size_t size, unsigned int flags)
 {
         struct string_writer_t wr;
         ssize_t n, max = size;
+        struct utf8_state_t utf8_state;
 
         if (!cstr) {
                 cstr = "";
@@ -271,16 +272,15 @@ stringvar_newf(char *cstr, size_t size, unsigned int flags)
                 return stringvar_from_ascii_(cstr, size, flags);
 
         string_writer_init(&wr, 1);
-        n = string_writer_decode(&wr, cstr, max, CODEC_UTF8, 1);
+        memset(&utf8_state, 0, sizeof(utf8_state));
+        n = string_writer_decode(&wr, cstr, max, CODEC_UTF8, 1,
+                                 &utf8_state);
         bug_on(n < 0);
-        if (n != max) {
-                ssize_t n2;
-                n2 = string_writer_decode(&wr, cstr + n,
-                                          max - n, CODEC_LATIN1, 1);
-                bug_on(n2 < 0);
-                bug_on(n + n2 != max);
-                (void)n2;
+        if (utf8_state.state != UTF8_STATE_ASCII) {
+                n = string_writer_decode(&wr, "", 0,
+                                         CODEC_LATIN1, 1, &utf8_state);
         }
+        (void)n;
         if (!(flags & SF_COPY)) {
                 /*
                  * Oops, we copied anyway! Relic of an older API.
@@ -2935,6 +2935,20 @@ stringvar_from_source(const char *tokenstr, bool imm)
         return stringvar_from_points(buf, width, len, 0);
 }
 
+/* helper to string_writer_decode */
+static int
+utf8_state_unwind_latin1(struct string_writer_t *wr,
+                         struct utf8_state_t *state)
+{
+        int i;
+        for (i = 0; i < state->idx; i++) {
+                long c = state->buf[i] & 0xfful;
+                string_writer_append(wr, c);
+        }
+        memset(state, 0, sizeof(*state));
+        return 0;
+}
+
 /**
  * string_writer_decode - Decode a binary array into a string writer
  * @wr:         String writer, which MUST have been initialized before
@@ -2942,7 +2956,7 @@ stringvar_from_source(const char *tokenstr, bool imm)
  * @data:       Data to decode
  * @n:          Size of @data in bytes
  * @codec:      A CODEC_xxx enum
- * @suppress_erros:
+ * @suppress_errors:
  *              - If @codec is CODEC_UTF8, treat malformed UTF-8 as
  *                Latin1 and don't throw an error.  Straggling bytes at
  *                the end will still not be processed if they are not
@@ -2950,20 +2964,28 @@ stringvar_from_source(const char *tokenstr, bool imm)
  *                call but change @codec to CODEC_LATIN1.
  *              - Trivial if @codec is CODEC_LATIN1.
  *              - DO NOT use for codec == CODEC_ASCII.
- *              An encoded Unicode point of zero will throw an error
- *              whether @suppress_errors is true or not.
+ * @state:      If non-NULL, a UTF8 state machine.  This is so multiple
+ *              calls to this function can be made on non-contiguous
+ *              buffers.  An encoding might straddle the end of one
+ *              buffer and the start of the next.  Initialize this state
+ *              machine before the first call.
  *
  * Return: - @n if every character was decoded.
+ *         - @n if there were some stragglers, but @state is non-NULL.
+ *           If the function returns and state->state != UTF8_STATE_ASCII,
+ *           then there were stragglers.
  *         - some positive value less than @n if there exist some
+ *           stragglers and @state is NULL.
  *           straggling undecodable characters at the end of @data
  *           (perhaps because a multi-byte encoding straddles the end of
- *           this buffer and the start of the next.)
+ *           this buffer and the start of the next)
  *         - -1 if the data cannot be decoded according to @codec.
  *           An exception will be thrown in this case.
  */
 ssize_t
 string_writer_decode(struct string_writer_t *wr, const void *data,
-                     size_t n, int codec, bool suppress_errors)
+                     size_t n, int codec, bool suppress_errors,
+                     struct utf8_state_t *state)
 {
         /*
          * FIXME: this code goes in string_writer.c, not here.
@@ -2971,15 +2993,41 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
         enum { UTF8_MAX_STRLEN = 4 };
         const unsigned char *u8, *end;
 
+        u8 = (unsigned char *)data;
+        end = u8 + n;
+
+        /*
+         * If we have any stragglers due to a partial utf8 encoding in
+         * the previous call, process state until it resets, before
+         * doing the normal stuff with @data.
+         */
+        if (state && state->state != UTF8_STATE_ASCII) {
+                if (codec == CODEC_LATIN1) {
+                        utf8_state_unwind_latin1(wr, state);
+                } else if (codec == CODEC_ASCII) {
+                        goto sus;
+                } else while (u8 < end) {
+                        int res = utf8_decode_stateful(state, *u8++);
+                        if (res > 0) {
+                                string_writer_append(wr, state->point);
+                                bug_on(state->state != UTF8_STATE_ASCII);
+                                break;
+                        } else if (res == 0) {
+                                continue;
+                        } else {
+                                if (!suppress_errors)
+                                        goto bad_utf8;
+                                utf8_state_unwind_latin1(wr, state);
+                                break;
+                        }
+                }
+        }
+
         /*
          * Thus far, ASCII input is valid for all @codec choices, so
          * first stuff all the leading ASCII characters into @wr.
          * Most of the time, this will be the whole function.
          */
-
-        u8 = (unsigned char *)data;
-        end = u8 + n;
-
         while (u8 < end) {
                 int c = *u8 & 0xffu;
                 if (c > 127)
@@ -2990,11 +3038,8 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
         if (u8 == end)
                 return n;
 
-        if (codec == CODEC_ASCII) {
-                bug_on(suppress_errors);
-                err_setstr(ValueError, "input is not ascii");
-                return -1;
-        }
+        if (codec == CODEC_ASCII)
+                goto bad_ascii;
 
         if (codec == CODEC_LATIN1) {
                 while (u8 < end) {
@@ -3005,13 +3050,13 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
                 return n;
         }
         bug_on(codec != CODEC_UTF8);
-        end -= UTF8_MAX_STRLEN;
 
         /*
-         * Fast-ish path where we don't yet fuss over stragglers.
-         * If n was small, this part might get skipped, since end
-         * could be lower than u8
+         * utf8_decode_one() is a weensie bit faster than
+         * utf8_decode_stateful(), so run through as much of the input
+         * as we can without having to do the stateful thing.
          */
+        end -= UTF8_MAX_STRLEN;
         while (u8 < end) {
                 long point;
                 unsigned char *endptr;
@@ -3026,53 +3071,46 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
                         string_writer_append(wr, point);
                         u8 = endptr;
                 }
-
-                /*
-                 * Try-loop another run of ASCII characters.
-                 * This works best in scenarios where non-ASCII
-                 * is the exception.  In the future, we could add
-                 * a locale-based algorithm picker.
-                 */
-                while (u8 < end) {
-                        point = *u8 & 0xffu;
-                        if (point > 127)
-                                break;
-                        string_writer_append(wr, point);
-                        u8++;
-                }
         }
 
         /* try to pick up stragglers */
         end += UTF8_MAX_STRLEN;
         while (u8 < end) {
-                unsigned char *endptr;
-                long point = u8[0] & 0xffu;
-                if (point < 128) {
-                        string_writer_append(wr, point);
-                        u8++;
-                        continue;
-                }
-                if ((end - u8) < utf8_point_enclen(point)) {
-                        /* stragglers, let calling code deal with them */
+                int c = *u8++ & 0xffu;
+                if (c > 127) {
+                        u8--;
                         break;
                 }
-                point = utf8_decode_one(u8, &endptr);
-                if (point <= 0L) {
-                        if (!suppress_errors)
-                                goto bad_utf8;
+                string_writer_append(wr, c);
+        }
 
-                        /* decode as Latin1 */
-                        string_writer_append(wr, (long)u8[0] & 0xffu);
-                        u8++;
-                } else {
-                        string_writer_append(wr, point);
-                        u8 = endptr;
+        if (state) {
+                while (u8 < end) {
+                        int res = utf8_decode_stateful(state, *u8++);
+                        if (res > 0) {
+                                string_writer_append(wr, state->point);
+                        } else if (res == 0) {
+                                continue;
+                        } else {
+                                if (!suppress_errors)
+                                        goto bad_utf8;
+                                utf8_state_unwind_latin1(wr, state);
+                        }
                 }
         }
         return (size_t)((void *)u8 - data);
 
+bad_ascii:
+        bug_on(suppress_errors);
+        err_setstr(ValueError, "input is not ascii");
+        return -1;
+
 bad_utf8:
         err_setstr(ValueError, "Data is not UTF-8 encoded");
+        return -1;
+
+sus:
+        err_setstr(RuntimeError, "Suspected improper program flow");
         return -1;
 }
 
@@ -3098,10 +3136,28 @@ stringvar_from_binary(const void *data, size_t n, int encoding)
         ssize_t nput;
 
         string_writer_init(&wr, 1);
-        nput = string_writer_decode(&wr, data, n, encoding, false);
+        nput = string_writer_decode(&wr, data, n, encoding, false, NULL);
         if (nput != n) {
                 /* Do not accept stragglers */
                 err_setstr(ValueError, "data contains invalid characters");
+                string_writer_destroy(&wr);
+                return ErrorVar;
+        }
+        return stringvar_from_writer(&wr);
+}
+
+Object *
+stringvar_from_binary_stateful(const void *data, size_t n, int encoding,
+                               struct utf8_state_t *state)
+{
+        struct string_writer_t wr;
+        string_writer_init(&wr, 1);
+        n = string_writer_decode(&wr, data, n, encoding, false, state);
+        if (n < 0) {
+                if (!err_occurred()) {
+                        err_setstr(ValueError,
+                                   "data contains invalid characters");
+                }
                 string_writer_destroy(&wr);
                 return ErrorVar;
         }

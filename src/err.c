@@ -23,29 +23,10 @@ static Object *exception_last = NULL;
 
 /* this consume references for args if they are Objects */
 static Object *
-mkexception(char *fmt, void *exc_arg, void *msg_arg)
+mkexception(Object *exc_arg, Object *msg_arg)
 {
-        Object *tup, **tupdata;
-        int i;
-        void *args[2] = { exc_arg, msg_arg };
-
-        bug_on(strlen(fmt) != 2);
-        tup = tuplevar_new(2);
-        tupdata = tuple_get_data(tup);
-        for (i = 0; i < 2; i++) {
-                switch (fmt[i]) {
-                case 's':
-                        tupdata[i] = stringvar_new((char *)args[i]);
-                        break;
-                case 'S':
-                case 'O':
-                        tupdata[i] = (Object *)args[i];
-                        break;
-                default:
-                        bug();
-                }
-        }
-        return tup;
+        Object *args[2] = { exc_arg, msg_arg };
+        return tuplevar_from_stack(args, 2, false);
 }
 
 static void
@@ -113,12 +94,9 @@ fail(const char *msg, ...)
 static void
 err_vsetstr(Object *exc, const char *msg, va_list ap)
 {
-        char msg_buf[100];
-        size_t len = sizeof(msg_buf);
-        Object *new_exc;
-        memset(msg_buf, 0, len);
+        Object *new_exc, *msgstr;
 
-        vsnprintf(msg_buf, len - 1, msg, ap);
+        msgstr = stringvar_from_vformat(msg, ap);
 
         /*
          * @exc is not from the user stack.  It's a meant-to-be-immortal
@@ -129,8 +107,9 @@ err_vsetstr(Object *exc, const char *msg, va_list ap)
          */
         VAR_INCR_REF(exc);
 
-        new_exc = mkexception("Os", exc, msg_buf);
+        new_exc = mkexception(exc, msgstr);
         replace_exception(new_exc);
+        VAR_DECR_REF(msgstr);
         VAR_DECR_REF(new_exc);
 }
 
@@ -169,7 +148,7 @@ err_set_from_user(Object *exc)
 {
         if (!isvar_tuple(exc)) {
                 Object *tmp;
-                tmp = mkexception("Os", exc, "(no message provided)");
+                tmp = mkexception(exc, STRCONST_ID(nomsg));
                 /*
                  * Do not consume @exc's reference here.
                  * The mkexception calls above did that for us.

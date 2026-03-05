@@ -58,6 +58,7 @@ initialize_string_consts(void)
                 [STRCONST_IDX_wtspc] = " \r\n\t\v\f",
                 [STRCONST_IDX_locked_array_str] = "[...]",
                 [STRCONST_IDX_locked_dict_str] = "{...}",
+                [STRCONST_IDX_nomsg] = "(no message provided)",
         };
 
         int i;

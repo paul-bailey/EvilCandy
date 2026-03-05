@@ -276,6 +276,7 @@ extern Object *stringvar_from_source(const char *tokenstr, bool imm);
 extern Object *stringvar_nocopy(const char *cstr);
 extern Object *stringvar_from_binary(const void *data, size_t n, int encoding);
 extern Object *stringvar_from_format(const char *fmt, ...);
+extern Object *stringvar_from_vformat(const char *fmt, va_list ap);
 extern Object *stringvar_from_ascii(const char *cstr);
 extern hash_t string_update_hash(Object *v);
 extern long string_ord(Object *str, size_t idx);

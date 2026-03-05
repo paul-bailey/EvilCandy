@@ -2884,20 +2884,29 @@ stringvar_nocopy(const char *cstr)
 }
 
 Object *
-stringvar_from_format(const char *fmt, ...)
+stringvar_from_vformat(const char *fmt, va_list ap)
 {
-        va_list ap;
         size_t len;
         struct buffer_t b;
 
         buffer_init(&b);
+        buffer_vprintf(&b, fmt, ap);
+        len = buffer_size(&b);
+
+        return stringvar_newf(buffer_trim(&b), len, 0);
+}
+
+Object *
+stringvar_from_format(const char *fmt, ...)
+{
+        Object *ret;
+        va_list ap;
 
         va_start(ap, fmt);
-        buffer_vprintf(&b, fmt, ap);
+        ret = stringvar_from_vformat(fmt, ap);
         va_end(ap);
 
-        len = buffer_size(&b);
-        return stringvar_newf(buffer_trim(&b), len, 0);
+        return ret;
 }
 
 /**

@@ -3133,11 +3133,14 @@ Object *
 stringvar_from_binary(const void *data, size_t n, int encoding)
 {
         struct string_writer_t wr;
-        ssize_t nput;
+        ssize_t res;
+        struct utf8_state_t state;
+
+        memset(&state, 0, sizeof(state));
 
         string_writer_init(&wr, 1);
-        nput = string_writer_decode(&wr, data, n, encoding, false, NULL);
-        if (nput != n) {
+        res = string_writer_decode(&wr, data, n, encoding, false, &state);
+        if (res != n || state.state != UTF8_STATE_ASCII) {
                 /* Do not accept stragglers */
                 err_setstr(ValueError, "data contains invalid characters");
                 string_writer_destroy(&wr);

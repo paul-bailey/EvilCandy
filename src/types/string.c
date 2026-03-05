@@ -3146,24 +3146,6 @@ stringvar_from_binary(const void *data, size_t n, int encoding)
         return stringvar_from_writer(&wr);
 }
 
-Object *
-stringvar_from_binary_stateful(const void *data, size_t n, int encoding,
-                               struct utf8_state_t *state)
-{
-        struct string_writer_t wr;
-        string_writer_init(&wr, 1);
-        n = string_writer_decode(&wr, data, n, encoding, false, state);
-        if (n < 0) {
-                if (!err_occurred()) {
-                        err_setstr(ValueError,
-                                   "data contains invalid characters");
-                }
-                string_writer_destroy(&wr);
-                return ErrorVar;
-        }
-        return stringvar_from_writer(&wr);
-}
-
 /**
  * string_ord - Get the ordinal value of @str at index @idx
  */

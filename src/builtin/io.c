@@ -60,10 +60,7 @@ struct textfile_t {
         Object *ft_eol;
         Object *ft_buf;
         size_t ft_bufpos;
-        struct utf8_state_t ft_decode_state;
-        unsigned char ft_stragglers[8];
-        unsigned char ft_nstraggler;
-        off_t ft_upos;
+        struct utf8_state_t ft_utf8_state;
 };
 
 struct binfile_t {
@@ -714,183 +711,107 @@ open_binary(int fd, struct fileconfig_t *cfg)
  *              (Buffered) text files
  ***********************************************************************/
 
-static enum result_t
-text_append_chunk(struct textfile_t *txt)
+/* returns bytes (not Unicode points) read, or -1 if error */
+static ssize_t
+text_readbuf(struct textfile_t *txt, const char *fname)
 {
-        enum { CHUNK_SIZE = 256 };
-        unsigned char *chunk = emalloc(CHUNK_SIZE);
-        unsigned char *readp;
-        ssize_t nread, chunksize, nstraggler;
+        struct string_writer_t wr;
+        char *buf;
+        ssize_t nread, res;
 
-        readp = chunk;
-        chunksize = CHUNK_SIZE;
-        nstraggler = txt->ft_nstraggler;
-        txt->ft_nstraggler = 0;
-        if (nstraggler) {
-                memcpy(chunk, txt->ft_stragglers, nstraggler);
-                readp += nstraggler;
-                chunksize -= nstraggler;
-        }
-        nread = raw_read_wrapper(txt->ft_fd, readp, chunksize);
+        if (txt->ft_eof)
+                return 0;
+        buf = emalloc(IO_BUFFER_SIZE);
+        nread = raw_read_wrapper(txt->ft_fd, buf, IO_BUFFER_SIZE);
         if (nread < 0) {
-                /* TODO: need more error handling than just this */
-                efree(chunk);
-                filerr_sys("readline");
-                return RES_ERROR;
+                efree(buf);
+                filerr_sys(fname);
+                return -1;
         } else if (!nread) {
+                efree(buf);
+                buf = NULL;
                 txt->ft_eof = true;
-                nread = nstraggler;
-        } else {
-                txt->ft_fdpos += nread;
         }
-        nread += nstraggler;
+        txt->ft_fdpos += nread;
+        string_writer_init(&wr, 1);
+        if (txt->ft_buf) {
+                string_writer_append_strobj(&wr, txt->ft_buf);
+                VAR_DECR_REF(txt->ft_buf);
+                txt->ft_buf = NULL;
+        }
+        /* TODO: make 'suppress errors' be an open() option */
+        res = string_writer_decode(&wr, buf ? buf : "", nread,
+                               txt->ft_codec, true, &txt->ft_utf8_state);
+        if (buf)
+                efree(buf);
 
-        if (nread) {
+        if (res < 0)
+                goto decode_err;
+
+        if (nread < IO_BUFFER_SIZE) {
+                /* end of file on disk, handle stragglers in state */
                 /*
-                 * XXX REVISIT: I'd prefer just a string_writer,
-                 * so that we don't have to keep creating strings
-                 * and all that.
+                 * TODO: Throw error if file has trailing unfinished
+                 * encoding? Let an open() argument configure this?
                  */
-                struct string_writer_t wr;
-                size_t nappend;
-
-                string_writer_init(&wr, 1);
-                if (txt->ft_buf) {
-                        string_writer_append_strobj(&wr, txt->ft_buf);
-                        VAR_DECR_REF(txt->ft_buf);
-                        txt->ft_buf = NULL;
-                }
-
-                nappend = string_writer_decode(&wr, chunk,
-                                               nread, txt->ft_codec, true, NULL);
-                if (nappend < 0) {
-                        string_writer_destroy(&wr);
-                        return RES_ERROR;
-                } else if (nappend != nread) {
-                        /* copy new stagglers */
-                        txt->ft_nstraggler = nread - nappend;
-                        bug_on(nstraggler > sizeof(txt->ft_stragglers));
-                        memcpy(txt->ft_stragglers, &chunk[nread],
-                               txt->ft_nstraggler);
-                        txt->ft_nstraggler = nstraggler;
-                }
-                txt->ft_buf = stringvar_from_writer(&wr);
+                res = string_writer_decode(&wr, "", 0, CODEC_LATIN1,
+                                           false, &txt->ft_utf8_state);
+                memset(&txt->ft_utf8_state, 0, sizeof(txt->ft_utf8_state));
+                if (res < 0)
+                        goto decode_err;
         }
-        efree(chunk);
-        return RES_OK;
+
+        txt->ft_buf = stringvar_from_writer(&wr);
+        return nread;
+
+decode_err:
+        string_writer_destroy(&wr);
+        if (!err_occurred())
+                filerr(fname, "file decoding error");
+        txt->ft_bufpos = 0;
+        return -1;
 }
 
-static char *
-readinto_chunkly(int fd, size_t *size, ssize_t lim)
-{
-        enum { GROWSIZ = 256 };
-        char *buf = erealloc(NULL, GROWSIZ);
-        size_t allocsize = GROWSIZ;
-        if (lim >= 0 && allocsize > lim)
-                allocsize = lim;
-        char *p = buf;
-        char *end = buf + allocsize;
-        for (;;) {
-                /* XXX: wrap text_read_chunk above instead of this */
-                size_t pi, gs;
-                ssize_t nread;
-
-                nread = raw_read_wrapper(fd, p, end - p);
-                if (nread != end - p)
-                        break;
-                pi = p - buf;
-                gs = GROWSIZ;
-                if (lim > 0 && allocsize + gs > lim)
-                        gs = lim - allocsize;
-                if (!gs)
-                        break;
-                allocsize += gs;
-                buf = erealloc(buf, allocsize);
-                p = buf + pi;
-                end = p + gs;
-        }
-        *size = p - buf;
-        return buf;
-}
-
-static char *
-readinto(int fd, off_t pos, size_t *nread, ssize_t lim)
-{
-        struct stat st;
-        size_t allocbytes;
-        ssize_t n;
-        char *buf, *p, *end;
-
-        if (fstat(fd, &st) < 0)
-                goto slowpath;
-        if (st.st_size < pos) /* ?!?! */
-                goto slowpath;
-        allocbytes = (size_t)(st.st_size - pos);
-        if (lim >= 0 && allocbytes > lim)
-                allocbytes = lim;
-        buf = emalloc(allocbytes);
-        end = buf + allocbytes;
-        p = buf;
-
-        n = raw_read_wrapper(fd, p, end - p);
-        if (n < 0)
-                return NULL;
-        *nread = n;
-        return buf;
-
-slowpath:
-        return readinto_chunkly(fd, nread, lim);
-}
-
+/* size is number of Unicode points, not bytes */
 static Object *
 text_read(struct rawfile_t *raw, ssize_t size)
 {
-        Object *ret;
-        size_t nread;
-        char *tbuf;
         struct textfile_t *txt = CAST_TXT(raw);
-        if (txt->ft_eof) {
-        eof:
-                if (txt->ft_buf) {
-                        ret = txt->ft_buf;
-                        txt->ft_buf = NULL;
-                        /*
-                         * Don't need to produce ref, we're handing
-                         * it off instead.
-                         * FIXME: what if seqvar_size(ret) > size?
-                         */
-                } else {
-                        ret = VAR_NEW_REF(STRCONST_ID(mpty));
-                }
-                return ret;
-        }
-        /*
-         * FIXME: this function here as well as readinto...
-         * need to take txt->ft_buf into account, and also @size
-         * refers to Unicode points, not bytes.
-         */
-        tbuf = readinto(txt->ft_fd, txt->ft_fdpos, &nread, size);
-        if (!tbuf) {
-                return ErrorVar;
-        } else if (!nread) {
-                txt->ft_eof = true;
-                efree(tbuf);
-                goto eof;
-        }
-        if (txt->ft_buf) {
-                Object *new;
+        ssize_t nread;
+        Object *ret;
 
-                /* XXX: Surely there's a better way! */
-                new = stringvar_from_binary(tbuf, nread, txt->ft_codec);
-                ret = string_cat(txt->ft_buf, new);
-                VAR_DECR_REF(new);
-                VAR_DECR_REF(txt->ft_buf);
-                txt->ft_buf = NULL;
-                return ret;
-        } else {
-                return stringvar_from_binary(tbuf, nread, txt->ft_codec);
+        for (;;) {
+                /* check if entire read amount is in buffer */
+                if (size > 0 && txt->ft_buf) {
+                        size_t n = seqvar_size(txt->ft_buf);
+                        size_t pos = txt->ft_bufpos;
+                        if (n - pos > size) {
+                                txt->ft_bufpos = pos + size;
+                                /* check for special rare case */
+                                if (txt->ft_bufpos == n && pos == 0)
+                                        goto exact_buffer;
+                                return string_getslice(txt->ft_buf, pos,
+                                                       pos + size, 1);
+                        }
+                }
+
+                if ((nread = text_readbuf(txt, "read")) < 0)
+                        return ErrorVar;
+
+                if (!nread) {
+                        if (txt->ft_buf)
+                                goto exact_buffer;
+                        else
+                                return VAR_NEW_REF(STRCONST_ID(mpty));
+                }
         }
- }
+
+exact_buffer:
+        ret = txt->ft_buf;
+        txt->ft_bufpos = 0;
+        txt->ft_buf = NULL;
+        return ret;
+}
 
 static Object *
 do_text_read(Frame *fr)
@@ -956,7 +877,7 @@ do_text_readline(Frame *fr)
                                 return VAR_NEW_REF(STRCONST_ID(mpty));
                         }
                 } else {
-                        text_append_chunk(txt);
+                        text_readbuf(txt, "readline");
                 }
         }
 
@@ -991,6 +912,10 @@ do_text_readline(Frame *fr)
 static ssize_t
 text_write(struct rawfile_t *raw, Object *so)
 {
+        /*
+         * FIXME: The whole point is to use a buffer to reduce
+         * the system write() calls.
+         */
         const void *data;
         size_t size;
 

@@ -161,6 +161,7 @@ utf8_decode_stateful(struct utf8_state_t *state, unsigned int c)
                         state->point = c;
                         return 1;
                 }
+                state->point = 0;
                 state->buf[state->idx++] = c;
                 if ((c & 0xf8u) == 0xf0u) {
                         state->state = UTF8_STATE_GET3;
@@ -169,8 +170,8 @@ utf8_decode_stateful(struct utf8_state_t *state, unsigned int c)
                         state->state = UTF8_STATE_GET2;
                         state->point = c & 0x0fu;
                 } else if ((c & 0xe0u) == 0xc0u) {
-                        state->state = UTF8_STATE_GET3;
-                        state->point = c & 0x0fu;
+                        state->state = UTF8_STATE_GET1;
+                        state->point = c & 0x1fu;
                 } else {
                         goto err;
                 }
@@ -182,13 +183,12 @@ utf8_decode_stateful(struct utf8_state_t *state, unsigned int c)
                 state->buf[state->idx++] = c;
                 if ((c & 0xc0) != 0x80)
                         goto err;
-                state->point = (state->point << 6) & (c & 0x3fu);
+                state->point = (state->point << 6) + (c & 0x3fu);
                 state->state--;
                 if (state->state == UTF8_STATE_ASCII) {
                         if (!utf8_valid_unicode(state->point))
                                 goto err;
                         state->idx = 0;
-                        state->point = c;
                         return 1;
                 }
                 return 0;

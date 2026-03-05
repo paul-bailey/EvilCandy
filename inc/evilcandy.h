@@ -314,7 +314,7 @@ struct utf8_state_t {
                 UTF8_STATE_ERR,
         } state;
         char buf[5];
-        long point;
+        unsigned long point;
         size_t idx;
 };
 

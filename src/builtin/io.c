@@ -765,8 +765,8 @@ text_readbuf(struct textfile_t *txt, const char *fname)
                  * TODO: Throw error if file has trailing unfinished
                  * encoding? Let an open() argument configure this?
                  */
-                res = string_writer_decode(&wr, "", 0, CODEC_LATIN1,
-                                           false, &txt->ft_utf8_state);
+                res = string_writer_decode(&wr, "", 0, txt->ft_codec,
+                                           true, &txt->ft_utf8_state);
                 memset(&txt->ft_utf8_state, 0, sizeof(txt->ft_utf8_state));
                 if (res < 0)
                         goto decode_err;

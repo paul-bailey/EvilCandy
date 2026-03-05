@@ -254,12 +254,12 @@ destroy_common(Object *fo)
  * If NULL, bail early and return NullVar without producing a ref.
  */
 static struct rawfile_t *
-file_str_get_priv(Frame *fr)
+file_str_get_priv(Frame *fr, int type)
 {
         Object *fo = vm_get_arg(fr, 0);
         if (!fo || !isvar_dict(fo))
                 return NULL;
-        return file_get_silent(fo, FILE_RAW);
+        return file_get_silent(fo, type);
 }
 
 /* **********************************************************************
@@ -422,9 +422,9 @@ raw_destructor(Object *fo)
 static Object *
 raw_str(Frame *fr)
 {
-        struct rawfile_t *raw = file_str_get_priv(fr);
+        struct rawfile_t *raw = file_str_get_priv(fr, FILE_RAW);
         if (!raw)
-                return NullVar;
+                return VAR_NEW_REF(NullVar);
 
         return stringvar_from_format("<file name='%s' mode='%s'>",
                         raw->fr_name ? raw->fr_name : "!", raw->fr_mode);
@@ -674,6 +674,17 @@ bin_destructor(Object *fo)
 }
 
 static Object *
+bin_str(Frame *fr)
+{
+        struct rawfile_t *raw = file_str_get_priv(fr, FILE_BINARY);
+        if (!raw)
+                return VAR_NEW_REF(NullVar);
+
+        return stringvar_from_format("<file name='%s' mode='%s'>",
+                        raw->fr_name ? raw->fr_name : "!", raw->fr_mode);
+}
+
+static Object *
 open_binary(int fd, struct fileconfig_t *cfg)
 {
         static const struct type_inittbl_t binfile_cb_methods[] = {
@@ -693,7 +704,7 @@ open_binary(int fd, struct fileconfig_t *cfg)
         if (cfg->writable)
                 bin->fb_write = bin_write;
         /* same strfunc as raw, we don't have codec */
-        strfunc = funcvar_new_intl(raw_str, 1, 1);
+        strfunc = funcvar_new_intl(bin_str, 1, 1);
 
         ret = dictvar_from_methods(NULL, binfile_cb_methods);
         dict_set_priv(ret, bin);
@@ -998,9 +1009,9 @@ text_str(Frame *fr)
         struct textfile_t *txt;
         const char *codecstr;
 
-        txt = (struct textfile_t *)file_str_get_priv(fr);
+        txt = (struct textfile_t *)file_str_get_priv(fr, FILE_TEXT);
         if (!txt)
-                return NullVar;
+                return VAR_NEW_REF(NullVar);
 
         switch (txt->ft_codec) {
         case CODEC_ASCII:

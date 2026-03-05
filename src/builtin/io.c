@@ -424,16 +424,12 @@ raw_destructor(Object *fo)
 static Object *
 raw_str(Frame *fr)
 {
-        struct buffer_t b;
         struct rawfile_t *raw = file_str_get_priv(fr);
         if (!raw)
                 return NullVar;
 
-        buffer_init(&b);
-        buffer_printf(&b, "<file name='%s' mode='%s'>",
-                        raw->fr_name ? raw->fr_name : "!",
-                        raw->fr_mode);
-        return stringvar_from_buffer(&b);
+        return stringvar_from_format("<file name='%s' mode='%s'>",
+                        raw->fr_name ? raw->fr_name : "!", raw->fr_mode);
 }
 
 static Object *
@@ -1075,7 +1071,6 @@ text_str(Frame *fr)
 {
         struct textfile_t *txt;
         const char *codecstr;
-        struct buffer_t b;
 
         txt = (struct textfile_t *)file_str_get_priv(fr);
         if (!txt)
@@ -1095,11 +1090,9 @@ text_str(Frame *fr)
                 codecstr = "?";
         }
 
-        buffer_init(&b);
-        buffer_printf(&b, "<file name='%s' mode='%s' enc='%s'>",
+        return stringvar_from_format("<file name='%s' mode='%s' enc='%s'>",
                       txt->ft_name ? txt->ft_name : "!",
                       txt->ft_mode, codecstr);
-        return stringvar_from_buffer(&b);
 }
 
 static void
@@ -1153,7 +1146,7 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
         txt = file_new(fd, sizeof(*txt), cfg);
         txt->ft_codec = codec;
         /* FIXME: this should be an argument */
-        txt->ft_eol = stringvar_new("\n");
+        txt->ft_eol = stringvar_from_ascii("\n");
         if (cfg->readable)
                 txt->ft_read = text_read;
         if (cfg->writable)
@@ -1511,7 +1504,7 @@ create_io_instance(Frame *fr)
 void
 moduleinit_io(void)
 {
-        Object *k = stringvar_new("_io");
+        Object *k = stringvar_from_ascii("_io");
         Object *o = var_from_format("<xmM>",
                                     create_io_instance, 0, 0);
         dict_setitem(GlobalObject, k, o);
@@ -1519,7 +1512,7 @@ moduleinit_io(void)
         VAR_DECR_REF(o);
 
         o = var_from_format("<xmMk>", do_open, 3, 3, 2);
-        k = stringvar_new("open");
+        k = stringvar_from_ascii("open");
         vm_add_global(k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);

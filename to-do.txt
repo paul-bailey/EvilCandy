@@ -1,6 +1,14 @@
 Bugs
 ----
 
+* BUGs 3/2026:
+
+        * segfault when f-string with conversion is the only part of a
+          statement, eg.
+                f'something {x}';
+          but not if surrounded with parentheses:
+                (f'something {x}');
+
 * BUGs 2/2026:
 
         * User cannot set a dictionary's property, because the var.c

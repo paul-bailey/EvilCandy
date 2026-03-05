@@ -23,7 +23,6 @@
  * creation for INTERNAL use:
  *         stringvar_new()
  *         stringvar_newn()
- *         stringvar_from_buffer()
  *         stringvar_nocopy()
  *
  * creation from USER literal:
@@ -51,9 +50,6 @@ enum {
 };
 
 #define V2STR(v)                ((struct stringvar_t *)(v))
-#define V2CSTR(v)               string_cstring(v)
-#define STRING_LENGTH(str)      seqvar_size(str)
-#define STRING_NBYTES(str)      string_nbytes(str)
 
 
 /* **********************************************************************
@@ -109,44 +105,6 @@ string_writer_append_strobj(struct string_writer_t *wr, Object *str)
                               string_width(str), seqvar_size(str));
 }
 
-/*
- * Flags are:
- *      SF_COPY         make a copy of @cstr
- *      0               use @cstr exactly and free on reset
- * There used to be more, but they went obsolete.
- */
-static Object *
-stringvar_newf(char *cstr, size_t size, unsigned int flags)
-{
-        struct string_writer_t wr;
-        ssize_t n, max = size;
-
-        if (!cstr) {
-                cstr = "";
-                flags |= SF_COPY;
-        }
-
-        string_writer_init(&wr, 1);
-        n = string_writer_decode(&wr, cstr, max, CODEC_UTF8, 1);
-        bug_on(n < 0);
-        if (n != max) {
-                ssize_t n2;
-                n2 = string_writer_decode(&wr, cstr + n,
-                                          max - n, CODEC_LATIN1, 1);
-                bug_on(n2 < 0);
-                n += n2;
-        }
-        bug_on(n != max);
-        if (!(flags & SF_COPY)) {
-                /*
-                 * Oops, we copied anyway! Old API,
-                 * we gotta deal with it.
-                 */
-                efree(cstr);
-        }
-        return stringvar_from_writer(&wr);
-}
-
 static size_t
 maxchr_to_width(unsigned long maxchr)
 {
@@ -155,6 +113,42 @@ maxchr_to_width(unsigned long maxchr)
         if (maxchr > 0xff)
                 return 2;
         return 1;
+}
+
+/* ONLY CALL THIS IF YOU ALREADY CONFIRMED THAT @p IS ALL ASCII */
+static Object *
+stringvar_from_ascii_(void *p, size_t len, unsigned int flags)
+{
+        Object *ret = var_new(&StringType);
+        struct stringvar_t *vs = V2STR(ret);
+        bool copy = !!(flags & SF_COPY);
+        /*
+         * p[len]=='\0' is certain for all upstream calls, except for
+         * stringvar_newn(), in which case 1) @p is part of a substring
+         * which is ultimately nulchar terminated, and 2) SF_COPY is used
+         * anyway.  So p[len] is safe to dereference, and the algo below
+         * is correct.
+         */
+        bool havenulchar = p ? *(char *)(p + len) == '\0' : false;
+        vs->s_width     = 1;
+        vs->s_ascii_len = len;
+        if (copy || !havenulchar) {
+                vs->s = emalloc(len + 1);
+                if (len)
+                        memcpy(vs->s, p, len);
+                vs->s[len] = '\0';
+
+                /* had to copy anyway */
+                if (!copy)
+                        efree(p);
+        } else {
+                vs->s = p;
+        }
+        vs->s_hash      = 0;
+        vs->s_ascii     = 1;
+        vs->s_unicode   = vs->s;
+        seqvar_set_size(ret, len);
+        return ret;
 }
 
 static Object *
@@ -168,7 +162,8 @@ stringvar_from_points(void *points, size_t width,
         int ascii;
         struct stringvar_t *vs;
 
-        bug_on((!!len && !points) || (!len && !!points));
+        bug_on(!!len && !points);
+        bug_on(!len && (!!points && *(char *)points != '\0'));
 
         /* We're early so we have to check if mpty exists */
         if (!len && STRCONST_ID(mpty))
@@ -196,7 +191,6 @@ stringvar_from_points(void *points, size_t width,
         ret = var_new(&StringType);
         vs = V2STR(ret);
 
-        vs->s_enc_len   = len;
         vs->s_width     = width;
         vs->s_ascii_len = buffer_size(&b);
         vs->s           = buffer_trim(&b);
@@ -248,6 +242,55 @@ stringvar_from_points(void *points, size_t width,
         return ret;
 }
 
+/*
+ * Flags are:
+ *      SF_COPY         make a copy of @cstr
+ *      0               use @cstr exactly and free on reset
+ * There used to be more, but they went obsolete.
+ */
+static Object *
+stringvar_newf(char *cstr, size_t size, unsigned int flags)
+{
+        struct string_writer_t wr;
+        ssize_t n, max = size;
+
+        if (!cstr) {
+                cstr = "";
+                flags |= SF_COPY;
+        }
+
+        /*
+         * Fast path: if ASCII, then no decoding is necessary.
+         *
+         * XXX REVISIT: This assumes that most calls to stringvar_newf
+         * are for internal functions which only pass ASCII strings.
+         * But if that's not the case, then the mem_is_ascii() call
+         * is a real time-waster.
+         */
+        if (mem_is_ascii(cstr, size))
+                return stringvar_from_ascii_(cstr, size, flags);
+
+        string_writer_init(&wr, 1);
+        n = string_writer_decode(&wr, cstr, max, CODEC_UTF8, 1);
+        bug_on(n < 0);
+        if (n != max) {
+                ssize_t n2;
+                n2 = string_writer_decode(&wr, cstr + n,
+                                          max - n, CODEC_LATIN1, 1);
+                bug_on(n2 < 0);
+                bug_on(n + n2 != max);
+                (void)n2;
+        }
+        if (!(flags & SF_COPY)) {
+                /*
+                 * Oops, we copied anyway! Relic of an older API.
+                 * Now "SF_COPY=0" means "free input argument"
+                 */
+                efree(cstr);
+        }
+        return stringvar_from_writer(&wr);
+}
+
 Object *
 stringvar_from_writer(struct string_writer_t *wr)
 {
@@ -271,6 +314,14 @@ stringvar_from_substr(Object *old, size_t start, size_t stop)
         len  = stop - start;
         buf = string_data(old) + start * width;
 
+        /*
+         * XXX: stringvar_from_points() may need to resize this, if
+         * the substring does not include @old's widest chars.
+         * If no resize, this should be faster than calling
+         * string_getslice().  If resize, this would be slower.
+         * I'm relying heavily on these being all-ASCII most of the
+         * time.
+         */
         return stringvar_from_points(buf, width, len, SF_COPY);
 }
 
@@ -1164,14 +1215,14 @@ static Object *
 string_getprop_length(Object *self)
 {
         bug_on(!isvar_string(self));
-        return intvar_new(STRING_LENGTH(self));
+        return intvar_new(seqvar_size(self));
 }
 
 static Object *
 string_getprop_nbytes(Object *self)
 {
         bug_on(!isvar_string(self));
-        return intvar_new(STRING_NBYTES(self));
+        return intvar_new(string_nbytes(self));
 }
 
 static Object *
@@ -1638,11 +1689,8 @@ done:
 static Object *
 string_starts_or_ends_with(Frame *fr, unsigned int flags)
 {
-        Object *self, *arg, *ret;
-
-        /* TODO: optional start, stop args */
-        const char *needle, *haystack;
-        int hasat, nlen, hlen;
+        Object *self, *arg;
+        size_t i, n1, n2, start;
 
         self = vm_get_this(fr);
         arg = vm_get_arg(fr, 0);
@@ -1651,21 +1699,26 @@ string_starts_or_ends_with(Frame *fr, unsigned int flags)
         if (arg_type_check(arg, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        needle = string_cstring(arg);
-        haystack = string_cstring(self);
-        nlen = STRING_NBYTES(arg);
-        hlen = STRING_NBYTES(self);
+        n1 = seqvar_size(self);
+        n2 = seqvar_size(arg);
 
-        if (nlen > hlen) {
-                hasat = 0;
-        } else {
-                int idx = !!(flags & SF_RIGHT) ? hlen - nlen : 0;
-                hasat = (strncmp(&haystack[idx], needle, nlen) == 0);
+        if (n2 > n1)
+                goto hasnt;
+
+        start = !!(flags & SF_RIGHT) ? n1 - n2 : 0;
+
+        for (i = 0; i < n2; i++) {
+                long p1, p2;
+
+                p1 = string_getidx(self, i + start);
+                p2 = string_getidx(arg, i);
+                if (p1 != p2)
+                        goto hasnt;
         }
+        return VAR_NEW_REF(gbl.one);
 
-        ret = hasat ? gbl.one : gbl.zero;
-        VAR_INCR_REF(ret);
-        return ret;
+hasnt:
+        return VAR_NEW_REF(gbl.zero);
 }
 
 static Object *
@@ -1856,9 +1909,7 @@ static Object *
 string_removelr(Frame *fr, unsigned int flags)
 {
         Object *self, *arg;
-        const char *haystack, *needle;
-        unsigned int idx, nlen, hlen;
-        char *newbuf;
+        size_t idx, pos;
 
         self = vm_get_this(fr);
         arg = vm_get_arg(fr, 0);
@@ -1868,25 +1919,22 @@ string_removelr(Frame *fr, unsigned int flags)
         if (arg_type_check(arg, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        nlen = STRING_NBYTES(arg);
-        hlen = STRING_NBYTES(self);
-        haystack = string_cstring(self);
-        needle = string_cstring(arg);
-
-        if (nlen > hlen)
+        if (seqvar_size(arg) > seqvar_size(self))
                 goto return_self;
 
-        idx = !!(flags & SF_RIGHT) ? hlen - nlen : 0;
-        if (strncmp(&haystack[idx], needle, nlen) != 0)
+        pos = !!(flags & SF_RIGHT)
+                ? seqvar_size(self) - seqvar_size(arg) : 0;
+
+        idx = find_idx_substr(self, arg, flags, 0, seqvar_size(self));
+        if (idx != pos)
                 goto return_self;
 
-        newbuf = emalloc(hlen + 1 - nlen);
-        if (!!(flags & SF_RIGHT))
-                memcpy(newbuf, haystack, hlen - nlen);
-        else
-                memcpy(newbuf, &haystack[nlen], hlen - nlen);
-        newbuf[hlen - nlen] = '\0';
-        return stringvar_newf(newbuf, hlen - nlen, 0);
+        if (!!(flags & SF_RIGHT)) {
+                return string_getslice(self, 0, pos, 1);
+        } else {
+                return string_getslice(self,
+                                seqvar_size(arg), seqvar_size(self), 1);
+        }
 
 return_self:
         VAR_INCR_REF(self);
@@ -2051,102 +2099,91 @@ string_split(Frame *fr)
         return string_lrsplit(fr, 0);
 }
 
-#define EOLCHARSET "\r\n"
-
 static Object *
 string_splitlines(Frame *fr)
 {
-        Object *self, *kw, *keeparg, *ret;
-        int keepends;
-        const char *src;
+        Object *self, *ret;
+        int keepends = 0;
+        size_t i, j, n;
 
         self = vm_get_this(fr);
-        kw = vm_get_arg(fr, 0);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
-
-        bug_on(!kw || !isvar_dict(kw));
-        dict_unpack(kw, STRCONST_ID(keepends), &keeparg, gbl.zero, NULL);
-        if (arg_type_check(keeparg, &IntType) == RES_ERROR) {
-                ret = ErrorVar;
-                goto out;
+        if (vm_getargs(fr, "{|i}:splitlines",
+                       STRCONST_ID(keepends), &keepends) == RES_ERROR) {
+                return ErrorVar;
         }
-        keepends = intvar_toll(keeparg);
-        src = string_cstring(self);
+
         ret = arrayvar_new(0);
-        while (*src != '\0') {
-                size_t n;
-                size_t nexti, nli;
-                nli = strcspn(src, EOLCHARSET);
-                if (src[nli] != '\0') {
-                        const char *eol = src + nli;
-                        switch (*eol) {
-                        case '\r':
-                                eol++;
-                                if (*eol == '\n')
-                                        eol++;
-                                break;
-                        case '\n':
-                                eol++;
-                                break;
-                        default:
-                                bug();
-                        }
-                        nexti = eol - src;
-                } else {
-                        nexti = nli;
-                }
-                n = keepends ? nexti : nli;
-                if (n) {
-                        Object *tmp = stringvar_newn(src, n);
-                        array_append(ret, tmp);
-                        VAR_DECR_REF(tmp);
-                } else {
-                        array_append(ret, STRCONST_ID(mpty));
-                }
-                src += nexti;
-        }
 
-out:
-        VAR_DECR_REF(keeparg);
+        n = seqvar_size(self);
+        i = j = 0;
+        while (i < n) {
+                size_t eol;
+                long pt = string_getidx(self, i);
+                /* TODO: support non-ASCII line breaks */
+                if (!(pt == '\r' || pt == '\n')) {
+                        i++;
+                        continue;
+                }
+
+                eol = i;
+                i++;
+                if (pt == '\r' && string_getidx(self, i) == '\n')
+                        i++;
+                if (keepends)
+                        eol = i;
+
+                if (eol == j) {
+                        array_append(ret, STRCONST_ID(mpty));
+                } else {
+                        Object *substr;
+
+                        substr = stringvar_from_substr(self, j, eol);
+                        array_append(ret, substr);
+                        VAR_DECR_REF(substr);
+                }
+
+                j = i;
+        }
+        if (i > j) {
+                Object *substr = stringvar_from_substr(self, j, i);
+                array_append(ret, substr);
+                VAR_DECR_REF(substr);
+        }
         return ret;
 }
-
-#undef EOLCHARSET
 
 static Object *
 string_zfill(Frame *fr)
 {
-        Object *self, *arg;
-        const char *src;
+        Object *self;
         int nz;
-        struct buffer_t b;
+        size_t src_size;
+        struct string_writer_t wr;
+        long plusminus;
 
         self = vm_get_this(fr);
-        arg = vm_get_arg(fr, 0);
-
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(arg, &IntType) == RES_ERROR)
+
+        if (vm_getargs(fr, "i:zfill", &nz) == RES_ERROR)
                 return ErrorVar;
 
-        nz = intvar_toi(arg);
-        if (err_occurred())
-                return ErrorVar;
-        nz -= seqvar_size(self);
+        src_size = seqvar_size(self);
+        nz -= src_size;
 
-        src = string_cstring(self);
-        buffer_init(&b);
-        if (*src == '-' || *src == '+') {
-                buffer_putc(&b, *src);
-                src++;
+        plusminus = string_getidx(self, 0);
+        string_writer_init(&wr, 1);
+        if (plusminus == '-' || plusminus == '+') {
+                string_writer_append(&wr, plusminus);
+                src_size--;
         }
-
         while (nz-- > 0)
-                buffer_putc(&b, '0');
-        buffer_puts(&b, src);
-
-        return stringvar_from_buffer(&b);
+                string_writer_append(&wr, '0');
+        string_writer_appendb(&wr, string_data(self),
+                              string_width(self), src_size);
+        return stringvar_from_writer(&wr);
 }
 
 
@@ -2416,15 +2453,14 @@ static Object *
 string_str(Object *v)
 {
         struct buffer_t b;
-        size_t i, n;
+        size_t i, n, npts;
         enum { Q = '\'', BKSL = '\\' };
 
         bug_on(!isvar_string(v));
 
         /*
-         * Since we're deliberately creating an all-ASCII string,
-         * we know it's faster to create from C-string than from
-         * Unicode points.
+         * Since we're deliberately creating an all-ASCII string, we'll
+         * use the less cumbersome buffer_t instead of string_writer_t.
          */
         buffer_init(&b);
 
@@ -2439,6 +2475,9 @@ string_str(Object *v)
                 } else if (c == BKSL) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, BKSL);
+                } else if (c == '\0') {
+                        buffer_putc(&b, BKSL);
+                        buffer_putc(&b, '0');
                 } else if (c < 128 && evc_isspace(c)) {
                         switch (c) {
                         case ' ': /* this one's ok */
@@ -2490,7 +2529,8 @@ string_str(Object *v)
                 }
         }
         buffer_putc(&b, Q);
-        return stringvar_from_buffer(&b);
+        npts = buffer_size(&b);
+        return stringvar_from_points(buffer_trim(&b), 1, npts, 0);
 }
 
 static void
@@ -2499,7 +2539,8 @@ string_reset(Object *str)
         struct stringvar_t *vs = V2STR(str);
         if (vs->s_unicode != vs->s && vs->s_unicode != NULL)
                 efree(vs->s_unicode);
-        efree(vs->s);
+        if (vs->s)
+                efree(vs->s);
 }
 
 /**
@@ -2509,62 +2550,64 @@ string_reset(Object *str)
 Object *
 string_cat(Object *a, Object *b)
 {
-        char *catstr;
-        const char *lval, *rval;
-        size_t rlen, llen;
+        struct string_writer_t wr;
+        size_t wa, wb;
 
         if (!b)
-                return stringvar_new("");
+                return stringvar_from_ascii("");
 
         if (!isvar_string(b)) {
                 err_setstr(TypeError,
                            "Mismatched types for + operation");
                 return NULL;
         }
-
-        /*
-         * XXX REVISIT: Way less verification to do if we concatenate
-         * Unicode arrays instead of the C-strings, probably faster.
-         */
-        lval = V2CSTR(a);
-        llen = STRING_NBYTES(a);
-
-        rval = V2CSTR(b);
-        rlen = STRING_NBYTES(b);
-
-        catstr = emalloc(llen + rlen + 1);
-        memcpy(catstr, lval, llen);
-        memcpy(catstr + llen, rval, rlen + 1);
-        return stringvar_newf(catstr, llen + rlen, 0);
+        /* The concatenation width will be wider of the two */
+        wa = string_width(a);
+        wb = string_width(b);
+        string_writer_init(&wr, wa > wb ? wa : wb);
+        string_writer_append_strobj(&wr, a);
+        string_writer_append_strobj(&wr, b);
+        return stringvar_from_writer(&wr);
 }
 
 static int
 string_cmp(Object *a, Object *b)
 {
         const char *sa, *sb;
+        size_t na, nb;
+
         /*
-         * Compare the C strings, not the Unicode buffers.  Some corner
-         * cases exist where a string produced from a built-in method
-         * will result in a new string whose width is wider than it needs
-         * to be, therefore the memcmp on the Unicode buffers could fail
-         * even for strings with all-matching Unicode points.  The
-         * alternative is a for loop which is probably not as fast as
-         * either strcmp or memcmp.
+         * XXX: I probably debugged all the corner cases where a string's
+         * Unicode array has a larger width than it needs.  So no need
+         * to go into the C strings.
          */
         bug_on(!isvar_string(a) || !isvar_string(b));
         sa = string_cstring(a);
         sb = string_cstring(b);
-        if (!sa || !sb)
-                return sa != sb;
-        return strcmp(sa, sb);
+        if (sa == sb)
+                return 0;
+
+        na = seqvar_size(a);
+        nb = seqvar_size(b);
+        if (na != nb)
+                return na > nb ? 1 : -1;
+
+        na = string_nbytes(a);
+        nb = string_nbytes(b);
+        if (na != nb)
+                return na > nb ? 1 : -1;
+        if (!na)
+                return 0;
+        return memcmp(sa, sb, na);
 }
 
 static bool
 string_cmpz(Object *a)
 {
-        const char *s = V2CSTR(a);
+        bug_on(!isvar_string(a));
+
         /* treat "" same as NULL in comparisons */
-        return s ? s[0] == '\0' : true;
+        return seqvar_size(a) != 0;
 }
 
 /* TODO: if arg=string, replace '%[fmt-args]' with arg */
@@ -2604,7 +2647,7 @@ string_getslice(Object *str, int start, int stop, int step)
         bool (*cmp)(int, int);
 
         if (start == stop)
-                return stringvar_new("");
+                return stringvar_from_ascii("");
 
         /*
          * XXX REVISIT: This assumes it's better to start with width=1,
@@ -2632,7 +2675,7 @@ string_getitem(Object *str, int idx)
         long point;
 
         bug_on(!isvar_string(str));
-        bug_on(idx >= STRING_LENGTH(str));
+        bug_on(idx >= seqvar_size(str));
 
         if (idx == 0 && seqvar_size(str) == 1)
                 return VAR_NEW_REF(str);
@@ -2787,9 +2830,23 @@ string_slide(Object *str, Object *delims, size_t pos)
         return pos;
 }
 
+/*
+ * This is functionally equivalent to stringvar_new(), except that it
+ * bypasses all the UTF8-decoding steps, to more quickly create a string
+ * object.  This does not perform any checks to ensure @cstr is all-ASCII
+ * For that reason...
+ *
+ *      ***ONLY CALL THIS FOR OBVIOUSLY ALL-ASCII STRING LITERALS***
+ */
+Object *
+stringvar_from_ascii(const char *cstr)
+{
+        return stringvar_from_ascii_((void *)cstr, strlen(cstr), SF_COPY);
+}
+
 /**
- * stringvar_new - Get a string var
- * @cstr: C-string to set string to, or NULL to do that later
+ * stringvar_new - Get a string var from a UTF-8-encoded or ASCII string.
+ * @cstr: C-string to set string to, or NULL to make empty string
  *
  * Return: new string var containing a copy of @cstr.
  */
@@ -2826,20 +2883,21 @@ stringvar_nocopy(const char *cstr)
         return stringvar_newf((char *)cstr, strlen(cstr), 0);
 }
 
-/**
- * stringvar_from_buffer - Create a StringType variable using a buffer.
- * @b: Buffer which at the very minimum had been initialized with
- *      buffer_init.  This will be reinitialized upon return (see
- *      buffer_trim in buffer.c).
- *
- * Return: The newly created string variable.
- */
 Object *
-stringvar_from_buffer(struct buffer_t *b)
+stringvar_from_format(const char *fmt, ...)
 {
-        size_t len = buffer_size(b);
-        char *s = buffer_trim(b);
-        return stringvar_newf(s, len, 0);
+        va_list ap;
+        size_t len;
+        struct buffer_t b;
+
+        buffer_init(&b);
+
+        va_start(ap, fmt);
+        buffer_vprintf(&b, fmt, ap);
+        va_end(ap);
+
+        len = buffer_size(&b);
+        return stringvar_newf(buffer_trim(&b), len, 0);
 }
 
 /**

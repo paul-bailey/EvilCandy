@@ -108,13 +108,15 @@ complex_abs(Object *self)
 static Object *
 complex_str(Object *self)
 {
-        struct complexvar_t *cv = V2C(self);
-        struct buffer_t b;
+        struct complexvar_t *cv;
         double im, re;
         int sign;
-        complex double c = cv->c;
+        complex double c;
+
         bug_on(!isvar_complex(self));
 
+        cv = V2C(self);
+        c = cv->c;
         re = creal(c);
         im = cimag(c);
         if (im < 0) {
@@ -124,9 +126,7 @@ complex_str(Object *self)
                 sign = '+';
         }
 
-        buffer_init(&b);
-        buffer_printf(&b, "(%.17g%c%.17gj)", re, sign, im);
-        return stringvar_from_buffer(&b);
+        return stringvar_from_format("(%.17g%c%.17gj)", re, sign, im);
 }
 
 static int

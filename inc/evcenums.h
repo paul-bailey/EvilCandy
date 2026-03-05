@@ -96,6 +96,7 @@ enum {
         STRCONST_IDX__priv,
         STRCONST_IDX_closefd,
         STRCONST_IDX_buffering,
+        STRCONST_IDX_null,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,

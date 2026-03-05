@@ -946,7 +946,7 @@ create_socket_instance(Frame *fr)
 void
 moduleinit_socket(void)
 {
-        Object *k = stringvar_new("_socket");
+        Object *k = stringvar_from_ascii("_socket");
         Object *o = var_from_format("<xmM>",
                                     create_socket_instance, 0, 0);
         dict_setitem(GlobalObject, k, o);

@@ -539,7 +539,7 @@ array_cat(Object *a, Object *b)
 static Object *
 array_str(Object *t)
 {
-        struct buffer_t b;
+        struct string_writer_t wr;
         Object *ret;
         size_t i, n;
 
@@ -549,20 +549,20 @@ array_str(Object *t)
 
         n = seqvar_size(t);
 
-        buffer_init(&b);
-        buffer_putc(&b, '[');
+        string_writer_init(&wr, 1);
+        string_writer_append(&wr, '[');
 
         for (i = 0; i < n; i++) {
                 Object *item;
                 if (i > 0)
-                        buffer_puts(&b, ", ");
+                        string_writer_appends(&wr, ", ");
                 item = var_str(V2ARR(t)->items[i]);
-                buffer_put_strobj(&b, item);
+                string_writer_append_strobj(&wr, item);
                 VAR_DECR_REF(item);
         }
 
-        buffer_putc(&b, ']');
-        ret = stringvar_from_buffer(&b);
+        string_writer_append(&wr, ']');
+        ret = stringvar_from_writer(&wr);
 
         V2ARR(t)->lock = false;
         return ret;

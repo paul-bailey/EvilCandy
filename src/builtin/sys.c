@@ -20,7 +20,7 @@ moduleinit_sys(void)
         v = evc_file_open(STDIN_FILENO, "<stdin>",
                           false, false, CODEC_UTF8, 1);
         bug_on(v == ErrorVar);
-        k = stringvar_new("stdin");
+        k = stringvar_from_ascii("stdin");
         dict_setitem(o, k, v);
         VAR_DECR_REF(v);
         VAR_DECR_REF(k);
@@ -28,12 +28,12 @@ moduleinit_sys(void)
         v = evc_file_open(STDOUT_FILENO, "<stdout>",
                           false, false, CODEC_UTF8, 1);
         bug_on(v == ErrorVar);
-        k = stringvar_new("stdout");
+        k = stringvar_from_ascii("stdout");
         dict_setitem(o, k, v);
         VAR_DECR_REF(v);
         VAR_DECR_REF(k);
 
-        k = stringvar_new("stderr");
+        k = stringvar_from_ascii("stderr");
         v = evc_file_open(STDERR_FILENO, "<stderr>",
                           false, false, CODEC_UTF8, 1);
         bug_on(v == ErrorVar);
@@ -41,7 +41,7 @@ moduleinit_sys(void)
         VAR_DECR_REF(v);
         VAR_DECR_REF(k);
 
-        k = stringvar_new("sys");
+        k = stringvar_from_ascii("sys");
         vm_add_global(k, o);
         VAR_DECR_REF(k);
 

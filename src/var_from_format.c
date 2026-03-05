@@ -196,12 +196,6 @@ var_vmake(const char *fmt, va_list ap, char **endptr)
                 o = stringvar_nocopy(s);
                 break;
             }
-        case 'B':
-            {
-                struct buffer_t *b = va_arg(ap, struct buffer_t *);
-                o = stringvar_from_buffer(b);
-                break;
-            }
         case 'i':
             {
                 int ival = va_arg(ap, int);

@@ -52,6 +52,7 @@ initialize_string_consts(void)
                 STRCONST_CSTR(_priv),
                 STRCONST_CSTR(closefd),
                 STRCONST_CSTR(buffering),
+                STRCONST_CSTR(null),
                 [STRCONST_IDX_spc] = " ",
                 [STRCONST_IDX_mpty] = "",
                 [STRCONST_IDX_wtspc] = " \r\n\t\v\f",
@@ -80,13 +81,13 @@ initialize_global_object(void)
         moduleinit_io();
         moduleinit_socket();
 
-        k = stringvar_new("__gbl__");
+        k = stringvar_from_ascii("__gbl__");
         vm_add_global(k, GlobalObject);
         VAR_DECR_REF(k);
 
         o = dict_getitem_cstr(GlobalObject, "_sys");
         bug_on(!o);
-        gbl.nl = stringvar_new("\n");
+        gbl.nl = stringvar_from_ascii("\n");
         gbl.stdout_file = dict_getitem_cstr(o, "stdout");
         bug_on(!gbl.nl || !gbl.stdout_file);
         VAR_DECR_REF(o);
@@ -140,7 +141,7 @@ cfile_init_global(void)
         MAKE_EXCEPTION(TypeError);
         MAKE_EXCEPTION(ValueError);
 
-        ErrorVar = stringvar_new("If you can see this from the console, this is a BUG!!!\n");
+        ErrorVar = stringvar_from_ascii("If you can see this from the console, this is a BUG!!!\n");
 }
 
 void

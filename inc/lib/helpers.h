@@ -42,9 +42,7 @@ static inline bool isquote(int c) { return c == '"' || c == '\''; }
 extern int bit_count64(uint64_t v);
 extern const char *notdir(const char *path);
 extern char *slide(const char *s, const char *sep);
-extern bool cstring_is_ascii(const char *s);
-extern char *cstring_find_nonascii(const char *s);
-extern size_t mem_find_nonascii_or_zero(const void *data, size_t n);
+extern bool mem_is_ascii(const void *p, size_t size);
 
 /* Why isn't this in stdlib.h? */
 #define container_of(x, type, member) \

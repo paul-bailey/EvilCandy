@@ -281,10 +281,11 @@ extern Object *star_unpack(Object *star);
 /* types/string.c */
 extern Object *stringvar_new(const char *cstr);
 extern Object *stringvar_newn(const char *cstr, size_t n);
-extern Object *stringvar_from_buffer(struct buffer_t *b);
 extern Object *stringvar_from_source(const char *tokenstr, bool imm);
 extern Object *stringvar_nocopy(const char *cstr);
 extern Object *stringvar_from_binary(const void *data, size_t n, int encoding);
+extern Object *stringvar_from_format(const char *fmt, ...);
+extern Object *stringvar_from_ascii(const char *cstr);
 extern hash_t string_update_hash(Object *v);
 extern long string_ord(Object *str, size_t idx);
 extern Object *string_format(Object *str, Object *tup);

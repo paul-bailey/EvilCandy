@@ -441,8 +441,8 @@ dict_unlock(struct dictvar_t *dict)
  *
  * This is best shown by example...
  *
- *      Object *key1 = stringvar_new("alice");
- *      Object *key2 = stringvar_new("bob");
+ *      Object *key1 = stringvar_from_ascii("alice");
+ *      Object *key2 = stringvar_from_ascii("bob");
  *      Object *val1;
  *
  *      Object *deflt1 = intvar_new(1);
@@ -1008,7 +1008,7 @@ static Object *
 dict_str(Object *o)
 {
         struct dictvar_t *d;
-        struct buffer_t b;
+        struct string_writer_t wr;
         struct class_t *cls;
         int i;
         int count;
@@ -1047,8 +1047,8 @@ dict_str(Object *o)
         if (dict_lock(d) == RES_ERROR)
                 return VAR_NEW_REF(STRCONST_ID(locked_dict_str));
 
-        buffer_init(&b);
-        buffer_putc(&b, '{');
+        string_writer_init(&wr, 1);
+        string_writer_append(&wr, '{');
 
         count = 0;
         for (i = 0; i < d->d_size; i++) {
@@ -1058,21 +1058,21 @@ dict_str(Object *o)
                         continue;
 
                 if (count > 0)
-                        buffer_puts(&b, ", ");
+                        string_writer_appends(&wr, ", ");
 
                 kstr = var_str(d->d_keys[i]);
                 vstr = var_str(d->d_vals[i]);
-                buffer_put_strobj(&b, kstr);
-                buffer_puts(&b, ": ");
-                buffer_put_strobj(&b, vstr);
+                string_writer_append_strobj(&wr, kstr);
+                string_writer_appends(&wr, ": ");
+                string_writer_append_strobj(&wr, vstr);
                 VAR_DECR_REF(vstr);
                 VAR_DECR_REF(kstr);
 
                 count++;
         }
 
-        buffer_putc(&b, '}');
-        ret = stringvar_from_buffer(&b);
+        string_writer_append(&wr, '}');
+        ret = stringvar_from_writer(&wr);
 
         dict_unlock(d);
         return ret;

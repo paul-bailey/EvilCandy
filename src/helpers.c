@@ -239,37 +239,53 @@ slide(const char *src, const char *sep)
         return (char *)src;
 }
 
+#define ALIGN SIZEOF_LONG
+#if ALIGN == 4
+# define ASCIILONG 0x80808080ul
+#elif ALIGN == 8
+# define ASCIILONG 0x8080808080808080ul
+#else
+# error "Cannot support value for sizeof(long)"
+#endif
+
 bool
-cstring_is_ascii(const char *s)
+mem_is_ascii(const void *p, size_t size)
 {
-        const char *s2 = cstring_find_nonascii(s);
-        return *s2 == '\0';
-}
+        const void *tmp_end, *true_end;
+        size_t tlen;
 
-char *
-cstring_find_nonascii(const char *s)
-{
-        int c;
-        while ((c = *s) != '\0') {
-                if ((c & 0xffu) > 127)
-                        break;
-                s++;
+        /* XXX: awfully involved, only faster if @size is very long */
+        true_end = p + size;
+        tlen = (size_t)p;
+        tlen &= ALIGN;
+        if (tlen)
+                tlen = ALIGN - tlen;
+
+        if (tlen > size)
+                tlen = size;
+
+        tmp_end = p + tlen;
+        while (p < tmp_end) {
+                if ((*(unsigned char *)p & 0x80) != 0)
+                        return false;
+                p++;
         }
-        return (char *)s;
-}
 
-size_t
-mem_find_nonascii_or_zero(const void *data, size_t n)
-{
-        const unsigned char *u8 = data;
-        const unsigned char *end = u8 + n;
-        while (u8 < end) {
-                int c = *u8 & 0xffu;
-                if (c > 127 || c == 0)
-                        break;
-                u8++;
+        tmp_end = true_end - ALIGN;
+        while (p < tmp_end) {
+                if ((*(unsigned long *)p & ASCIILONG) != 0)
+                        return false;
+                p++;
         }
-        return u8 - (unsigned char *)data;
+
+        while (p < true_end) {
+                if ((*(unsigned char *)p & 0x80) != 0)
+                        return false;
+                p++;
+        }
+        return true;
 }
 
+#undef ALIGN
+#undef ASCIILONG
 

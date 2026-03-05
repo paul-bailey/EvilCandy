@@ -18,17 +18,12 @@ emptyvar_new(void)
         return var_new(&EmptyType);
 }
 
-/* says 'null' -- no use creating this more than once */
-static Object *emptystr = NULL;
-
 Object *
 empty_str(Object *v)
 {
-        if (emptystr == NULL)
-                emptystr = stringvar_new("null");
-
-        VAR_INCR_REF(emptystr);
-        return emptystr;
+        if (STRCONST_ID(null))
+                return VAR_NEW_REF(STRCONST_ID(null));
+        return stringvar_from_ascii("null");
 }
 
 struct type_t EmptyType = {

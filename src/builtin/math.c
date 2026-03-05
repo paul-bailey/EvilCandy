@@ -162,7 +162,7 @@ create_math_instance(Frame *fr)
 void
 moduleinit_math(void)
 {
-        Object *k = stringvar_new("_math");
+        Object *k = stringvar_from_ascii("_math");
         Object *o = var_from_format("<xmM>",
                                     create_math_instance, 0, 0);
         dict_setitem(GlobalObject, k, o);

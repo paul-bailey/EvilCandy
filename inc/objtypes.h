@@ -331,15 +331,13 @@ struct bytesvar_t {
 
 struct stringvar_t {
         struct seqvar_t base;
-        char *s;        /* the actual C string */
-        size_t s_ascii_len;
-        void *s_unicode;
-        size_t s_width;
-        size_t s_enc_len;
-        int s_ascii;
-        hash_t s_hash;
+        char *s;                /* the UTF8-encoded C string */
+        size_t s_ascii_len;     /* (misleading) # of bytes in .s */
+        void *s_unicode;        /* == .s if .s_ascii is true */
+        size_t s_width;         /* width of .s_unicode */
+        int s_ascii;            /* true if ASCII */
+        hash_t s_hash;          /* 0 until string_hash() call */
 };
-
 
 /* Warning!! Only call these if you already type-checked @v */
 static inline double floatvar_tod(Object *v)

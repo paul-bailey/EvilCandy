@@ -25,7 +25,7 @@ property_str(Object *self)
 {
         bug();
         /* since bug() doesn't catch things in release mode */
-        return stringvar_new("<property getter/setter>");
+        return stringvar_from_ascii("<property getter/setter>");
 }
 
 struct type_t PropertyType = {

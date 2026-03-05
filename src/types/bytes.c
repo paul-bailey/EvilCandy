@@ -1465,11 +1465,14 @@ bytes_from_string_arg_utf8(Object *str)
         for (i = 0; i < n; i++) {
                 long ord = string_ord(str, i);
                 bug_on(ord < 0);
-                if (!utf8_valid_unicode(ord)) {
+                if (ord <= 127) {
+                        buffer_putc(&b, ord);
+                } else if (!utf8_valid_unicode(ord)) {
                         err_decoding(ord, i, "invalid Unicode for UTF-8");
                         goto err;
+                } else {
+                        utf8_encode(ord, &b);
                 }
-                utf8_encode(ord, &b);
         }
         n = buffer_size(&b);
         return bytesvar_newf(buffer_trim(&b), n, 0);

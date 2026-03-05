@@ -131,19 +131,25 @@ utf8_decode_stateful(struct utf8_state_t *state, unsigned int c)
                 state->state--;
                 if (state->state == UTF8_STATE_ASCII) {
                         if (!utf8_valid_unicode(state->point))
-                                goto err;
+                                goto err_ord;
                         state->idx = 0;
                         return 1;
                 }
                 return 0;
 
-        default:
         case UTF8_STATE_ERR:
+        case UTF8_STATE_ERR_ORD:
+        default:
                 return -1;
         }
 
 err:
         state->buf[state->idx] = '\0';
         state->state = UTF8_STATE_ERR;
+        return -1;
+
+err_ord:
+        state->buf[state->idx] = '\0';
+        state->state = UTF8_STATE_ERR_ORD;
         return -1;
 }

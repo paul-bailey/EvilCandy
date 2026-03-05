@@ -6,6 +6,45 @@
 #include <evilcandy.h>
 #include <errno.h>
 
+/* helper to err_decode, err_ord */
+static const char *
+codecstr(int codec)
+{
+        switch (codec) {
+        case CODEC_ASCII:
+                return "ascii";
+        case CODEC_LATIN1:
+                return "latin1";
+        case CODEC_UTF8:
+                return "utf8";
+        default:
+                bug();
+                return "";
+        }
+
+}
+
+void
+err_decode(int codec, const char *why)
+{
+        if (!why)
+                why = "invalid data"; /* why else? */
+
+        /* TODO: replace with CodecError */
+        err_setstr(ValueError, "cannot decode data as %s: %s",
+                   codecstr(codec), why);
+}
+
+/* codec is -1 if not decoding/encoding a string or file */
+void
+err_ord(int codec, long ord)
+{
+        err_setstr(ValueError, "ordinal %ld (0x%lx) out of range%s%s",
+                   ord, ord,
+                   codec >= 0 ? " for " : "",
+                   codec >= 0 ? codecstr(codec) : "");
+}
+
 /* @getorset: either "get" or "set" */
 void
 err_attribute(const char *getorset, Object *deref, Object *obj)

@@ -101,6 +101,8 @@ extern bool err_occurred(void);
 extern void err_clear(void);
 
 /* errmsg.c */
+extern void err_decode(int codec, const char *why);
+extern void err_ord(int codec, long ord);
 extern void err_attribute(const char *getorset,
                           Object *deref, Object *obj);
 extern void err_index(Object *index);
@@ -304,6 +306,7 @@ struct utf8_state_t {
                 UTF8_STATE_GET2,
                 UTF8_STATE_GET3,
                 UTF8_STATE_ERR,
+                UTF8_STATE_ERR_ORD,
         } state;
         char buf[5];
         unsigned long point;

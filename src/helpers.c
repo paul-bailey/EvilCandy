@@ -286,6 +286,19 @@ mem_is_ascii(const void *p, size_t size)
         return true;
 }
 
+size_t
+mem_find_nonascii(const void *p, size_t size)
+{
+        const void *start = p;
+        const void *end = p + size;
+        while (p < end) {
+                if ((*(unsigned char *)p & 0x80) != 0)
+                        break;
+                p++;
+        }
+        return p - start;
+}
+
 #undef ALIGN
 #undef ASCIILONG
 

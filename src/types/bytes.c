@@ -1408,9 +1408,7 @@ bytes_unpack_int(unsigned char *p, Object *seq, size_t idx)
         }
         ival = intvar_toll(x);
         if (ival < 0LL || ival > 255LL) {
-                err_setstr(ValueError,
-                           "Expected value between 0 and 255 but found %lld",
-                           ival);
+                err_ord(-1, (long)ival);
                 goto out;
         }
         *p = (unsigned char)ival;
@@ -1419,14 +1417,6 @@ bytes_unpack_int(unsigned char *p, Object *seq, size_t idx)
 out:
         VAR_DECR_REF(x);
         return ret;
-}
-
-static void
-err_decoding(long val, size_t idx, const char *reason)
-{
-        err_setstr(ValueError,
-                "Cannot decode ordinal %lu at pos %lu: %s",
-                val, idx, reason);
 }
 
 static Object *
@@ -1442,7 +1432,7 @@ bytes_from_string_arg_1wide(Object *str, long max)
                 long ord = string_ord(str, i);
                 bug_on(ord < 0);
                 if (ord > max) {
-                        err_decoding(ord, i, "value out of range");
+                        err_ord(CODEC_LATIN1, ord);
                         goto err;
                 }
                 buf[i] = ord;
@@ -1468,7 +1458,7 @@ bytes_from_string_arg_utf8(Object *str)
                 if (ord <= 127) {
                         buffer_putc(&b, ord);
                 } else if (!utf8_valid_unicode(ord)) {
-                        err_decoding(ord, i, "invalid Unicode for UTF-8");
+                        err_ord(CODEC_UTF8, ord);
                         goto err;
                 } else {
                         utf8_encode(ord, &b);

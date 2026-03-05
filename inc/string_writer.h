@@ -32,6 +32,8 @@ extern void string_writer_appends(struct string_writer_t *wr,
                                   const char *cstr);
 extern void string_writer_appendb(struct string_writer_t *wr,
                               const void *buf, size_t width, size_t len);
+extern size_t string_writer_get_ascii(struct string_writer_t *wr,
+                                      const void *buf, size_t max);
 extern enum result_t string_writer_swapchars(struct string_writer_t *wr,
                                              size_t apos, size_t bpos);
 extern void *string_writer_finish(struct string_writer_t *wr,

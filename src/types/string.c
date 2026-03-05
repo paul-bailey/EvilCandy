@@ -3032,18 +3032,7 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
                 }
         }
 
-        /*
-         * Thus far, ASCII input is valid for all @codec choices, so
-         * first stuff all the leading ASCII characters into @wr.
-         * Most of the time, this will be the whole function.
-         */
-        while (u8 < end) {
-                int c = *u8 & 0xffu;
-                if (c > 127)
-                        break;
-                string_writer_append(wr, c);
-                u8++;
-        }
+        u8 += string_writer_get_ascii(wr, u8, end - u8);
         if (u8 == end)
                 return n;
 
@@ -3084,14 +3073,7 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
 
         /* try to pick up stragglers */
         end += UTF8_MAX_STRLEN;
-        while (u8 < end) {
-                int c = *u8++ & 0xffu;
-                if (c > 127) {
-                        u8--;
-                        break;
-                }
-                string_writer_append(wr, c);
-        }
+        u8 += string_writer_get_ascii(wr, u8, end - u8);
 
         if (state) {
                 while (u8 < end) {
@@ -3111,18 +3093,26 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
 
 bad_ascii:
         bug_on(suppress_errors);
-        err_setstr(ValueError, "input is not ascii");
+        err_decode(codec, "input is out of range");
         return -1;
 
 bad_utf8:
-        err_setstr(ValueError, "Data is not UTF-8 encoded");
+        if (state && state->state == UTF8_STATE_ERR_ORD)
+                goto bad_utf8_ord;
+        err_decode(codec, "input is not UTF8-encoded");
         return -1;
 
 sus:
         err_setstr(RuntimeError, "Suspected improper program flow");
         return -1;
+
+bad_utf8_ord:
+        bug_on(!state);
+        err_ord(codec, state->point);
+        return -1;
 }
 
+/* XXX: Unused outside this file */
 /**
  * stringvar_from_binary - Encode a binary array into a string
  * @data: Binary data to encode.  This need not be nulchar terminated,
@@ -3151,7 +3141,10 @@ stringvar_from_binary(const void *data, size_t n, int encoding)
         res = string_writer_decode(&wr, data, n, encoding, false, &state);
         if (res != n || state.state != UTF8_STATE_ASCII) {
                 /* Do not accept stragglers */
-                err_setstr(ValueError, "data contains invalid characters");
+                if (!err_occurred()) {
+                        err_setstr(ValueError,
+                                   "data contains invalid characters");
+                }
                 string_writer_destroy(&wr);
                 return ErrorVar;
         }

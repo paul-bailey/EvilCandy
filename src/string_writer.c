@@ -35,6 +35,56 @@ string_writer_init(struct string_writer_t *wr, size_t width)
 }
 
 /**
+ * string_writer_get_ascii - fill leading characters of @buf into
+ *                      @wr if they are ASCII.
+ * @wr: String writer to fill
+ * @buf: Buffer to get characters from
+ * @max: Size of buf.
+ *
+ * Return: Number of leading characters in @buf that have been processed
+ */
+size_t
+string_writer_get_ascii(struct string_writer_t *wr,
+                        const void *buf, size_t max)
+{
+        size_t n_ascii;
+
+        /* XXX: faster to do in loop below? */
+        n_ascii = mem_find_nonascii(buf, max);
+        if (!n_ascii)
+                return 0;
+
+        if (wr->width == 1) {
+                /*
+                 * Fast path, direct memcpy.  Use max (padded to next
+                 * 64-byte boundary) instead of n_alloc to determine
+                 * realloc size; even though this function only stuffs
+                 * n_alloc bytes, caller will ultimately stuff at minimum
+                 * @max bytes.
+                 */
+                size_t need_size = wr->pos + max;
+                if (need_size > wr->n_alloc) {
+                        need_size = (need_size + 63) & ~((size_t)63);
+                        wr->p.p = erealloc(wr->p.p, need_size);
+                        wr->n_alloc = need_size;
+                }
+                memcpy(wr->p.p + wr->pos, buf, n_ascii);
+                wr->pos += n_ascii;
+                wr->pos_i = wr->pos;
+        } else {
+                /* slow path, do a bunch of appends */
+                const unsigned char *u8, *end;
+                u8 = buf;
+                end = u8 + n_ascii;
+                while (u8 < end) {
+                        string_writer_append(wr, *u8 & 0xff);
+                        u8++;
+                }
+        }
+        return n_ascii;
+}
+
+/**
  * string_writer_append - Append a Unicode point
  * @wr: Writer to append to
  * @c:  Unicode point, from 0 <= c <= 0x10ffff

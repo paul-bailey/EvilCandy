@@ -171,15 +171,6 @@ extern ssize_t myreadline(char **linep, size_t *size,
                           FILE *fp, const char *prompt);
 
 /* strto.c */
-struct str2enum_t {
-        const char *s;
-        int v;
-};
-extern enum result_t str2enum(const struct str2enum_t *t,
-                              const char *s, int *value, bool nocase);
-extern enum result_t strobj2enum(const struct str2enum_t *t,
-                                 Object *str, int *value, int suppress,
-                                 const char *what, bool nocase);
 extern enum result_t evc_strtod(const char *s, char **endptr, double *d);
 extern enum result_t evc_strtol(const char *s, char **endptr,
                                 int base, long long *v);

@@ -48,7 +48,6 @@ evilcandy_SOURCES = \
         src/types/dict.c \
         src/types/empty.c \
         src/types/float.c \
-        src/types/floats.c \
         src/types/function.c \
         src/types/integer.c \
         src/types/intl.c \

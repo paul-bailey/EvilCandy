@@ -341,7 +341,7 @@ socket_str(Frame *fr)
          * cannot represent the dict in the predicted way.
          */
         if (!skv)
-                return NullVar;
+                return VAR_NEW_REF(NullVar);
 
         memset(buf, 0, sizeof(buf));
 

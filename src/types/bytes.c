@@ -195,10 +195,12 @@ bytes_cat(Object *a, Object *b)
 static Object *
 bytes_str(Object *v)
 {
+        Object *ret;
         struct buffer_t b;
         unsigned char *s = V2B(v)->b_buf;
         size_t i, n = seqvar_size(v);
         enum { SQ = '\'', BKSL = '\\'};
+        char *bstr;
 
         buffer_init(&b);
         buffer_putc(&b, 'b');
@@ -245,7 +247,11 @@ bytes_str(Object *v)
                 }
         }
         buffer_putc(&b, SQ);
-        return stringvar_nocopy(buffer_trim(&b));
+
+        bstr = buffer_trim(&b);
+        ret = stringvar_new(bstr);
+        efree(bstr);
+        return ret;
 }
 
 static int
@@ -307,8 +313,9 @@ bytesvar_new(const unsigned char *buf, size_t len)
 }
 
 /**
- * bytesvar_nocopy - Same relation to bytesvar_new that stringvar_nocopy
- *                   has to stringvar_new
+ * bytesvar_nocopy - Like bytesvar_new, but use actual @buf rather
+ *              than make a copy in memory.  The calling function
+ *              is "handing off" @buf to the bytes object.
  */
 Object *
 bytesvar_nocopy(const unsigned char *buf, size_t len)

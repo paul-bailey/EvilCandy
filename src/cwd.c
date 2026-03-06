@@ -17,6 +17,7 @@ evc_getcwd(void)
         size_t size = 64;
         char *buf = emalloc(size);
         char *wd;
+        Object *ret;
 
         size = 64;
         buf = erealloc(NULL, size);
@@ -38,7 +39,9 @@ retry:
                 return NULL;
         }
 
-        return stringvar_nocopy(wd);
+        ret = stringvar_new(wd);
+        efree(wd);
+        return ret;
 }
 
 /* TODO: chdir stuff & al. */

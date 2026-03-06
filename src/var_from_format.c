@@ -190,12 +190,6 @@ var_vmake(const char *fmt, va_list ap, char **endptr)
                 o = stringvar_new(s);
                 break;
             }
-        case 'S':
-            {
-                char *s = va_arg(ap, char *);
-                o = stringvar_nocopy(s);
-                break;
-            }
         case 'i':
             {
                 int ival = va_arg(ap, int);

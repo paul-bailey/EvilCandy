@@ -275,7 +275,6 @@ extern Object *star_unpack(Object *star);
 extern Object *stringvar_new(const char *cstr);
 extern Object *stringvar_newn(const char *cstr, size_t n);
 extern Object *stringvar_from_source(const char *tokenstr, bool imm);
-extern Object *stringvar_nocopy(const char *cstr);
 extern Object *stringvar_from_binary(const void *data, size_t n, int encoding);
 extern Object *stringvar_from_format(const char *fmt, ...);
 extern Object *stringvar_from_vformat(const char *fmt, va_list ap);

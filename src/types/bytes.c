@@ -1456,7 +1456,7 @@ bytes_from_string_arg_utf8(Object *str)
                 long ord = string_ord(str, i);
                 bug_on(ord < 0);
                 if (ord <= 127) {
-                        buffer_putc(&b, ord);
+                        buffer_putc_strict(&b, ord);
                 } else if (!utf8_valid_unicode(ord)) {
                         err_ord(CODEC_UTF8, ord);
                         goto err;

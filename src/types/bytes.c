@@ -212,7 +212,7 @@ bytes_str(Object *v)
                 } else if (c == BKSL) {
                         buffer_putc(&b, BKSL);
                         buffer_putc(&b, BKSL);
-                } else if (isspace(c)) {
+                } else if (c < 127 && isspace(c)) {
                         switch (c) {
                         case ' ':
                                 buffer_putc(&b, c);

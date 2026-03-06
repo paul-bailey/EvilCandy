@@ -2506,7 +2506,7 @@ string_str(Object *v)
                         buffer_putc(&b, ((c >> 6) & 0x03) + '0');
                         buffer_putc(&b, ((c >> 3) & 0x07) + '0');
                         buffer_putc(&b, (c & 0x07) + '0');
-                } else if (c > 128) {
+                } else if (c >= 128) {
                         char buf[10];
                         buffer_putc(&b, BKSL);
                         if (c > 0xffffu) {
@@ -2944,18 +2944,188 @@ stringvar_from_source(const char *tokenstr, bool imm)
         return stringvar_from_points(buf, width, len, 0);
 }
 
-/* helper to string_writer_decode */
-static int
-utf8_state_unwind_latin1(struct string_writer_t *wr,
-                         struct utf8_state_t *state)
+static ssize_t
+string_writer_decode_latin1(struct string_writer_t *wr,
+                            const void *data, size_t n)
 {
-        int i;
-        for (i = 0; i < state->idx; i++) {
-                long c = state->buf[i] & 0xfful;
+        const unsigned char *u8 = data;
+        const unsigned char *end = u8 + n;
+
+        /*
+         * XXX: It would require messy low-level stuff with @wr,
+         * it's way faster to just call emalloc() and memcpy().
+         */
+        while (u8 < end) {
+                unsigned int c = *u8++;
                 string_writer_append(wr, c);
         }
-        memset(state, 0, sizeof(*state));
-        return 0;
+        return n;
+}
+
+static ssize_t
+string_writer_decode_ascii(struct string_writer_t *wr,
+                           const void *data, size_t n)
+{
+        const unsigned char *u8 = data;
+        const unsigned char *end = u8 + n;
+
+        u8 += string_writer_get_ascii(wr, u8, end - u8);
+        if (u8 != end) {
+                err_ord(CODEC_ASCII, u8[0]);
+                return -1;
+        }
+        return n;
+}
+
+/* ie ((c & 0xc0) == 0x80), but usu. one less instruction */
+static inline bool is_continuation(int c) { return c < 0xc0 && c >= 0x80; }
+
+static ssize_t
+string_writer_decode_utf8(struct string_writer_t *wr, const void *data,
+                          size_t n, struct utf8_state_t *state)
+{
+        static const unsigned long UNICODE_MAXCHR = 0x10ffffu;
+        const unsigned char *u8 = data;
+        const unsigned char *end = u8 + n;
+        unsigned long point = 0;
+        if (state && state->state != UTF8_STATE_ASCII) {
+                /* This means that calling code is not dealing with it */
+                bug_on(state->state == UTF8_STATE_ERR);
+
+                point = state->point;
+                while (u8 < end && state->state != UTF8_STATE_ASCII) {
+                        bug_on(state->state > UTF8_STATE_GET3);
+                        if (!is_continuation(u8[0]))
+                                goto err_continuation_byte;
+                        point = (point << 6) & (u8[0] & 0x3fu);
+                        state->buf[state->state - 1] = u8[0];
+                        state->state--;
+                        u8++;
+                }
+
+                if (state->state != UTF8_STATE_ASCII) {
+                        /* end before full decode */
+                        bug_on(u8 != end);
+                        return (size_t)((void *)u8 - data);
+                }
+
+                if (point > UNICODE_MAXCHR)
+                        goto err_ord;
+                string_writer_append(wr, point);
+                memset(state, 0, sizeof(*state));
+        }
+
+        while (u8 < end) {
+                unsigned int c = *u8;
+                if (c < 128) {
+                        /* TODO: aligned version of this */
+                        string_writer_append(wr, c);
+                        u8++;
+                        continue;
+                }
+
+                if (c >= 0xf0u && c < 0xf8u) {
+                        if (end - u8 < 4)
+                                break;
+                        if (!is_continuation(u8[1]) ||
+                            !is_continuation(u8[2]) ||
+                            !is_continuation(u8[3])) {
+                                goto err_continuation_byte;
+                        }
+                        point = ((c & 0x07u) << 18)
+                                | ((u8[1] & 0x3fu) << 12)
+                                | ((u8[2] & 0x3fu) << 6)
+                                | (u8[3] & 0x3fu);
+                        if (point > UNICODE_MAXCHR)
+                                goto err_ord;
+                        u8 += 4;
+                        string_writer_append(wr, point);
+                } else if (c >= 0xe0u && c < 0xf0u) {
+                        /*
+                         * Check for surrogate pairs.  This can't be done
+                         * after the decoding, because they won't decode
+                         * that way.
+                         */
+                        if (end - u8 < 3)
+                                break;
+                        if (!is_continuation(u8[1]) ||
+                            !is_continuation(u8[2])) {
+                                goto err_continuation_byte;
+                        }
+
+                        point = ((c & 0x0fu) << 12)
+                                | ((u8[1] & 0x3fu) << 6)
+                                | (u8[2] & 0x3fu);
+                        if (point > UNICODE_MAXCHR)
+                                goto err_ord;
+                        if (point >= 0xd800u && point <= 0xdfffu) {
+                                /* invalid surrogate pair */
+                                goto err_surrogate;
+                        }
+                        u8 += 3;
+                        string_writer_append(wr, point);
+                } else if (c >= 0xc0u && c < 0xe0) {
+                        if (end - u8 < 2)
+                                break;
+                        if (!is_continuation(u8[1]))
+                                goto err_continuation_byte;
+                        point = ((c & 0x1fu) << 6) | (u8[1] & 0x3fu);
+                        if (point > UNICODE_MAXCHR)
+                                goto err_ord;
+                        u8 += 2;
+                        string_writer_append(wr, point);
+                } else {
+                        /* [0x80, 0xc0) are invalid UTF8 */
+                        goto err_start_byte;
+                }
+        }
+
+        if (u8 != end && state) {
+                unsigned int c = *u8++;
+                if (c >= 0xf0u && c < 0xf8u) {
+                        state->point = c & 0x07u;
+                        state->state = UTF8_STATE_GET3;
+                } else if (c >= 0xe0u && c < 0xf0u) {
+                        state->point = c & 0x0fu;
+                        state->state = UTF8_STATE_GET2;
+                } else if (c >= 0xc0u && c < 0xe0) {
+                        state->point = c & 0x1fu;
+                        state->state = UTF8_STATE_GET1;
+                } else {
+                        bug();
+                }
+                while (u8 < end) {
+                        c = *u8;
+                        if (!is_continuation(u8[0]))
+                                goto err_continuation_byte;
+                        state->buf[3 - state->state] = c;
+                        state->point = (state->point << 6) | (c & 0x3fu);
+                        state->state--;
+                        /*
+                         * We're only in this loop because we didn't have
+                         * enough bytes left, so this would be a bug.
+                         */
+                        bug_on(state->state == UTF8_STATE_ASCII);
+                        u8++;
+                }
+        }
+        return (size_t)((void *)u8 - data);
+
+err_start_byte:
+        err_decode(CODEC_UTF8, "bad start byte");
+        return -1;
+
+err_continuation_byte:
+        err_decode(CODEC_UTF8, "bad continuation byte");
+        return -1;
+
+err_ord:
+        err_ord(CODEC_UTF8, point);
+        return -1;
+
+err_surrogate:
+        err_decode(CODEC_UTF8, "invalid surrogate pair");
+        return -1;
 }
 
 /**
@@ -2996,120 +3166,16 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
                      size_t n, int codec, bool suppress_errors,
                      struct utf8_state_t *state)
 {
-        /*
-         * FIXME: this code goes in string_writer.c, not here.
-         */
-        enum { UTF8_MAX_STRLEN = 4 };
-        const unsigned char *u8, *end;
-
-        u8 = (unsigned char *)data;
-        end = u8 + n;
-
-        /*
-         * If we have any stragglers due to a partial utf8 encoding in
-         * the previous call, process state until it resets, before
-         * doing the normal stuff with @data.
-         */
-        if (state && state->state != UTF8_STATE_ASCII) {
-                if (codec == CODEC_LATIN1) {
-                        utf8_state_unwind_latin1(wr, state);
-                } else if (codec == CODEC_ASCII) {
-                        goto sus;
-                } else while (u8 < end) {
-                        int res = utf8_decode_stateful(state, *u8++);
-                        if (res > 0) {
-                                string_writer_append(wr, state->point);
-                                bug_on(state->state != UTF8_STATE_ASCII);
-                                break;
-                        } else if (res == 0) {
-                                continue;
-                        } else {
-                                if (!suppress_errors)
-                                        goto bad_utf8;
-                                utf8_state_unwind_latin1(wr, state);
-                                break;
-                        }
-                }
+        switch (codec) {
+        case CODEC_ASCII:
+                return string_writer_decode_ascii(wr, data, n);
+        case CODEC_LATIN1:
+                return string_writer_decode_latin1(wr, data, n);
+        default:
+                bug();
+        case CODEC_UTF8:
+                return string_writer_decode_utf8(wr, data, n, state);
         }
-
-        u8 += string_writer_get_ascii(wr, u8, end - u8);
-        if (u8 == end)
-                return n;
-
-        if (codec == CODEC_ASCII)
-                goto bad_ascii;
-
-        if (codec == CODEC_LATIN1) {
-                while (u8 < end) {
-                        int c = *u8 & 0xffu;
-                        string_writer_append(wr, c);
-                        u8++;
-                }
-                return n;
-        }
-        bug_on(codec != CODEC_UTF8);
-
-        /*
-         * utf8_decode_one() is a weensie bit faster than
-         * utf8_decode_stateful(), so run through as much of the input
-         * as we can without having to do the stateful thing.
-         */
-        end -= UTF8_MAX_STRLEN;
-        while (u8 < end) {
-                long point;
-                unsigned char *endptr;
-                point = utf8_decode_one(u8, &endptr);
-                if (point < 0L) {
-                        if (!suppress_errors)
-                                goto bad_utf8;
-                        /* decode as Latin1 */
-                        string_writer_append(wr, (long)u8[0] & 0xffu);
-                        u8++;
-                } else {
-                        string_writer_append(wr, point);
-                        u8 = endptr;
-                }
-        }
-
-        /* try to pick up stragglers */
-        end += UTF8_MAX_STRLEN;
-        u8 += string_writer_get_ascii(wr, u8, end - u8);
-
-        if (state) {
-                while (u8 < end) {
-                        int res = utf8_decode_stateful(state, *u8++);
-                        if (res > 0) {
-                                string_writer_append(wr, state->point);
-                        } else if (res == 0) {
-                                continue;
-                        } else {
-                                if (!suppress_errors)
-                                        goto bad_utf8;
-                                utf8_state_unwind_latin1(wr, state);
-                        }
-                }
-        }
-        return (size_t)((void *)u8 - data);
-
-bad_ascii:
-        bug_on(suppress_errors);
-        err_decode(codec, "input is out of range");
-        return -1;
-
-bad_utf8:
-        if (state && state->state == UTF8_STATE_ERR_ORD)
-                goto bad_utf8_ord;
-        err_decode(codec, "input is not UTF8-encoded");
-        return -1;
-
-sus:
-        err_setstr(RuntimeError, "Suspected improper program flow");
-        return -1;
-
-bad_utf8_ord:
-        bug_on(!state);
-        err_ord(codec, state->point);
-        return -1;
 }
 
 /* XXX: Unused outside this file */

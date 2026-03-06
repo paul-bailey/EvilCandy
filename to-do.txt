@@ -129,6 +129,7 @@ Library/Language Features
 * Support switch statements.
 
 * Parse UnicodeData.txt to make a Unicode version of ctype.h
+  This might also allow utf8-encoded symbol names.
 
 * Support generators and comprehensions
 

@@ -40,7 +40,7 @@ enum {
 };
 
 enum {
-        /* flags arg to stringvar_newf, see comments there */
+        /* flags arg to stringvar_from_points, see comments there */
         SF_COPY = 0x0001,
 
         /* Other common flags to methods' helper functions */
@@ -117,33 +117,19 @@ maxchr_to_width(unsigned long maxchr)
 
 /* ONLY CALL THIS IF YOU ALREADY CONFIRMED THAT @p IS ALL ASCII */
 static Object *
-stringvar_from_ascii_(void *p, size_t len, unsigned int flags)
+stringvar_from_ascii_(void *p, size_t len)
 {
         Object *ret = var_new(&StringType);
         struct stringvar_t *vs = V2STR(ret);
-        bool copy = !!(flags & SF_COPY);
-        /*
-         * p[len]=='\0' is certain for all upstream calls, except for
-         * stringvar_newn(), in which case 1) @p is part of a substring
-         * which is ultimately nulchar terminated, and 2) SF_COPY is used
-         * anyway.  So p[len] is safe to dereference, and the algo below
-         * is correct.
-         */
-        bool havenulchar = p ? *(char *)(p + len) == '\0' : false;
+
         vs->s_width     = 1;
         vs->s_ascii_len = len;
-        if (copy || !havenulchar) {
-                vs->s = emalloc(len + 1);
-                if (len)
-                        memcpy(vs->s, p, len);
-                vs->s[len] = '\0';
 
-                /* had to copy anyway */
-                if (!copy)
-                        efree(p);
-        } else {
-                vs->s = p;
-        }
+        vs->s = emalloc(len + 1);
+        if (len)
+                memcpy(vs->s, p, len);
+        vs->s[len] = '\0';
+
         vs->s_hash      = 0;
         vs->s_ascii     = 1;
         vs->s_unicode   = vs->s;
@@ -247,23 +233,16 @@ stringvar_from_points(void *points, size_t width,
         return ret;
 }
 
-/*
- * Flags are:
- *      SF_COPY         make a copy of @cstr
- *      0               use @cstr exactly and free on reset
- * There used to be more, but they went obsolete.
- */
+/* There used to be flags, hence the `f', but they went obsolete */
 static Object *
-stringvar_newf(char *cstr, size_t size, unsigned int flags)
+stringvar_newf(char *cstr, size_t size)
 {
         struct string_writer_t wr;
         ssize_t n, max = size;
         struct utf8_state_t utf8_state;
 
-        if (!cstr) {
+        if (!cstr)
                 cstr = "";
-                flags |= SF_COPY;
-        }
 
         /*
          * Fast path: if ASCII, then no decoding is necessary.
@@ -274,7 +253,7 @@ stringvar_newf(char *cstr, size_t size, unsigned int flags)
          * is a real time-waster.
          */
         if (mem_is_ascii(cstr, size))
-                return stringvar_from_ascii_(cstr, size, flags);
+                return stringvar_from_ascii_(cstr, size);
 
         string_writer_init(&wr, 1);
         memset(&utf8_state, 0, sizeof(utf8_state));
@@ -285,13 +264,6 @@ stringvar_newf(char *cstr, size_t size, unsigned int flags)
          */
         bug_on(n != max);
         (void)n;
-        if (!(flags & SF_COPY)) {
-                /*
-                 * Oops, we copied anyway! Relic of an older API.
-                 * Now "SF_COPY=0" means "free input argument"
-                 */
-                efree(cstr);
-        }
         return stringvar_from_writer(&wr);
 }
 
@@ -2845,7 +2817,7 @@ string_slide(Object *str, Object *delims, size_t pos)
 Object *
 stringvar_from_ascii(const char *cstr)
 {
-        return stringvar_from_ascii_((void *)cstr, strlen(cstr), SF_COPY);
+        return stringvar_from_ascii_((void *)cstr, strlen(cstr));
 }
 
 /**
@@ -2857,7 +2829,7 @@ stringvar_from_ascii(const char *cstr)
 Object *
 stringvar_new(const char *cstr)
 {
-        return stringvar_newf((char *)cstr, strlen(cstr), SF_COPY);
+        return stringvar_newf((char *)cstr, strlen(cstr));
 }
 
 /**
@@ -2871,7 +2843,7 @@ stringvar_new(const char *cstr)
 Object *
 stringvar_newn(const char *cstr, size_t n)
 {
-        return stringvar_newf((char *)cstr, n, SF_COPY);
+        return stringvar_newf((char *)cstr, n);
 }
 
 Object *
@@ -2879,12 +2851,16 @@ stringvar_from_vformat(const char *fmt, va_list ap)
 {
         size_t len;
         struct buffer_t b;
+        char *s;
+        Object *ret;
 
         buffer_init(&b);
         buffer_vprintf(&b, fmt, ap);
         len = buffer_size(&b);
-
-        return stringvar_newf(buffer_trim(&b), len, 0);
+        s = buffer_trim(&b);
+        ret = stringvar_newf(s, len);
+        efree(s);
+        return ret;
 }
 
 Object *

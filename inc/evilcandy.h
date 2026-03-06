@@ -312,10 +312,6 @@ struct utf8_state_t {
         unsigned long point;
         size_t idx;
 };
-
-extern int utf8_decode_stateful(struct utf8_state_t *state, unsigned int c);
-extern int utf8_subscr_str(const char *src, size_t idx, char *dest);
-extern size_t utf8_strgetc(const char *s, char *dst);
 extern void utf8_encode(unsigned long point, struct buffer_t *buf);
 extern long utf8_decode_one(const unsigned char *src,
                             unsigned char **endptr);

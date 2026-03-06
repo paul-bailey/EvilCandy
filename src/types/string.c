@@ -273,13 +273,12 @@ stringvar_newf(char *cstr, size_t size, unsigned int flags)
 
         string_writer_init(&wr, 1);
         memset(&utf8_state, 0, sizeof(utf8_state));
-        n = string_writer_decode(&wr, cstr, max, CODEC_UTF8, 1,
-                                 &utf8_state);
-        bug_on(n < 0);
-        if (utf8_state.state != UTF8_STATE_ASCII) {
-                n = string_writer_decode(&wr, "", 0,
-                                         CODEC_LATIN1, 1, &utf8_state);
-        }
+        n = string_writer_decode(&wr, cstr, max, CODEC_UTF8, &utf8_state);
+        /*
+         * We're only getting called from internal code which should
+         * know not to send us invalid input.
+         */
+        bug_on(n != max);
         (void)n;
         if (!(flags & SF_COPY)) {
                 /*
@@ -2925,11 +2924,8 @@ stringvar_from_format(const char *fmt, ...)
  *      if the resulting string contains characters that do not all
  *      encode into utf-8.
  *
- * An error may be one of two kinds:
- *      1. A unicode escape sequence is out of bounds, ie > 0x10FFFF
- *      2. A null-char was inserted with a backslash-zero escape, not
- *         permitted for string data types.  (Users should use bytes
- *         instead.)
+ * An error will occur if a Unicode escape sequence is out of bounds
+ * (either greater 0x10FFFF or an invalid surrogate pair).
  */
 Object *
 stringvar_from_source(const char *tokenstr, bool imm)
@@ -3135,14 +3131,6 @@ err_surrogate:
  * @data:       Data to decode
  * @n:          Size of @data in bytes
  * @codec:      A CODEC_xxx enum
- * @suppress_errors:
- *              - If @codec is CODEC_UTF8, treat malformed UTF-8 as
- *                Latin1 and don't throw an error.  Straggling bytes at
- *                the end will still not be processed if they are not
- *                valid UTF-8.  To force these into @wr, make a second
- *                call but change @codec to CODEC_LATIN1.
- *              - Trivial if @codec is CODEC_LATIN1.
- *              - DO NOT use for codec == CODEC_ASCII.
  * @state:      If non-NULL, a UTF8 state machine.  This is so multiple
  *              calls to this function can be made on non-contiguous
  *              buffers.  An encoding might straddle the end of one
@@ -3163,8 +3151,7 @@ err_surrogate:
  */
 ssize_t
 string_writer_decode(struct string_writer_t *wr, const void *data,
-                     size_t n, int codec, bool suppress_errors,
-                     struct utf8_state_t *state)
+                     size_t n, int codec, struct utf8_state_t *state)
 {
         switch (codec) {
         case CODEC_ASCII:
@@ -3204,7 +3191,7 @@ stringvar_from_binary(const void *data, size_t n, int encoding)
         memset(&state, 0, sizeof(state));
 
         string_writer_init(&wr, 1);
-        res = string_writer_decode(&wr, data, n, encoding, false, &state);
+        res = string_writer_decode(&wr, data, n, encoding, &state);
         if (res != n || state.state != UTF8_STATE_ASCII) {
                 /* Do not accept stragglers */
                 if (!err_occurred()) {

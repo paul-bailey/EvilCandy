@@ -50,9 +50,8 @@ string_writer_size(struct string_writer_t *wr)
 extern void string_writer_append_strobj(struct string_writer_t *wr,
                                         Object *str);
 extern ssize_t string_writer_decode(struct string_writer_t *wr,
-                                    const void *data, size_t n,
-                                    int codec, bool suppress_errors,
-                                    struct utf8_state_t *state);
+                                const void *data, size_t n,
+                                int codec, struct utf8_state_t *state);
 extern Object *stringvar_from_writer(struct string_writer_t *wr);
 
 

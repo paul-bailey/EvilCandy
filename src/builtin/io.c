@@ -722,6 +722,26 @@ open_binary(int fd, struct fileconfig_t *cfg)
  *              (Buffered) text files
  ***********************************************************************/
 
+static inline void
+reset_decode_state(struct textfile_t *txt)
+{
+        memset(&txt->ft_utf8_state, 0, sizeof(txt->ft_utf8_state));
+}
+
+static inline bool
+decode_state_reset(struct textfile_t *txt)
+{
+        return txt->ft_utf8_state.state == UTF8_STATE_ASCII;
+}
+
+static inline ssize_t
+text_decode(struct textfile_t *txt, struct string_writer_t *wr,
+            void *buf, size_t size)
+{
+        return string_writer_decode(wr, buf, size,
+                                    txt->ft_codec, &txt->ft_utf8_state);
+}
+
 /* returns bytes (not Unicode points) read, or -1 if error */
 static ssize_t
 text_readbuf(struct textfile_t *txt, const char *fname)
@@ -736,6 +756,7 @@ text_readbuf(struct textfile_t *txt, const char *fname)
         nread = raw_read_wrapper(txt->ft_fd, buf, IO_BUFFER_SIZE);
         if (nread < 0) {
                 efree(buf);
+                reset_decode_state(txt);
                 filerr_sys(fname);
                 return -1;
         } else if (!nread) {
@@ -750,24 +771,16 @@ text_readbuf(struct textfile_t *txt, const char *fname)
                 VAR_DECR_REF(txt->ft_buf);
                 txt->ft_buf = NULL;
         }
-        /* TODO: make 'suppress errors' be an open() option */
-        res = string_writer_decode(&wr, buf ? buf : "", nread,
-                               txt->ft_codec, true, &txt->ft_utf8_state);
-        if (buf)
+        if (buf) {
+                res = text_decode(txt, &wr, buf, nread);
                 efree(buf);
-
-        if (res < 0)
-                goto decode_err;
+                if (res < 0)
+                        goto decode_err;
+        }
 
         if (nread < IO_BUFFER_SIZE) {
-                /* end of file on disk, handle stragglers in state */
-                /*
-                 * TODO: Throw error if file has trailing unfinished
-                 * encoding? Let an open() argument configure this?
-                 */
-                res = string_writer_decode(&wr, "", 0, txt->ft_codec,
-                                           true, &txt->ft_utf8_state);
-                memset(&txt->ft_utf8_state, 0, sizeof(txt->ft_utf8_state));
+                /* end of file on disk, make sure there were no stragglers */
+                res = decode_state_reset(txt) ? 0 : -1;
                 if (res < 0)
                         goto decode_err;
         }
@@ -779,6 +792,7 @@ decode_err:
         string_writer_destroy(&wr);
         if (!err_occurred())
                 filerr(fname, "file decoding error");
+        reset_decode_state(txt);
         txt->ft_bufpos = 0;
         return -1;
 }

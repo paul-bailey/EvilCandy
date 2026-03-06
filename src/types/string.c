@@ -2874,19 +2874,6 @@ stringvar_newn(const char *cstr, size_t n)
         return stringvar_newf((char *)cstr, n, SF_COPY);
 }
 
-/**
- * stringvar_nocopy - like stringvar_new, but don't make a copy, just
- *                    take the pointer.
- *
- * Calling function is 'handing over' the pointer; it must have been
- * allocated on the heap.
- */
-Object *
-stringvar_nocopy(const char *cstr)
-{
-        return stringvar_newf((char *)cstr, strlen(cstr), 0);
-}
-
 Object *
 stringvar_from_vformat(const char *fmt, va_list ap)
 {

@@ -1,31 +1,6 @@
 /* utf8.c - Helpers for UTF-8 C-string encoding/decoding */
 #include <evilcandy.h>
 
-/**
- * utf8_encode - Encode a Unicode point in UTF-8
- * @point:      A unicode point from U+0001 to U+10FFFF
- * @buf:        Buffer to store encoded result
- *
- * Behavior is undefined if @point is not valid Unicode
- */
-void
-utf8_encode(unsigned long point, struct buffer_t *buf)
-{
-        if (point < 0x7ff) {
-                buffer_putc(buf, 0xc0 | (point >> 6));
-                buffer_putc(buf, 0x80 | (point & 0x3f));
-        } else if (point < 0xffff) {
-                buffer_putc(buf, 0xe0 | (point >> 12));
-                buffer_putc(buf, 0x80 | ((point >> 6) & 0x3f));
-                buffer_putc(buf, 0x80 | (point & 0x3f));
-        } else {
-                buffer_putc(buf, 0xf0 | (point >> 18));
-                buffer_putc(buf, 0x80 | ((point >> 12) & 0x3f));
-                buffer_putc(buf, 0x80 | ((point >> 6) & 0x3f));
-                buffer_putc(buf, 0x80 | (point & 0x3f));
-        }
-}
-
 static long
 decode_one_point(const unsigned char *s, unsigned char **endptr,
                  unsigned long point, int n)

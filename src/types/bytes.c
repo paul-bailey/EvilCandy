@@ -1454,29 +1454,9 @@ err:
 static Object *
 bytes_from_string_arg_utf8(Object *str)
 {
-        struct buffer_t b;
-        size_t i, n;
-        n = seqvar_size(str);
-        bug_on(!n);
-        buffer_init(&b);
-        for (i = 0; i < n; i++) {
-                long ord = string_ord(str, i);
-                bug_on(ord < 0);
-                if (ord <= 127) {
-                        buffer_putc_strict(&b, ord);
-                } else if (!utf8_valid_unicode(ord)) {
-                        err_ord(CODEC_UTF8, ord);
-                        goto err;
-                } else {
-                        utf8_encode(ord, &b);
-                }
-        }
-        n = buffer_size(&b);
-        return bytesvar_newf(buffer_trim(&b), n, 0);
-
-err:
-        buffer_free(&b);
-        return ErrorVar;
+        size_t n;
+        char *utf8 = string_encode_utf8(str, &n);
+        return bytesvar_newf((unsigned char *)utf8, n, 0);
 }
 
 static Object *

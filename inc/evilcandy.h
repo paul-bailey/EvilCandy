@@ -279,14 +279,14 @@ extern Object *stringvar_from_binary(const void *data, size_t n, int encoding);
 extern Object *stringvar_from_format(const char *fmt, ...);
 extern Object *stringvar_from_vformat(const char *fmt, va_list ap);
 extern Object *stringvar_from_ascii(const char *cstr);
+extern Object *stringvar_from_substr(Object *old, size_t start, size_t stop);
 extern hash_t string_update_hash(Object *v);
 extern long string_ord(Object *str, size_t idx);
 extern Object *string_format(Object *str, Object *tup);
 extern size_t string_slide(Object *str, Object *sep, size_t startpos);
 extern bool string_chr(Object *str, long pt);
 extern ssize_t string_search(Object *haystack, Object *needle, size_t startpos);
-extern Object *string_getslice(Object *str, int start, int stop, int step);
-extern Object *string_cat(Object *a, Object *b);
+extern char *string_encode_utf8(Object *str, size_t *size);
 
 /* types/tuple.c */
 extern enum result_t tuple_validate(Object *tup, const char *descr,

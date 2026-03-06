@@ -72,37 +72,11 @@ string_getidx_raw(size_t width, const void *unicode, size_t idx)
         return string_reader_getc__(width, unicode, idx);
 }
 
-/* Only used by stringvar_from_points, otherwise violates immutability */
-static void
-string_setidx_raw(size_t width, void *unicode,
-                  size_t idx, unsigned long point)
-{
-        if (width == 1) {
-                ((uint8_t *)unicode)[idx] = point;
-        } else if (width == 2) {
-                ((uint16_t *)unicode)[idx] = point;
-        } else {
-                bug_on(width != 4);
-                ((uint32_t *)unicode)[idx] = point;
-        }
-}
-
 static long
 string_getidx(Object *str, size_t idx)
 {
         bug_on(idx >= seqvar_size(str));
         return string_getidx_raw(string_width(str), string_data(str), idx);
-}
-
-/**
- * string_writer_append_strobj - Copy decoded string @str
- *                               into string_writer @wr.
- */
-void
-string_writer_append_strobj(struct string_writer_t *wr, Object *str)
-{
-        string_writer_appendb(wr, string_data(str),
-                              string_width(str), seqvar_size(str));
 }
 
 static size_t
@@ -113,6 +87,42 @@ maxchr_to_width(unsigned long maxchr)
         if (maxchr > 0xff)
                 return 2;
         return 1;
+}
+
+/* used to determine if a buffer needs to be down-sized */
+static size_t
+find_max_width(size_t width, const void *unicode,
+               size_t starti, size_t stopi)
+{
+        size_t i;
+        long maxchr = 0;
+        long thresh;
+
+        switch (width) {
+        case 1:
+                return 1; /* can't downsize */
+        case 2:
+                thresh = 0xff;
+                break;
+        case 4:
+                thresh = 0xffff;
+                break;
+        default:
+                thresh = 0;
+                bug();
+        }
+
+        if (width == 1)
+                return 1;
+
+        for (i = starti; i < stopi; i++) {
+                long v = string_getidx_raw(width, unicode, i);
+                if (v > thresh)
+                        return width;
+                if (v > maxchr)
+                        maxchr = v;
+        }
+        return maxchr_to_width(maxchr);
 }
 
 /* ONLY CALL THIS IF YOU ALREADY CONFIRMED THAT @p IS ALL ASCII */
@@ -137,28 +147,50 @@ stringvar_from_ascii_(void *p, size_t len)
         return ret;
 }
 
-/* helper to stringvar_from_points */
-static void
-maybe_downsize(void *points, size_t width, size_t len,
-               long maxchr, struct stringvar_t *vs)
+/*
+ * @enclen and @ascii may be NULL if these results are not needed.
+ *
+ * @enclen:     stores number of bytes in result minus the terminating
+ *              nulchar; if this is different from strlen(result), it
+ *              is because the result could store embedded nulchars.
+ * @isascii:    Will store 'true' if @points are all ascii.
+ */
+static char *
+string_encode_points_utf8(void *points, size_t width, size_t len,
+                          size_t *enclen, int *isascii)
 {
-        size_t correct_width = maxchr_to_width(maxchr);
-        bug_on(correct_width > width);
-        if (correct_width == width) {
-                vs->s_unicode = ememdup(points, len * width);
-        } else {
-                size_t i;
+        size_t i;
+        struct buffer_t buf;
+        int ascii = 1;
 
-                /* D'oh! We need to downsize */
-                vs->s_unicode = emalloc(len * correct_width);
-                for (i = 0; i < len; i++) {
-                        long point;
-                        point = string_getidx_raw(width, points, i);
-                        string_setidx_raw(correct_width,
-                                          vs->s_unicode, i, point);
+        buffer_init(&buf);
+        for (i = 0; i < len; i++) {
+                long point = string_getidx_raw(width, points, i);
+                if (point < 128) {
+                        buffer_putc_strict(&buf, point);
+                        continue;
                 }
-                vs->s_width = correct_width;
+                ascii = 0;
+                if (point < 0x7ff) {
+                        buffer_putc(&buf, 0xc0 | (point >> 6));
+                        buffer_putc(&buf, 0x80 | (point & 0x3f));
+                } else if (point < 0xffff) {
+                        buffer_putc(&buf, 0xe0 | (point >> 12));
+                        buffer_putc(&buf, 0x80 | ((point >> 6) & 0x3f));
+                        buffer_putc(&buf, 0x80 | (point & 0x3f));
+                } else {
+                        buffer_putc(&buf, 0xf0 | (point >> 18));
+                        buffer_putc(&buf, 0x80 | ((point >> 12) & 0x3f));
+                        buffer_putc(&buf, 0x80 | ((point >> 6) & 0x3f));
+                        buffer_putc(&buf, 0x80 | (point & 0x3f));
+                }
         }
+
+        if (enclen)
+                *enclen = buffer_size(&buf);
+        if (isascii)
+                *isascii = ascii;
+        return buffer_trim(&buf);
 }
 
 static Object *
@@ -166,11 +198,10 @@ stringvar_from_points(void *points, size_t width,
                       size_t len, unsigned int flags)
 {
         Object *ret;
-        struct buffer_t b;
-        size_t i;
-        long maxchr;
         int ascii;
+        size_t ascii_len;
         struct stringvar_t *vs;
+        char *utf8;
 
         bug_on(!!len && !points);
         bug_on(!len && (!!points && *(char *)points != '\0'));
@@ -179,31 +210,15 @@ stringvar_from_points(void *points, size_t width,
         if (!len && STRCONST_ID(mpty))
                 return VAR_NEW_REF(STRCONST_ID(mpty));
 
-        maxchr = 0;
-        ascii = 1;
-        buffer_init(&b);
-        for (i = 0; i < len; i++) {
-                uint32_t point = string_getidx_raw(width, points, i);
-                if (point > maxchr)
-                        maxchr = point;
+        utf8 = string_encode_points_utf8(points, width, len,
+                                         &ascii_len, &ascii);
 
-                if (point < 128) {
-                        buffer_putc_strict(&b, point);
-                        continue;
-                }
-
-                ascii = 0;
-
-                /* We should have trapped this already */
-                bug_on(!utf8_valid_unicode(point));
-                utf8_encode(point, &b);
-        }
         ret = var_new(&StringType);
         vs = V2STR(ret);
 
         vs->s_width     = width;
-        vs->s_ascii_len = buffer_size(&b);
-        vs->s           = buffer_trim(&b);
+        vs->s_ascii_len = ascii_len;
+        vs->s           = utf8;
         vs->s_hash      = 0;
         vs->s_ascii     = ascii;
         seqvar_set_size(ret, len);
@@ -212,19 +227,9 @@ stringvar_from_points(void *points, size_t width,
                         efree(points);
                 vs->s_unicode = vs->s;
         } else {
-                /*
-                 * If SF_COPY, we could be here to create a string
-                 * from a substring (see where used below), in which
-                 * case our width may be too big now.
-                 *
-                 * If !SF_COPY, then we're here from a string_writer_t
-                 * or some other case where we should not have over-
-                 * estimated the width.
-                 */
                 if (!!(flags & SF_COPY)) {
-                        maybe_downsize(points, width, len, maxchr, vs);
+                        vs->s_unicode = ememdup(points, len * width);
                 } else {
-                        bug_on(maxchr_to_width(maxchr) != width);
                         vs->s_unicode = points;
                 }
         }
@@ -267,45 +272,11 @@ stringvar_newf(char *cstr, size_t size)
         return stringvar_from_writer(&wr);
 }
 
-Object *
-stringvar_from_writer(struct string_writer_t *wr)
-{
-        size_t width, len;
-        void *buf = string_writer_finish(wr, &width, &len);
-        return stringvar_from_points(buf, width, len, 0);
-}
-
-/* Quicker verion of slice - substr is old[start:stop] */
-static Object *
-stringvar_from_substr(Object *old, size_t start, size_t stop)
-{
-        size_t width, len;
-        void *buf;
-
-        bug_on(start >= seqvar_size(old));
-        bug_on(stop > seqvar_size(old));
-        bug_on(stop < start);
-
-        width = string_width(old);
-        len  = stop - start;
-        buf = string_data(old) + start * width;
-
-        /*
-         * XXX: stringvar_from_points() may need to resize this, if
-         * the substring does not include @old's widest chars.
-         * If no resize, this should be faster than calling
-         * string_getslice().  If resize, this would be slower.
-         * I'm relying heavily on these being all-ASCII most of the
-         * time.
-         */
-        return stringvar_from_points(buf, width, len, SF_COPY);
-}
-
 /*
  * helper to stringvar_from_source -
  *      interpolate a string's backslash escapes
  */
-enum result_t
+static enum result_t
 string_parse(const char *src, void **buf, size_t *width, size_t *len)
 {
         unsigned int c, q;
@@ -1885,7 +1856,7 @@ static Object *
 string_removelr(Frame *fr, unsigned int flags)
 {
         Object *self, *arg;
-        size_t idx, pos;
+        size_t idx, pos, start, stop;
 
         self = vm_get_this(fr);
         arg = vm_get_arg(fr, 0);
@@ -1906,11 +1877,13 @@ string_removelr(Frame *fr, unsigned int flags)
                 goto return_self;
 
         if (!!(flags & SF_RIGHT)) {
-                return string_getslice(self, 0, pos, 1);
+                start = 0;
+                stop = pos;
         } else {
-                return string_getslice(self,
-                                seqvar_size(arg), seqvar_size(self), 1);
+                start = seqvar_size(arg);
+                stop = seqvar_size(self);
         }
+        return stringvar_from_substr(self, start, stop);
 
 return_self:
         VAR_INCR_REF(self);
@@ -2519,11 +2492,7 @@ string_reset(Object *str)
                 efree(vs->s);
 }
 
-/**
- * string_cat - the '+' operator for string, with extern linkage,
- *              since this is also useful for non-VM stuff.
- */
-Object *
+static Object *
 string_cat(Object *a, Object *b)
 {
         struct string_writer_t wr;
@@ -2606,17 +2575,7 @@ string_modulo(Object *str, Object *arg)
 static bool slice_cmp_lt(int a, int b) { return a < b; }
 static bool slice_cmp_gt(int a, int b) { return a > b; }
 
-/**
- * string_getslice - String's .getslice method, made global so more than
- *                   just the VM can use it.
- * @str:        String to get a slice out of
- * @start:      Start index
- * @stop:       Last index plus one
- * @step:       Indices in between, but usually just one
- *
- * Return: sub-string
- */
-Object *
+static Object *
 string_getslice(Object *str, int start, int stop, int step)
 {
         struct string_writer_t wr;
@@ -2733,180 +2692,8 @@ string_create(Frame *fr)
 }
 
 /* **********************************************************************
- *                           API functions
+ *                          Codec helpers
  * *********************************************************************/
-
-void
-string_reader_init(struct string_reader_t *rd,
-                   Object *str, size_t startpos)
-{
-        bug_on(!isvar_string(str));
-        rd->dat = string_data(str);
-        rd->wid = string_width(str);
-        rd->len = seqvar_size(str);
-        if (startpos > rd->len)
-                startpos = rd->len;
-        rd->pos = startpos;
-}
-
-/* like strchr, but for string objects, and only returns truth value */
-bool
-string_chr(Object *str, long pt)
-{
-        size_t i, n, w;
-        void *p;
-
-        bug_on(!isvar_string(str));
-
-        n = seqvar_size(str);
-        w = string_width(str);
-        p = string_data(str);
-
-        for (i = 0; i < n; i++) {
-                if (string_getidx_raw(w, p, i) == pt)
-                        return true;
-        }
-
-        return false;
-}
-
-/**
- * string_slide - similar to slide in helpers.c, but for string objects.
- * @str:        The string to slide across
- * @delims:     Character set of delimiters to skip
- * @pos:        Starting position to slide from
- *
- * If @delims are NULL or set to NullVar, skip only whitespace.
- * Otherwise skip any matching characters in @delims.
- *
- * Return: New position
- */
-size_t
-string_slide(Object *str, Object *delims, size_t pos)
-{
-        size_t slen;
-
-        bug_on(!isvar_string(str));
-        bug_on(delims != NULL &&
-               delims != NullVar &&
-               !isvar_string(delims));
-
-        if (delims == NullVar)
-                delims = NULL;
-
-        slen = seqvar_size(str);
-        while (pos < slen) {
-                long point = string_getidx(str, pos);
-                if (!evc_isspace(point) &&
-                    !(delims && string_chr(delims, point))) {
-                        break;
-                }
-                pos++;
-        }
-        return pos;
-}
-
-/*
- * This is functionally equivalent to stringvar_new(), except that it
- * bypasses all the UTF8-decoding steps, to more quickly create a string
- * object.  This does not perform any checks to ensure @cstr is all-ASCII
- * For that reason...
- *
- *      ***ONLY CALL THIS FOR OBVIOUSLY ALL-ASCII STRING LITERALS***
- */
-Object *
-stringvar_from_ascii(const char *cstr)
-{
-        return stringvar_from_ascii_((void *)cstr, strlen(cstr));
-}
-
-/**
- * stringvar_new - Get a string var from a UTF-8-encoded or ASCII string.
- * @cstr: C-string to set string to, or NULL to make empty string
- *
- * Return: new string var containing a copy of @cstr.
- */
-Object *
-stringvar_new(const char *cstr)
-{
-        return stringvar_newf((char *)cstr, strlen(cstr));
-}
-
-/**
- * stringvar_newn - Get a string var from a subset of @cstr
- * @cstr: C-string to set string to
- * @n: Max length of new string.
- *
- * Return: new string var containing a copy of up to @n characters
- *         from @cstr
- */
-Object *
-stringvar_newn(const char *cstr, size_t n)
-{
-        return stringvar_newf((char *)cstr, n);
-}
-
-Object *
-stringvar_from_vformat(const char *fmt, va_list ap)
-{
-        size_t len;
-        struct buffer_t b;
-        char *s;
-        Object *ret;
-
-        buffer_init(&b);
-        buffer_vprintf(&b, fmt, ap);
-        len = buffer_size(&b);
-        s = buffer_trim(&b);
-        ret = stringvar_newf(s, len);
-        efree(s);
-        return ret;
-}
-
-Object *
-stringvar_from_format(const char *fmt, ...)
-{
-        Object *ret;
-        va_list ap;
-
-        va_start(ap, fmt);
-        ret = stringvar_from_vformat(fmt, ap);
-        va_end(ap);
-
-        return ret;
-}
-
-/**
- * stringvar_from_source - Get a stringvar from an unparsed token.
- * @tokenstr: C-string as written in a source file, possibly containing
- *              backslash escape sequences which still need interpreting.
- *              Contains wrapping quotes.  If it was concatenated from
- *              two adjacent string tokens, the end quote of one token
- *              should be followed immediately by the starting quote of
- *              the next token; the different tokens need all not be
- *              wrapped by the same type of quote, though only jerk
- *              programmers mix and match these.
- *
- * Return: Variable from interpreted @tokenstr or ErrorVar.  Unicode
- *      escape sequences (ie. '\uNNNN') will be encoded into utf-8, even
- *      if the resulting string contains characters that do not all
- *      encode into utf-8.
- *
- * An error will occur if a Unicode escape sequence is out of bounds
- * (either greater 0x10FFFF or an invalid surrogate pair).
- */
-Object *
-stringvar_from_source(const char *tokenstr, bool imm)
-{
-        size_t width, len;
-        enum result_t status;
-        void *buf;
-
-        status = string_parse(tokenstr, &buf, &width, &len);
-        if (status != RES_OK)
-                return ErrorVar;
-        return stringvar_from_points(buf, width, len, 0);
-}
 
 static ssize_t
 string_writer_decode_latin1(struct string_writer_t *wr,
@@ -3090,6 +2877,275 @@ err_ord:
 err_surrogate:
         err_decode(CODEC_UTF8, "invalid surrogate pair");
         return -1;
+}
+
+/* **********************************************************************
+ *                           API functions
+ * *********************************************************************/
+
+/**
+ * string_encode_utf8 - Get a UTF8-encoded C string from a string object
+ * @str: String to encode
+ * @size: (output) number of encoded bytes, minus the nulchar terminator.
+ *        This could be different from strlen(result) if the result has
+ *        embedded nulchars.
+ *
+ * Return: nulchar-terminated UTF8-encoded C string.
+ */
+char *
+string_encode_utf8(Object *str, size_t *size)
+{
+        /* XXX: if @str has invalid utf8, is this a bug or error? */
+        bug_on(!isvar_string(str));
+        return string_encode_points_utf8(string_data(str),
+                                         string_width(str),
+                                         seqvar_size(str), size, NULL);
+}
+
+/**
+ * string_writer_append_strobj - Copy decoded string @str
+ *                               into string_writer @wr.
+ */
+void
+string_writer_append_strobj(struct string_writer_t *wr, Object *str)
+{
+        string_writer_appendb(wr, string_data(str),
+                              string_width(str), seqvar_size(str));
+}
+
+void
+string_reader_init(struct string_reader_t *rd,
+                   Object *str, size_t startpos)
+{
+        bug_on(!isvar_string(str));
+        rd->dat = string_data(str);
+        rd->wid = string_width(str);
+        rd->len = seqvar_size(str);
+        if (startpos > rd->len)
+                startpos = rd->len;
+        rd->pos = startpos;
+}
+
+/* like strchr, but for string objects, and only returns truth value */
+bool
+string_chr(Object *str, long pt)
+{
+        size_t i, n, w;
+        void *p;
+
+        bug_on(!isvar_string(str));
+
+        n = seqvar_size(str);
+        w = string_width(str);
+        p = string_data(str);
+
+        for (i = 0; i < n; i++) {
+                if (string_getidx_raw(w, p, i) == pt)
+                        return true;
+        }
+
+        return false;
+}
+
+/**
+ * string_slide - similar to slide in helpers.c, but for string objects.
+ * @str:        The string to slide across
+ * @delims:     Character set of delimiters to skip
+ * @pos:        Starting position to slide from
+ *
+ * If @delims are NULL or set to NullVar, skip only whitespace.
+ * Otherwise skip any matching characters in @delims.
+ *
+ * Return: New position
+ */
+size_t
+string_slide(Object *str, Object *delims, size_t pos)
+{
+        size_t slen;
+
+        bug_on(!isvar_string(str));
+        bug_on(delims != NULL &&
+               delims != NullVar &&
+               !isvar_string(delims));
+
+        if (delims == NullVar)
+                delims = NULL;
+
+        slen = seqvar_size(str);
+        while (pos < slen) {
+                long point = string_getidx(str, pos);
+                if (!evc_isspace(point) &&
+                    !(delims && string_chr(delims, point))) {
+                        break;
+                }
+                pos++;
+        }
+        return pos;
+}
+
+Object *
+stringvar_from_writer(struct string_writer_t *wr)
+{
+        size_t width, len;
+        void *buf = string_writer_finish(wr, &width, &len);
+        return stringvar_from_points(buf, width, len, 0);
+}
+
+/*
+ * stringvar_from_substr - Create a new string out of a substring.
+ * @old: String to get a substring out of
+ * @start: Start index
+ * @stop: Last index plus one
+ *
+ * Return: Functional equivalent of "old[start:stop:1]"
+ */
+Object *
+stringvar_from_substr(Object *old, size_t start, size_t stop)
+{
+        size_t width, maxwidth, len;
+        void *buf;
+        Object *ret;
+
+        bug_on(start >= seqvar_size(old));
+        bug_on(stop > seqvar_size(old));
+        bug_on(stop < start);
+
+        width = string_width(old);
+        len  = stop - start;
+        buf = string_data(old) + start * width;
+        /*
+         * Quickly scan unicode to determine if width of substring
+         * does not need to shrink.  If not, we can call the quicker
+         * stringvar_from_points.
+         *
+         * We need the Unicode-array's width to be form-fitting, not
+         * only because it saves space, but two strings with the
+         * same array of Unicode points need to have matching widths,
+         * or else a comparison could yield a false negative.
+         */
+        maxwidth = find_max_width(width, buf, start, stop);
+        if (maxwidth != width) {
+                /*
+                 * Substring does not contain widest chars in @old.
+                 * We need to resize, which getslice will do.
+                 */
+                bug_on(maxwidth > width);
+                ret = string_getslice(old, start, stop, 1);
+        } else {
+                ret = stringvar_from_points(buf, width, len, SF_COPY);
+        }
+        return ret;
+}
+
+/*
+ * This is functionally equivalent to stringvar_new(), except that it
+ * bypasses all the UTF8-decoding steps, to more quickly create a string
+ * object.  This does not perform any checks to ensure @cstr is all-ASCII
+ * For that reason...
+ *
+ *      ***ONLY CALL THIS FOR OBVIOUSLY ALL-ASCII STRING LITERALS***
+ */
+Object *
+stringvar_from_ascii(const char *cstr)
+{
+        return stringvar_from_ascii_((void *)cstr, strlen(cstr));
+}
+
+/**
+ * stringvar_new - Get a string var from a UTF-8-encoded or ASCII string.
+ * @cstr: C-string to set string to, or NULL to make empty string
+ *
+ * Return: new string var containing a copy of @cstr.
+ */
+Object *
+stringvar_new(const char *cstr)
+{
+        return stringvar_newf((char *)cstr, strlen(cstr));
+}
+
+/**
+ * stringvar_newn - Get a string var from a subset of @cstr
+ * @cstr: C-string to set string to
+ * @n: Max length of new string.
+ *
+ * Return: new string var containing a copy of up to @n characters
+ *         from @cstr
+ */
+Object *
+stringvar_newn(const char *cstr, size_t n)
+{
+        return stringvar_newf((char *)cstr, n);
+}
+
+/**
+ * stringvar_from_vformat - Like stringvar_from_format, but
+ *                          with va_list instead.
+ * @fmt: Format string to use, same format as standard C printf
+ */
+Object *
+stringvar_from_vformat(const char *fmt, va_list ap)
+{
+        size_t len;
+        struct buffer_t b;
+        char *s;
+        Object *ret;
+
+        buffer_init(&b);
+        buffer_vprintf(&b, fmt, ap);
+        len = buffer_size(&b);
+        s = buffer_trim(&b);
+        ret = stringvar_newf(s, len);
+        efree(s);
+        return ret;
+}
+
+/**
+ * stringvar_from_format - Get a string from a formatted C string
+ * @fmt: Format string to use, same format as standard C printf
+ */
+Object *
+stringvar_from_format(const char *fmt, ...)
+{
+        Object *ret;
+        va_list ap;
+
+        va_start(ap, fmt);
+        ret = stringvar_from_vformat(fmt, ap);
+        va_end(ap);
+
+        return ret;
+}
+
+/**
+ * stringvar_from_source - Get a stringvar from an unparsed token.
+ * @tokenstr: C-string as written in a source file, possibly containing
+ *              backslash escape sequences which still need interpreting.
+ *              Contains wrapping quotes.  If it was concatenated from
+ *              two adjacent string tokens, the end quote of one token
+ *              should be followed immediately by the starting quote of
+ *              the next token; the different tokens need all not be
+ *              wrapped by the same type of quote, though only jerk
+ *              programmers mix and match these.
+ *
+ * Return: Variable from interpreted @tokenstr or ErrorVar.  Unicode
+ *      escape sequences (ie. '\uNNNN') will be encoded into utf-8, even
+ *      if the resulting string contains characters that do not all
+ *      encode into utf-8.
+ *
+ * An error will occur if a Unicode escape sequence is out of bounds
+ * (either greater 0x10FFFF or an invalid surrogate pair).
+ */
+Object *
+stringvar_from_source(const char *tokenstr, bool imm)
+{
+        size_t width, len;
+        enum result_t status;
+        void *buf;
+
+        status = string_parse(tokenstr, &buf, &width, &len);
+        if (status != RES_OK)
+                return ErrorVar;
+        return stringvar_from_points(buf, width, len, 0);
 }
 
 /**

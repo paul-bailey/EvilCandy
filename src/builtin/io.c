@@ -815,8 +815,8 @@ text_read(struct rawfile_t *raw, ssize_t size)
                                 /* check for special rare case */
                                 if (txt->ft_bufpos == n && pos == 0)
                                         goto exact_buffer;
-                                return string_getslice(txt->ft_buf, pos,
-                                                       pos + size, 1);
+                                return stringvar_from_substr(txt->ft_buf,
+                                                        pos, pos + size);
                         }
                 }
 
@@ -922,8 +922,8 @@ do_text_readline(Frame *fr)
         }
 
         bug_on(haveidx > seqvar_size(txt->ft_buf));
-        ret = string_getslice(txt->ft_buf, txt->ft_bufpos,
-                              haveidx, 1);
+        ret = stringvar_from_substr(txt->ft_buf,
+                                    txt->ft_bufpos, haveidx);
         txt->ft_bufpos = haveidx;
         if (txt->ft_bufpos == seqvar_size(txt->ft_buf)) {
                 Object *tmp = txt->ft_buf;

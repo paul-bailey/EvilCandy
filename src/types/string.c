@@ -151,6 +151,30 @@ stringvar_from_ascii_(void *p, size_t len, unsigned int flags)
         return ret;
 }
 
+/* helper to stringvar_from_points */
+static void
+maybe_downsize(void *points, size_t width, size_t len,
+               long maxchr, struct stringvar_t *vs)
+{
+        size_t correct_width = maxchr_to_width(maxchr);
+        bug_on(correct_width > width);
+        if (correct_width == width) {
+                vs->s_unicode = ememdup(points, len * width);
+        } else {
+                size_t i;
+
+                /* D'oh! We need to downsize */
+                vs->s_unicode = emalloc(len * correct_width);
+                for (i = 0; i < len; i++) {
+                        long point;
+                        point = string_getidx_raw(width, points, i);
+                        string_setidx_raw(correct_width,
+                                          vs->s_unicode, i, point);
+                }
+                vs->s_width = correct_width;
+        }
+}
+
 static Object *
 stringvar_from_points(void *points, size_t width,
                       size_t len, unsigned int flags)
@@ -202,37 +226,18 @@ stringvar_from_points(void *points, size_t width,
                         efree(points);
                 vs->s_unicode = vs->s;
         } else {
+                /*
+                 * If SF_COPY, we could be here to create a string
+                 * from a substring (see where used below), in which
+                 * case our width may be too big now.
+                 *
+                 * If !SF_COPY, then we're here from a string_writer_t
+                 * or some other case where we should not have over-
+                 * estimated the width.
+                 */
                 if (!!(flags & SF_COPY)) {
-                        /*
-                         * We could be here to create a string from a
-                         * source's substring, in which case our width
-                         * may no longer be correct.  Check for that and
-                         * shrink as necessary, otherwise some of our
-                         * find algorithms could return false negatives.
-                         */
-                        size_t correct_width = maxchr_to_width(maxchr);
-                        bug_on(correct_width > width);
-                        if (correct_width == width) {
-                                vs->s_unicode = ememdup(points, len * width);
-                        } else {
-                                /* D'oh! We need to downsize */
-                                vs->s_unicode = emalloc(len * correct_width);
-                                for (i = 0; i < len; i++) {
-                                        long point;
-                                        point = string_getidx_raw(width,
-                                                        points, i);
-                                        string_setidx_raw(correct_width,
-                                                        vs->s_unicode, i, point);
-                                }
-                                vs->s_width = correct_width;
-                        }
+                        maybe_downsize(points, width, len, maxchr, vs);
                 } else {
-                        /*
-                         * If not SF_COPY, then we got this from
-                         * either parse or a struct string_writer_t.
-                         * In both cases, we should have not over-
-                         * estimated the width, so this is a bug.
-                         */
                         bug_on(maxchr_to_width(maxchr) != width);
                         vs->s_unicode = points;
                 }

@@ -118,6 +118,9 @@ Must Do
 Library/Language Features
 -------------------------
 
+* Add 'const' keyword.  Implemented like 'let', except parser prevents
+  compiling assignment.
+
 * Add hash to bytes, let it be a valid dictionary key.
 
 * Support some kind of packing library, akin to Python's struct

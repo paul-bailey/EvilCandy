@@ -1399,76 +1399,94 @@ assemble_this(struct assemble_t *a, unsigned int flags)
         return assemble_primary_elements__(a);
 }
 
-#define list2names(p) (container_of(p, struct names_t, list))
-/* next tok should return first comma */
-static int
-assemble_unpacker(struct assemble_t *a, unsigned int flags,
-                  struct token_t *firstname, token_pos_t firstpos)
-{
-        struct list_t names;
-        struct names_t {
-                struct list_t list;
-                struct token_t tok;
-                token_pos_t pos;
-        };
-        struct list_t *p, *q;
-        struct names_t *name;
-        int needsize = 1;
-        int err = 1;
+struct names_t {
+        struct list_t list;
+        struct token_t tok;
+        token_pos_t pos;
+        int namei;
+};
+#define AS_LIST2NAMES(p) (container_of(p, struct names_t, list))
 
-        list_init(&names);
+static void
+cleanup_names(struct list_t *names)
+{
+        struct list_t *p, *q;
+        list_foreach_safe(p, q, names) {
+                list_remove(p);
+                /* list is first entry */
+                efree(AS_LIST2NAMES(p));
+        }
+}
+
+/*
+ * common to assemble_unpacker and assemble_declarator stmt
+ * This should end with token state pointing at '=' or (if
+ * let/global) ';'
+ */
+static int
+gather_names(struct assemble_t *a, struct list_t *names,
+             struct token_t *firstname, token_pos_t firstpos)
+{
+        struct names_t *name;
+        int needsize = 1; /*< start at 1 to account for firstname */
+
+        list_init(names);
 
         name = emalloc(sizeof(*name));
         memcpy(&name->tok, firstname, sizeof(name->tok));
         name->pos = firstpos;
-        list_add_front(&name->list, &names);
+        list_add_front(&name->list, names);
 
         while (a->oc->t == OC_COMMA) {
                 needsize++;
 
                 as_lex(a);
                 if (a->oc->t != OC_IDENTIFIER) {
+                        cleanup_names(names);
                         err_ae_expect(a, OC_IDENTIFIER);
-                        goto done;
+                        as_err(a, AE_EXPECT);
                 }
 
                 name = emalloc(sizeof(*name));
                 name->pos = as_savetok(a, &name->tok);
-                list_add_front(&name->list, &names);
+                list_add_front(&name->list, names);
 
                 as_lex(a);
         }
+        return needsize;
+}
+
+/* next tok should return first comma */
+static int
+assemble_unpacker(struct assemble_t *a, unsigned int flags,
+                  struct token_t *firstname, token_pos_t firstpos)
+{
+        struct list_t names;
+        int needsize;
+        struct list_t *p;
+
+        needsize = gather_names(a, &names, firstname, firstpos);
+
+        /* TODO: if ';' and FE_TOP, put names into tuple and print em */
 
         /* "a, b += x" makes no sense, only support "=" */
         if (a->oc->t != OC_EQ) {
+                cleanup_names(&names);
                 err_ae_expect(a, OC_EQ);
-                goto done;
+                as_err(a, AE_EXPECT);
         }
 
         assemble_expr(a);
         add_instr(a, INSTR_UNPACK, 0, needsize);
 
-        /*
-         * XXX: Is there an established convention regarding which order
-         * stack machines unpack, or can I be arbitrary?
-         */
         list_foreach(p, &names) {
-                struct names_t *nm = list2names(p);
-                ainstr_assign_symbol(a, &nm->tok, nm->pos);
+                struct names_t *name = AS_LIST2NAMES(p);
+                ainstr_assign_symbol(a, &name->tok, name->pos);
         }
-        err = 0;
 
-done:
-        list_foreach_safe(p, q, &names) {
-                list_remove(p);
-                /* list is first entry */
-                efree(list2names(p));
-        }
-        if (err)
-                as_err(a, AE_EXPECT);
+        cleanup_names(&names);
         return 0;
 }
-#undef list2names
 
 /* return 1 if item left on the stack, 0 if not */
 static int
@@ -1577,9 +1595,10 @@ static void
 assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 {
         struct token_t name;
+        struct list_t names, *p;
         token_pos_t pos;
-        int namei;
         bool global;
+        int needsize;
 
         if (!!(flags & FE_FOR)) {
                 char *what = tok == OC_LET ? "let" : "global";
@@ -1598,6 +1617,9 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         }
         pos = as_savetok(a, &name);
 
+        as_lex(a);
+        needsize = gather_names(a, &names, &name, pos);
+
         /*
          * FIXME: Philosophical conundrum:
          *
@@ -1615,22 +1637,42 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
          *              (tok == OC_GBL) || !!(flags & FE_TOP)
          */
         global = tok == OC_GBL;
-        namei = assemble_declare(a, &name, global);
 
-        /* if no assign, return early */
-        if (as_peek(a, false) == OC_SEMI)
+        list_foreach(p, &names) {
+                struct names_t *n = AS_LIST2NAMES(p);
+                n->namei = assemble_declare(a, &n->tok, global);
+        }
+
+        if (a->oc->t == OC_SEMI) {
+                as_unlex(a);
+                cleanup_names(&names);
                 return;
+        } else if (a->oc->t != OC_EQ) {
+                /* for initializers, only '=', not '+=' or such */
+                err_ae_expect(a, OC_EQ);
+                cleanup_names(&names);
+                as_err(a, AE_EXPECT);
+        }
 
-        /* for initializers, only '=', not '+=' or such */
-        as_errlex(a, OC_EQ);
+        list_foreach(p, &names) {
+                struct names_t *n = AS_LIST2NAMES(p);
+                ainstr_load_symbol(a, &n->tok, n->pos);
+        }
 
-        ainstr_load_symbol(a, &name, pos);
         assemble_expr(a);
-        if (global)
-                add_instr(a, INSTR_ASSIGN_GLOBAL, 0, namei);
-        else
-                add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, namei);
+
+        if (needsize != 1)
+                add_instr(a, INSTR_UNPACK, 0, needsize);
+
+        list_foreach(p, &names) {
+                struct names_t *n = AS_LIST2NAMES(p);
+                if (global)
+                        add_instr(a, INSTR_ASSIGN_GLOBAL, 0, n->namei);
+                else
+                        add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
+        }
         add_instr(a, INSTR_POP, 0, 0);
+        cleanup_names(&names);
 }
 
 static void

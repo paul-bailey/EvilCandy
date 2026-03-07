@@ -844,6 +844,33 @@ do_throw(Frame *fr, instruction_t ii)
 }
 
 static int
+do_unpack(Frame *fr, instruction_t ii)
+{
+        Object *sq = pop(fr);
+        unsigned short i, count;
+        if (!isvar_seq(sq)) {
+                err_setstr(TypeError, "Object is not iterable");
+        }
+        count = ii.arg2 & 0x7fffu;
+        if (seqvar_size(sq) != count) {
+                err_setstr(ValueError, "expected %d items to unpack but got %d",
+                           (int)count, (int)seqvar_size(sq));
+                goto cant;
+        }
+        for (i = 0; i < count; i++) {
+                Object *item = seqvar_getitem(sq, i);
+                bug_on(!item);
+                push(fr, item);
+        }
+        VAR_DECR_REF(sq);
+        return 0;
+
+cant:
+        VAR_DECR_REF(sq);
+        return RES_ERROR;
+}
+
+static int
 do_bitwise_not(Frame *fr, instruction_t ii)
 {
         return unary_op_common(fr, qop_bit_not);

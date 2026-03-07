@@ -226,14 +226,20 @@ as_lex(struct assemble_t *a)
         return ret;
 }
 
+static void
+err_ae_expect(struct assemble_t *a, int exp)
+{
+        err_setstr(SyntaxError,
+                   "expected '%s' but got '%s' ('%s')",
+                   token_name(exp), token_name(a->oc->t), a->oc->s);
+}
+
 static int
 as_errlex(struct assemble_t *a, int exp)
 {
         as_lex(a);
         if (a->oc->t != exp) {
-                err_setstr(SyntaxError,
-                           "expected '%s' but got '%s' ('%s')",
-                           token_name(exp), token_name(a->oc->t), a->oc->s);
+                err_ae_expect(a, exp);
                 as_err(a, AE_EXPECT);
         }
         return a->oc->t;
@@ -1393,6 +1399,77 @@ assemble_this(struct assemble_t *a, unsigned int flags)
         return assemble_primary_elements__(a);
 }
 
+#define list2names(p) (container_of(p, struct names_t, list))
+/* next tok should return first comma */
+static int
+assemble_unpacker(struct assemble_t *a, unsigned int flags,
+                  struct token_t *firstname, token_pos_t firstpos)
+{
+        struct list_t names;
+        struct names_t {
+                struct list_t list;
+                struct token_t tok;
+                token_pos_t pos;
+        };
+        struct list_t *p, *q;
+        struct names_t *name;
+        int needsize = 1;
+        int err = 1;
+
+        list_init(&names);
+
+        name = emalloc(sizeof(*name));
+        memcpy(&name->tok, firstname, sizeof(name->tok));
+        name->pos = firstpos;
+        list_add_front(&name->list, &names);
+
+        while (a->oc->t == OC_COMMA) {
+                needsize++;
+
+                as_lex(a);
+                if (a->oc->t != OC_IDENTIFIER) {
+                        err_ae_expect(a, OC_IDENTIFIER);
+                        goto done;
+                }
+
+                name = emalloc(sizeof(*name));
+                name->pos = as_savetok(a, &name->tok);
+                list_add_front(&name->list, &names);
+
+                as_lex(a);
+        }
+
+        /* "a, b += x" makes no sense, only support "=" */
+        if (a->oc->t != OC_EQ) {
+                err_ae_expect(a, OC_EQ);
+                goto done;
+        }
+
+        assemble_expr(a);
+        add_instr(a, INSTR_UNPACK, 0, needsize);
+
+        /*
+         * XXX: Is there an established convention regarding which order
+         * stack machines unpack, or can I be arbitrary?
+         */
+        list_foreach(p, &names) {
+                struct names_t *nm = list2names(p);
+                ainstr_assign_symbol(a, &nm->tok, nm->pos);
+        }
+        err = 0;
+
+done:
+        list_foreach_safe(p, q, &names) {
+                list_remove(p);
+                /* list is first entry */
+                efree(list2names(p));
+        }
+        if (err)
+                as_err(a, AE_EXPECT);
+        return 0;
+}
+#undef list2names
+
 /* return 1 if item left on the stack, 0 if not */
 static int
 assemble_identifier(struct assemble_t *a, unsigned int flags)
@@ -1402,7 +1479,10 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
 
         /* need to peek */
         as_lex(a);
-        if (a->oc->t == OC_EQ) {
+        if (a->oc->t == OC_COMMA) {
+                /* a, b = (some, tuple); */
+                return assemble_unpacker(a, flags, &name, pos);
+        } else if (a->oc->t == OC_EQ) {
                 /*
                  * x = value;
                  * Don't load, INSTR_ASSIGN_LOCAL knows where from frame

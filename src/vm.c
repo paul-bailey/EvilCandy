@@ -848,8 +848,9 @@ do_unpack(Frame *fr, instruction_t ii)
 {
         Object *sq = pop(fr);
         unsigned short i, count;
-        if (!isvar_seq(sq)) {
-                err_setstr(TypeError, "Object is not iterable");
+        if (!isvar_seq_readable(sq)) {
+                err_setstr(TypeError, "Object is not iterable-readable");
+                goto cant;
         }
         count = ii.arg2 & 0x7fffu;
         if (seqvar_size(sq) != count) {

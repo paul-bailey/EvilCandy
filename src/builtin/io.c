@@ -209,9 +209,7 @@ do_iseof(Frame *fr)
         struct rawfile_t *raw = file_fget_priv(fr, "iseof", FILE_ANY, 1);
         if (!raw)
                 return ErrorVar;
-        return raw->fr_eof
-                ? VAR_NEW_REF(gbl.one)
-                : VAR_NEW_REF(gbl.zero);
+        return raw->fr_eof ? VAR_NEW_REF(gbl.one) : VAR_NEW_REF(gbl.zero);
 }
 
 /*

@@ -204,17 +204,53 @@ err_start:
         return -1;
 }
 
-/*
- * Parse one rodata line.
- * @pc points at first nonwhitespace character beyond ".rodata"
- */
-static int
-parse_rodata(struct reassemble_t *ra, const char *pc)
+static Object *
+parse_rodata1(struct reassemble_t *ra, const char *pc, char **endptr)
 {
-        char *endptr;
         Object *o;
         struct token_t tok;
         int status, negative;
+
+        if (*pc == '(') {
+                struct buffer_t b;
+                size_t i, n;
+                Object *child, **stack, *ret;
+
+                buffer_init(&b);
+
+                n = 0;
+                for (;;) {
+                        child = parse_rodata1(ra, skip_ws(pc+1), endptr);
+                        if (!child)
+                                goto err_tupleclean;
+                        n++;
+                        buffer_putd(&b, child, sizeof(Object *));
+                        pc = skip_ws(*endptr);
+                        if (*pc == ',') {
+                                continue;
+                        } else if (*pc == ')') {
+                                break;
+                        } else {
+                                ra_err(ra, "malformed tuple");
+                                goto err_tupleclean;
+                        }
+                }
+
+                *endptr = skip_ws(pc+1);
+                stack = (Object **)b.s;
+                bug_on(n != buffer_size(&b) / sizeof(Object *));
+                ret = tuplevar_from_stack(stack, n, true);
+                buffer_free(&b);
+                return ret;
+err_tupleclean:
+                stack = (Object **)b.s;
+                /* n could be different depending where we erred above */
+                n = buffer_size(&b) * sizeof(Object *);
+                for (i = 0; i < n; i++)
+                        VAR_DECR_REF(stack[i]);
+                buffer_free(&b);
+                return NULL;
+        }
 
         /*
          * .rodata is either an ID to more code, or an atomic--but not
@@ -231,23 +267,20 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
 
                 pc++;
                 errno = 0;
-                id = strtoull(pc, &endptr, 0);
-                if (errno || endptr == pc) {
+                id = strtoull(pc, endptr, 0);
+                if (errno || *endptr == pc) {
                         ra_err(ra, "Malformed function ID");
-                        return -1;
+                        return NULL;
                 }
-                pc = endptr;
+                pc = *endptr;
                 if (*pc != '>') {
                         ra_err(ra, "Missing '>'");
-                        return -1;
+                        return NULL;
                 }
                 pc = skip_ws(pc + 1);
-                if (*pc != '\0') {
-                        err_extratok(ra);
-                        return -1;
-                }
+                *endptr = (char *)pc;
                 o = idvar_new(id);
-                goto done;
+                return o;
         }
 
         negative = 0;
@@ -256,13 +289,13 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
                 negative = 1;
         }
         tok.v = NULL;
-        status = get_tok_from_cstring(pc, &endptr, &tok);
+        status = get_tok_from_cstring(pc, endptr, &tok);
         if (status < 0 || tok.v == NULL) {
                 ra_err(ra, "Malformed rodata token");
-                return -1;
+                return NULL;
         }
         o = tok.v;
-        pc = skip_ws(endptr);
+        pc = skip_ws(*endptr);
         if (negative) {
                 /* negative number */
                 if (tok.t != OC_INTEGER && tok.t != OC_FLOAT) {
@@ -275,16 +308,16 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
                 o = tmp;
         } else if (tok.t != OC_INTEGER && tok.t != OC_FLOAT) {
                 /* Not a number */
-                if (*pc != '\0') {
-                        err_extratok(ra);
-                        goto err_clear_left;
-                }
-                goto done;
+                *endptr = (char *)pc;
+                return o;
         }
 
         /* real number: "[-]X", or... */
-        if (*pc == '\0')
-                goto done;
+        if (*pc == '\0') {
+real:
+                *endptr = (char *)pc;
+                return o;
+        }
 
         /* ...complex number. pc at "+/- Imag" */
         negative = 0;
@@ -294,23 +327,17 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
                 pc = skip_ws(pc + 1);
         } else {
                 /* ...or just bad input */
-                err_extratok(ra);
-                goto err_clear_left;
+                goto real;
         }
 
         tok.v = NULL;
-        status = get_tok_from_cstring(pc, &endptr, &tok);
+        status = get_tok_from_cstring(pc, endptr, &tok);
         if (status < 0 || tok.t != OC_COMPLEX) {
                 ra_err(ra, "Expected: complex number");
                 goto err_clear_left;
         }
 
-        pc = skip_ws(endptr);
-        if (*pc != '\0') {
-                err_extratok(ra);
-                goto err_clear_left;
-        }
-
+        pc = skip_ws(*endptr);
         {
                 binary_operator_t func = negative ? qop_sub : qop_add;
                 Object *tmp = func(o, tok.v);
@@ -320,16 +347,29 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
                 o = tmp;
         }
 
-done:
-        bug_on(!o);
-        assemble_seek_rodata(ra->a, o);
-        VAR_DECR_REF(o);
-        return 0;
+        *endptr = (char *)pc;
+        return o;
 
 err_clear_left:
         if (o)
                 VAR_DECR_REF(o);
-        return -1;
+        return NULL;
+}
+
+/*
+ * Parse one rodata line.
+ * @pc points at first nonwhitespace character beyond ".rodata"
+ */
+static int
+parse_rodata(struct reassemble_t *ra, const char *pc)
+{
+        char *endptr;
+        Object *o = parse_rodata1(ra, pc, &endptr);
+        if (!o)
+                return -1;
+        assemble_seek_rodata(ra->a, o);
+        VAR_DECR_REF(o);
+        return 0;
 }
 
 /**

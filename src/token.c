@@ -90,6 +90,9 @@ tok_next_line(struct token_state_t *state)
 {
         int res = -1;
 
+        if (!state->fp)
+                return res;
+
         if (state->tty) {
                 bug_on(!state->fp);
                 res = myreadline(&state->line, &state->_slen,

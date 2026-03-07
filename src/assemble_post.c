@@ -558,6 +558,68 @@ simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr)
         return reduced;
 }
 
+static bool
+simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
+{
+        bool reduced;
+        instruction_t *idata = (instruction_t *)fr->af_instr.s;
+        Object **rodata = as_frame_rodata(fr);
+        instruction_t *ip, *iptail;
+
+        ip = iptail = idata;
+
+        reduced = false;
+        while (ip->code != INSTR_END) {
+                size_t i, n;
+
+                if (ip->code != INSTR_DEFTUPLE) {
+                        ip = next_instr(ip);
+                        continue;
+                }
+
+                n = ip->arg2 & 0x7fffu;
+
+                iptail = ip;
+                for (i = 0; i < n; i++) {
+                        iptail = prev_instr(idata, iptail);
+                        if (iptail == NULL)
+                                break;
+                        if (iptail->code != INSTR_LOAD_CONST)
+                                break;
+                }
+
+                if (i == n && iptail && iptail->code == INSTR_LOAD_CONST) {
+                        /*
+                         * Tuple of all consts.  Replace all these
+                         * instructions with a single LOAD_CONST on
+                         * a const tuple.
+                         */
+                        Object **stack, *tup;
+                        int new_arg2;
+
+                        stack = emalloc(n * sizeof(Object *));
+                        for (i = 0; i < n; i++) {
+                                stack[i] = rodata[iptail->arg2];
+                                iptail->code = INSTR_NOP;
+                                iptail = next_instr(iptail);
+                        }
+                        bug_on(iptail != ip);
+                        tup = tuplevar_from_stack(stack, n, false);
+                        new_arg2 = assemble_seek_rodata(a, tup);
+                        VAR_DECR_REF(tup);
+                        efree(stack);
+
+                        ip->code = INSTR_LOAD_CONST;
+                        ip->arg1 = 0;
+                        ip->arg2 = new_arg2;
+
+                        ip = iptail = next_instr(ip);
+                        reduced = true;
+                }
+        }
+        return reduced;
+}
+
 enum {
         STACK_NLABEL = 32,
         STACK_NINSTR = 128
@@ -666,6 +728,8 @@ optimize_instructions(struct assemble_t *a)
                                 if (remove_unreachable_code(a, fr))
                                         reduced = true;
                         }
+                        if (simplify_tuples(a, fr))
+                                reduced = true;
                         if (reduced)
                                 reduced_once = true;
                 } while (reduced);

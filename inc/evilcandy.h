@@ -134,6 +134,10 @@ extern void *ememdup(const void *buf, size_t size);
 extern ssize_t egetline(char **line, size_t *linecap, FILE *fp);
 extern void efree(void *ptr);
 
+/* global.c */
+extern char *codec_str(int codec, char *buf, size_t size);
+extern Object *codec_strobj(int codec);
+
 /* hash.c */
 extern hash_t calc_string_hash(Object *key);
 
@@ -254,6 +258,11 @@ extern void dict_add_cdestructor(Object *dict, void (*func)(Object *));
 extern void dict_setstr(Object *dict, Object *cb);
 extern void dict_set_priv(Object *dict, void *priv);
 extern void *dict_get_priv(Object *dict);
+extern void dict_add_properties(Object *dict,
+                                const struct type_prop_t *tbl);
+/* helpers to var.c, do not confuse with dict_[gs]etitem() */
+extern Object *dict_getattr(Object *dict, Object *key);
+enum result_t dict_setattr(Object *dict, Object *key, Object *attr);
 
 /* types/method.c */
 extern int methodvar_tofunc(Object *meth,

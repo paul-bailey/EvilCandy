@@ -447,6 +447,7 @@ moduleinit_builtin(void)
                 { .e = CODEC_LATIN1, .name = "latin-1"  },
                 { .e = CODEC_LATIN1, .name = "Latin-1"  },
                 { .e = CODEC_LATIN1, .name = "LATIN-1"  },
+                /* XXX iso-88something-something... */
                 { .e = CODEC_ASCII,  .name = "ascii"    },
                 { .e = CODEC_ASCII,  .name = "ASCII"    },
                 { .e = -1,           .name = NULL       },
@@ -469,6 +470,14 @@ moduleinit_builtin(void)
                 o = intvar_new(t->e);
                 k = stringvar_new(t->name);
                 dict_setitem(codecs, k, o);
+
+                /* Reverse key-value for some default names */
+                if (!strcmp(t->name, "utf-8") ||
+                    !strcmp(t->name, "Latin1") ||
+                    !strcmp(t->name, "ascii")) {
+                        dict_setitem(codecs, o, k);
+                }
+
                 VAR_DECR_REF(k);
                 VAR_DECR_REF(o);
         }

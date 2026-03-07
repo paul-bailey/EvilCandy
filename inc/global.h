@@ -21,6 +21,7 @@ struct global_t {
         Object *fzero;
         Object *cwd;
         Object *mns[N_MNS];
+        Object *codecs[N_CODEC]; /* maps codec to int obj */
 };
 
 #define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])

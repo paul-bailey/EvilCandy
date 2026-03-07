@@ -23,12 +23,15 @@
  *            not need this, since they can bury their private data in
  *            closures.  (Technically so can built-in modules, but it's
  *            faster to just bypass all that overhead.)
+ * @c_properties:
+ *            Dictionary of subclass properties.
  */
 struct class_t {
         Object *c_ureset;
         void (*c_creset)(Object *);
         Object *c_str;
         void *c_priv;
+        Object *c_properties;
 };
 
 /**
@@ -286,8 +289,8 @@ transfer_table(struct dictvar_t *dict, size_t old_size)
                 if (k == NULL || k == BUCKET_DEAD)
                         continue;
 
-                hash = string_hash(k);
-                bug_on(!hash);
+                hash = dictkey_hash(k);
+                bug_on(!hash && !isvar_int(k));
 
                 perturb = hash;
                 j = bucketi(dict, hash);
@@ -873,6 +876,44 @@ dict_iter(Object *dict, ssize_t iter, Object **k, Object **v)
 }
 
 /**
+ * dict_add_properties - Add built-in instance-specific properties
+ *              for a dictionary.
+ * @dict: Instance to add properties for
+ * @tbl:  Table of property callbacks, terminated with .name=NULL
+ */
+void
+dict_add_properties(Object *dict, const struct type_prop_t *tbl)
+{
+        struct class_t *class;
+        Object *classdict;
+
+        bug_on(!isvar_dict(dict));
+        class = dict_assert_hasclass(V2D(dict));
+        classdict = class->c_properties;
+        if (!classdict) {
+                classdict = dictvar_new();
+                class->c_properties = classdict;
+        }
+
+        /* XXX: slight DRY violation with var_initialize_type() */
+        while (tbl->name != NULL) {
+                Object *v, *k;
+                enum result_t res;
+
+                v = propertyvar_new(tbl);
+                k = stringvar_new(tbl->name);
+                res = dict_setitem_exclusive(classdict, k, v);
+                VAR_DECR_REF(k);
+                VAR_DECR_REF(v);
+
+                bug_on(res != RES_OK);
+                (void)res;
+
+                tbl++;
+        }
+}
+
+/**
  * dict_add_udestructor - Add a user-defined destructor
  * @func: Function to call
  *
@@ -994,6 +1035,12 @@ dict_reset(Object *o)
                         Object *func = cls->c_str;
                         cls->c_str = NULL;
                         VAR_DECR_REF(func);
+                }
+
+                if (cls->c_properties) {
+                        Object *p = cls->c_properties;
+                        cls->c_properties = NULL;
+                        VAR_DECR_REF(p);
                 }
 
                 dict->d_class = NULL;
@@ -1169,6 +1216,138 @@ dict_get_priv(Object *dict)
         bug_on(!isvar_dict(dict));
 
         return d->d_class ? d->d_class->c_priv : NULL;
+}
+
+/**
+ * DO NOT CONFUSE WITH dict_setitem()!!
+ *
+ * This is meant only to be called from var_setattr(), since
+ * dictionaries require more special attention than other
+ * sequential/mappable objects.
+ *
+ * To just set an entry from a dictionary, use dict_setitem().
+ */
+enum result_t
+dict_setattr(Object *dict, Object *key, Object *attr)
+{
+        struct class_t *class;
+        Object *prop;
+        enum result_t res;
+
+        /*
+         * Pseudo code for what's going on below...
+         *
+         * if dict.instance_property[key]
+         *      dict.instance_property[key] = attr;
+         * elif dict.method_property[key]
+         *      dict.method_property[key] = attr;
+         * else
+         *      dict[key] = attr
+         *
+         * If a property exists and it is not writable, then an exception
+         * will be thrown without attempting to insert @key into regular
+         * dictionary entries.
+         */
+        class = V2D(dict)->d_class;
+        if (class && class->c_properties) {
+                prop = dict_getitem(class->c_properties, key);
+                if (prop)
+                        goto have_prop;
+        }
+
+        bug_on(!DictType.methods);
+        prop = dict_getitem(DictType.methods, key);
+        if (prop)
+                goto have_prop;
+
+        /* Not a property to set, insert into dictionary */
+        return dict_setitem(dict, key, attr);
+
+have_prop:
+        res = property_set(prop, dict, attr);
+        VAR_DECR_REF(prop);
+        return res;
+}
+
+/**
+ * DO NOT CONFUSE WITH dict_getitem()!!
+ *
+ * This is meant only to be called from var_getattr(), since
+ * dictionaries require more special attention than other
+ * sequential/mappable objects.
+ *
+ * To just get an entry from a dictionary, use dict_getitem().
+ */
+Object *
+dict_getattr(Object *dict, Object *key)
+{
+        Object *ret;
+        struct class_t *class;
+
+        bug_on(!isvar_dict(dict));
+
+        /*
+         * Order of precedence...
+         * 1. dictionary entries
+         * 3. instance-specific built-in properties
+         * 2. DictType built-in methods or properties
+         *
+         * XXX Should dict_add_properties() copy DictType.methods into
+         * class->c_properties during assert_hasclass()?  If so, we can
+         * skip the third check for any dictionary where class exists.
+         */
+
+        /* plain-jane dictionary entry */
+        ret = dict_getitem(dict, key);
+        if (ret)
+                goto found;
+
+        /* Instance-specific built-in property */
+        class = V2D(dict)->d_class;
+        if (class && class->c_properties) {
+                ret = dict_getitem(class->c_properties, key);
+                if (ret) {
+                        bug_on(!isvar_property(ret));
+
+                        Object *tmp = ret;
+                        ret = property_get(tmp, dict);
+                        VAR_DECR_REF(tmp);
+                        goto found;
+                }
+        }
+
+        /* DictType built-in method */
+        ret = dict_getitem(DictType.methods, key);
+        if (ret) {
+               if (isvar_property(ret)) {
+                        Object *tmp = ret;
+                        ret = property_get(ret, dict);
+                        VAR_DECR_REF(tmp);
+                }
+                goto found;
+        }
+
+        err_attribute("get", key, dict);
+        return ErrorVar;
+
+found:
+        /*
+         * We have no way of knowing if this is a pure function or an
+         * instance method, so assume the latter case.
+         *
+         * XXX REVISIT: A majority of the time, 'this' is used nowhere
+         * in a function, so creating and destroying a method object
+         * every time a user gets it out of a dictionary is way more
+         * costly than just de-referencing a function's XptrType struct
+         * to check for a does-it-use-'this' flag.  assemble_post() could
+         * scan its opcode array at compile time and set the flag.
+         */
+        if (isvar_function(ret)) {
+                Object *tmp = ret;
+                ret = methodvar_new(tmp, dict);
+                VAR_DECR_REF(tmp);
+        }
+        return ret;
 }
 
 /* **********************************************************************

@@ -136,13 +136,14 @@ enum {
  * CODEC_ASCII
  */
 enum {
-        CODEC_UTF8,
+        CODEC_UTF8 = 0,
         CODEC_ASCII,
         CODEC_LATIN1,
         /*
          * TODO: binary file codecs, like aiff, wav, bmp...
          *       Will be useful for floats data type.
          */
+        N_CODEC,
 
         CODEC_OPEN_DEFAULT = CODEC_UTF8,
         CODEC_STRING_DEFAULT = CODEC_UTF8,

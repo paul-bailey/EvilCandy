@@ -195,9 +195,18 @@ file_get_silent(Object *fo, int type)
  ***********************************************************************/
 
 static Object *
+file_getprop_fd(Object *self)
+{
+        struct rawfile_t *raw = file_get_priv(self, "fd", FILE_ANY, 1);
+        if (!raw)
+                return ErrorVar;
+        return intvar_new(raw->fr_fd);
+}
+
+static Object *
 do_getfd(Frame *fr)
 {
-        struct rawfile_t *raw = file_fget_priv(fr, "getfd", -1, 1);
+        struct rawfile_t *raw = file_fget_priv(fr, "getfd", FILE_ANY, 1);
         if (!raw)
                 return ErrorVar;
         return intvar_new(raw->fr_fd);
@@ -206,7 +215,7 @@ do_getfd(Frame *fr)
 static Object *
 do_iseof(Frame *fr)
 {
-        struct rawfile_t *raw = file_fget_priv(fr, "iseof", -1, 1);
+        struct rawfile_t *raw = file_fget_priv(fr, "iseof", FILE_ANY, 1);
         if (!raw)
                 return ErrorVar;
         return raw->fr_eof
@@ -722,6 +731,28 @@ open_binary(int fd, struct fileconfig_t *cfg)
  *              (Buffered) text files
  ***********************************************************************/
 
+static Object *
+text_getprop_encoding(Object *self)
+{
+        struct textfile_t *txt;
+        Object *ret;
+
+        txt = CAST_TXT(file_get_priv(self, "encoding", FILE_TEXT, 1));
+        if (!txt)
+                return ErrorVar;
+
+        /*
+         * TODO: gbl.mns[MNS_ENCODING] should also have entries for
+         * defaults of codecs, to reduce creation of new string object
+         */
+        ret = codec_strobj(txt->ft_codec);
+        if (!ret) {
+                err_setstr(RuntimeError, "encoding missing");
+                return ErrorVar;
+        }
+        return ret;
+}
+
 static inline void
 reset_decode_state(struct textfile_t *txt)
 {
@@ -1020,30 +1051,19 @@ do_text_close(Frame *fr)
 static Object *
 text_str(Frame *fr)
 {
+        Object *ret;
         struct textfile_t *txt;
-        const char *codecstr;
+        char codecbuf[16];
 
         txt = (struct textfile_t *)file_str_get_priv(fr, FILE_TEXT);
         if (!txt)
                 return VAR_NEW_REF(NullVar);
 
-        switch (txt->ft_codec) {
-        case CODEC_ASCII:
-                codecstr = "ascii";
-                break;
-        case CODEC_LATIN1:
-                codecstr = "latin1";
-                break;
-        case CODEC_UTF8:
-                codecstr = "utf-8";
-                break;
-        default:
-                codecstr = "?";
-        }
-
-        return stringvar_from_format("<file name='%s' mode='%s' enc='%s'>",
+        codec_str(txt->ft_codec, codecbuf, sizeof(codecbuf));
+        ret = stringvar_from_format("<file name='%s' mode='%s' enc='%s'>",
                       txt->ft_name ? txt->ft_name : "!",
-                      txt->ft_mode, codecstr);
+                      txt->ft_mode, codecbuf);
+        return ret;
 }
 
 static void
@@ -1091,6 +1111,19 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
                 V_INITTBL("iseof",      do_iseof,         0, 0, -1, -1),
                 TBLEND,
         };
+        static const struct type_prop_t textfile_props[] = {
+                {
+                        .name = "fd",
+                        .getprop = file_getprop_fd,
+                        .setprop = NULL
+                }, {
+                        .name = "encoding",
+                        .getprop = text_getprop_encoding,
+                        .setprop = NULL
+                }, {
+                        .name = NULL
+                }
+        };
         struct textfile_t *txt;
         Object *ret, *strfunc;
 
@@ -1109,6 +1142,7 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
         dict_set_priv(ret, txt);
         dict_add_cdestructor(ret, text_destructor);
         dict_setstr(ret, strfunc);
+        dict_add_properties(ret, textfile_props);
 
         VAR_DECR_REF(strfunc);
 

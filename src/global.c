@@ -71,6 +71,7 @@ static void
 initialize_global_object(void)
 {
         Object *k, *o;
+        int i;
 
         /* gotta set this early because moduleinit_sys needs it */
         gbl.cwd = evc_getcwd();
@@ -92,6 +93,9 @@ initialize_global_object(void)
         gbl.stdout_file = dict_getitem_cstr(o, "stdout");
         bug_on(!gbl.nl || !gbl.stdout_file);
         VAR_DECR_REF(o);
+
+        for (i = 0; i < N_CODEC; i++)
+                gbl.codecs[i] = intvar_new(i);
 
         gbl.neg_one     = intvar_new(-1LL);
         gbl.one         = intvar_new(1LL);
@@ -170,6 +174,11 @@ cfile_deinit_global(void)
                         VAR_DECR_REF(gbl.mns[i]);
         }
 
+        for (i = 0; i < N_CODEC; i++) {
+                if (gbl.codecs[i])
+                        VAR_DECR_REF(gbl.codecs[i]);
+        }
+
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);
         VAR_DECR_REF(IndexError);
@@ -185,4 +194,36 @@ cfile_deinit_global(void)
         VAR_DECR_REF(ValueError);
         VAR_DECR_REF(ErrorVar);
         VAR_DECR_REF(NullVar);
+}
+
+/* not really sure where's a good place to put this */
+char *
+codec_str(int codec, char *buf, size_t size)
+{
+        const char *ret = "?";
+        Object *str = codec_strobj(codec);
+        if (str) {
+                if (isvar_string(str))
+                        ret = string_cstring(str);
+                VAR_DECR_REF(str);
+        }
+        memset(buf, 0, size);
+        strncpy(buf, ret, size-1);
+        return buf;
+}
+
+Object *
+codec_strobj(int codec)
+{
+        Object *value;
+        if (codec >= N_CODEC
+            || gbl.codecs[codec] == NULL
+            || gbl.mns[MNS_CODEC] == NULL) {
+                return NULL;
+        }
+        value = dict_getitem(gbl.mns[MNS_CODEC], gbl.codecs[codec]);
+        if (!value || !isvar_string(value))
+                return NULL;
+
+        return value;
 }

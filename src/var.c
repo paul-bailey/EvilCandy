@@ -438,6 +438,9 @@ seqvar_arg2idx(Object *obj, Object *iarg, int *idx)
 /*
  * Either @v is a dictionary or @key is a string, which could be for a
  * built-in method or property of @v, whatever @v's type.
+ *
+ * XXX: Code rot alert!! Thus far, only dictionaries are mappable, so
+ * this function is never getting called.
  */
 static Object *
 var_getattr_map(Object *v, Object *key)
@@ -572,7 +575,9 @@ badkey:
 Object *
 var_getattr(Object *v, Object *key)
 {
-        if (isvar_map(v) || isvar_string(key)) {
+        if (isvar_dict(v)) {
+                return dict_getattr(v, key);
+        } else if (isvar_map(v) || isvar_string(key)) {
                 return var_getattr_map(v, key);
         } else if (isvar_seq(v)) {
                 return var_getattr_seq(v, key);
@@ -702,7 +707,9 @@ badkey:
 enum result_t
 var_setattr(Object *v, Object *key, Object *attr)
 {
-        if (isvar_map(v) || isvar_string(key)) {
+        if (isvar_dict(v)) {
+                return dict_setattr(v, key, attr);
+        } else if (isvar_map(v) || isvar_string(key)) {
                 return var_setattr_map(v, key, attr);
         } else if (isvar_seq(v)) {
                 return var_setattr_seq(v, key, attr);

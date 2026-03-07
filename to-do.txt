@@ -42,6 +42,8 @@ Must Do
 
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.
+  - Add self-documentation
+  - Add dir() function
   - Finalize closure behavior, be more like theoretical closures.
   - Fill in .create methods for remaining data types that need it.
   - Fill in math, cmath, io, socket libraries

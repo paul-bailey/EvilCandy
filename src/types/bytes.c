@@ -896,48 +896,37 @@ bytes_lrsplit(Frame *fr, unsigned int flags)
 {
         enum { LRSPLIT_STACK_SIZE = 64 };
 
-        Object *kw, *separg, *maxarg, *ret;
+        Object *separg, *ret;
         const unsigned char *self, *sep;
-        size_t selflen;
-        ssize_t seplen;
+        size_t selflen, seplen;
         int maxsplit;
-        bool combine = false;
+        bool combine;
+        const char *fmt;
 
         if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
                 return ErrorVar;
 
-        kw = vm_get_arg(fr, 0);
-        bug_on(!kw || !isvar_dict(kw));
-        dict_unpack(kw,
-                    STRCONST_ID(sep), &separg, NullVar,
-                    STRCONST_ID(maxsplit), &maxarg, gbl.neg_one,
-                    NULL);
-        if (separg == NullVar) {
-                /*
-                 * FIXME: program flow should hinge on this.
-                 * We shouldn't do the below memmem() call, but should
-                 * instead slide across whitespace.
-                 */
+        combine = false;
+        separg = NULL;
+        maxsplit = -1;
+        fmt = !!(flags & BF_RIGHT) ? "{|<b>i}:rsplit" : "{|<b>i}:split";
+        if (vm_getargs(fr, fmt, STRCONST_ID(sep), &separg,
+                        STRCONST_ID(maxsplit), &maxsplit) == RES_ERROR) {
+                return ErrorVar;
+        }
+        if (!separg) {
                 combine = true;
-                VAR_DECR_REF(separg);
                 separg = VAR_NEW_REF(gbl.spc_bytes);
+        }
+        if ((seplen = seqvar_size(separg)) == 0) {
+                err_setstr(ValueError, "Separator may not be empty");
+                return ErrorVar;
         }
 
         /* error until proven success */
         ret = ErrorVar;
-        if (arg_type_check(separg, &BytesType) == RES_ERROR)
-                goto out;
-
-        if (seqvar_size(separg) == 0) {
-                err_setstr(ValueError, "Separator may not be empty");
-                goto out;
-        }
-        maxsplit = intvar_toi(maxarg);
-        if (err_occurred())
-                goto out;
 
         sep = bytes_get_data(separg);
-        seplen = seqvar_size(separg);
         ret = arrayvar_new(0);
         if (!!(flags & BF_RIGHT)) {
                 while (maxsplit != 0 && selflen != 0) {
@@ -946,9 +935,8 @@ bytes_lrsplit(Frame *fr, unsigned int flags)
 
                         maxsplit--;
                         psep = memrmem(self, selflen, sep, seplen);
-                        if (!psep) {
+                        if (!psep)
                                 break;
-                        }
                         pnext = psep + seplen;
                         tlen = selflen - (pnext - self);
                         array_append(ret, bytesvar_new(pnext, tlen));
@@ -959,7 +947,7 @@ bytes_lrsplit(Frame *fr, unsigned int flags)
                         selflen = psep - self;
                 }
                 if (selflen != 0)
-                        array_append(ret, bytesvar_new(self, seplen));
+                        array_append(ret, bytesvar_new(self, selflen));
                 array_reverse(ret);
         } else {
                 while (maxsplit != 0 && selflen != 0) {
@@ -987,9 +975,6 @@ bytes_lrsplit(Frame *fr, unsigned int flags)
                 if (selflen != 0)
                         array_append(ret, bytesvar_new(self, selflen));
         }
-out:
-        VAR_DECR_REF(separg);
-        VAR_DECR_REF(maxarg);
         return ret;
 }
 
@@ -1093,7 +1078,6 @@ static Object *
 do_bytes_expandtabs(Frame *fr)
 {
         static const char SPC = ' ';
-        Object *kw, *tabarg;
         int tabsize, col, nextstop;
         const unsigned char *self;
         size_t i, selflen, newlen;
@@ -1102,18 +1086,11 @@ do_bytes_expandtabs(Frame *fr)
         if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
                 return ErrorVar;
 
-        kw = vm_get_arg(fr, 0);
-        bug_on(!kw || !isvar_dict(kw));
-        dict_unpack(kw, STRCONST_ID(tabsize), &tabarg, gbl.eight, NULL);
-        if (arg_type_check(tabarg, &IntType) == RES_ERROR) {
-                VAR_DECR_REF(tabarg);
+        tabsize = 8;
+        if (vm_getargs(fr, "{|i}:expandtabs",
+                       STRCONST_ID(tabsize), &tabsize) == RES_ERROR) {
                 return ErrorVar;
         }
-        tabsize = intvar_toi(tabarg);
-        VAR_DECR_REF(tabarg);
-
-        if (err_occurred())
-                return ErrorVar;
 
         if (tabsize < 0)
                 tabsize = 0;
@@ -1286,20 +1263,17 @@ do_bytes_splitlines(Frame *fr)
         const unsigned char *src;
         size_t srclen;
         int keepends;
-        Object *kw, *keeparg, *ret;
+        Object *ret;
 
         if (bytes_unpack_self(fr, &src, &srclen) == RES_ERROR)
                 return ErrorVar;
 
-        kw = vm_get_arg(fr, 0);
-        bug_on(!kw || !isvar_dict(kw));
-        dict_unpack(kw, STRCONST_ID(keepends), &keeparg, gbl.zero, NULL);
-        if (arg_type_check(keeparg, &IntType) == RES_ERROR) {
-                VAR_DECR_REF(keeparg);
+        keepends = 0;
+        if (vm_getargs(fr, "{|i}:splitlines",
+                       STRCONST_ID(keepends), &keepends) == RES_ERROR) {
                 return ErrorVar;
         }
-        keepends = intvar_toll(keeparg);
-        VAR_DECR_REF(keeparg);
+
         ret = arrayvar_new(0);
         while (srclen) {
                 size_t next, i;
@@ -1308,11 +1282,10 @@ do_bytes_splitlines(Frame *fr)
                                 break;
                 }
                 if (i == srclen) {
-                        array_append(ret,
-                                     bytesvar_new(src, srclen));
+                        array_append(ret, bytesvar_new(src, srclen));
                         break;
                 }
-                next = i;
+                next = i + 1;
                 switch (src[i]) {
                 case '\n':
                         break;

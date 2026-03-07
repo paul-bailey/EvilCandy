@@ -24,6 +24,8 @@ PUSH_LOCAL
 # Load a variable or const and push it onto the stack.
 LOAD_CONST
 LOAD_LOCAL
+# There is no LOAD_NAME, the LOAD_GLOBAL handler takes care of both
+# scenarios.
 # arg2 points to name in .rodata
 LOAD_GLOBAL
 
@@ -41,16 +43,19 @@ CONTINUE
 
 # Pop top of stack and store its value in a declared variable.
 #     - arg2 is an offset index
-#     - arg1 tells what arg2 is an offset of: frame pointer,
-#       .rodata, etc.
+#     - arg1 tells what arg2 is an offset of: FP, closures, etc.
 ASSIGN_LOCAL
-# arg2 points to name in .rodata
 ASSIGN_GLOBAL
+# Interactive special case, see comment to NEW_NAME below.
+ASSIGN_NAME
 
 # Like assign, but specifically for the global symbol table.
-# arg2 is an offset from base of .rodata telling where
-# the string name of the symbol is.
 NEW_GLOBAL
+
+# special case: in Interactive Mode, local variables at the top-level
+# scope will be in a dictionary instead of the stack, since the stack
+# is cleared after every top-level statement.
+NEW_NAME
 
 # pop top of stack and return its value
 RETURN_VALUE

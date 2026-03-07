@@ -42,7 +42,6 @@ Must Do
 
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.
-  - Fix "no top-level stack in interactive mode" awkwardness
   - Finalize closure behavior, be more like theoretical closures.
   - Fill in .create methods for remaining data types that need it.
   - Fill in math, cmath, io, socket libraries
@@ -52,6 +51,7 @@ Must Do
   - Make consistent and accurate error reporting
   - Robustulate the widths of indices.  They should all be size_t or
     ssize_t, not int.
+  - **done** Fix "no top-level stack in interactive mode" awkwardness
   - **done** Allow string objects to contain nulchars in the middle.
   - **done** Add an editline-like UI for interactive mode.
   - **done** Add ``===`` or ``is`` or both

@@ -30,6 +30,7 @@
 #include <xptr.h>
 
 static Object *symbol_table = NULL;
+static Object *vm_locals = NULL;
 
 /* XXX: Need to be made per-thread */
 static Object **vm_stack;
@@ -79,17 +80,26 @@ RODATA(Frame *fr, instruction_t ii)
 #endif /* DEBUG */
 
 static int
-symbol_put(Frame *fr, Object *name, Object *v)
+symbol_put(Frame *fr, Object *name, Object *v, Object *dict)
 {
+        int ret;
+
         bug_on(!isvar_string(name));
-        int ret = dict_setitem_replace(symbol_table, name, v);
-        if (ret != RES_OK && !err_occurred()) {
-                err_setstr(NameError,
-                           "Symbol '%s' does not exist or is unassignable",
-                           string_cstring(name));
-        }
+        if (!dict)
+                goto err;
+        ret = dict_setitem_replace(dict, name, v);
+        if (ret != RES_OK && !err_occurred())
+                goto err;
+
         return ret;
+
+err:
+        err_setstr(NameError,
+                   "Symbol '%s' does not exist or is unassignable",
+                   string_cstring(name));
+        return RES_ERROR;
 }
+
 
 /*
  * DOC: Frame allocation
@@ -359,6 +369,20 @@ do_load_global(Frame *fr, instruction_t ii)
         name = RODATA(fr, ii);
         bug_on(!isvar_string(name));
 
+        /*
+         * This doesn't waste as much time as it appears to.  If we're in
+         * interactive mode, the speed bottleneck is the user typing, not
+         * the additional dictionary look-up.  If running a script, then
+         * vm_locals will be NULL, so the first dict lookup will be skipped.
+         */
+        if (vm_locals) {
+                p = dict_getitem(vm_locals, name);
+                if (p)
+                        goto done;
+        }
+
+        bug_on(!symbol_table);
+
         p = dict_getitem(symbol_table, name);
         if (!p) {
                 err_setstr(NameError, "Symbol %s not found",
@@ -366,6 +390,7 @@ do_load_global(Frame *fr, instruction_t ii)
                 return RES_ERROR;
         }
 
+done:
         push(fr, p);
         return RES_OK;
 }
@@ -451,23 +476,50 @@ do_assign_global(Frame *fr, instruction_t ii)
 
         from = pop(fr);
         key = RODATA(fr, ii);
-        ret = symbol_put(fr, key, from);
+        ret = symbol_put(fr, key, from, symbol_table);
         VAR_DECR_REF(from);
         return ret;
 }
 
 static int
-do_new_global(Frame *fr, instruction_t ii)
+new_global_or_name(Frame *fr, instruction_t ii, Object *dict)
 {
         int res;
         Object *name = RODATA(fr, ii);
         bug_on(!isvar_string(name));
-        res = dict_setitem_exclusive(symbol_table, name, NullVar);
+        res = dict_setitem_exclusive(dict, name, NullVar);
         if (res != RES_OK) {
                 err_setstr(NameError, "Symbol %s already exists",
                                 string_cstring(name));
         }
         return res;
+}
+
+static int
+do_new_global(Frame *fr, instruction_t ii)
+{
+        return new_global_or_name(fr, ii, symbol_table);
+}
+
+static int
+do_assign_name(Frame *fr, instruction_t ii)
+{
+        Object *from, *key;
+        int ret;
+
+        from = pop(fr);
+        key = RODATA(fr, ii);
+        ret = symbol_put(fr, key, from, vm_locals);
+        VAR_DECR_REF(from);
+        return ret;
+}
+
+static int
+do_new_name(Frame *fr, instruction_t ii)
+{
+        if (!vm_locals)
+                vm_locals = dictvar_new();
+        return new_global_or_name(fr, ii, vm_locals);
 }
 
 static int
@@ -1233,6 +1285,8 @@ cfile_deinit_vm(void)
 
         if (symbol_table)
                 VAR_DECR_REF(symbol_table);
+        if (vm_locals)
+                VAR_DECR_REF(vm_locals);
 
         efree(vm_stack);
 

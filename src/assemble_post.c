@@ -5,8 +5,6 @@
  *      that this stuff only happens when a byte-code file doesn't exist.
  *
  * More optimizations:
- *    - DEFTUPLE #N following #N LOAD_CONST's means the 'const' should
- *      be the whole tuple in .rodata.  Requires tweaking of reassembly.
  *    - Add a uses-'this'-keyword flag to xptr_cfg_t struct, so that
  *      dict_[gs]etattr() can choose not to keep allocate and destroy
  *      MethodType objects for functions which do not need them.

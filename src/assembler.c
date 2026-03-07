@@ -823,7 +823,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
  */
 static void
 ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
-                      int instr, token_pos_t pos)
+                      int instr, token_pos_t pos, unsigned int flags)
 {
         int idx, arg;
         if ((idx = as_symbol_seek(a, name->s, &arg)) >= 0) {
@@ -833,8 +833,20 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
         } else {
                 int namei = as_seek_rodata_tok(a, name);
                 if (instr == INSTR_ASSIGN_LOCAL) {
-                        instr = INSTR_ASSIGN_GLOBAL;
+                        if (!!(flags & FE_TOP))
+                                instr = INSTR_ASSIGN_NAME;
+                        else
+                                instr = INSTR_ASSIGN_GLOBAL;
                 } else {
+                        /*
+                         * XXX: If we're here, flags are meaningless.
+                         * Means we can't distinguish between global and
+                         * name.  Functionally this is fine... just have
+                         * VM's LOAD_GLOBAL handler first check for dict
+                         * of locals before falling back on globals, but
+                         *      1. That's slow
+                         *      2. It makes for misleading disassembly
+                         */
                         bug_on(instr != INSTR_LOAD_LOCAL);
                         instr = INSTR_LOAD_GLOBAL;
                 }
@@ -845,13 +857,14 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
 static void
 ainstr_load_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
 {
-        ainstr_load_or_assign(a, name, INSTR_LOAD_LOCAL, pos);
+        ainstr_load_or_assign(a, name, INSTR_LOAD_LOCAL, pos, 0);
 }
 
 static void
-ainstr_assign_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
+ainstr_assign_symbol(struct assemble_t *a, struct token_t *name,
+                      token_pos_t pos, unsigned int flags)
 {
-        ainstr_load_or_assign(a, name, INSTR_ASSIGN_LOCAL, pos);
+        ainstr_load_or_assign(a, name, INSTR_ASSIGN_LOCAL, pos, flags);
 }
 
 static void
@@ -1469,7 +1482,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                 add_instr(a, INSTR_UNPACK, 0, needsize);
                 list_foreach(p, &names) {
                         n = AS_LIST2NAMES(p);
-                        ainstr_assign_symbol(a, &n->tok, n->pos);
+                        ainstr_assign_symbol(a, &n->tok, n->pos, flags);
                 }
                 cleanup_names(&names);
                 return 0;
@@ -1483,7 +1496,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * pointer to store 'value'
                  */
                 assemble_expr(a);
-                ainstr_assign_symbol(a, &n->tok, n->pos);
+                ainstr_assign_symbol(a, &n->tok, n->pos, flags);
                 cleanup_names(&names);
                 return 0;
         } else if (istok_assign(a->oc->t)) {
@@ -1494,7 +1507,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 ainstr_load_symbol(a, &n->tok, n->pos);
                 assemble_preassign(a, a->oc->t);
-                ainstr_assign_symbol(a, &n->tok, n->pos);
+                ainstr_assign_symbol(a, &n->tok, n->pos, flags);
                 cleanup_names(&names);
                 return 0;
         } else {
@@ -1514,7 +1527,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
 }
 
 static void
-assemble_delete(struct assemble_t *a)
+assemble_delete(struct assemble_t *a, unsigned int flags)
 {
         struct token_t name;
         token_pos_t pos;
@@ -1543,7 +1556,7 @@ assemble_delete(struct assemble_t *a)
 
                 as_unlex(a);
                 ainstr_load_null(a);
-                ainstr_assign_symbol(a, &name, pos);
+                ainstr_assign_symbol(a, &name, pos, flags);
         }
         return;
 
@@ -1556,13 +1569,18 @@ baddelete:
 
 /* common to assemble_declarator_stmt and assemble_foreach */
 static int
-assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
+assemble_declare(struct assemble_t *a, struct token_t *name,
+                 bool global, unsigned int flags)
 {
         int namei;
         bug_on(global && name == NULL);
         if (global) {
                 namei = as_seek_rodata_tok(a, name);
                 add_instr(a, INSTR_NEW_GLOBAL, 0, namei);
+        } else if (!!(flags & FE_TOP)) {
+                /* Interactive, top-level scope */
+                namei = as_seek_rodata_tok(a, name);
+                add_instr(a, INSTR_NEW_NAME, 0, namei);
         } else {
                 namei = fakestack_declare(a, name ? name->s : NULL);
                 add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
@@ -1607,7 +1625,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         list_foreach(p, &names) {
                 struct names_t *n = AS_LIST2NAMES(p);
-                n->namei = assemble_declare(a, &n->tok, global);
+                n->namei = assemble_declare(a, &n->tok, global, flags);
         }
 
         if (a->oc->t == OC_SEMI) {
@@ -1635,10 +1653,18 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         list_foreach(p, &names) {
                 struct names_t *n = AS_LIST2NAMES(p);
-                if (global)
-                        add_instr(a, INSTR_ASSIGN_GLOBAL, 0, n->namei);
-                else
-                        add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
+                int instr, arg1 = 0;
+
+                /* XXX: DRY violation with ainstr_assign_symbol */
+                if (global) {
+                        instr = INSTR_ASSIGN_GLOBAL;
+                } else if (!!(flags & FE_TOP)) {
+                        instr = INSTR_ASSIGN_NAME;
+                } else {
+                        instr = INSTR_ASSIGN_LOCAL;
+                        arg1 = IARG_PTR_AP;
+                }
+                add_instr(a, instr, arg1, n->namei);
         }
         add_instr(a, INSTR_POP, 0, 0);
         cleanup_names(&names);
@@ -1806,7 +1832,7 @@ assemble_foreach(struct assemble_t *a)
         as_errlex(a, OC_COMMA);
 
         /* declare 'needle', push placeholder onto the stack */
-        assemble_declare(a, &needletok, false);
+        assemble_declare(a, &needletok, false, 0);
 
         /* push 'haystack' onto the stack */
         assemble_expr(a);
@@ -1980,7 +2006,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         /* cases return early if semicolon not expected at the end */
         switch (a->oc->t) {
         case OC_DELETE:
-                assemble_delete(a);
+                assemble_delete(a, flags);
                 return;
         case OC_EOF:
                 return;

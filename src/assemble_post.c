@@ -4,6 +4,13 @@
  *      load time, unless we get a good serialization scheme working, so
  *      that this stuff only happens when a byte-code file doesn't exist.
  *
+ * More optimizations:
+ *    - DEFTUPLE #N following #N LOAD_CONST's means the 'const' should
+ *      be the whole tuple in .rodata.  Requires tweaking of reassembly.
+ *    - Add a uses-'this'-keyword flag to xptr_cfg_t struct, so that
+ *      dict_[gs]etattr() can choose not to keep allocate and destroy
+ *      MethodType objects for functions which do not need them.
+ *
  * XXX REVISIT: We have scenarios where DEFDICT, DEFTUPLE, and DEFLIST
  * may take all LOAD_CONST's for their definitions, in which we could
  * replace these instructions with DEFDICT_CONST, etc., start allowing

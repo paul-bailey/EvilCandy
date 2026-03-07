@@ -1424,90 +1424,67 @@ cleanup_names(struct list_t *names)
  * let/global) ';'
  */
 static int
-gather_names(struct assemble_t *a, struct list_t *names,
-             struct token_t *firstname, token_pos_t firstpos)
+gather_names(struct assemble_t *a, struct list_t *names)
 {
         struct names_t *name;
-        int needsize = 1; /*< start at 1 to account for firstname */
+        int needsize = 0; /*< start at 1 to account for firstname */
 
         list_init(names);
+        bug_on(a->oc->t != OC_IDENTIFIER);
+        as_unlex(a);
 
-        name = emalloc(sizeof(*name));
-        memcpy(&name->tok, firstname, sizeof(name->tok));
-        name->pos = firstpos;
-        list_add_front(&name->list, names);
-
-        while (a->oc->t == OC_COMMA) {
+        do {
                 needsize++;
-
                 as_lex(a);
-                if (a->oc->t != OC_IDENTIFIER) {
-                        cleanup_names(names);
-                        err_ae_expect(a, OC_IDENTIFIER);
-                        as_err(a, AE_EXPECT);
-                }
 
                 name = emalloc(sizeof(*name));
                 name->pos = as_savetok(a, &name->tok);
                 list_add_front(&name->list, names);
 
                 as_lex(a);
-        }
+        } while (a->oc->t == OC_COMMA);
         return needsize;
-}
-
-/* next tok should return first comma */
-static int
-assemble_unpacker(struct assemble_t *a, unsigned int flags,
-                  struct token_t *firstname, token_pos_t firstpos)
-{
-        struct list_t names;
-        int needsize;
-        struct list_t *p;
-
-        needsize = gather_names(a, &names, firstname, firstpos);
-
-        /* TODO: if ';' and FE_TOP, put names into tuple and print em */
-
-        /* "a, b += x" makes no sense, only support "=" */
-        if (a->oc->t != OC_EQ) {
-                cleanup_names(&names);
-                err_ae_expect(a, OC_EQ);
-                as_err(a, AE_EXPECT);
-        }
-
-        assemble_expr(a);
-        add_instr(a, INSTR_UNPACK, 0, needsize);
-
-        list_foreach(p, &names) {
-                struct names_t *name = AS_LIST2NAMES(p);
-                ainstr_assign_symbol(a, &name->tok, name->pos);
-        }
-
-        cleanup_names(&names);
-        return 0;
 }
 
 /* return 1 if item left on the stack, 0 if not */
 static int
 assemble_identifier(struct assemble_t *a, unsigned int flags)
 {
-        struct token_t name;
-        token_pos_t pos = as_savetok(a, &name);
+        struct list_t names;
+        int needsize;
+        struct names_t *n;
 
-        /* need to peek */
-        as_lex(a);
-        if (a->oc->t == OC_COMMA) {
-                /* a, b = (some, tuple); */
-                return assemble_unpacker(a, flags, &name, pos);
-        } else if (a->oc->t == OC_EQ) {
+        needsize = gather_names(a, &names);
+        if (needsize > 1) {
+                /* eg. "a, b = (some, iterable)" */
+                struct list_t *p;
+
+                /* XXX What about empty statement like "a, b;"? */
+                if (a->oc->t != OC_EQ) {
+                        cleanup_names(&names);
+                        err_ae_expect(a, OC_EQ);
+                        as_err(a, AE_EXPECT);
+                }
+                assemble_expr(a);
+                add_instr(a, INSTR_UNPACK, 0, needsize);
+                list_foreach(p, &names) {
+                        n = AS_LIST2NAMES(p);
+                        ainstr_assign_symbol(a, &n->tok, n->pos);
+                }
+                cleanup_names(&names);
+                return 0;
+        }
+
+        n = AS_LIST2NAMES(names.next);
+        if (a->oc->t == OC_EQ) {
                 /*
                  * x = value;
                  * Don't load, INSTR_ASSIGN_LOCAL knows where from frame
                  * pointer to store 'value'
                  */
                 assemble_expr(a);
-                ainstr_assign_symbol(a, &name, pos);
+                ainstr_assign_symbol(a, &n->tok, n->pos);
+                cleanup_names(&names);
                 return 0;
         } else if (istok_assign(a->oc->t)) {
                 /*
@@ -1515,9 +1492,10 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * x += value;
                  * ...
                  */
-                ainstr_load_symbol(a, &name, pos);
+                ainstr_load_symbol(a, &n->tok, n->pos);
                 assemble_preassign(a, a->oc->t);
-                ainstr_assign_symbol(a, &name, pos);
+                ainstr_assign_symbol(a, &n->tok, n->pos);
+                cleanup_names(&names);
                 return 0;
         } else {
                 /*
@@ -1529,7 +1507,8 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * calling a function or modifying one of x's descendants.
                  */
                 as_unlex(a);
-                ainstr_load_symbol(a, &name, pos);
+                ainstr_load_symbol(a, &n->tok, n->pos);
+                cleanup_names(&names);
                 return assemble_primary_elements__(a);
         }
 }
@@ -1594,9 +1573,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name, bool global)
 static void
 assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 {
-        struct token_t name;
         struct list_t names, *p;
-        token_pos_t pos;
         bool global;
         int needsize;
 
@@ -1608,18 +1585,8 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 as_err(a, AE_BADTOK);
         }
 
-        as_lex(a);
-        if (a->oc->t != OC_IDENTIFIER) {
-                char *what = tok == OC_LET ? "let" : "global";
-                err_setstr(SyntaxError,
-                           "'%s' must be followed by an identifier", what);
-                as_err(a, AE_EXPECT);
-        }
-        pos = as_savetok(a, &name);
-
-        as_lex(a);
-        needsize = gather_names(a, &names, &name, pos);
-
+        as_errlex(a, OC_IDENTIFIER);
+        needsize = gather_names(a, &names);
         /*
          * FIXME: Philosophical conundrum:
          *
@@ -1647,7 +1614,9 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 as_unlex(a);
                 cleanup_names(&names);
                 return;
-        } else if (a->oc->t != OC_EQ) {
+        }
+
+        if (a->oc->t != OC_EQ) {
                 /* for initializers, only '=', not '+=' or such */
                 err_ae_expect(a, OC_EQ);
                 cleanup_names(&names);

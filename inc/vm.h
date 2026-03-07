@@ -51,7 +51,7 @@ struct vmframe_t {
 /* vm.c */
 extern Object *vm_exec_script(Object *top_level, Frame *fr);
 extern Object *vm_exec_func(Frame *fr, Object *func, int argc,
-                            Object **argv, bool have_dict);
+                            Object **argv, Object *kwargs);
 extern void vm_add_global(Object *name, Object *var);
 extern Object *vm_get_global(const char *name);
 extern bool vm_symbol_exists(Object *key);

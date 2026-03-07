@@ -532,7 +532,7 @@ do_return_value(Frame *fr, instruction_t ii)
 static int
 do_call_func(Frame *fr, instruction_t ii)
 {
-        Object *func, *retval, **argv;
+        Object *func, *retval, *kwargs, **argv;
         int argc;
 
         argc = ii.arg2;
@@ -544,10 +544,15 @@ do_call_func(Frame *fr, instruction_t ii)
          */
         argv = fr->stackptr - argc;
         func = *(fr->stackptr - argc - 1);
+        if (ii.arg1 == IARG_HAVE_DICT) {
+                argc--;
+                kwargs = pop(fr);
+        } else {
+                kwargs = NULL;
+        }
 
         /* see comments to vm_exec_func: this may be NULL */
-        retval = vm_exec_func(fr, func, argc, argv,
-                              ii.arg1 == IARG_HAVE_DICT);
+        retval = vm_exec_func(fr, func, argc, argv, kwargs);
         if (!retval)
                 retval = VAR_NEW_REF(NullVar);
 
@@ -1154,7 +1159,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
 
         bug_on(!isvar_xptr(top_level));
         func = funcvar_new_user(top_level);
-        ret = vm_exec_func(fr_old, func, 0, NULL, false);
+        ret = vm_exec_func(fr_old, func, 0, NULL, NULL);
         VAR_DECR_REF(func);
         return ret;
 }
@@ -1166,17 +1171,18 @@ vm_exec_script(Object *top_level, Frame *fr_old)
  * @func:       Function to call
  * @arc:        Number of arguments being passed to the function
  * @argv:       Array of arguments
- * @have_dict:  True if last item in argv is dictionary
+ * @kwargs:     Dictionary of keyword args, which may be NULL.
  *
  * Return: Return value of function being called or ErrorVar if execution
  *         failed.
  *
  * Note: This has a net-zero effect on reference counters for @argv,
  *       although they will temporarily be incremented.
+ *       @kwargs's reference will be consumed, if it exists.
  */
 Object *
 vm_exec_func(Frame *fr_old, Object *func,
-             int argc, Object **argv, bool have_dict)
+             int argc, Object **argv, Object *kwargs)
 {
         Frame *fr, *tfr;
         Object *res, *owner;
@@ -1206,7 +1212,7 @@ vm_exec_func(Frame *fr_old, Object *func,
          */
         fr = vmframe_alloc(func, owner, fr_old, argv, argc);
         tfr = vm_swap_frame(fr);
-        res = function_call(fr, have_dict);
+        res = function_call(fr, kwargs);
         vmframe_free(fr);
         vm_swap_frame(tfr);
 

@@ -78,41 +78,32 @@ function_argc_check(struct funcvar_t *fh, int argc)
  * function_call - prep VM frame and call function
  * @fr: Frame used for this function.  Its stack base and AP have already
  *      been set up, except that the var-args are still spread out on the
- *      stack, leaving the kwarg dictionary at the wrong place
- * @have_dict: If true, then the top of the stack contains a dictionary
- *      of the keyword arguments provided.
+ *      stack.
+ * @kwargs: If non-NULL, a dictionary of caller's keyword arguments
  *
  * Return: The function result, or ErrorVar if there was an error here or
  *      in the function called.
- *
- * XXX REVISIT: For functions that don't use dict, just push NullVar onto
- * the stack, then we don't need to add @have_dict to this function's API
  */
 Object *
-function_call(Frame *fr, bool have_dict)
+function_call(Frame *fr, Object *kwargs)
 {
-        Object *dict;
         struct funcvar_t *fh;
         int i;
 
         if (!isvar_function(fr->func)) {
                 err_setstr(ValueError, "Object is not callable");
-                goto err;
+                goto err_consume_kwargs;
         }
 
         fh = V2FUNC(fr->func);
         bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
 
-        /* Pull dict off the stack, since we may need to reposition it */
-        dict = NULL;
-        if (have_dict){
+        if (kwargs){
                 if (fh->f_kwind < 0) {
                         err_setstr(ArgumentError,
                                    "Keyword arguments not supported for this function");
-                        return ErrorVar;
+                        goto err_consume_kwargs;
                 }
-                dict = fr->stack[fr->ap - 1];
-                fr->ap--;
         } else if (fh->f_kwind >= 0) {
                 /*
                  * I would love to change this to something like
@@ -121,9 +112,9 @@ function_call(Frame *fr, bool have_dict)
                  * into its keyword-arg dictionary.  So make them
                  * always be unique.
                  */
-                dict = dictvar_new();
+                kwargs = dictvar_new();
         }
-        /* else, leave dict NULL */
+        /* else, leave kwargs NULL */
 
         /* Make sure starred arg is only in optind position */
         for (i = 0; i < fr->ap; i++) {
@@ -131,7 +122,7 @@ function_call(Frame *fr, bool have_dict)
                 if (isvar_star(v) && i != fh->f_optind) {
                         err_setstr(ArgumentError,
                                 "Positional arguments may not be starred");
-                        goto err;
+                        goto err_consume_kwargs;
                 }
         }
 
@@ -144,9 +135,7 @@ function_call(Frame *fr, bool have_dict)
                 n = fr->ap - fh->f_optind;
                 if (n < 0) {
                         err_minargs(n, fh->f_optind);
-                        if (dict && !have_dict)
-                                VAR_DECR_REF(dict);
-                        goto err;
+                        goto err_consume_kwargs;
                 }
 
                 if (n > 0 && isvar_star(*vargs)) {
@@ -154,7 +143,7 @@ function_call(Frame *fr, bool have_dict)
                         if (n != 1) {
                                 err_setstr(ArgumentError,
                                         "Starred argument must be last non-keyword argument");
-                                goto err;
+                                goto err_consume_kwargs;
                         }
 
                         Object *star = *vargs;
@@ -175,8 +164,8 @@ function_call(Frame *fr, bool have_dict)
         }
 
         /* Put dict back onto the stack at the correct spot */
-        if (dict)
-                fr->stack[fr->ap++] = dict;
+        if (kwargs)
+                fr->stack[fr->ap++] = kwargs;
 
         /* Finished setting up args, fr->ap */
         fr->stackptr = fr->stack + fr->ap;
@@ -202,6 +191,9 @@ function_call(Frame *fr, bool have_dict)
                 return execute_loop(fr);
         }
 
+err_consume_kwargs:
+        if (kwargs)
+                VAR_DECR_REF(kwargs);
 err:
         /*
          * fr->ap may have changed since we started this function,

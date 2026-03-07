@@ -135,7 +135,7 @@ do_import(Frame *fr)
         res = funcvar_new_user(ex);
         if (how == X) {
                 Object *func = res;
-                res = vm_exec_func(fr, func, 0, NULL, false);
+                res = vm_exec_func(fr, func, 0, NULL, NULL);
                 VAR_DECR_REF(func);
         }
         /* else, how == R */
@@ -391,6 +391,7 @@ do_disassemble(Frame *fr)
                 func = tmp;
                 bug_on(!isvar_function(func));
         } else if (!isvar_function(func)) {
+                /* TODO: if string, compile and disassemble that */
                 err_setstr(TypeError,
                            "Cannot disassemble uncallable '%s'",
                            typestr(func));

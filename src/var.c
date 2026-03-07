@@ -1183,7 +1183,7 @@ var_foreach_generic(Frame *fr)
                 if (priv)
                         argv[2] = priv;
 
-                ret = vm_exec_func(fr, func, argc, argv, false);
+                ret = vm_exec_func(fr, func, argc, argv, NULL);
                 VAR_DECR_REF(argv[0]);
                 VAR_DECR_REF(argv[1]);
 

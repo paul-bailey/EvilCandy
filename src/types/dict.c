@@ -938,7 +938,7 @@ dict_reset(Object *o)
                         func = cls->c_ureset;
                         cls->c_ureset = NULL;
 
-                        res = vm_exec_func(NULL, func, 1, &o, 0);
+                        res = vm_exec_func(NULL, func, 1, &o, NULL);
                         /* FIXME: Error return value is unhandled here! */
                         if (res != ErrorVar)
                                 VAR_DECR_REF(res);
@@ -988,7 +988,7 @@ dict_str(Object *o)
 
         if ((cls = d->d_class) != NULL && cls->c_str != NULL) {
                 bool err = err_occurred();
-                ret = vm_exec_func(NULL, cls->c_str, 1, &o, 0);
+                ret = vm_exec_func(NULL, cls->c_str, 1, &o, NULL);
 
                 /* Fast path return user-define representation */
                 if (isvar_string(ret) && seqvar_size(ret) > 0)

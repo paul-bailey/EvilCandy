@@ -558,6 +558,13 @@ simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr)
         return reduced;
 }
 
+/*
+ * Do not allocate a tuple during runtime if its contents are known
+ * compile-time constants.  This optimization reduces a series of
+ * LOAD_CONST instructions followed by a DEFTUPLE instruction down
+ * to just a single LOAD_CONST instruction, where the const being
+ * loaded is the already-existing tuple in rodata.
+ */
 static bool
 simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
 {
@@ -572,6 +579,7 @@ simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
         while (ip->code != INSTR_END) {
                 size_t i, n;
 
+                bug_on(ip >= &idata[as_frame_ninstr(fr)]);
                 if (ip->code != INSTR_DEFTUPLE) {
                         ip = next_instr(ip);
                         continue;
@@ -589,11 +597,7 @@ simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
                 }
 
                 if (i == n && iptail && iptail->code == INSTR_LOAD_CONST) {
-                        /*
-                         * Tuple of all consts.  Replace all these
-                         * instructions with a single LOAD_CONST on
-                         * a const tuple.
-                         */
+                        /* Tuple of all consts */
                         Object **stack, *tup;
                         int new_arg2;
 
@@ -605,17 +609,16 @@ simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
                         }
                         bug_on(iptail != ip);
                         tup = tuplevar_from_stack(stack, n, false);
-                        new_arg2 = assemble_seek_rodata(a, tup);
-                        VAR_DECR_REF(tup);
+                        new_arg2 = seek_rodata(a, fr, tup);
                         efree(stack);
 
                         ip->code = INSTR_LOAD_CONST;
                         ip->arg1 = 0;
                         ip->arg2 = new_arg2;
 
-                        ip = iptail = next_instr(ip);
                         reduced = true;
                 }
+                ip = iptail = next_instr(ip);
         }
         return reduced;
 }

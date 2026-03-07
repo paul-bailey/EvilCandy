@@ -659,7 +659,6 @@ vm_getargs_1(Object **items, size_t n, const char **fmt, va_list ap,
                         i--;
                         break;
                 case '!':
-                        bug_on(endchr != ')' && endchr != ']');
                         if (i < n) {
                                 /*
                                  * XXX This message makes sense for

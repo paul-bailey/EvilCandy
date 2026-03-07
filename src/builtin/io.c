@@ -204,15 +204,6 @@ file_getprop_fd(Object *self)
 }
 
 static Object *
-do_getfd(Frame *fr)
-{
-        struct rawfile_t *raw = file_fget_priv(fr, "getfd", FILE_ANY, 1);
-        if (!raw)
-                return ErrorVar;
-        return intvar_new(raw->fr_fd);
-}
-
-static Object *
 do_iseof(Frame *fr)
 {
         struct rawfile_t *raw = file_fget_priv(fr, "iseof", FILE_ANY, 1);
@@ -446,9 +437,17 @@ open_raw(int fd, struct fileconfig_t *cfg)
                 V_INITTBL("read",       do_raw_read,     1, 1,  0, -1),
                 V_INITTBL("write",      do_raw_write,    1, 1, -1, -1),
                 V_INITTBL("close",      do_raw_close,    0, 0, -1, -1),
-                V_INITTBL("getfd",      do_getfd,        0, 0, -1, -1),
                 V_INITTBL("iseof",      do_iseof,        0, 0, -1, -1),
                 TBLEND,
+        };
+        static const struct type_prop_t rawfile_props[] = {
+                {
+                        .name = "fd",
+                        .getprop = file_getprop_fd,
+                        .setprop = NULL
+                }, {
+                        .name = NULL
+                }
         };
         struct rawfile_t *raw;
         Object *ret, *strfunc;
@@ -464,6 +463,7 @@ open_raw(int fd, struct fileconfig_t *cfg)
         dict_set_priv(ret, raw);
         dict_add_cdestructor(ret, raw_destructor);
         dict_setstr(ret, strfunc);
+        dict_add_properties(ret, rawfile_props);
 
         VAR_DECR_REF(strfunc);
 
@@ -700,9 +700,17 @@ open_binary(int fd, struct fileconfig_t *cfg)
                 V_INITTBL("read",       do_bin_read,     1, 1,  0, -1),
                 V_INITTBL("write",      do_bin_write,    1, 1, -1, -1),
                 V_INITTBL("close",      do_bin_close,    0, 0, -1, -1),
-                V_INITTBL("getfd",      do_getfd,        0, 0, -1, -1),
                 V_INITTBL("iseof",      do_iseof,        0, 0, -1, -1),
                 TBLEND,
+        };
+        static const struct type_prop_t binfile_props[] = {
+                {
+                        .name = "fd",
+                        .getprop = file_getprop_fd,
+                        .setprop = NULL
+                }, {
+                        .name = NULL
+                }
         };
         struct binfile_t *bin;
         Object *ret, *strfunc;
@@ -719,6 +727,7 @@ open_binary(int fd, struct fileconfig_t *cfg)
         dict_set_priv(ret, bin);
         dict_add_cdestructor(ret, bin_destructor);
         dict_setstr(ret, strfunc);
+        dict_add_properties(ret, binfile_props);
 
         VAR_DECR_REF(strfunc);
 
@@ -1107,7 +1116,6 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
                 V_INITTBL("readline",   do_text_readline, 0, 0, -1, -1),
                 V_INITTBL("write",      do_text_write,    1, 1, -1, -1),
                 V_INITTBL("close",      do_text_close,    0, 0, -1, -1),
-                V_INITTBL("getfd",      do_getfd,         0, 0, -1, -1),
                 V_INITTBL("iseof",      do_iseof,         0, 0, -1, -1),
                 TBLEND,
         };

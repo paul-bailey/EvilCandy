@@ -29,13 +29,15 @@
 #include <token.h>
 #include <xptr.h>
 
-static Object *symbol_table = NULL;
-static Object *vm_locals = NULL;
-
 /* XXX: Need to be made per-thread */
-static Object **vm_stack;
-static Object **vm_stack_end;
-static Frame *vm_current_frame = NULL;
+static struct vm_t {
+        Object *globals;
+        Object *locals;
+        Object **stack;
+        Object **stack_end;
+        Frame *current_frame;
+        struct list_t free_frames;
+} vm = { 0 };
 
 #define list2vmf(li) container_of(li, Frame, list)
 
@@ -59,7 +61,7 @@ static inline Object *RODATA(Frame *fr, instruction_t ii)
 static void
 push(Frame *fr, Object *v)
 {
-        bug_on(fr->stackptr >= vm_stack_end);
+        bug_on(fr->stackptr >= vm.stack_end);
         PUSH_(fr, v);
 }
 
@@ -114,7 +116,6 @@ err:
  *      RECURSION_MAX, and they will rarely even exceed a small handful,
  *      even in long-running scripts.
  */
-static struct list_t vframe_free_list = LIST_INIT(&vframe_free_list);
 
 static Frame *
 vmframe_alloc(Object *fn, Object *owner,
@@ -122,8 +123,8 @@ vmframe_alloc(Object *fn, Object *owner,
 {
         Frame *ret;
         int i;
-        struct list_t *li = vframe_free_list.next;
-        if (li == &vframe_free_list) {
+        struct list_t *li = vm.free_frames.next;
+        if (li == &vm.free_frames) {
                 ret = ecalloc(sizeof(*ret));
                 list_init(&ret->alloc_list);
         } else {
@@ -135,12 +136,12 @@ vmframe_alloc(Object *fn, Object *owner,
 
         if (fr_old) {
                 ret->stack = fr_old->stackptr;
-        } else if (vm_current_frame) {
+        } else if (vm.current_frame) {
                 /* probably a destructor called from VAR_DECR_REF */
-                ret->stack = vm_current_frame->stackptr;
+                ret->stack = vm.current_frame->stackptr;
         } else {
                 /* 1st ever call */
-                ret->stack = vm_stack;
+                ret->stack = vm.stack;
         }
         ret->owner = owner;
         ret->func  = fn;
@@ -175,14 +176,14 @@ vmframe_free(Frame *fr)
                 VAR_DECR_REF(fr->owner);
         if (fr->func)
                 VAR_DECR_REF(fr->func);
-        list_add_tail(&fr->alloc_list, &vframe_free_list);
+        list_add_tail(&fr->alloc_list, &vm.free_frames);
 }
 
 static Frame *
 vm_swap_frame(Frame *new)
 {
-        Frame *ret = vm_current_frame;
-        vm_current_frame = new;
+        Frame *ret = vm.current_frame;
+        vm.current_frame = new;
         return ret;
 }
 
@@ -373,17 +374,17 @@ do_load_global(Frame *fr, instruction_t ii)
          * This doesn't waste as much time as it appears to.  If we're in
          * interactive mode, the speed bottleneck is the user typing, not
          * the additional dictionary look-up.  If running a script, then
-         * vm_locals will be NULL, so the first dict lookup will be skipped.
+         * vm.locals will be NULL, so the first dict lookup will be skipped.
          */
-        if (vm_locals) {
-                p = dict_getitem(vm_locals, name);
+        if (vm.locals) {
+                p = dict_getitem(vm.locals, name);
                 if (p)
                         goto done;
         }
 
-        bug_on(!symbol_table);
+        bug_on(!vm.globals);
 
-        p = dict_getitem(symbol_table, name);
+        p = dict_getitem(vm.globals, name);
         if (!p) {
                 err_setstr(NameError, "Symbol %s not found",
                            string_cstring(name));
@@ -476,7 +477,7 @@ do_assign_global(Frame *fr, instruction_t ii)
 
         from = pop(fr);
         key = RODATA(fr, ii);
-        ret = symbol_put(fr, key, from, symbol_table);
+        ret = symbol_put(fr, key, from, vm.globals);
         VAR_DECR_REF(from);
         return ret;
 }
@@ -498,7 +499,7 @@ new_global_or_name(Frame *fr, instruction_t ii, Object *dict)
 static int
 do_new_global(Frame *fr, instruction_t ii)
 {
-        return new_global_or_name(fr, ii, symbol_table);
+        return new_global_or_name(fr, ii, vm.globals);
 }
 
 static int
@@ -509,7 +510,7 @@ do_assign_name(Frame *fr, instruction_t ii)
 
         from = pop(fr);
         key = RODATA(fr, ii);
-        ret = symbol_put(fr, key, from, vm_locals);
+        ret = symbol_put(fr, key, from, vm.locals);
         VAR_DECR_REF(from);
         return ret;
 }
@@ -517,9 +518,9 @@ do_assign_name(Frame *fr, instruction_t ii)
 static int
 do_new_name(Frame *fr, instruction_t ii)
 {
-        if (!vm_locals)
-                vm_locals = dictvar_new();
-        return new_global_or_name(fr, ii, vm_locals);
+        if (!vm.locals)
+                vm.locals = dictvar_new();
+        return new_global_or_name(fr, ii, vm.locals);
 }
 
 static int
@@ -1234,9 +1235,9 @@ vm_add_global(Object *name, Object *var)
          * before cfile_init_vm has been called, but we need it
          * anyway.
          */
-        if (!symbol_table)
-                symbol_table = dictvar_new();
-        res = dict_setitem_exclusive(symbol_table, name, var);
+        if (!vm.globals)
+                vm.globals = dictvar_new();
+        res = dict_setitem_exclusive(vm.globals, name, var);
         bug_on(res != RES_OK);
         (void)res;
 }
@@ -1245,7 +1246,7 @@ Object *
 vm_get_global(const char *name)
 {
         Object *k = stringvar_new(name);
-        Object *res = dict_getitem(symbol_table, k);
+        Object *res = dict_getitem(vm.globals, k);
         VAR_DECR_REF(k);
         return res;
 }
@@ -1262,7 +1263,7 @@ vm_symbol_exists(Object *key)
          * waste time with reference counters on dummy variables.
          */
         Object *val;
-        val = dict_getitem(symbol_table, key);
+        val = dict_getitem(vm.globals, key);
         if (val)
                 VAR_DECR_REF(val);
         return val != NULL;
@@ -1271,11 +1272,14 @@ vm_symbol_exists(Object *key)
 void
 cfile_init_vm(void)
 {
-        if (!symbol_table)
-                symbol_table = dictvar_new();
+        if (!vm.globals)
+                vm.globals = dictvar_new();
 
-        vm_stack = emalloc(sizeof(Object *) * VM_STACK_SIZE);
-        vm_stack_end = vm_stack + VM_STACK_SIZE - 1;
+        if (!vm.free_frames.next)
+                list_init(&vm.free_frames);
+
+        vm.stack = emalloc(sizeof(Object *) * VM_STACK_SIZE);
+        vm.stack_end = vm.stack + VM_STACK_SIZE - 1;
 }
 
 void
@@ -1283,20 +1287,20 @@ cfile_deinit_vm(void)
 {
         struct list_t *li, *tmp;
 
-        if (symbol_table)
-                VAR_DECR_REF(symbol_table);
-        if (vm_locals)
-                VAR_DECR_REF(vm_locals);
+        if (vm.globals)
+                VAR_DECR_REF(vm.globals);
+        if (vm.locals)
+                VAR_DECR_REF(vm.locals);
 
-        efree(vm_stack);
+        efree(vm.stack);
 
         /* For-real-this-time free the VM frames */
-        list_foreach_safe(li, tmp, &vframe_free_list) {
+        list_foreach_safe(li, tmp, &vm.free_frames) {
                 Frame *fr = container_of(li, Frame, alloc_list);
                 list_remove(li);
                 efree(fr);
         }
-        symbol_table = NULL;
-        vm_stack = vm_stack_end = NULL;
+        vm.globals = NULL;
+        vm.stack = vm.stack_end = NULL;
 }
 

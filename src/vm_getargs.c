@@ -414,10 +414,13 @@ convert_object(int typec, Object *uarg, const char **fmt, va_list ap,
 
         if (!match) {
                 char argnobuf[100];
+
+                bug_on(!uarg);
                 sprintf(argnobuf, " %d", argno + 1);
-                err_setstr(TypeError, "%s%sargument%s invalid type %s",
+                err_setstr(TypeError, "%s%sargument%s invalid type '%s'",
                            fname ? fname : "", fname ? "() " : "",
-                           argno >= 0 ? argnobuf : "");
+                           argno >= 0 ? argnobuf : "",
+                           typestr(uarg));
                 return RES_ERROR;
         }
         *ppo = uarg;

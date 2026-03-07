@@ -1683,36 +1683,35 @@ string_startswith(Frame *fr)
 static Object *
 string_expandtabs(Frame *fr)
 {
-        Object *self, *kw, *tabarg;
-        size_t tabsize, col, nextstop;
+        Object *self;
+        int i, col, nextstop, tabsize;
         struct string_writer_t wr;
-        size_t i, n;
+        size_t n;
 
         self = vm_get_this(fr);
-        kw = vm_get_arg(fr, 0);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        bug_on(!kw || !isvar_dict(kw));
-        dict_unpack(kw, STRCONST_ID(tabsize), &tabarg, gbl.eight, NULL);
-        if (arg_type_check(tabarg, &IntType) == RES_ERROR) {
-                VAR_DECR_REF(tabarg);
+        tabsize = 8;
+        if (vm_getargs(fr, "{|i}:expandtabs",
+                        STRCONST_ID(tabsize), &tabsize) == RES_ERROR) {
                 return ErrorVar;
         }
-        tabsize = intvar_toi(tabarg);
-        VAR_DECR_REF(tabarg);
-
-        if (err_occurred())
-                return ErrorVar;
 
         if (tabsize < 0)
                 tabsize = 0;
 
+        n = seqvar_size(self);
+        if (n > INT_MAX) {
+                err_setstr(NotImplementedError,
+                        "expandtabs cannot process string of length %ld",
+                        (long)n);
+                return ErrorVar;
+        }
+
         string_writer_init(&wr, string_width(self));
         col = 0;
         nextstop = tabsize;
-
-        n = seqvar_size(self);
         for (i = 0; i < n; i++) {
                 long c = string_getidx(self, i);
                 bug_on(c < 0L);
@@ -1906,41 +1905,32 @@ static Object *
 string_lrsplit(Frame *fr, unsigned int flags)
 {
         enum { LRSPLIT_STACK_SIZE = 64, };
-        Object *self = vm_get_this(fr);
-        Object *kw = vm_get_arg(fr, 0);
-        Object *separg, *maxarg;
-        Object *ret;
+        Object *self, *separg, *ret;
+        const char *fmt;
         int maxsplit;
         size_t hwid, hlen, nwid, nlen;
         void *hsrc, *nsrc;
-        bool combine = false;
+        bool combine;
 
+        self = vm_get_this(fr);
         bug_on(!self || !isvar_string(self));
-        bug_on(!kw || !isvar_dict(kw));
 
-        dict_unpack(kw,
-                    STRCONST_ID(sep), &separg, NullVar,
-                    STRCONST_ID(maxsplit), &maxarg, gbl.neg_one,
-                    NULL);
-        if (separg == NullVar) {
-                combine = true;
-                VAR_DECR_REF(separg);
-                separg = STRCONST_ID(spc);
-                VAR_INCR_REF(separg);
+        separg = NULL;
+        maxsplit = -1;
+        combine = false;
+        fmt = !!(flags & SF_RIGHT) ? "{|<s>i}:rsplit": "{|<s>i}:split";
+        if (vm_getargs(fr, fmt, STRCONST_ID(sep), &separg,
+                       STRCONST_ID(maxsplit), &maxsplit) == RES_ERROR) {
+                return ErrorVar;
         }
-        if (arg_type_check(separg, &StringType) == RES_ERROR) {
-                ret = ErrorVar;
-                goto out;
+
+        if (!separg) {
+                combine = true;
+                separg = STRCONST_ID(spc);
         }
         if (seqvar_size(separg) == 0) {
-                ret = ErrorVar;
                 err_setstr(ValueError, "Separator may not be empty");
-                goto out;
-        }
-        maxsplit = intvar_toi(maxarg);
-        if (err_occurred()) {
-                ret = ErrorVar;
-                goto out;
+                return ErrorVar;
         }
 
         hwid = string_width(self);
@@ -1951,7 +1941,7 @@ string_lrsplit(Frame *fr, unsigned int flags)
         ret = arrayvar_new(0);
         if (hlen < nlen || hwid < nwid) {
                 array_append(ret, self);
-                goto out;
+                return ret;
         }
 
         hsrc = string_data(self);
@@ -2030,9 +2020,6 @@ string_lrsplit(Frame *fr, unsigned int flags)
         if (nsrc != string_data(separg))
                 efree(nsrc);
 
-out:
-        VAR_DECR_REF(separg);
-        VAR_DECR_REF(maxarg);
         return ret;
 }
 

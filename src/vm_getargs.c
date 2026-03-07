@@ -44,6 +44,9 @@
  *      uarg is a floating-point object.
  * '.'  Skip this argument or numerical index.
  *
+ * '!'  Last arg was the highest-number valid argument.  Meaningful in
+ *      tuples, arrays, or at the end of a format string for arguments.
+ *
  * '|'  End of mandatory arguments; remaining characters are for optional
  *      args.  If these optional arguments do not exist in the arguments,
  *      the pointers in vargs will not be modified.
@@ -654,6 +657,18 @@ vm_getargs_1(Object **items, size_t n, const char **fmt, va_list ap,
                         bug_on(!(flags & GAF_MANDO));
                         flags &= ~GAF_MANDO;
                         i--;
+                        break;
+                case '!':
+                        bug_on(endchr != ')' && endchr != ']');
+                        if (i < n) {
+                                /*
+                                 * XXX This message makes sense for
+                                 * vm_getargs() but not for vm_getargs_sv()
+                                 */
+                                vmerr_generic("excess argument",
+                                                argno + i, fname);
+                                return RES_ERROR;
+                        }
                         break;
                 default:
                     {

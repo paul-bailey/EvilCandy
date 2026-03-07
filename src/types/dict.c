@@ -434,84 +434,6 @@ dict_unlock(struct dictvar_t *dict)
  ***********************************************************************/
 
 /**
- * dict_unpack - Unpack a dictionary's contents into args; intended for
- *               keyword-argument unpacking.
- * @obj: Dictionary to unpack from
- *
- * Args are key followed by a pointer to a value followed by a default
- * value to set if the key is not found.  A NULL in the key's place
- * terminates the args. value and default may not be NULL.
- *
- * This is best shown by example...
- *
- *      Object *key1 = stringvar_from_ascii("alice");
- *      Object *key2 = stringvar_from_ascii("bob");
- *      Object *val1;
- *
- *      Object *deflt1 = intvar_new(1);
- *      Object *val2;
- *      Object *deflt2 = intvar_new(2);
- *
- *      dict_unpack(mydict,
- *                  key1, &val1, deflt1,
- *                  key2, &val2, deflt2,
- *                  NULL);
- *
- * Now val1 stores value for 'alice' and val2 stores value for 'bob'.
- * A reference was produced for each of these values.
- *
- * No exceptions will be thrown.  Malformed key/value arguments may
- * trigger a bug trap.
- *
- * XXX: Specialized, shouldn't be a 'dict' function at all.
- */
-void
-dict_unpack(Object *obj, ...)
-{
-        va_list ap;
-        Object **ppv;
-        ssize_t n;
-
-        bug_on(!isvar_dict(obj));
-        va_start(ap, obj);
-
-        /*
-         * @n keeps track of the number of unpacked items in @obj.  The
-         * caller should not pass duplicate keys in their argument list,
-         * so decrement a temporary size variable for every found arg in
-         * @obj.  When it hits zero, save time by just using the defaults
-         * for the remaining args.
-         */
-        n = seqvar_size(obj);
-        for (;;) {
-                Object *k, *v, *deflt;
-
-                k = va_arg(ap, Object *);
-                if (!k)
-                        break;
-                ppv = va_arg(ap, Object **);
-                deflt = va_arg(ap, Object *);
-
-                bug_on(!valid_key_type(k));
-                bug_on(!ppv);
-                bug_on(!deflt);
-
-                if (n > 0) {
-                        v = dict_getitem(obj, k);
-                        if (v) {
-                                n--;
-                                *ppv = v;
-                                continue;
-                        }
-                }
-                VAR_INCR_REF(deflt);
-                *ppv = deflt;
-        }
-
-        va_end(ap);
-}
-
-/**
  * dict_keys - Get an alphabetically sorted list of all the keys
  *               currently in the dictionary.
  */
@@ -1387,25 +1309,19 @@ do_dict_delitem(Frame *fr)
 static Object *
 do_dict_keys(Frame *fr)
 {
-        Object *sorted;
-        Object *self = vm_get_this(fr);
-        Object *kw = vm_get_arg(fr, 0);
-        Object *ret;
+        long long sorted;
+        Object *self;
 
+        self = vm_get_this(fr);
         if (arg_type_check(self, &DictType) == RES_ERROR)
                 return ErrorVar;
 
-        bug_on(!kw || !isvar_dict(kw));
-
-        dict_unpack(kw, STRCONST_ID(sorted), &sorted, gbl.zero, NULL);
-        if (arg_type_check(sorted, &IntType) == RES_ERROR) {
-                ret = ErrorVar;
-        } else {
-                ret = dict_keys(self, !!intvar_toll(sorted));
+        sorted = 0ll;
+        if (vm_getargs(fr, "{|l}:keys", STRCONST_ID(sorted), &sorted)
+            == RES_ERROR) {
+                return ErrorVar;
         }
-
-        VAR_DECR_REF(sorted);
-        return ret;
+        return dict_keys(self, !!sorted);
 }
 
 static Object *

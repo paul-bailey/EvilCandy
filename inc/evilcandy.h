@@ -291,6 +291,7 @@ extern size_t string_slide(Object *str, Object *sep, size_t startpos);
 extern bool string_chr(Object *str, long pt);
 extern ssize_t string_search(Object *haystack, Object *needle, size_t startpos);
 extern char *string_encode_utf8(Object *str, size_t *size);
+extern hash_t string_hash(Object *str);
 
 /* types/tuple.c */
 extern enum result_t tuple_validate(Object *tup, const char *descr,

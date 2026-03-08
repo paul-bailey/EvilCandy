@@ -3312,26 +3312,18 @@ bad_format:
         return ErrorVar;
 }
 
-/**
- * string_update_hash - Update string var with hash calculation.
- *
- * This doesn't truly affect the string, so it's not considered a
- * violation of immutability.  The only reason it doesn't happen at
- * stringvar_new() time is because we don't know yet if we're going to
- * need it.  It could be something getting added to .rodata, in which
- * calculating hash right at startup should be no big deal.  But it
- * could also be some rando stack variable that gets created and
- * destroyed every time a certain function is called and returns,
- * and which is never used in a way that requires the hash.  So we
- * let the calling code decide whether to update the hash or not.
- */
-static hash_t
-string_update_hash(Object *v)
+/* Call string_hash(), not this */
+hash_t
+string_update_hash__(Object *v)
 {
-        struct stringvar_t *vs = (struct stringvar_t *)v;
-        if (vs->s_hash == (hash_t)0)
-                vs->s_hash = fnv_hash(string_cstring(v), string_nbytes(v));
-        return vs->s_hash;
+        V2STR(v)->s_hash = fnv_hash(string_cstring(v), string_nbytes(v));
+        return V2STR(v)->s_hash;
+}
+
+static hash_t
+string_hash_cb(Object *v)
+{
+        return string_hash(v);
 }
 
 /**
@@ -3378,7 +3370,7 @@ struct type_t StringType = {
         .reset  = string_reset,
         .prop_getsets = string_prop_getsets,
         .create = string_create,
-        .hash   = string_update_hash,
+        .hash   = string_hash_cb,
 };
 
 

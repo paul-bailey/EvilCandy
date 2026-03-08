@@ -170,29 +170,20 @@ bucket_alloc(struct dictvar_t *dict)
 }
 
 static bool
-key_match(Object *key1, Object *key2)
+key_match(Object *key1, Object *key2, hash_t key2_hash)
 {
-        /* FIXME: Should just use var_compare() == 0, for all
-         * except string
-         */
         if (key1 == key2)
                 return true;
+        /* XXX: what about int vs float? */
         if (key1->v_type != key2->v_type)
                 return false;
-        if (isvar_string(key1)) {
-                size_t n1, n2;
-                if (string_hash(key1) != string_hash(key2))
-                        return false;
-                n1 = string_nbytes(key1);
-                n2 = string_nbytes(key2);
-                if (n1 != n2)
-                        return false;
-                return !memcmp(string_cstring(key1),
-                               string_cstring(key2), n1);
-        }
-        if (isvar_int(key1))
-                return intvar_toll(key1) == intvar_toll(key2);
-        return var_compare(key1, key2) == 0;
+        if (key2_hash != var_hash(key1))
+                return false;
+        if (isvar_string(key1))
+                return string_eq(key1, key2);
+        if (!key1->v_type->cmp)
+                return false;
+        return key1->v_type->cmp(key1, key2);
 }
 
 static void
@@ -207,14 +198,6 @@ bucketi(struct dictvar_t *dict, hash_t hash)
         return hash & (dict->d_size - 1);
 }
 
-static inline hash_t
-dictkey_hash(Object *key)
-{
-        if (key->v_type->hash)
-                return key->v_type->hash(key);
-        return HASH_ERROR;
-}
-
 static int
 seek_helper(struct dictvar_t *dict, Object *key)
 {
@@ -223,14 +206,14 @@ seek_helper(struct dictvar_t *dict, Object *key)
         unsigned long perturb;
         int i;
 
-        hash = dictkey_hash(key);
+        hash = var_hash(key);
         if (hash == HASH_ERROR)
                 return -1;
 
         perturb = hash;
         i = bucketi(dict, hash);
         while ((k = dict->d_keys[i]) != NULL) {
-                if (k != BUCKET_DEAD && key_match(k, key))
+                if (k != BUCKET_DEAD && key_match(k, key, hash))
                         break;
                 /*
                  * Collision or dead entry.
@@ -292,7 +275,7 @@ transfer_table(struct dictvar_t *dict, size_t old_size)
                 if (k == NULL || k == BUCKET_DEAD)
                         continue;
 
-                hash = dictkey_hash(k);
+                hash = var_hash(k);
                 bug_on(!hash && !isvar_int(k));
 
                 perturb = hash;

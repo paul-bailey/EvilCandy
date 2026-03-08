@@ -364,9 +364,6 @@ static inline Object *seqvar_getitem(Object *v, int i)
 /*
  * string helpers - Only call these if you already type-checked @v
  */
-static inline hash_t string_hash(Object *v)
-        { return ((struct stringvar_t *)v)->s_hash; }
-
 /* may be different from seqvar_size if not entirely ASCII */
 static inline size_t string_nbytes(Object *v)
         { return ((struct stringvar_t *)v)->s_ascii_len; }
@@ -385,11 +382,46 @@ string_cstring(Object *v)
         return ((struct stringvar_t *)v)->s;
 }
 
+/*
+ * string_eq - similar to string's .cmp, but for dictionary/set lookups.
+ * Things like a == b, a->v_type == b->v_type, & hash values have already
+ * been checked upstream by calling code.
+ */
+static inline bool
+string_eq(Object *a, Object *b)
+{
+        size_t len, width;
+        len = seqvar_size(a);
+        if (len != seqvar_size(b))
+                return false;
+        width = string_width(a);
+        if (width != string_width(b))
+                return false;
+        return memcmp(string_data(a), string_data(b), len * width) == 0;
+}
+
+extern hash_t string_update_hash__(Object *v);
+static inline hash_t
+string_hash(Object *v)
+{
+        struct stringvar_t *vs = (struct stringvar_t *)v;
+        return vs->s_hash ? vs->s_hash : string_update_hash__(v);
+}
+
 static inline void
 buffer_put_strobj(struct buffer_t *buf, Object *v)
 {
         bug_on(!isvar_string(v));
         buffer_nputs_all(buf, string_cstring(v), string_nbytes(v));
+}
+
+
+static inline hash_t
+var_hash(Object *v)
+{
+        if (v->v_type->hash)
+                return v->v_type->hash(v);
+        return HASH_ERROR;
 }
 
 #endif /* EVILCANDY_OBJTYPES_H */

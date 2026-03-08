@@ -95,7 +95,7 @@ typedef struct {
  * XXX: At the cost of turning one instruction into two, we could change
  * some of these to LOAD_CONST + instruction, so that only LOAD_CONST
  * uses rodata.  It's a performance hit, but it's way less error-prone
- * whenever we're making changes to time to the instruction set.
+ * whenever we're making changes to the instruction set.
  */
 static inline bool
 instr_uses_rodata(instruction_t ii)
@@ -103,8 +103,10 @@ instr_uses_rodata(instruction_t ii)
         switch (ii.code) {
         case INSTR_LOAD_CONST:
         case INSTR_NEW_GLOBAL:
+        case INSTR_NEW_NAME:
         case INSTR_LOAD_GLOBAL:
         case INSTR_ASSIGN_GLOBAL:
+        case INSTR_ASSIGN_NAME:
                 return true;
         default:
                 return false;

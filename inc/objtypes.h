@@ -388,5 +388,8 @@ buffer_put_strobj(struct buffer_t *buf, Object *v)
         buffer_nputs_all(buf, string_cstring(v), string_nbytes(v));
 }
 
+/* TODO: inline struct starvar_t and this function here */
+extern size_t star_size(Object *v);
+
 #endif /* EVILCANDY_OBJTYPES_H */
 

@@ -74,6 +74,52 @@ function_argc_check(struct funcvar_t *fh, int argc)
         return RES_OK;
 }
 
+enum result_t
+function_unpack_args(Frame *fr, struct funcvar_t *fh)
+{
+        size_t i;
+        Object *vargs = arrayvar_new(0);
+
+        for (i = 0; i < fr->ap; i++) {
+                Object *o = fr->stack[i];
+                array_append(vargs, o);
+                VAR_DECR_REF(o);
+        }
+
+        if (fh->f_optind >= 0) {
+                if (fh->f_optind > seqvar_size(vargs)) {
+                        err_setstr(ArgumentError,
+                                "expected %ld args but got %ld",
+                                (long)fh->f_optind, (long)seqvar_size(vargs));
+                        fr->ap = 0;
+                        VAR_DECR_REF(vargs);
+                        return RES_ERROR;;
+                }
+
+                for (i = 0; i < fh->f_optind; i++) {
+                        fr->stack[i] = array_getitem(vargs, 0);
+                        array_setitem(vargs, 0, NULL);
+                }
+
+                fr->stack[fh->f_optind] = vargs;
+                fr->ap = fh->f_optind + 1;
+        } else {
+                fr->ap = seqvar_size(vargs);
+                if (!vm_pointers_in_stack(fr->stack, fr->stack + fr->ap)) {
+                        err_setstr(ArgumentError,
+                                "Cannot uppack args: stack would overflow");
+                        VAR_DECR_REF(vargs);
+                        return RES_ERROR;
+                }
+                for (i = 0; i < fr->ap; i++) {
+                        fr->stack[i] = array_getitem(vargs, i);
+                        bug_on(!fr->stack[i]);
+                }
+                VAR_DECR_REF(vargs);
+        }
+        return RES_OK;
+}
+
 /**
  * function_call - prep VM frame and call function
  * @fr: Frame used for this function.  Its stack base and AP have already
@@ -88,7 +134,6 @@ Object *
 function_call(Frame *fr, Object *kwargs)
 {
         struct funcvar_t *fh;
-        int i;
 
         if (!isvar_function(fr->func)) {
                 err_setstr(ValueError, "Object is not callable");
@@ -116,52 +161,8 @@ function_call(Frame *fr, Object *kwargs)
         }
         /* else, leave kwargs NULL */
 
-        /* Make sure starred arg is only in optind position */
-        for (i = 0; i < fr->ap; i++) {
-                Object *v = fr->stack[i];
-                if (isvar_star(v) && i != fh->f_optind) {
-                        err_setstr(ArgumentError,
-                                "Positional arguments may not be starred");
-                        goto err_consume_kwargs;
-                }
-        }
-
-        /* Compact optional args into a list at optind */
-        if (fh->f_optind >= 0) {
-                Object *opts, **vargs;
-                int n;
-
-                vargs = &fr->stack[fh->f_optind];
-                n = fr->ap - fh->f_optind;
-                if (n < 0) {
-                        err_minargs(n, fh->f_optind);
-                        goto err_consume_kwargs;
-                }
-
-                if (n > 0 && isvar_star(*vargs)) {
-                        /* 'starred', already compacted as arg */
-                        if (n != 1) {
-                                err_setstr(ArgumentError,
-                                        "Starred argument must be last non-keyword argument");
-                                goto err_consume_kwargs;
-                        }
-
-                        Object *star = *vargs;
-                        Object *arr = star_unpack(star);
-                        VAR_DECR_REF(star);
-
-                        *vargs = arr;
-
-                        bug_on(!isvar_array(arr));
-                        bug_on(fr->ap != fh->f_optind + 1);
-                } else {
-                        /* Unstarred, list <- 0 or more stack items */
-                        opts = arrayvar_from_stack(vargs, n, true);
-
-                        fr->ap -= n;
-                        fr->stack[fr->ap++] = opts;
-                }
-        }
+        if (function_unpack_args(fr, fh) == RES_ERROR)
+                goto err_consume_kwargs;
 
         /* Put dict back onto the stack at the correct spot */
         if (kwargs)

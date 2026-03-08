@@ -1275,6 +1275,13 @@ vm_symbol_exists(Object *key)
         return val != NULL;
 }
 
+/* used by function.c to ensure that arguments can fit on stack */
+bool
+vm_pointers_in_stack(Object **start, Object **end)
+{
+        return start <= end && start >= vm.stack && end < vm.stack_end;
+}
+
 void
 cfile_init_vm(void)
 {

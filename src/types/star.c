@@ -81,3 +81,10 @@ starvar_new(Object *x)
         return ret;
 }
 
+size_t
+star_size(Object *star)
+{
+        bug_on(!isvar_star(star));
+        return seqvar_size(((struct starvar_t *)star)->st_elem);
+}
+

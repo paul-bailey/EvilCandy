@@ -65,6 +65,7 @@ array_getitem(Object *array, int idx)
 {
         struct arrayvar_t *va = V2ARR(array);
 
+        bug_on(!va || !va->items);
         bug_on(idx >= seqvar_size(array));
         VAR_INCR_REF(va->items[idx]);
         return va->items[idx];
@@ -104,11 +105,28 @@ array_insert_chunk(Object *array, int at,
                    Object **children, size_t n_items)
 {
         struct arrayvar_t *h = V2ARR(array);
-        size_t i, size = seqvar_size(array);
+        size_t i, j, size = seqvar_size(array);
+        size_t nchildren = n_items;
 
         if (h->lock) {
                 err_locked();
                 return RES_ERROR;
+        }
+
+        /* check for starred args */
+        for (i = 0; i < nchildren; i++) {
+                if (isvar_star(children[i]))
+                        n_items += star_size(children[i]) - 1;
+        }
+
+        /*
+         * If every child was a star with no items, then n_items could
+         * be zero--a likely scenario when making a list of function
+         * arguments--so bail early and skip all this resizing.
+         */
+        if (!n_items) {
+                seqvar_set_size(array, size);
+                return RES_OK;
         }
 
         array_resize(array, size + n_items);
@@ -120,10 +138,22 @@ array_insert_chunk(Object *array, int at,
                 memmove(dst, src, movsize);
         }
 
-        for (i = 0; i < n_items; i++) {
-                bug_on(at + i >= seqvar_size(array) + n_items);
-                VAR_INCR_REF(children[i]);
-                h->items[at + i] = children[i];
+        j = at;
+        for (i = 0; i < nchildren; i++) {
+                bug_on(j >= size + n_items);
+                if (isvar_star(children[i])) {
+                        size_t k;
+                        Object *arr = star_unpack(children[i]);
+                        bug_on(!isvar_array(arr));
+                        for (k = 0; k < seqvar_size(arr); k++) {
+                                Object *child2 = array_getitem(arr, k);
+                                h->items[j++] = child2;
+                        }
+                        VAR_DECR_REF(arr);
+                } else {
+                        VAR_INCR_REF(children[i]);
+                        h->items[j++] = children[i];
+                }
         }
 
         seqvar_set_size(array, size + n_items);
@@ -369,8 +399,7 @@ array_setitem(Object *array, int i, Object *child)
                 bug_on(va->items[i] == NULL);
                 VAR_DECR_REF(va->items[i]);
 
-                va->items[i] = child;
-                VAR_INCR_REF(child);
+                va->items[i] = VAR_NEW_REF(child);
         } else {
                 return array_delete_chunk(array, i, 1);
         }

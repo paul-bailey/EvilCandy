@@ -101,12 +101,6 @@ dict_assert_hasclass(struct dictvar_t *d)
  */
 enum { INIT_SIZE = 16 };
 
-static inline bool
-valid_key_type(Object *key)
-{
-        return isvar_string(key) || isvar_int(key);
-}
-
 static void
 index_write__(void *p, size_t dsize, size_t idx, ssize_t val)
 {
@@ -178,6 +172,9 @@ bucket_alloc(struct dictvar_t *dict)
 static bool
 key_match(Object *key1, Object *key2)
 {
+        /* FIXME: Should just use var_compare() == 0, for all
+         * except string
+         */
         if (key1 == key2)
                 return true;
         if (key1->v_type != key2->v_type)
@@ -195,7 +192,7 @@ key_match(Object *key1, Object *key2)
         }
         if (isvar_int(key1))
                 return intvar_toll(key1) == intvar_toll(key2);
-        return false;
+        return var_compare(key1, key2) == 0;
 }
 
 static void
@@ -213,19 +210,25 @@ bucketi(struct dictvar_t *dict, hash_t hash)
 static inline hash_t
 dictkey_hash(Object *key)
 {
-        if (isvar_string(key))
-                return string_update_hash(key);
-        bug_on(!isvar_int(key));
-        return intvar_toll(key);
+        if (key->v_type->hash)
+                return key->v_type->hash(key);
+        return HASH_ERROR;
 }
 
 static int
 seek_helper(struct dictvar_t *dict, Object *key)
 {
         Object *k;
-        hash_t hash = dictkey_hash(key);
-        unsigned long perturb = hash;
-        int i = bucketi(dict, hash);
+        hash_t hash;
+        unsigned long perturb;
+        int i;
+
+        hash = dictkey_hash(key);
+        if (hash == HASH_ERROR)
+                return -1;
+
+        perturb = hash;
+        i = bucketi(dict, hash);
         while ((k = dict->d_keys[i]) != NULL) {
                 if (k != BUCKET_DEAD && key_match(k, key))
                         break;
@@ -379,7 +382,6 @@ static void
 insert_common(struct dictvar_t *dict, Object *key,
               Object *data, int i)
 {
-        bug_on(!valid_key_type(key));
         dict->d_keys[i] = key;
         dict->d_vals[i] = data;
         dict->d_count++;
@@ -533,11 +535,9 @@ dict_getitem(Object *o, Object *key)
 
         d = V2D(o);
         bug_on(!isvar_dict(o));
-        if (!valid_key_type(key))
-                return NULL;
 
         i = seek_helper(d, key);
-        if (d->d_keys[i] == NULL)
+        if (i < 0 || d->d_keys[i] == NULL)
                 return NULL;
 
         VAR_INCR_REF(d->d_vals[i]);
@@ -577,15 +577,14 @@ dict_insert(Object *dict, Object *key,
         bug_on((flags & (DF_SWAP|DF_EXCL)) == (DF_SWAP|DF_EXCL));
         bug_on(!isvar_dict(dict));
 
-        if (!valid_key_type(key)) {
-                err_setstr(TypeError, "Invalid type for dict key: '%s'",
-                           typestr(key));
-                return RES_ERROR;
-        }
-
         d = V2D(dict);
 
         i = seek_helper(d, key);
+        if (i < 0) {
+                err_setstr(KeyError, "%s key is not hashable",
+                           typestr(key));
+                return RES_ERROR;
+        }
 
         /* @child is either the former entry replaced by @attr or NULL */
         if (attr) {
@@ -678,6 +677,7 @@ dict_unique(Object *dict, const char *key)
 
         keycopy = stringvar_new(key);
         i = seek_helper(d, keycopy);
+        bug_on(i < 0);
         if (d->d_keys[i] != NULL) {
                 /* dict_unique must be used only on string-only dicts */
                 bug_on(!isvar_string(d->d_keys[i]));
@@ -720,7 +720,7 @@ dict_hasitem(Object *dict, Object *key)
         bug_on(!isvar_dict(dict));
 
         i = seek_helper(V2D(dict), key);
-        return V2D(dict)->d_keys[i] != NULL;
+        return i >= 0 && V2D(dict)->d_keys[i] != NULL;
 }
 
 /*
@@ -1426,7 +1426,7 @@ do_dict_purloin(Frame *fr)
                         return ErrorVar;
 
                 i = seek_helper(d, key);
-                if (d->d_keys[i] == NULL) {
+                if (i < 0 || d->d_keys[i] == NULL) {
                         Object *kstr = var_str(key);
                         err_setstr(KeyError,
                                    "Cannot purloin %s: does not exist",
@@ -1505,6 +1505,7 @@ struct type_t DictType = {
         .cmpz   = dict_cmpz,
         .reset  = dict_reset,
         .prop_getsets = dict_prop_getsets,
+        .hash   = NULL,
 };
 
 

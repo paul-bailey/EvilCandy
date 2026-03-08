@@ -41,6 +41,7 @@ struct type_t PropertyType = {
         .cmpz   = property_cmpz,
         .reset  = NULL,
         .prop_getsets = NULL,
+        .hash   = NULL,
 };
 
 /**

@@ -1530,6 +1530,13 @@ bytes_getprop_length(Object *self)
         return intvar_new(seqvar_size(self));
 }
 
+static hash_t
+calc_bytes_hash(Object *b)
+{
+        bug_on(!isvar_bytes(b));
+        return fnv_hash(bytes_get_data(b), seqvar_size(b));
+}
+
 static const struct type_prop_t bytes_prop_getsets[] = {
         { .name = "length", .getprop = bytes_getprop_length, .setprop = NULL },
         { .name = NULL },
@@ -1600,5 +1607,6 @@ struct type_t BytesType = {
         .reset  = bytes_reset,
         .prop_getsets = bytes_prop_getsets,
         .create = bytes_create,
+        .hash   = calc_bytes_hash,
 };
 

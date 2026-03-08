@@ -38,6 +38,13 @@ xptr_str(Object *v)
         return stringvar_new(buf);
 }
 
+/* Instances should be treated as globally unique */
+static hash_t
+xptr_hash(Object *v)
+{
+        return calc_ptr_hash(v);
+}
+
 struct type_t XptrType = {
         .flags  = 0,
         .name   = "[executable]",
@@ -50,6 +57,7 @@ struct type_t XptrType = {
         .cmp    = xptr_cmp,
         .cmpz   = NULL,
         .reset  = xptr_reset,
+        .hash   = xptr_hash,
 };
 
 /**

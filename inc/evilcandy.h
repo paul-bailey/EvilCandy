@@ -28,6 +28,7 @@
 #include "typedefs.h"
 #include "uarg.h"
 #include "debug.h"
+#include "hash.h"
 #include "recursion.h"
 #include "global.h"
 #include "objtypes.h"
@@ -137,9 +138,6 @@ extern void efree(void *ptr);
 /* global.c */
 extern char *codec_str(int codec, char *buf, size_t size);
 extern Object *codec_strobj(int codec);
-
-/* hash.c */
-extern hash_t calc_string_hash(Object *key);
 
 /* instruction_name.c */
 extern const char *instruction_name(int opcode);

@@ -1,16 +1,21 @@
 #include <evilcandy.h>
 
-static hash_t
-fnv_cstring_hash(const char *key, size_t size)
-{
-        /* 64-bit version */
+/* 64-bit version */
 #define FNV_PRIME      0x00000100000001B3LL
 #define FNV_OFFSET     0xCBF29CE484222325LL
 
-        const unsigned char *s = (unsigned char *)key;
+/**
+ * fnv_hash - The FNV-1a hash algorithm
+ * See Wikipedia article "Fowler-Noll-Vo hash function"
+ */
+hash_t
+fnv_hash(const void *ptr, size_t size)
+{
+        const unsigned char *s = (unsigned char *)ptr;
         const unsigned char *end = s + size;
-        unsigned long hash = FNV_PRIME;
+        hash_t hash = FNV_PRIME;
 
+        /* FIXME: config.h should wrap 32-bit vs 64-bit hash algos */
         bug_on(sizeof(hash_t) != 8);
 
         /*
@@ -22,23 +27,20 @@ fnv_cstring_hash(const char *key, size_t size)
                 hash = (hash * FNV_OFFSET) ^ c;
         }
 
-        /* interpret zero as 'not calculated' */
-        if (hash == 0)
-                hash++;
-
-        return (hash_t)hash;
+        return good_hash(hash);
 }
 
 /*
- * calc_string_hash - The FNV-1a hash algorithm
- *
- * See Wikipedia article "Fowler-Noll-Vo hash function"
+ * More involved algorithms are located with their type sources
+ * in types/XXX.c
  */
+
+/* Do not use for objects with embedded pointers */
 hash_t
-calc_string_hash(Object *key)
+calc_object_hash_generic(Object *key)
 {
-        bug_on(!isvar_string(key));
-        return fnv_cstring_hash(string_cstring(key), string_nbytes(key));
+        /* Do not hash refcnt etc */
+        void *ptr = key + sizeof(Object);
+        size_t size = key->v_type->size - sizeof(Object);
+        return fnv_hash(ptr, size);
 }
-
-

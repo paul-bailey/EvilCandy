@@ -928,4 +928,5 @@ struct type_t ArrayType = {
         .reset = array_reset,
         .prop_getsets = array_prop_getsets,
         .create = array_create,
+        .hash = NULL,
 };

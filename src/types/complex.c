@@ -252,6 +252,7 @@ struct type_t ComplexType = {
         .cmpz   = complex_cmpz,
         .prop_getsets = complex_prop_getsets,
         .create = complex_create,
+        .hash   = calc_object_hash_generic,
 };
 
 Object *

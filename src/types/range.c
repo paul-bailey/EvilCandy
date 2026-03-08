@@ -224,5 +224,6 @@ struct type_t RangeType = {
         .reset  = NULL,
         .prop_getsets = range_prop_getsets,
         .create = range_create,
+        .hash   = calc_object_hash_generic,
 };
 

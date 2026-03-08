@@ -470,6 +470,22 @@ tuple_create(Frame *fr)
         return var_tuplify(arg);
 }
 
+static hash_t
+tuple_hash(Object *tup)
+{
+        Object **data = tuple_get_data(tup);
+        size_t i, n = seqvar_size(tup);
+
+        hash_t hash = n;
+        for (i = 0; i < n; i++) {
+                Object *v = data[i];
+                if (!v->v_type->hash)
+                        return HASH_ERROR;
+                hash += v->v_type->hash(v);
+        }
+        return fnv_hash(&hash, sizeof(hash));
+}
+
 static const struct type_inittbl_t tuple_cb_methods[] = {
         V_INITTBL("foreach", var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("count",   do_tuple_count,      1, 1, -1, -1),
@@ -505,5 +521,6 @@ struct type_t TupleType = {
         .reset = tuple_reset,
         .prop_getsets = tuple_prop_getsets,
         .create = tuple_create,
+        .hash = tuple_hash,
 };
 

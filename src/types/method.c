@@ -118,4 +118,6 @@ struct type_t MethodType = {
         .cmp    = method_cmp,
         .cmpz   = method_cmpz,
         .reset  = method_reset,
+        /* XXX: python hashes functions, why not us? */
+        .hash   = NULL,
 };

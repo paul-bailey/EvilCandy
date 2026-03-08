@@ -280,5 +280,6 @@ struct type_t FloatType = {
         .cmp    = float_cmp,
         .cmpz   = float_cmpz,
         .create = float_create,
+        .hash   = calc_object_hash_generic,
 };
 

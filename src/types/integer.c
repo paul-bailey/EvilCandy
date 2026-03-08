@@ -384,6 +384,17 @@ bad:
         return ErrorVar;
 }
 
+static hash_t
+int_hash(Object *i)
+{
+        /* XXX: Can the compiler optimize out this check? */
+        if (sizeof(hash_t) >= sizeof(long long)) {
+                return good_hash(V2I(i)->i);
+        } else {
+                return calc_object_hash_generic(i);
+        }
+}
+
 Object *
 intvar_new(long long initval)
 {
@@ -444,5 +455,6 @@ struct type_t IntType = {
         .cmpz   = int_cmpz,
         .cmp    = int_cmp,
         .create = int_create,
+        .hash   = int_hash,
 };
 

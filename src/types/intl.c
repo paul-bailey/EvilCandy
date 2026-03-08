@@ -85,6 +85,7 @@ struct type_t IdType = {
         .cmp    = NULL,
         .cmpz   = NULL,
         .reset  = NULL,
+        .hash   = NULL,
 };
 
 struct type_t UuidptrType = {
@@ -99,4 +100,5 @@ struct type_t UuidptrType = {
         .cmp    = NULL,
         .cmpz   = NULL,
         .reset = uuidptr_reset,
+        .hash   = NULL,
 };

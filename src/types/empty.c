@@ -26,6 +26,12 @@ empty_str(Object *v)
         return stringvar_from_ascii("null");
 }
 
+static hash_t
+empty_hash(Object *v)
+{
+        return calc_ptr_hash(v);
+}
+
 struct type_t EmptyType = {
         .flags  = 0,
         .name   = "empty",
@@ -37,5 +43,7 @@ struct type_t EmptyType = {
         .str    = empty_str,
         .cmp    = empty_cmp,
         .cmpz   = empty_cmpz,
+        /* there should only be one instance of this */
+        .hash   = empty_hash,
 };
 

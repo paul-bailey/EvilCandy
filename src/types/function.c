@@ -407,5 +407,6 @@ struct type_t FunctionType = {
         .cmp    = func_cmp,
         .cmpz   = func_cmpz,
         .reset  = func_reset,
+        .hash   = NULL,
 };
 

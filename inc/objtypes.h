@@ -198,6 +198,9 @@ enum {
  *              va args, and 1: dictionary containing the keyword args.
  *              Each type may have its own rules about how many va args
  *              if any are necessary.
+ * @hash:       Function to hash object, or NULL if type is not hashable.
+ *              Hash function should not throw exceptions; rather return
+ *              HASH_ERROR if object is not hashable.
  */
 struct type_t {
         unsigned int flags;
@@ -216,6 +219,7 @@ struct type_t {
         void (*reset)(Object *);
         const struct type_prop_t *prop_getsets;
         Object *(*create)(Frame *fr);
+        hash_t (*hash)(Object *);
 };
 
 /*

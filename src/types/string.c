@@ -3330,7 +3330,7 @@ string_update_hash(Object *v)
 {
         struct stringvar_t *vs = (struct stringvar_t *)v;
         if (vs->s_hash == (hash_t)0)
-                vs->s_hash = calc_string_hash(v);
+                vs->s_hash = fnv_hash(string_cstring(v), string_nbytes(v));
         return vs->s_hash;
 }
 
@@ -3378,6 +3378,7 @@ struct type_t StringType = {
         .reset  = string_reset,
         .prop_getsets = string_prop_getsets,
         .create = string_create,
+        .hash   = string_update_hash,
 };
 
 

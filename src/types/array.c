@@ -557,6 +557,12 @@ array_cmp(Object *a, Object *b)
         return res;
 }
 
+static bool
+array_cmpz(Object *arr)
+{
+        return seqvar_size(arr) == 0;
+}
+
 /* implement concatenation of a + b */
 static Object *
 array_cat(Object *a, Object *b)
@@ -925,6 +931,7 @@ struct type_t ArrayType = {
         .size = sizeof(struct arrayvar_t),
         .str = array_str,
         .cmp = array_cmp,
+        .cmpz = array_cmpz,
         .reset = array_reset,
         .prop_getsets = array_prop_getsets,
         .create = array_create,

@@ -75,47 +75,43 @@ function_argc_check(struct funcvar_t *fh, int argc)
 }
 
 enum result_t
-function_unpack_args(Frame *fr, struct funcvar_t *fh)
+function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
 {
         size_t i;
-        Object *vargs = arrayvar_new(0);
-
-        for (i = 0; i < fr->ap; i++) {
-                Object *o = fr->stack[i];
-                array_append(vargs, o);
-                VAR_DECR_REF(o);
-        }
-
-        if (fh->f_optind >= 0) {
-                if (fh->f_optind > seqvar_size(vargs)) {
+        if (!args) {
+                fr->ap = 0;
+        } else if (fh->f_optind >= 0) {
+                if (fh->f_optind > seqvar_size(args)) {
                         err_setstr(ArgumentError,
                                 "expected %ld args but got %ld",
-                                (long)fh->f_optind, (long)seqvar_size(vargs));
+                                (long)fh->f_optind, (long)seqvar_size(args));
                         fr->ap = 0;
-                        VAR_DECR_REF(vargs);
                         return RES_ERROR;;
                 }
 
+                /*
+                 * XXX: extern hook to array_delete_chunk at the end of
+                 * the loop is faster than array_setitem(...NULL) inside
+                 * the loop.
+                 */
                 for (i = 0; i < fh->f_optind; i++) {
-                        fr->stack[i] = array_getitem(vargs, 0);
-                        array_setitem(vargs, 0, NULL);
+                        fr->stack[i] = array_getitem(args, 0);
+                        array_setitem(args, 0, NULL);
                 }
 
-                fr->stack[fh->f_optind] = vargs;
+                fr->stack[fh->f_optind] = VAR_NEW_REF(args);
                 fr->ap = fh->f_optind + 1;
         } else {
-                fr->ap = seqvar_size(vargs);
+                fr->ap = seqvar_size(args);
                 if (!vm_pointers_in_stack(fr->stack, fr->stack + fr->ap)) {
                         err_setstr(ArgumentError,
                                 "Cannot uppack args: stack would overflow");
-                        VAR_DECR_REF(vargs);
                         return RES_ERROR;
                 }
                 for (i = 0; i < fr->ap; i++) {
-                        fr->stack[i] = array_getitem(vargs, i);
+                        fr->stack[i] = array_getitem(args, i);
                         bug_on(!fr->stack[i]);
                 }
-                VAR_DECR_REF(vargs);
         }
         return RES_OK;
 }
@@ -125,13 +121,15 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh)
  * @fr: Frame used for this function.  Its stack base and AP have already
  *      been set up, except that the var-args are still spread out on the
  *      stack.
+ * @args: Non-keyword args, an array.  This will likely be mutated during
+ *      the function call.
  * @kwargs: If non-NULL, a dictionary of caller's keyword arguments
  *
  * Return: The function result, or ErrorVar if there was an error here or
  *      in the function called.
  */
 Object *
-function_call(Frame *fr, Object *kwargs)
+function_call(Frame *fr, Object *args, Object *kwargs)
 {
         struct funcvar_t *fh;
 
@@ -144,6 +142,13 @@ function_call(Frame *fr, Object *kwargs)
         bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
 
         if (kwargs){
+                /*
+                 * This looks asymmetric, but the idea is if we created
+                 * kwargs in function_call(), then we destroy it; if not,
+                 * then calling code decides whether or not to destroy it.
+                 * This produce here makes the consume below balanced.
+                 */
+                VAR_INCR_REF(kwargs);
                 if (fh->f_kwind < 0) {
                         err_setstr(ArgumentError,
                                    "Keyword arguments not supported for this function");
@@ -161,10 +166,10 @@ function_call(Frame *fr, Object *kwargs)
         }
         /* else, leave kwargs NULL */
 
-        if (function_unpack_args(fr, fh) == RES_ERROR)
+        if (function_unpack_args(fr, fh, args) == RES_ERROR)
                 goto err_consume_kwargs;
 
-        /* Put dict back onto the stack at the correct spot */
+        /* Put dict onto the stack at the correct spot */
         if (kwargs)
                 fr->stack[fr->ap++] = kwargs;
 

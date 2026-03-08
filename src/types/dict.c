@@ -933,12 +933,15 @@ dict_reset(Object *o)
                 struct class_t *cls = dict->d_class;
 
                 if (cls->c_ureset) {
-                        Object *func, *res;
+                        Object *func, *args, *res;
 
                         func = cls->c_ureset;
                         cls->c_ureset = NULL;
 
-                        res = vm_exec_func(NULL, func, 1, &o, NULL);
+                        args = arrayvar_from_stack(&o, 1, false);
+                        res = vm_exec_func(NULL, func, args, NULL);
+                        VAR_DECR_REF(args);
+
                         /* FIXME: Error return value is unhandled here! */
                         if (res != ErrorVar)
                                 VAR_DECR_REF(res);
@@ -988,7 +991,9 @@ dict_str(Object *o)
 
         if ((cls = d->d_class) != NULL && cls->c_str != NULL) {
                 bool err = err_occurred();
-                ret = vm_exec_func(NULL, cls->c_str, 1, &o, NULL);
+                Object *args = arrayvar_from_stack(&o, 1, false);
+                ret = vm_exec_func(NULL, cls->c_str, args, NULL);
+                VAR_DECR_REF(args);
 
                 /* Fast path return user-define representation */
                 if (isvar_string(ret) && seqvar_size(ret) > 0)

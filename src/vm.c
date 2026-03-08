@@ -118,11 +118,9 @@ err:
  */
 
 static Frame *
-vmframe_alloc(Object *fn, Object *owner,
-              Frame *fr_old, Object **argv, int argc)
+vmframe_alloc(Object *fn, Object *owner, Frame *fr_old)
 {
         Frame *ret;
-        int i;
         struct list_t *li = vm.free_frames.next;
         if (li == &vm.free_frames) {
                 ret = ecalloc(sizeof(*ret));
@@ -145,17 +143,10 @@ vmframe_alloc(Object *fn, Object *owner,
         }
         ret->owner = owner;
         ret->func  = fn;
-        ret->ap = argc;
+        ret->ap = 0;
         ret->stackptr = ret->stack + ret->ap;
         VAR_INCR_REF(owner);
         VAR_INCR_REF(fn);
-
-        bug_on(argc > 0 && !argv);
-        for (i = 0; i < argc; i++) {
-                /* vmframe_free below decrements these back */
-                VAR_INCR_REF(argv[i]);
-                ret->stack[i] = argv[i];
-        }
         return ret;
 }
 
@@ -544,11 +535,11 @@ do_call_func(Frame *fr, instruction_t ii)
         }
 
         bug_on(!isvar_array(args));
-        retval = vm_exec_func(fr, func, seqvar_size(args),
-                              array_get_data(args), kwargs);
+        retval = vm_exec_func(fr, func, args, kwargs);
         VAR_DECR_REF(args);
         VAR_DECR_REF(func);
-        /* XXX kwargs consumed by vm_exec_func, is that wise? */
+        if (kwargs)
+                VAR_DECR_REF(kwargs);
 
         if (retval == ErrorVar)
                 return RES_ERROR;
@@ -1166,7 +1157,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
 
         bug_on(!isvar_xptr(top_level));
         func = funcvar_new_user(top_level);
-        ret = vm_exec_func(fr_old, func, 0, NULL, NULL);
+        ret = vm_exec_func(fr_old, func, NULL, NULL);
         VAR_DECR_REF(func);
         return ret;
 }
@@ -1188,8 +1179,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
  *       @kwargs's reference will be consumed, if it exists.
  */
 Object *
-vm_exec_func(Frame *fr_old, Object *func,
-             int argc, Object **argv, Object *kwargs)
+vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
 {
         Frame *fr, *tfr;
         Object *res, *owner;
@@ -1217,9 +1207,9 @@ vm_exec_func(Frame *fr_old, Object *func,
          * vmframe_free(), because the process of freeing stack variables
          * might trigger a user-defined destructor.
          */
-        fr = vmframe_alloc(func, owner, fr_old, argv, argc);
+        fr = vmframe_alloc(func, owner, fr_old);
         tfr = vm_swap_frame(fr);
-        res = function_call(fr, kwargs);
+        res = function_call(fr, args, kwargs);
         vmframe_free(fr);
         vm_swap_frame(tfr);
 

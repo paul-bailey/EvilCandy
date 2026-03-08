@@ -1129,7 +1129,7 @@ Object *
 var_foreach_generic(Frame *fr)
 {
         Object *self, *func, *priv, *dict;
-        int i, status, argc;
+        int i, status;
         Object *(*get)(Object *, int);
 
         self = vm_get_this(fr);
@@ -1161,9 +1161,8 @@ var_foreach_generic(Frame *fr)
         if (!seqvar_size(self))
                 goto out;
 
-        argc = priv ? 3 : 2;
         for (i = 0; i < seqvar_size(self); i++) {
-                Object *ret, *key, *value, *argv[3];
+                Object *ret, *key, *value, *args;
                 value = get(self, i);
                 bug_on(!value);
                 if (dict) {
@@ -1177,14 +1176,16 @@ var_foreach_generic(Frame *fr)
                         key = intvar_new(i);
                 }
 
-                argv[0] = value;
-                argv[1] = key;
+                args = arrayvar_new(2);
+                array_setitem(args, 0, value);
+                array_setitem(args, 1, key);
                 if (priv)
-                        argv[2] = priv;
+                        array_append(args, priv);
 
-                ret = vm_exec_func(fr, func, argc, argv, NULL);
-                VAR_DECR_REF(argv[0]);
-                VAR_DECR_REF(argv[1]);
+                ret = vm_exec_func(fr, func, args, NULL);
+                VAR_DECR_REF(args);
+                VAR_DECR_REF(value);
+                VAR_DECR_REF(key);
 
                 if (ret) {
                         if (ret == ErrorVar) {

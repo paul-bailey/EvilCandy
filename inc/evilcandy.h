@@ -194,6 +194,8 @@ extern enum result_t array_append(Object *array, Object *child);
 extern enum result_t array_extend(Object *array, Object *seq);
 extern void array_reverse(Object *array);
 extern Object *array_borrowitem(Object *array, int idx);
+extern enum result_t array_delete_chunk(Object *array,
+                                        int at, size_t n_items);
 
 /* types/bytes.c */
 extern Object *bytesvar_new(const unsigned char *buf, size_t len);

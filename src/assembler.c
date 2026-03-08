@@ -1674,22 +1674,6 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         as_errlex(a, OC_IDENTIFIER);
         needsize = gather_names(a, &names);
-        /*
-         * FIXME: Philosophical conundrum:
-         *
-         *      In interactive mode, stack variables at the top level
-         *      (not in a loop or function) are popped immediately before
-         *      the next line.  Should we silently make them global
-         *      anyway? Or should we require user to just know to use
-         *      global variables in interactive mode?
-         *
-         *      The former case has subtle implications in case user
-         *      imports a script from the command line.  Same for the
-         *      latter, but at least the user could "see" what's really
-         *      happening.  So I've chosen the latter case. To change
-         *      this to the former case, use
-         *              (tok == OC_GBL) || !!(flags & FE_TOP)
-         */
         global = tok == OC_GBL;
 
         list_foreach(p, &names) {

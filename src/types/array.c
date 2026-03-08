@@ -169,7 +169,22 @@ array_insert_chunk(Object *array, int at,
         return RES_OK;
 }
 
-static enum result_t
+/**
+ * array_delete_chunk - Delete a section of an array and collapse it down
+ * @array: Array to delete from
+ * @at: Start position in array
+ * @n_items: Number of items to remove
+ *
+ * Return: RES_OK or RES_ERROR
+ *
+ * The statement
+ *        array_delete_chunk(array, at, n_items);
+ *
+ * is functionally equivalent to, but faster than
+ *        while (n_items--)
+ *                array_setitem(array, at, NULL);
+ */
+enum result_t
 array_delete_chunk(Object *array, int at, size_t n_items)
 {
         struct arrayvar_t *h = V2ARR(array);

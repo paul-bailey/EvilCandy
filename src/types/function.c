@@ -74,13 +74,16 @@ function_argc_check(struct funcvar_t *fh, int argc)
         return RES_OK;
 }
 
-enum result_t
+/* Put function call's arguments out of @args and onto @fr's stack */
+static enum result_t
 function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
 {
         size_t i;
         if (!args) {
                 fr->ap = 0;
         } else if (fh->f_optind >= 0) {
+                Object **data;
+
                 if (fh->f_optind > seqvar_size(args)) {
                         err_setstr(ArgumentError,
                                 "expected %ld args but got %ld",
@@ -89,21 +92,11 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
                         return RES_ERROR;;
                 }
 
-                /*
-                 * XXX: extern hook to array_delete_chunk at the end of
-                 * the loop is faster than array_setitem(...NULL) inside
-                 * the loop.  Replace this with:
-                 *
-                 *      data = array_get_data(args);
-                 *      memcpy(fr->stack, data, fh->f_optind * sizeof(Object *));
-                 *      for (i = 0; i < fh->f_optind; i++)
-                 *              VAR_INCR_REF(fr->stack[i]);
-                 *      array_delete_chunk(args, 0, fh->f_optind);
-                 */
-                for (i = 0; i < fh->f_optind; i++) {
-                        fr->stack[i] = array_getitem(args, 0);
-                        array_setitem(args, 0, NULL);
-                }
+                data = array_get_data(args);
+                memcpy(fr->stack, data, fh->f_optind * sizeof(Object *));
+                for (i = 0; i < fh->f_optind; i++)
+                        VAR_INCR_REF(fr->stack[i]);
+                array_delete_chunk(args, 0, fh->f_optind);
 
                 fr->stack[fh->f_optind] = VAR_NEW_REF(args);
                 fr->ap = fh->f_optind + 1;

@@ -64,6 +64,7 @@ noinst_HEADERS = \
         inc/evcenums.h \
         inc/evilcandy.h \
         inc/global.h \
+        inc/hash.h \
         inc/instructions.h \
         inc/objtypes.h \
         inc/recursion.h \

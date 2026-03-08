@@ -8,13 +8,8 @@
  *    - Add a uses-'this'-keyword flag to xptr_cfg_t struct, so that
  *      dict_[gs]etattr() can choose not to keep allocate and destroy
  *      MethodType objects for functions which do not need them.
- *
- * XXX REVISIT: We have scenarios where DEFDICT, DEFTUPLE, and DEFLIST
- * may take all LOAD_CONST's for their definitions, in which we could
- * replace these instructions with DEFDICT_CONST, etc., start allowing
- * tuples in .rodata, and adding these to the checks along with LOAD_CONST.
- * Requires reassemble to have a better parse-from-text method than I
- * currently have, otherwise need to just make a binary cache file.
+ *    - The same principle with simplify_tuples() below can be used
+ *      for DEFDICT.
  *
  * XXX REVISIT: There's a lot of PUSH_BLOCK instructions that can be
  * reduced in this file as well.  In particular, check for a lack of

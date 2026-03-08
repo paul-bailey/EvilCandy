@@ -100,6 +100,8 @@ DEFLIST
 # Create a new dictionary, arg2 has #of key/value pairs on the
 # stack waiting to be added to it.
 DEFDICT
+# top of stack is tuple of keys, below is arg2 # of values
+DEFDICT_K
 
 # like DEFLIST... but in tuple form!
 DEFTUPLE

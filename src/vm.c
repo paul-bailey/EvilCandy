@@ -681,6 +681,42 @@ fail:
 }
 
 static int
+do_defdict_k(Frame *fr, instruction_t ii)
+{
+        Object *keytup, **keys, **vals, *d;
+        int i, n = ii.arg2;
+        enum result_t res = RES_OK;
+
+        keytup = pop(fr);
+        bug_on(!isvar_tuple(keytup) || seqvar_size(keytup) != n);
+
+        keys = tuple_get_data(keytup);
+        vals = fr->stackptr - n;
+
+        d = dictvar_new();
+        for (i = 0; i < n; i++) {
+                Object *k = keys[i];
+                Object *v = vals[i];
+                if (dict_setitem(d, k, v) != RES_OK) {
+                        bug_on(!err_occurred());
+                        while (i < n) {
+                                VAR_DECR_REF(vals[i]);
+                                i++;
+                        }
+                        res = RES_ERROR;
+                        break;
+                }
+                VAR_DECR_REF(v);
+        }
+
+        VAR_DECR_REF(keytup);
+        fr->stackptr -= n;
+        if (res == RES_OK)
+                push(fr, d);
+        return res;
+}
+
+static int
 do_setattr(Frame *fr, instruction_t ii)
 {
         Object *val, *key, *obj;

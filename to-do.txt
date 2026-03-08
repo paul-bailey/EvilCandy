@@ -40,6 +40,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Support starred unpacking, eg. "a, *b, c = seqvar;"
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.
   - Add self-documentation

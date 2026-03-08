@@ -92,7 +92,13 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
                 /*
                  * XXX: extern hook to array_delete_chunk at the end of
                  * the loop is faster than array_setitem(...NULL) inside
-                 * the loop.
+                 * the loop.  Replace this with:
+                 *
+                 *      data = array_get_data(args);
+                 *      memcpy(fr->stack, data, fh->f_optind * sizeof(Object *));
+                 *      for (i = 0; i < fh->f_optind; i++)
+                 *              VAR_INCR_REF(fr->stack[i]);
+                 *      array_delete_chunk(args, 0, fh->f_optind);
                  */
                 for (i = 0; i < fh->f_optind; i++) {
                         fr->stack[i] = array_getitem(args, 0);
@@ -119,8 +125,7 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
 /**
  * function_call - prep VM frame and call function
  * @fr: Frame used for this function.  Its stack base and AP have already
- *      been set up, except that the var-args are still spread out on the
- *      stack.
+ *      been set up, but the args have not yet been added.
  * @args: Non-keyword args, an array.  This will likely be mutated during
  *      the function call.
  * @kwargs: If non-NULL, a dictionary of caller's keyword arguments

@@ -949,6 +949,12 @@ assemble_call_func(struct assemble_t *a)
                 }
                 as_unlex(a);
                 assemble_expr(a);
+                /*
+                 * FIXME: This is naive.  Consider something where a
+                 * generator would be preferred:
+                 *         print(*range(0, 20*BAJILLION));
+                 * Do we really want to try to allocate a list that big?
+                 */
                 if (have_star) {
                         int instr;
                         if (star_here)
@@ -965,16 +971,18 @@ assemble_call_func(struct assemble_t *a)
                 add_instr(a, INSTR_DEFLIST, 0, n_items);
 
         if (kwind >= 0) {
+                Object *tmp, *kw = arrayvar_new(0);
                 int count = 0;
                 do {
                         as_lex(a);
                         if (a->oc->t == OC_RPAR)
                                 break;
                         if (a->oc->t != OC_IDENTIFIER) {
-                                err_setstr(SyntaxError, "Malformed keyword argument");
+                                err_setstr(SyntaxError,
+                                           "Malformed keyword argument");
                                 as_err(a, AE_GEN);
                         }
-                        ainstr_load_const(a, a->oc);
+                        array_append(kw, a->oc->v);
                         as_lex(a);
                         if (a->oc->t != OC_EQ) {
                                 err_setstr(SyntaxError,
@@ -985,7 +993,15 @@ assemble_call_func(struct assemble_t *a)
                         count++;
                         as_lex(a);
                 } while (a->oc->t == OC_COMMA);
-                add_instr(a, INSTR_DEFDICT, 0, count);
+
+                /* transform kw from a list into a blossoming tuple */
+                tmp = kw;
+                kw = tuplevar_from_stack(array_get_data(tmp),
+                                         seqvar_size(tmp), false);
+                VAR_DECR_REF(tmp);
+
+                ainstr_load_const_obj(a, kw);
+                add_instr(a, INSTR_DEFDICT_K, 0, count);
         } else {
                 add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
         }

@@ -913,44 +913,56 @@ ainstr_assign_symbol(struct assemble_t *a, struct token_t *name,
 static void
 assemble_call_func(struct assemble_t *a)
 {
-        int argc = 0;
+        int n_items = 0;
         int kwind = -1;
+        bool have_star = false;
+
         as_errlex(a, OC_LPAR);
 
         do {
-                as_lex(a);
-                if (a->oc->t == OC_RPAR)
-                        break;
-                if (a->oc->t == OC_MUL) {
-                        /*
-                         * Atomic, not full eval.
-                         * Certain starred args are too ambiguous.
-                         * Require caller to express them as:
-                         *
-                         *      *(x.y)            not   *x.y
-                         *      *([...].sort())   not   *[...].sort()
-                         */
+                bool star_here = false;
+                if (as_peek(a, false) == OC_RPAR) {
                         as_lex(a);
-                        assemble_expr5_atomic(a);
-                        add_instr(a, INSTR_DEFSTAR, 0, 0);
-                        argc++;
-                } else {
-                        if (a->oc->t == OC_IDENTIFIER) {
-                                as_lex(a);
-                                if (a->oc->t == OC_EQ) {
-                                        kwind = argc;
-                                        as_unlex(a);
-                                        as_unlex(a);
-                                        break;
+                        break;
+                }
+                if (as_peek(a, false) == OC_MUL) {
+                        as_lex(a);
+                        add_instr(a, INSTR_DEFLIST, 0, n_items);
+                        have_star = true;
+                        star_here = true;
+                }
+                as_lex(a);
+                if (a->oc->t == OC_IDENTIFIER) {
+                        as_lex(a);
+                        if (a->oc->t == OC_EQ) {
+                                if (star_here) {
+                                        err_setstr(SyntaxError,
+                                            "cannot use starred expression here");
+                                        as_err(a, AE_EXPECT);
                                 }
+                                kwind = n_items;
                                 as_unlex(a);
+                                as_unlex(a);
+                                break;
                         }
                         as_unlex(a);
-                        assemble_expr(a);
-                        argc++;
-                        as_lex(a);
                 }
+                as_unlex(a);
+                assemble_expr(a);
+                if (have_star) {
+                        int instr;
+                        if (star_here)
+                                instr = INSTR_LIST_EXTEND;
+                        else
+                                instr = INSTR_LIST_APPEND;
+                        add_instr(a, instr, 0, 0);
+                }
+                as_lex(a);
+                n_items++;
         } while (a->oc->t == OC_COMMA);
+
+        if (!have_star)
+                add_instr(a, INSTR_DEFLIST, 0, n_items);
 
         if (kwind >= 0) {
                 int count = 0;
@@ -974,14 +986,12 @@ assemble_call_func(struct assemble_t *a)
                         as_lex(a);
                 } while (a->oc->t == OC_COMMA);
                 add_instr(a, INSTR_DEFDICT, 0, count);
-                argc++;
+        } else {
+                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
         }
 
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
-
-        /* stack from top is: [kw], argn...arg1, arg0, func */
-        add_instr(a, INSTR_CALL_FUNC,
-                  kwind >= 0 ? IARG_HAVE_DICT : IARG_NO_DICT, argc);
+        add_instr(a, INSTR_CALL_FUNC, 0, 0);
 }
 
 static void

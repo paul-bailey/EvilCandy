@@ -28,11 +28,6 @@ static const char *PTR_NAMES[] = {
         IARGP(THIS)
 };
 
-static const char *FUNCARG_NAMES[] = {
-        IARG(HAVE_DICT),
-        IARG(NO_DICT),
-};
-
 static const char *POP_NAMES[] = {
         IARG(POP_PRINT),
         IARG(POP_NORMAL),
@@ -169,8 +164,6 @@ add_defines(FILE *fp, unsigned int flags)
 
         ADD_DEFINES(fp, ATTR_NAMES, verbose,
                 "enuerations for GETATTR/SETATTR arg1");
-        ADD_DEFINES(fp, FUNCARG_NAMES, verbose,
-                "enumerations for CALL_FUNC arg1");
         ADD_DEFINES(fp, FUNC_ATTRARG_NAMES, verbose,
                 "enumerations for FUNC_SETATTR arg1");
         ADD_DEFINES(fp, CMP_NAMES, verbose,
@@ -221,9 +214,6 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i,
                 break;
         case INSTR_FUNC_SETATTR:
                 argname = SAFE_NAME(FUNC_ATTRARG, ii->arg1);
-                break;
-        case INSTR_CALL_FUNC:
-                argname = SAFE_NAME(FUNCARG, ii->arg1);
                 break;
         case INSTR_CMP:
                 argname = SAFE_NAME(CMP, ii->arg1);

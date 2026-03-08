@@ -43,12 +43,6 @@ enum {
         IARG_FUNC_KWIND,
 };
 
-/* CALL arg1 (needed because func could be variadic) */
-enum {
-        IARG_NO_DICT,
-        IARG_HAVE_DICT,
-};
-
 enum {
         IARG_POP_NORMAL,
         IARG_POP_PRINT, /* print me if in interactive */

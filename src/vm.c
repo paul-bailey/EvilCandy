@@ -532,46 +532,26 @@ do_return_value(Frame *fr, instruction_t ii)
 static int
 do_call_func(Frame *fr, instruction_t ii)
 {
-        Object *func, *retval, *kwargs, **argv;
-        int argc;
+        Object *kwargs, *args, *func, *retval;
 
-        argc = ii.arg2;
+        kwargs = pop(fr);
+        args = pop(fr);
+        func = pop(fr);
 
-        /*
-         * Low-level hack alert!!
-         * It would be cleaner to allocate an array and fill
-         * it by pop()-ing off the stack, but that's overkill
-         */
-        argv = fr->stackptr - argc;
-        func = *(fr->stackptr - argc - 1);
-        if (ii.arg1 == IARG_HAVE_DICT) {
-                argc--;
-                kwargs = pop(fr);
-        } else {
+        if (kwargs == NullVar) {
+                VAR_DECR_REF(kwargs);
                 kwargs = NULL;
         }
 
-        /* see comments to vm_exec_func: this may be NULL */
-        retval = vm_exec_func(fr, func, argc, argv, kwargs);
-        if (!retval)
-                retval = VAR_NEW_REF(NullVar);
-
-        /*
-         * Unwind stack in calling frame.
-         * vm_exec_func doesn't consume args,
-         * so we have to do that instead.
-         */
-        while (argc-- != 0) {
-                Object *arg = pop(fr);
-                VAR_DECR_REF(arg);
-        }
-
-        pop(fr); /* func */
+        bug_on(!isvar_array(args));
+        retval = vm_exec_func(fr, func, seqvar_size(args),
+                              array_get_data(args), kwargs);
+        VAR_DECR_REF(args);
         VAR_DECR_REF(func);
+        /* XXX kwargs consumed by vm_exec_func, is that wise? */
 
         if (retval == ErrorVar)
                 return RES_ERROR;
-
         push(fr, retval);
         return RES_OK;
 }
@@ -672,25 +652,6 @@ do_cast_tuple(Frame *fr, instruction_t ii)
         push(fr, tup);
 
         VAR_DECR_REF(list);
-        return RES_OK;
-}
-
-static int
-do_defstar(Frame *fr, instruction_t ii)
-{
-        Object *arr, *star;
-
-        arr = pop(fr);
-        if (!isvar_array(arr)) {
-                err_setstr(NotImplementedError,
-                        "Currently lists are the only valid starred arguments");
-                return RES_ERROR;
-        }
-
-        star = starvar_new(arr);
-        VAR_DECR_REF(arr);
-
-        push(fr, star);
         return RES_OK;
 }
 

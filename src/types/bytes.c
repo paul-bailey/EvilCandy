@@ -1531,10 +1531,13 @@ bytes_getprop_length(Object *self)
 }
 
 static hash_t
-calc_bytes_hash(Object *b)
+bytes_hash(Object *b)
 {
+        struct bytesvar_t *bv = V2B(b);
         bug_on(!isvar_bytes(b));
-        return fnv_hash(bytes_get_data(b), seqvar_size(b));
+        if (!bv->hash)
+                bv->hash = fnv_hash(bytes_get_data(b), seqvar_size(b));
+        return bv->hash;
 }
 
 static const struct type_prop_t bytes_prop_getsets[] = {
@@ -1607,6 +1610,6 @@ struct type_t BytesType = {
         .reset  = bytes_reset,
         .prop_getsets = bytes_prop_getsets,
         .create = bytes_create,
-        .hash   = calc_bytes_hash,
+        .hash   = bytes_hash,
 };
 

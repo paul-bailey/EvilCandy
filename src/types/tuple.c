@@ -471,7 +471,7 @@ tuple_create(Frame *fr)
 }
 
 static hash_t
-tuple_hash(Object *tup)
+tuple_calc_hash(Object *tup)
 {
         Object **data = tuple_get_data(tup);
         size_t i, n = seqvar_size(tup);
@@ -484,6 +484,15 @@ tuple_hash(Object *tup)
                 hash += v->v_type->hash(v);
         }
         return fnv_hash(&hash, sizeof(hash));
+}
+
+static hash_t
+tuple_hash(Object *tup)
+{
+        struct tuplevar_t *tv = V2TUP(tup);
+        if (!tv->hash)
+                tv->hash = tuple_calc_hash(tup);
+        return tv->hash;
 }
 
 static const struct type_inittbl_t tuple_cb_methods[] = {

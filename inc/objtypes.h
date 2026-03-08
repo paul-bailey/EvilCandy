@@ -320,11 +320,13 @@ struct arrayvar_t {
 
 struct tuplevar_t {
         struct seqvar_t base;
+        hash_t hash;
         Object **items;
 };
 
 struct bytesvar_t {
         struct seqvar_t base;
+        hash_t hash;
         unsigned char *b_buf;
 };
 

@@ -3325,7 +3325,7 @@ bad_format:
  * and which is never used in a way that requires the hash.  So we
  * let the calling code decide whether to update the hash or not.
  */
-hash_t
+static hash_t
 string_update_hash(Object *v)
 {
         struct stringvar_t *vs = (struct stringvar_t *)v;

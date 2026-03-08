@@ -143,27 +143,10 @@ array_insert_chunk(Object *array, int at,
 {
         struct arrayvar_t *h = V2ARR(array);
         size_t i, j, size = seqvar_size(array);
-        size_t nchildren = n_items;
 
         if (h->lock) {
                 err_locked();
                 return RES_ERROR;
-        }
-
-        /* check for starred args */
-        for (i = 0; i < nchildren; i++) {
-                if (isvar_star(children[i]))
-                        n_items += star_size(children[i]) - 1;
-        }
-
-        /*
-         * If every child was a star with no items, then n_items could
-         * be zero--a likely scenario when making a list of function
-         * arguments--so bail early and skip all this resizing.
-         */
-        if (!n_items) {
-                seqvar_set_size(array, size);
-                return RES_OK;
         }
 
         array_resize(array, size + n_items);
@@ -176,21 +159,10 @@ array_insert_chunk(Object *array, int at,
         }
 
         j = at;
-        for (i = 0; i < nchildren; i++) {
+        for (i = 0; i < n_items; i++) {
                 bug_on(j >= size + n_items);
-                if (isvar_star(children[i])) {
-                        size_t k;
-                        Object *arr = star_unpack(children[i]);
-                        bug_on(!isvar_array(arr));
-                        for (k = 0; k < seqvar_size(arr); k++) {
-                                Object *child2 = array_getitem(arr, k);
-                                h->items[j++] = child2;
-                        }
-                        VAR_DECR_REF(arr);
-                } else {
-                        VAR_INCR_REF(children[i]);
-                        h->items[j++] = children[i];
-                }
+                VAR_INCR_REF(children[i]);
+                h->items[j++] = children[i];
         }
 
         seqvar_set_size(array, size + n_items);

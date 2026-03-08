@@ -276,10 +276,6 @@ extern Object *property_get(Object *prop, Object *owner);
 extern enum result_t property_set(Object *prop,
                                   Object *owner, Object *value);
 
-/* types/star.c */
-extern Object *starvar_new(Object *x);
-extern Object *star_unpack(Object *star);
-
 /* types/string.c */
 extern Object *stringvar_new(const char *cstr);
 extern Object *stringvar_newn(const char *cstr, size_t n);

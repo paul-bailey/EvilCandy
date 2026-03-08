@@ -280,8 +280,6 @@ static inline bool isvar_uuidptr(Object *v)
 extern bool isvar_file(Object *v); /*< builtin/io.c */
 static inline bool isvar_property(Object *v)
         { return v->v_type == &PropertyType; }
-static inline bool isvar_star(Object *v)
-        { return v->v_type == &StarType; }
 
 static inline bool isvar_number(Object *v)
         { return !!(v->v_type->flags & OBF_NUMBER); }
@@ -387,9 +385,6 @@ buffer_put_strobj(struct buffer_t *buf, Object *v)
         bug_on(!isvar_string(v));
         buffer_nputs_all(buf, string_cstring(v), string_nbytes(v));
 }
-
-/* TODO: inline struct starvar_t and this function here */
-extern size_t star_size(Object *v);
 
 #endif /* EVILCANDY_OBJTYPES_H */
 

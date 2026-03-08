@@ -227,7 +227,6 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &RangeType,
         &UuidptrType,
         &IdType,
-        &StarType,
         NULL,
 };
 

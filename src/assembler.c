@@ -626,6 +626,7 @@ static void
 assemble_arraydef(struct assemble_t *a)
 {
         int n_items = 0;
+        bool have_star = false;
 
         as_lex(a);
         if (a->oc->t == OC_RBRACK) /* empty array */
@@ -637,18 +638,34 @@ assemble_arraydef(struct assemble_t *a)
                  * sloppy ",]", but allow it anyway,
                  * since everyone else does.
                  */
+                bool star_here = false;
                 if (as_peek(a, false) == OC_RBRACK) {
                         as_lex(a);
                         break;
                 }
+                if (as_peek(a, false) == OC_MUL) {
+                        as_lex(a);
+                        add_instr(a, INSTR_DEFLIST, 0, n_items);
+                        have_star = true;
+                        star_here = true;
+                }
                 assemble_expr(a);
+                if (have_star) {
+                        int instr;
+                        if (star_here)
+                                instr = INSTR_LIST_EXTEND;
+                        else
+                                instr = INSTR_LIST_APPEND;
+                        add_instr(a, instr, 0, 0);
+                }
                 as_lex(a);
                 n_items++;
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACK, AE_BRACK);
 
 done:
-        add_instr(a, INSTR_DEFLIST, 0, n_items);
+        if (!have_star)
+                add_instr(a, INSTR_DEFLIST, 0, n_items);
 }
 
 static void
@@ -656,6 +673,7 @@ assemble_tupledef(struct assemble_t *a)
 {
         int n_items = 0;
         bool has_comma;
+        bool have_star = false;
         as_lex(a);
         if (a->oc->t == OC_RPAR) {
                 /* empty tuple */
@@ -669,22 +687,47 @@ assemble_tupledef(struct assemble_t *a)
                  * ie. ",)", actually necessary in this case, since
                  * there's no other way to express a tuple of length 1.
                  */
+                bool star_here = false;
                 if (as_peek(a, false) == OC_RPAR) {
                         as_lex(a);
                         has_comma = true;
                         break;
                 }
+                if (as_peek(a, false) == OC_MUL) {
+                        as_lex(a);
+                        add_instr(a, INSTR_DEFLIST, 0, n_items);
+                        have_star = true;
+                        star_here = true;
+                }
                 assemble_expr(a);
+                if (have_star) {
+                        int instr;
+                        if (star_here)
+                                instr = INSTR_LIST_EXTEND;
+                        else
+                                instr = INSTR_LIST_APPEND;
+                        add_instr(a, instr, 0, 0);
+                }
                 as_lex(a);
                 n_items++;
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
 
         /* "(x,)" is a tuple.  "(x)" is whatever x is */
-        if (!has_comma && n_items == 1)
+        if (!has_comma && n_items == 1) {
+                if (have_star) {
+                        err_setstr(SyntaxError,
+                                "cannot use starred expression here");
+                        as_err(a, AE_EXPECT);
+                }
                 return;
+        }
 done:
-        add_instr(a, INSTR_DEFTUPLE, 0, n_items);
+        if (have_star) {
+                add_instr(a, INSTR_CAST_TUPLE, 0, 0);
+        } else {
+                add_instr(a, INSTR_DEFTUPLE, 0, n_items);
+        }
 }
 
 static void

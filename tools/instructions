@@ -87,6 +87,11 @@ ADD_CLOSURE
 # stack.
 FUNC_SETATTR
 
+# These occur if a literal contains a starred item
+LIST_APPEND
+LIST_EXTEND
+CAST_TUPLE
+
 # Pop arg2 # of args off the stack and make a list out of them
 # (the top stack item is the (arg2-1)-th item in the list),
 # then push the list back onto the stack.

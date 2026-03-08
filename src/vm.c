@@ -630,6 +630,52 @@ do_deflist(Frame *fr, instruction_t ii)
 }
 
 static int
+do_list_extend(Frame *fr, instruction_t ii)
+{
+        enum result_t ret;
+        Object *item = pop(fr);
+        Object *list = pop(fr);
+        ret = array_extend(list, item);
+        if (ret == RES_OK)
+                push(fr, list);
+        else
+                VAR_DECR_REF(list);
+        VAR_DECR_REF(item);
+        return ret;
+}
+
+static int
+do_list_append(Frame *fr, instruction_t ii)
+{
+        enum result_t ret;
+        Object *item = pop(fr);
+        Object *list = pop(fr);
+        ret = array_append(list, item);
+        if (ret == RES_OK)
+                push(fr, list);
+        else
+                VAR_DECR_REF(list);
+        VAR_DECR_REF(item);
+        return ret;
+}
+
+static int
+do_cast_tuple(Frame *fr, instruction_t ii)
+{
+        Object *list, *tup;
+
+        list = pop(fr);
+        bug_on(!isvar_array(list));
+
+        tup = tuplevar_from_stack(array_get_data(list),
+                                  seqvar_size(list), false);
+        push(fr, tup);
+
+        VAR_DECR_REF(list);
+        return RES_OK;
+}
+
+static int
 do_defstar(Frame *fr, instruction_t ii)
 {
         Object *arr, *star;

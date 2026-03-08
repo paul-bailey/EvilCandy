@@ -100,6 +100,43 @@ array_reverse(Object *array)
         }
 }
 
+static enum result_t array_insert_chunk(Object *array, int at,
+                                      Object **children, size_t n_items);
+
+enum result_t
+array_extend(Object *array, Object *seq)
+{
+        enum result_t ret;
+        if (isvar_dict(seq)) {
+                seq = dict_keys(seq, true);
+        } else if (!isvar_seq_readable(seq)) {
+                err_setstr(TypeError,
+                           "list cannot extend non-sequential object");
+                return RES_ERROR;
+        } else {
+                /* stay symmetric with dict_keys() above */
+                VAR_INCR_REF(seq);
+        }
+
+        if (isvar_array(seq) || isvar_tuple(seq)) {
+                /* good, we can try to be fast */
+                ret = array_insert_chunk(array, seqvar_size(array),
+                                array_get_data(seq), seqvar_size(seq));
+        } else {
+                /* Likely an iterable, we have to get these one by one */
+                size_t i, n = seqvar_size(seq);
+                for (i = 0; i < n; i++) {
+                        Object *o = seqvar_getitem(seq, i);
+                        array_append(array, o);
+                        VAR_DECR_REF(o);
+                }
+                ret = RES_OK;
+        }
+
+        VAR_DECR_REF(seq);
+        return ret;
+}
+
 static enum result_t
 array_insert_chunk(Object *array, int at,
                    Object **children, size_t n_items)
@@ -667,7 +704,7 @@ do_array_clear(Frame *fr)
 static Object *
 do_array_extend(Frame *fr)
 {
-        Object *arg, *self, *ext, *ret;
+        Object *arg, *self;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
@@ -676,29 +713,7 @@ do_array_extend(Frame *fr)
         arg = vm_get_arg(fr, 0);
         bug_on(!arg);
 
-        if (isvar_dict(arg)) {
-                ext = dict_keys(arg, true);
-        } else {
-                ext = arg;
-                VAR_INCR_REF(ext);
-        }
-
-        ret = NULL;
-        if (!isvar_seq(ext)) {
-                err_setstr(TypeError, "Expected: sequential object");
-                ret = ErrorVar;
-                goto out;
-        }
-
-        if (array_insert_chunk(self, seqvar_size(self),
-                               array_get_data(ext),
-                               seqvar_size(ext)) != RES_OK) {
-                ret = ErrorVar;
-        }
-
-out:
-        VAR_DECR_REF(ext);
-        return ret;
+        return array_extend(self, arg) == RES_OK ? NULL : ErrorVar;
 }
 
 static Object *

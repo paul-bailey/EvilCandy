@@ -191,6 +191,7 @@ extern Object *arrayvar_from_stack(Object **items, int n_items, bool consume);
 extern enum result_t array_setitem(Object *array, int i, Object *child);
 extern Object *array_getitem(Object *array, int idx);
 extern enum result_t array_append(Object *array, Object *child);
+extern enum result_t array_extend(Object *array, Object *seq);
 extern void array_reverse(Object *array);
 extern Object *array_borrowitem(Object *array, int idx);
 

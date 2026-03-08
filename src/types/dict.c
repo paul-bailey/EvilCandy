@@ -183,7 +183,7 @@ key_match(Object *key1, Object *key2, hash_t key2_hash)
                 return string_eq(key1, key2);
         if (!key1->v_type->cmp)
                 return false;
-        return key1->v_type->cmp(key1, key2);
+        return key1->v_type->cmp(key1, key2) == 0;
 }
 
 static void

@@ -1009,15 +1009,21 @@ dict_str(Object *o)
         for (i = 0; i < d->d_size; i++) {
                 Object *k = d->d_keys[i];
                 Object *vstr, *kstr;
+                bool need_brackets;
                 if (k == NULL || k == BUCKET_DEAD)
                         continue;
 
                 if (count > 0)
                         string_writer_appends(&wr, ", ");
 
+                need_brackets = !isvar_string(k) && !isvar_int(k);
                 kstr = var_str(d->d_keys[i]);
                 vstr = var_str(d->d_vals[i]);
+                if (need_brackets)
+                        string_writer_append(&wr, '[');
                 string_writer_append_strobj(&wr, kstr);
+                if (need_brackets)
+                        string_writer_append(&wr, ']');
                 string_writer_appends(&wr, ": ");
                 string_writer_append_strobj(&wr, vstr);
                 VAR_DECR_REF(vstr);

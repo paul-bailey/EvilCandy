@@ -1303,7 +1303,7 @@ assemble_expr2_binary(struct assemble_t *a)
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t BIT_XOR_TOK2OP[] = {
-                { .tok = OC_AND,    .opcode = INSTR_BINARY_XOR },
+                { .tok = OC_XOR,    .opcode = INSTR_BINARY_XOR },
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t BIT_OR_TOK2OP[] = {

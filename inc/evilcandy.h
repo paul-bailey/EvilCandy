@@ -276,6 +276,9 @@ extern Object *property_get(Object *prop, Object *owner);
 extern enum result_t property_set(Object *prop,
                                   Object *owner, Object *value);
 
+/* types/set.c */
+extern Object *setvar_new(Object *seq);
+
 /* types/string.c */
 extern Object *stringvar_new(const char *cstr);
 extern Object *stringvar_newn(const char *cstr, size_t n);

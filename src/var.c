@@ -225,6 +225,7 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &BytesType,
         &PropertyType,
         &RangeType,
+        &SetType,
         &UuidptrType,
         &IdType,
         NULL,

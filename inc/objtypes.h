@@ -250,8 +250,7 @@ extern struct type_t PropertyType;
 extern struct type_t RangeType;
 extern struct type_t UuidptrType;
 extern struct type_t IdType;
-extern struct type_t FileType;
-extern struct type_t StarType;
+extern struct type_t SetType;
 
 static inline bool isvar_array(Object *v)
         { return v->v_type == &ArrayType; }
@@ -284,6 +283,8 @@ static inline bool isvar_uuidptr(Object *v)
 extern bool isvar_file(Object *v); /*< builtin/io.c */
 static inline bool isvar_property(Object *v)
         { return v->v_type == &PropertyType; }
+static inline bool isvar_set(Object *v)
+        { return v->v_type == &SetType; }
 
 static inline bool isvar_number(Object *v)
         { return !!(v->v_type->flags & OBF_NUMBER); }

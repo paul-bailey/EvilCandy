@@ -517,10 +517,14 @@ static const struct type_prop_t tuple_prop_getsets[] = {
         { .name = NULL },
 };
 
+static const struct operator_methods_t tuple_op_methods = {
+        .add            = tuple_cat,
+};
+
 struct type_t TupleType = {
         .flags  = 0,
         .name = "tuple",
-        .opm = NULL,
+        .opm = &tuple_op_methods,
         .cbm = tuple_cb_methods,
         .mpm = NULL,
         .sqm = &tuple_seq_methods,

@@ -3354,6 +3354,7 @@ struct seq_methods_t string_seq_methods = {
 
 struct operator_methods_t string_opm = {
         .mod    = string_modulo,
+        .add    = string_cat,
 };
 
 struct type_t StringType = {

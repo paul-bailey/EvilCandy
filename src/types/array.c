@@ -906,6 +906,10 @@ static const struct type_inittbl_t array_cb_methods[] = {
         TBLEND,
 };
 
+static const struct operator_methods_t array_op_methods = {
+        .add            = array_cat,
+};
+
 static const struct seq_methods_t array_seq_methods = {
         .getitem        = array_getitem,
         .setitem        = array_setitem,
@@ -924,7 +928,7 @@ static const struct type_prop_t array_prop_getsets[] = {
 struct type_t ArrayType = {
         .flags = 0,
         .name = "list",
-        .opm = NULL,
+        .opm = &array_op_methods,
         .cbm = array_cb_methods,
         .mpm = NULL,
         .sqm = &array_seq_methods,

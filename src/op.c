@@ -15,6 +15,9 @@ get_binop_method(Object *a, Object *b)
         struct type_t *at = a->v_type;
         struct type_t *bt = b->v_type;
 
+        if (at == bt)
+                return at->opm;
+
         if (!isvar_number(a) || !isvar_number(b))
                 return NULL;
 
@@ -55,72 +58,26 @@ BINARY_OP_BASIC_FUNC(bit_and, "&")
 BINARY_OP_BASIC_FUNC(xor, "^")
 BINARY_OP_BASIC_FUNC(lshift, "<<")
 BINARY_OP_BASIC_FUNC(rshift, ">>")
+BINARY_OP_BASIC_FUNC(bit_or, "|")
+BINARY_OP_BASIC_FUNC(add, "+")
 
 Object *
 qop_mod(Object *a, Object *b)
 {
         const struct operator_methods_t *opm;
-        if ((opm = get_binop_method(a, b)) != NULL) {
-                if (!opm->mod)
-                        goto err;
 
-                return opm->mod(a, b);
+        if ((opm = get_binop_method(a, b)) != NULL) {
+                if (opm->mod)
+                        return opm->mod(a, b);
         }
 
-        /* '"" % ()' is OK but '() % ""' is not */
         if (isvar_string(a)) {
-                /* Don't check b, let the string lib sort that out */
-                opm = a->v_type->opm;
-                bug_on(!opm || !opm->mod);
-                return opm->mod(a, b);
+                bug_on(!a->v_type->opm || !a->v_type->opm->mod);
+                return a->v_type->opm->mod(a, b);
         }
+        /* else, not '%'-ible */
 
-err:
         err_permit2("%", a, b);
-        return NULL;
-}
-
-Object *
-qop_bit_or(Object *a, Object *b)
-{
-        const struct operator_methods_t *opm;
-        const struct map_methods_t *mpm;
-        if ((opm = get_binop_method(a, b)) != NULL) {
-                if (!opm->bit_or)
-                        goto err;
-                return opm->bit_or(a, b);
-        }
-
-        if (((mpm = a->v_type->mpm) != NULL)
-            && mpm->mpunion && a->v_type == b->v_type) {
-                return mpm->mpunion(a, b);
-        }
-
-err:
-        err_permit2("|", a, b);
-        return NULL;
-}
-
-Object *
-qop_add(Object *a, Object *b)
-{
-        const struct operator_methods_t *opm;
-
-        if ((opm = get_binop_method(a, b)) != NULL) {
-                bug_on(!opm->add);
-                return opm->add(a, b);
-        }
-
-        if (a->v_type->sqm) {
-                const struct seq_methods_t *sq = a->v_type->sqm;
-                if (!sq->cat || a->v_type != b->v_type)
-                        goto cant;
-                return sq->cat(a, b);
-        }
-        /* else, not '+'-ible */
-
-cant:
-        err_permit2("+", a, b);
         return NULL;
 }
 
@@ -135,10 +92,15 @@ qop_mul(Object *a, Object *b)
 
         if ((opm = get_binop_method(a, b)) != NULL) {
                 /* fast path, number multiplication */
-                bug_on(!opm->mul);
-                return opm->mul(a, b);
+                if (opm->mul)
+                        return opm->mul(a, b);
         }
 
+        /*
+         * FIXME: Types which support below should have their own
+         * 'mul' operator callbacks, which may be able to improve
+         * the speed of these operations.
+         */
         if (MAY_CAT(a)) {
                 Object *tmp;
                 if (!isvar_int(b))
@@ -151,10 +113,6 @@ qop_mul(Object *a, Object *b)
                         goto cant;
         }
 
-        /*
-         * XXX: should we sanity check huge multipliers, or let
-         * user wait for an OOM crash?
-         */
         adder = b->v_type->sqm->cat;
         i = intvar_toll(a);
         if (i <= 0)

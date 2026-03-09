@@ -1587,6 +1587,10 @@ static const struct type_inittbl_t bytes_cb_methods[] = {
         TBLEND,
 };
 
+static const struct operator_methods_t bytes_op_methods = {
+        .add            = bytes_cat,
+};
+
 static const struct seq_methods_t bytes_seq_methods = {
         .getitem        = bytes_getitem,
         .setitem        = NULL, /* like string, immutable */
@@ -1599,7 +1603,7 @@ static const struct seq_methods_t bytes_seq_methods = {
 struct type_t BytesType = {
         .flags  = 0,
         .name   = "bytes",
-        .opm    = NULL,
+        .opm    = &bytes_op_methods,
         .cbm    = bytes_cb_methods,
         .mpm    = NULL,
         .sqm    = &bytes_seq_methods,

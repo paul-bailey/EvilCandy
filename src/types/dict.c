@@ -1468,17 +1468,21 @@ static const struct type_prop_t dict_prop_getsets[] = {
         { .name = NULL },
 };
 
+static const struct operator_methods_t dict_op_methods = {
+        .bit_or         = dict_union,
+};
+
 static const struct map_methods_t dict_map_methods = {
         .getitem = dict_getitem,
         .setitem = dict_setitem,
         .hasitem = dict_hasitem,
-        .mpunion = dict_union,
+        .mpunion = NULL,
 };
 
 struct type_t DictType = {
         .flags  = 0,
         .name   = "dictionary",
-        .opm    = NULL,
+        .opm    = &dict_op_methods,
         .cbm    = dict_cb_methods,
         .mpm    = &dict_map_methods,
         .sqm    = NULL,

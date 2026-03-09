@@ -184,12 +184,8 @@ set_clear_noresize(struct setvar_t *sv)
         seqvar_set_size((Object *)sv, sv->s_used);
 }
 
-/* **********************************************************************
- *                      Type callbacks
- ***********************************************************************/
-
-static int
-do_set_hasitem(Object *set, Object *item)
+static bool
+set_hasitem(Object *set, Object *item)
 {
         int i;
         if (!item)
@@ -200,24 +196,115 @@ do_set_hasitem(Object *set, Object *item)
 }
 
 static Object *
+set_shallowcopy(Object *set)
+{
+        struct setvar_t *sv = (struct setvar_t *)set;
+        size_t i, n = sv->s_size;
+        Object *new = setvar_instantiate();
+        for (i = 0; i < n; i++) {
+                enum result_t res;
+                Object *k = sv->s_keys[i];
+                if (!k || k == BUCKET_DEAD)
+                        continue;
+                res = set_additem(new, k, NULL);
+                bug_on(res == RES_ERROR);
+                (void)res;
+        }
+        return new;
+}
+
+/* Discard @child from @set, no error if @child was not in @set */
+static void
+set_discard(Object *set, Object *child)
+{
+        struct setvar_t *sv = (struct setvar_t *)set;
+        int i;
+
+        i = seek_helper(sv, child);
+        /* XXX: Exception if child is not hashable? */
+        if (i < 0)
+                return;
+
+        if (sv->s_keys[i] == NULL)
+                return;
+
+        VAR_DECR_REF(sv->s_keys[i]);
+        sv->s_keys[i] = BUCKET_DEAD;
+        sv->s_used--;
+        maybe_shrink_table(sv);
+}
+
+/* **********************************************************************
+ *                      Type callbacks
+ ***********************************************************************/
+
+static int
+do_set_hasitem(Object *set, Object *item)
+{
+        return set_hasitem(set, item);
+}
+
+static Object *
 set_sub_op(Object *a, Object *b)
 {
-        err_setstr(NotImplementedError, "'-' not yet implemented for sets");
-        return ErrorVar;
+        struct setvar_t *sv = (struct setvar_t *)b;
+        size_t i, n = sv->s_size;
+        /* XXX: very non-optimal */
+        Object *new = set_shallowcopy(a);
+
+        for (i = 0; i < n; i++) {
+                Object *k = sv->s_keys[i];
+                if (!k || k == BUCKET_DEAD)
+                        continue;
+                set_discard(new, k);
+        }
+        return new;
 }
 
 static Object *
 set_intersection_op(Object *a, Object *b)
 {
-        err_setstr(NotImplementedError, "'&' not yet implemented for sets");
-        return ErrorVar;
+        struct setvar_t *sv = (struct setvar_t *)a;
+        size_t i, n = sv->s_size;
+        Object *new = setvar_instantiate();
+
+        for (i = 0; i < n; i++) {
+                enum result_t res;
+                Object *k = sv->s_keys[i];
+                if (!k || k == BUCKET_DEAD)
+                        continue;
+                if (!set_hasitem(b, k))
+                        continue;
+                res = set_additem(new, k, NULL);
+                bug_on(res == RES_ERROR);
+                (void)res;
+        }
+        return new;
 }
 
 static Object *
 set_union_op(Object *a, Object *b)
 {
-        err_setstr(NotImplementedError, "'|' not yet implemented for sets");
-        return ErrorVar;
+        struct setvar_t *sv[2];
+        Object *new;
+        size_t i, j;
+
+        new = setvar_instantiate();
+        sv[0] = (struct setvar_t *)a;
+        sv[1] = (struct setvar_t *)b;
+
+        for (i = 0; i < 2; i++) {
+                for (j = 0; j < sv[i]->s_size; j++) {
+                        enum result_t res;
+                        Object *k = sv[i]->s_keys[j];
+                        if (!k || k == BUCKET_DEAD)
+                                continue;
+                        res = set_additem(new, k, NULL);
+                        bug_on(res == RES_ERROR);
+                        (void)res;
+                }
+        }
+        return new;
 }
 
 static Object *
@@ -274,8 +361,8 @@ set_reset(Object *set)
 static Object *
 set_create(Frame *fr)
 {
-        Object *seq;
-        if (vm_getargs(fr, "[<*>!]:set", &seq) == RES_ERROR)
+        Object *seq = NULL;
+        if (vm_getargs(fr, "[|<*>!]:set", &seq) == RES_ERROR)
                 return ErrorVar;
         return setvar_new(seq);
 }
@@ -330,14 +417,11 @@ struct type_t SetType = {
  * Return: RES_OK or RES_ERROR. If RES_ERROR, @unique will not be touched,
  * and no references will be produced.
  *
- * Important!!  Only one reference will be produced by this function.
- * A non-NULL @unique is interpret as 'get' query, so...
- * 1. If @unique is NULL, a reference will be produced for @child, unless
- *    there was an error. Otherwise...
- * 2. If @unique does not match @child, a reference will be produced for
- *    @unique but not for child.
- * 3. If @unique does match @child, a refernece will be produced for
- *    @child, which just happens to be unique.
+ * Important!!  A non-NULL @unique is interpret as 'get' query, so...
+ * 1. If @unique is NULL, a reference will be produced for @child only if
+ *    it did not previously exist in the set.
+ * 2. If @unique is non-NULL, a reference will be produced for @unique,
+ *    whether it matches @child or not.
  */
 enum result_t
 set_additem(Object *set, Object *child, Object **unique)
@@ -354,8 +438,6 @@ set_additem(Object *set, Object *child, Object **unique)
         if (sv->s_keys[i] != NULL) {
                 if (unique)
                         *unique = VAR_NEW_REF(sv->s_keys[i]);
-                else
-                        VAR_INCR_REF(child);
         } else {
                 sv->s_keys[i] = VAR_NEW_REF(child);
                 if (unique)
@@ -377,6 +459,9 @@ setvar_new(Object *seq)
 {
         size_t i, n;
         Object *ret;
+
+        if (!seq)
+                return setvar_instantiate();
 
         if (!isvar_seq_readable(seq)) {
                 err_setstr(TypeError, "create expects an iterable array");

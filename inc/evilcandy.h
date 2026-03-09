@@ -278,6 +278,7 @@ extern enum result_t property_set(Object *prop,
 
 /* types/set.c */
 extern Object *setvar_new(Object *seq);
+extern enum result_t set_additem(Object *set, Object *child, Object **unique);
 
 /* types/string.c */
 extern Object *stringvar_new(const char *cstr);

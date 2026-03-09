@@ -276,7 +276,6 @@ transfer_table(struct dictvar_t *dict, size_t old_size)
                         continue;
 
                 hash = var_hash(k);
-                bug_on(!hash && !isvar_int(k));
 
                 perturb = hash;
                 j = bucketi(dict, hash);
@@ -286,7 +285,6 @@ transfer_table(struct dictvar_t *dict, size_t old_size)
                 }
                 dict->d_keys[j] = k; /* ie 'old_keys[i]' */
                 dict->d_vals[j] = old_vals[i];
-                bug_on(index < 0);
                 index_write(dict, n, j);
                 n++;
         }
@@ -1492,6 +1490,7 @@ struct type_t DictType = {
         .cmpz   = dict_cmpz,
         .reset  = dict_reset,
         .prop_getsets = dict_prop_getsets,
+        /* XXX: Why no create method? */
         .hash   = NULL,
 };
 

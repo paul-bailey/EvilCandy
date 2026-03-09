@@ -8,6 +8,8 @@
  *    - Add a uses-'this'-keyword flag to xptr_cfg_t struct, so that
  *      dict_[gs]etattr() can choose not to keep allocate and destroy
  *      MethodType objects for functions which do not need them.
+ *      (Note, however, it would require a recursive scan to make sure
+ *      XptrType descendants also do not use 'this' keyword.)
  *    - The same principle with simplify_tuples() below can be used
  *      for DEFDICT.
  *

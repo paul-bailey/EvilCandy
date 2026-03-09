@@ -5,9 +5,10 @@
 #include <evilcandy.h>
 
 /*
- * Return proper methods if @a and @b are both numerical types.
- * return NULL otherwise.
- * Precedence is (high to low) complex, float, integer.
+ * Return proper number methods
+ * For numbers, precedence is (high to low) complex, float, integer.
+ * For non-matching non-numbers, return NULL; functions below will
+ * decide whether this is an error or not.
  */
 static const struct operator_methods_t *
 get_binop_method(Object *a, Object *b)

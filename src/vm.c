@@ -647,6 +647,22 @@ do_cast_tuple(Frame *fr, instruction_t ii)
 }
 
 static int
+do_defset(Frame *fr, instruction_t ii)
+{
+        Object *list, *set;
+        list = pop(fr);
+        bug_on(!isvar_array(list));
+
+        set = setvar_new(list);
+        VAR_DECR_REF(list);
+
+        if (set == ErrorVar || !set)
+                return RES_ERROR;
+        push(fr, set);
+        return RES_OK;
+}
+
+static int
 do_defdict(Frame *fr, instruction_t ii)
 {
         Object **arr;

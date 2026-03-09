@@ -320,8 +320,12 @@ set_str(Object *set)
         struct setvar_t *sv = (struct setvar_t *)set;
         struct string_writer_t wr;
         size_t i, count = 0, n = sv->s_size;
+
+        if (seqvar_size(set) == 0)
+                return VAR_NEW_REF(STRCONST_ID(emptyset));
+
         string_writer_init(&wr, 1);
-        string_writer_appends(&wr, "set([");
+        string_writer_appends(&wr, "{");
         for (i = 0; i < n; i++) {
                 Object *repr;
                 Object *k = sv->s_keys[i];
@@ -334,7 +338,7 @@ set_str(Object *set)
                 VAR_DECR_REF(repr);
                 count++;
         }
-        string_writer_appends(&wr, "])");
+        string_writer_appends(&wr, "}");
         return stringvar_from_writer(&wr);
 }
 

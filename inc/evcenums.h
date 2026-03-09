@@ -105,6 +105,7 @@ enum {
         STRCONST_IDX_locked_array_str,
         STRCONST_IDX_locked_dict_str,
         STRCONST_IDX_nomsg,
+        STRCONST_IDX_emptyset,
         N_STRCONST,
 };
 

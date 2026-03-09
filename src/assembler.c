@@ -730,21 +730,29 @@ done:
         }
 }
 
+/*
+ * called from assemble_setdef() as soon as it finds out it's
+ * parsing a dict instead of a set
+ */
 static void
-assemble_objdef(struct assemble_t *a)
+assemble_objdef(struct assemble_t *a, int count, int where)
 {
-        /* TODO: not too hard to support `set' notation here */
-        int count = 0;
-        as_lex(a);
-        if (a->oc->t == OC_RBRACE) /* empty dict */
-                goto skip;
+        switch (where) {
+        case 1:
+                goto where_1;
+        case 2:
+                goto where_2;
+        case 3:
+                goto where_3;
+        default:
+                bug();
+        }
 
-        count = 0;
-        as_unlex(a);
         do {
                 as_lex(a);
 
                 if (a->oc->t == OC_LBRACK) {
+where_1:
                         /* computed key */
                         assemble_expr(a);
                         as_errlex(a, OC_RBRACK);
@@ -752,6 +760,7 @@ assemble_objdef(struct assemble_t *a)
                            || a->oc->t == OC_STRING
                            || a->oc->t == OC_INTEGER) {
                         /* key is literal text */
+where_2:
                         ainstr_load_const(a, a->oc);
                 } else if (a->oc->t == OC_RBRACE) {
                         /* comma after last elem */
@@ -767,14 +776,84 @@ assemble_objdef(struct assemble_t *a)
                                 "Uncomputed dictionary key must a single-token expression");
                         as_err(a, AE_EXPECT);
                 }
+where_3:
                 assemble_expr(a);
                 count++;
                 as_lex(a);
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);
 
-skip:
         add_instr(a, INSTR_DEFDICT, 0, count);
+}
+
+/*
+ * Try parsing a set.  If it turns out this is a dict, call
+ * assemble_dictdef() instead.
+ */
+static void
+assemble_setdef(struct assemble_t *a)
+{
+        int count;
+
+        as_lex(a);
+        if (a->oc->t == OC_RBRACE) {
+                /* actually an empty dict, not a set */
+                add_instr(a, INSTR_DEFDICT, 0, 0);
+                return;
+        }
+
+        count = 0;
+        as_unlex(a);
+        do {
+                bool could_be_dict = !count;
+                as_lex(a);
+                if (a->oc->t == OC_LBRACK) {
+                        if (!could_be_dict)
+                                as_err(a, AE_EXPECT);
+                        assemble_objdef(a, count, 1);
+                        return;
+                }
+
+                if (a->oc->t == OC_MUL) {
+                        err_setstr(SyntaxError,
+                                   "starred arguments not allowed here");
+                        as_err(a, AE_EXPECT);
+                }
+
+                /*
+                 * TODO: remove this little block, as well as
+                 * in assemble_objdef() above, make more versatile
+                 * choices in dictionary keys.
+                 */
+                if (a->oc->t == OC_IDENTIFIER
+                    || a->oc->t == OC_STRING
+                    || a->oc->t == OC_INTEGER) {
+                        if (as_peek(a, false) == OC_COLON) {
+                                if (!could_be_dict)
+                                        as_err(a, AE_EXPECT);
+                                assemble_objdef(a, count, 2);
+                                return;
+                        }
+                }
+
+                /* comma after last elem */
+                if (a->oc->t == OC_RBRACE)
+                        break;
+
+                as_unlex(a);
+                assemble_expr(a);
+                as_lex(a);
+                if (a->oc->t == OC_COLON) {
+                        if (!could_be_dict)
+                                as_err(a, AE_EXPECT);
+                        assemble_objdef(a, count, 3);
+                        return;
+                }
+                count++;
+        } while (a->oc->t == OC_COMMA);
+        as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);
+        add_instr(a, INSTR_DEFLIST, 0, count);
+        add_instr(a, INSTR_DEFSET, 0, 0);
 }
 
 static void
@@ -1054,7 +1133,7 @@ assemble_expr5_atomic(struct assemble_t *a)
                 assemble_arraydef(a);
                 break;
         case OC_LBRACE:
-                assemble_objdef(a);
+                assemble_setdef(a);
                 break;
         case OC_LAMBDA:
                 assemble_funcdef(a, true);
@@ -1587,6 +1666,14 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * ...
                  * Here we are not modifying x directly.  We are either
                  * calling a function or modifying one of x's descendants.
+                 *
+                 * FIXME: We still don't know if this is just an empty value
+                 * expression.  "x;" works, but "x == y;" does not.  For the
+                 * latter to work, we need
+                 *              as_unlex(a);
+                 *              as_unlex(a);
+                 *              assemble_expr(a);
+                 * but that would break cases where assignment might matter.
                  */
                 as_unlex(a);
                 ainstr_load_symbol(a, &n->tok, n->pos);

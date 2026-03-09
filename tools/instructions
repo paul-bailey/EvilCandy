@@ -106,6 +106,9 @@ DEFDICT_K
 # like DEFLIST... but in tuple form!
 DEFTUPLE
 
+# create a set from list on top of stack
+DEFSET
+
 ##
 #   GET/SET/LOAD/DELATTR
 #

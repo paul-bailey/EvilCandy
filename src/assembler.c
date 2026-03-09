@@ -1658,7 +1658,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                 ainstr_assign_symbol(a, &n->tok, n->pos, flags);
                 cleanup_names(&names);
                 return 0;
-        } else {
+        } else if (istok_indirection(a->oc->t)) {
                 /*
                  * x(args);
                  * x[i] [= value];
@@ -1666,19 +1666,21 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * ...
                  * Here we are not modifying x directly.  We are either
                  * calling a function or modifying one of x's descendants.
-                 *
-                 * FIXME: We still don't know if this is just an empty value
-                 * expression.  "x;" works, but "x == y;" does not.  For the
-                 * latter to work, we need
-                 *              as_unlex(a);
-                 *              as_unlex(a);
-                 *              assemble_expr(a);
-                 * but that would break cases where assignment might matter.
                  */
                 as_unlex(a);
                 ainstr_load_symbol(a, &n->tok, n->pos);
                 cleanup_names(&names);
                 return assemble_primary_elements__(a);
+        } else {
+                /*
+                 * either an empty statement beginning with an identifier
+                 * (eg. "a == b") or a bad statement.  Try evaluation
+                 * instead.
+                 */
+                as_unlex(a);
+                as_unlex(a);
+                assemble_expr(a);
+                return 1;
         }
 }
 

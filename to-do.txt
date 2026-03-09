@@ -40,6 +40,9 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Add iterator objects, or at least C-API versions of them.
+  - Fill in set library.
+  - Fix parsing issue wrt identifier as first token of statement.
   - Support starred unpacking, eg. "a, *b, c = seqvar;"
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.
@@ -62,6 +65,11 @@ Must Do
   - **done** Get prompt working
   - **done** Add support for deleting elements and global variables
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
+
+* If first token of a statement is an identifier, there are two very
+  different paths the parser should take, depending whether it is an
+  assignment statement or an evaluation statement.  Figure out a way
+  to resolve this.
 
 * Make dictionary iterable without requiring the creation of a new list.
 
@@ -124,8 +132,6 @@ Library/Language Features
 * Add 'const' keyword.  Implemented like 'let', except parser prevents
   compiling assignment.
 
-* Add hash to bytes, let it be a valid dictionary key.
-
 * Support some kind of packing library, akin to Python's struct
 
 * Support labelled statements
@@ -139,8 +145,6 @@ Library/Language Features
 
 * Add ``decorate`` method for dictionaries, so that user-defined objects
   can be added, anded, divided, etc.
-
-* Add sets
 
 * Support soft keywords
 
@@ -157,6 +161,10 @@ Library/Language Features
 
 * Add way to pass arguments to imported scripts, and a way for the
   script to access them.  Maybe a special identifier token like ``$0``.
+
+* **done** Add hash to bytes, let it be a valid dictionary key.
+
+* **done** Add sets
 
 * **done** Support tuple unpacking assignment, eg. "(x, y) = (1, 2);"
 

@@ -731,7 +731,9 @@ tokenize(struct token_state_t *state)
 
                 intern = intern && !!state->dedup;
 
-                if (intern) {
+                if (buffer_size(&state->tok) == 0) {
+                        oc.s = estrdup("");
+                } else if (intern) {
                         oc.s = dict_unique(state->dedup, state->tok.s);
                 } else {
                         oc.s = estrdup(state->tok.s);

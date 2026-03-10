@@ -871,22 +871,26 @@ do_array_reverse(Frame *fr)
 static Object *
 array_create(Frame *fr)
 {
-        Object *arg, *args;
+        Object *arg, *item, *ret;
+        struct iterator_t *it;
 
-        args = vm_get_arg(fr, 0);
-        bug_on(!args || !isvar_array(args));
-        if (seqvar_size(args) != 1) {
-                err_minargs(seqvar_size(args), 1);
+        arg = NULL;
+        if (vm_getargs(fr, "[|<*>!]:list", &arg) == RES_ERROR)
+                return ErrorVar;
+        if (!arg)
+                return arrayvar_new(0);
+        it = iterator_get(arg);
+        if (!it) {
+                err_setstr(TypeError,
+                           "list(): %s is not iterable", typestr(arg));
                 return ErrorVar;
         }
 
-        arg = array_borrowitem(args, 0);
-        if (!isvar_seq(arg) && !isvar_dict(arg)) {
-                err_setstr(TypeError, "Invalid type '%s' for list()",
-                           typestr(arg));
-                return ErrorVar;
-        }
-        return var_listify(arg);
+        ret = arrayvar_new(0);
+        for (item = iterator_next(it); item; item = iterator_next(it))
+                array_append(ret, item);
+        efree(it);
+        return ret;
 }
 
 struct array_iterator_t {

@@ -122,8 +122,6 @@ extern Object *var_str_swap(Object *v);
 extern bool var_cmpz(Object *v, enum result_t *status);
 extern bool var_all(Object *v, enum result_t *status);
 extern bool var_any(Object *v, enum result_t *status);
-extern Object *var_listify(Object *v);
-extern Object *var_tuplify(Object *v);
 extern Object *var_min(Object *v);
 extern Object *var_max(Object *v);
 extern Object *var_lnot(Object *v);

@@ -285,22 +285,28 @@ tuple_getprop_length(Object *self)
  ***********************************************************************/
 
 static Object *
-tuplevar_new_common(int n_items, Object **src, bool consume)
+tuplevar_new_common(int n_items, Object **src, bool consume, bool allocate)
 {
         int i;
         Object *tup = var_new(&TupleType);
         struct tuplevar_t *th = V2TUP(tup);
-        th->items = emalloc(sizeof(Object *) * n_items);
-
-        bug_on(consume && src == NULL);
 
         seqvar_set_size(tup, n_items);
-        for (i = 0; i < n_items; i++) {
-                Object *item = src ? src[i] : NullVar;
-                /* effectively the same thing as consume */
-                if (!consume)
-                        VAR_INCR_REF(item);
-                th->items[i] = item;
+
+        if (allocate) {
+                bug_on(consume && src == NULL);
+                th->items = emalloc(sizeof(Object *) * n_items);
+
+                for (i = 0; i < n_items; i++) {
+                        Object *item = src ? src[i] : NullVar;
+                        /* effectively the same thing as consume */
+                        if (!consume)
+                                VAR_INCR_REF(item);
+                        th->items[i] = item;
+                }
+        } else {
+                bug_on(!src);
+                th->items = src;
         }
         return tup;
 }
@@ -317,7 +323,7 @@ tuplevar_new_common(int n_items, Object **src, bool consume)
 Object *
 tuplevar_from_stack(Object **items, int n_items, bool consume)
 {
-        return tuplevar_new_common(n_items, items, consume);
+        return tuplevar_new_common(n_items, items, consume, true);
 }
 
 /**
@@ -327,7 +333,7 @@ tuplevar_from_stack(Object **items, int n_items, bool consume)
 Object *
 tuplevar_new(int n_items)
 {
-        return tuplevar_new_common(n_items, NULL, false);
+        return tuplevar_new_common(n_items, NULL, false, true);
 }
 
 /**
@@ -451,23 +457,37 @@ nope:
 static Object *
 tuple_create(Frame *fr)
 {
-        Object *arg, *args;
+        Object *arg, **data, *item;
+        struct iterator_t *it;
+        size_t i, n;
 
-        args = vm_get_arg(fr, 0);
-        bug_on(!args || !isvar_array(args));
-        if (seqvar_size(args) != 1) {
+        arg = NULL;
+        if (vm_getargs(fr, "[|<*>!]:tuple", &arg) == RES_ERROR)
+                return ErrorVar;
+        if (!arg)
+                return tuplevar_new(0);
+
+        it = iterator_get(arg);
+        if (!it) {
                 err_setstr(TypeError,
-                           "Expected exactly one argument but got %d",
-                           seqvar_size(args));
+                           "tuple(): %s is not iterable", typestr(arg));
                 return ErrorVar;
         }
-        arg = array_borrowitem(args, 0);
-        if (!isvar_seq(arg) && !isvar_dict(arg)) {
-                err_setstr(TypeError, "Invalid type '%s' for list()",
-                           typestr(arg));
-                return ErrorVar;
+
+        n = seqvar_size(arg);
+        if (n == 0)
+                return tuplevar_new(0);
+
+        data = emalloc(sizeof(Object *) * n);
+
+        i = 0;
+        for (item = iterator_next(it); item; item = iterator_next(it)) {
+                bug_on(i >= n);
+                data[i++] = item;
         }
-        return var_tuplify(arg);
+        efree(it);
+        bug_on(i != n);
+        return tuplevar_new_common(n, data, true, false);
 }
 
 static hash_t

@@ -856,154 +856,43 @@ enum {
 };
 
 /*
- * TODO: Make an object out of this,
- * use it for FOREACH_SETUP
- */
-struct iterable_t {
-        Object *v;
-        Object *dict;
-        Object *(*get)(Object *, int);
-        size_t i;
-        size_t n;
-};
-
-static enum result_t
-iterable_setup(Object *v, struct iterable_t *iter)
-{
-        VAR_INCR_REF(v);
-        if (isvar_dict(v)) {
-                Object *keys = dict_keys(v, false);
-                bug_on(!keys);
-                iter->dict = v;
-                iter->v = keys;
-        } else {
-                iter->dict = NULL;
-                if (!isvar_seq(v))
-                        return RES_ERROR;
-                iter->v = v;
-        }
-        iter->get = iter->v->v_type->sqm->getitem;
-        if (!iter->get) {
-                bug_on(iter->dict);
-                return RES_ERROR;
-        }
-        iter->i = 0;
-        iter->n = seqvar_size(iter->v);
-        return RES_OK;
-}
-
-static void
-iterable_cleanup(struct iterable_t *iter)
-{
-        VAR_DECR_REF(iter->v);
-        if (iter->dict)
-                VAR_DECR_REF(iter->dict);
-        memset(iter, 0, sizeof(*iter));
-}
-
-/* reference is produced if return value is valid */
-static Object *
-iterable_next(struct iterable_t *iter)
-{
-        Object *ret;
-        if (iter->i >= iter->n)
-                return NULL;
-        ret = iter->get(iter->v, iter->i);
-        if (!ret)
-                return ErrorVar;
-        iter->i++;
-        return ret;
-}
-
-#define foreach_iterable(e_, iter_) \
-        for (e_ = iterable_next(iter_); \
-             e_ != NULL && e_ != ErrorVar; \
-             e_ = iterable_next(iter_))
-
-Object *
-var_tuplify(Object *obj)
-{
-        struct iterable_t iter;
-        Object *ret, **data;
-        int i, n;
-
-        if (iterable_setup(obj, &iter) == RES_ERROR)
-                return ErrorVar;
-
-        n = seqvar_size(obj);
-        ret = tuplevar_new(n);
-        data = tuple_get_data(ret);
-        for (i = 0; i < n; i++) {
-                VAR_DECR_REF(data[i]);
-                /* iterable_next() already produced ref */
-                data[i] = iterable_next(&iter);
-                bug_on(!data[i]);
-        }
-        iterable_cleanup(&iter);
-        return ret;
-}
-
-Object *
-var_listify(Object *obj)
-{
-        struct iterable_t iter;
-        Object *ret, **data;
-        int i, n;
-
-        if (iterable_setup(obj, &iter) == RES_ERROR)
-                return ErrorVar;
-
-        n = seqvar_size(obj);
-        ret = arrayvar_new(n);
-        data = array_get_data(ret);
-        for (i = 0; i < n; i++) {
-                VAR_DECR_REF(data[i]);
-                /* iterable_next() already produced ref */
-                data[i] = iterable_next(&iter);
-                bug_on(!data[i]);
-        }
-        iterable_cleanup(&iter);
-        return ret;
-}
-
-/*
  * all(x) - return true if every element in x is true.
  */
 static bool
 var_all_or_any(Object *v, enum result_t *status, int which)
 {
-        struct iterable_t iter;
-        Object *e;
+        struct iterator_t *it;
+        Object *child;
         bool res;
 
-        if (iterable_setup(v, &iter) == RES_ERROR)
-                goto err;
-
+        it = iterator_get(v);
+        if (!it) {
+                err_setstr(TypeError, "%s(): %s is not iterable",
+                           which == V_ALL ? "all" : "any", typestr(v));
+                return ErrorVar;
+        }
         res = false;
-        foreach_iterable(e, &iter) {
-                res = !var_cmpz(e, status);
-                VAR_DECR_REF(e);
-                if (*status != RES_OK)
-                        goto err;
+        for (child = iterator_next(it);
+             child != NULL; child = iterator_next(it)) {
+                res = !var_cmpz(child, status);
+                VAR_DECR_REF(child);
+                if (*status != RES_OK) {
+                        if (!err_occurred()) {
+                                err_setstr(TypeError, "%s(): invalid type '%s'",
+                                           typestr(v),
+                                           which == V_ALL ? "all" : "any");
+                        }
+                        iterator_unspool(it);
+                        return false;
+                }
                 if (res && which == V_ANY)
                         break;
                 if (!res && which == V_ALL)
                         break;
         }
-        if (e == ErrorVar)
-                goto err;
-        iterable_cleanup(&iter);
+        efree(it);
         *status = RES_OK;
         return res;
-
-err:
-        if (!err_occurred()) {
-                err_setstr(TypeError, "Invalid type '%s' for %s()",
-                           typestr(v), which == V_ALL ? "all" : "any");
-        }
-        iterable_cleanup(&iter);
-        *status = RES_ERROR;
-        return false;
 }
 
 #define FAST_ITER(v_) ((v_)->v_type->sqm->fast_iter)
@@ -1029,46 +918,40 @@ enum { V_MIN, V_MAX };
 static Object *
 var_min_or_max(Object *v, int minmax)
 {
-        struct iterable_t iter;
-        Object *e;
-        Object *res;
+        struct iterator_t *it;
+        Object *child, *res;
 
-        if (iterable_setup(v, &iter) == RES_ERROR)
-                goto err;
+        it = iterator_get(v);
+        if (!it) {
+                err_setstr(TypeError, "%s(): %s is not iterable",
+                           minmax == V_MIN ? "min" : "max", typestr(v));
+                return ErrorVar;
+        }
 
         res = NULL;
-        foreach_iterable(e, &iter) {
+        for (child = iterator_next(it);
+             child != NULL; child = iterator_next(it)) {
                 int cmp;
-
-                if (res == NULL) {
-                        res = e;
+                if (!res) {
+                        res = child;
                         continue;
                 }
-
-                cmp = var_compare(e, res);
+                cmp = var_compare(child, res);
                 if ((minmax == V_MIN && cmp < 0)
                     || (minmax == V_MAX && cmp > 0)) {
                         VAR_DECR_REF(res);
-                        res = e;
+                        res = child;
                         continue;
                 }
-                VAR_DECR_REF(e);
+                VAR_DECR_REF(child);
         }
-        iterable_cleanup(&iter);
-        if (e == ErrorVar)
-                goto err;
+        efree(it);
         if (!res) {
-                err_setstr(ValueError, "Object is empty");
-                goto err;
+                err_setstr(ValueError, "%s(): object is empty",
+                           minmax == V_MIN ? "min" : "max");
+                return ErrorVar;
         }
         return res;
-
-err:
-        if (!err_occurred()) {
-                err_setstr(TypeError, "Invalid type '%s' for %s()",
-                           typestr(v), minmax == V_MIN ? "min" : "max");
-        }
-        return ErrorVar;
 }
 
 Object *

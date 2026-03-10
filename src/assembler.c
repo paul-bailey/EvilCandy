@@ -111,14 +111,6 @@ static int assemble_primary_elements(struct assemble_t *a,
                                      unsigned int flags);
 
 
-/* i is ARRAY size, not number of bytes! */
-/* XXX should be a buffer.h function */
-static void
-as_buffer_ptr_resize(struct buffer_t *b, int i)
-{
-        b->p = i * sizeof(void *);
-}
-
 static int
 as_buffer_put_ptr(struct buffer_t *b, void *ptr)
 {
@@ -229,9 +221,8 @@ as_lex(struct assemble_t *a)
 static void
 err_ae_expect(struct assemble_t *a, int exp)
 {
-        err_setstr(SyntaxError,
-                   "expected '%s' but got '%s' ('%s')",
-                   token_name(exp), token_name(a->oc->t), a->oc->s);
+        err_setstr(SyntaxError, "expected '%s' but got '%s'",
+                   token_name(exp), token_name(a->oc->t));
 }
 
 static int
@@ -267,40 +258,29 @@ as_peek(struct assemble_t *a, bool may_be_eof)
 }
 
 static int
-as_symbol_seek__(const char *s, struct buffer_t *b)
+as_closure_seek(struct assemble_t *a, Object *name)
 {
-        if (s) {
-                const char **lut = (const char **)b->s;
-                size_t i, n = as_buffer_ptr_size(b);
-                for (i = 0; i < n; i++) {
-                        if (lut[i] && !strcmp(s, lut[i]))
-                                return i;
-                }
-        }
-        return -1;
-}
-
-static int
-as_closure_seek(struct assemble_t *a, const char *s)
-{
-        return as_symbol_seek__(s, &a->fr->af_closures);
+        return array_indexof(a->fr->af_closures, name);
 }
 
 /* arg may be NULL, it's the arg1 for LOAD/ASSIGN commands & such */
 static int
-as_symbol_seek(struct assemble_t *a, const char *s, int *arg)
+as_symbol_seek(struct assemble_t *a, Object *name, int *arg)
 {
+        ssize_t i;
+        int targ;
         struct as_frame_t *fr = a->fr;
-        int i, targ;
-        if ((i = as_symbol_seek__(s, &fr->af_locals)) >= 0) {
+
+        bug_on(!name || !isvar_string(name));
+        if ((i = array_indexof(fr->af_locals, name)) >= 0) {
                 targ = IARG_PTR_AP;
                 goto found;
         }
-        if ((i = as_symbol_seek__(s, &fr->af_args)) >= 0) {
+        if ((i = array_indexof(fr->af_args, name)) >= 0) {
                 targ = IARG_PTR_FP;
                 goto found;
         }
-        if ((i = as_symbol_seek__(s, &fr->af_closures)) >= 0) {
+        if ((i = array_indexof(fr->af_closures, name)) >= 0) {
                 targ = IARG_PTR_CP;
                 goto found;
         }
@@ -406,8 +386,16 @@ ainstr_push_block(struct assemble_t *a, int arg1, int arg2)
 
         fr->scope[fr->nest++] = fr->fp;
 
-        fr->fp = as_buffer_ptr_size(&fr->af_locals);
+        fr->fp = seqvar_size(fr->af_locals);
         add_instr(a, INSTR_PUSH_BLOCK, arg1, arg2);
+}
+
+/* helper to ainstr_pop_block */
+static inline void
+array_pop_to(Object *arr, size_t newsize)
+{
+        while (seqvar_size(arr) > newsize)
+                array_setitem(arr, seqvar_size(arr)-1, NULL);
 }
 
 static void
@@ -416,7 +404,7 @@ ainstr_pop_block(struct assemble_t *a)
         struct as_frame_t *fr = a->fr;
         bug_on(fr->nest <= 0);
 
-        as_buffer_ptr_resize(&fr->af_locals, fr->fp);
+        array_pop_to(fr->af_locals, fr->fp);
         fr->nest--;
 
         fr->fp = fr->scope[fr->nest];
@@ -443,15 +431,20 @@ ainstr_return_null(struct assemble_t *a)
  * eg. see assemble_foreach().
  */
 static int
-fakestack_declare(struct assemble_t *a, char *name)
+fakestack_declare(struct assemble_t *a, Object *name)
 {
+        int ret;
         if (name && as_symbol_seek(a, name, NULL) >= 0) {
                 err_setstr(SyntaxError, "Redefining variable ('%s')", name);
                 as_err(a, AE_GEN);
                 return 0;
         }
 
-        return as_buffer_put_name(&a->fr->af_locals, name);
+        if (!name)
+                name = NullVar;
+        ret = seqvar_size(a->fr->af_locals);
+        array_append(a->fr->af_locals, name);
+        return ret;
 }
 
 /*
@@ -570,11 +563,11 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                                         "You may only declare one variadic argument");
                                 as_err(a, AE_GEN);
                         }
-                        optarg = as_buffer_ptr_size(&a->fr->af_args);
+                        optarg = seqvar_size(a->fr->af_args);
                         as_lex(a);
                 } else if (a->oc->t == OC_POW) {
                         kind = KWIND;
-                        kwarg = as_buffer_ptr_size(&a->fr->af_args);
+                        kwarg = seqvar_size(a->fr->af_args);
                         as_lex(a);
                 } else {
                         kind = NORMAL;
@@ -601,9 +594,10 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
                         as_frame_swap(a);
                 }
 
-                char *name = a->oc->s;
+                Object *name = a->oc->v;
                 as_lex(a);
-                minargs = as_buffer_put_name(&a->fr->af_args, name) + 1;
+                array_append(a->fr->af_args, name);
+                minargs = seqvar_size(a->fr->af_args);
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
 
@@ -612,7 +606,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
         assemble_function(a, lambda, funcno);
 
         /* for user functions, minargs == maxargs */
-        bug_on(minargs != as_buffer_ptr_size(&a->fr->af_args));
+        bug_on(minargs != seqvar_size(a->fr->af_args));
 
         as_frame_swap(a);
         add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, minargs);
@@ -885,7 +879,7 @@ assemble_fstring(struct assemble_t *a)
  * check enclosing function before resorting to LOAD_GLOBAL
  */
 static int
-maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
+maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos)
 {
         /*
          * Check for closure.  When we started parsing this (child)
@@ -929,7 +923,7 @@ maybe_closure(struct assemble_t *a, const char *name, token_pos_t pos)
         as_frame_restore(a, this_frame);
 
         if (success)
-                as_buffer_put_name(&a->fr->af_closures, name);
+                array_append(a->fr->af_closures, name);
 
         /* try this again */
         return as_closure_seek(a, name);
@@ -948,9 +942,9 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
                       int instr, token_pos_t pos, unsigned int flags)
 {
         int idx, arg;
-        if ((idx = as_symbol_seek(a, name->s, &arg)) >= 0) {
+        if ((idx = as_symbol_seek(a, name->v, &arg)) >= 0) {
                 add_instr(a, instr, arg, idx);
-        } else if ((idx = maybe_closure(a, name->s, pos)) >= 0) {
+        } else if ((idx = maybe_closure(a, name->v, pos)) >= 0) {
                 add_instr(a, instr, IARG_PTR_CP, idx);
         } else {
                 int namei = as_seek_rodata_tok(a, name);
@@ -1740,7 +1734,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name,
                 namei = as_seek_rodata_tok(a, name);
                 add_instr(a, INSTR_NEW_NAME, 0, namei);
         } else {
-                namei = fakestack_declare(a, name ? name->s : NULL);
+                namei = fakestack_declare(a, name ? name->v : NULL);
                 add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
         }
         return namei;
@@ -1859,7 +1853,7 @@ assemble_try(struct assemble_t *a)
          * The exception handler will do that for us in
          * execute loop.
          */
-        fakestack_declare(a, exctok.s);
+        fakestack_declare(a, exctok.v);
 
         assemble_stmt(a, 0, 0);
 
@@ -2287,9 +2281,9 @@ as_delete_frame_list(struct list_t *parent_list)
                  * free the arrays; the actual pointers are maintained by
                  * token.c, which frees them in due time.
                  */
-                buffer_free(&fr->af_locals);
-                buffer_free(&fr->af_args);
-                buffer_free(&fr->af_closures);
+                VAR_DECR_REF(fr->af_locals);
+                VAR_DECR_REF(fr->af_args);
+                VAR_DECR_REF(fr->af_closures);
 
                 /*
                  * These are safe to free, because if we aren't unwinding
@@ -2547,10 +2541,10 @@ assemble_frame_push(struct assemble_t *a, long long funcno)
         fr = emalloc(sizeof(*fr));
         memset(fr, 0, sizeof(*fr));
 
+        fr->af_locals   = arrayvar_new(0);
+        fr->af_args     = arrayvar_new(0);
+        fr->af_closures = arrayvar_new(0);
         /* memset did this, but just in case buffer.c internals change... */
-        buffer_init(&fr->af_closures);
-        buffer_init(&fr->af_locals);
-        buffer_init(&fr->af_args);
         buffer_init(&fr->af_rodata);
         buffer_init(&fr->af_labels);
         buffer_init(&fr->af_instr);

@@ -8,8 +8,8 @@
  * struct as_frame_t - Temporary frame during assembly
  * @funcno:      Temporary magic number identifying this during the first
  *               pass before jump labels are resolved.
- * @af_locals:   Symbol table of stack variables.
  * @fp:          Index into @af_locals defining current scope
+ * @af_locals:   Symbol table of stack variables.
  * @af_args:     Symbol table of argument names, in order of argument
  * @af_closures: Symbol table of closure names
  * @af_rodata:   ie. a function's consts, array of Object *
@@ -29,10 +29,10 @@
  */
 struct as_frame_t {
         long long funcno;
-        struct buffer_t af_locals;
         int fp;
-        struct buffer_t af_args;
-        struct buffer_t af_closures;
+        Object *af_locals;
+        Object *af_args;
+        Object *af_closures;
         struct buffer_t af_rodata;
         struct buffer_t af_labels;
         struct buffer_t af_instr;

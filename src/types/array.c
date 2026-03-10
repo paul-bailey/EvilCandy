@@ -508,6 +508,32 @@ arrayvar_from_stack(Object **items, int n_items, bool consume)
         return arrayvar_new_common(n_items, items, consume);
 }
 
+/**
+ * array_indexof - Get index of @item in @arr
+ * @arr: Array
+ * @item: item to get index of
+ *
+ * Return: index in @arr, or -1 if not found.
+ *
+ * This checks whether item **matches** anything in the array; it isn't
+ * a pointer comparison.  It also matches for 1.0 == 1.
+ */
+ssize_t
+array_indexof(Object *arr, Object *item)
+{
+        Object **data;
+        size_t i, n;
+
+        bug_on(!isvar_array(arr));
+        data = array_get_data(arr);
+        n = seqvar_size(arr);
+        for (i = 0; i < n; i++) {
+                if (var_compare(item, data[i]) == 0)
+                        return i;
+        }
+        return (ssize_t)-1;
+}
+
 /* type_t .reset callback */
 static void
 array_reset(Object *a)

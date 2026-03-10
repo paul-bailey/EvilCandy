@@ -196,6 +196,7 @@ extern void array_reverse(Object *array);
 extern Object *array_borrowitem(Object *array, int idx);
 extern enum result_t array_delete_chunk(Object *array,
                                         int at, size_t n_items);
+extern ssize_t array_indexof(Object *arr, Object *item);
 
 /* types/bytes.c */
 extern Object *bytesvar_new(const unsigned char *buf, size_t len);

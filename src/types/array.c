@@ -889,6 +889,42 @@ array_create(Frame *fr)
         return var_listify(arg);
 }
 
+struct array_iterator_t {
+        struct iterator_t base;
+        Object *target;
+        size_t i;
+};
+
+static Object *
+array_iter_next(struct iterator_t *it)
+{
+        struct array_iterator_t *ait = (struct array_iterator_t *)it;
+        if (!ait->target) {
+                return NULL;
+        } else if (ait->i < seqvar_size(ait->target)) {
+                Object **data = array_get_data(ait->target);
+                Object *k = data[ait->i++];
+                return VAR_NEW_REF(k);
+        } else {
+                VAR_DECR_REF(ait->target);
+                ait->target = NULL;
+                return NULL;
+        }
+}
+
+static struct iterator_t *
+array_get_iter(Object *arr)
+{
+        struct array_iterator_t *ret;
+        bug_on(!isvar_array(arr));
+        ret = emalloc(sizeof(*ret));
+        memset(ret, 0, sizeof(*ret));
+        ret->base.next = array_iter_next;
+        ret->target = VAR_NEW_REF(arr);
+        ret->i = 0;
+        return (struct iterator_t *)ret;
+}
+
 static const struct type_inittbl_t array_cb_methods[] = {
         V_INITTBL("allocated",  do_array_allocated,  0, 0, -1, -1),
         V_INITTBL("append",     do_array_append,     1, 1, -1, -1),
@@ -940,4 +976,5 @@ struct type_t ArrayType = {
         .prop_getsets = array_prop_getsets,
         .create = array_create,
         .hash = NULL,
+        .get_iter = array_get_iter,
 };

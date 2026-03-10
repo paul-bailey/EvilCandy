@@ -1540,6 +1540,41 @@ bytes_hash(Object *b)
         return bv->hash;
 }
 
+struct bytes_iterator_t {
+        struct iterator_t base;
+        Object *target;
+        size_t i;
+};
+
+static Object *
+bytes_iter_next(struct iterator_t *it)
+{
+        struct bytes_iterator_t *bit = (struct bytes_iterator_t *)it;
+        if (!bit->target) {
+                return NULL;
+        } else if (bit->i < seqvar_size(bit->target)) {
+                const unsigned char *data = bytes_get_data(bit->target);
+                return intvar_new(data[bit->i++] & 0xffu);
+        } else {
+                VAR_DECR_REF(bit->target);
+                bit->target = NULL;
+                return NULL;
+        }
+}
+
+static struct iterator_t *
+bytes_get_iter(Object *b)
+{
+        struct bytes_iterator_t *ret;
+        bug_on(!isvar_bytes(b));
+        ret = emalloc(sizeof(*ret));
+        memset(ret, 0, sizeof(*ret));
+        ret->base.next = bytes_iter_next;
+        ret->target = VAR_NEW_REF(b);
+        ret->i = 0;
+        return (struct iterator_t *)ret;
+}
+
 static const struct type_prop_t bytes_prop_getsets[] = {
         { .name = "length", .getprop = bytes_getprop_length, .setprop = NULL },
         { .name = NULL },
@@ -1615,5 +1650,6 @@ struct type_t BytesType = {
         .prop_getsets = bytes_prop_getsets,
         .create = bytes_create,
         .hash   = bytes_hash,
+        .get_iter = bytes_get_iter,
 };
 

@@ -187,6 +187,47 @@ needint:
         return ErrorVar;
 }
 
+struct rangeiter_t {
+        struct iterator_t base;
+        Object *target;
+        long long i;
+};
+
+static Object *
+rangeiter_next(struct iterator_t *it)
+{
+        long long newidx;
+        struct rangeiter_t *rit = (struct rangeiter_t *)it;
+        struct rangevar_t *b = (struct rangevar_t *)(rit->target);
+
+        if (!b)
+                return NULL;
+
+        newidx = rit->i + b->step;
+        if (newidx < b->stop) {
+                Object *ret = intvar_new(newidx);
+                rit->i = newidx;
+                return ret;
+        } else {
+                VAR_DECR_REF(rit->target);
+                rit->target = NULL;
+                return NULL;
+        }
+}
+
+static struct iterator_t *
+range_get_iter(Object *rng)
+{
+        struct rangeiter_t *ret;
+        bug_on(!isvar_range(rng));
+        ret = emalloc(sizeof(*ret));
+        memset(ret, 0, sizeof(*ret));
+        ret->base.next = rangeiter_next;
+        ret->target = VAR_NEW_REF(rng);
+        ret->i = ((struct rangevar_t *)rng)->start;
+        return (struct iterator_t *)ret;
+}
+
 static const struct type_prop_t range_prop_getsets[] = {
         {
                 .name = "length",
@@ -225,5 +266,6 @@ struct type_t RangeType = {
         .prop_getsets = range_prop_getsets,
         .create = range_create,
         .hash   = calc_object_hash_generic,
+        .get_iter = range_get_iter,
 };
 

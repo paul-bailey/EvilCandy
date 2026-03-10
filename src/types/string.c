@@ -2867,6 +2867,46 @@ err_surrogate:
 }
 
 /* **********************************************************************
+ *                           String iterator
+ * *********************************************************************/
+
+struct string_iterator_t {
+        struct iterator_t base;
+        Object *target;
+        size_t i;
+};
+
+static Object *
+string_iter_next(struct iterator_t *it)
+{
+        struct string_iterator_t *sit = (struct string_iterator_t *)it;
+        if (!sit->target) {
+                return NULL;
+        } else if (sit->i < seqvar_size(sit->target)) {
+                Object **data = string_data(sit->target);
+                return VAR_NEW_REF(data[sit->i++]);
+        } else {
+                VAR_DECR_REF(sit->target);
+                sit->target = NULL;
+                return NULL;
+        }
+}
+
+static struct iterator_t *
+string_get_iter(Object *str)
+{
+        struct string_iterator_t *ret;
+        bug_on(!isvar_string(str));
+        ret = emalloc(sizeof(*ret));
+        memset(ret, 0, sizeof(*ret));
+        ret->base.next = string_iter_next;
+        ret->target = VAR_NEW_REF(str);
+        ret->i = 0;
+        return (struct iterator_t *)ret;
+}
+
+
+/* **********************************************************************
  *                           API functions
  * *********************************************************************/
 
@@ -3372,6 +3412,7 @@ struct type_t StringType = {
         .prop_getsets = string_prop_getsets,
         .create = string_create,
         .hash   = string_hash_cb,
+        .get_iter = string_get_iter,
 };
 
 

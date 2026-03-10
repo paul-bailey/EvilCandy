@@ -371,6 +371,47 @@ set_create(Frame *fr)
         return setvar_new(seq);
 }
 
+struct setiter_t {
+        struct iterator_t base;
+        Object *target;
+        size_t i;
+};
+
+static Object *
+set_iter_next(struct iterator_t *it)
+{
+        struct setiter_t *sit = (struct setiter_t *)it;
+        struct setvar_t *sv = (struct setvar_t *)(sit->target);
+        size_t i = sit->i;
+        if (!sv)
+                return NULL;
+
+        for (; i < sv->s_size; i++) {
+                Object *k = sv->s_keys[i];
+                if (!k || k == BUCKET_DEAD)
+                        continue;
+                sit->i = i + 1;
+                return VAR_NEW_REF(k);
+        }
+
+        VAR_DECR_REF(sit->target);
+        sit->target = NULL;
+        return NULL;
+}
+
+static struct iterator_t *
+set_get_iter(Object *set)
+{
+        struct setiter_t *ret;
+        bug_on(!isvar_set(set));
+        ret = emalloc(sizeof(*ret));
+        memset(ret, 0, sizeof(*ret));
+        ret->base.next = set_iter_next;
+        ret->target = VAR_NEW_REF(set);
+        ret->i = 0;
+        return (struct iterator_t *)ret;
+}
+
 static const struct operator_methods_t set_op_methods = {
         .sub            = set_sub_op,
         .bit_and        = set_intersection_op,
@@ -405,6 +446,7 @@ struct type_t SetType = {
         .prop_getsets   = NULL,
         .create         = set_create,
         .hash           = NULL,
+        .get_iter       = set_get_iter,
 };
 
 /* **********************************************************************

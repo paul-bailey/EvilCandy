@@ -730,55 +730,6 @@ dict_add_to_globals(Object *dict)
 }
 
 /**
- * dict_iter - Iterate through a dictionary in the order that
- *             entries were inserted.
- * @dict: Dictionary to traverse
- * @iter: Set this to zero for first item, then use return value of
- *        dict_iter for remaining items.
- * @k:    Variable to store next key
- * @v:    Variable to store next value
- *
- * Return: Next value to pass as @iter, or -1 if the dictionary has been
- * fully traversed.
- *
- * Note: References will be produced for @k and @v if they are not NULL.
- *
- * FIXME: .d_map preserves insertion ORDER, but it does not preserve
- * insertion INDEX number.  That will change for a given entry if an
- * earlier insertion (lower .d_map index) is removed and the table
- * resizes.  This means that while table growth doesn't mess up this
- * function, table shrinking does, because certain key/value pairs might
- * get skipped over.
- */
-ssize_t
-dict_iter(Object *dict, ssize_t iter, Object **k, Object **v)
-{
-        struct dictvar_t *d;
-
-        /* Only bad internal code could cause this, not user script */
-        bug_on(iter < 0);
-        /* Surely caller wants at least one of these */
-        bug_on(!k && !v);
-
-        d = V2D(dict);
-        for (; iter < d->d_size; iter++) {
-                Object *key;
-                ssize_t index = index_read(d, iter);
-                if (index < 0)
-                        continue;
-                key = d->d_keys[index];
-                if (key == NULL || key == BUCKET_DEAD)
-                        continue;
-                if (k)
-                        *k = VAR_NEW_REF(key);
-                if (v)
-                        *v = VAR_NEW_REF(d->d_vals[index]);
-                return iter + 1;
-        }
-        return -1;
-}
-
-/**
  * dict_add_properties - Add built-in instance-specific properties
  *              for a dictionary.
  * @dict: Instance to add properties for
@@ -1454,6 +1405,52 @@ dict_getprop_length(Object *self)
         return intvar_new(seqvar_size(self));
 }
 
+struct dict_iterator_t {
+        struct iterator_t base;
+        Object *target;
+        size_t i;
+};
+
+/* TODO: special alternatives which return values or key/value pairs */
+static Object *
+dict_iter_next(struct iterator_t *it)
+{
+        struct dict_iterator_t *dit = (struct dict_iterator_t *)it;
+        struct dictvar_t *d = (struct dictvar_t *)(dit->target);
+        size_t idx = dit->i;
+
+        if (!d)
+                return NULL;
+        for (; idx < d->d_size; idx++) {
+                Object *key;
+                ssize_t index = index_read(d, idx);
+                if (index < 0)
+                        continue;
+                key = d->d_keys[index];
+                if (key == NULL || key == BUCKET_DEAD)
+                        continue;
+                dit->i = idx + 1;
+                return VAR_NEW_REF(key);
+        }
+
+        VAR_DECR_REF(dit->target);
+        dit->target = NULL;
+        return NULL;
+}
+
+static struct iterator_t *
+dict_get_iter(Object *d)
+{
+        struct dict_iterator_t *ret;
+        bug_on(!isvar_dict(d));
+        ret = emalloc(sizeof(*ret));
+        memset(ret, 0, sizeof(*ret));
+        ret->base.next = dict_iter_next;
+        ret->target = VAR_NEW_REF(d);
+        ret->i = 0;
+        return (struct iterator_t *)ret;
+}
+
 static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("clear",     do_dict_clear,       0, 0, -1, -1),
         V_INITTBL("copy",      do_dict_copy,        0, 0, -1, -1),
@@ -1498,6 +1495,7 @@ struct type_t DictType = {
         .prop_getsets = dict_prop_getsets,
         /* XXX: Why no create method? */
         .hash   = NULL,
+        .get_iter = dict_get_iter,
 };
 
 

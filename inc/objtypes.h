@@ -147,6 +147,20 @@ struct type_prop_t {
         enum result_t (*setprop)(Object *self, Object *value);
 };
 
+/**
+ * struct iterator_t - struct returned from XxxxType.get_iter().
+ * @next:   Function to return next object, NULL if at the end, or
+ *          ErrorVar if an error occurred.  Before returning NULL
+ *          or ErrorVar, .next() must do necessary cleanup so that
+ *          caller can just do a simple free.
+ *
+ * Iterable objects should embed this struct into their privately defined
+ * iterator struct.
+ */
+struct iterator_t {
+        Object *(*next)(struct iterator_t *);
+};
+
 /* .flags field in struct type_t */
 enum {
         OBF_NUMBER      = 0x01,
@@ -201,6 +215,10 @@ enum {
  * @hash:       Function to hash object, or NULL if type is not hashable.
  *              Hash function should not throw exceptions; rather return
  *              HASH_ERROR if object is not hashable.
+ * @get_iter:   Function to return an iterator, whose private fields
+ *              are initialized in whatever way prepares it for the first
+ *              call to .next().  IF THIS FIELD IS NON-NULL, OBJECT HEAD
+ *              MUST BE struct seqvar_t!!
  */
 struct type_t {
         unsigned int flags;
@@ -220,6 +238,7 @@ struct type_t {
         const struct type_prop_t *prop_getsets;
         Object *(*create)(Frame *fr);
         hash_t (*hash)(Object *);
+        struct iterator_t *(*get_iter)(Object *);
 };
 
 /*
@@ -423,6 +442,22 @@ var_hash(Object *v)
         if (v->v_type->hash)
                 return v->v_type->hash(v);
         return HASH_ERROR;
+}
+
+/* consume reference if result not saved anywhere */
+static inline struct iterator_t *
+iterator_get(Object *obj)
+{
+        if (!obj->v_type->get_iter)
+                return NULL;
+        return obj->v_type->get_iter(obj);
+}
+
+/* free iter ONLY upon getting NULL return, free with just efree() */
+static inline Object *
+iterator_next(struct iterator_t *iter)
+{
+        return iter->next(iter);
 }
 
 #endif /* EVILCANDY_OBJTYPES_H */

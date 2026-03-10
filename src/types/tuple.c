@@ -495,6 +495,42 @@ tuple_hash(Object *tup)
         return tv->hash;
 }
 
+struct tuple_iterator_t {
+        struct iterator_t base;
+        Object *target;
+        size_t i;
+};
+
+static Object *
+tuple_iter_next(struct iterator_t *it)
+{
+        struct tuple_iterator_t *tpit = (struct tuple_iterator_t *)it;
+        if (!tpit->target) {
+                return NULL;
+        } else if (tpit->i < seqvar_size(tpit->target)) {
+                Object **data = tuple_get_data(tpit->target);
+                return VAR_NEW_REF(data[tpit->i++]);
+        } else {
+                VAR_DECR_REF(tpit->target);
+                tpit->target = NULL;
+                return NULL;
+        }
+}
+
+static struct iterator_t *
+tuple_get_iter(Object *tup)
+{
+        struct tuple_iterator_t *ret;
+        bug_on(!isvar_tuple(tup));
+        ret = emalloc(sizeof(*ret));
+        memset(ret, 0, sizeof(*ret));
+        ret->base.next = tuple_iter_next;
+        ret->target = VAR_NEW_REF(tup);
+        ret->i = 0;
+        return (struct iterator_t *)ret;
+}
+
+
 static const struct type_inittbl_t tuple_cb_methods[] = {
         V_INITTBL("foreach", var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("count",   do_tuple_count,      1, 1, -1, -1),
@@ -535,5 +571,6 @@ struct type_t TupleType = {
         .prop_getsets = tuple_prop_getsets,
         .create = tuple_create,
         .hash = tuple_hash,
+        .get_iter = tuple_get_iter,
 };
 

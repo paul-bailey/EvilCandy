@@ -460,5 +460,8 @@ iterator_next(struct iterator_t *iter)
         return iter->next(iter);
 }
 
+/* in var.c */
+extern void iterator_unspool(struct iterator_t *iter);
+
 #endif /* EVILCANDY_OBJTYPES_H */
 

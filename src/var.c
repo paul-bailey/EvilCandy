@@ -1205,3 +1205,17 @@ out:
         return status == RES_OK ? NULL : ErrorVar;
 }
 
+/**
+ * For normal free (when iterator_next() returns NULL), you
+ * can free @it with a simple efree() call.
+ * This is for occasions when an error occurred before that happens.
+ * This function also frees @it.
+ */
+void
+iterator_unspool(struct iterator_t *it)
+{
+        Object *child = iterator_next(it);
+        while (child)
+                child = iterator_next(it);
+        efree(it);
+}

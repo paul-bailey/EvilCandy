@@ -503,29 +503,30 @@ set_additem(Object *set, Object *child, Object **unique)
 Object *
 setvar_new(Object *seq)
 {
-        size_t i, n;
-        Object *ret;
+        Object *ret, *item;
+        struct iterator_t *it;
 
         if (!seq)
                 return setvar_instantiate();
 
-        if (!isvar_seq_readable(seq)) {
-                err_setstr(TypeError, "create expects an iterable array");
+        it = iterator_get(seq);
+        if (!it) {
+                err_setstr(TypeError,
+                           "%s is not iterable", typestr(seq));
                 return ErrorVar;
         }
         ret = setvar_instantiate();
-        n = seqvar_size(seq);
-        for (i = 0; i < n; i++) {
-                Object *child = seqvar_getitem(seq, i);
-                bug_on(!child);
-                if (set_additem(ret, child, NULL) == RES_ERROR) {
+
+        for (item = iterator_next(it); item != NULL; item = iterator_next(it)) {
+                if (set_additem(ret, item, NULL) == RES_ERROR) {
                         err_setstr(TypeError, "Cannot add unhashable %s",
-                                   typestr(child));
-                        VAR_DECR_REF(child);
+                                   typestr(item));
+                        VAR_DECR_REF(item);
                         VAR_DECR_REF(ret);
+                        iterator_unspool(it);
                         return ErrorVar;
                 }
-                VAR_DECR_REF(child);
+                VAR_DECR_REF(item);
         }
         return ret;
 }

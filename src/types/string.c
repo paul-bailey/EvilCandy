@@ -2883,8 +2883,7 @@ string_iter_next(struct iterator_t *it)
         if (!sit->target) {
                 return NULL;
         } else if (sit->i < seqvar_size(sit->target)) {
-                Object **data = string_data(sit->target);
-                return VAR_NEW_REF(data[sit->i++]);
+                return string_getitem(sit->target, sit->i++);
         } else {
                 VAR_DECR_REF(sit->target);
                 sit->target = NULL;

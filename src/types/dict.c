@@ -562,8 +562,7 @@ dict_insert(Object *dict, Object *key,
 
         i = seek_helper(d, key);
         if (i < 0) {
-                err_setstr(KeyError, "%s key is not hashable",
-                           typestr(key));
+                err_hashable(key, NULL);
                 return RES_ERROR;
         }
 

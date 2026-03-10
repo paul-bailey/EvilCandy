@@ -102,6 +102,7 @@ extern bool err_occurred(void);
 extern void err_clear(void);
 
 /* errmsg.c */
+extern void err_hashable(Object *obj, const char *fname);
 extern void err_iterable(Object *obj, const char *fname);
 extern void err_decode(int codec, const char *why);
 extern void err_ord(int codec, long ord);

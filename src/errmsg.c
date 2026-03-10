@@ -7,6 +7,20 @@
 #include <errno.h>
 
 void
+err_hashable(Object *obj, const char *fname)
+{
+        const char *msg;
+        if (isvar_tuple(obj)) {
+                msg = "contains unhashable data";
+        } else {
+                msg = "is unhashable";
+        }
+        err_setstr(KeyError, "%s%s'%s'%s",
+                fname ? fname : "", fname ? "(): " : "",
+                typestr(obj), msg);
+}
+
+void
 err_iterable(Object *obj, const char *fname)
 {
         err_setstr(TypeError, "%s%s'%s' is not iterable",

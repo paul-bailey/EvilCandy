@@ -477,7 +477,7 @@ set_additem(Object *set, Object *child, Object **unique)
 
         i = seek_helper(sv, child);
         if (i < 0) {
-                err_setstr(KeyError, "%s key is not hashable");
+                err_hashable(child, NULL);
                 return RES_ERROR;
         }
 
@@ -518,8 +518,7 @@ setvar_new(Object *seq)
 
         for (item = iterator_next(it); item != NULL; item = iterator_next(it)) {
                 if (set_additem(ret, item, NULL) == RES_ERROR) {
-                        err_setstr(TypeError, "Cannot add unhashable %s",
-                                   typestr(item));
+                        err_hashable(item, NULL);
                         VAR_DECR_REF(item);
                         VAR_DECR_REF(ret);
                         iterator_unspool(it);

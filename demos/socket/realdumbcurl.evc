@@ -36,23 +36,24 @@ let curl = (function() {
     return {
         'get': function(url, *port) {
             let BUFSIZE = 64 * 1024;
-            url = url.rsplit(sep='/');
+            let host, uri, addr, buf;
+
             if (port.length == 0)
                 port = 80;
             else
                 port = port[0];
 
-            let host = url[0];
-            let uri = '/' + url[1];
-            let addr = (host, port);
-            let buf = b'';
+            host, uri = url.rsplit(sep='/');
+            uri = '/' + uri;
+            addr = (host, port);
+            if (host[0:4] == 'www.')
+                host = host[4:];
+            buf = b'';
 
             try {
                 let header;
                 let b;
 
-                if (host[0:4] == 'www.')
-                    host = host[4:];
                 header = f'GET {uri} HTTP/1.1\r\n'
                        + f'Host: {host}\r\n'
                        + f'Connection: close\r\n\r\n';

@@ -43,6 +43,7 @@ let sqrt = function(x) {
     let max = 1000000.0;
 
     // caveman way to convert in case x is int
+    // faster than float(x)
     x = 1.0 * x;
 
     // we should raise exception if x<0,

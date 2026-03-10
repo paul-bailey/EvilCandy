@@ -16,6 +16,6 @@ let primes_to = function(bound) {
 
 // also sanity-check that this print the numbers
 // but not as a list, due to the star
-print(*(primes_to(20)));
+print(*primes_to(20));
 
 // : vim: set syntax=javascript :

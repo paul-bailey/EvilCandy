@@ -8,10 +8,8 @@ let sk = sock.socket(sock.AF_INET, sock.SOCK_STREAM, 0);
 try {
     sk.bind(("", 8192));
     sk.listen(1);
-    let clienttup = sk.accept();
-    let client = clienttup[0];
-    let ipaddr = clienttup[1][0];
-    let port = clienttup[1][1];
+    let client, skaddr = sk.accept();
+    let ipaddr, port = skaddr;
     print(f"Accepted socket from client {ipaddr}:{port}");
     try {
         while (true) {

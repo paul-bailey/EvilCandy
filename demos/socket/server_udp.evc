@@ -2,11 +2,13 @@ let sock = import('socket.evc', 'x');
 
 let sk = sock.socket(sock.AF_INET, sock.SOCK_DGRAM, 0);
 try {
+    let data, addr, port;
     sk.bind(('127.0.0.1', 8192));
-    let res = sk.recvfrom(1024 * 64);
-    print(f'Received data from {res[1]}');
-    print(f'data: {res[0]}');
-    sk.sendto(b'hello back to you!', res[1]);
+    data, addr = sk.recvfrom(1024 * 64);
+    addr, port = addr;
+    print(f'Received data from {addr}:{port}');
+    print(f'data: {data}');
+    sk.sendto(b'hello back to you!', addr);
 } catch (e) {
     print(f'interpreter encountered an error: {e}');
 } finally {

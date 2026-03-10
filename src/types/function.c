@@ -395,6 +395,45 @@ func_reset(Object *func)
         }
 }
 
+static Object *
+func_getcode(Object *self)
+{
+        struct xptrvar_t *x;
+        Object *tp[2];
+
+        if (V2FUNC(self)->f_magic == FUNC_INTERNAL) {
+                err_setstr(TypeError,
+                        "code for internal function not available");
+                return ErrorVar;
+        }
+        x = V2FUNC(self)->f_ex;
+
+        tp[0] = bytesvar_new((unsigned char *)x->instr,
+                                x->n_instr * sizeof(instruction_t));
+        tp[1] = tuplevar_from_stack(x->rodata, x->n_rodata, false);
+        return tuplevar_from_stack(tp, 2, true);
+}
+
+static Object *
+func_getrodata(Object *self)
+{
+        struct xptrvar_t *x;
+
+        if (V2FUNC(self)->f_magic == FUNC_INTERNAL) {
+                err_setstr(TypeError,
+                        "code for internal function not available");
+                return ErrorVar;
+        }
+        x = V2FUNC(self)->f_ex;
+        return tuplevar_from_stack(x->rodata, x->n_rodata, false);
+}
+
+static const struct type_prop_t func_prop_getsets[] = {
+        { .name = "__code__",   .getprop = func_getcode,   .setprop = NULL },
+        { .name = "__rodata__", .getprop = func_getrodata, .setprop = NULL },
+        { .name = NULL },
+};
+
 struct type_t FunctionType = {
         .flags  = 0,
         .name   = "function",
@@ -407,6 +446,7 @@ struct type_t FunctionType = {
         .cmp    = func_cmp,
         .cmpz   = func_cmpz,
         .reset  = func_reset,
+        .prop_getsets = func_prop_getsets,
         .hash   = NULL,
 };
 

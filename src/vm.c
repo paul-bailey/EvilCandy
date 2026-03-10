@@ -898,11 +898,6 @@ do_foreach_iter(Frame *fr, instruction_t ii)
         VAR_DECR_REF(pop(fr));
 
         /* replace old iter */
-        /*
-         * FIXME Much more efficient if I turn the iterator struct in
-         * var.c into an object and use that, rather than creating and
-         * destroying like a gazillion integers here.
-         */
         VAR_DECR_REF(iter);
         iter = intvar_new(i + 1LL);
 
@@ -921,11 +916,10 @@ endloop:
 static int
 do_b_if(Frame *fr, instruction_t ii)
 {
-        enum result_t status;
         Object *v = pop(fr);
         bool condx = !!(ii.arg1 & IARG_COND_COND);
-        bool condy = !var_cmpz(v, &status);
-        if (status == RES_OK && condx == condy) {
+        bool condy = !var_cmpz(v);
+        if (condx == condy) {
                 fr->ppii += ii.arg2;
                 if (!!(ii.arg1 & IARG_COND_SAVEF)) {
                         push(fr, v);
@@ -933,7 +927,7 @@ do_b_if(Frame *fr, instruction_t ii)
                 }
         }
         VAR_DECR_REF(v);
-        return status;
+        return RES_OK;
 }
 
 static int

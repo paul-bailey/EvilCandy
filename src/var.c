@@ -830,24 +830,21 @@ var_str_swap(Object *v)
 }
 
 /**
- * var_cmpz - Compare @v to zero, NULL, or something like it
- * @status:  To be set to RES_ERROR if cmpz not permitted,
- *           RES_OK otherwise.  This may not be NULL.
+ * var_cmpz - Bool-ify an object
  *
- * Return: true if @v is some kind of 'false', which depends on
- *         type.  Generally, return true if...
- *               @v is numerical and its value is zero.
- *               @v is sequential and its length is zero.
+ * Return: true if @v is some kind of 'false', which depends on type.
+ *
+ * If @v lacks a .cmpz method, return true, unless @v is sequential
+ * and its length is non zero.
  */
 bool
-var_cmpz(Object *v, enum result_t *status)
+var_cmpz(Object *v)
 {
         if (!v->v_type->cmpz) {
-                err_permit("cmpz", v);
-                *status = RES_ERROR;
+                if (hasvar_len(v))
+                        return seqvar_size(v) == 0;
                 return true;
         }
-        *status = RES_OK;
         return v->v_type->cmpz(v);
 }
 
@@ -868,23 +865,21 @@ var_all_or_any(Object *v, enum result_t *status, int which)
         it = iterator_get(v);
         if (!it) {
                 err_iterable(v, which == V_ALL ? "all" : "any");
-                return ErrorVar;
+                *status = RES_ERROR;
+                return false;
         }
         res = false;
         for (child = iterator_next(it);
              child != NULL; child = iterator_next(it)) {
-                res = !var_cmpz(child, status);
+                res = !var_cmpz(child);
                 VAR_DECR_REF(child);
-                if (*status != RES_OK) {
-                        bug_on(!err_occurred());
-                        iterator_unspool(it);
-                        return false;
-                }
                 if (res && which == V_ANY)
                         break;
                 if (!res && which == V_ALL)
                         break;
         }
+        if (child)
+                iterator_unspool(it);
         efree(it);
         *status = RES_OK;
         return res;
@@ -967,36 +962,23 @@ var_max(Object *v)
 Object *
 var_lnot(Object *v)
 {
-        int status;
-        bool cond = var_cmpz(v, &status);
-        if (status)
-                return NULL;
+        bool cond = var_cmpz(v);
         return intvar_new((int)cond);
 }
 
 Object *
 var_logical_or(Object *a, Object *b)
 {
-        int status;
-        bool res = !var_cmpz(a, &status);
-        if (status)
-                return NULL;
-        res = res || !var_cmpz(b, &status);
-        if (status)
-                return NULL;
+        bool res = !var_cmpz(a);
+        res = res || !var_cmpz(b);
         return intvar_new((int)res);
 }
 
 Object *
 var_logical_and(Object *a, Object *b)
 {
-        int status;
-        bool res = !var_cmpz(a, &status);
-        if (status)
-                return NULL;
-        res = res && !var_cmpz(b, &status);
-        if (status)
-                return NULL;
+        bool res = !var_cmpz(a);
+        res = res && !var_cmpz(b);
         return intvar_new((int)res);
 }
 

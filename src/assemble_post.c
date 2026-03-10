@@ -304,7 +304,6 @@ simplify_conditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
                 instruction_t *ip2;
                 Object *left;
                 bool cond1, cond2, do_jump;
-                enum result_t status;
                 ip2 = next_instr(ip);
                 if (ip2->code == INSTR_END)
                         break;
@@ -317,8 +316,7 @@ simplify_conditional_jumps(struct assemble_t *a, struct as_frame_t *fr)
                 }
 
                 left = rodata[ip->arg2];
-                cond1 = !var_cmpz(left, &status);
-                bug_on(status == RES_ERROR);
+                cond1 = !var_cmpz(left);
                 cond2 = !!(ip2->arg1 & IARG_COND_COND);
                 do_jump = (cond1 == cond2);
 

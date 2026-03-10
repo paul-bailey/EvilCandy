@@ -316,7 +316,7 @@ static inline bool isvar_seq_readable(Object *v)
 static inline bool isvar_map(Object *v)
         { return v->v_type->mpm != NULL; }
 static inline bool hasvar_len(Object *v)
-        { return isvar_seq(v) || isvar_map(v); }
+        { return v->v_type->get_iter != NULL; }
 
 /*
  * Some objects made public so some functions can be inline.

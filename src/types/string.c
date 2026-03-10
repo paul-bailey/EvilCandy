@@ -2539,7 +2539,7 @@ string_cmpz(Object *a)
         bug_on(!isvar_string(a));
 
         /* treat "" same as NULL in comparisons */
-        return seqvar_size(a) != 0;
+        return seqvar_size(a) == 0;
 }
 
 /* TODO: if arg=string, replace '%[fmt-args]' with arg */

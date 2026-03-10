@@ -196,17 +196,15 @@ struct rangeiter_t {
 static Object *
 rangeiter_next(struct iterator_t *it)
 {
-        long long newidx;
         struct rangeiter_t *rit = (struct rangeiter_t *)it;
         struct rangevar_t *b = (struct rangevar_t *)(rit->target);
 
         if (!b)
                 return NULL;
 
-        newidx = rit->i + b->step;
-        if (newidx < b->stop) {
-                Object *ret = intvar_new(newidx);
-                rit->i = newidx;
+        if (rit->i < b->stop) {
+                Object *ret = intvar_new(rit->i);
+                rit->i += b->step;
                 return ret;
         } else {
                 VAR_DECR_REF(rit->target);

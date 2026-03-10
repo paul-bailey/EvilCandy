@@ -133,8 +133,19 @@ again:
                 clast = c;
         }
 
-        if (c == '\0')
-                token_errset(state, TE_UNTERM_QUOTE);
+        if (c == '\0') {
+                /*
+                 * XXX readline implementation doesn't seem to be
+                 * consistent whether it includes the newline in the
+                 * return string.  Check for that here.
+                 */
+                if (pc - state->line >= 2 && *(pc-2) != '\n')
+                        buffer_putc(tok, '\n');
+                if (tok_next_line(state) < 0)
+                        token_errset(state, TE_UNTERM_QUOTE);
+                pc = state->s;
+                goto again;
+        }
 
         if (c == '{') {
                 bug_on(!fstring);

@@ -469,8 +469,7 @@ tuple_create(Frame *fr)
 
         it = iterator_get(arg);
         if (!it) {
-                err_setstr(TypeError,
-                           "tuple(): %s is not iterable", typestr(arg));
+                err_iterable(arg, "tuple");
                 return ErrorVar;
         }
 

@@ -856,7 +856,7 @@ do_foreach_setup(Frame *fr, instruction_t ii)
         return RES_OK;
 
 cant:
-        err_setstr(TypeError, "'%s' is not iterable", typestr(v));
+        err_iterable(v, NULL);
         VAR_DECR_REF(v);
         return RES_ERROR;
 }
@@ -957,7 +957,7 @@ do_unpack(Frame *fr, instruction_t ii)
         Object *sq = pop(fr);
         unsigned short i, count;
         if (!isvar_seq_readable(sq)) {
-                err_setstr(TypeError, "Object is not iterable-readable");
+                err_iterable(sq, NULL);
                 goto cant;
         }
         count = ii.arg2 & 0x7fffu;

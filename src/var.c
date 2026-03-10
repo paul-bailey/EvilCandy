@@ -867,8 +867,7 @@ var_all_or_any(Object *v, enum result_t *status, int which)
 
         it = iterator_get(v);
         if (!it) {
-                err_setstr(TypeError, "%s(): %s is not iterable",
-                           which == V_ALL ? "all" : "any", typestr(v));
+                err_iterable(v, which == V_ALL ? "all" : "any");
                 return ErrorVar;
         }
         res = false;
@@ -877,11 +876,7 @@ var_all_or_any(Object *v, enum result_t *status, int which)
                 res = !var_cmpz(child, status);
                 VAR_DECR_REF(child);
                 if (*status != RES_OK) {
-                        if (!err_occurred()) {
-                                err_setstr(TypeError, "%s(): invalid type '%s'",
-                                           typestr(v),
-                                           which == V_ALL ? "all" : "any");
-                        }
+                        bug_on(!err_occurred());
                         iterator_unspool(it);
                         return false;
                 }
@@ -923,8 +918,7 @@ var_min_or_max(Object *v, int minmax)
 
         it = iterator_get(v);
         if (!it) {
-                err_setstr(TypeError, "%s(): %s is not iterable",
-                           minmax == V_MIN ? "min" : "max", typestr(v));
+                err_iterable(v, minmax == V_MIN ? "min" : "max");
                 return ErrorVar;
         }
 

@@ -7,6 +7,13 @@
 #include <errno.h>
 
 void
+err_iterable(Object *obj, const char *fname)
+{
+        err_setstr(TypeError, "%s%s'%s' is not iterable",
+                fname ? fname : "", fname ? "(): " : "", typestr(obj));
+}
+
+void
 err_decode(int codec, const char *why)
 {
         char codecbuf[16];

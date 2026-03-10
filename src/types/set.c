@@ -511,8 +511,7 @@ setvar_new(Object *seq)
 
         it = iterator_get(seq);
         if (!it) {
-                err_setstr(TypeError,
-                           "%s is not iterable", typestr(seq));
+                err_iterable(seq, "set");
                 return ErrorVar;
         }
         ret = setvar_instantiate();

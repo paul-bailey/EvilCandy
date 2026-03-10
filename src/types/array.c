@@ -881,8 +881,7 @@ array_create(Frame *fr)
                 return arrayvar_new(0);
         it = iterator_get(arg);
         if (!it) {
-                err_setstr(TypeError,
-                           "list(): %s is not iterable", typestr(arg));
+                err_iterable(arg, "list");
                 return ErrorVar;
         }
 

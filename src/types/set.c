@@ -463,11 +463,17 @@ struct type_t SetType = {
  * Return: RES_OK or RES_ERROR. If RES_ERROR, @unique will not be touched,
  * and no references will be produced.
  *
- * Important!!  A non-NULL @unique is interpret as 'get' query, so...
+ * Important!!  A non-NULL @unique is interpret as a request to get a
+ * replacement for @child which has been 'de-duplicated'. The call might
+ * look like
+ *
+ *      status = dict_unique(set, child, &child);
+ * so...
+ *
  * 1. If @unique is NULL, a reference will be produced for @child only if
  *    it did not previously exist in the set.
- * 2. If @unique is non-NULL, a reference will be produced for @unique,
- *    whether it matches @child or not.
+ * 2. If @unique is non-NULL and @child has a match already in the set,
+ *    then the reference for @child will be consumed.
  */
 enum result_t
 set_additem(Object *set, Object *child, Object **unique)
@@ -482,8 +488,10 @@ set_additem(Object *set, Object *child, Object **unique)
         }
 
         if (sv->s_keys[i] != NULL) {
-                if (unique)
+                if (unique) {
+                        VAR_DECR_REF(child);
                         *unique = VAR_NEW_REF(sv->s_keys[i]);
+                }
         } else {
                 sv->s_keys[i] = VAR_NEW_REF(child);
                 if (unique)

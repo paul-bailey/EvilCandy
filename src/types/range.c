@@ -197,20 +197,27 @@ static Object *
 rangeiter_next(struct iterator_t *it)
 {
         struct rangeiter_t *rit = (struct rangeiter_t *)it;
-        struct rangevar_t *b = (struct rangevar_t *)(rit->target);
+        struct rangevar_t *r = (struct rangevar_t *)(rit->target);
+        Object *ret;
 
-        if (!b)
+        if (!r)
                 return NULL;
 
-        if (rit->i < b->stop) {
-                Object *ret = intvar_new(rit->i);
-                rit->i += b->step;
-                return ret;
-        } else {
-                VAR_DECR_REF(rit->target);
-                rit->target = NULL;
-                return NULL;
-        }
+        if (seqvar_size(rit->target) == 0)
+                goto nomore;
+        if (r->step < 0 && rit->i <= r->stop)
+                goto nomore;
+        else if (r->step > 0 && rit->i >= r->stop)
+                goto nomore;
+
+        ret = intvar_new(rit->i);
+        rit->i += r->step;
+        return ret;
+
+nomore:
+        VAR_DECR_REF(rit->target);
+        rit->target = NULL;
+        return NULL;
 }
 
 static struct iterator_t *

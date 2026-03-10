@@ -13,14 +13,12 @@
  *              used for tracing for error messages.
  *              XXX Wasteful, this is only used for disassembly, and for
  *              only the first opcode of an executable, nowhere else.
- * @s:          Content of the token parsed
  * @v:          Value of the token, if @t is for a literal expression
  *              of a user variable.
  */
 struct token_t {
         unsigned int t;
         unsigned int line;
-        char *s;
         Object *v;
 };
 

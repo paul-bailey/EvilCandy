@@ -131,7 +131,7 @@ parsedict(struct json_state_t *j, Object *parent)
                 json_get_tok(j);
                 if (j->tok->t != 'q')
                         json_err(j, JE_SYNTAX);
-                name = j->tok->s;
+                name = estrdup(string_cstring(j->tok->v));
                 json_get_tok(j);
                 if (j->tok->t != OC_COLON)
                         json_err(j, JE_SYNTAX);

@@ -648,14 +648,12 @@ tokenize(struct token_state_t *state)
                 static const struct token_t eofoc = {
                         .t = OC_EOF,
                         .line = 0,
-                        .s = NULL,
                         .v = NULL,
                 };
                 state->eof = true;
                 buffer_putd(&state->pgm, &eofoc, sizeof(eofoc));
         } else {
                 struct token_t oc;
-                bool intern = false;
 
                 oc.t = ret;
                 oc.line = state->lineno;
@@ -663,15 +661,12 @@ tokenize(struct token_state_t *state)
                 switch (ret) {
                 case OC_NULL:
                         oc.v = VAR_NEW_REF(NullVar);
-                        intern = true;
                         break;
                 case OC_TRUE:
                         oc.v = VAR_NEW_REF(gbl.one);
-                        intern = true;
                         break;
                 case OC_FALSE:
                         oc.v = VAR_NEW_REF(gbl.zero);
-                        intern = true;
                         break;
                 case OC_BYTES:
                         oc.line = line;
@@ -725,18 +720,7 @@ tokenize(struct token_state_t *state)
                         }
                         break;
                 default:
-                        intern = true;
                         oc.v = NULL;
-                }
-
-                intern = intern && !!state->dedup;
-
-                if (buffer_size(&state->tok) == 0) {
-                        oc.s = estrdup("");
-                } else if (intern) {
-                        oc.s = dict_unique(state->dedup, state->tok.s);
-                } else {
-                        oc.s = estrdup(state->tok.s);
                 }
 
                 buffer_putd(&state->pgm, &oc, sizeof(oc));
@@ -796,8 +780,6 @@ get_tok_from_cstring(const char *s, char **endptr, struct token_t *dst)
                 /* cleaning state below would consume this */
                 if (dst->v)
                         VAR_INCR_REF(dst->v);
-                if (dst->s)
-                        dst->s = NULL;
                 if (endptr)
                         *endptr = state.s;
         }
@@ -899,18 +881,6 @@ token_get_pos(struct token_state_t *state)
         return (token_pos_t)state->nexttok;
 }
 
-static bool
-isintern(struct token_state_t *state, struct token_t *tok)
-{
-        if (!state->dedup)
-                return false;
-        if (!tok->v)
-                return true;
-        return tok->t == OC_NULL ||
-               tok->t == OC_TRUE ||
-               tok->t == OC_FALSE;
-}
-
 /**
  * token_state_free - Destructor for a token state machine
  * @state: A return value of token_state_new()
@@ -934,10 +904,6 @@ token_state_free_(struct token_state_t *state, bool free_self)
         while (tok < endtok) {
                 if (tok->v)
                         VAR_DECR_REF(tok->v);
-                if (!isintern(state, tok)) {
-                        bug_on(!tok->s);
-                        efree(tok->s);
-                }
                 tok++;
         }
         buffer_free(&state->pgm);

@@ -723,6 +723,13 @@ tokenize(struct token_state_t *state)
                         oc.v = NULL;
                 }
 
+                if (state->dedup && oc.v && isvar_string(oc.v)) {
+                        enum result_t res;
+                        res = set_additem(state->dedup, oc.v, &oc.v);
+                        bug_on(res != RES_OK);
+                        (void)res;
+                }
+
                 buffer_putd(&state->pgm, &oc, sizeof(oc));
         }
         state->ntok++;
@@ -752,7 +759,7 @@ token_init_state(struct token_state_t *state, FILE *fp, const char *filename)
          * if not file, we're just parsing a line, so interning
          * is more overhead than it's worth
          */
-        state->dedup = fp ? dictvar_new() : NULL;
+        state->dedup = fp ? setvar_new(NULL) : NULL;
         if (fp && isatty(fileno(fp))) {
                 state->tty = true;
                 state->prompt = EVILCANDY_PS1;

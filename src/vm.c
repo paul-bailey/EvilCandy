@@ -898,23 +898,31 @@ static int
 do_unpack(Frame *fr, instruction_t ii)
 {
         Object *sq = pop(fr);
-        unsigned short i, count;
-        if (!isvar_seq_readable(sq)) {
-                err_iterable(sq, NULL);
-                goto cant;
-        }
+        Object *it, *x;
+        unsigned short count;
+
         count = ii.arg2 & 0x7fffu;
         if (seqvar_size(sq) != count) {
-                err_setstr(ValueError, "expected %d items to unpack but got %d",
+                err_setstr(ValueError,
+                           "expected %d items to unpack but got %d",
                            (int)count, (int)seqvar_size(sq));
                 goto cant;
         }
-        for (i = 0; i < count; i++) {
-                Object *item = seqvar_getitem(sq, i);
-                bug_on(!item);
-                push(fr, item);
+
+        it = iterator_get(sq);
+        if (!it) {
+                err_iterable(sq, NULL);
+                goto cant;
         }
         VAR_DECR_REF(sq);
+
+        for (x = iterator_next(it); x; x = iterator_next(it)) {
+                /* keep reference pass it on to stack */
+                push(fr, x);
+                count--;
+        }
+        bug_on(count != 0);
+        VAR_DECR_REF(it);
         return 0;
 
 cant:

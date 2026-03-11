@@ -372,13 +372,13 @@ set_create(Frame *fr)
 }
 
 struct setiter_t {
-        struct iterator_t base;
+        Object base;
         Object *target;
         size_t i;
 };
 
 static Object *
-set_iter_next(struct iterator_t *it)
+set_iter_next(Object *it)
 {
         struct setiter_t *sit = (struct setiter_t *)it;
         struct setvar_t *sv = (struct setvar_t *)(sit->target);
@@ -399,17 +399,32 @@ set_iter_next(struct iterator_t *it)
         return NULL;
 }
 
-static struct iterator_t *
+static void
+set_iter_reset(Object *it)
+{
+        struct setiter_t *sit = (struct setiter_t *)it;
+        if (sit->target)
+                VAR_DECR_REF(sit->target);
+        sit->target = NULL;
+}
+
+struct type_t SetIterType = {
+        .name           = "set_iterator",
+        .reset          = set_iter_reset,
+        .size           = sizeof(struct setiter_t),
+        .iter_next      = set_iter_next,
+};
+
+static Object *
 set_get_iter(Object *set)
 {
         struct setiter_t *ret;
+
         bug_on(!isvar_set(set));
-        ret = emalloc(sizeof(*ret));
-        memset(ret, 0, sizeof(*ret));
-        ret->base.next = set_iter_next;
+        ret = (struct setiter_t *)var_new(&SetIterType);
         ret->target = VAR_NEW_REF(set);
         ret->i = 0;
-        return (struct iterator_t *)ret;
+        return (Object *)ret;
 }
 
 static const struct operator_methods_t set_op_methods = {
@@ -512,7 +527,7 @@ Object *
 setvar_new(Object *seq)
 {
         Object *ret, *item;
-        struct iterator_t *it;
+        Object *it;
 
         if (!seq)
                 return setvar_instantiate();
@@ -529,11 +544,12 @@ setvar_new(Object *seq)
                         err_hashable(item, NULL);
                         VAR_DECR_REF(item);
                         VAR_DECR_REF(ret);
-                        iterator_unspool(it);
+                        VAR_DECR_REF(it);
                         return ErrorVar;
                 }
                 VAR_DECR_REF(item);
         }
+        VAR_DECR_REF(it);
         return ret;
 }
 

@@ -147,20 +147,6 @@ struct type_prop_t {
         enum result_t (*setprop)(Object *self, Object *value);
 };
 
-/**
- * struct iterator_t - struct returned from XxxxType.get_iter().
- * @next:   Function to return next object, NULL if at the end, or
- *          ErrorVar if an error occurred.  Before returning NULL
- *          or ErrorVar, .next() must do necessary cleanup so that
- *          caller can just do a simple free.
- *
- * Iterable objects should embed this struct into their privately defined
- * iterator struct.
- */
-struct iterator_t {
-        Object *(*next)(struct iterator_t *);
-};
-
 /* .flags field in struct type_t */
 enum {
         OBF_NUMBER      = 0x01,
@@ -238,7 +224,8 @@ struct type_t {
         const struct type_prop_t *prop_getsets;
         Object *(*create)(Frame *fr);
         hash_t (*hash)(Object *);
-        struct iterator_t *(*get_iter)(Object *);
+        Object *(*iter_next)(Object *);
+        Object *(*get_iter)(Object *);
 };
 
 /*
@@ -270,6 +257,15 @@ extern struct type_t RangeType;
 extern struct type_t UuidptrType;
 extern struct type_t IdType;
 extern struct type_t SetType;
+
+/* iterators */
+extern struct type_t ArrayIterType;
+extern struct type_t BytesIterType;
+extern struct type_t DictIterType;
+extern struct type_t TupleIterType;
+extern struct type_t SetIterType;
+extern struct type_t RangeIterType;
+extern struct type_t StringIterType;
 
 static inline bool isvar_array(Object *v)
         { return v->v_type == &ArrayType; }
@@ -445,7 +441,7 @@ var_hash(Object *v)
 }
 
 /* consume reference if result not saved anywhere */
-static inline struct iterator_t *
+static inline Object *
 iterator_get(Object *obj)
 {
         if (!obj->v_type->get_iter)
@@ -455,13 +451,11 @@ iterator_get(Object *obj)
 
 /* free iter ONLY upon getting NULL return, free with just efree() */
 static inline Object *
-iterator_next(struct iterator_t *iter)
+iterator_next(Object *iter)
 {
-        return iter->next(iter);
+        bug_on(!iter->v_type->iter_next);
+        return iter->v_type->iter_next(iter);
 }
-
-/* in var.c */
-extern void iterator_unspool(struct iterator_t *iter);
 
 #endif /* EVILCANDY_OBJTYPES_H */
 

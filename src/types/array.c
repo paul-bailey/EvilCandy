@@ -115,8 +115,7 @@ array_extend(Object *array, Object *seq)
                 ret = array_insert_chunk(array, seqvar_size(array),
                                 array_get_data(seq), seqvar_size(seq));
         } else {
-                struct iterator_t *it;
-                Object *x;
+                Object *it, *x;
 
                 it = iterator_get(seq);
                 if (!it) {
@@ -127,7 +126,7 @@ array_extend(Object *array, Object *seq)
                         array_append(array, x);
                         VAR_DECR_REF(x);
                 }
-                efree(it);
+                VAR_DECR_REF(it);
                 ret = RES_OK;
         }
 
@@ -894,8 +893,7 @@ do_array_reverse(Frame *fr)
 static Object *
 array_create(Frame *fr)
 {
-        Object *arg, *item, *ret;
-        struct iterator_t *it;
+        Object *arg, *item, *ret, *it;
 
         arg = NULL;
         if (vm_getargs(fr, "[|<*>!]:list", &arg) == RES_ERROR)
@@ -913,20 +911,26 @@ array_create(Frame *fr)
                 array_append(ret, item);
                 VAR_DECR_REF(item);
         }
-        efree(it);
+        VAR_DECR_REF(it);
         return ret;
 }
 
+/*
+ *              Iterator methods
+ */
+
 struct array_iterator_t {
-        struct iterator_t base;
+        Object base;
         Object *target;
         size_t i;
 };
 
+#define O2AIT(o)        ((struct array_iterator_t *)(o))
+
 static Object *
-array_iter_next(struct iterator_t *it)
+array_iter_next(Object *it)
 {
-        struct array_iterator_t *ait = (struct array_iterator_t *)it;
+        struct array_iterator_t *ait = O2AIT(it);
         if (!ait->target) {
                 return NULL;
         } else if (ait->i < seqvar_size(ait->target)) {
@@ -940,17 +944,29 @@ array_iter_next(struct iterator_t *it)
         }
 }
 
-static struct iterator_t *
+static void
+array_iter_reset(Object *it)
+{
+        struct array_iterator_t *ait = O2AIT(it);
+        if (ait->target)
+                VAR_DECR_REF(ait->target);
+        ait->target = NULL;
+}
+
+struct type_t ArrayIterType = {
+        .name = "list_iterator",
+        .reset = array_iter_reset,
+        .size = sizeof(struct array_iterator_t),
+        .iter_next = array_iter_next,
+};
+
+static Object *
 array_get_iter(Object *arr)
 {
-        struct array_iterator_t *ret;
-        bug_on(!isvar_array(arr));
-        ret = emalloc(sizeof(*ret));
-        memset(ret, 0, sizeof(*ret));
-        ret->base.next = array_iter_next;
-        ret->target = VAR_NEW_REF(arr);
-        ret->i = 0;
-        return (struct iterator_t *)ret;
+        Object *ret = var_new(&ArrayIterType);
+        O2AIT(ret)->target = VAR_NEW_REF(arr);
+        O2AIT(ret)->i = 0;
+        return ret;
 }
 
 static const struct type_inittbl_t array_cb_methods[] = {

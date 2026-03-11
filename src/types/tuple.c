@@ -457,8 +457,7 @@ nope:
 static Object *
 tuple_create(Frame *fr)
 {
-        Object *arg, **data, *item;
-        struct iterator_t *it;
+        Object *arg, **data, *item, *it;
         size_t i, n;
 
         arg = NULL;
@@ -484,7 +483,7 @@ tuple_create(Frame *fr)
                 bug_on(i >= n);
                 data[i++] = item;
         }
-        efree(it);
+        VAR_DECR_REF(it);
         bug_on(i != n);
         return tuplevar_new_common(n, data, true, false);
 }
@@ -515,13 +514,13 @@ tuple_hash(Object *tup)
 }
 
 struct tuple_iterator_t {
-        struct iterator_t base;
+        Object base;
         Object *target;
         size_t i;
 };
 
 static Object *
-tuple_iter_next(struct iterator_t *it)
+tuple_iter_next(Object *it)
 {
         struct tuple_iterator_t *tpit = (struct tuple_iterator_t *)it;
         if (!tpit->target) {
@@ -536,17 +535,32 @@ tuple_iter_next(struct iterator_t *it)
         }
 }
 
-static struct iterator_t *
+static void
+tuple_iter_reset(Object *it)
+{
+        struct tuple_iterator_t *tpit = (struct tuple_iterator_t *)it;
+        if (tpit->target)
+                VAR_DECR_REF(tpit->target);
+        tpit->target = NULL;
+}
+
+struct type_t TupleIterType = {
+        .name           = "tuple_iterator",
+        .reset          = tuple_iter_reset,
+        .size           = sizeof(struct tuple_iterator_t),
+        .iter_next      = tuple_iter_next,
+};
+
+static Object *
 tuple_get_iter(Object *tup)
 {
         struct tuple_iterator_t *ret;
+
         bug_on(!isvar_tuple(tup));
-        ret = emalloc(sizeof(*ret));
-        memset(ret, 0, sizeof(*ret));
-        ret->base.next = tuple_iter_next;
+        ret = (struct tuple_iterator_t *)var_new(&TupleIterType);
         ret->target = VAR_NEW_REF(tup);
         ret->i = 0;
-        return (struct iterator_t *)ret;
+        return (Object *)ret;
 }
 
 

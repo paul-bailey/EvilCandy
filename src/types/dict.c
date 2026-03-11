@@ -1405,14 +1405,14 @@ dict_getprop_length(Object *self)
 }
 
 struct dict_iterator_t {
-        struct iterator_t base;
+        Object base;
         Object *target;
         size_t i;
 };
 
 /* TODO: special alternatives which return values or key/value pairs */
 static Object *
-dict_iter_next(struct iterator_t *it)
+dict_iter_next(Object *it)
 {
         struct dict_iterator_t *dit = (struct dict_iterator_t *)it;
         struct dictvar_t *d = (struct dictvar_t *)(dit->target);
@@ -1437,17 +1437,31 @@ dict_iter_next(struct iterator_t *it)
         return NULL;
 }
 
-static struct iterator_t *
+static void
+dict_iter_reset(Object *it)
+{
+        struct dict_iterator_t *dit = (struct dict_iterator_t *)it;
+        if (dit->target)
+                VAR_DECR_REF(dit->target);
+        dit->target = NULL;
+}
+
+struct type_t DictIterType = {
+        .name           = "dict_iterator",
+        .reset          = dict_iter_reset,
+        .size           = sizeof(struct dict_iterator_t),
+        .iter_next      = dict_iter_next,
+};
+
+static Object *
 dict_get_iter(Object *d)
 {
         struct dict_iterator_t *ret;
         bug_on(!isvar_dict(d));
-        ret = emalloc(sizeof(*ret));
-        memset(ret, 0, sizeof(*ret));
-        ret->base.next = dict_iter_next;
+        ret = (struct dict_iterator_t *)var_new(&DictIterType);
         ret->target = VAR_NEW_REF(d);
         ret->i = 0;
-        return (struct iterator_t *)ret;
+        return (Object *)ret;
 }
 
 static const struct type_inittbl_t dict_cb_methods[] = {

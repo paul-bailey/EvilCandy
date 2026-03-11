@@ -2871,15 +2871,17 @@ err_surrogate:
  * *********************************************************************/
 
 struct string_iterator_t {
-        struct iterator_t base;
+        Object base;
         Object *target;
         size_t i;
 };
 
+#define O2SIT(o)        ((struct string_iterator_t *)(o))
+
 static Object *
-string_iter_next(struct iterator_t *it)
+string_iter_next(Object *it)
 {
-        struct string_iterator_t *sit = (struct string_iterator_t *)it;
+        struct string_iterator_t *sit = O2SIT(it);
         if (!sit->target) {
                 return NULL;
         } else if (sit->i < seqvar_size(sit->target)) {
@@ -2891,17 +2893,29 @@ string_iter_next(struct iterator_t *it)
         }
 }
 
-static struct iterator_t *
+static void
+string_iter_reset(Object *it)
+{
+        if (O2SIT(it)->target)
+                VAR_DECR_REF(O2SIT(it)->target);
+        O2SIT(it)->target = NULL;
+}
+
+struct type_t StringIterType = {
+        .name           = "string_iterator",
+        .reset          = string_iter_reset,
+        .size           = sizeof(struct string_iterator_t),
+        .iter_next      = string_iter_next,
+};
+
+static Object *
 string_get_iter(Object *str)
 {
-        struct string_iterator_t *ret;
         bug_on(!isvar_string(str));
-        ret = emalloc(sizeof(*ret));
-        memset(ret, 0, sizeof(*ret));
-        ret->base.next = string_iter_next;
-        ret->target = VAR_NEW_REF(str);
-        ret->i = 0;
-        return (struct iterator_t *)ret;
+        Object *ret = var_new(&StringIterType);
+        O2SIT(ret)->target = VAR_NEW_REF(str);
+        O2SIT(ret)->i = 0;
+        return ret;
 }
 
 

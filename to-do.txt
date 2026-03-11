@@ -79,7 +79,7 @@ Must Do
 * Replace ``has`` with ``in``, you're doing no one any favors by making
   up something new.
 
-* Make sure all built-in types have a .cmpz method.
+* **not needed** Make sure all built-in types have a .cmpz method.
 
 * Make sure all .cmpz methods match documentation.
 

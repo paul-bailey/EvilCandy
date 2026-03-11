@@ -188,15 +188,17 @@ needint:
 }
 
 struct rangeiter_t {
-        struct iterator_t base;
+        Object base;
         Object *target;
         long long i;
 };
 
+#define O2RIT(o)        ((struct rangeiter_t *)(o))
+
 static Object *
-rangeiter_next(struct iterator_t *it)
+rangeiter_next(Object *it)
 {
-        struct rangeiter_t *rit = (struct rangeiter_t *)it;
+        struct rangeiter_t *rit = O2RIT(it);
         struct rangevar_t *r = (struct rangevar_t *)(rit->target);
         Object *ret;
 
@@ -220,17 +222,28 @@ nomore:
         return NULL;
 }
 
-static struct iterator_t *
+static void
+rangeiter_reset(Object *it)
+{
+        if (O2RIT(it)->target)
+                VAR_DECR_REF(O2RIT(it)->target);
+        O2RIT(it)->target = NULL;
+}
+
+struct type_t RangeIterType = {
+        .name           = "range_iterator",
+        .reset          = rangeiter_reset,
+        .size           = sizeof(struct rangeiter_t),
+        .iter_next      = rangeiter_next,
+};
+
+static Object *
 range_get_iter(Object *rng)
 {
-        struct rangeiter_t *ret;
-        bug_on(!isvar_range(rng));
-        ret = emalloc(sizeof(*ret));
-        memset(ret, 0, sizeof(*ret));
-        ret->base.next = rangeiter_next;
-        ret->target = VAR_NEW_REF(rng);
-        ret->i = ((struct rangevar_t *)rng)->start;
-        return (struct iterator_t *)ret;
+        Object *ret = var_new(&RangeIterType);
+        O2RIT(ret)->target = VAR_NEW_REF(rng);
+        O2RIT(ret)->i = ((struct rangevar_t *)rng)->start;
+        return ret;
 }
 
 static const struct type_prop_t range_prop_getsets[] = {

@@ -1541,15 +1541,17 @@ bytes_hash(Object *b)
 }
 
 struct bytes_iterator_t {
-        struct iterator_t base;
+        Object base;
         Object *target;
         size_t i;
 };
 
+#define O2BIT(o)        ((struct bytes_iterator_t *)(o))
+
 static Object *
-bytes_iter_next(struct iterator_t *it)
+bytes_iter_next(Object *it)
 {
-        struct bytes_iterator_t *bit = (struct bytes_iterator_t *)it;
+        struct bytes_iterator_t *bit = O2BIT(it);
         if (!bit->target) {
                 return NULL;
         } else if (bit->i < seqvar_size(bit->target)) {
@@ -1562,17 +1564,29 @@ bytes_iter_next(struct iterator_t *it)
         }
 }
 
-static struct iterator_t *
+static void
+bytes_iter_reset(Object *it)
+{
+        struct bytes_iterator_t *bit = O2BIT(it);
+        if (bit->target)
+                VAR_DECR_REF(bit->target);
+        bit->target = NULL;
+}
+
+struct type_t BytesIterType = {
+        .name   = "bytes_iterator",
+        .reset  = bytes_iter_reset,
+        .size   = sizeof(struct bytes_iterator_t),
+        .iter_next = bytes_iter_next,
+};
+
+static Object *
 bytes_get_iter(Object *b)
 {
-        struct bytes_iterator_t *ret;
-        bug_on(!isvar_bytes(b));
-        ret = emalloc(sizeof(*ret));
-        memset(ret, 0, sizeof(*ret));
-        ret->base.next = bytes_iter_next;
-        ret->target = VAR_NEW_REF(b);
-        ret->i = 0;
-        return (struct iterator_t *)ret;
+        Object *ret = var_new(&BytesIterType);
+        O2BIT(ret)->target = VAR_NEW_REF(b);
+        O2BIT(ret)->i = 0;
+        return ret;
 }
 
 static const struct type_prop_t bytes_prop_getsets[] = {

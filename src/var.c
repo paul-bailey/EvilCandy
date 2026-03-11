@@ -228,6 +228,15 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &SetType,
         &UuidptrType,
         &IdType,
+
+        /* the iterators */
+        &ArrayIterType,
+        &BytesIterType,
+        &DictIterType,
+        &TupleIterType,
+        &SetIterType,
+        &RangeIterType,
+        &StringIterType,
         NULL,
 };
 
@@ -858,8 +867,7 @@ enum {
 static bool
 var_all_or_any(Object *v, enum result_t *status, int which)
 {
-        struct iterator_t *it;
-        Object *child;
+        Object *it, *child;
         bool res;
 
         it = iterator_get(v);
@@ -878,9 +886,7 @@ var_all_or_any(Object *v, enum result_t *status, int which)
                 if (!res && which == V_ALL)
                         break;
         }
-        if (child)
-                iterator_unspool(it);
-        efree(it);
+        VAR_DECR_REF(it);
         *status = RES_OK;
         return res;
 }
@@ -908,8 +914,7 @@ enum { V_MIN, V_MAX };
 static Object *
 var_min_or_max(Object *v, int minmax)
 {
-        struct iterator_t *it;
-        Object *child, *res;
+        Object *it, *child, *res;
 
         it = iterator_get(v);
         if (!it) {
@@ -934,7 +939,7 @@ var_min_or_max(Object *v, int minmax)
                 }
                 VAR_DECR_REF(child);
         }
-        efree(it);
+        VAR_DECR_REF(it);
         if (!res) {
                 err_setstr(ValueError, "%s(): object is empty",
                            minmax == V_MIN ? "min" : "max");
@@ -1064,17 +1069,3 @@ out:
         return status == RES_OK ? NULL : ErrorVar;
 }
 
-/**
- * For normal free (when iterator_next() returns NULL), you
- * can free @it with a simple efree() call.
- * This is for occasions when an error occurred before that happens.
- * This function also frees @it.
- */
-void
-iterator_unspool(struct iterator_t *it)
-{
-        Object *child = iterator_next(it);
-        while (child)
-                child = iterator_next(it);
-        efree(it);
-}

@@ -67,7 +67,7 @@ LSHIFT3         '>>>'
 DELETE          "delete"
 FUNC            "function"
 LET             "let"
-THIS            "this"
+THIS            "this"          atomic_key
 RETURN          "return"
 BREAK           "break"
 CONTINUE        "continue"
@@ -86,12 +86,12 @@ NULL            "null"
 THROW           "throw"
 HAS             "has"
 EOF
-STRING
+STRING                          atomic_key
 FSTRING_START
 FSTRING_CONTINUE
 FSTRING_END
-BYTES
-IDENTIFIER
-INTEGER
-FLOAT
+BYTES                           atomic_key
+IDENTIFIER                      atomic_key
+INTEGER                         atomic_key
+FLOAT                           atomic_key
 COMPLEX

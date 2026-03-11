@@ -729,7 +729,7 @@ done:
  * parsing a dict instead of a set
  */
 static void
-assemble_objdef(struct assemble_t *a, int count, int where)
+assemble_dictdef(struct assemble_t *a, int count, int where)
 {
         switch (where) {
         case 1:
@@ -750,9 +750,7 @@ where_1:
                         /* computed key */
                         assemble_expr(a);
                         as_errlex(a, OC_RBRACK);
-                } else if (a->oc->t == OC_IDENTIFIER
-                           || a->oc->t == OC_STRING
-                           || a->oc->t == OC_INTEGER) {
+                } else if (istok_atomic_key(a->oc->t)) {
                         /* key is literal text */
 where_2:
                         ainstr_load_const(a, a->oc);
@@ -802,9 +800,13 @@ assemble_setdef(struct assemble_t *a)
                 bool could_be_dict = !count;
                 as_lex(a);
                 if (a->oc->t == OC_LBRACK) {
+                        /*
+                         * Lists are unhashable, so this MUST be for a
+                         * computed dictionary key.
+                         */
                         if (!could_be_dict)
                                 as_err(a, AE_EXPECT);
-                        assemble_objdef(a, count, 1);
+                        assemble_dictdef(a, count, 1);
                         return;
                 }
 
@@ -815,19 +817,21 @@ assemble_setdef(struct assemble_t *a)
                 }
 
                 /*
-                 * TODO: remove this little block, as well as
-                 * in assemble_objdef() above, make more versatile
-                 * choices in dictionary keys.
+                 * FIXME: Requiring computed keys to exist only within
+                 * square brackets is an artifact of when EvilCandy was
+                 * more strictly trying to look like JavaScript.  But
+                 * the requirement is purely artificial; it's actually
+                 * **easier** to be more versatile and not require it.
                  */
-                if (a->oc->t == OC_IDENTIFIER
-                    || a->oc->t == OC_STRING
-                    || a->oc->t == OC_INTEGER) {
+                if (istok_atomic_key(a->oc->t)) {
                         if (as_peek(a, false) == OC_COLON) {
                                 if (!could_be_dict)
                                         as_err(a, AE_EXPECT);
-                                assemble_objdef(a, count, 2);
+                                assemble_dictdef(a, count, 2);
                                 return;
                         }
+                } else {
+                        could_be_dict = false;
                 }
 
                 /* comma after last elem */
@@ -840,7 +844,7 @@ assemble_setdef(struct assemble_t *a)
                 if (a->oc->t == OC_COLON) {
                         if (!could_be_dict)
                                 as_err(a, AE_EXPECT);
-                        assemble_objdef(a, count, 3);
+                        assemble_dictdef(a, count, 3);
                         return;
                 }
                 count++;

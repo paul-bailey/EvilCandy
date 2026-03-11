@@ -40,9 +40,9 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
-  - Add iterator objects, or at least C-API versions of them.
   - Fill in set library.
   - Fix parsing issue wrt identifier as first token of statement.
+  - Support unpacking in 'for' statement headers.
   - Support starred unpacking, eg. "a, *b, c = seqvar;"
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.
@@ -57,6 +57,7 @@ Must Do
   - Make consistent and accurate error reporting
   - Robustulate the widths of indices.  They should all be size_t or
     ssize_t, not int.
+  - **done** Add iterator objects, or at least C-API versions of them.
   - **done** Fix "no top-level stack in interactive mode" awkwardness
   - **done** Allow string objects to contain nulchars in the middle.
   - **done** Add an editline-like UI for interactive mode.
@@ -70,8 +71,6 @@ Must Do
   different paths the parser should take, depending whether it is an
   assignment statement or an evaluation statement.  Figure out a way
   to resolve this.
-
-* Make dictionary iterable without requiring the creation of a new list.
 
 * If recursion error occurs during runtime (not load time), then unwind as
   if it was a normal exception; do not just panic and quit.
@@ -113,6 +112,8 @@ Must Do
   different ways.
 
 * Fix the cyclic-reference problem in GC.
+
+* **done** Make dictionary iterable without requiring the creation of a new list.
 
 * **done** Autoconfify readline
 

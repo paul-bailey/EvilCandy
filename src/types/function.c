@@ -410,7 +410,7 @@ func_getcode(Object *self)
 
         tp[0] = bytesvar_new((unsigned char *)x->instr,
                                 x->n_instr * sizeof(instruction_t));
-        tp[1] = tuplevar_from_stack(x->rodata, x->n_rodata, false);
+        tp[1] = VAR_NEW_REF(x->rodata);
         return tuplevar_from_stack(tp, 2, true);
 }
 
@@ -425,7 +425,7 @@ func_getrodata(Object *self)
                 return ErrorVar;
         }
         x = V2FUNC(self)->f_ex;
-        return tuplevar_from_stack(x->rodata, x->n_rodata, false);
+        return VAR_NEW_REF(x->rodata);
 }
 
 static const struct type_prop_t func_prop_getsets[] = {

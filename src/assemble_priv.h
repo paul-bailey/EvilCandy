@@ -33,7 +33,7 @@ struct as_frame_t {
         Object *af_locals;
         Object *af_args;
         Object *af_closures;
-        struct buffer_t af_rodata;
+        Object *af_rodata;
         struct buffer_t af_labels;
         struct buffer_t af_instr;
         int scope[FRAME_NEST_MAX];
@@ -77,10 +77,10 @@ static inline int as_buffer_ptr_size(struct buffer_t *b)
         { return buffer_size(b) / sizeof(void *); }
 
 static inline Object **as_frame_rodata(struct as_frame_t *fr)
-        { return (Object **)fr->af_rodata.s; }
+        { return array_get_data(fr->af_rodata); }
 
 static inline int as_frame_nconst(struct as_frame_t *fr)
-        { return as_buffer_ptr_size(&fr->af_rodata); }
+        { return seqvar_size(fr->af_rodata); }
 
 static inline int as_frame_ninstr(struct as_frame_t *fr)
         { return buffer_size(&fr->af_instr) / sizeof(instruction_t); }

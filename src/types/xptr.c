@@ -9,12 +9,8 @@ xptr_reset(Object *v)
         struct xptrvar_t *ex = V2XP(v);
         if (ex->instr)
                 efree(ex->instr);
-        if (ex->rodata) {
-                int i;
-                for (i = 0; i < ex->n_rodata; i++)
-                        VAR_DECR_REF(ex->rodata[i]);
-                efree(ex->rodata);
-        }
+        if (ex->rodata)
+                VAR_DECR_REF(ex->rodata);
         if (ex->file_name)
                 efree(ex->file_name);
 }
@@ -73,10 +69,10 @@ xptrvar_new(const struct xptr_cfg_t *cfg)
         Object *v = var_new(&XptrType);
         struct xptrvar_t *x = V2XP(v);
 
+        x->rodata = tuplevar_from_stack(array_get_data(cfg->rodata),
+                                        seqvar_size(cfg->rodata), false);
         x->instr        = cfg->instr;
-        x->n_rodata     = cfg->n_rodata;
         x->n_instr      = cfg->n_instr;
-        x->rodata       = cfg->rodata;
         x->file_name    = estrdup(cfg->file_name);
         x->file_line    = cfg->file_line;
         return v;

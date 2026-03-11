@@ -377,6 +377,10 @@ extern int intvar_toi(Object *v);
 static inline Object *seqvar_getitem(Object *v, int i)
         { return v->v_type->sqm->getitem(v, i); }
 
+/* only call if index has been checked */
+static inline Object *tuple_getitem_noref(Object *v, int i)
+        { return ((struct tuplevar_t *)v)->items[i]; }
+
 /*
  * string helpers - Only call these if you already type-checked @v
  */

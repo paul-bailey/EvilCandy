@@ -106,15 +106,14 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex,
 {
         Object *v;
 
-        if (i >= ex->n_rodata) {
+        if (i >= seqvar_size(ex->rodata)) {
                 /*
                  * XXX: Bug necessarily? Could be from a malformed
                  * byte-code file
                  */
-                DBUG("idx=%d >= n_rodata=%d", (int)i, ex->n_rodata);
                 bug();
         }
-        v = ex->rodata[i];
+        v = tuple_getitem_noref(ex->rodata, i);
 
         if (isvar_xptr(v)) {
                 /* XXX: it's a bug not to put this in configure.ac */
@@ -150,7 +149,7 @@ static void
 dump_rodata(FILE *fp, struct xptrvar_t *ex)
 {
         int i;
-        for (i = 0; i < ex->n_rodata; i++) {
+        for (i = 0; i < seqvar_size(ex->rodata); i++) {
                 fprintf(fp, ".rodata ");
                 print_rodata_str(fp, ex, i, false);
                 putc('\n', fp);
@@ -307,8 +306,8 @@ disassemble_recursive(FILE *fp, struct xptrvar_t *ex, unsigned int flags)
         dump_rodata(fp, ex);
         fprintf(fp, ".end\n\n\n");
 
-        for (i = 0; i < ex->n_rodata; i++) {
-                Object *v = ex->rodata[i];
+        for (i = 0; i < seqvar_size(ex->rodata); i++) {
+                Object *v = tuple_getitem_noref(ex->rodata, i);
                 if (isvar_xptr(v)) {
                         disassemble_recursive(fp,
                                         (struct xptrvar_t *)v, flags);

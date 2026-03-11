@@ -110,17 +110,6 @@ static void assemble_expr5_atomic(struct assemble_t *a);
 static int assemble_primary_elements(struct assemble_t *a,
                                      unsigned int flags);
 
-
-static int
-as_buffer_put_ptr(struct buffer_t *b, void *ptr)
-{
-        buffer_putd(b, (void *)&ptr, sizeof(void *));
-        return as_buffer_ptr_size(b) - 1;
-}
-
-#define as_buffer_put_name(bf_, nm_) \
-        as_buffer_put_ptr(bf_, (void *)(nm_))
-
 static inline int
 as_next_funcno(struct assemble_t *a)
 {
@@ -2284,12 +2273,12 @@ as_delete_frame_list(struct list_t *parent_list)
                 VAR_DECR_REF(fr->af_locals);
                 VAR_DECR_REF(fr->af_args);
                 VAR_DECR_REF(fr->af_closures);
+                VAR_DECR_REF(fr->af_rodata);
 
                 /*
                  * These are safe to free, because if we aren't unwinding
                  * due to failure, buffer_trim reset these already.
                  */
-                buffer_free(&fr->af_rodata);
                 buffer_free(&fr->af_labels);
                 buffer_free(&fr->af_instr);
 
@@ -2510,26 +2499,12 @@ assemble_get_line(struct assemble_t *a, struct token_t *toks,
 int
 assemble_seek_rodata(struct assemble_t *a, Object *v)
 {
-        Object **data = as_frame_rodata(a->fr);
-        int i, n = as_frame_nconst(a->fr);
-
-        bug_on(!v);
-        for (i = 0; i < n; i++) {
-                /* var_compare thinks 2 == 2.0, don't allow that */
-                if (v->v_type != data[i]->v_type)
-                        continue;
-                if (var_compare(v, data[i]) == 0)
-                        break;
+        Object *rodata = a->fr->af_rodata;
+        ssize_t i = array_indexof(rodata, v);
+        if (i < 0) {
+                i = seqvar_size(rodata);
+                array_append(rodata, v);
         }
-
-        /* No more than one reference to unique ID can exist in code */
-        bug_on(v->v_type == &IdType && i != n);
-
-        if (i == n) {
-                VAR_INCR_REF(v);
-                as_buffer_put_ptr(&a->fr->af_rodata, v);
-        }
-
         return i;
 }
 
@@ -2544,8 +2519,8 @@ assemble_frame_push(struct assemble_t *a, long long funcno)
         fr->af_locals   = arrayvar_new(0);
         fr->af_args     = arrayvar_new(0);
         fr->af_closures = arrayvar_new(0);
+        fr->af_rodata   = arrayvar_new(0);
         /* memset did this, but just in case buffer.c internals change... */
-        buffer_init(&fr->af_rodata);
         buffer_init(&fr->af_labels);
         buffer_init(&fr->af_instr);
 

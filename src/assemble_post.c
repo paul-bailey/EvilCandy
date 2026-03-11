@@ -53,7 +53,6 @@ remove_unused_rodata(struct as_frame_t *fr)
         char *marks;
         instruction_t *idata;
         int i, n_rodata, n_instr;
-        Object **rodata;
         char stack_marks[DEFAULT_NCONST];
         int16_t *stack_iptrs[DEFAULT_NINSTR];
 
@@ -83,18 +82,13 @@ remove_unused_rodata(struct as_frame_t *fr)
                 }
         }
 
-        rodata = as_frame_rodata(fr);
         for (i = n_rodata - 1; i >= 0; i--) {
                 int j;
 
-                /* Skip checks for xptr, we know it's sitll needed */
-                if (isvar_xptr(rodata[i]))
-                        continue;
                 if (marks[i] != 0)
                         continue;
 
-                /* no one needs us */
-                VAR_DECR_REF(rodata[i]);
+                array_setitem(fr->af_rodata, i, NULL);
 
                 /* Point affected instructions down one index */
                 for (j = 0; j < n_instr; j++) {
@@ -102,16 +96,7 @@ remove_unused_rodata(struct as_frame_t *fr)
                         if (arg2 && *arg2 > i)
                                 *arg2 -= 1;
                 }
-
-                /* Move rodata down one */
-                for (j = i; j < n_rodata - 1; j++) {
-                        rodata[j] = rodata[j + 1];
-                }
-                n_rodata--;
         }
-
-        /* so dirty... */
-        fr->af_rodata.p = n_rodata * sizeof(Object *);
 
         if (iptrs != stack_iptrs)
                 efree(iptrs);
@@ -838,9 +823,8 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
                 struct xptr_cfg_t cfg;
                 cfg.file_name   = a->file_name;
                 cfg.file_line   = fr->line;
-                cfg.n_rodata    = as_frame_nconst(fr);
                 cfg.n_instr     = as_frame_ninstr(fr);
-                cfg.rodata      = buffer_trim(&fr->af_rodata);
+                cfg.rodata      = fr->af_rodata;
                 cfg.instr       = buffer_trim(&fr->af_instr);
                 x = (struct xptrvar_t *)xptrvar_new(&cfg);
         } while (0);

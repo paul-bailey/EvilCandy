@@ -11,9 +11,8 @@
 /**
  * struct xptrvar_t - executable code of a function or a script body
  * @instr:      Opcode array
- * @rodata:     Constants used by the function
+ * @rodata:     Constants used by the function (a tuple)
  * @n_instr:    Number of opcodes
- * @n_rodata:   Number of constants
  * @file_name:  Name of source file where this was defined
  * @file_line:  Starting line in source file where this was defined
  * @nref:       Reference count, for garbage collection
@@ -69,10 +68,9 @@ struct xptrvar_t {
         Object base;
         /* hot items used by VM */
         instruction_t *instr;
-        Object **rodata;
+        Object *rodata;
         /* warm items */
         int n_instr;
-        int n_rodata;
         /* cold items used by disassembly and serializer */
         char *file_name;
         int file_line;
@@ -82,8 +80,7 @@ struct xptrvar_t {
 struct xptr_cfg_t {
         instruction_t *instr;
         int n_instr;
-        Object **rodata;
-        int n_rodata;
+        Object *rodata;
         int file_line;
         const char *file_name;
 };

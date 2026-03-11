@@ -1982,10 +1982,6 @@ assemble_foreach(struct assemble_t *a)
         /* maybe replace 'haystack' with its keys */
         add_instr(a, INSTR_FOREACH_SETUP, 0, 0);
 
-        /* push 'i' iterator onto the stack beginning at zero */
-        ainstr_load_const_int(a, 0LL);
-        fakestack_declare(a, NULL);
-
         as_set_label(a, iter);
         add_instr(a, INSTR_FOREACH_ITER, 0, forelse);
 

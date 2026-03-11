@@ -53,6 +53,7 @@ initialize_string_consts(void)
                 STRCONST_CSTR(closefd),
                 STRCONST_CSTR(buffering),
                 STRCONST_CSTR(null),
+                STRCONST_CSTR(_),
                 [STRCONST_IDX_spc] = " ",
                 [STRCONST_IDX_mpty] = "",
                 [STRCONST_IDX_wtspc] = " \r\n\t\v\f",

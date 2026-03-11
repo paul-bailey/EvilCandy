@@ -392,7 +392,16 @@ do_pop(Frame *fr, instruction_t ii)
 {
         Object *p = pop(fr);
         if (ii.arg1 == IARG_POP_PRINT && p != NullVar) {
-                Object *str = var_str(p);
+                int ret;
+                Object *str;
+
+                /* don't use symbol_put, '_' might not exist yet. */
+                bug_on(!vm.locals);
+                ret = dict_setitem(vm.locals, STRCONST_ID(_), p);
+                bug_on(ret != 0);
+                (void)ret;
+
+                str = var_str(p);
                 fprintf(stderr, "%s\n", string_cstring(str));
                 VAR_DECR_REF(str);
         }

@@ -388,7 +388,7 @@ array_pop_to(Object *arr, size_t newsize)
 }
 
 static void
-ainstr_pop_block(struct assemble_t *a)
+ainstr_pop_block(struct assemble_t *a, int kind)
 {
         struct as_frame_t *fr = a->fr;
         bug_on(fr->nest <= 0);
@@ -1877,20 +1877,12 @@ assemble_try(struct assemble_t *a)
         assemble_stmt(a, 0, 0);
         add_instr(a, INSTR_B, 0, finally);
 
-        ainstr_pop_block(a);
+        ainstr_pop_block(a, IARG_TRY);
 
         as_errlex(a, OC_CATCH);
         as_set_label(a, catch);
 
-        /*
-         * block of the catch(x) { ... } statement
-         *
-         * extra block push to prevent stack confusion about
-         * declared stack exception below.
-         * XXX Overkill? is it not safe to just add a POP below?
-         */
-        ainstr_push_block(a, IARG_BLOCK, 0);
-
+        /* block of the catch(x) { ... } statement */
         as_errlex(a, OC_LPAR);
         as_errlex(a, OC_IDENTIFIER);
         as_savetok(a, &exctok);
@@ -1904,7 +1896,8 @@ assemble_try(struct assemble_t *a)
 
         assemble_stmt(a, 0, 0);
 
-        ainstr_pop_block(a);
+        /* pop off the exception */
+        add_instr(a, INSTR_POP, 0, 1);
 
         as_lex(a);
 
@@ -1974,7 +1967,7 @@ assemble_while(struct assemble_t *a)
         assemble_stmt(a, FE_CONTINUE, start);
         add_instr(a, INSTR_B, 0, start);
 
-        ainstr_pop_block(a);
+        ainstr_pop_block(a, IARG_LOOP);
 
         as_set_label(a, breakto);
 }
@@ -1993,77 +1986,34 @@ assemble_do(struct assemble_t *a)
         assemble_expr(a);
         add_instr(a, INSTR_B_IF, 1, start);
 
-        ainstr_pop_block(a);
+        ainstr_pop_block(a, IARG_LOOP);
 
         as_set_label(a, breakto);
 }
 
 static void
-assemble_foreach(struct assemble_t *a)
+assemble_foreach2(struct assemble_t *a, struct list_t *names,
+                  int star, int needsize)
 {
-        struct list_t names;
-        int breakto = as_next_label(a);
-        int forelse = as_next_label(a);
-        int iter    = as_next_label(a);
-        int iterpop = as_next_label(a);
-        int star, needsize;
-
-        as_errlex(a, OC_LPAR);
-
-        ainstr_push_block(a, IARG_LOOP, breakto);
-
-        /* save names of the 'needles' in 'for(needles in haystack)' */
-        as_lex(a);
-        if (a->oc->t != OC_MUL && a->oc->t != OC_IDENTIFIER) {
-                err_ae_expect(a, OC_IDENTIFIER);
-                as_err(a, AE_EXPECT);
-        }
-
-        needsize = gather_names(a, &names, &star);
-
-        if (a->oc->t != OC_IN) {
-                err_ae_expect(a, OC_IN);
-                cleanup_names(&names);
-                as_err(a, AE_EXPECT);
-        }
-
-        /* push 'haystack' onto the stack */
-        assemble_expr(a);
-        fakestack_declare(a, NULL);
-
-        as_lex(a);
-        if (a->oc->t != OC_RPAR) {
-                err_ae_expect(a, OC_RPAR);
-                cleanup_names(&names);
-                as_err(a, AE_EXPECT);
-        }
-
-        /* maybe replace 'haystack' with its keys */
-        add_instr(a, INSTR_FOREACH_SETUP, 0, 0);
-
-        as_set_label(a, iter);
-        add_instr(a, INSTR_FOREACH_ITER, 0, forelse);
-
-        ainstr_push_block(a, IARG_LOOP, breakto);
-
         /*
-         * declare 'needles', push placeholder onto the stack
-         * FOREACH_ITER does this already, we just need to
-         * keep our stack state consistent.
+         * declare 'needles', push placeholder onto the stack.
+         * FOREACH_ITER does this already, we just need to keep
+         * our stack state consistent.
          */
+        int iternext = as_next_label(a);
         int popsize = needsize;
         if (needsize == 1) {
                 /* needle is the 'a' of 'for (a in b)' */
-                struct names_t *n = AS_LIST2NAMES(names.next);
+                struct names_t *n = AS_LIST2NAMES(names->next);
                 bug_on(!n->tok.v);
                 fakestack_declare(a, n->tok.v);
                 popsize = 1;
         } else {
                 /*
-                 * 'needle' is itself a sequence, the unnamed container
+                 * 'needle is itself a sequence, the unnamed container
                  * of 'a' and 'b' and child of 'c' in 'for (a, b in c)'.
-                 * Only need to fake-declare the named vars.  needle will
-                 * be evicted from the stack by UNPACK.
+                 * We only need to fake-declare the named vars.  needle
+                 * will be evicted by UNPACK.
                  */
                 struct list_t *p;
                 int i = 0;
@@ -2072,7 +2022,7 @@ assemble_foreach(struct assemble_t *a)
                  * FIXME: find out reason this needs to be reversed.
                  * It doesn't make sense!
                  */
-                list_foreach_rev(p, &names) {
+                list_foreach_rev(p, names) {
                         struct names_t *n = AS_LIST2NAMES(p);
                         bug_on(!n->tok.v);
                         fakestack_declare(a, n->tok.v);
@@ -2088,16 +2038,61 @@ assemble_foreach(struct assemble_t *a)
                 /* needle + needle's children, for POP */
                 popsize = needsize;
         }
-        assemble_stmt(a, FE_CONTINUE, iterpop);
-        as_set_label(a, iterpop);
+        assemble_stmt(a, FE_CONTINUE, iternext);
+        as_set_label(a, iternext);
+
         /* pop 'needle' and, if used, its children */
         add_instr(a, INSTR_POP, 0, popsize);
+}
+
+static void
+assemble_foreach1(struct assemble_t *a, int breakto)
+{
+        struct list_t names;
+        int star;
+        int forelse = as_next_label(a);
+        int iter = as_next_label(a);
+        int needsize;
+
+        as_errlex(a, OC_LPAR);
+
+        /* save names of the 'needles' in 'for (needles in haystack)' */
+        as_lex(a);
+        if (a->oc->t != OC_MUL && a->oc->t != OC_IDENTIFIER) {
+                err_ae_expect(a, OC_IDENTIFIER);
+                as_err(a, AE_EXPECT);
+        }
+        needsize = gather_names(a, &names, &star);
+
+        if (a->oc->t != OC_IN) {
+                err_ae_expect(a, OC_IN);
+                cleanup_names(&names);
+                as_err(a, AE_EXPECT);
+        }
+
+        /* push 'haystack onto the stack */
+        assemble_expr(a);
+        fakestack_declare(a, NULL);
+
+        as_lex(a);
+        if (a->oc->t != OC_RPAR) {
+                err_ae_expect(a, OC_RPAR);
+                cleanup_names(&names);
+                as_err(a, AE_EXPECT);
+        }
+
+        /* maybe replace 'haystack' with its keys */
+        add_instr(a, INSTR_FOREACH_SETUP, 0, 0);
+        as_set_label(a, iter);
+        add_instr(a, INSTR_FOREACH_ITER, 0, forelse);
+
+        ainstr_push_block(a, IARG_BLOCK, 0);
+        assemble_foreach2(a, &names, star, needsize);
+        ainstr_pop_block(a, IARG_BLOCK);
 
         add_instr(a, INSTR_B, 0, iter);
-        ainstr_pop_block(a);
 
         as_set_label(a, forelse);
-
         as_lex(a);
         if (a->oc->t == OC_EOF) {
                 as_badeof(a);
@@ -2106,12 +2101,19 @@ assemble_foreach(struct assemble_t *a)
         } else {
                 as_unlex(a);
         }
-
-        ainstr_pop_block(a);
-
-        as_set_label(a, breakto);
-
         cleanup_names(&names);
+}
+
+static void
+assemble_foreach(struct assemble_t *a)
+{
+        int breakto = as_next_label(a);
+        ainstr_push_block(a, IARG_LOOP, breakto);
+
+        assemble_foreach1(a, breakto);
+
+        ainstr_pop_block(a, IARG_LOOP);
+        as_set_label(a, breakto);
 }
 
 static void
@@ -2152,7 +2154,7 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags,
 
                 assemble_stmt(a, flags, -1);
         }
-        ainstr_pop_block(a);
+        ainstr_pop_block(a, arg1);
 }
 
 /* parse the stmt of 'stmt' + ';' */

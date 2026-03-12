@@ -40,10 +40,8 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - MUST more robustly test stack behavior in 'continue', 'break'
   - Fill in set library.
-  - Fix parsing issue wrt identifier as first token of statement.
-  - Support unpacking in 'for' statement headers.
-  - Support starred unpacking, eg. "a, *b, c = seqvar;"
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.
   - Add self-documentation
@@ -57,6 +55,9 @@ Must Do
   - Make consistent and accurate error reporting
   - Robustulate the widths of indices.  They should all be size_t or
     ssize_t, not int.
+  - **done** Fix parsing issue wrt identifier as first token of statement.
+  - **done** Support unpacking in 'for' statement headers.
+  - **done** Support starred unpacking, eg. "a, *b, c = seqvar;"
   - **done** Add iterator objects, or at least C-API versions of them.
   - **done** Fix "no top-level stack in interactive mode" awkwardness
   - **done** Allow string objects to contain nulchars in the middle.
@@ -67,18 +68,13 @@ Must Do
   - **done** Add support for deleting elements and global variables
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
 
-* If first token of a statement is an identifier, there are two very
-  different paths the parser should take, depending whether it is an
-  assignment statement or an evaluation statement.  Figure out a way
-  to resolve this.
+* intern string literals and identifiers.  Maybe ditto other hashable objs.
 
 * If recursion error occurs during runtime (not load time), then unwind as
   if it was a normal exception; do not just panic and quit.
 
 * Replace ``has`` with ``in``, you're doing no one any favors by making
   up something new.
-
-* **not needed** Make sure all built-in types have a .cmpz method.
 
 * Make sure all .cmpz methods match documentation.
 
@@ -112,6 +108,13 @@ Must Do
   different ways.
 
 * Fix the cyclic-reference problem in GC.
+
+* **not needed** Make sure all built-in types have a .cmpz method.
+
+* **done** If first token of a statement is an identifier, there are two very
+  different paths the parser should take, depending whether it is an
+  assignment statement or an evaluation statement.  Figure out a way
+  to resolve this.
 
 * **done** Make dictionary iterable without requiring the creation of a new list.
 

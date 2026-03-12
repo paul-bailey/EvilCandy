@@ -911,18 +911,19 @@ do_unpack(Frame *fr, instruction_t ii)
         unsigned short count;
 
         count = ii.arg2 & 0x7fffu;
-        if (seqvar_size(sq) != count) {
-                err_setstr(ValueError,
-                           "expected %d items to unpack but got %d",
-                           (int)count, (int)seqvar_size(sq));
-                goto cant;
-        }
-
         it = iterator_get(sq);
         if (!it) {
                 err_iterable(sq, NULL);
                 goto cant;
         }
+        if (seqvar_size(sq) != count) {
+                err_setstr(ValueError,
+                           "expected %d items to unpack but got %d",
+                           (int)count, (int)seqvar_size(sq));
+                VAR_DECR_REF(it);
+                goto cant;
+        }
+
         VAR_DECR_REF(sq);
 
         for (x = iterator_next(it); x; x = iterator_next(it)) {
@@ -934,6 +935,57 @@ do_unpack(Frame *fr, instruction_t ii)
         VAR_DECR_REF(it);
         return 0;
 
+cant:
+        VAR_DECR_REF(sq);
+        return RES_ERROR;
+}
+
+static int
+do_unpack_special(Frame *fr, instruction_t ii)
+{
+        Object *sq = pop(fr);
+        Object *it, *x, *staro;
+        unsigned short count, i, stari, nstar;
+
+        count = ii.arg2 & 0xffu;
+        stari = (ii.arg2 >> 8) & 0xffu;
+        bug_on(stari >= count);
+        it = iterator_get(sq);
+        if (!it) {
+                err_iterable(sq, NULL);
+                goto cant;
+        }
+        nstar = seqvar_size(sq) - (count - 1);
+        if (seqvar_size(sq) < count-1 || (short)nstar < 0) {
+                err_setstr(ValueError,
+                        "expected at least %d items to unpack but got %d",
+                        (int)count, (int)seqvar_size(sq)-1);
+                VAR_DECR_REF(it);
+                goto cant;
+        }
+        VAR_DECR_REF(sq);
+
+        for (i = 0; i < stari; i++) {
+                x = iterator_next(it);
+                bug_on(!x);
+                push(fr, x);
+        }
+        staro = arrayvar_new(nstar);
+        for (i = 0; i < nstar; i++) {
+                x = iterator_next(it);
+                bug_on(!x);
+                array_setitem(staro, i, x);
+                VAR_DECR_REF(x);
+        }
+        push(fr, staro);
+        for (i = stari + 1; i < count; i++) {
+                x = iterator_next(it);
+                bug_on(!x);
+                push(fr, x);
+        }
+
+        VAR_DECR_REF(it);
+        return 0;
 cant:
         VAR_DECR_REF(sq);
         return RES_ERROR;

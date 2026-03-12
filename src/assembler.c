@@ -934,6 +934,10 @@ static void
 ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
                       int instr, token_pos_t pos, unsigned int flags)
 {
+        /*
+         * XXX let namei be an arg, -1 means "calculate namei",
+         * this removes DRY violation with assemble_declarator_stmt()
+         */
         int idx, arg;
         if ((idx = as_symbol_seek(a, name->v, &arg)) >= 0) {
                 add_instr(a, instr, arg, idx);
@@ -1572,25 +1576,51 @@ cleanup_names(struct list_t *names)
  * let/global) ';'
  */
 static int
-gather_names(struct assemble_t *a, struct list_t *names)
+gather_names(struct assemble_t *a, struct list_t *names, int *star_idx)
 {
         struct names_t *name;
         int needsize = 0; /*< start at 1 to account for firstname */
+        int star = -1;
 
         list_init(names);
-        bug_on(a->oc->t != OC_IDENTIFIER);
+        bug_on(a->oc->t != OC_IDENTIFIER && a->oc->t != OC_MUL);
         as_unlex(a);
 
         do {
-                needsize++;
                 as_lex(a);
+
+                if (a->oc->t == OC_MUL) {
+                        if (star >= 0) {
+                                err_setstr(SyntaxError,
+                                        "starred expression not allowed here");
+                                as_err(a, AE_EXPECT);
+                        }
+                        star = needsize;
+                        as_lex(a);
+                }
+
+                if (a->oc->t != OC_IDENTIFIER) {
+                        err_ae_expect(a, OC_IDENTIFIER);
+                        as_err(a, AE_EXPECT);
+                }
 
                 name = emalloc(sizeof(*name));
                 name->pos = as_savetok(a, &name->tok);
                 list_add_front(&name->list, names);
 
+                needsize++;
+
                 as_lex(a);
         } while (a->oc->t == OC_COMMA);
+
+        bug_on(needsize < 1);
+        if (needsize == 1 && star >= 0) {
+                bug_on(star != 0);
+                err_setstr(SyntaxError,
+                           "starred target cannot be a single item");
+                as_err(a, AE_EXPECT);
+        }
+        *star_idx = star;
         return needsize;
 }
 
@@ -1599,10 +1629,10 @@ static int
 assemble_identifier(struct assemble_t *a, unsigned int flags)
 {
         struct list_t names;
-        int needsize;
+        int needsize, star;
         struct names_t *n;
 
-        needsize = gather_names(a, &names);
+        needsize = gather_names(a, &names, &star);
         if (needsize > 1) {
                 /* eg. "a, b = (some, iterable)" */
                 struct list_t *p;
@@ -1614,7 +1644,12 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                         as_err(a, AE_EXPECT);
                 }
                 assemble_expr(a);
-                add_instr(a, INSTR_UNPACK, 0, needsize);
+                if (star < 0) {
+                        add_instr(a, INSTR_UNPACK, 0, needsize);
+                } else {
+                        add_instr(a, INSTR_UNPACK_SPECIAL,
+                                  0, star << 8 | needsize);
+                }
                 list_foreach(p, &names) {
                         n = AS_LIST2NAMES(p);
                         ainstr_assign_symbol(a, &n->tok, n->pos, flags);
@@ -1738,7 +1773,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 {
         struct list_t names, *p;
         bool global;
-        int needsize;
+        int needsize, star;
 
         if (!!(flags & FE_FOR)) {
                 char *what = tok == OC_LET ? "let" : "global";
@@ -1748,8 +1783,19 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 as_err(a, AE_BADTOK);
         }
 
-        as_errlex(a, OC_IDENTIFIER);
-        needsize = gather_names(a, &names);
+        as_lex(a);
+        if (a->oc->t != OC_MUL && a->oc->t != OC_IDENTIFIER) {
+                err_ae_expect(a, OC_IDENTIFIER);
+                as_err(a, AE_EXPECT);
+        }
+
+        /*
+         * XXX: We're treating starred target in declarator as ok.
+         * Should we?
+         */
+        needsize = gather_names(a, &names, &star);
+        (void)star;
+
         global = tok == OC_GBL;
 
         list_foreach(p, &names) {
@@ -1777,8 +1823,15 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         assemble_expr(a);
 
-        if (needsize != 1)
-                add_instr(a, INSTR_UNPACK, 0, needsize);
+        if (needsize != 1) {
+                if (star < 0) {
+                        add_instr(a, INSTR_UNPACK, 0, needsize);
+                } else {
+                        add_instr(a, INSTR_UNPACK_SPECIAL,
+                                0, star << 8 | needsize);
+                }
+
+        }
 
         list_foreach(p, &names) {
                 struct names_t *n = AS_LIST2NAMES(p);
@@ -2135,6 +2188,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 return;
         case OC_EOF:
                 return;
+        case OC_MUL:
         case OC_IDENTIFIER:
                 need_pop = assemble_identifier(a, flags);
                 break;
@@ -2500,7 +2554,7 @@ int
 assemble_seek_rodata(struct assemble_t *a, Object *v)
 {
         Object *rodata = a->fr->af_rodata;
-        ssize_t i = array_indexof(rodata, v);
+        ssize_t i = array_indexof_strict(rodata, v);
         if (i < 0) {
                 i = seqvar_size(rodata);
                 array_append(rodata, v);

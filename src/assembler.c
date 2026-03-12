@@ -2006,6 +2006,8 @@ assemble_foreach(struct assemble_t *a)
         int forelse = as_next_label(a);
         int iter    = as_next_label(a);
 
+        as_errlex(a, OC_LPAR);
+
         ainstr_push_block(a, IARG_LOOP, breakto);
 
         /* save name of the 'needle' in 'for(needle, haystack)' */
@@ -2051,95 +2053,6 @@ assemble_foreach(struct assemble_t *a)
         ainstr_pop_block(a);
 
         as_set_label(a, breakto);
-}
-
-static void
-assemble_for_cstyle(struct assemble_t *a)
-{
-        int start   = as_next_label(a);
-        int then    = as_next_label(a);
-        int breakto = as_next_label(a);
-        int iter    = as_next_label(a);
-        int forelse = as_next_label(a);
-
-        ainstr_push_block(a, IARG_LOOP, breakto);
-
-        /* initializer */
-        assemble_stmt(a, 0, 0);
-
-        as_set_label(a, start);
-        as_lex(a);
-        if (a->oc->t == OC_EOF) {
-                as_badeof(a);
-        } else if (a->oc->t == OC_SEMI) {
-                /* empty condition, always true */
-                add_instr(a, INSTR_B, 0, then);
-        } else {
-                as_unlex(a);
-                assemble_expr(a);
-                as_errlex(a, OC_SEMI);
-                add_instr(a, INSTR_B_IF, 0, forelse);
-                add_instr(a, INSTR_B, 0, then);
-        }
-        as_set_label(a, iter);
-        assemble_stmt(a, FE_FOR, 0);
-        as_errlex(a, OC_RPAR);
-
-        add_instr(a, INSTR_B, 0, start);
-        as_set_label(a, then);
-        assemble_stmt(a, FE_CONTINUE, iter);
-        add_instr(a, INSTR_B, 0, iter);
-
-        as_set_label(a, forelse);
-
-        as_lex(a);
-        if (a->oc->t == OC_EOF) {
-                as_badeof(a);
-        } else if (a->oc->t == OC_ELSE) {
-                assemble_stmt(a, 0, 0);
-        } else {
-                as_unlex(a);
-        }
-
-        ainstr_pop_block(a);
-
-        as_set_label(a, breakto);
-}
-
-static void
-assemble_for(struct assemble_t *a)
-{
-#if 1
-        as_errlex(a, OC_LPAR);
-        assemble_foreach(a);
-#else
-        /* do some peeking to see which kind of 'for'
-         * statement this is.
-         */
-        as_errlex(a, OC_LPAR);
-        as_lex(a);
-        if (a->oc->t == OC_IDENTIFIER) {
-                as_lex(a);
-                if (a->oc->t == OC_COMMA) {
-                        /*
-                         * for ( identifier , ...
-                         *      it's the Python-like for loop
-                         */
-                        as_unlex(a);
-                        as_unlex(a);
-                        assemble_foreach(a);
-                        return;
-                }
-                as_unlex(a);
-        }
-        as_unlex(a);
-
-        /*
-         * for ( ???...
-         *      it's the C-style for loop
-         */
-        assemble_for_cstyle(a);
-#endif
 }
 
 static void
@@ -2244,7 +2157,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 assemble_while(a);
                 return;
         case OC_FOR:
-                assemble_for(a);
+                assemble_foreach(a);
                 return;
         case OC_LBRACE:
                 assemble_block_stmt(a, flags & ~FE_TOP, continueto);

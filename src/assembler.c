@@ -1276,6 +1276,7 @@ assemble_expr2_binary(struct assemble_t *a)
         };
         static const struct token_to_opcode_t CMP1_TOK2OP[] = {
                 { .tok = OC_HAS,    .opcode = IARG_HAS },
+                { .tok = OC_IN,     .opcode = IARG_IN },
                 { .tok = OC_LEQ,    .opcode = IARG_LEQ },
                 { .tok = OC_GEQ,    .opcode = IARG_GEQ },
                 { .tok = OC_LT,     .opcode = IARG_LT },
@@ -2011,7 +2012,7 @@ assemble_foreach(struct assemble_t *a)
         as_errlex(a, OC_IDENTIFIER);
         as_savetok(a, &needletok);
 
-        as_errlex(a, OC_COMMA);
+        as_errlex(a, OC_IN);
 
         /* push 'haystack' onto the stack */
         assemble_expr(a);
@@ -2108,6 +2109,10 @@ assemble_for_cstyle(struct assemble_t *a)
 static void
 assemble_for(struct assemble_t *a)
 {
+#if 1
+        as_errlex(a, OC_LPAR);
+        assemble_foreach(a);
+#else
         /* do some peeking to see which kind of 'for'
          * statement this is.
          */
@@ -2134,6 +2139,7 @@ assemble_for(struct assemble_t *a)
          *      it's the C-style for loop
          */
         assemble_for_cstyle(a);
+#endif
 }
 
 static void

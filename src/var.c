@@ -777,6 +777,8 @@ var_compare_iarg(Object *a, Object *b, int iarg)
                         cmp = !cmp;
         } else if (iarg == IARG_HAS) {
                 cmp = var_hasattr(a, b);
+        } else if (iarg == IARG_IN) {
+                cmp = var_hasattr(b, a);
         } else {
                 cmp = var_compare(a, b);
                 switch (iarg) {

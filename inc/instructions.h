@@ -23,6 +23,7 @@ enum {
         IARG_LT,
         IARG_GT,
         IARG_HAS,
+        IARG_IN,
         IARG_EQ3,
         IARG_NEQ3,
 };

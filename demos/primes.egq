@@ -3,8 +3,8 @@
 // basically a test of for-else and break
 let primes_to = function(bound) {
         let pr = [];
-        for (n, range(2, bound)) {
-                for (x, range(2, n)) {
+        for (n in range(2, bound)) {
+                for (x in range(2, n)) {
                         if ((n % x) == 0)
                                 break;
                 } else {

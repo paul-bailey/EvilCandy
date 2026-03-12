@@ -68,7 +68,7 @@ let Box = function(**kwargs) {
             let na = [];
             let str = '';
             let curlen = 0;
-            for (word, old_arr) {
+            for (word in old_arr) {
                 let len;
                 if (curlen > 0) {
                     str += ' ';
@@ -96,9 +96,9 @@ let Box = function(**kwargs) {
                              (maxwidth-2) * ' ',
                              borderchar]);
         print(maxwidth * borderchar);
-        for (i, range(priv.padtop))
+        for (i in range(priv.padtop))
             print(topbottom);
-        for (line, a) {
+        for (line in a) {
             let padright;
             line = ''.join([borderchar,
                            priv.padleft * ' ',
@@ -109,7 +109,7 @@ let Box = function(**kwargs) {
 
             print(line + padright * ' ' + borderchar);
         }
-        for (i, range(priv.padbottom))
+        for (i in range(priv.padbottom))
             print(topbottom);
         print(maxwidth * borderchar);
         priv.count++;

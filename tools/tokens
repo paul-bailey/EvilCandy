@@ -85,6 +85,7 @@ FINALLY         "finally"
 NULL            "null"
 THROW           "throw"
 HAS             "has"
+IN              "in"
 EOF
 STRING                          atomic_key
 FSTRING_START

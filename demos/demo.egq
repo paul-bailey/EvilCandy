@@ -21,7 +21,7 @@
     let mkiter = function(stop) {
         return function(start) {
             print('\t', end='');
-            for (i, range(start, stop)) {
+            for (i in range(start, stop)) {
                 print(i, end=' ');
             }
             print('');
@@ -80,7 +80,7 @@ print(f"~0 is {~0}");
         print(f"typeof(e) for each e in {str}");
         // XXX need to add enumerate function
         let i = 0;
-        for (k, o) {
+        for (k in o) {
             if (i && !(i & 3))
                 print('');
             print('\t', typeof(o[k]), k, end='');

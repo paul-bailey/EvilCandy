@@ -22,6 +22,7 @@ ssize_t
 myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
 {
         FILE *inpsave;
+        static bool init = false;
 
         bug_on(!linep);
         bug_on(!size);
@@ -33,6 +34,11 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
          */
         inpsave = rl_instream;
         rl_instream = fp;
+
+        if (!init) {
+                rl_bind_key('\t', rl_insert);
+                init = true;
+        }
 
         if (*linep)
                 free(*linep);

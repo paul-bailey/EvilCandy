@@ -1789,10 +1789,6 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 as_err(a, AE_EXPECT);
         }
 
-        /*
-         * XXX: We're treating starred target in declarator as ok.
-         * Should we?
-         */
         needsize = gather_names(a, &names, &star);
         (void)star;
 
@@ -1804,6 +1800,10 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         }
 
         if (a->oc->t == OC_SEMI) {
+                /*
+                 * XXX: star >= 0 means someone typed eg. 'let a, *b, c;'
+                 * We are allowing it and ignoring the star. Should we?
+                 */
                 as_unlex(a);
                 cleanup_names(&names);
                 return;
@@ -2013,9 +2013,6 @@ assemble_foreach(struct assemble_t *a)
 
         as_errlex(a, OC_COMMA);
 
-        /* declare 'needle', push placeholder onto the stack */
-        assemble_declare(a, &needletok, false, 0);
-
         /* push 'haystack' onto the stack */
         assemble_expr(a);
         as_errlex(a, OC_RPAR);
@@ -2027,7 +2024,15 @@ assemble_foreach(struct assemble_t *a)
         as_set_label(a, iter);
         add_instr(a, INSTR_FOREACH_ITER, 0, forelse);
 
+        /*
+         * declare 'needle', push placeholder onto the stack
+         * FOREACH_ITER does this already, we just need to
+         * keep our stack state consistent.
+         */
+        fakestack_declare(a, needletok.v);
         assemble_stmt(a, FE_CONTINUE, iter);
+        /* pop 'needle' */
+        add_instr(a, INSTR_POP, 0, 0);
 
         add_instr(a, INSTR_B, 0, iter);
 

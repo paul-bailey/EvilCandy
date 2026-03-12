@@ -857,12 +857,10 @@ do_foreach_iter(Frame *fr, instruction_t ii)
         Object *iter, *needle;
 
         iter = pop(fr);
-        VAR_DECR_REF(pop(fr)); /* old needle */
-
         needle = iterator_next(iter);
         if (needle) {
-                push(fr, needle);
                 push(fr, iter);
+                push(fr, needle);
         } else {
                 /* Leave the stack the way we found it */
                 push(fr, iter);

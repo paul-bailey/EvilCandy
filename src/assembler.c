@@ -2032,7 +2032,7 @@ assemble_foreach(struct assemble_t *a)
         fakestack_declare(a, needletok.v);
         assemble_stmt(a, FE_CONTINUE, iter);
         /* pop 'needle' */
-        add_instr(a, INSTR_POP, 0, 0);
+        add_instr(a, INSTR_POP, 0, 1);
 
         add_instr(a, INSTR_B, 0, iter);
 

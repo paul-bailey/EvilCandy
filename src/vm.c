@@ -390,22 +390,39 @@ done:
 static int
 do_pop(Frame *fr, instruction_t ii)
 {
-        Object *p = pop(fr);
-        if (ii.arg1 == IARG_POP_PRINT && p != NullVar) {
-                int ret;
-                Object *str;
+        Object *p;
+        int n = ii.arg2;
 
-                /* don't use symbol_put, '_' might not exist yet. */
-                bug_on(!vm.locals);
-                ret = dict_setitem(vm.locals, STRCONST_ID(_), p);
-                bug_on(ret != 0);
-                (void)ret;
+        if (!n) /* artifact: treat zero like 1 */
+                n++;
 
-                str = var_str(p);
-                fprintf(stderr, "%s\n", string_cstring(str));
-                VAR_DECR_REF(str);
+        while (n--) {
+                p = pop(fr);
+
+                if (ii.arg1 == IARG_POP_PRINT && p != NullVar) {
+                        int ret;
+                        Object *str;
+
+                        /*
+                         * n > 1 implies unpacking, which should never
+                         * happen at the top level, so this would
+                         * definitely be a bug.
+                         */
+                        bug_on(ii.arg2 > 1);
+
+                        if (!vm.locals)
+                                vm.locals = dictvar_new();
+                        /* don't use symbol_put, '_' might not exist yet. */
+                        ret = dict_setitem(vm.locals, STRCONST_ID(_), p);
+                        bug_on(ret != 0);
+                        (void)ret;
+
+                        str = var_str(p);
+                        fprintf(stderr, "%s\n", string_cstring(str));
+                        VAR_DECR_REF(str);
+                }
+                VAR_DECR_REF(p);
         }
-        VAR_DECR_REF(p);
         return 0;
 }
 

@@ -22,6 +22,8 @@ list_add_tail(struct list_t *list, struct list_t *owner)
 static inline void
 list_add_front(struct list_t *list, struct list_t *owner)
         { list_insert_after(list, owner); }
+#define list_foreach_rev(iter_, top_) \
+        for (iter_ = (top_)->prev; iter_ != (top_); iter_ = (iter_)->prev)
 #define list_foreach(iter_, top_) \
         for (iter_ = (top_)->next; iter_ != (top_); iter_ = (iter_)->next)
 #define list_foreach_safe(iter_, tmp_, top_) \

@@ -2001,25 +2001,41 @@ assemble_do(struct assemble_t *a)
 static void
 assemble_foreach(struct assemble_t *a)
 {
-        struct token_t needletok;
+        struct list_t names;
         int breakto = as_next_label(a);
         int forelse = as_next_label(a);
         int iter    = as_next_label(a);
+        int star, needsize;
 
         as_errlex(a, OC_LPAR);
 
         ainstr_push_block(a, IARG_LOOP, breakto);
 
-        /* save name of the 'needle' in 'for(needle, haystack)' */
-        as_errlex(a, OC_IDENTIFIER);
-        as_savetok(a, &needletok);
+        /* save names of the 'needles' in 'for(needles in haystack)' */
+        as_lex(a);
+        if (a->oc->t != OC_MUL && a->oc->t != OC_IDENTIFIER) {
+                err_ae_expect(a, OC_IDENTIFIER);
+                as_err(a, AE_EXPECT);
+        }
 
-        as_errlex(a, OC_IN);
+        needsize = gather_names(a, &names, &star);
+
+        if (a->oc->t != OC_IN) {
+                err_ae_expect(a, OC_IN);
+                cleanup_names(&names);
+                as_err(a, AE_EXPECT);
+        }
 
         /* push 'haystack' onto the stack */
         assemble_expr(a);
-        as_errlex(a, OC_RPAR);
         fakestack_declare(a, NULL);
+
+        as_lex(a);
+        if (a->oc->t != OC_RPAR) {
+                err_ae_expect(a, OC_RPAR);
+                cleanup_names(&names);
+                as_err(a, AE_EXPECT);
+        }
 
         /* maybe replace 'haystack' with its keys */
         add_instr(a, INSTR_FOREACH_SETUP, 0, 0);
@@ -2028,14 +2044,50 @@ assemble_foreach(struct assemble_t *a)
         add_instr(a, INSTR_FOREACH_ITER, 0, forelse);
 
         /*
-         * declare 'needle', push placeholder onto the stack
+         * declare 'needles', push placeholder onto the stack
          * FOREACH_ITER does this already, we just need to
          * keep our stack state consistent.
          */
-        fakestack_declare(a, needletok.v);
+        int popsize = needsize;
+        if (needsize == 1) {
+                /* needle is the 'a' of 'for (a in b)' */
+                struct names_t *n = AS_LIST2NAMES(names.next);
+                bug_on(!n->tok.v);
+                fakestack_declare(a, n->tok.v);
+                popsize = 1;
+        } else {
+                /*
+                 * 'needle' is itself a sequence, the unnamed container
+                 * of 'a' and 'b' and child of 'c' in 'for (a, b in c)'.
+                 * Only need to fake-declare the named vars.  needle will
+                 * be evicted from the stack by UNPACK.
+                 */
+                struct list_t *p;
+                int i = 0;
+
+                /*
+                 * FIXME: find out reason this needs to be reversed.
+                 * It doesn't make sense!
+                 */
+                list_foreach_rev(p, &names) {
+                        struct names_t *n = AS_LIST2NAMES(p);
+                        bug_on(!n->tok.v);
+                        fakestack_declare(a, n->tok.v);
+                        i++;
+                }
+                bug_on(i != needsize);
+                if (star < 0) {
+                        add_instr(a, INSTR_UNPACK, 0, needsize);
+                } else {
+                        add_instr(a, INSTR_UNPACK_SPECIAL,
+                                0, star << 8 | needsize);
+                }
+                /* needle + needle's children, for POP */
+                popsize = needsize;
+        }
         assemble_stmt(a, FE_CONTINUE, iter);
-        /* pop 'needle' */
-        add_instr(a, INSTR_POP, 0, 1);
+        /* pop 'needle' and, if used, its children */
+        add_instr(a, INSTR_POP, 0, popsize);
 
         add_instr(a, INSTR_B, 0, iter);
 
@@ -2053,6 +2105,8 @@ assemble_foreach(struct assemble_t *a)
         ainstr_pop_block(a);
 
         as_set_label(a, breakto);
+
+        cleanup_names(&names);
 }
 
 static void

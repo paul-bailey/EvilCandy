@@ -527,6 +527,7 @@ simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr)
                 }
 
                 ip->arg2 = seek_rodata(a, fr, result);
+                rodata = as_frame_rodata(fr);
                 ip2->code = INSTR_NOP;
                 if (ip3 != ip2)
                         ip3->code = INSTR_NOP;
@@ -576,18 +577,21 @@ simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
 
                 if (i == n && iptail && iptail->code == INSTR_LOAD_CONST) {
                         /* Tuple of all consts */
+                        /* TODO: local stack if n is small */
                         Object **stack, *tup;
                         int new_arg2;
 
                         stack = emalloc(n * sizeof(Object *));
                         for (i = 0; i < n; i++) {
                                 stack[i] = rodata[iptail->arg2];
+                                bug_on(!stack[i]);
                                 iptail->code = INSTR_NOP;
                                 iptail = next_instr(iptail);
                         }
                         bug_on(iptail != ip);
                         tup = tuplevar_from_stack(stack, n, false);
                         new_arg2 = seek_rodata(a, fr, tup);
+                        rodata = as_frame_rodata(fr);
                         efree(stack);
 
                         ip->code = INSTR_LOAD_CONST;
@@ -596,6 +600,7 @@ simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
 
                         reduced = true;
                 }
+
                 ip = iptail = next_instr(ip);
         }
         return reduced;

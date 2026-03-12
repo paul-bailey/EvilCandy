@@ -2,6 +2,19 @@
  * 2025 update... I've been reading Aho/Ullman and now I see just how
  * hillbilly this file is.  Please don't look at it, it's embarrassing.
  *
+ * FIXME: Big lift, but it will dramatically simplify 'break' and
+ * 'continue', and reduce the need for lots of POP_BLOCK instructions.
+ * Do not pop local variables off the stack until the end of the
+ * function, even if they have gone out of, eg. a loop's scope.  While
+ * assembling, what currently serves as .af_locals should actually be
+ * called something like .af_inscope; it tells us whether a name is in
+ * the current local namespace or not.  But for stack-reference, add it
+ * to a different list (call *that* one .af_locals), which only grows
+ * until the last 'let' declarator.  That way we know how much maximum
+ * stack space should be reserved for a function's local variables, and
+ * not worry about stack imbalances due to 'break' and 'continue'
+ * statements.  Those will balance out soon enough.
+ *
  * FIXME: This whole file!  It parses, compiles, and assembles all at the
  * same time.  Aside from a few optimizations and function-and-label
  * resolutions in assemble_post.c, it does not separate any of the three

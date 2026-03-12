@@ -504,6 +504,24 @@ arrayvar_from_stack(Object **items, int n_items, bool consume)
         return arrayvar_new_common(n_items, items, consume);
 }
 
+static ssize_t
+array_indexof_(Object *arr, Object *item, bool strict)
+{
+        Object **data;
+        size_t i, n;
+
+        bug_on(!isvar_array(arr));
+        data = array_get_data(arr);
+        n = seqvar_size(arr);
+        for (i = 0; i < n; i++) {
+                if (strict && item->v_type != data[i]->v_type)
+                        continue;
+                if (var_compare(item, data[i]) == 0)
+                        return i;
+        }
+        return (ssize_t)-1;
+}
+
 /**
  * array_indexof - Get index of @item in @arr
  * @arr: Array
@@ -517,17 +535,13 @@ arrayvar_from_stack(Object **items, int n_items, bool consume)
 ssize_t
 array_indexof(Object *arr, Object *item)
 {
-        Object **data;
-        size_t i, n;
+        return array_indexof_(arr, item, false);
+}
 
-        bug_on(!isvar_array(arr));
-        data = array_get_data(arr);
-        n = seqvar_size(arr);
-        for (i = 0; i < n; i++) {
-                if (var_compare(item, data[i]) == 0)
-                        return i;
-        }
-        return (ssize_t)-1;
+ssize_t
+array_indexof_strict(Object *arr, Object *item)
+{
+        return array_indexof_(arr, item, true);
 }
 
 /* type_t .reset callback */

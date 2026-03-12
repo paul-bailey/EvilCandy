@@ -2005,6 +2005,7 @@ assemble_foreach(struct assemble_t *a)
         int breakto = as_next_label(a);
         int forelse = as_next_label(a);
         int iter    = as_next_label(a);
+        int iterpop = as_next_label(a);
         int star, needsize;
 
         as_errlex(a, OC_LPAR);
@@ -2042,6 +2043,8 @@ assemble_foreach(struct assemble_t *a)
 
         as_set_label(a, iter);
         add_instr(a, INSTR_FOREACH_ITER, 0, forelse);
+
+        ainstr_push_block(a, IARG_LOOP, breakto);
 
         /*
          * declare 'needles', push placeholder onto the stack
@@ -2085,11 +2088,13 @@ assemble_foreach(struct assemble_t *a)
                 /* needle + needle's children, for POP */
                 popsize = needsize;
         }
-        assemble_stmt(a, FE_CONTINUE, iter);
+        assemble_stmt(a, FE_CONTINUE, iterpop);
+        as_set_label(a, iterpop);
         /* pop 'needle' and, if used, its children */
         add_instr(a, INSTR_POP, 0, popsize);
 
         add_instr(a, INSTR_B, 0, iter);
+        ainstr_pop_block(a);
 
         as_set_label(a, forelse);
 

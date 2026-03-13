@@ -491,13 +491,13 @@ do_assign_local(Frame *fr, instruction_t ii)
 static int
 do_assign_global(Frame *fr, instruction_t ii)
 {
-        Object *from, *key;
+        Object *val, *key;
         int ret;
 
-        from = pop(fr);
+        val = pop(fr);
         key = RODATA(fr, ii);
-        ret = symbol_put(fr, key, from, vm.globals);
-        VAR_DECR_REF(from);
+        ret = symbol_put(fr, key, val, vm.globals);
+        VAR_DECR_REF(val);
         return ret;
 }
 
@@ -524,13 +524,13 @@ do_new_global(Frame *fr, instruction_t ii)
 static int
 do_assign_name(Frame *fr, instruction_t ii)
 {
-        Object *from, *key;
+        Object *val, *key;
         int ret;
 
-        from = pop(fr);
+        val = pop(fr);
         key = RODATA(fr, ii);
-        ret = symbol_put(fr, key, from, vm.locals);
-        VAR_DECR_REF(from);
+        ret = symbol_put(fr, key, val, vm.locals);
+        VAR_DECR_REF(val);
         return ret;
 }
 

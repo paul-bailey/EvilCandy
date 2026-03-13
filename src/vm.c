@@ -97,8 +97,7 @@ symbol_put(Frame *fr, Object *name, Object *v, Object *dict)
 
 err:
         err_setstr(NameError,
-                   "Symbol '%s' does not exist or is unassignable",
-                   string_cstring(name));
+                   "Symbol %N does not exist or is unassignable", name);
         return RES_ERROR;
 }
 
@@ -379,8 +378,7 @@ do_load_global(Frame *fr, instruction_t ii)
 
         p = dict_getitem(vm.globals, name);
         if (!p) {
-                err_setstr(NameError, "Symbol %s not found",
-                           string_cstring(name));
+                err_setstr(NameError, "Symbol %N not found", name);
                 return RES_ERROR;
         }
 
@@ -508,10 +506,8 @@ new_global_or_name(Frame *fr, instruction_t ii, Object *dict)
         Object *name = RODATA(fr, ii);
         bug_on(!isvar_string(name));
         res = dict_setitem_exclusive(dict, name, NullVar);
-        if (res != RES_OK) {
-                err_setstr(NameError, "Symbol %s already exists",
-                                string_cstring(name));
-        }
+        if (res != RES_OK)
+                err_setstr(NameError, "Symbol %N already exists", name);
         return res;
 }
 

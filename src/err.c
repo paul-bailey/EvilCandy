@@ -91,12 +91,180 @@ fail(const char *msg, ...)
         _Exit(EXIT_FAILURE);
 }
 
+/* returns updated @msg pointer */
+static const char *
+errmsg_format_arg(struct string_writer_t *wr, const char *msg, va_list ap)
+{
+        /*
+         * Error messages aren't supposed to be cute and fancy.
+         * They should just have %d %s, not "%+ 8.20zd" or whatever.
+         * It's fancy enough that we deal with string-object values.
+         * Nor do we yet support adding floating-point here.
+         *
+         * We'll skip all but the integer-width modifier.
+         */
+        char intsize = 'i';
+        /* skip flags */
+        msg += strspn(msg, "#-+ 0");
+        /* skip pad width */
+        while (isdigit(*msg))
+                msg++;
+        /* skip precision */
+        if (*msg == '.')
+                msg++;
+        while (isdigit(*msg))
+                msg++;
+        /* save int width */
+        if (*msg == 'h') {
+                while (*msg == 'h')
+                        msg++;
+        } else if (*msg == 'l') {
+                msg++;
+                if (*msg == 'l') {
+                        msg++;
+                        intsize = 'L';
+                } else {
+                        intsize = 'l';
+                }
+        }
+
+        bug_on(!strchr("diouxXscN", *msg) || *msg == '\0');
+        switch (*msg) {
+        default:
+                bug();
+        case 'd': case 'i': case 'u':
+        case 'o': case 'x': case 'X':
+        case 'p':
+            {
+                /* max size needs to fit a 64-bit number in octal
+                 * (22 characters), plus a nulchar terminator.
+                 * and a few additional bytes to round it up to be
+                 * safe.
+                 */
+                char buf[64];
+                switch (*msg) {
+                default:
+                case 'i':
+                case 'd':
+                        if (intsize == 'L')
+                                sprintf(buf, "%lld", va_arg(ap, long long));
+                        else if (intsize == 'l')
+                                sprintf(buf, "%ld", va_arg(ap, long));
+                        else
+                                sprintf(buf, "%d", va_arg(ap, int));
+                        break;
+                case 'o':
+                        if (intsize == 'L')
+                                sprintf(buf, "%llo", va_arg(ap, long long));
+                        else if (intsize == 'l')
+                                sprintf(buf, "%lo", va_arg(ap, long));
+                        else
+                                sprintf(buf, "%o", va_arg(ap, int));
+                        break;
+                case 'u':
+                        if (intsize == 'L')
+                                sprintf(buf, "%llu", va_arg(ap, unsigned long long));
+                        else if (intsize == 'l')
+                                sprintf(buf, "%lu", va_arg(ap, unsigned long));
+                        else
+                                sprintf(buf, "%u", va_arg(ap, unsigned int));
+                        break;
+                case 'x':
+                case 'X':
+                        if (intsize == 'L')
+                                sprintf(buf, "%llx", va_arg(ap, unsigned long long));
+                        else if (intsize == 'l')
+                                sprintf(buf, "%lx", va_arg(ap, unsigned long));
+                        else
+                                sprintf(buf, "%x", va_arg(ap, unsigned int));
+                        if (*msg == 'X') {
+                                char *ts = buf;
+                                while (*ts) {
+                                        *ts = toupper(*ts);
+                                        ts++;
+                                }
+                        }
+                        break;
+                case 'p':
+                        sprintf(buf, "%p", va_arg(ap, void *));
+                        break;
+                }
+                string_writer_appends(wr, buf);
+                break;
+            }
+        case 'c':
+            {
+                int c = va_arg(ap, int);
+                c &= 0xff;
+                if (c > 127 || (c != ' ' && !isgraph(c)))
+                        c = '?';
+                string_writer_append(wr, c);
+                break;
+            }
+        case 's':
+            {
+                /* To hell with qualifiers, just print it */
+                char *s = va_arg(ap, char *);
+                string_writer_appends(wr, s);
+                break;
+            }
+        case 'N':
+            {
+                /*
+                 * The reason we aren't a wrapper to regular vsprintf()
+                 * for the whole thing... Get a C-string from an object.
+                 * Do not use simple string_cstring(), it may contain
+                 * unprintable characters or an embedded nulchar.  Instead
+                 * escape it with var_str(), then get cstring.
+                 */
+                Object *obj, *str;
+                const char *cstr;
+
+                obj = va_arg(ap, Object *);
+                bug_on(!isvar_string(obj));
+                str = var_str(obj);
+                cstr = string_cstring(str);
+                while (*cstr) {
+                        string_writer_append(wr, *cstr);
+                        cstr++;
+                }
+                VAR_DECR_REF(str);
+                break;
+            }
+        }
+
+        return msg + 1;
+}
+
+static Object *
+errmsg_from_format(const char *msg, va_list ap)
+{
+        struct string_writer_t wr;
+        string_writer_init(&wr, 1);
+        while (*msg) {
+                if (*msg == '%') {
+                        msg++;
+                        /* first try some easy ones */
+                        if (*msg == '%') {
+                                string_writer_append(&wr, '%');
+                                msg++;
+                        } else {
+                                msg = errmsg_format_arg(&wr, msg, ap);
+                        }
+                } else {
+                        string_writer_append(&wr, *msg);
+                        msg++;
+                }
+        }
+        return stringvar_from_writer(&wr);
+}
+
 static void
 err_vsetstr(Object *exc, const char *msg, va_list ap)
 {
         Object *new_exc, *msgstr;
 
-        msgstr = stringvar_from_vformat(msg, ap);
+        msgstr = errmsg_from_format(msg, ap);
 
         /*
          * @exc is not from the user stack.  It's a meant-to-be-immortal
@@ -117,6 +285,11 @@ err_vsetstr(Object *exc, const char *msg, va_list ap)
  * err_setstr - Set an exception by value and string
  * @exc: Value, a XxxxError object, like RuntimeError
  * @msg: Formatted text to write to the exception message
+ *       Do not get fancy, this has very limited printf-like support.
+ *       Floating-point format % + gGfF is unsupported.
+ *       A special format, %N, takes an Object *arg, which is converted
+ *       into a printable string.  You should only use it for strings
+ *       and numbers.
  */
 void
 err_setstr(Object *exc, const char *msg, ...)

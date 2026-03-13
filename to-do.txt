@@ -32,7 +32,7 @@ Bugs
 
 * BUGs 4/2025:
 
-        * All user-visible data types need a .cpmz method.
+        * **worked around** All user-visible data types need a .cpmz method.
 
 Must Do
 -------

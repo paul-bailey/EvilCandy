@@ -219,6 +219,13 @@ push_path(const char *requested_file)
                         if (!isvar_string(trypath_o))
                                 continue;
                         trypath_s = string_cstring(trypath_o);
+                        /*
+                         * If embedded nulchars in path, it definitely
+                         * won't work, but trying it might have some
+                         * unpredicted side effects.
+                         */
+                        if (string_nbytes(trypath_o) != strlen(trypath_s))
+                                break;
 
                         fp = push_path_from(requested_file,
                                             trypath_s, i == 0);

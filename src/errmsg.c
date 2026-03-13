@@ -58,8 +58,8 @@ void
 err_attribute(const char *getorset, Object *deref, Object *obj)
 {
         Object *key = var_str(deref);
-        err_setstr(TypeError, "Cannot %s attribute %s of type %s",
-                   getorset, string_cstring(key), typestr(obj));
+        err_setstr(TypeError, "Cannot %s attribute %N of type %s",
+                   getorset, key, typestr(obj));
         VAR_DECR_REF(key);
 }
 
@@ -67,8 +67,7 @@ void
 err_index(Object *index)
 {
         Object *key = var_str(index);
-        err_setstr(IndexError, "Subscript %s out of range",
-                   string_cstring(key));
+        err_setstr(IndexError, "Subscript %N out of range", key);
         VAR_DECR_REF(key);
 }
 

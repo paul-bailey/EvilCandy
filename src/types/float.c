@@ -249,8 +249,7 @@ float_create(Frame *fr)
 
 badstring:
         bug_on(!isvar_string(arg));
-        err_setstr(ValueError, "Could not parse as float: '%s'",
-                   string_cstring(arg));
+        err_setstr(ValueError, "Could not parse as float: %N", arg);
         return ErrorVar;
 }
 

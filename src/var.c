@@ -483,8 +483,8 @@ var_getattr_map(Object *v, Object *key)
                 goto found;
         }
 
-        err_setstr(KeyError, "%s object has no attribute %s",
-                   typestr(v), string_cstring(key));
+        err_setstr(KeyError, "%s object has no attribute %N",
+                   typestr(v), key);
         return ErrorVar;
 
 found:

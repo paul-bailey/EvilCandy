@@ -374,8 +374,8 @@ int_create(Frame *fr)
 
 bad:
                 err_setstr(ValueError,
-                          "Cannot convert string '%s' base %d to int",
-                          string_cstring(v), base);
+                          "Cannot convert string %N base %d to int",
+                          v, base);
                 return ErrorVar;
         }
 

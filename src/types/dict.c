@@ -641,44 +641,6 @@ dict_setitem_exclusive(Object *dict,
         return dict_insert(dict, key, attr, DF_EXCL);
 }
 
-/**
- * used for specific purpose, so de-duplicate @key.
- * See comments in literal.c, that's where this is used.
- */
-char *
-dict_unique(Object *dict, const char *key)
-{
-        Object *keycopy;
-        int i;
-        struct dictvar_t *d;
-
-        d = V2D(dict);
-        bug_on(!isvar_dict(dict));
-
-        keycopy = stringvar_new(key);
-        i = seek_helper(d, keycopy);
-        bug_on(i < 0);
-        if (d->d_keys[i] != NULL) {
-                /* dict_unique must be used only on string-only dicts */
-                bug_on(!isvar_string(d->d_keys[i]));
-                VAR_DECR_REF(keycopy);
-                /*
-                 * XXX: Should add a bug check to make sure this return
-                 * value doesn't have embedded nulchars, but that would
-                 * be extremely time-consuming.
-                 */
-                return (char *)string_cstring(d->d_keys[i]);
-        }
-
-        append_to_map(d, i);
-        insert_common(d, keycopy, keycopy, i);
-        seqvar_set_size(dict, d->d_used);
-
-        /* additional incref since it's stored twice */
-        VAR_INCR_REF(keycopy);
-        return (char *)string_cstring(keycopy);
-}
-
 /*
  * like dict_setitem, but throw error if @key does not exist.
  * Used by the symbol table to change global variable values.

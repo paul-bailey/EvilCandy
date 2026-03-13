@@ -482,7 +482,7 @@ struct type_t SetType = {
  * replacement for @child which has been 'de-duplicated'. The call might
  * look like
  *
- *      status = dict_unique(set, child, &child);
+ *      status = set_additem(set, child, &child);
  * so...
  *
  * 1. If @unique is NULL, a reference will be produced for @child only if

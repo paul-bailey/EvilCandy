@@ -19,6 +19,8 @@
  * @uuid:       Identifier for the sake of serialization and disassembly.
  *              (Internal pointers have no meaning except when executing.)
  *              This is the text representation, not the binary bitstream.
+ * @names:      Names of local variables in their order on the stack, for
+ *              disassembly and other debug purposes.
  *
  * A XptrType var is created for every script and every function
  * definition or lambda within the script.  During assembly, if the
@@ -75,6 +77,7 @@ struct xptrvar_t {
         /* cold items used by disassembly and serializer */
         char *file_name;
         int file_line;
+        Object *names;
 };
 
 /* only serializer.c and assembler.c code should need to use these */
@@ -83,6 +86,7 @@ struct xptr_cfg_t {
         int n_instr;
         int n_locals;
         Object *rodata;
+        Object *names;
         int file_line;
         const char *file_name;
 };

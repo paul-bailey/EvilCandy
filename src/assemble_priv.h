@@ -18,6 +18,8 @@
  *               @af_locals grows and shrinks as assembler goes in and
  *               out of block scope, as a way to confirm namespace.
  *               The actual locals array will not.
+ * @af_names:    For debug purposes, names of local variables in the
+ *               order in which they would appear on the stack.
  * @af_labels:   Jump labels, array of short ints
  * @af_instr;    Instructions, array of instruction_t
  * @scope:       Current {...} scope within the function
@@ -40,6 +42,7 @@ struct as_frame_t {
         Object *af_args;
         Object *af_closures;
         Object *af_rodata;
+        Object *af_names;
         struct buffer_t af_localmap;
         struct buffer_t af_labels;
         struct buffer_t af_instr;

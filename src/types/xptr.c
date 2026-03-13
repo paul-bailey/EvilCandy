@@ -71,6 +71,8 @@ xptrvar_new(const struct xptr_cfg_t *cfg)
 
         x->rodata = tuplevar_from_stack(array_get_data(cfg->rodata),
                                         seqvar_size(cfg->rodata), false);
+        x->names = tuplevar_from_stack(array_get_data(cfg->names),
+                                        seqvar_size(cfg->names), false);
         x->instr        = cfg->instr;
         x->n_instr      = cfg->n_instr;
         x->file_name    = estrdup(cfg->file_name);

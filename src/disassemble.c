@@ -248,6 +248,14 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i,
                                 spaces(fp, COMNTPOS - len);
                         fprintf(fp, "# ");
                         print_rodata_str(fp, ex, ii->arg2, true);
+                } else if (ex->names && ii->arg1 == IARG_PTR_AP &&
+                           (ii->code == INSTR_LOAD_LOCAL ||
+                            ii->code == INSTR_ASSIGN_LOCAL)) {
+                        if (len < COMNTPOS)
+                                spaces(fp, COMNTPOS - len);
+                        Object *name = tuple_getitem_noref(ex->names, ii->arg2);
+                        if (name)
+                                fprintf(fp, "# %s", string_cstring(name));
                 }
         }
         fputc('\n', fp);

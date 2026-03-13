@@ -478,6 +478,7 @@ fakestack_declare(struct assemble_t *a, Object *name)
         bug_on(!name);
         idx = a->fr->af_nlocals;
         array_append(a->fr->af_locals, name);
+        array_append(a->fr->af_names, name);
         localmap_push(a, idx);
         bug_on(localmap_size(a) != seqvar_size(a->fr->af_locals));
         a->fr->af_nlocals++;
@@ -2355,6 +2356,7 @@ as_delete_frame_list(struct list_t *parent_list)
                 VAR_DECR_REF(fr->af_args);
                 VAR_DECR_REF(fr->af_closures);
                 VAR_DECR_REF(fr->af_rodata);
+                VAR_DECR_REF(fr->af_names);
 
                 /*
                  * These are safe to free, because if we aren't unwinding
@@ -2602,6 +2604,7 @@ assemble_frame_push(struct assemble_t *a, long long funcno)
         fr->af_args     = arrayvar_new(0);
         fr->af_closures = arrayvar_new(0);
         fr->af_rodata   = arrayvar_new(0);
+        fr->af_names    = arrayvar_new(0);
         /* memset did this, but just in case buffer.c internals change... */
         buffer_init(&fr->af_localmap);
         buffer_init(&fr->af_labels);

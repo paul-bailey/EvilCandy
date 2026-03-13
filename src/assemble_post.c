@@ -35,7 +35,7 @@
  *
  * XXX: ought to go in configure.ac
  */
-#define TRY_SIMPLIFY_LABELS 0
+#define TRY_SIMPLIFY_LABELS 1
 
 /*
  * If we simplified some operations on consts, then some .rodata may no

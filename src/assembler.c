@@ -2097,11 +2097,15 @@ assemble_foreach1(struct assemble_t *a, int breakto)
         int forelse = as_next_label(a);
         int iter = as_next_label(a);
         int needsize;
+        bool have_par = false;
 
-        as_errlex(a, OC_LPAR);
+        as_lex(a);
+        if (a->oc->t == OC_LPAR) {
+                have_par = true;
+                as_lex(a);
+        }
 
         /* save names of the 'needles' in 'for (needles in haystack)' */
-        as_lex(a);
         if (a->oc->t != OC_MUL && a->oc->t != OC_IDENTIFIER) {
                 err_ae_expect(a, OC_IDENTIFIER);
                 as_err(a, AE_EXPECT);
@@ -2117,11 +2121,13 @@ assemble_foreach1(struct assemble_t *a, int breakto)
         /* push 'haystack onto the stack */
         assemble_expr(a);
 
-        as_lex(a);
-        if (a->oc->t != OC_RPAR) {
-                err_ae_expect(a, OC_RPAR);
-                cleanup_names(&names);
-                as_err(a, AE_EXPECT);
+        if (have_par) {
+                as_lex(a);
+                if (a->oc->t != OC_RPAR) {
+                        err_ae_expect(a, OC_RPAR);
+                        cleanup_names(&names);
+                        as_err(a, AE_EXPECT);
+                }
         }
 
         /* maybe replace 'haystack' with its keys */

@@ -40,7 +40,6 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
-  - MUST more robustly test stack behavior in 'continue', 'break'
   - Fill in set library.
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.
@@ -55,6 +54,7 @@ Must Do
   - Make consistent and accurate error reporting
   - Robustulate the widths of indices.  They should all be size_t or
     ssize_t, not int.
+  - **done** more robustly test stack behavior in 'continue', 'break'
   - **done** Fix parsing issue wrt identifier as first token of statement.
   - **done** Support unpacking in 'for' statement headers.
   - **done** Support starred unpacking, eg. "a, *b, c = seqvar;"
@@ -72,9 +72,6 @@ Must Do
 
 * If recursion error occurs during runtime (not load time), then unwind as
   if it was a normal exception; do not just panic and quit.
-
-* Replace ``has`` with ``in``, you're doing no one any favors by making
-  up something new.
 
 * Make sure all .cmpz methods match documentation.
 
@@ -108,6 +105,8 @@ Must Do
   different ways.
 
 * Fix the cyclic-reference problem in GC.
+
+* **done** Replace ``has`` with ``in``
 
 * **not needed** Make sure all built-in types have a .cmpz method.
 

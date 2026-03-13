@@ -13,6 +13,8 @@ xptr_reset(Object *v)
                 VAR_DECR_REF(ex->rodata);
         if (ex->file_name)
                 efree(ex->file_name);
+        if (ex->names)
+                VAR_DECR_REF(ex->names);
 }
 
 static int

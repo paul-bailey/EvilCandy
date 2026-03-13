@@ -2,19 +2,6 @@
  * 2025 update... I've been reading Aho/Ullman and now I see just how
  * hillbilly this file is.  Please don't look at it, it's embarrassing.
  *
- * FIXME: Big lift, but it will dramatically simplify 'break' and
- * 'continue', and reduce the need for lots of POP_BLOCK instructions.
- * Do not pop local variables off the stack until the end of the
- * function, even if they have gone out of, eg. a loop's scope.  While
- * assembling, what currently serves as .af_locals should actually be
- * called something like .af_inscope; it tells us whether a name is in
- * the current local namespace or not.  But for stack-reference, add it
- * to a different list (call *that* one .af_locals), which only grows
- * until the last 'let' declarator.  That way we know how much maximum
- * stack space should be reserved for a function's local variables, and
- * not worry about stack imbalances due to 'break' and 'continue'
- * statements.  Those will balance out soon enough.
- *
  * FIXME: This whole file!  It parses, compiles, and assembles all at the
  * same time.  Aside from a few optimizations and function-and-label
  * resolutions in assemble_post.c, it does not separate any of the three
@@ -80,6 +67,7 @@ enum {
         FE_FOR          = 0x01,
         FE_CONTINUE     = 0x02,
         FE_TOP          = 0x04,
+        FE_SKIPNULLASSIGN=0x08,
 
         /*
          * bits 4-5, three mutually-exclusive arguments to
@@ -265,6 +253,44 @@ as_closure_seek(struct assemble_t *a, Object *name)
         return array_indexof(a->fr->af_closures, name);
 }
 
+static size_t
+localmap_size(struct assemble_t *a)
+{
+        return buffer_size(&a->fr->af_localmap) / sizeof(int);
+}
+
+static int
+localmap_idx(struct assemble_t *a, int idx)
+{
+        int *arr = (int *)(a->fr->af_localmap.s);
+        bug_on(!arr);
+        bug_on(idx > localmap_size(a));
+
+        /*
+         * this should always returns the same number or greater,
+         * never lesser.
+         */
+        bug_on(idx > arr[idx]);
+
+        idx = arr[idx];
+        bug_on(idx >= a->fr->af_nlocals);
+        return idx;
+}
+
+static void
+localmap_pop(struct assemble_t *a)
+{
+        struct buffer_t *b = &a->fr->af_localmap;
+        bug_on(b->p < sizeof(int));
+        b->p -= sizeof(int);
+}
+
+static void
+localmap_push(struct assemble_t *a, int idx)
+{
+        buffer_putd(&a->fr->af_localmap, &idx, sizeof(int));
+}
+
 /* arg may be NULL, it's the arg1 for LOAD/ASSIGN commands & such */
 static int
 as_symbol_seek(struct assemble_t *a, Object *name, int *arg)
@@ -275,6 +301,7 @@ as_symbol_seek(struct assemble_t *a, Object *name, int *arg)
 
         bug_on(!name || !isvar_string(name));
         if ((i = array_indexof(fr->af_locals, name)) >= 0) {
+                i = localmap_idx(a, i);
                 targ = IARG_PTR_AP;
                 goto found;
         }
@@ -389,7 +416,8 @@ ainstr_push_block(struct assemble_t *a, int arg1, int arg2)
         fr->scope[fr->nest++] = fr->fp;
 
         fr->fp = seqvar_size(fr->af_locals);
-        add_instr(a, INSTR_PUSH_BLOCK, arg1, arg2);
+        if (arg1 != IARG_BLOCK)
+                add_instr(a, INSTR_PUSH_BLOCK, arg1, arg2);
 }
 
 /* helper to ainstr_pop_block */
@@ -404,13 +432,18 @@ static void
 ainstr_pop_block(struct assemble_t *a, int kind)
 {
         struct as_frame_t *fr = a->fr;
+        size_t reduce = seqvar_size(fr->af_locals) - fr->fp;
         bug_on(fr->nest <= 0);
+        bug_on((int)reduce < 0);
 
         array_pop_to(fr->af_locals, fr->fp);
+        while (reduce--)
+                localmap_pop(a);
         fr->nest--;
 
         fr->fp = fr->scope[fr->nest];
-        add_instr(a, INSTR_POP_BLOCK, 0, 0);
+        if (kind != IARG_BLOCK)
+                add_instr(a, INSTR_POP_BLOCK, 0, 0);
 }
 
 static void
@@ -435,18 +468,20 @@ ainstr_return_null(struct assemble_t *a)
 static int
 fakestack_declare(struct assemble_t *a, Object *name)
 {
-        int ret;
+        int idx;
         if (name && as_symbol_seek(a, name, NULL) >= 0) {
                 err_setstr(SyntaxError, "Redefining variable ('%s')", name);
                 as_err(a, AE_GEN);
                 return 0;
         }
 
-        if (!name)
-                name = NullVar;
-        ret = seqvar_size(a->fr->af_locals);
+        bug_on(!name);
+        idx = a->fr->af_nlocals;
         array_append(a->fr->af_locals, name);
-        return ret;
+        localmap_push(a, idx);
+        bug_on(localmap_size(a) != seqvar_size(a->fr->af_locals));
+        a->fr->af_nlocals++;
+        return idx;
 }
 
 /*
@@ -1086,7 +1121,7 @@ assemble_call_func(struct assemble_t *a)
                 ainstr_load_const_obj(a, kw);
                 add_instr(a, INSTR_DEFDICT_K, 0, count);
         } else {
-                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+                ainstr_load_null(a);
         }
 
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
@@ -1776,8 +1811,17 @@ assemble_declare(struct assemble_t *a, struct token_t *name,
                 namei = as_seek_rodata_tok(a, name);
                 add_instr(a, INSTR_NEW_NAME, 0, namei);
         } else {
-                namei = fakestack_declare(a, name ? name->v : NULL);
-                add_instr(a, INSTR_PUSH_LOCAL, 0, 0);
+                bug_on(!name);
+                namei = fakestack_declare(a, name->v);
+                if (!(flags & FE_SKIPNULLASSIGN)) {
+                        /*
+                         * XXX: This opcode is needed for example when re-
+                         * starting a {...} namespace in a for loop, but in most
+                         * cases this is a redundant step.
+                         */
+                        ainstr_load_null(a);
+                        add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, namei);
+                }
         }
         return namei;
 }
@@ -1788,6 +1832,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         struct list_t names, *p;
         bool global;
         int needsize, star;
+        unsigned int extraflags = 0;
 
         if (!!(flags & FE_FOR)) {
                 char *what = tok == OC_LET ? "let" : "global";
@@ -1808,9 +1853,13 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         global = tok == OC_GBL;
 
+        if (a->oc->t == OC_EQ)
+                extraflags = FE_SKIPNULLASSIGN;
+
         list_foreach(p, &names) {
                 struct names_t *n = AS_LIST2NAMES(p);
-                n->namei = assemble_declare(a, &n->tok, global, flags);
+                n->namei = assemble_declare(a, &n->tok,
+                                            global, flags | extraflags);
         }
 
         if (a->oc->t == OC_SEMI) {
@@ -1828,11 +1877,6 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 err_ae_expect(a, OC_EQ);
                 cleanup_names(&names);
                 as_err(a, AE_EXPECT);
-        }
-
-        list_foreach(p, &names) {
-                struct names_t *n = AS_LIST2NAMES(p);
-                ainstr_load_symbol(a, &n->tok, n->pos);
         }
 
         assemble_expr(a);
@@ -1862,7 +1906,6 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 }
                 add_instr(a, instr, arg1, n->namei);
         }
-        add_instr(a, INSTR_POP, 0, 0);
         cleanup_names(&names);
 }
 
@@ -1906,12 +1949,7 @@ assemble_try(struct assemble_t *a)
          * execute loop.
          */
         fakestack_declare(a, exctok.v);
-
         assemble_stmt(a, 0, 0);
-
-        /* pop off the exception */
-        add_instr(a, INSTR_POP, 0, 1);
-
         as_lex(a);
 
         as_set_label(a, finally);
@@ -2014,31 +2052,24 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
          * our stack state consistent.
          */
         int iternext = as_next_label(a);
-        int popsize = needsize;
         if (needsize == 1) {
                 /* needle is the 'a' of 'for (a in b)' */
                 struct names_t *n = AS_LIST2NAMES(names->next);
                 bug_on(!n->tok.v);
-                fakestack_declare(a, n->tok.v);
-                popsize = 1;
+                n->namei = fakestack_declare(a, n->tok.v);
+                add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
         } else {
                 /*
                  * 'needle is itself a sequence, the unnamed container
                  * of 'a' and 'b' and child of 'c' in 'for (a, b in c)'.
-                 * We only need to fake-declare the named vars.  needle
-                 * will be evicted by UNPACK.
                  */
                 struct list_t *p;
                 int i = 0;
 
-                /*
-                 * FIXME: find out reason this needs to be reversed.
-                 * It doesn't make sense!
-                 */
-                list_foreach_rev(p, names) {
+                list_foreach(p, names) {
                         struct names_t *n = AS_LIST2NAMES(p);
                         bug_on(!n->tok.v);
-                        fakestack_declare(a, n->tok.v);
+                        n->namei = fakestack_declare(a, n->tok.v);
                         i++;
                 }
                 bug_on(i != needsize);
@@ -2048,14 +2079,13 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                         add_instr(a, INSTR_UNPACK_SPECIAL,
                                 0, star << 8 | needsize);
                 }
-                /* needle + needle's children, for POP */
-                popsize = needsize;
+                list_foreach(p, names) {
+                        struct names_t *n = AS_LIST2NAMES(p);
+                        add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
+                }
         }
         assemble_stmt(a, FE_CONTINUE, iternext);
         as_set_label(a, iternext);
-
-        /* pop 'needle' and, if used, its children */
-        add_instr(a, INSTR_POP, 0, popsize);
 }
 
 static void
@@ -2085,7 +2115,6 @@ assemble_foreach1(struct assemble_t *a, int breakto)
 
         /* push 'haystack onto the stack */
         assemble_expr(a);
-        fakestack_declare(a, NULL);
 
         as_lex(a);
         if (a->oc->t != OC_RPAR) {
@@ -2331,6 +2360,7 @@ as_delete_frame_list(struct list_t *parent_list)
                  * These are safe to free, because if we aren't unwinding
                  * due to failure, buffer_trim reset these already.
                  */
+                buffer_free(&fr->af_localmap);
                 buffer_free(&fr->af_labels);
                 buffer_free(&fr->af_instr);
 
@@ -2573,6 +2603,7 @@ assemble_frame_push(struct assemble_t *a, long long funcno)
         fr->af_closures = arrayvar_new(0);
         fr->af_rodata   = arrayvar_new(0);
         /* memset did this, but just in case buffer.c internals change... */
+        buffer_init(&fr->af_localmap);
         buffer_init(&fr->af_labels);
         buffer_init(&fr->af_instr);
 

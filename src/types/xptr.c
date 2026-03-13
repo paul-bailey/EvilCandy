@@ -75,6 +75,7 @@ xptrvar_new(const struct xptr_cfg_t *cfg)
         x->n_instr      = cfg->n_instr;
         x->file_name    = estrdup(cfg->file_name);
         x->file_line    = cfg->file_line;
+        x->n_locals     = cfg->n_locals;
         return v;
 }
 

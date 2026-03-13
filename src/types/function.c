@@ -112,6 +112,7 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
                         bug_on(!fr->stack[i]);
                 }
         }
+        fr->stackptr = fr->stack + fr->ap;
         return RES_OK;
 }
 
@@ -171,9 +172,6 @@ function_call(Frame *fr, Object *args, Object *kwargs)
         if (kwargs)
                 fr->stack[fr->ap++] = kwargs;
 
-        /* Finished setting up args, fr->ap */
-        fr->stackptr = fr->stack + fr->ap;
-
         if (function_argc_check(fh, fr->ap) != RES_OK)
                 goto err;
 
@@ -182,15 +180,22 @@ function_call(Frame *fr, Object *args, Object *kwargs)
         else
                 fr->clo = NULL;
 
-        if (fh->f_magic == FUNC_USER)
-                fr->ex = fh->f_ex;
-
         if (fh->f_magic == FUNC_INTERNAL) {
                 bug_on(!fh->f_cb);
+                fr->stackptr = fr->stack + fr->ap;
                 return fh->f_cb(fr);
         } else {
                 /* FUNC_USER */
-                bug_on(!fr->ex);
+                int i;
+
+                fr->n_locals = fh->f_ex->n_locals;
+                fr->ex = fh->f_ex;
+                bug_on(!fh->f_ex);
+
+                /* Finished setting up args, fr->ap */
+                for (i = 0; i < fr->ex->n_locals; i++)
+                        fr->stack[fr->ap + i] = VAR_NEW_REF(NullVar);
+                fr->stackptr = fr->stack + fr->ap + fr->ex->n_locals;
                 fr->ppii = fr->ex->instr;
                 return execute_loop(fr);
         }
@@ -203,7 +208,6 @@ err:
          * fr->ap may have changed since we started this function,
          * so we need to update fr->stackptr accordingly.
          */
-        fr->stackptr = fr->stack + fr->ap;
         return ErrorVar;
 }
 

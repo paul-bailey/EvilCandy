@@ -13,11 +13,17 @@
  * @af_args:     Symbol table of argument names, in order of argument
  * @af_closures: Symbol table of closure names
  * @af_rodata:   ie. a function's consts, array of Object *
+ * @af_localmap: Array that maps index of af_locals to actual location
+ *               of local variable on what will be the frame stack.
+ *               @af_locals grows and shrinks as assembler goes in and
+ *               out of block scope, as a way to confirm namespace.
+ *               The actual locals array will not.
  * @af_labels:   Jump labels, array of short ints
  * @af_instr;    Instructions, array of instruction_t
  * @scope:       Current {...} scope within the function
  * @nest:        Pointer to current top of @scope
  * @line:        Line number of first line of code for this frame
+ * @af_nlocals:  Number of local variables in this function.
  * @list:        Link to sibling frames
  *
  * This wraps @x (the true intended result of this assembly, and will
@@ -34,11 +40,13 @@ struct as_frame_t {
         Object *af_args;
         Object *af_closures;
         Object *af_rodata;
+        struct buffer_t af_localmap;
         struct buffer_t af_labels;
         struct buffer_t af_instr;
         int scope[FRAME_NEST_MAX];
         int nest;
         int line;
+        int af_nlocals;
         struct list_t list;
 };
 

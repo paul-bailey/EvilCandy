@@ -71,6 +71,7 @@ struct xptrvar_t {
         Object *rodata;
         /* warm items */
         int n_instr;
+        int n_locals;
         /* cold items used by disassembly and serializer */
         char *file_name;
         int file_line;
@@ -80,6 +81,7 @@ struct xptrvar_t {
 struct xptr_cfg_t {
         instruction_t *instr;
         int n_instr;
+        int n_locals;
         Object *rodata;
         int file_line;
         const char *file_name;

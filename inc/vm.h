@@ -42,6 +42,7 @@ struct vmframe_t {
         struct xptrvar_t *ex;
         int ap;
         int n_blocks;
+        int n_locals;
         struct block_t blocks[FRAME_NEST_MAX];
         instruction_t *ppii;
         Object **clo;

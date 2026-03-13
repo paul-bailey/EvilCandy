@@ -831,6 +831,7 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
                 cfg.n_instr     = as_frame_ninstr(fr);
                 cfg.rodata      = fr->af_rodata;
                 cfg.instr       = buffer_trim(&fr->af_instr);
+                cfg.n_locals    = fr->af_nlocals;
                 x = (struct xptrvar_t *)xptrvar_new(&cfg);
         } while (0);
 

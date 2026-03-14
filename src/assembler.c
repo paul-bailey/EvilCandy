@@ -2247,6 +2247,11 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 assemble_declarator_stmt(a, a->oc->t, flags);
                 break;
         case OC_RETURN:
+                if (!!(flags & FE_TOP)) {
+                        err_setstr(SyntaxError,
+                                "Cannot return in interactive mode while outside of a function");
+                        as_err(a, AE_EXPECT);
+                }
                 assemble_return(a);
                 break;
         case OC_BREAK:

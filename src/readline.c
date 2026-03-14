@@ -23,6 +23,7 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
 {
         FILE *inpsave;
         static bool init = false;
+        char *new_line;
 
         bug_on(!linep);
         bug_on(!size);
@@ -36,24 +37,44 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
         rl_instream = fp;
 
         if (!init) {
+                rl_initialize();
                 rl_bind_key('\t', rl_insert);
+                clear_history();
+                using_history();
+                add_history("");
                 init = true;
         }
 
-        if (*linep)
-                free(*linep);
-
-        *linep = readline(prompt);
+        new_line = readline(prompt);
         rl_instream = inpsave;
 
-        if (*linep) {
-                if (**linep)
-                        add_history(*linep);
+        if (new_line) {
+                char *old_line = *linep;
+                size_t n = strlen(new_line);
+                if (n + 2 > *size) {
+                        if (old_line)
+                                efree(old_line);
+                        old_line = emalloc(n + 2);
+                        *size = n + 2;
+                } else {
+                        bug_on(!old_line);
+                }
+                memcpy(old_line, new_line, n);
+                old_line[n] = '\n';
+                old_line[n + 1] = '\0';
+                *linep = old_line;
 
-                /* all I know is it's at least this amount */
-                *size = strlen(*linep);
-                return *size;
+                if (n > 0)
+                        add_history(new_line);
+                efree(new_line);
+
+                /* +1 becase we needed to add our own '\n' */
+                return n + 1;
         } else {
+                if (*linep) {
+                        efree(*linep);
+                        *linep = NULL;
+                }
                 *size = 0;
                 return -1;
         }

@@ -172,6 +172,22 @@ do_exit(Frame *fr)
         Object *p = vm_get_arg(fr, 0);
         if (p && isvar_string(p))
                 fprintf(stderr, "%s\n", string_cstring(p));
+        /*
+         * XXX: This clears some bug traps that will trigger due to an
+         * exit from an arbitrary depth in our context.  But it still
+         * leaves a lot of objects dangling in memory, especially wrt
+         * vm.c.  We need a hook, say, a "__vm_unwind()".
+         *
+         * FIXME: ...But we can't do that.  We'll know where our stack
+         * pointer is (we can pass @fr to __vm_unwind()), but our current
+         * implementation does not allow a breadcrumb trail of previous
+         * frames to clear.  What if, for example, @fr's parent is from
+         * a generator, and therefore runs on a separate stack from the
+         * mainline one?
+         */
+        /* main.c */
+        extern void end_program(void);
+        end_program();
         exit(0);
 
         /*

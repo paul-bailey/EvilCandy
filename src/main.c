@@ -13,7 +13,7 @@ initialize_program(void)
         cfile_init_global();
 }
 
-static void
+void
 end_program(void)
 {
         cfile_deinit_global();

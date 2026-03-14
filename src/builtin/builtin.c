@@ -14,6 +14,22 @@ do_typeof(Frame *fr)
         return stringvar_new(typestr(p));
 }
 
+static Object *
+do_hash(Frame *fr)
+{
+        hash_t hash;
+        Object *p = vm_get_arg(fr, 0);
+        if (!p) {
+                err_frame_minargs(fr, 1);
+                return ErrorVar;
+        }
+        hash = var_hash(p);
+        if (hash == HASH_ERROR) {
+                err_hashable(p, "hash");
+                return ErrorVar;
+        }
+        return intvar_new((unsigned long long)hash);
+}
 
 static Object *
 do_print(Frame *fr)
@@ -417,6 +433,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("all",    do_all,    1, 1, -1, -1),
         V_INITTBL("any",    do_any,    1, 1, -1, -1),
         V_INITTBL("disassemble", do_disassemble, 1, 1, -1, -1),
+        V_INITTBL("hash",   do_hash,   1, 1, -1, -1),
         V_INITTBL("length", do_length, 1, 1, -1, -1),
         V_INITTBL("min",    do_min,    1, 1,  0, -1),
         V_INITTBL("max",    do_max,    1, 1,  0, -1),

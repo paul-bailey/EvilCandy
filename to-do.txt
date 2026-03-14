@@ -14,7 +14,7 @@ Bugs
         * **fixed** User cannot set a dictionary's property, because the var.c
           algo will think it's trying to set a dictionary field.
 
-        * When using readline, ^D is not interpreted as EOF during the
+        * **fixed** When using readline, ^D is not interpreted as EOF during the
           first prompt.
 
         * assert fails in var_sanity_check_types_tbl() when exiting with
@@ -40,6 +40,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Add appropriate interrupt handlers for things like EINTR.
   - Fill in set library.
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.
@@ -178,11 +179,6 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
-* Replace stack arrangement of FOREACH_ITER to use an iterator of the
-  sort used in var.c, any/all/max/min functions.  This ought to speed
-  up the for loop a tiny bit, because instead of constantly operating
-  on and replacing IntType objects, we're just incrementing C ints.
-
 * Replace setjmp in assemble.c with normal stack unwinding.  May need
   to replace EOF with OC_EOF so that a <0 check will always mean
   'error'.
@@ -197,6 +193,11 @@ Mebbe/Wishlist/Low-prio bugs
 
 * Replace jmp_buf in token.c with either fussier management of helper
   functions' return values, or with a big damn get_tok function.
+
+* **done** Replace stack arrangement of FOREACH_ITER to use an iterator of the
+  sort used in var.c, any/all/max/min functions.  This ought to speed
+  up the for loop a tiny bit, because instead of constantly operating
+  on and replacing IntType objects, we're just incrementing C ints.
 
 * **done** Preserve token buffer in interactive mode so that the UP arrow will
   recall previous expressions.

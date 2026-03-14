@@ -345,8 +345,23 @@ set_str(Object *set)
 static int
 set_cmp(Object *a, Object *b)
 {
-#warning "not implemented"
-        return 1;
+        struct setvar_t *sv;
+        size_t i, j;
+        Object *cmpo;
+
+        if (seqvar_size(a) != seqvar_size(b))
+                return (int)(seqvar_size(a) - seqvar_size(b));
+
+        /* Sizes are equal, so if a is a subset of b then a == b */
+        sv = (struct setvar_t *)a;
+        for (i = 0; i < sv->s_size; i++) {
+                Object *k = sv->s_keys[i];
+                if (!k || k == BUCKET_DEAD)
+                        continue;
+                if (!set_hasitem(b, k))
+                        return 1;
+        }
+        return 0;
 }
 
 static bool

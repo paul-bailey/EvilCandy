@@ -2689,8 +2689,11 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
         CLOCK_DECLARE();
 
         a = new_assembler(filename, fp);
-        if (!a)
+        if (!a) {
+                /* no program, just eof */
+                *status = RES_OK;
                 return NULL;
+        }
 
         /*
          * If first token is a dot, it can't be EvilCandy source,

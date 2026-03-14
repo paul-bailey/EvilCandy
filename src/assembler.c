@@ -46,8 +46,6 @@
 
 /*
  * The @flags arg used in some of the functions below.
- * @FE_FOR: We're in that middle part of a for loop between two
- *          semicolons.  Only used by assembler.
  * @FE_CONTINUE: We're the start of a loop where 'continue' may
  *          break us out.
  * @FE_TOP: Two things must be true: 1. We're in interactive mode,
@@ -65,7 +63,6 @@
  *          Add instruction to delete that one.
  */
 enum {
-        FE_FOR          = 0x01,
         FE_CONTINUE     = 0x02,
         FE_TOP          = 0x04,
         FE_SKIPNULLASSIGN=0x08,
@@ -1836,14 +1833,6 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         int needsize, star;
         unsigned int extraflags = 0;
 
-        if (!!(flags & FE_FOR)) {
-                char *what = tok == OC_LET ? "let" : "global";
-                err_setstr(SyntaxError,
-                        "'%s' not allowed as third part of 'for' statement",
-                        what);
-                as_err(a, AE_BADTOK);
-        }
-
         as_lex(a);
         if (a->oc->t != OC_MUL && a->oc->t != OC_IDENTIFIER) {
                 err_ae_expect(a, OC_IDENTIFIER);
@@ -2048,11 +2037,6 @@ static void
 assemble_foreach2(struct assemble_t *a, struct list_t *names,
                   int star, int needsize)
 {
-        /*
-         * declare 'needles', push placeholder onto the stack.
-         * FOREACH_ITER does this already, we just need to keep
-         * our stack state consistent.
-         */
         int iternext = as_next_label(a);
         if (needsize == 1) {
                 /* needle is the 'a' of 'for (a in b)' */
@@ -2236,10 +2220,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 as_unlex(a);
                 break;
         case OC_RPAR:
-                /* in case for loop ends with empty ";)" */
-                if (!(flags & FE_FOR)) {
-                        as_err(a, AE_PAR);
-                }
+                as_err(a, AE_PAR);
                 as_unlex(a);
                 break;
         case OC_LET:
@@ -2293,15 +2274,14 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         if (need_pop)
                 add_instr(a, INSTR_POP, pop_arg, 0);
 
-        if (!(flags & FE_FOR))
-                as_errlex(a, OC_SEMI);
+        as_errlex(a, OC_SEMI);
 }
 
 RECURSION_DECLARE(as_recursion);
 
 /*
  * assemble_stmt - Parser for the top-level statement
- * @flags: If FE_FOR, we're in the iterator part of a for loop header.
+ * @flags: FE_xxxx flags
  *
  * This covers block statement and single-line statements
  *

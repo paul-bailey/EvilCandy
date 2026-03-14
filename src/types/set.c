@@ -56,18 +56,16 @@ bucketi(struct setvar_t *sv, hash_t hash)
 static bool
 key_match(Object *key1, Object *key2, hash_t key2_hash)
 {
-        if (key1 == key2)
-                return true;
-        /* XXX: what about int vs float? */
-        if (key1->v_type != key2->v_type)
+        /* XXX: DRY violation with 'key_match' in dict.c */
+        if (isvar_string(key1)) {
+                if (isvar_string(key2)) {
+                        if (var_hash(key1) != key2_hash)
+                                return false;
+                        return string_eq(key1, key2);
+                }
                 return false;
-        if (key2_hash != var_hash(key1))
-                return false;
-        if (isvar_string(key1))
-                return string_eq(key1, key2);
-        if (!key1->v_type->cmp)
-                return false;
-        return key1->v_type->cmp(key1, key2) == 0;
+        }
+        return var_compare(key1, key2) == 0;
 }
 
 static int
@@ -78,6 +76,7 @@ seek_helper(struct setvar_t *sv, Object *key)
         unsigned long perturb;
         int i;
 
+        /* XXX: why not store hash *with* key? */
         hash = var_hash(key);
         if (hash == RES_ERROR)
                 return -1;
@@ -346,8 +345,7 @@ static int
 set_cmp(Object *a, Object *b)
 {
         struct setvar_t *sv;
-        size_t i, j;
-        Object *cmpo;
+        size_t i;
 
         if (seqvar_size(a) != seqvar_size(b))
                 return (int)(seqvar_size(a) - seqvar_size(b));

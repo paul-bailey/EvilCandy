@@ -50,7 +50,8 @@
  *          semicolons.  Only used by assembler.
  * @FE_CONTINUE: We're the start of a loop where 'continue' may
  *          break us out.
- * @FE_TOP: We're the top-level statement in interactive mode.
+ * @FE_TOP: Two things must be true: 1. We're in interactive mode,
+ *          AND 2. we're at the top-level statement
  * @FEE_MASK: OR flags with this to turn it into one of the
  *          three mutually-exclusive arguments to
  *          assemble_primary_elements

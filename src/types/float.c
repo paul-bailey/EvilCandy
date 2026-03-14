@@ -199,6 +199,17 @@ done:
         return stringvar_new(buf);
 }
 
+static hash_t
+calc_float_hash(Object *obj)
+{
+        bug_on(!isvar_float(obj));
+        double d = floatvar_tod(obj);
+        double ival;
+        if (modf(d, &ival) == 0.0)
+                return (hash_t)ival;
+        return calc_object_hash_generic(obj);
+}
+
 static Object *
 float_conjugate(Frame *fr)
 {
@@ -279,6 +290,6 @@ struct type_t FloatType = {
         .cmp    = float_cmp,
         .cmpz   = float_cmpz,
         .create = float_create,
-        .hash   = calc_object_hash_generic,
+        .hash   = calc_float_hash,
 };
 

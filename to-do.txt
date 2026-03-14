@@ -40,6 +40,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Untangle comparisons and matches, esp. wrt sets and dicts.
   - Add appropriate interrupt handlers for things like EINTR.
   - Fill in set library.
   - Add mutable alternative to bytes

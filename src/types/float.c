@@ -206,7 +206,7 @@ calc_float_hash(Object *obj)
         double d = floatvar_tod(obj);
         double ival;
         if (modf(d, &ival) == 0.0)
-                return (hash_t)ival;
+                return good_hash((hash_t)ival);
         return calc_object_hash_generic(obj);
 }
 

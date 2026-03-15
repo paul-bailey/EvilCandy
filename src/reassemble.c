@@ -234,7 +234,7 @@ parse_rodata1(struct reassemble_t *ra, const char *pc, char **endptr)
                         if (!child)
                                 goto err_tupleclean;
                         n++;
-                        buffer_putd(&b, child, sizeof(Object *));
+                        buffer_putd(&b, &child, sizeof(Object *));
                         pc = skip_ws(*endptr);
                         if (*pc == ',') {
                                 continue;

@@ -113,6 +113,16 @@ parse_opcodes(struct reassemble_t *ra, const char *pc)
                 return -1;
         }
 
+        if ((code == INSTR_ASSIGN_LOCAL || code == INSTR_LOAD_LOCAL) &&
+            arg1 == IARG_PTR_AP) {
+                int idx = arg2;
+                int max = ra->a->fr->af_nlocals;
+                if (idx < 0)
+                        goto err;
+                if (idx >= max)
+                        ra->a->fr->af_nlocals = idx + 1;
+        }
+
         assemble_add_instr(ra->a, code, arg1, arg2);
         return 0;
 

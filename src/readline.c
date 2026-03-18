@@ -66,7 +66,12 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
 
                 if (n > 0)
                         add_history(new_line);
-                efree(new_line);
+                /*
+                 * See ewrappers.c. efree() is just for bookkeepping,
+                 * but new_line was not malloc'd by our mm system, so
+                 * call free() directly.
+                 */
+                free(new_line);
 
                 /* +1 becase we needed to add our own '\n' */
                 return n + 1;

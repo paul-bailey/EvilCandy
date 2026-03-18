@@ -40,6 +40,9 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Ensure complex numbers whose imaginary component is zero return
+    0 when comparing with a "matching" float, int.  Make sure hash is
+    correct in this case, too.
   - Untangle comparisons and matches, esp. wrt sets and dicts.
   - Add appropriate interrupt handlers for things like EINTR.
   - Fill in set library.

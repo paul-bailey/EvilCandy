@@ -299,12 +299,11 @@ as_symbol_seek(struct assemble_t *a, Object *name, int *arg)
 
         bug_on(!name || !isvar_string(name));
         /*
-         * FIXME: in the case of af_locals, we need to go backwards,
-         * since locals inside the current program flow block "{...}"
-         * should take precedence over higher-up locals.
-         * Requires better hooks to types/array.c
+         * In the case of .af_locals, we search backwards, since locals
+         * inside the current program flow block "{...}" take precedence
+         * over higher-up locals.
          */
-        if ((i = array_indexof(fr->af_locals, name)) >= 0) {
+        if ((i = array_rindexof(fr->af_locals, name)) >= 0) {
                 i = localmap_idx(a, i);
                 targ = IARG_PTR_AP;
                 goto found;

@@ -574,6 +574,9 @@ array_indexof(Object *arr, Object *item)
         return array_indexof_(arr, item, 0, seqvar_size(arr), 0);
 }
 
+/**
+ * array_rindexof - Like array_indexof, but from the top going backwards
+ */
 ssize_t
 array_rindexof(Object *arr, Object *item)
 {
@@ -582,6 +585,14 @@ array_rindexof(Object *arr, Object *item)
                               seqvar_size(arr)-1, -1, AF_RIGHT);
 }
 
+/**
+ * array_indexof_strict - Like array_indexof, but do not match numbers of
+ *                        different types, IE: 1.0 != 1 != 1.0+0j
+ *
+ * Thus far, this is only needed for putting together .rodata lists, see
+ * where used in assembler.c.  Most UAPI stuff considers numbers of
+ * different types to possibly match.
+ */
 ssize_t
 array_indexof_strict(Object *arr, Object *item)
 {

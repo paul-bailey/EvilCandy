@@ -1,4 +1,8 @@
 /* json.c - Create a TYPE_DICT var from a json file */
+/*
+ * XXX: Either use this or lose it.  It's a lot of work keeping it from
+ *      falling into code rot.
+ */
 #include <evilcandy.h>
 #include <token.h>
 #include <setjmp.h>
@@ -125,20 +129,19 @@ parsedict(struct json_state_t *j, Object *parent)
 
         json_unget_tok(j);
         do {
-                char *name;
                 Object *child, *key;
                 int res;
+
                 json_get_tok(j);
-                if (j->tok->t != 'q')
+                if (j->tok->t != OC_STRING)
                         json_err(j, JE_SYNTAX);
-                name = estrdup(string_cstring(j->tok->v));
+                key = VAR_NEW_REF(j->tok->v);
                 json_get_tok(j);
                 if (j->tok->t != OC_COLON)
                         json_err(j, JE_SYNTAX);
 
                 json_get_tok(j);
                 child = parseatomic(j);
-                key = stringvar_new(name);
                 res = dict_setitem(parent, key, child);
                 VAR_DECR_REF(key);
                 if (res != RES_OK)
@@ -206,10 +209,7 @@ parsedict(struct json_state_t *j, Object *parent)
  *      - EvilCandy comments are skipped over.  JSON technically does
  *        not permit this, but we do.
  *      - String literals may not use backslash-zero to escape a
- *        null-char.  EvilCandy (as of 4/2025) still internally uses a
- *        lot of C-string processing on TYPE_STRING variables.  Rather
- *        than let this break a ton of stuff, the parser simply
- *        throws away both the backslash and the zero.
+ *        null-char.
  *      - Other backslash escapes are permitted in the same way as
  *        string literals in an EvilCandy script.  This may or may not
  *        conform to JSON standards, I can't be bothered to find out,

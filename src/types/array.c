@@ -14,6 +14,12 @@
 #define V2ARR(v_)       ((struct arrayvar_t *)(v_))
 #define V2SQ(v_)        ((struct seqvar_t *)(v_))
 
+/* flags args */
+enum {
+        AF_STRICT       = 0x001,
+        AF_RIGHT        = 0x002,
+};
+
 static void
 array_resize(Object *array, int n_items)
 {
@@ -103,6 +109,9 @@ array_reverse(Object *array)
 static enum result_t array_insert_chunk(Object *array, int at,
                                       Object **children, size_t n_items);
 
+/**
+ * array_extend - CAPI version of "array.extend(seq);"
+ */
 enum result_t
 array_extend(Object *array, Object *seq)
 {
@@ -505,21 +514,47 @@ arrayvar_from_stack(Object **items, int n_items, bool consume)
 }
 
 static ssize_t
-array_indexof_(Object *arr, Object *item, bool strict)
+array_indexof_(Object *arr, Object *item,
+               size_t start, ssize_t stop, unsigned int flags)
 {
         Object **data;
-        size_t i, n;
+        ssize_t i, n;
+        bool strict = !!(flags & AF_STRICT);
 
         bug_on(!isvar_array(arr));
-        data = array_get_data(arr);
+
         n = seqvar_size(arr);
-        for (i = 0; i < n; i++) {
-                if (strict && item->v_type != data[i]->v_type)
-                        continue;
-                if (var_compare(item, data[i]) == 0)
-                        return i;
+        if (n == 0 || stop == start)
+                return -1;
+
+        data = array_get_data(arr);
+
+        if (!(flags & AF_RIGHT)) {
+                bug_on(stop < start);
+                if (start >= n)
+                        return -1;
+                if (stop > n)
+                        stop = n;
+                for (i = start; i < stop; i++) {
+                        if (strict && item->v_type != data[i]->v_type)
+                                continue;
+                        if (var_compare(item, data[i]) == 0)
+                                return i;
+                }
+                return (ssize_t)-1;
+        } else {
+                if (start >= n)
+                        start = n-1;
+                if (stop < 0)
+                        stop = -1;
+                for (i = start; i > stop; i--) {
+                        if (strict && item->v_type != data[i]->v_type)
+                                continue;
+                        if (var_compare(item, data[i]) == 0)
+                                return i;
+                }
+                return (ssize_t)-1;
         }
-        return (ssize_t)-1;
 }
 
 /**
@@ -535,13 +570,22 @@ array_indexof_(Object *arr, Object *item, bool strict)
 ssize_t
 array_indexof(Object *arr, Object *item)
 {
-        return array_indexof_(arr, item, false);
+        bug_on(!isvar_array(arr));
+        return array_indexof_(arr, item, 0, seqvar_size(arr), 0);
+}
+
+ssize_t
+array_rindexof(Object *arr, Object *item)
+{
+        bug_on(!isvar_array(arr));
+        return array_indexof_(arr, item,
+                              seqvar_size(arr)-1, -1, AF_RIGHT);
 }
 
 ssize_t
 array_indexof_strict(Object *arr, Object *item)
 {
-        return array_indexof_(arr, item, true);
+        return array_indexof_(arr, item, 0, seqvar_size(arr), AF_STRICT);
 }
 
 /* type_t .reset callback */
@@ -835,37 +879,48 @@ do_array_insert(Frame *fr)
 static Object *
 do_array_index(Frame *fr)
 {
-        Object *self, *xarg, *startarg, **data;
-        int i, start, stop;
+        Object *self, *xarg;
+        int start, stop;
+        ssize_t i, n;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
+        n = seqvar_size(self);
         start = 0;
-        stop = seqvar_size(self);
+        stop = n;
 
-        xarg = vm_get_arg(fr, 0);
-        bug_on(!xarg);
-        startarg = vm_get_arg(fr, 1);
-        if (startarg) {
-                Object *stoparg;
+        /* FIXME: vm_getargs needs a 'z' format for 'ssize_t' */
+        if (vm_getargs(fr, "<*>[|ii!]:index", &xarg, &start, &stop) == RES_ERROR)
+                return ErrorVar;
 
-                if (seqvar_arg2idx(self, startarg, &start) != RES_OK)
-                        return ErrorVar;
-                stoparg = vm_get_arg(fr, 2);
-                if (stoparg) {
-                        if (seqvar_arg2idx(self, stoparg, &stop) != RES_OK)
-                                return ErrorVar;
-                }
+        /*
+         * TODO: Replace seqvar_arg2idx() in var.c with something that
+         * does this.
+         */
+        if (stop < 0) {
+                stop += n;
+                if (stop < 0)
+                        stop = 0;
         }
 
-        data = array_get_data(self);
-        for (i = start; i < stop; i++) {
-                if (var_compare(xarg, data[i]) == 0)
-                        return intvar_new(i);
+        if (start < 0) {
+                start += n;
+                if (start < 0)
+                        start = 0;
         }
 
+        if (stop < start)
+                goto notfound;
+
+        i = array_indexof_(self, xarg, start, stop, 0);
+        if (i < 0)
+                goto notfound;
+
+        return intvar_new(i);
+
+notfound:
         err_setstr(ValueError, "item not in list");
         return ErrorVar;
 }
@@ -991,7 +1046,7 @@ static const struct type_inittbl_t array_cb_methods[] = {
         V_INITTBL("count",      do_array_count,      1, 1, -1, -1),
         V_INITTBL("extend",     do_array_extend,     1, 1, -1, -1),
         V_INITTBL("foreach",    var_foreach_generic, 1, 2, -1, -1),
-        V_INITTBL("index",      do_array_index,      1, 3, -1, -1),
+        V_INITTBL("index",      do_array_index,      2, 2,  1, -1),
         V_INITTBL("insert",     do_array_insert,     2, 2, -1, -1),
         V_INITTBL("pop",        do_array_pop,        0, 1, -1, -1),
         V_INITTBL("remove",     do_array_remove,     1, 1, -1, -1),

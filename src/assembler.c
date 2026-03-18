@@ -298,6 +298,12 @@ as_symbol_seek(struct assemble_t *a, Object *name, int *arg)
         struct as_frame_t *fr = a->fr;
 
         bug_on(!name || !isvar_string(name));
+        /*
+         * FIXME: in the case of af_locals, we need to go backwards,
+         * since locals inside the current program flow block "{...}"
+         * should take precedence over higher-up locals.
+         * Requires better hooks to types/array.c
+         */
         if ((i = array_indexof(fr->af_locals, name)) >= 0) {
                 i = localmap_idx(a, i);
                 targ = IARG_PTR_AP;

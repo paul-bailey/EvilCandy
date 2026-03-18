@@ -891,8 +891,7 @@ static Object *
 do_array_index(Frame *fr)
 {
         Object *self, *xarg;
-        int start, stop;
-        ssize_t i, n;
+        ssize_t start, stop, i, n;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
@@ -902,9 +901,10 @@ do_array_index(Frame *fr)
         start = 0;
         stop = n;
 
-        /* FIXME: vm_getargs needs a 'z' format for 'ssize_t' */
-        if (vm_getargs(fr, "<*>[|ii!]:index", &xarg, &start, &stop) == RES_ERROR)
+        if (vm_getargs(fr, "<*>[|zz!]:index", &xarg, &start, &stop)
+            == RES_ERROR) {
                 return ErrorVar;
+        }
 
         /*
          * TODO: Replace seqvar_arg2idx() in var.c with something that

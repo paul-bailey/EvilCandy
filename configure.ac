@@ -25,7 +25,9 @@ AS_VAR_IF([have_uuid], [yes], ,[AC_MSG_ERROR([uuid header missing])])
 
 AC_CHECK_TYPES([ssize_t], ,[AC_MSG_ERROR([signed ssize_t not available])])
 AC_CHECK_FUNCS([strchrnul strrchrnul strrspn strrstr])
-AC_CHECK_SIZEOF([long], [], [#include <limits.h>])
+AC_CHECK_SIZEOF([long])
+AC_CHECK_SIZEOF([long long])
+AC_CHECK_SIZEOF([size_t])
 
 dnl TODO: Check all the headers, AC_CHECK_HEADERS
 

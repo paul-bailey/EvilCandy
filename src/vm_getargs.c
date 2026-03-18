@@ -31,6 +31,7 @@
  *      INT_MIN...UINT_MAX.
  * 'l'  Get a long long integer. varg is a pointer to 'long long'.
  *      uarg is an integer object.
+ * 'z'  Get a ssize_t integer, varg is a pointer to 'size_t' or 'ssize_t'
  * 's'  Get a C string.  varg is a pointer to "char *".  uarg is a string
  *      object.  Throw an exception if the result contains embedded null
  *      chars. WARNING!! This is a pointer into the Object's data, so if
@@ -573,6 +574,27 @@ convert_arg(int typec, Object *uarg, const char **fmt, va_list ap,
                 break;
             }
 
+        case 'z':
+#if SIZEOF_SIZE_T != SIZEOF_LONG_LONG
+            {
+                long long ival;
+                if (!isvar_int(uarg)) {
+                        vmerr_type_mismatch(argno, fname, uarg, &IntType);
+                        return RES_ERROR;
+                }
+                ival = intvar_toll(uarg);
+                /* alas ,limits.h not very portable wrt size_t */
+                if ((ival < 0 && -ival != (ssize_t)(-ival)) ||
+                    (ival >= 0 && ival != (ssize_t)ival)) {
+                        vmerr_generic("value must fit within size_t",
+                                      argno, fname);
+                        return RES_ERROR;
+                }
+
+                *((size_t *)pv) = (size_t)ival;
+                break;
+            }
+#endif
         case 'l':
                 if (!isvar_int(uarg)) {
                         vmerr_type_mismatch(argno, fname, uarg, &IntType);

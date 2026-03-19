@@ -2554,35 +2554,6 @@ assemble_frame_set_label(struct as_frame_t *fr, int jmp, unsigned long val)
         data[jmp] = (unsigned short)val;
 }
 
-#warning "unused, deprecated"
-/* will return -1 and set exc. if line is longer than @max */
-ssize_t
-assemble_get_line(struct assemble_t *a, struct token_t *toks,
-                  size_t max, int *lineno)
-{
-        int line = 0;
-        int count = 0;
-        while (count < max) {
-                as_lex(a);
-                if (a->oc->t == OC_EOF)
-                        break;
-                if (count == 0) {
-                        line = a->oc->start_line;
-                } else if (a->oc->start_line != line) {
-                        as_unlex(a);
-                        break;
-                }
-                as_savetok(a, &toks[count]);
-                count++;
-        }
-        if (count == max) {
-                err_setstr(SyntaxError, "line %d too long", line);
-                count = -1;
-        }
-        *lineno = line;
-        return count;
-}
-
 /* extern linkage because assemble_post.c needs it */
 int
 assemble_seek_rodata(struct assemble_t *a, Object *v)

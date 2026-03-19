@@ -102,9 +102,6 @@ static inline int as_frame_nlabel(struct as_frame_t *fr)
 /* assemble.c */
 extern int assemble_seek_rodata(struct assemble_t *a, Object *v);
 extern void assemble_label_here(struct assemble_t *a);
-extern ssize_t assemble_get_line(struct assemble_t *a,
-                                 struct token_t *tok, size_t max,
-                                 int *lineno);
 extern void assemble_frame_push(struct assemble_t *a, long long funcno);
 extern void assemble_frame_pop(struct assemble_t *a);
 extern void assemble_add_instr(struct assemble_t *a, int opcode,

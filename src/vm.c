@@ -29,6 +29,8 @@
 #include <token.h>
 #include <xptr.h>
 
+#define USE_BREADCRUMBS DBUG_REPORT_VARS_ON_EXIT
+
 /* XXX: Need to be made per-thread */
 static struct vm_t {
         Object *globals;
@@ -37,6 +39,19 @@ static struct vm_t {
         Object **stack_end;
         struct list_t active_frames;
         struct list_t free_frames;
+#if USE_BREADCRUMBS
+        /*
+         * Breadcrumbs of Objects whose reference handles are somewhere
+         * on the C stack.  They're also put here (no new references
+         * produced), so if we exit early due to UAPI exit() we can
+         * properly consume their references.
+         */
+        struct {
+                Object **items;
+                size_t n_items;
+                size_t n_alloc;
+        } bc;
+#endif /* USE_BREADCRUMBS */
 } vm = { 0 };
 
 #define PUSH_(fr, v) \
@@ -78,6 +93,44 @@ RODATA(Frame *fr, instruction_t ii)
 }
 
 #endif /* DEBUG */
+
+#if USE_BREADCRUMBS
+/*
+ * FIXME: This is just ugly.  Do I really care what this debug option
+ * prints during an early exit?  On those occasions, I'm probably not
+ * even trying to troubleshoot memory leaks.
+ */
+static void
+BC_PUSH(size_t nitems, ...)
+{
+        va_list ap;
+        if (vm.bc.n_items + nitems >= vm.bc.n_alloc) {
+                if (!vm.bc.n_alloc)
+                        vm.bc.n_alloc = 32;
+                while (vm.bc.n_items + nitems >= vm.bc.n_alloc)
+                        vm.bc.n_alloc *= 2;
+
+                vm.bc.items = erealloc(vm.bc.items,
+                                       vm.bc.n_alloc * sizeof(Object *));
+        }
+        va_start(ap, nitems);
+        while (nitems--)
+                vm.bc.items[vm.bc.n_items++] = va_arg(ap, Object *);
+}
+
+static void
+BC_POP(size_t nitems)
+{
+        vm.bc.n_items -= nitems;
+        bug_on((ssize_t)vm.bc.n_items < 0);
+}
+
+#else /* !USE_BREADCRUMBS */
+
+# define BC_PUSH(x_, ...)       do { (void)0; } while (0)
+# define BC_POP(x_)             do { (void)0; } while (0)
+
+#endif /* !USE_BREADCRUMBS */
 
 static inline Frame *
 vm_current_frame(void)
@@ -574,13 +627,11 @@ do_call_func(Frame *fr, instruction_t ii)
         }
 
         bug_on(!isvar_array(args));
+        BC_PUSH(2, args, func);
+        if (kwargs)
+                BC_PUSH(1, kwargs);
         retval = vm_exec_func(fr, func, args, kwargs);
-        /*
-         * FIXME: This is causing the appearance of memory leaks when
-         * exiting via UAPI exit() instead of normal end-of-file exit.
-         * We need to add these to a breadcrumbs trail before calling
-         * vm_exec_func().
-         */
+        BC_POP(kwargs ? 3 : 2);
         VAR_DECR_REF(args);
         VAR_DECR_REF(func);
         if (kwargs)
@@ -1255,7 +1306,9 @@ vm_exec_script(Object *top_level, Frame *fr_old)
 
         bug_on(!isvar_xptr(top_level));
         func = funcvar_new_user(top_level);
+        BC_PUSH(1, func);
         ret = vm_exec_func(fr_old, func, NULL, NULL);
+        BC_POP(1);
         VAR_DECR_REF(func);
         return ret;
 }
@@ -1399,24 +1452,25 @@ vm_clear_frames_for_exit(void)
                          * where normally consumed.
                          */
 
-                        if (func) {
-                                /* Normally done in vm_exec_func() */
+                        /* Normally done in vm_exec_func() */
+                        if (func)
                                 VAR_DECR_REF(func);
-
-                                /*
-                                 * Normally done in vm_exec_script().
-                                 * XXX: If exit() from a nested script,
-                                 * nested scripts will be left hanging.
-                                 */
-                                if (fr == top)
-                                        VAR_DECR_REF(func);
-                        }
 
                         /* Normally done in vm_exec_func() */
                         if (owner)
                                 VAR_DECR_REF(owner);
 
                 }
+
+#if USE_BREADCRUMBS
+                {
+                        size_t i;
+                        for (i = 0; i < vm.bc.n_items; i++) {
+                                VAR_DECR_REF(vm.bc.items[i]);
+                        }
+                        vm.bc.n_items = 0;
+                }
+#endif /* USE_BREADCRUMBS */
 
                 /* Normally done in main.c */
                 if (ex)
@@ -1456,6 +1510,11 @@ cfile_deinit_vm(void)
                 VAR_DECR_REF(vm.globals);
         if (vm.locals)
                 VAR_DECR_REF(vm.locals);
+
+#if USE_BREADCRUMBS
+        if (vm.bc.items)
+                efree(vm.bc.items);
+#endif /* USE_BREADCRUMBS */
 
         efree(vm.stack);
 

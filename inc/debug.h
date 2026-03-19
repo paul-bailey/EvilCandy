@@ -13,7 +13,7 @@
  */
 
 /* splash some debug data about var allocation to stderr upon exit */
-#define DBUG_REPORT_VARS_ON_EXIT 1
+#define DBUG_REPORT_VARS_ON_EXIT 0
 
 /*
  * Check return value of each opcode callback against err_occurred().

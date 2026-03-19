@@ -3,6 +3,10 @@ Bugs
 
 * BUGs 3/2026:
 
+        * (pseudo-bug) illusion of memory leaks when exiting via UAPI
+          exit().  Not all of the breadcrumbs are accounted for.  See
+          where suspected, vm.c do_call_func().
+
         * **fixed** segfault when f-string with conversion is the only part of a
           statement, eg.
                 f'something {x}';

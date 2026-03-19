@@ -167,6 +167,15 @@ var_unlock(void)
 void
 var_delete__(Object *v)
 {
+        /*
+         * XXX: var_lock() is meant to prevent re-entrance at certain
+         * moments, but that only matters for less than 1% of the time,
+         * specifically objects whose .reset() will trigger a UAPI
+         * function.  We should check it (maybe something kind of like
+         * "v->v_type->isreentrant(v)") so we don't add like a bajillion
+         * objects to be freed all at once.
+         * (Test: Does it cause noticeable program stuttering?)
+         */
         if (var_locked) {
                 struct var_mem_t *vm;
 

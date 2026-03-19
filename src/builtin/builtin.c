@@ -187,6 +187,8 @@ do_exit(Frame *fr)
          */
         /* main.c */
         extern void end_program(void);
+        extern void vm_clear_frames_for_exit(void);
+        vm_clear_frames_for_exit();
         end_program();
         exit(0);
 

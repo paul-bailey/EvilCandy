@@ -35,11 +35,9 @@ static struct vm_t {
         Object *locals;
         Object **stack;
         Object **stack_end;
-        Frame *current_frame;
+        struct list_t active_frames;
         struct list_t free_frames;
 } vm = { 0 };
-
-#define list2vmf(li) container_of(li, Frame, list)
 
 #define PUSH_(fr, v) \
         do { *((fr)->stackptr)++ = (v); } while (0)
@@ -81,6 +79,24 @@ RODATA(Frame *fr, instruction_t ii)
 
 #endif /* DEBUG */
 
+static inline Frame *
+vm_current_frame(void)
+{
+        struct list_t *li = vm.active_frames.prev;
+        if (li == &vm.active_frames)
+                return NULL;
+        return container_of(li, Frame, alloc_list);
+}
+
+static inline Frame *
+vm_top_frame(void)
+{
+        struct list_t *li = vm.active_frames.next;
+        if (li == &vm.active_frames)
+                return NULL;
+        return container_of(li, Frame, alloc_list);
+}
+
 static int
 symbol_put(Frame *fr, Object *name, Object *v, Object *dict)
 {
@@ -119,7 +135,7 @@ err:
 static Frame *
 vmframe_alloc(Object *fn, Object *owner, Frame *fr_old)
 {
-        Frame *ret;
+        Frame *ret, *cur;
         struct list_t *li = vm.free_frames.next;
         if (li == &vm.free_frames) {
                 ret = ecalloc(sizeof(*ret));
@@ -133,9 +149,9 @@ vmframe_alloc(Object *fn, Object *owner, Frame *fr_old)
 
         if (fr_old) {
                 ret->stack = fr_old->stackptr;
-        } else if (vm.current_frame) {
+        } else if ((cur = vm_current_frame()) != NULL) {
                 /* probably a destructor called from VAR_DECR_REF */
-                ret->stack = vm.current_frame->stackptr;
+                ret->stack = cur->stackptr;
         } else {
                 /* 1st ever call */
                 ret->stack = vm.stack;
@@ -146,6 +162,8 @@ vmframe_alloc(Object *fn, Object *owner, Frame *fr_old)
         ret->stackptr = ret->stack + ret->ap;
         VAR_INCR_REF(owner);
         VAR_INCR_REF(fn);
+
+        list_add_tail(&ret->alloc_list, &vm.active_frames);
         return ret;
 }
 
@@ -157,6 +175,7 @@ vmframe_free(Frame *fr)
          * They're managed by their owning function object, so we don't
          * consume their references here.
          */
+        list_remove(&fr->alloc_list);
         var_lock();
         {
                 while (fr->stackptr > fr->stack) {
@@ -171,14 +190,6 @@ vmframe_free(Frame *fr)
                 list_add_tail(&fr->alloc_list, &vm.free_frames);
         }
         var_unlock();
-}
-
-static Frame *
-vm_swap_frame(Frame *new)
-{
-        Frame *ret = vm.current_frame;
-        vm.current_frame = new;
-        return ret;
 }
 
 static struct block_t *
@@ -564,6 +575,12 @@ do_call_func(Frame *fr, instruction_t ii)
 
         bug_on(!isvar_array(args));
         retval = vm_exec_func(fr, func, args, kwargs);
+        /*
+         * FIXME: This is causing the appearance of memory leaks when
+         * exiting via UAPI exit() instead of normal end-of-file exit.
+         * We need to add these to a breadcrumbs trail before calling
+         * vm_exec_func().
+         */
         VAR_DECR_REF(args);
         VAR_DECR_REF(func);
         if (kwargs)
@@ -1262,7 +1279,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
 Object *
 vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
 {
-        Frame *fr, *tfr;
+        Frame *fr;
         Object *res, *owner;
 
         if (isvar_method(func)) {
@@ -1280,14 +1297,8 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
                 VAR_INCR_REF(func);
         }
 
-        /*
-         * XXX: replace vm_swap_frame with frame push/pop, so we have
-         * a breadcrumbs trail of frames in case we exit early.
-         */
         fr = vmframe_alloc(func, owner, fr_old);
-        tfr = vm_swap_frame(fr);
         res = function_call(fr, args, kwargs);
-        vm_swap_frame(tfr);
         vmframe_free(fr);
 
         if (!res)
@@ -1356,6 +1367,71 @@ vm_pointers_in_stack(Object **start, Object **end)
         return start <= end && start >= vm.stack && end < vm.stack_end;
 }
 
+/**
+ * vm_clear_frames_for_exit - used by UAPI exit() to clear all frames.
+ *
+ * Calling code had better call exit() before returning or all hell will
+ * break loose.
+ *
+ * Note, this needs to be done before any cfil_deinitXXX() functions,
+ * because we may actually reenter the VM to call some UAPI cleanups.
+ * It should not have to be called during a normal end-of-file exit.
+ */
+void
+vm_clear_frames_for_exit(void)
+{
+        var_lock();
+        {
+                Frame *fr, *top;
+                Object *ex = NULL;
+
+                if ((top = vm_top_frame()) != NULL)
+                        ex = (Object *)top->ex;
+
+                while ((fr = vm_current_frame()) != NULL) {
+                        Object *func = fr->func;
+                        Object *owner = fr->owner;
+                        vmframe_free(fr);
+
+                        /*
+                         * Hack alert! I just happen to know that some
+                         * of these need to be consumed again, commented
+                         * where normally consumed.
+                         */
+
+                        if (func) {
+                                /* Normally done in vm_exec_func() */
+                                VAR_DECR_REF(func);
+
+                                /*
+                                 * Normally done in vm_exec_script().
+                                 * XXX: If exit() from a nested script,
+                                 * nested scripts will be left hanging.
+                                 */
+                                if (fr == top)
+                                        VAR_DECR_REF(func);
+                        }
+
+                        /* Normally done in vm_exec_func() */
+                        if (owner)
+                                VAR_DECR_REF(owner);
+
+                }
+
+                /* Normally done in main.c */
+                if (ex)
+                        VAR_DECR_REF(ex);
+        }
+        var_unlock();
+
+        /*
+         * If above var_unlock() triggers any UAPI cleanups, they SHOULD
+         * allocate and then just free frames again, so there SHOULD be
+         * no need to wrap all this in a "while (active frames not empty)"
+         * loop.
+         */
+}
+
 void
 cfile_init_vm(void)
 {
@@ -1364,6 +1440,8 @@ cfile_init_vm(void)
 
         if (!vm.free_frames.next)
                 list_init(&vm.free_frames);
+        if (!vm.active_frames.next)
+                list_init(&vm.active_frames);
 
         vm.stack = emalloc(sizeof(Object *) * VM_STACK_SIZE);
         vm.stack_end = vm.stack + VM_STACK_SIZE - 1;

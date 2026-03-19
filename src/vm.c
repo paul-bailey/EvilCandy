@@ -29,8 +29,6 @@
 #include <token.h>
 #include <xptr.h>
 
-#define USE_BREADCRUMBS DBUG_REPORT_VARS_ON_EXIT
-
 /* XXX: Need to be made per-thread */
 static struct vm_t {
         Object *globals;
@@ -39,19 +37,6 @@ static struct vm_t {
         Object **stack_end;
         struct list_t active_frames;
         struct list_t free_frames;
-#if USE_BREADCRUMBS
-        /*
-         * Breadcrumbs of Objects whose reference handles are somewhere
-         * on the C stack.  They're also put here (no new references
-         * produced), so if we exit early due to UAPI exit() we can
-         * properly consume their references.
-         */
-        struct {
-                Object **items;
-                size_t n_items;
-                size_t n_alloc;
-        } bc;
-#endif /* USE_BREADCRUMBS */
 } vm = { 0 };
 
 #define PUSH_(fr, v) \
@@ -93,44 +78,6 @@ RODATA(Frame *fr, instruction_t ii)
 }
 
 #endif /* DEBUG */
-
-#if USE_BREADCRUMBS
-/*
- * FIXME: This is just ugly.  Do I really care what this debug option
- * prints during an early exit?  On those occasions, I'm probably not
- * even trying to troubleshoot memory leaks.
- */
-static void
-BC_PUSH(size_t nitems, ...)
-{
-        va_list ap;
-        if (vm.bc.n_items + nitems >= vm.bc.n_alloc) {
-                if (!vm.bc.n_alloc)
-                        vm.bc.n_alloc = 32;
-                while (vm.bc.n_items + nitems >= vm.bc.n_alloc)
-                        vm.bc.n_alloc *= 2;
-
-                vm.bc.items = erealloc(vm.bc.items,
-                                       vm.bc.n_alloc * sizeof(Object *));
-        }
-        va_start(ap, nitems);
-        while (nitems--)
-                vm.bc.items[vm.bc.n_items++] = va_arg(ap, Object *);
-}
-
-static void
-BC_POP(size_t nitems)
-{
-        vm.bc.n_items -= nitems;
-        bug_on((ssize_t)vm.bc.n_items < 0);
-}
-
-#else /* !USE_BREADCRUMBS */
-
-# define BC_PUSH(x_, ...)       do { (void)0; } while (0)
-# define BC_POP(x_)             do { (void)0; } while (0)
-
-#endif /* !USE_BREADCRUMBS */
 
 static inline Frame *
 vm_current_frame(void)
@@ -627,11 +574,7 @@ do_call_func(Frame *fr, instruction_t ii)
         }
 
         bug_on(!isvar_array(args));
-        BC_PUSH(2, args, func);
-        if (kwargs)
-                BC_PUSH(1, kwargs);
         retval = vm_exec_func(fr, func, args, kwargs);
-        BC_POP(kwargs ? 3 : 2);
         VAR_DECR_REF(args);
         VAR_DECR_REF(func);
         if (kwargs)
@@ -1306,9 +1249,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
 
         bug_on(!isvar_xptr(top_level));
         func = funcvar_new_user(top_level);
-        BC_PUSH(1, func);
         ret = vm_exec_func(fr_old, func, NULL, NULL);
-        BC_POP(1);
         VAR_DECR_REF(func);
         return ret;
 }
@@ -1426,9 +1367,19 @@ vm_pointers_in_stack(Object **start, Object **end)
  * Calling code had better call exit() before returning or all hell will
  * break loose.
  *
- * Note, this needs to be done before any cfil_deinitXXX() functions,
+ * Note: this needs to be done before any cfile_deinitXXX() functions,
  * because we may actually reenter the VM to call some UAPI cleanups.
  * It should not have to be called during a normal end-of-file exit.
+ *
+ * Note: Some memory "leaks" have occurred.  A function might produce a
+ * reference, call vm_exec_func(), then consume the reference when
+ * vm_exec_func() returns.  So if the function being executed happens to
+ * be the UAPI exit, those references are on the C stack somewhere,
+ * without any breadcrumbs trail for us to free them.  I just don't care.
+ * These aren't true leaks, because they're accounted for when exiting
+ * due to normal end-of-input.  That's what DBUG_REPORT_VARS_ON_EXIT was
+ * meant to troubleshoot, so just let it report something wrong when
+ * exiting early.
  */
 void
 vm_clear_frames_for_exit(void)
@@ -1462,20 +1413,13 @@ vm_clear_frames_for_exit(void)
 
                 }
 
-#if USE_BREADCRUMBS
-                {
-                        size_t i;
-                        for (i = 0; i < vm.bc.n_items; i++) {
-                                VAR_DECR_REF(vm.bc.items[i]);
-                        }
-                        vm.bc.n_items = 0;
-                }
-#endif /* USE_BREADCRUMBS */
-
                 /* Normally done in main.c */
                 if (ex)
                         VAR_DECR_REF(ex);
         }
+        if (DBUG_REPORT_VARS_ON_EXIT)
+                DBUG1("exiting early, \"#vars outstaning\" info below will be incorrect");
+
         var_unlock();
 
         /*
@@ -1510,11 +1454,6 @@ cfile_deinit_vm(void)
                 VAR_DECR_REF(vm.globals);
         if (vm.locals)
                 VAR_DECR_REF(vm.locals);
-
-#if USE_BREADCRUMBS
-        if (vm.bc.items)
-                efree(vm.bc.items);
-#endif /* USE_BREADCRUMBS */
 
         efree(vm.stack);
 

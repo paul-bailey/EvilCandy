@@ -12,7 +12,11 @@
  * the project back in to version control.
  */
 
-/* splash some debug data about var allocation to stderr upon exit */
+/*
+ * Splash some debug data about var allocation to stderr upon exit.
+ * The data will be wrong if exiting early, see note in comment above
+ * vm_clear_frames_for_exit().
+ */
 #define DBUG_REPORT_VARS_ON_EXIT 0
 
 /*

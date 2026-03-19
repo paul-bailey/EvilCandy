@@ -2592,7 +2592,7 @@ string_getslice(Object *str, int start, int stop, int step)
 
 /* .getitem sequence method for string  */
 static Object *
-string_getitem(Object *str, int idx)
+string_getitem(Object *str, size_t idx)
 {
         long point;
 

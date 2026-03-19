@@ -67,7 +67,7 @@ resize:
  * Given extern linkage since some internal code needs it
  */
 Object *
-array_getitem(Object *array, int idx)
+array_getitem(Object *array, size_t idx)
 {
         struct arrayvar_t *va = V2ARR(array);
 
@@ -81,7 +81,7 @@ array_getitem(Object *array, int idx)
  * like array_getitem, but do not consume reference
  */
 Object *
-array_borrowitem(Object *array, int idx)
+array_borrowitem(Object *array, size_t idx)
 {
         Object *ret = array_getitem(array, idx);
         if (ret)

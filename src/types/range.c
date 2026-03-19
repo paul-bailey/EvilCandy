@@ -32,7 +32,7 @@ rangevar_new(long long start, long long stop, long long step)
 }
 
 static Object *
-range_getitem(Object *rng, int idx)
+range_getitem(Object *rng, size_t idx)
 {
         long long resi;
         struct rangevar_t *r = V2R(rng);

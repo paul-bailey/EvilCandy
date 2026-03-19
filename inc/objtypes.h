@@ -108,7 +108,7 @@ struct seq_fastiter_t {
 
 /* FIXME: Replace 'int' with '[s]size_t' for anything wrt index */
 struct seq_methods_t {
-        Object *(*getitem)(Object *, int);
+        Object *(*getitem)(Object *, size_t);
         /* @haystack is this type; @needle must be type-checked */
         bool (*hasitem)(Object *haystack, Object *needle);
         enum result_t (*setitem)(Object *, int, Object *);
@@ -375,11 +375,11 @@ static inline unsigned char *bytes_get_data(Object *v)
 extern int intvar_toi(Object *v);
 
 /* only call if isvar_seq_readable() is true */
-static inline Object *seqvar_getitem(Object *v, int i)
+static inline Object *seqvar_getitem(Object *v, size_t i)
         { return v->v_type->sqm->getitem(v, i); }
 
 /* only call if index has been checked */
-static inline Object *tuple_getitem_noref(Object *v, int i)
+static inline Object *tuple_getitem_noref(Object *v, size_t i)
         { return ((struct tuplevar_t *)v)->items[i]; }
 
 /*

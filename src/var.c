@@ -1079,8 +1079,9 @@ Object *
 var_foreach_generic(Frame *fr)
 {
         Object *self, *func, *priv, *dict;
-        int i, status;
-        Object *(*get)(Object *, int);
+        size_t i;
+        enum result_t status;
+        Object *(*get)(Object *, size_t);
 
         self = vm_get_this(fr);
         bug_on(!isvar_seq(self) && !isvar_dict(self));

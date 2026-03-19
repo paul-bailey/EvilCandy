@@ -189,11 +189,11 @@ extern char *strtod_scanonly(const char *s, int *may_be_int);
 extern Object *arrayvar_new(int n_items);
 extern Object *arrayvar_from_stack(Object **items, int n_items, bool consume);
 extern enum result_t array_setitem(Object *array, int i, Object *child);
-extern Object *array_getitem(Object *array, int idx);
+extern Object *array_getitem(Object *array, size_t idx);
 extern enum result_t array_append(Object *array, Object *child);
 extern enum result_t array_extend(Object *array, Object *seq);
 extern void array_reverse(Object *array);
-extern Object *array_borrowitem(Object *array, int idx);
+extern Object *array_borrowitem(Object *array, size_t idx);
 extern enum result_t array_delete_chunk(Object *array,
                                         size_t at, size_t n_items);
 extern ssize_t array_indexof(Object *arr, Object *item);
@@ -305,8 +305,8 @@ extern enum result_t tuple_validate(Object *tup, const char *descr,
                                     bool map_function);
 extern Object *tuplevar_from_stack(Object **items, int n_items, bool consume);
 extern Object *tuplevar_new(int n_items);
-extern Object *tuple_getitem(Object *tup, int idx);
-extern Object *tuple_borrowitem(Object *tup, int idx);
+extern Object *tuple_getitem(Object *tup, size_t idx);
+extern Object *tuple_borrowitem(Object *tup, size_t idx);
 
 /* utf8.c */
 struct utf8_state_t {

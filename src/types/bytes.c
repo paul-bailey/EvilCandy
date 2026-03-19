@@ -89,7 +89,7 @@ bytes_unpack_1arg(Frame *fr, const unsigned char **self, size_t *selflen,
 }
 
 static Object *
-bytes_getitem(Object *a, int idx)
+bytes_getitem(Object *a, size_t idx)
 {
         unsigned char *ba = V2B(a)->b_buf;
         unsigned int u;

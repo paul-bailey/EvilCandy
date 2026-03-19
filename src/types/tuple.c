@@ -184,7 +184,7 @@ tuple_hasitem(Object *tup, Object *item)
 
 /* Also an API func, so not static */
 Object *
-tuple_getitem(Object *tup, int idx)
+tuple_getitem(Object *tup, size_t idx)
 {
         struct tuplevar_t *va = V2TUP(tup);
 
@@ -195,7 +195,7 @@ tuple_getitem(Object *tup, int idx)
 }
 
 Object *
-tuple_borrowitem(Object *tup, int idx)
+tuple_borrowitem(Object *tup, size_t idx)
 {
         Object *ret = tuple_getitem(tup, idx);
         if (ret)

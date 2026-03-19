@@ -210,30 +210,23 @@ tuple_borrowitem(Object *tup, int idx)
 static Object *
 do_tuple_index(Frame *fr)
 {
-        Object *self, *xarg, *startarg, **data;
-        int i, start, stop;
+        Object *self, *xarg, **data;
+        ssize_t i, n, start, stop;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &TupleType) == RES_ERROR)
                 return ErrorVar;
 
+        n = seqvar_size(self);
         start = 0;
-        stop = seqvar_size(self);
+        stop = n;
 
-        xarg = vm_get_arg(fr, 0);
-        bug_on(!xarg);
-        startarg = vm_get_arg(fr, 1);
-        if (startarg) {
-                Object *stoparg;
-
-                if (seqvar_arg2idx(self, startarg, &start) != RES_OK)
-                        return ErrorVar;
-                stoparg = vm_get_arg(fr, 2);
-                if (stoparg) {
-                        if (seqvar_arg2idx(self, stoparg, &stop) != RES_OK)
-                                return ErrorVar;
-                }
+        if (vm_getargs(fr, "<*>[|zz!]:index", &xarg, &start, &stop)
+            == RES_ERROR) {
+                return ErrorVar;
         }
+
+        var_index_capi(n, &start, &stop);
 
         data = tuple_get_data(self);
         for (i = start; i < stop; i++) {

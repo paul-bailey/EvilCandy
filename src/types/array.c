@@ -190,7 +190,7 @@ array_insert_chunk(Object *array, int at,
  *                array_setitem(array, at, NULL);
  */
 enum result_t
-array_delete_chunk(Object *array, int at, size_t n_items)
+array_delete_chunk(Object *array, size_t at, size_t n_items)
 {
         struct arrayvar_t *h = V2ARR(array);
         ssize_t i, size = seqvar_size(array);
@@ -832,19 +832,18 @@ do_array_remove(Frame *fr)
 static Object *
 do_array_pop(Frame *fr)
 {
-        Object *arg, *self;
-        int at;
+        Object *self;
+        ssize_t at;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
-        if ((arg = vm_get_arg(fr, 0)) != NULL) {
-                if (seqvar_arg2idx(self, arg, &at) == RES_ERROR)
-                        return ErrorVar;
-        } else {
-                at = 0;
-        }
+        at = 0;
+        if (vm_getargs(fr, "|z!:pop", &at) == RES_ERROR)
+                return ErrorVar;
+
+        var_index_capi(seqvar_size(self), &at, NULL);
 
         if (array_delete_chunk(self, at, 1) == RES_ERROR)
                 return ErrorVar;
@@ -906,21 +905,7 @@ do_array_index(Frame *fr)
                 return ErrorVar;
         }
 
-        /*
-         * TODO: Replace seqvar_arg2idx() in var.c with something that
-         * does this.
-         */
-        if (stop < 0) {
-                stop += n;
-                if (stop < 0)
-                        stop = 0;
-        }
-
-        if (start < 0) {
-                start += n;
-                if (start < 0)
-                        start = 0;
-        }
+        var_index_capi(n, &start, &stop);
 
         if (stop < start)
                 goto notfound;

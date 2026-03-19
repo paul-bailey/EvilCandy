@@ -195,7 +195,7 @@ extern enum result_t array_extend(Object *array, Object *seq);
 extern void array_reverse(Object *array);
 extern Object *array_borrowitem(Object *array, int idx);
 extern enum result_t array_delete_chunk(Object *array,
-                                        int at, size_t n_items);
+                                        size_t at, size_t n_items);
 extern ssize_t array_indexof(Object *arr, Object *item);
 extern ssize_t array_rindexof(Object *arr, Object *item);
 extern ssize_t array_indexof_strict(Object *arr, Object *item);

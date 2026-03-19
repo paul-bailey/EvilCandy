@@ -106,6 +106,7 @@ struct seq_fastiter_t {
         bool (*all)(Object *);
 };
 
+/* FIXME: Replace 'int' with '[s]size_t' for anything wrt index */
 struct seq_methods_t {
         Object *(*getitem)(Object *, int);
         /* @haystack is this type; @needle must be type-checked */

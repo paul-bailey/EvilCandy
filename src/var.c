@@ -468,37 +468,42 @@ var_slice_size(ssize_t start, ssize_t stop, ssize_t step)
 }
 
 /**
- * seqvar_arg2idx - Helper functions for sequential objects to translate
- *                  an index argument (which may be <0) into an index >= 0
- * @obj:  Object being de-referenced
- * @iarg: Argument containing an integer index number
- * @idx:  Pointer to a variable to store index
+ * var_index_capi - Transform a UAPI index number to a CAPI one.
+ * @size:       Size of indexable item
+ * @a:          Pointer to one size to fix
+ * @b:          Pointer to another size to fix
  *
- * Return: RES_OK or RES_ERROR.  If result is RES_ERROR, an exceptin has
- *         been thrown.
+ * This turns something like x[-1] to x[length(x)-1].  This truncates @a
+ * @b if they are negative and are a greater distance from zero than @size.
+ * It does NOT truncate if they are positive and greater than @size.
+ *
+ * @a and @b are typically "start" and "stop".  Calling functions that
+ * need only one index corrected may set one of these arguments to NULL.
+ *
+ * FIXME: need option to throw range error if @a or @b are out of range.
  */
-enum result_t
-seqvar_arg2idx(Object *obj, Object *iarg, int *idx)
+void
+var_index_capi(size_t size, ssize_t *a, ssize_t *b)
 {
-        /*
-         * XXX: Slight DRY violation with var_realindex, tup2slice.
-         * Review policy and merge duplicate parts of these functions.
-         */
-        int i;
-        bug_on(!isvar_seq(obj));
-        if (arg_type_check(iarg, &IntType) == RES_ERROR)
-                return RES_ERROR;
-        i = intvar_toi(iarg);
-        if (err_occurred())
-                return RES_ERROR;
-
-        if (i < 0) {
-                i += seqvar_size(obj);
-                if (i < 0)
-                        i = 0;
+        ssize_t x;
+        if (a) {
+                x = *a;
+                if (x < 0) {
+                        x += size;
+                        if (x < 0)
+                                x = 0;
+                }
+                *a = x;
         }
-        *idx = i;
-        return RES_OK;
+        if (b) {
+                x = *b;
+                if (x < 0) {
+                        x += size;
+                        if (x < 0)
+                                x = 0;
+                }
+                *b = x;
+        }
 }
 
 /*

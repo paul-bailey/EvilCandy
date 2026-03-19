@@ -137,6 +137,8 @@ Must Do
 Library/Language Features
 -------------------------
 
+* Support things like "(a(b,c)) = x", ie. recursive unpacking.
+
 * Add 'const' keyword.  Implemented like 'let', except parser prevents
   compiling assignment.
 

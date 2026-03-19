@@ -2393,10 +2393,16 @@ assemble_splash_error(struct assemble_t *a)
         bug_on(!err_occurred());
 
         err_print_last(stderr);
-        lineno = a->oc ? a->oc->line : 1;
+        if (a->oc) {
+                lineno = a->oc->start_line;
+                col = a->oc->start_col;
+        } else {
+                lineno = 1;
+                col = 0;
+        }
         fprintf(stderr, "in file '%s' near line '%d'\n",
                 a->file_name, lineno);
-        line = token_get_this_line(a->prog, &col);
+        line = token_get_this_line(a->prog);
         if (line) {
                 fprintf(stderr, "Suspected error location:\n");
                 fprintf(stderr, "\t%s\n\t", line);
@@ -2548,6 +2554,7 @@ assemble_frame_set_label(struct as_frame_t *fr, int jmp, unsigned long val)
         data[jmp] = (unsigned short)val;
 }
 
+#warning "unused, deprecated"
 /* will return -1 and set exc. if line is longer than @max */
 ssize_t
 assemble_get_line(struct assemble_t *a, struct token_t *toks,
@@ -2560,8 +2567,8 @@ assemble_get_line(struct assemble_t *a, struct token_t *toks,
                 if (a->oc->t == OC_EOF)
                         break;
                 if (count == 0) {
-                        line = a->oc->line;
-                } else if (a->oc->line != line) {
+                        line = a->oc->start_line;
+                } else if (a->oc->start_line != line) {
                         as_unlex(a);
                         break;
                 }
@@ -2608,7 +2615,7 @@ assemble_frame_push(struct assemble_t *a, long long funcno)
         buffer_init(&fr->af_instr);
 
         fr->funcno = funcno;
-        fr->line = a->oc ? a->oc->line : 1;
+        fr->line = a->oc ? a->oc->start_line : 1;
 
         list_init(&fr->list);
         list_add_tail(&fr->list, &a->active_frames);

@@ -46,7 +46,6 @@ enum {
  */
 struct token_state_t {
         int lineno;
-        int col;
         Object *dedup;
         struct buffer_t fstring_tok;
         struct buffer_t tok;
@@ -64,6 +63,8 @@ struct token_state_t {
         size_t fstring_pos;
         jmp_buf env;
         const char *prompt;
+        unsigned int start_col;
+        unsigned int start_line;
 };
 
 static void token_state_free_(struct token_state_t *state, bool free_self);
@@ -504,7 +505,6 @@ skip_whitespace(struct token_state_t *state)
                 if (*s == '\0')
                         return OC_EOF;
         } while (skip_comment(state));
-        state->col = state->s - state->line;
         return 0;
 }
 
@@ -513,7 +513,7 @@ skip_whitespace(struct token_state_t *state)
  *         token.
  */
 static int
-tokenize_helper(struct token_state_t *state, int *line)
+tokenize_helper(struct token_state_t *state)
 {
         /*
          * XXX: setjmp for every token?
@@ -564,6 +564,9 @@ tokenize_helper(struct token_state_t *state, int *line)
                 if ((ret = skip_whitespace(state)) == OC_EOF)
                         return ret;
 
+                state->start_line = state->lineno;
+                state->start_col = (size_t)(state->s - state->line);
+
                 if (state->fstring) {
                         if (state->s[0] == '\\') {
                                 /*
@@ -601,7 +604,6 @@ tokenize_helper(struct token_state_t *state, int *line)
                          */
                         return ret;
                 } else if (get_tok_string(state)) {
-                        *line = state->lineno;
                         /*
                          * this allows for strings expressed like
                          *      "..." "..."
@@ -612,7 +614,6 @@ tokenize_helper(struct token_state_t *state, int *line)
                         } while (ret != OC_EOF && get_tok_string(state));
                         return OC_STRING;
                 } else if (get_tok_bytes(state)) {
-                        *line = state->lineno;
                         do {
                                 ret = skip_whitespace(state);
                         } while (ret != OC_EOF && get_tok_bytes(state));
@@ -641,17 +642,16 @@ bad_literal(struct token_state_t *state, const char *what)
 static int
 tokenize(struct token_state_t *state)
 {
-        int ret;
-        /* only set if bytes or string */
-        int line = -1;
-
-        ret = tokenize_helper(state, &line);
+        int ret = tokenize_helper(state);
         if (ret == RES_ERROR) {
                 return ret;
         } else if (ret == OC_EOF) {
                 static const struct token_t eofoc = {
                         .t = OC_EOF,
-                        .line = 0,
+                        .start_line = 0,
+                        .stop_line = 0,
+                        .start_col = 0,
+                        .stop_col = 0,
                         .v = NULL,
                 };
                 state->eof = true;
@@ -660,7 +660,11 @@ tokenize(struct token_state_t *state)
                 struct token_t oc;
 
                 oc.t = ret;
-                oc.line = state->lineno;
+                /* state->start_xxx was set in tokenize_helper() */
+                oc.start_line = state->start_line;
+                oc.stop_line  = state->lineno;
+                oc.start_col  = state->start_col;
+                oc.stop_col   = (size_t)(state->s - state->line);
 
                 switch (ret) {
                 case OC_NULL:
@@ -673,7 +677,6 @@ tokenize(struct token_state_t *state)
                         oc.v = VAR_NEW_REF(gbl.zero);
                         break;
                 case OC_BYTES:
-                        oc.line = line;
                         oc.v = bytesvar_from_source(state->tok.s);
                         if (oc.v == ErrorVar) {
                                 ret = bad_literal(state, "bytes");
@@ -716,7 +719,6 @@ tokenize(struct token_state_t *state)
                         break;
                 case OC_STRING:
                 case OC_FSTRING_END:
-                        oc.line = line;
                         oc.v = stringvar_from_source(state->tok.s, true);
                         if (oc.v == ErrorVar) {
                                 ret = bad_literal(state, "string");
@@ -972,9 +974,8 @@ token_state_new(FILE *fp, const char *filename)
  *      or whatever you're doing with it do it now.
  */
 char *
-token_get_this_line(struct token_state_t *state, int *col)
+token_get_this_line(struct token_state_t *state)
 {
-        *col = state->col;
         return state->line;
 }
 

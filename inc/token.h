@@ -9,16 +9,15 @@
 /**
  * struct token_t - Token metadata
  * @t:          Type of token, an OC_* enum, or one of "fiuq"
- * @line:       Line number in file where this token was parsed,
- *              used for tracing for error messages.
- *              XXX Wasteful, this is only used for disassembly, and for
- *              only the first opcode of an executable, nowhere else.
  * @v:          Value of the token, if @t is for a literal expression
  *              of a user variable.
  */
 struct token_t {
         unsigned int t;
-        unsigned int line;
+        unsigned int start_line;
+        unsigned int stop_line;
+        unsigned int start_col;
+        unsigned int stop_col;
         Object *v;
 };
 
@@ -37,7 +36,7 @@ extern int get_tok_from_cstring(const char *s, char **endptr, struct token_t *ds
 extern void unget_tok(struct token_state_t *state, struct token_t **tok);
 extern token_pos_t token_get_pos(struct token_state_t *state);
 extern token_pos_t token_swap_pos(struct token_state_t *state, token_pos_t pos);
-extern char *token_get_this_line(struct token_state_t *state, int *col);
+extern char *token_get_this_line(struct token_state_t *state);
 
 #endif /* EGQ_OPCODES_H */
 

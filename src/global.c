@@ -181,6 +181,10 @@ cfile_deinit_global(void)
                         VAR_DECR_REF(gbl.codecs[i]);
         }
 
+        if (gbl.iatok.line)
+                efree(gbl.iatok.line);
+        memset(&gbl.iatok, 0, sizeof(gbl.iatok));
+
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);
         VAR_DECR_REF(IndexError);

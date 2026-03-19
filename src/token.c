@@ -96,6 +96,24 @@ tok_next_line(struct token_state_t *state)
 
         if (state->tty) {
                 bug_on(!state->fp);
+                if (gbl.iatok.line) {
+                        /* XXX: bug if state->line != NULL here? */
+                        if (state->line)
+                                efree(state->line);
+                        state->line   = gbl.iatok.line;
+                        state->s      = gbl.iatok.s;
+                        state->lineno = gbl.iatok.lineno;
+                        state->_slen  = gbl.iatok._slen;
+                        memset(&gbl.iatok, 0, sizeof(gbl.iatok));
+                        /*
+                         * Don't fall through, we don't want to reset
+                         * state->s
+                         *
+                         * XXX overkill result? everyone's only checking
+                         * if <0, not exact size.
+                         */
+                        return strlen(state->line) - (state->s - state->line);
+                }
                 res = myreadline(&state->line, &state->_slen,
                                  state->fp, state->prompt);
                 state->prompt = EVILCANDY_PS2;
@@ -894,6 +912,49 @@ token_get_pos(struct token_state_t *state)
         return (token_pos_t)state->nexttok;
 }
 
+static void
+token_state_free_line(struct token_state_t *state)
+{
+        if (state->s) {
+                char *s = state->s;
+                int c;
+                while ((c = *s) != '\0') {
+                        if (c > 127 || !isspace(c))
+                                break;
+                        s++;
+                }
+
+                /*
+                 * This checks if multiple top-level statements were
+                 * typed on the same line, e.g. "let x = 1; let y = 2;"
+                 * We had just assembled, etc., the first statement,
+                 * but not the second statement.  In interactive mode,
+                 * we do not want the second statement to disappear, so
+                 * while destroying this token_state_t, save the line
+                 * state to gbl.iatok, and retrieve it next
+                 * token_next_line().
+                 */
+                if (state->tty && *s != '\0') {
+                        bug_on(gbl.iatok.line != NULL);
+                        gbl.iatok.line   = state->line;
+                        gbl.iatok.s = gbl.iatok.line + (s-state->line);
+                        gbl.iatok.lineno = state->lineno;
+                        gbl.iatok._slen  = state->_slen;
+                        goto skip_free;
+                }
+        }
+
+        /*
+         * FIXME:  If TTY but we didn't copy to gbl.iatok above,
+         * we are not getting line number.
+         */
+        efree(state->line);
+
+skip_free:
+        state->line = NULL;
+        state->s = NULL;
+}
+
 /**
  * token_state_free - Destructor for a token state machine
  * @state: A return value of token_state_new()
@@ -909,7 +970,7 @@ token_state_free_(struct token_state_t *state, bool free_self)
         buffer_free(&state->tok);
         buffer_free(&state->fstring_tok);
         if (state->line)
-                efree(state->line);
+                token_state_free_line(state);
         n = buffer_size(&state->pgm) / sizeof(struct token_t);
         bug_on(n != state->ntok);
         tok = TOKBUF(state);

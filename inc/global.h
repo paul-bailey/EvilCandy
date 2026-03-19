@@ -22,6 +22,19 @@ struct global_t {
         Object *cwd;
         Object *mns[N_MNS];
         Object *codecs[N_CODEC]; /* maps codec to int obj */
+
+        /*
+         * private fields, put in global struct just so cleanup
+         * can be done without having to call a ton of little
+         * cleanup functions throughout the source tree.
+         */
+        struct {
+                /* token.c, interactive-mode saved line */
+                char *line;
+                char *s;
+                int lineno;
+                size_t _slen;
+        } iatok;
 };
 
 #define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])

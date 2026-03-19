@@ -17,7 +17,7 @@ Bugs
         * **fixed** When using readline, ^D is not interpreted as EOF during the
           first prompt.
 
-        * assert fails in var_sanity_check_types_tbl() when exiting with
+        * **worked around** assert fails in var_sanity_check_types_tbl() when exiting with
           the exit() function instead of normal end of script.
 
 * BUGs 6/2025:
@@ -82,12 +82,6 @@ Must Do
 
 * Make sure all .cmp methods behave correctly: <0 if a<b, 0 if a==b, ...
 
-* Interactive mode problem: token state machine is created and destroyed
-  by a wrapping call from assemble().  So if it's interactive mode and
-  someone types "a = 1; b = 2;" all on the same line, the first part
-  ("a = 1;") will be executed and the second part ("b = 2;") will be
-  discarded and never parsed.
-
 * Now that variadic functions are internally made into fixed-size
   functions, at least for user-defined functions, we can now get rid of
   the AP/FP distinction.
@@ -110,6 +104,12 @@ Must Do
   different ways.
 
 * Fix the cyclic-reference problem in GC.
+
+* **fixed** Interactive mode problem: token state machine is created and destroyed
+  by a wrapping call from assemble().  So if it's interactive mode and
+  someone types "a = 1; b = 2;" all on the same line, the first part
+  ("a = 1;") will be executed and the second part ("b = 2;") will be
+  discarded and never parsed.
 
 * **done** Replace ``has`` with ``in``
 

@@ -157,16 +157,20 @@ vmframe_free(Frame *fr)
          * They're managed by their owning function object, so we don't
          * consume their references here.
          */
-        while (fr->stackptr > fr->stack) {
-                Object *v = pop(fr);
-                VAR_DECR_REF(v);
-        }
+        var_lock();
+        {
+                while (fr->stackptr > fr->stack) {
+                        Object *v = pop(fr);
+                        VAR_DECR_REF(v);
+                }
 
-        if (fr->owner)
-                VAR_DECR_REF(fr->owner);
-        if (fr->func)
-                VAR_DECR_REF(fr->func);
-        list_add_tail(&fr->alloc_list, &vm.free_frames);
+                if (fr->owner)
+                        VAR_DECR_REF(fr->owner);
+                if (fr->func)
+                        VAR_DECR_REF(fr->func);
+                list_add_tail(&fr->alloc_list, &vm.free_frames);
+        }
+        var_unlock();
 }
 
 static Frame *
@@ -1277,18 +1281,14 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
         }
 
         /*
-         * XXX REVISIT: How unclean is this! vm_swap_frame() is
-         * assymmetrical w/r/t to the vmframe_alloc/free calls, but the
-         * decision when to swap a frame and then swap it back is very
-         * complicated... We could call vm_exec_func() from WITHIN
-         * vmframe_free(), because the process of freeing stack variables
-         * might trigger a user-defined destructor.
+         * XXX: replace vm_swap_frame with frame push/pop, so we have
+         * a breadcrumbs trail of frames in case we exit early.
          */
         fr = vmframe_alloc(func, owner, fr_old);
         tfr = vm_swap_frame(fr);
         res = function_call(fr, args, kwargs);
-        vmframe_free(fr);
         vm_swap_frame(tfr);
+        vmframe_free(fr);
 
         if (!res)
                 res = VAR_NEW_REF(NullVar);

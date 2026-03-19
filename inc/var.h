@@ -131,6 +131,9 @@ extern enum result_t seqvar_arg2idx(Object *obj, Object *iarg, int *idx);
 extern Object *var_foreach_generic(Frame *fr);
 extern size_t var_slice_size(ssize_t start, ssize_t stop, ssize_t step);
 
+extern void var_lock(void);
+extern void var_unlock(void);
+
 /* var_from_format.c */
 extern Object *var_from_format(const char *fmt, ...);
 

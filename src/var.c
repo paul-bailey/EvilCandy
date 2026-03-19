@@ -35,6 +35,12 @@ struct var_mem_t {
         };
 };
 
+#define VM2VAR(x_)      ((Object *)((x_) + 1))
+#define VAR2VM(x_)      (((struct var_mem_t *)(x_)) - 1)
+
+static struct var_mem_t *var_pending_free = NULL;
+static long var_locked = 0;
+
 #if DBUG_REPORT_VARS_ON_EXIT
 
 static size_t var_nalloc = 0;
@@ -77,7 +83,7 @@ var_alloc(struct type_t *type)
                 type->freelist = vm->list;
         }
         vm->list = NULL;
-        ret = (Object *)(vm + 1);
+        ret = VM2VAR(vm);
         memset(ret, 0, type->size);
         return ret;
 }
@@ -90,7 +96,7 @@ var_free(Object *v)
 
         REGISTER_FREE(type->size);
 
-        vm = ((struct var_mem_t *)v) - 1;
+        vm = VAR2VM(v);
         if (type->n_freelist < MAX_FREELIST_SIZE) {
                 type->n_freelist++;
                 vm->list = type->freelist;
@@ -116,31 +122,73 @@ var_new(struct type_t *type)
 }
 
 /**
+ * var_lock - Prevent variables from being freed.
+ *
+ * Used to prevent improper re-entrance into vm such that stack state
+ * is not coherent (eg. some .reset() callbacks call a UAPI function).
+ *
+ * This must have a parallel call to var_unlock().
+ */
+void
+var_lock(void)
+{
+        var_locked++;
+}
+
+/**
+ * var_unlock - Call this in parallel to var_lock().
+ */
+void
+var_unlock(void)
+{
+        var_locked--;
+        bug_on(var_locked < 0L);
+        if (!var_locked) {
+                struct var_mem_t *vm = var_pending_free;
+                while (vm && !var_locked) {
+                        /*
+                         * Keep this order! var_delete__ could re-enter
+                         * in a way that adds new vars to var_pending_free
+                         *
+                         * XXX better to change vm->list from single to
+                         * double, then?
+                         */
+                        var_pending_free = vm->list;
+                        var_delete__(VM2VAR(vm));
+                        vm = var_pending_free;
+                }
+        }
+}
+
+/**
  * var_delete - Delete a variable.
  * @v: variable to delete.
  */
 void
 var_delete__(Object *v)
 {
-        /*
-         * FIXME: See XXX comment in vm_exec_func().  If @v has a user-
-         * defined destructor, it's better to reschedule this cleanup
-         * later rather than right now, to reduce recursion complexity.
-         */
-        bug_on(!v);
-        bug_on(v->v_refcnt != 0);
-        bug_on(!v->v_type);
-        if (v->v_type->reset) {
-                /*
-                 * Nudge refcnt back up temporily while callback is
-                 * operating on the object.
-                 */
-                v->v_refcnt++;
-                v->v_type->reset(v);
-                v->v_refcnt = 0;
-        }
+        if (var_locked) {
+                struct var_mem_t *vm;
 
-        var_free(v);
+                vm = VAR2VM(v);
+                vm->list = var_pending_free;
+                var_pending_free = vm;
+        } else {
+                bug_on(!v);
+                bug_on(v->v_refcnt != 0);
+                bug_on(!v->v_type);
+                if (v->v_type->reset) {
+                        /*
+                         * Nudge refcnt back up temporily while callback is
+                         * operating on the object.
+                         */
+                        v->v_refcnt++;
+                        v->v_type->reset(v);
+                        v->v_refcnt = 0;
+                }
+
+                var_free(v);
+        }
 }
 
 /*

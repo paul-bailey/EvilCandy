@@ -45,6 +45,7 @@ Must Do
     correct in this case, too.
   - Untangle comparisons and matches, esp. wrt sets and dicts.
   - Add appropriate interrupt handlers for things like EINTR.
+  - Use double-underscores for dict builtins to give users more name options.
   - Fill in set library.
   - Add mutable alternative to bytes
   - Add user-defined properties and decorators to dictionaries.

@@ -129,19 +129,31 @@ complex_str(Object *self)
         return stringvar_from_format("(%.17g%c%.17gj)", re, sign, im);
 }
 
+/**
+ * FIXME: This is a problem: we need cmp for case of '==', but we should
+ * not be doing '<' and '>' operations.  There's no way to return an
+ * error, short of making callers of var_compare() also call
+ * err_occurred(), but that would just be a hack.
+ */
 static int
 complex_cmp(Object *a, Object *b)
 {
         complex double ca, cb;
+        complex double cc;
         COMPLEX(a, ca);
         COMPLEX(b, cb);
-        /*
-         * "a < b" makes no sense with complex numbers, so sorting
-         * won't be meaningul here.  However we still need this for
-         * matching purposes.  Return 0 if they match, 1 otherwise,
-         * regardless which is "bigger".
-         */
-        return !(creal(ca) == creal(cb) && cimag(ca) == cimag(cb));
+
+        if (cimag(ca) == 0.0 && cimag(cb) == 0.0)
+                return OP_CMP(creal(ca), creal(cb));
+
+        cc = ca - cb;
+        if (creal(cc) == 0.0) {
+                double i = cimag(cc);
+                return i < 0.0 ? -1 : 1;
+        } else {
+                double r = creal(cc);
+                return r < 0.0 ? -1 : 1;
+        }
 }
 
 static bool
@@ -175,6 +187,18 @@ do_complex_conjugate(Frame *fr)
         bug_on(!self || !isvar_complex(self));
         complex double c = V2C(self)->c;
         return complexvar_new(creal(c), -cimag(c));
+}
+
+static hash_t
+calc_complex_hash(Object *self)
+{
+        complex double c;
+        bug_on(!isvar_complex(self));
+        c = V2C(self)->c;
+
+        if (cimag(c) == 0.0)
+                return double_hash(creal(c));
+        return calc_object_hash_generic(self);
 }
 
 static Object *
@@ -252,7 +276,7 @@ struct type_t ComplexType = {
         .cmpz   = complex_cmpz,
         .prop_getsets = complex_prop_getsets,
         .create = complex_create,
-        .hash   = calc_object_hash_generic,
+        .hash   = calc_complex_hash,
 };
 
 Object *

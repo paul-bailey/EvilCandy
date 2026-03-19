@@ -2,6 +2,7 @@
 #define EVC_HASH_H
 
 #include <evilcandy.h>
+#include <math.h>
 
 #define HASH_ERROR      ((hash_t)-1)
 #define HASH_NONE       ((hash_t)0)
@@ -33,5 +34,6 @@ calc_ptr_hash(void *ptr)
 /* hash.c */
 extern hash_t fnv_hash(const void *ptr, size_t size);
 extern hash_t calc_object_hash_generic(Object *key);
+extern hash_t double_hash(double d);
 
 #endif /* EVC_HASH_H */

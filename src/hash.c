@@ -40,7 +40,25 @@ hash_t
 calc_object_hash_generic(Object *key)
 {
         /* Do not hash refcnt etc */
-        void *ptr = key + sizeof(Object);
+        void *ptr = (void *)key + sizeof(Object);
         size_t size = key->v_type->size - sizeof(Object);
         return fnv_hash(ptr, size);
 }
+
+/**
+ * calculate hash of a double-precision floating point number.
+ * Result will be same as with integer if d has no fractional component
+ */
+hash_t
+double_hash(double d)
+{
+        double ival;
+        if (modf(d, &ival) == 0.0)
+                return good_hash((hash_t)ival);
+        /*
+         * XXX: lots of zeros in bitmap of d, we need a better hash
+         * algo than this.
+         */
+        return fnv_hash(&d, sizeof(d));
+}
+

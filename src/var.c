@@ -785,6 +785,28 @@ var_setattr(Object *v, Object *key, Object *attr)
         }
 }
 
+static int
+var_compare_numbers(Object *a, Object *b)
+{
+        if (isvar_complex(a))
+                goto noswap;
+        if (isvar_complex(b))
+                goto swap;
+        if (isvar_float(a))
+                goto noswap;
+        if (isvar_float(b))
+                goto swap;
+        /*
+         * Otherwise both are ints, but var_compare() only calls this
+         * if types don't match, so it's a bug.
+         */
+        bug();
+noswap:
+        return a->v_type->cmp(a, b);
+swap:
+        return -(b->v_type->cmp(b, a));
+}
+
 /**
  * var_compare - Compare two variables, used for sorting et al.
  * @a: First variable to compare.
@@ -800,14 +822,13 @@ var_setattr(Object *v, Object *key, Object *attr)
 int
 var_compare(Object *a, Object *b)
 {
+        bug_on(!a || !b);
+
         if (a == b)
                 return 0;
-        if (a == NULL)
-                return -1;
-        if (b == NULL)
-                return 1;
-        if (a->v_type != b->v_type
-            && !(isvar_real(a) && isvar_real(b))) {
+        if (a->v_type != b->v_type) {
+                if (isvar_number(a) && isvar_number(b))
+                        return var_compare_numbers(a, b);
                 return strcmp(typestr(a), typestr(b));
         }
         if (!a->v_type->cmp)

@@ -389,24 +389,28 @@ var_realindex(Object *v, long long idx)
 }
 
 static enum result_t
-tup2slice(Object *obj, Object *tup, int *start, int *stop, int *step)
+tup2slice(Object *obj, Object *tup,
+          ssize_t *start, ssize_t *stop, ssize_t *step)
 {
-        Object **src;
-        int i, j, k;
+        Object *jarg;
+        ssize_t i, j, k;
         size_t size;
-        if (tuple_validate(tup, "i*i", false) != RES_OK)
-                goto malformed;
-        src = tuple_get_data(tup);
-        if (src[1] != NullVar && !isvar_int(src[1]))
-                goto malformed;
 
         size = seqvar_size(obj);
-
-        i = intvar_toi(src[0]);
-        j = src[1] == NullVar ? size : intvar_toi(src[1]);
-        k = intvar_toi(src[2]);
-        if (err_occurred())
+        if (vm_getargs_sv(tup, "(z<*>z!):slice", &i, &jarg, &k) != RES_OK)
                 return RES_ERROR;
+        if (jarg == NullVar) {
+                j = size;
+        } else {
+                long long jll = intvar_toll(jarg);
+                if ((jll < 0 && -jll != (size_t)(-jll)) ||
+                    (jll > 0 && jll != (size_t)jll)) {
+                        err_setstr(RangeError,
+                                "slice '[i:j:k]' j index out of bounds");
+                        return RES_ERROR;
+                }
+                j = (ssize_t)jll;
+        }
 
         if (i < 0) {
                 i += size;
@@ -442,10 +446,6 @@ tup2slice(Object *obj, Object *tup, int *start, int *stop, int *step)
         *step  = k;
 
         return RES_OK;
-
-malformed:
-        err_setstr(TypeError, "Slice has invalid tuple format");
-        return RES_ERROR;
 }
 
 /**
@@ -588,7 +588,7 @@ var_getattr_seq(Object *v, Object *key)
                 return ret;
         } else if (isvar_tuple(key)) {
                 size_t seqsize;
-                int start, stop, step;
+                ssize_t start, stop, step;
                 if (!sqm->getslice)
                         goto badtype;
                 if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {
@@ -730,7 +730,7 @@ var_setattr_seq(Object *v, Object *key, Object *attr)
         const struct seq_methods_t *seq = v->v_type->sqm;
         bug_on(!seq);
         if (isvar_tuple(key)) {
-                int start, stop, step;
+                ssize_t start, stop, step;
                 if (!seq->setslice)
                         goto badtype;
                 if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {

@@ -2559,14 +2559,14 @@ string_modulo(Object *str, Object *arg)
 }
 
 /* comparisons, helpers to string_getslice */
-static bool slice_cmp_lt(int a, int b) { return a < b; }
-static bool slice_cmp_gt(int a, int b) { return a > b; }
+static bool slice_cmp_lt(ssize_t a, ssize_t b) { return a < b; }
+static bool slice_cmp_gt(ssize_t a, ssize_t b) { return a > b; }
 
 static Object *
-string_getslice(Object *str, int start, int stop, int step)
+string_getslice(Object *str, ssize_t start, ssize_t stop, ssize_t step)
 {
         struct string_writer_t wr;
-        bool (*cmp)(int, int);
+        bool (*cmp)(ssize_t, ssize_t);
 
         if (start == stop)
                 return stringvar_from_ascii("");

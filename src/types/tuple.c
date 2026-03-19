@@ -129,15 +129,15 @@ tuple_cat(Object *a, Object *b)
 
 
 /* comparisons, helpers to tuple_getslice */
-static bool slice_cmp_lt(int a, int b) { return a < b; }
-static bool slice_cmp_gt(int a, int b) { return a > b; }
+static bool slice_cmp_lt(ssize_t a, ssize_t b) { return a < b; }
+static bool slice_cmp_gt(ssize_t a, ssize_t b) { return a > b; }
 
 static Object *
-tuple_getslice(Object *obj, int start, int stop, int step)
+tuple_getslice(Object *obj, ssize_t start, ssize_t stop, ssize_t step)
 {
         Object *ret, **src, **dst;
-        bool (*cmp)(int, int);
-        int dst_i, dst_n;
+        bool (*cmp)(ssize_t, ssize_t);
+        ssize_t dst_i, dst_n;
 
         bug_on(!isvar_tuple(obj));
 

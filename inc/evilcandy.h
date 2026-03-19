@@ -188,7 +188,7 @@ extern char *strtod_scanonly(const char *s, int *may_be_int);
 /* types/array.c */
 extern Object *arrayvar_new(int n_items);
 extern Object *arrayvar_from_stack(Object **items, int n_items, bool consume);
-extern enum result_t array_setitem(Object *array, int i, Object *child);
+extern enum result_t array_setitem(Object *array, size_t i, Object *child);
 extern Object *array_getitem(Object *array, size_t idx);
 extern enum result_t array_append(Object *array, Object *child);
 extern enum result_t array_extend(Object *array, Object *seq);
@@ -205,7 +205,8 @@ extern Object *bytesvar_new(const unsigned char *buf, size_t len);
 extern Object *bytesvar_from_source(char *src);
 extern const unsigned char *bytes_getbuf(Object *v);
 extern Object *bytesvar_nocopy(const unsigned char *buf, size_t len);
-extern Object *bytes_getslice(Object *bytes, int start, int stop, int step);
+extern Object *bytes_getslice(Object *bytes, ssize_t start,
+                              ssize_t stop, ssize_t step);
 extern Object *bytesvar_new_sg(size_t size, ...);
 
 /* types/comlex.c */

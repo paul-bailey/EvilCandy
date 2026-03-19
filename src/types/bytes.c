@@ -106,18 +106,18 @@ bytes_getitem(Object *a, size_t idx)
 }
 
 /* comparisons, helpers to array_getslice */
-static bool slice_cmp_lt(int a, int b) { return a < b; }
-static bool slice_cmp_gt(int a, int b) { return a > b; }
+static bool slice_cmp_lt(ssize_t a, ssize_t b) { return a < b; }
+static bool slice_cmp_gt(ssize_t a, ssize_t b) { return a > b; }
 
 /**
  * bytes_getslice - the getslice method for bytes, with extern
  *                  linkage because it's needed elsewhere in the program.
  */
 Object *
-bytes_getslice(Object *bytes, int start, int stop, int step)
+bytes_getslice(Object *bytes, ssize_t start, ssize_t stop, ssize_t step)
 {
         unsigned char *src, *dst;
-        bool (*cmp)(int, int);
+        bool (*cmp)(ssize_t, ssize_t);
         struct buffer_t b;
         size_t count;
 

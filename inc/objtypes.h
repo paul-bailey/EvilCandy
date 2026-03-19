@@ -106,14 +106,15 @@ struct seq_fastiter_t {
         bool (*all)(Object *);
 };
 
-/* FIXME: Replace 'int' with '[s]size_t' for anything wrt index */
 struct seq_methods_t {
         Object *(*getitem)(Object *, size_t);
         /* @haystack is this type; @needle must be type-checked */
         bool (*hasitem)(Object *haystack, Object *needle);
-        enum result_t (*setitem)(Object *, int, Object *);
-        Object *(*getslice)(Object *, int start, int stop, int step);
-        enum result_t (*setslice)(Object *, int start, int stop, int step, Object *);
+        enum result_t (*setitem)(Object *, size_t, Object *);
+        Object *(*getslice)(Object *, ssize_t start,
+                            ssize_t stop, ssize_t step);
+        enum result_t (*setslice)(Object *, ssize_t start,
+                                  ssize_t stop, ssize_t step, Object *);
         /* new = a + b; if b is NULL, return new empty var */
         binary_operator_t cat;
         void (*sort)(Object *);

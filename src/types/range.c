@@ -6,6 +6,7 @@
 
 struct rangevar_t {
         struct seqvar_t base;
+        /* FIXME: These should be ssize_t's */
         long long start;
         long long stop;
         long long step;
@@ -49,8 +50,8 @@ range_getitem(Object *rng, size_t idx)
         return intvar_new(resi);
 }
 
-static bool slice_cmp_lt(int a, int b) { return a < b; }
-static bool slice_cmp_gt(int a, int b) { return a > b; }
+static bool slice_cmp_lt(ssize_t a, ssize_t b) { return a < b; }
+static bool slice_cmp_gt(ssize_t a, ssize_t b) { return a > b; }
 
 /*
  * range_getslice - A little pointless, since range creation involves
@@ -59,10 +60,10 @@ static bool slice_cmp_gt(int a, int b) { return a > b; }
  *                  any sequence with a .getitem also has a .getslice.
  */
 static Object *
-range_getslice(Object *rng, int start, int stop, int step)
+range_getslice(Object *rng, ssize_t start, ssize_t stop, ssize_t step)
 {
         Object *ret;
-        bool (*cmp)(int, int);
+        bool (*cmp)(ssize_t, ssize_t);
 
         cmp = (start < stop) ? slice_cmp_lt : slice_cmp_gt;
         ret = arrayvar_new(0);

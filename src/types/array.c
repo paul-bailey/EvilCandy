@@ -216,14 +216,14 @@ array_delete_chunk(Object *array, size_t at, size_t n_items)
 }
 
 /* comparisons, helpers to array_getslice */
-static bool slice_cmp_lt(int a, int b) { return a < b; }
-static bool slice_cmp_gt(int a, int b) { return a > b; }
+static bool slice_cmp_lt(ssize_t a, ssize_t b) { return a < b; }
+static bool slice_cmp_gt(ssize_t a, ssize_t b) { return a > b; }
 
 static Object *
-array_getslice(Object *obj, int start, int stop, int step)
+array_getslice(Object *obj, ssize_t start, ssize_t stop, ssize_t step)
 {
         Object *ret, **src;
-        bool (*cmp)(int, int);
+        bool (*cmp)(ssize_t, ssize_t);
         size_t n;
 
         bug_on(!isvar_array(obj));
@@ -264,8 +264,8 @@ slice_src(Object *x)
 }
 
 static enum result_t
-array_setslice_1step(Object *obj, int start,
-                        int stop, int step, Object *val)
+array_setslice_1step(Object *obj, ssize_t start,
+                     ssize_t stop, ssize_t step, Object *val)
 {
         Object **src, **dst;
         ssize_t nslc, nsrc, ndiff, i, k;
@@ -280,7 +280,7 @@ array_setslice_1step(Object *obj, int start,
         bug_on(!isvar_seq(val));
 
         if (step < 0) {
-                int tmp = stop + 1;
+                ssize_t tmp = stop + 1;
                 stop = start + 1;
                 start = tmp;
                 step = -step;
@@ -308,7 +308,8 @@ array_setslice_1step(Object *obj, int start,
 }
 
 static enum result_t
-array_setslice(Object *obj, int start, int stop, int step, Object *val)
+array_setslice(Object *obj, ssize_t start,
+               ssize_t stop, ssize_t step, Object *val)
 {
         size_t selfsize;
 
@@ -321,7 +322,7 @@ array_setslice(Object *obj, int start, int stop, int step, Object *val)
                                                     stop, step, val);
                 } else {
                         if (step == -1) {
-                                size_t tmp = stop + 1;
+                                ssize_t tmp = stop + 1;
                                 stop = start + 1;
                                 start = tmp;
                                 step = -step;
@@ -416,7 +417,7 @@ array_sort(Object *array)
  * Has extern linkage since some internal code needs it.
  */
 enum result_t
-array_setitem(Object *array, int i, Object *child)
+array_setitem(Object *array, size_t i, Object *child)
 {
         struct arrayvar_t *va = V2ARR(array);
         bug_on(!isvar_array(array) && !isvar_tuple(array));

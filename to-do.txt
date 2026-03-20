@@ -45,12 +45,11 @@ Must Do
   When this is complete I could start thinking about version numbers.
 
   - Pass arguments to script.
-  - Untangle comparisons and matches, esp. wrt sets and dicts.
   - Add appropriate interrupt handlers for things like EINTR.
   - Use double-underscores for dict builtins to give users more name options.
   - Fill in set library.
   - Add mutable alternative to bytes
-  - Add user-defined properties and decorators to dictionaries.
+  - Add user-defined properties to dictionaries
   - Add self-documentation
   - Add dir() function
   - Finalize closure behavior, be more like theoretical closures.
@@ -59,6 +58,7 @@ Must Do
   - Fill in __gbl__._sys
   - Finish path resolution
   - Make consistent and accurate error reporting
+  - **done** Untangle comparisons and matches, esp. wrt sets and dicts.
   - **done** Robustulate the widths of indices.  They should all be size_t or
     ssize_t, not int.
   - **done** Fill in .create methods for remaining data types that need it.

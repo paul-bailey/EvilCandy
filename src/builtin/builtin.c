@@ -283,12 +283,8 @@ do_length(Frame *fr)
         Object *v = vm_get_arg(fr, 0);
         bug_on(!v);
 
-        if (isvar_seq(v) || isvar_dict(v)) {
+        if (hasvar_len(v)) {
                 return intvar_new(seqvar_size(v));
-        } else if (isvar_map(v)) {
-                err_setstr(NotImplementedError,
-                        "length() for non-dict mappable objects not yet supported");
-                return ErrorVar;
         } else {
                 err_setstr(TypeError, "Invalid type '%s' for length()",
                            typestr(v));

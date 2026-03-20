@@ -172,14 +172,15 @@ do_import(Frame *fr)
 {
         const char *file_name;
         long mode;
-        Object *res;
-        Object *ex;
+        Object *res, *ex, *args, *kwargs;
         enum { R, X } how;
         FILE *fp;
         int status;
 
-        if (vm_getargs(fr, "sc", &file_name, &mode) == RES_ERROR)
+        if (vm_getargs(fr, "sc<[]><{}>!:import", &file_name,
+                       &mode, &args, &kwargs) == RES_ERROR) {
                 return ErrorVar;
+        }
 
         if (mode == 'r') {
                 how = R; /* read script and return it as a function */
@@ -209,10 +210,15 @@ do_import(Frame *fr)
                 return ErrorVar;
         }
 
+        /* arg settings for script top-level: function(*args, **kwargs) */
         res = funcvar_new_user(ex);
+        function_setattr(res, IARG_FUNC_MINARGS, 2);
+        function_setattr(res, IARG_FUNC_MAXARGS, 2);
+        function_setattr(res, IARG_FUNC_OPTIND, 0);
+        function_setattr(res, IARG_FUNC_KWIND, 1);
         if (how == X) {
                 Object *func = res;
-                res = vm_exec_func(fr, func, NULL, NULL);
+                res = vm_exec_func(fr, func, args, kwargs);
                 VAR_DECR_REF(func);
         }
         /* else, how == R */
@@ -520,7 +526,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         /* XXX: maybe exit should be a method of __gbl__._sys */
         V_INITTBL("exit",   do_exit,   0, 0, -1, -1),
         V_INITTBL("exists", do_exists, 1, 1, -1, -1),
-        V_INITTBL("import", do_import, 1, 2, -1, -1),
+        V_INITTBL("import", do_import, 4, 4,  2,  3),
         { .name = NULL },
 };
 

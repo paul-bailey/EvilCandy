@@ -1245,12 +1245,21 @@ out:
 Object *
 vm_exec_script(Object *top_level, Frame *fr_old)
 {
-        Object *func, *ret;
+        Object *func, *ret, *args;
 
         bug_on(!isvar_xptr(top_level));
         func = funcvar_new_user(top_level);
-        ret = vm_exec_func(fr_old, func, NULL, NULL);
+        args = arrayvar_new(0);
+
+        /* XXX: DRY violation with do_import */
+        function_setattr(func, IARG_FUNC_MINARGS, 2);
+        function_setattr(func, IARG_FUNC_MAXARGS, 2);
+        function_setattr(func, IARG_FUNC_OPTIND, 0);
+        function_setattr(func, IARG_FUNC_KWIND, 1);
+
+        ret = vm_exec_func(fr_old, func, args, NULL);
         VAR_DECR_REF(func);
+        VAR_DECR_REF(args);
         return ret;
 }
 

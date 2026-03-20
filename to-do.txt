@@ -48,16 +48,17 @@ Must Do
   - Add appropriate interrupt handlers for things like EINTR.
   - Use double-underscores for dict builtins to give users more name options.
   - Fill in set library.
+  - Handle no-args to dir() function.
   - Add mutable alternative to bytes
   - Add user-defined properties to dictionaries
   - Add self-documentation
-  - Add dir() function
   - Finalize closure behavior, be more like theoretical closures.
   - Fill in math, cmath, io, socket libraries
   - Fill in built-in methods for strings, arrays, etc.
   - Fill in __gbl__._sys
   - Finish path resolution
   - Make consistent and accurate error reporting
+  - **done** Add dir() function
   - **done** Untangle comparisons and matches, esp. wrt sets and dicts.
   - **done** Robustulate the widths of indices.  They should all be size_t or
     ssize_t, not int.

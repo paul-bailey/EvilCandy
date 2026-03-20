@@ -2523,17 +2523,21 @@ string_cmp(Object *a, Object *b)
         if (sa == sb)
                 return 0;
 
-        na = seqvar_size(a);
-        nb = seqvar_size(b);
-        if (na != nb)
-                return na > nb ? 1 : -1;
-
         na = string_nbytes(a);
         nb = string_nbytes(b);
-        if (na != nb)
-                return na > nb ? 1 : -1;
+        if (na != nb) {
+                int ret;
+                size_t cmpsize = na > nb ? nb : na;
+                if (!cmpsize)
+                        return na ? 1 : -1;
+                ret = memcmp(sa, sb, cmpsize);
+                if (!ret)
+                        return na > nb ? 1 : -1;
+                return ret;
+        }
+
         if (!na)
-                return 0;
+                return nb ? -1 : 0;
         return memcmp(sa, sb, na);
 }
 

@@ -1,4 +1,4 @@
-/* json.c - Create a TYPE_DICT var from a json file */
+/* json.c - Create a dict object from a json file */
 /*
  * XXX: Either use this or lose it.  It's a lot of work keeping it from
  *      falling into code rot.

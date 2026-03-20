@@ -1480,6 +1480,7 @@ bytes_create_without_encoding(Object *val)
                 if (!n)
                         return VAR_NEW_REF(gbl.empty_bytes);
                 buf = emalloc(n);
+                /* XXX REVISIT: replace with iter_xxx() API */
                 for (i = 0; i < n; i++) {
                         if (bytes_unpack_int(&buf[i], val, i)
                             == RES_ERROR) {

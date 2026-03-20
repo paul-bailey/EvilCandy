@@ -1,4 +1,4 @@
-/* Internal types: TYPE_STRPTR, TYPE_XPTR */
+/* Internal types: UuidType, IdType */
 #include <evilcandy.h>
 
 struct uuidptrvar_t {

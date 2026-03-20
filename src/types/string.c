@@ -918,16 +918,16 @@ default_fmt_args(struct fmt_args_t *args)
  *      precision:
  *              Base-10 number of significant figures, 6 by default
  *      conversion:
- *          if arg is TYPE_INT (or TYPE_FLOAT, converted to TYPE_INT)
+ *          if arg is IntType (or FloatType, converted to IntType)
  *              x Hexadecimal, lowercase
  *              X Hexadecimal, uppercase
  *              d Integer, signed
  *              u Integer, unsigned
- *          if arg is TYPE_FLOAT (or TYPE_INT, converted to TYPE_FLOAT)
+ *          if arg is FloatType (or IntType, converted to FloatType)
  *              f [-]ddd.dddd notation
  *              e Exponential notation with lower-case e
  *              E Exponential notation with upper-case E
- *          if arg is TYPE_STRING
+ *          if arg is StringType
  *              s Insert arg string here.  pad is for Unicode characters,
  *                not necessarily bytes.
  *
@@ -1472,6 +1472,10 @@ string_ljust(Frame *fr)
         return string_lrjust(fr, 0);
 }
 
+/*
+ * XXX REVISIT: replace with iter_xxx() API,
+ * allows for more variable types as input.
+ */
 static Object *
 string_join(Frame *fr)
 {

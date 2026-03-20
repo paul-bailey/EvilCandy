@@ -265,6 +265,7 @@ string_tod(Object *str, size_t *pos, double *reslt)
                 buffer_putc(&b, c);
         }
         bug_on(!b.s);
+        errno = 0;
         d = strtod(b.s, &endptr);
         if (errno || *endptr != '\0') {
                 ret = RES_ERROR;

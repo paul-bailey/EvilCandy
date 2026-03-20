@@ -4,6 +4,67 @@
 #include <errno.h>  /* strtol errno check */
 
 static Object *
+do_dir(Frame *fr)
+{
+        Object *p, *keys, *str;
+        int res;
+
+        bug_on(!gbl.stdout_file || !gbl.nl);
+
+        /*
+         * FIXME: If !p, we should list local vars + global vars.  But we
+         * don't know what the locals are, since @fr is for this function!
+         * We shouldn't blindly assume that vm.c's vm.locals will do,
+         * because theoretically this could be inside a scripted function,
+         * perhaps for debugging purposes.
+         */
+        p = vm_get_arg(fr, 0);
+        if (!p) {
+                err_frame_minargs(fr, 1);
+                return ErrorVar;
+        }
+        bug_on(!p->v_type->methods);
+
+        keys = dict_keys(p->v_type->methods, false);
+        if (isvar_dict(p)) {
+                /*
+                 * Add dict items to built-in methods, clobber any that
+                 * match, using our set algorithms.  This looks really
+                 * slow and fussy, but since the typ.  use-case is when
+                 * someone is typing, I can spare a little bit of time
+                 * on this.
+                 */
+                Object *set, *tmp, *it;
+
+                tmp = dict_keys(p, false);
+                array_extend(keys, tmp);
+                VAR_DECR_REF(tmp);
+
+                set = setvar_new(keys);
+                array_delete_chunk(keys, 0, seqvar_size(keys));
+                it = iterator_get(set);
+                bug_on(!it);
+                for (tmp = iterator_next(it);
+                     tmp; tmp = iterator_next(it)) {
+                        array_append(keys, tmp);
+                        VAR_DECR_REF(tmp);
+                }
+                VAR_DECR_REF(it);
+        }
+
+        var_sort(keys);
+        str = var_str(keys);
+        VAR_DECR_REF(keys);
+
+        res = evc_file_write(gbl.stdout_file, str);
+        if (res >= 0)
+                res = evc_file_write(gbl.stdout_file, gbl.nl);
+        VAR_DECR_REF(str);
+
+        return res < 0 ? ErrorVar : NULL;
+}
+
+static Object *
 do_typeof(Frame *fr)
 {
         Object *p = vm_get_arg(fr, 0);
@@ -446,6 +507,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("abs",    do_abs,    1, 1, -1, -1),
         V_INITTBL("all",    do_all,    1, 1, -1, -1),
         V_INITTBL("any",    do_any,    1, 1, -1, -1),
+        V_INITTBL("dir",    do_dir,    1, 1, -1, -1),
         V_INITTBL("disassemble", do_disassemble, 1, 1, -1, -1),
         V_INITTBL("hash",   do_hash,   1, 1, -1, -1),
         V_INITTBL("length", do_length, 1, 1, -1, -1),

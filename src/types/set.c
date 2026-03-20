@@ -149,6 +149,7 @@ maybe_grow_table(struct setvar_t *sv)
         }
         if (sv->s_size != old_size)
                 transfer_table(sv, old_size);
+        seqvar_set_size((Object *)sv, sv->s_used);
 }
 
 static void
@@ -164,6 +165,7 @@ maybe_shrink_table(struct setvar_t *sv)
 
         if (sv->s_size != old_size)
                 transfer_table(sv, old_size);
+        seqvar_set_size((Object *)sv, sv->s_used);
 }
 
 static void

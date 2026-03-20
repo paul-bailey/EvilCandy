@@ -44,9 +44,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
-  - Ensure complex numbers whose imaginary component is zero return
-    0 when comparing with a "matching" float, int.  Make sure hash is
-    correct in this case, too.
+  - Pass arguments to script.
   - Untangle comparisons and matches, esp. wrt sets and dicts.
   - Add appropriate interrupt handlers for things like EINTR.
   - Use double-underscores for dict builtins to give users more name options.
@@ -56,14 +54,17 @@ Must Do
   - Add self-documentation
   - Add dir() function
   - Finalize closure behavior, be more like theoretical closures.
-  - Fill in .create methods for remaining data types that need it.
   - Fill in math, cmath, io, socket libraries
   - Fill in built-in methods for strings, arrays, etc.
   - Fill in __gbl__._sys
   - Finish path resolution
   - Make consistent and accurate error reporting
-  - Robustulate the widths of indices.  They should all be size_t or
+  - **done** Robustulate the widths of indices.  They should all be size_t or
     ssize_t, not int.
+  - **done** Fill in .create methods for remaining data types that need it.
+  - **done** Ensure complex numbers whose imaginary component is zero return
+    0 when comparing with a "matching" float, int.  Make sure hash is
+    correct in this case, too.
   - **done** more robustly test stack behavior in 'continue', 'break'
   - **done** Fix parsing issue wrt identifier as first token of statement.
   - **done** Support unpacking in 'for' statement headers.

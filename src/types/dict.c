@@ -1367,6 +1367,83 @@ dict_getprop_length(Object *self)
         return intvar_new(seqvar_size(self));
 }
 
+static enum result_t
+dict_append_one_iterable(Object *dict, Object *items)
+{
+        Object *it, *k, *v;
+
+        it = iterator_get(items);
+        if (!it) {
+                err_iterable(items, "dict");
+                return RES_ERROR;
+        } else if (seqvar_size(items) != 2) {
+                err_setstr(TypeError,
+                        "expected sequence size of two for key-value pair");
+                VAR_DECR_REF(it);
+                return RES_ERROR;
+        }
+
+        k = iterator_next(it);
+        v = iterator_next(it);
+        bug_on(!k || !v);
+
+        dict_setitem(dict, k, v);
+        VAR_DECR_REF(k);
+        VAR_DECR_REF(v);
+        VAR_DECR_REF(it);
+        return RES_OK;
+}
+
+static enum result_t
+dict_append_iterable(Object *dict, Object *arg)
+{
+        Object *it, *child;
+        enum result_t res;
+
+        it = iterator_get(arg);
+        if (!it) {
+                err_iterable(arg, "dict");
+                return RES_ERROR;
+        }
+
+        for (child = iterator_next(it); child; child = iterator_next(it)) {
+                res = dict_append_one_iterable(dict, child);
+                VAR_DECR_REF(child);
+                if (res == RES_ERROR) {
+                        VAR_DECR_REF(it);
+                        return RES_ERROR;
+                }
+        }
+
+        VAR_DECR_REF(it);
+        return RES_OK;
+}
+
+static Object *
+dict_create(Frame *fr)
+{
+        Object *arg, *kwargs, *dict;
+
+        arg = NULL;
+        kwargs = NULL;
+        if (vm_getargs(fr, "[|<*>!]<{}>!:dict", &arg, &kwargs)
+            == RES_ERROR) {
+                return ErrorVar;
+        }
+
+        dict = dictvar_new();
+        if (arg) {
+                if (isvar_dict(arg)) {
+                        dict_copyto(dict, arg);
+                } else if (dict_append_iterable(dict, arg) == RES_ERROR) {
+                        VAR_DECR_REF(dict);
+                        return ErrorVar;
+                }
+        }
+        dict_copyto(dict, kwargs);
+        return dict;
+}
+
 struct dict_iterator_t {
         Object base;
         Object *target;
@@ -1458,7 +1535,7 @@ static const struct map_methods_t dict_map_methods = {
 
 struct type_t DictType = {
         .flags  = 0,
-        .name   = "dictionary",
+        .name   = "dict",
         .opm    = &dict_op_methods,
         .cbm    = dict_cb_methods,
         .mpm    = &dict_map_methods,
@@ -1469,7 +1546,7 @@ struct type_t DictType = {
         .cmpz   = dict_cmpz,
         .reset  = dict_reset,
         .prop_getsets = dict_prop_getsets,
-        /* XXX: Why no create method? */
+        .create = dict_create,
         .hash   = NULL,
         .get_iter = dict_get_iter,
 };

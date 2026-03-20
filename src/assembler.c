@@ -1143,6 +1143,21 @@ assemble_expr5_atomic(struct assemble_t *a)
                 break;
         }
 
+        case OC_FUNCARG: {
+                long long offs;
+                as_errlex(a, OC_LPAR);
+                as_errlex(a, OC_INTEGER);
+                offs = intvar_toll(a->oc->v);
+                if (offs > 32767 || offs < 0) {
+                        err_setstr(SyntaxError,
+                                   "__funcargs__ must take arg in range of 0...32767");
+                        as_err(a, AE_OVERFLOW);
+                }
+                as_errlex(a, OC_RPAR);
+                add_instr(a, INSTR_LOAD_ARG, 0, offs);
+                break;
+        }
+
         case OC_INTEGER:
         case OC_BYTES:
         case OC_FLOAT:

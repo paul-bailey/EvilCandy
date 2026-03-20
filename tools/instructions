@@ -29,6 +29,10 @@ LOAD_LOCAL
 # arg2 points to name in .rodata
 LOAD_GLOBAL
 
+# similar to LOAD_LOCAL IARG_PTR_FP, except here we don't know
+# whether arg2 is within range, so throw an exception if it is not.
+LOAD_ARG
+
 # pop last item off the stack and consume its reference.
 POP
 

@@ -370,6 +370,24 @@ do_load_local(Frame *fr, instruction_t ii)
 }
 
 static int
+do_load_arg(Frame *fr, instruction_t ii)
+{
+        Object *p;
+
+        bug_on((short)ii.arg2 < 0);
+        if (ii.arg2 >= fr->ap) {
+                err_setstr(RangeError,
+                           "requested argument #%hd but only %d provided",
+                           ii.arg2, fr->ap);
+                return RES_ERROR;
+        }
+        p = fr->stack[ii.arg2];
+        VAR_INCR_REF(p);
+        push(fr, p);
+        return RES_OK;
+}
+
+static int
 do_load_global(Frame *fr, instruction_t ii)
 {
         Object *p, *name;

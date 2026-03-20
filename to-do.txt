@@ -44,7 +44,6 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
-  - Pass arguments to script.
   - Add appropriate interrupt handlers for things like EINTR.
   - Use double-underscores for dict builtins to give users more name options.
   - Fill in set library.
@@ -58,6 +57,7 @@ Must Do
   - Fill in __gbl__._sys
   - Finish path resolution
   - Make consistent and accurate error reporting
+  - **done** Pass arguments to script.
   - **done** Add dir() function
   - **done** Untangle comparisons and matches, esp. wrt sets and dicts.
   - **done** Robustulate the widths of indices.  They should all be size_t or

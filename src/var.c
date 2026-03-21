@@ -907,9 +907,10 @@ var_sort(Object *v)
 Object *
 var_str(Object *v)
 {
-        /* every data type should have this */
-        bug_on(!v->v_type->str);
-        return v->v_type->str(v);
+        if (v->v_type->str)
+                return v->v_type->str(v);
+
+        return stringvar_from_format("<%s at %p>", v->v_type->name, v);
 }
 
 /**

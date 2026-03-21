@@ -294,6 +294,10 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &SetIterType,
         &RangeIterType,
         &StringIterType,
+
+        /* special extra iters */
+        &DictItemsType,
+        &DictItemsIterType,
         NULL,
 };
 

@@ -234,6 +234,10 @@ extern struct type_t SetIterType;
 extern struct type_t RangeIterType;
 extern struct type_t StringIterType;
 
+/* special-purpose iterators */
+extern struct type_t DictItemsType;
+extern struct type_t DictItemsIterType;
+
 static inline bool isvar_array(Object *v)
         { return v->v_type == &ArrayType; }
 static inline bool isvar_tuple(Object *v)

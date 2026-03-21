@@ -771,6 +771,17 @@ do_dict_keys(Frame *fr)
         return dict_keys(self, !!sorted);
 }
 
+static Object *dict_items(Object *from);
+
+static Object *
+do_dict_items(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
+        return dict_items(self);
+}
+
 static Object *
 do_dict_values(Frame *fr)
 {
@@ -991,6 +1002,7 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("copy",      do_dict_copy,        0, 0, -1, -1),
         V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
         V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
+        V_INITTBL("items",     do_dict_items,       0, 0, -1, -1),
         V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
         V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
         V_INITTBL("setdestructor", do_dict_setdestructor, 1, 1, -1, -1),
@@ -1015,6 +1027,93 @@ static const struct map_methods_t dict_map_methods = {
         .mpunion = NULL,
 };
 
+
+/* **********************************************************************
+ *                      Dict Items & Iterator
+ ***********************************************************************/
+
+struct dict_items_t {
+        struct seqvar_t base;
+        Object *target;
+};
+
+struct dict_items_iterator_t {
+        struct seqvar_t base;
+        Object *target;
+        int i;
+};
+
+static Object *
+dict_items_iterator_next(Object *it)
+{
+        struct dict_items_iterator_t *dit = (struct dict_items_iterator_t *)it;
+        struct dictvar_t *d = (struct dictvar_t *)(dit->target);
+        size_t idx = dit->i;
+
+        if (!d)
+                return NULL;
+        for (; idx < d->d_size; idx++) {
+                Object *key, *kv[2], *ret;
+                ssize_t index = index_read(d, idx);
+                if (index < 0)
+                        continue;
+                key = d->d_keys[index];
+                if (key == NULL || key == BUCKET_DEAD)
+                        continue;
+
+                kv[0] = key;
+                kv[1] = d->d_vals[index];
+                ret = tuplevar_from_stack(kv, 2, false);
+
+                dit->i = idx + 1;
+                return ret;
+        }
+
+        VAR_DECR_REF(dit->target);
+        dit->target = NULL;
+        return NULL;
+}
+
+static void
+dict_items_iterator_reset(Object *it)
+{
+        struct dict_items_iterator_t *dit = (struct dict_items_iterator_t *)it;
+        if (dit->target)
+                VAR_DECR_REF(dit->target);
+        dit->target = NULL;
+}
+
+static Object *
+dict_items_get_iter(Object *di)
+{
+        struct dict_items_iterator_t *ret;
+        Object *target;
+
+        bug_on(di->v_type != &DictItemsType);
+        target = ((struct dict_items_t *)di)->target;
+        ret = (struct dict_items_iterator_t *)var_new(&DictItemsIterType);
+        ret->target = VAR_NEW_REF(target);
+        ret->i = 0;
+        return (Object *)ret;
+}
+
+static void
+dict_items_reset(Object *di)
+{
+        struct dict_items_t *dis = (struct dict_items_t *)di;
+        if (dis->target)
+                VAR_DECR_REF(dis->target);
+        dis->target = NULL;
+}
+
+static Object *
+dict_items(Object *d)
+{
+        struct dict_items_t *ret;
+        ret = (struct dict_items_t *)var_new(&DictItemsType);
+        ret->target = VAR_NEW_REF(d);
+        return (Object *)ret;
+}
 
 /* **********************************************************************
  *                      Dict Iterator
@@ -1539,6 +1638,44 @@ found:
         return ret;
 }
 
+struct type_t DictItemsIterType = {
+        .flags          = 0,
+        .name           = "dict_items_iterator",
+        .opm            = NULL,
+        .cbm            = NULL,
+        .mpm            = NULL,
+        .sqm            = NULL,
+        .size           = sizeof(struct dict_items_iterator_t),
+        .str            = NULL,
+        .cmp            = NULL,
+        .cmpz           = NULL,
+        .reset          = dict_items_iterator_reset,
+        .prop_getsets   = NULL,
+        .create         = NULL,
+        .hash           = NULL,
+        .iter_next      = dict_items_iterator_next,
+        .get_iter       = NULL,
+};
+
+struct type_t DictItemsType = {
+        .flags          = 0,
+        .name           = "dict_items",
+        .opm            = NULL,
+        .cbm            = NULL,
+        .mpm            = NULL,
+        .sqm            = NULL,
+        .size           = sizeof(struct dict_items_t),
+        .str            = NULL,
+        .cmp            = NULL,
+        .cmpz           = NULL,
+        .reset          = dict_items_reset,
+        .prop_getsets   = NULL,
+        .create         = NULL,
+        .hash           = NULL,
+        .iter_next      = NULL,
+        .get_iter       = dict_items_get_iter,
+};
+
 struct type_t DictIterType = {
         .flags          = 0,
         .name           = "dict_iterator",
@@ -1554,8 +1691,8 @@ struct type_t DictIterType = {
         .prop_getsets   = NULL,
         .create         = NULL,
         .hash           = NULL,
-        .get_iter       = NULL,
         .iter_next      = dict_iter_next,
+        .get_iter       = NULL,
 };
 
 struct type_t DictType = {
@@ -1573,8 +1710,8 @@ struct type_t DictType = {
         .prop_getsets   = dict_prop_getsets,
         .create         = dict_create,
         .hash           = NULL,
-        .get_iter       = dict_get_iter,
         .iter_next      = NULL,
+        .get_iter       = dict_get_iter,
 };
 
 

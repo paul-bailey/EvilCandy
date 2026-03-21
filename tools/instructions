@@ -123,13 +123,12 @@ DEFSET
 # the tack, pops the soon-to-be-containing object off the stack, inserts
 # the item into the containing object.  Nothing is pushed back on.
 #
-# LOADATTR is like GETATTR, except that it keeps the parent object and
-# key on the stack, pushing the item on top of it.  It's for cases where
-# item is both an operand and a target of assignment, eg. '+='
+# DELATTR deletes the item from its parent
 GETATTR
 SETATTR
-LOADATTR
 DELATTR
+
+COPY
 
 ##
 #   'for' loop stuff

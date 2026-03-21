@@ -1518,7 +1518,9 @@ maybe_modattr(struct assemble_t *a, unsigned int flags)
                         if (t == OC_EQ) {
                                 assemble_expr(a);
                         } else {
-                                add_instr(a, INSTR_LOADATTR, 0, 0);
+                                add_instr(a, INSTR_COPY, 0, 2);
+                                add_instr(a, INSTR_COPY, 0, 2);
+                                add_instr(a, INSTR_GETATTR, 0, 0);
                                 assemble_preassign(a, t);
                         }
                         add_instr(a, INSTR_SETATTR, 0, 0);

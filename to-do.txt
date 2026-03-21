@@ -3,8 +3,8 @@ Bugs
 
 * BUGs 3/2026:
 
-        * (pseudo-bug) illusion of memory leaks when exiting via UAPI
-          exit().  Not all of the breadcrumbs are accounted for.  See
+        * **I'll tolerate it** (pseudo-bug) illusion of memory leaks when exiting
+          via UAPI exit().  Not all of the breadcrumbs are accounted for.  See
           where suspected, vm.c do_call_func().
 
         * **fixed** segfault when f-string with conversion is the only part of a
@@ -47,6 +47,7 @@ Must Do
   - Add appropriate interrupt handlers for things like EINTR.
   - Use double-underscores for dict builtins to give users more name options.
   - Fill in set library.
+  - Support double star in function call
   - Handle no-args to dir() function.
   - Add mutable alternative to bytes
   - Add user-defined properties to dictionaries
@@ -57,6 +58,7 @@ Must Do
   - Fill in __gbl__._sys
   - Finish path resolution
   - Make consistent and accurate error reporting
+
   - **done** Pass arguments to script.
   - **done** Add dir() function
   - **done** Untangle comparisons and matches, esp. wrt sets and dicts.
@@ -80,7 +82,7 @@ Must Do
   - **done** Add support for deleting elements and global variables
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
 
-* intern string literals and identifiers.  Maybe ditto other hashable objs.
+* intern string literals and identifiers.
 
 * If recursion error occurs during runtime (not load time), then unwind as
   if it was a normal exception; do not just panic and quit.
@@ -88,10 +90,6 @@ Must Do
 * Make sure all .cmpz methods match documentation.
 
 * Make sure all .cmp methods behave correctly: <0 if a<b, 0 if a==b, ...
-
-* Now that variadic functions are internally made into fixed-size
-  functions, at least for user-defined functions, we can now get rid of
-  the AP/FP distinction.
 
 * ``demos`` folder is a joke.  Write a real suite of demos, split into
   two groups: demos that are indeed demos and present meaningful examples
@@ -112,32 +110,27 @@ Must Do
 
 * Fix the cyclic-reference problem in GC.
 
+
+* **no** Now that variadic functions are internally made into fixed-size
+  functions, at least for user-defined functions, we can now get rid of
+  the AP/FP distinction.
 * **fixed** Interactive mode problem: token state machine is created and destroyed
   by a wrapping call from assemble().  So if it's interactive mode and
   someone types "a = 1; b = 2;" all on the same line, the first part
   ("a = 1;") will be executed and the second part ("b = 2;") will be
   discarded and never parsed.
-
 * **done** Replace ``has`` with ``in``
-
 * **not needed** Make sure all built-in types have a .cmpz method.
-
 * **done** If first token of a statement is an identifier, there are two very
   different paths the parser should take, depending whether it is an
   assignment statement or an evaluation statement.  Figure out a way
   to resolve this.
-
 * **done** Make dictionary iterable without requiring the creation of a new list.
-
 * **done** Autoconfify readline
-
 * **done** Fix cyclic GC hazard in var_str() for lists and dictionaries, there's no
   reason why it should have to cause a fatal recursion error.
-
 * **done** Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
-
 * **done** Make sure operator order follows either JavaScript or Python.
-
 * **done** Add way to call user-code destructor from VAR_DECR_REF without
   having to pass frame to macro.
 
@@ -172,21 +165,18 @@ Library/Language Features
 
 * Support regular expressions
 
-* Add debug module, make frames/code objects visible to user
+* Add debug module.
 
-* Add stdin and shell environment to Io module
+* Add shell environment to sys module
 
-* Add way to pass arguments to imported scripts, and a way for the
-  script to access them.  Maybe a special identifier token like ``$0``.
 
+* **done** make frames/code objects visible to user
+* **done** Add way to pass arguments to imported scripts, and a way for the
+  script to access them.
 * **done** Add hash to bytes, let it be a valid dictionary key.
-
 * **done** Add sets
-
 * **done** Support tuple unpacking assignment, eg. "(x, y) = (1, 2);"
-
 * **done** Support f-strings
-
 * **done** Have dictionaries support keys other than strings
 
 Mebbe/Wishlist/Low-prio bugs
@@ -207,24 +197,20 @@ Mebbe/Wishlist/Low-prio bugs
 * Replace jmp_buf in token.c with either fussier management of helper
   functions' return values, or with a big damn get_tok function.
 
+
 * **done** Replace stack arrangement of FOREACH_ITER to use an iterator of the
   sort used in var.c, any/all/max/min functions.  This ought to speed
   up the for loop a tiny bit, because instead of constantly operating
   on and replacing IntType objects, we're just incrementing C ints.
-
 * **done** Preserve token buffer in interactive mode so that the UP arrow will
   recall previous expressions.
-
 * **done** Replace IARG_PTR_SEEK with assign/load opcodes which are different for
   global and local variables.
-
 * **done** Use more sophisticated branching instructions for conditional tests,
   where "<true stmt> ||" or "<false stmt> &&" will skip runtime-evaluation
   of the remainder of the statement inside that atomic block.
-
 * **done** At assemble_post() time, reduce ternary operators to a single expression
   if the "a" of "a?b:c" is const.
-
 * **done** String data type encodes Unicode in utf-8, which is compact, but it
   makes for slower processing.  Instead do something like cpython, which
   has an array data-width variable in its meta-data.  C-string

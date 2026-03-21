@@ -460,13 +460,10 @@ ainstr_return_null(struct assemble_t *a)
 }
 
 /*
- * Make sure our assembler SP matches what the VM will see,
- * so instruction args that de-reference stack variables will
- * be correct.
+ * Declare a local variable.
+ * @name is name of variable being declared.
  *
- * @name is name of variable being declared, or NULL if you are
- * declaring a 'ghost' variable which the user will not see,
- * eg. see assemble_foreach().
+ * XXX REVISIT: This has an old, now misleading, function name
  */
 static int
 fakestack_declare(struct assemble_t *a, Object *name)
@@ -2706,13 +2703,6 @@ assemble(const char *filename, FILE *fp, bool toeof, int *status)
         if (status)
                 *status = localstatus;
 
-        /*
-         * FIXME: Interactive mode issue.  This clears the token state
-         * machine even if it still contains unread data on the same
-         * line, eg. someone typed: "a = 1; b = 2;"... the second
-         * statement will not be preserved to be executed in the next
-         * pass to assemble().
-         */
         free_assembler(a);
         return (Object *)ret;
 }

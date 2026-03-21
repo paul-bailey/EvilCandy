@@ -412,134 +412,6 @@ dict_unlock(struct dictvar_t *dict)
         bug_on(dict->d_lock < 0);
 }
 
-
-/* **********************************************************************
- *                              API functions
- ***********************************************************************/
-
-/**
- * dict_keys - Get an alphabetically sorted list of all the keys
- *               currently in the dictionary.
- */
-Object *
-dict_keys(Object *obj, bool sorted)
-{
-        Object *keys;
-        struct dictvar_t *d;
-        int i;
-        int array_i;
-
-        bug_on(!isvar_dict(obj));
-        d = V2D(obj);
-        keys = arrayvar_new(OBJ_SIZE(obj));
-
-        array_i = 0;
-
-        for (i = 0; i < d->d_size; i++) {
-                Object *ks = d->d_keys[i];
-                if (ks == NULL || ks == BUCKET_DEAD)
-                        continue;
-
-                array_setitem(keys, array_i, ks);
-                array_i++;
-        }
-
-        if (sorted)
-                var_sort(keys);
-        return keys;
-}
-
-/**
- * dictvar_new - Create a new empty dictionary
- */
-Object *
-dictvar_new(void)
-{
-        Object *o = var_new(&DictType);
-        struct dictvar_t *d = V2D(o);
-        seqvar_set_size(o, 0);
-
-        d->d_size = INIT_SIZE;
-        d->d_used = 0;
-        d->d_count = 0;
-        refresh_grow_markers(d);
-        bucket_alloc(d);
-        memset(d->d_map, -1, INIT_SIZE);
-        return o;
-}
-
-/**
- * dictvar_from_methods - Create a dictionary from a methods lookup table
- * @parent: Dictionary to add methods to, or NULL to create a new dictionary
- * @tbl: A methods initialization table.
- *
- * Return: @parent, or if it was NULL, a pointer to the new dictionary
- *
- * Used for early-initialization stuff and module initialization.
- */
-Object *
-dictvar_from_methods(Object *parent, const struct type_inittbl_t *tbl)
-{
-        const struct type_inittbl_t *t;
-        Object *ret;
-        if (parent)
-                ret = parent;
-        else
-                ret = dictvar_new();
-
-        if (!tbl)
-                return ret;
-
-        for (t = tbl; t->name != NULL; t++) {
-                Object *func, *key;
-                func = funcvar_from_lut(t);
-                key = stringvar_new(t->name);
-                dict_setitem(ret, key, func);
-                VAR_DECR_REF(func);
-                VAR_DECR_REF(key);
-        }
-        return ret;
-}
-
-/**
- * dict_getitem - Get object attribute
- * @o:  Me
- * @s:  Key
- *
- * Return: child matching @key, or NULL if not found.
- *      Calling code must decide whether NULL is an error or not
- */
-Object *
-dict_getitem(Object *o, Object *key)
-{
-        struct dictvar_t *d;
-        int i;
-
-        d = V2D(o);
-        bug_on(!isvar_dict(o));
-
-        i = seek_helper(d, key);
-        if (i < 0 || d->d_keys[i] == NULL)
-                return NULL;
-
-        VAR_INCR_REF(d->d_vals[i]);
-        return d->d_vals[i];
-}
-
-/*
- * Sloppy slow way to get an entry with only a C string.
- * Don't use this if you can help it.  It forces a hash calculation
- * every time.
- */
-Object *
-dict_getitem_cstr(Object *o, const char *cstr_key)
-{
-        Object *key = stringvar_new(cstr_key);
-        Object *res = dict_getitem(o, key);
-        VAR_DECR_REF(key);
-        return res;
-}
-
 enum {
         /* throw error if key does not exist */
         DF_SWAP = 1,
@@ -613,47 +485,6 @@ dict_insert(Object *dict, Object *key,
         return RES_OK;
 }
 
-/**
- * dict_setitem - Insert an attribute to dictionary if it doesn't exist,
- *                  or change the existing attribute if it does.
- * @self:       Dictionary object
- * @key:        Name of attribute key
- * @attr:       Value to set.  NULL means 'delete the entry'
- *
- * This does not touch the type's built-in-method attributes.
- *
- * Return: RES_OK or RES_ERROR.
- */
-enum result_t
-dict_setitem(Object *dict, Object *key, Object *attr)
-{
-        return dict_insert(dict, key, attr, 0);
-}
-
-/*
- * like dict_setitem, but throw error if @key already exists.
- * Used by the symbol table to prevent duplicate declarations.
- * @attr may not be NULL this time.
- */
-enum result_t
-dict_setitem_exclusive(Object *dict,
-                         Object *key, Object *attr)
-{
-        return dict_insert(dict, key, attr, DF_EXCL);
-}
-
-/*
- * like dict_setitem, but throw error if @key does not exist.
- * Used by the symbol table to change global variable values.
- * @attr may not be NULL.
- */
-enum result_t
-dict_setitem_replace(Object *dict,
-                       Object *key, Object *attr)
-{
-        return dict_insert(dict, key, attr, DF_SWAP);
-}
-
 static int
 dict_hasitem(Object *dict, Object *key)
 {
@@ -664,69 +495,6 @@ dict_hasitem(Object *dict, Object *key)
 
         i = seek_helper(V2D(dict), key);
         return i >= 0 && V2D(dict)->d_keys[i] != NULL;
-}
-
-/*
- * early-initialization function called from moduleinit_builtin.
- * Hacky way to not require loading an EvilCandy script every
- * time that says something like
- *      let print = __gbl__._builtins.print;
- *      let len   = __gbl__._builtins.len;
- *      ...
- *  ...and so on.
- */
-void
-dict_add_to_globals(Object *dict)
-{
-        int i;
-        struct dictvar_t *d = V2D(dict);
-        bug_on(!isvar_dict(dict));
-
-        for (i = 0; i < d->d_size; i++) {
-                Object *k = d->d_keys[i];
-                if (k == NULL || k == BUCKET_DEAD)
-                        continue;
-
-                vm_add_global(k, d->d_vals[i]);
-        }
-}
-
-/**
- * dict_add_properties - Add built-in instance-specific properties
- *              for a dictionary.
- * @dict: Instance to add properties for
- * @tbl:  Table of property callbacks, terminated with .name=NULL
- */
-void
-dict_add_properties(Object *dict, const struct type_prop_t *tbl)
-{
-        struct class_t *class;
-        Object *classdict;
-
-        bug_on(!isvar_dict(dict));
-        class = dict_assert_hasclass(V2D(dict));
-        classdict = class->c_properties;
-        if (!classdict) {
-                classdict = dictvar_new();
-                class->c_properties = classdict;
-        }
-
-        /* XXX: slight DRY violation with var_initialize_type() */
-        while (tbl->name != NULL) {
-                Object *v, *k;
-                enum result_t res;
-
-                v = propertyvar_new(tbl);
-                k = stringvar_new(tbl->name);
-                res = dict_setitem_exclusive(classdict, k, v);
-                VAR_DECR_REF(k);
-                VAR_DECR_REF(v);
-
-                bug_on(res != RES_OK);
-                (void)res;
-
-                tbl++;
-        }
 }
 
 /**
@@ -773,29 +541,6 @@ dict_add_udestructor(Object *dict, Object *func)
                 VAR_INCR_REF(func);
         cls->c_ureset = func;
         return RES_OK;
-}
-
-/**
- * dict_add_cdestructor - Add a C destructor callback
- * @func: Function to call.
- *
- * It would be cleaner to just use dict_add_cdestructor, but this
- * bypasses artificial overhead.  It has the added benefit that a user's
- * destructor will not override this.  (A user's destructor will be
- * called first.)
- */
-void
-dict_add_cdestructor(Object *dict, void (*func)(Object *))
-{
-        struct dictvar_t *d = V2D(dict);
-        struct class_t *cls;
-
-        bug_on(!isvar_dict(dict));
-
-        cls = dict_assert_hasclass(d);
-        bug_on(cls->c_creset);
-
-        cls->c_creset = func;
 }
 
 /* **********************************************************************
@@ -952,28 +697,15 @@ dict_str(Object *o)
         return ret;
 }
 
-/* Confirm that @to and @from are dicts BEFORE calling this */
-int
-dict_copyto(Object *to, Object *from)
-{
-        int i;
-        struct dictvar_t *d = V2D(from);
-
-        for (i = 0; i < d->d_size; i++) {
-                Object *k = d->d_keys[i];
-                if (k == NULL || k == BUCKET_DEAD)
-                        continue;
-                if (dict_setitem(to, k, d->d_vals[i]) != RES_OK)
-                        return RES_ERROR;
-        }
-        return RES_OK;
-}
-
 static Object *
 dict_union(Object *a, Object *b)
 {
         Object *c = dictvar_new();
 
+        /*
+         * Keep this order.  The policy for 'a | b' is to let 'b' clobber
+         * 'a' for any of their matching keys.
+         */
         if (dict_copyto(c, a) != RES_OK)
                 goto err;
         if (dict_copyto(c, b) != RES_OK)
@@ -985,196 +717,6 @@ err:
                 err_setstr(RuntimeError, "Failed to copy dict");
         VAR_DECR_REF(c);
         return ErrorVar;
-}
-
-/**
- * dict_setstr - Install an alternative to the dictionary's default
- *               .str() method
- * @dict:       Dictionary to represent
- * @cb:         A callable object (function or method) which returns
- *              a string object, or NullVar if there was an error.
- *              It should operate on argument 0, NOT 'this'!
- */
-void
-dict_setstr(Object *dict, Object *cb)
-{
-        Object *oldstr;
-        struct class_t *cls;
-        struct dictvar_t *d = V2D(dict);
-        bug_on(!isvar_dict(dict));
-
-        cls = dict_assert_hasclass(d);
-        oldstr = cls->c_str;
-        cls->c_str = VAR_NEW_REF(cb);
-
-        if (oldstr)
-                VAR_DECR_REF(oldstr);
-}
-
-/**
- * dict_set_priv - Set a dictionary's private data
- * @dict:       Dictionary
- * @priv:       Private data to associate with the instance @dict
- *
- * Used by built-in modules which would rather use dictionaries rather
- * than make too many strict, built-in data types.
- */
-void
-dict_set_priv(Object *dict, void *priv)
-{
-        struct class_t *cls;
-        struct dictvar_t *d = V2D(dict);
-        bug_on(!isvar_dict(dict));
-
-        cls = dict_assert_hasclass(d);
-
-        /* Only set this once */
-        bug_on(!!cls->c_priv);
-        cls->c_priv = priv;
-}
-
-/**
- * dict_get_priv - Get private data installed with dict_set_priv()
- */
-void *
-dict_get_priv(Object *dict)
-{
-        struct dictvar_t *d = V2D(dict);
-        bug_on(!isvar_dict(dict));
-
-        return d->d_class ? d->d_class->c_priv : NULL;
-}
-
-/**
- * DO NOT CONFUSE WITH dict_setitem()!!
- *
- * This is meant only to be called from var_setattr(), since
- * dictionaries require more special attention than other
- * sequential/mappable objects.
- *
- * To just set an entry from a dictionary, use dict_setitem().
- */
-enum result_t
-dict_setattr(Object *dict, Object *key, Object *attr)
-{
-        struct class_t *class;
-        Object *prop;
-        enum result_t res;
-
-        /*
-         * Pseudo code for what's going on below...
-         *
-         * if dict.instance_property[key]
-         *      dict.instance_property[key] = attr;
-         * elif dict.method_property[key]
-         *      dict.method_property[key] = attr;
-         * else
-         *      dict[key] = attr
-         *
-         * If a property exists and it is not writable, then an exception
-         * will be thrown without attempting to insert @key into regular
-         * dictionary entries.
-         */
-        class = V2D(dict)->d_class;
-        if (class && class->c_properties) {
-                prop = dict_getitem(class->c_properties, key);
-                if (prop)
-                        goto have_prop;
-        }
-
-        bug_on(!DictType.methods);
-        prop = dict_getitem(DictType.methods, key);
-        if (prop)
-                goto have_prop;
-
-        /* Not a property to set, insert into dictionary */
-        return dict_setitem(dict, key, attr);
-
-have_prop:
-        res = property_set(prop, dict, attr);
-        VAR_DECR_REF(prop);
-        return res;
-}
-
-/**
- * DO NOT CONFUSE WITH dict_getitem()!!
- *
- * This is meant only to be called from var_getattr(), since
- * dictionaries require more special attention than other
- * sequential/mappable objects.
- *
- * To just get an entry from a dictionary, use dict_getitem().
- */
-Object *
-dict_getattr(Object *dict, Object *key)
-{
-        Object *ret;
-        struct class_t *class;
-
-        bug_on(!isvar_dict(dict));
-
-        /*
-         * Order of precedence...
-         * 1. dictionary entries
-         * 3. instance-specific built-in properties
-         * 2. DictType built-in methods or properties
-         *
-         * XXX Should dict_add_properties() copy DictType.methods into
-         * class->c_properties during assert_hasclass()?  If so, we can
-         * skip the third check for any dictionary where class exists.
-         */
-
-        /* plain-jane dictionary entry */
-        ret = dict_getitem(dict, key);
-        if (ret)
-                goto found;
-
-        /* Instance-specific built-in property */
-        class = V2D(dict)->d_class;
-        if (class && class->c_properties) {
-                ret = dict_getitem(class->c_properties, key);
-                if (ret) {
-                        bug_on(!isvar_property(ret));
-
-                        Object *tmp = ret;
-                        ret = property_get(tmp, dict);
-                        VAR_DECR_REF(tmp);
-                        goto found;
-                }
-        }
-
-        /* DictType built-in method */
-        ret = dict_getitem(DictType.methods, key);
-        if (ret) {
-               if (isvar_property(ret)) {
-                        Object *tmp = ret;
-                        ret = property_get(ret, dict);
-                        VAR_DECR_REF(tmp);
-                }
-                goto found;
-        }
-
-        err_attribute("get", key, dict);
-        return ErrorVar;
-
-found:
-        /*
-         * We have no way of knowing if this is a pure function or an
-         * instance method, so assume the latter case.
-         *
-         * XXX REVISIT: A majority of the time, 'this' is used nowhere
-         * in a function, so creating and destroying a method object
-         * every time a user gets it out of a dictionary is way more
-         * costly than just de-referencing a function's XptrType struct
-         * to check for a does-it-use-'this' flag.  assemble_post() could
-         * scan its opcode array at compile time and set the flag.
-         */
-        if (isvar_function(ret)) {
-                Object *tmp = ret;
-                ret = methodvar_new(tmp, dict);
-                VAR_DECR_REF(tmp);
-        }
-        return ret;
 }
 
 /* **********************************************************************
@@ -1444,6 +986,40 @@ dict_create(Frame *fr)
         return dict;
 }
 
+static const struct type_inittbl_t dict_cb_methods[] = {
+        V_INITTBL("clear",     do_dict_clear,       0, 0, -1, -1),
+        V_INITTBL("copy",      do_dict_copy,        0, 0, -1, -1),
+        V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
+        V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
+        V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
+        V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
+        V_INITTBL("setdestructor", do_dict_setdestructor, 1, 1, -1, -1),
+        V_INITTBL("setstr",    do_dict_setstr,      1, 1, -1, -1),
+        V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
+        TBLEND,
+};
+
+static const struct type_prop_t dict_prop_getsets[] = {
+        { .name = "length", .getprop = dict_getprop_length, .setprop = NULL },
+        { .name = NULL },
+};
+
+static const struct operator_methods_t dict_op_methods = {
+        .bit_or         = dict_union,
+};
+
+static const struct map_methods_t dict_map_methods = {
+        .getitem = dict_getitem,
+        .setitem = dict_setitem,
+        .hasitem = dict_hasitem,
+        .mpunion = NULL,
+};
+
+
+/* **********************************************************************
+ *                      Dict Iterator
+ ***********************************************************************/
+
 struct dict_iterator_t {
         Object base;
         Object *target;
@@ -1486,13 +1062,6 @@ dict_iter_reset(Object *it)
         dit->target = NULL;
 }
 
-struct type_t DictIterType = {
-        .name           = "dict_iterator",
-        .reset          = dict_iter_reset,
-        .size           = sizeof(struct dict_iterator_t),
-        .iter_next      = dict_iter_next,
-};
-
 static Object *
 dict_get_iter(Object *d)
 {
@@ -1504,51 +1073,508 @@ dict_get_iter(Object *d)
         return (Object *)ret;
 }
 
-static const struct type_inittbl_t dict_cb_methods[] = {
-        V_INITTBL("clear",     do_dict_clear,       0, 0, -1, -1),
-        V_INITTBL("copy",      do_dict_copy,        0, 0, -1, -1),
-        V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
-        V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
-        V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
-        V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
-        V_INITTBL("setdestructor", do_dict_setdestructor, 1, 1, -1, -1),
-        V_INITTBL("setstr",    do_dict_setstr,      1, 1, -1, -1),
-        V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
-        TBLEND,
-};
+/* **********************************************************************
+ *                             CAPI
+ * *********************************************************************/
 
-static const struct type_prop_t dict_prop_getsets[] = {
-        { .name = "length", .getprop = dict_getprop_length, .setprop = NULL },
-        { .name = NULL },
-};
+/**
+ * dict_keys - Get an alphabetically sorted list of all the keys
+ *               currently in the dictionary.
+ */
+Object *
+dict_keys(Object *obj, bool sorted)
+{
+        Object *keys;
+        struct dictvar_t *d;
+        int i;
+        int array_i;
 
-static const struct operator_methods_t dict_op_methods = {
-        .bit_or         = dict_union,
-};
+        bug_on(!isvar_dict(obj));
+        d = V2D(obj);
+        keys = arrayvar_new(OBJ_SIZE(obj));
 
-static const struct map_methods_t dict_map_methods = {
-        .getitem = dict_getitem,
-        .setitem = dict_setitem,
-        .hasitem = dict_hasitem,
-        .mpunion = NULL,
+        array_i = 0;
+
+        for (i = 0; i < d->d_size; i++) {
+                Object *ks = d->d_keys[i];
+                if (ks == NULL || ks == BUCKET_DEAD)
+                        continue;
+
+                array_setitem(keys, array_i, ks);
+                array_i++;
+        }
+
+        if (sorted)
+                var_sort(keys);
+        return keys;
+}
+
+/**
+ * dictvar_new - Create a new empty dictionary
+ */
+Object *
+dictvar_new(void)
+{
+        Object *o = var_new(&DictType);
+        struct dictvar_t *d = V2D(o);
+        seqvar_set_size(o, 0);
+
+        d->d_size = INIT_SIZE;
+        d->d_used = 0;
+        d->d_count = 0;
+        refresh_grow_markers(d);
+        bucket_alloc(d);
+        memset(d->d_map, -1, INIT_SIZE);
+        return o;
+}
+
+/**
+ * dictvar_from_methods - Create a dictionary from a methods lookup table
+ * @parent: Dictionary to add methods to, or NULL to create a new dictionary
+ * @tbl: A methods initialization table.
+ *
+ * Return: @parent, or if it was NULL, a pointer to the new dictionary
+ *
+ * Used for early-initialization stuff and module initialization.
+ */
+Object *
+dictvar_from_methods(Object *parent, const struct type_inittbl_t *tbl)
+{
+        const struct type_inittbl_t *t;
+        Object *ret;
+        if (parent)
+                ret = parent;
+        else
+                ret = dictvar_new();
+
+        if (!tbl)
+                return ret;
+
+        for (t = tbl; t->name != NULL; t++) {
+                Object *func, *key;
+                func = funcvar_from_lut(t);
+                key = stringvar_new(t->name);
+                dict_setitem(ret, key, func);
+                VAR_DECR_REF(func);
+                VAR_DECR_REF(key);
+        }
+        return ret;
+}
+
+/**
+ * dict_getitem - Get object attribute
+ * @o:  Me
+ * @s:  Key
+ *
+ * Return: child matching @key, or NULL if not found.
+ *      Calling code must decide whether NULL is an error or not
+ */
+Object *
+dict_getitem(Object *o, Object *key)
+{
+        struct dictvar_t *d;
+        int i;
+
+        d = V2D(o);
+        bug_on(!isvar_dict(o));
+
+        i = seek_helper(d, key);
+        if (i < 0 || d->d_keys[i] == NULL)
+                return NULL;
+
+        VAR_INCR_REF(d->d_vals[i]);
+        return d->d_vals[i];
+}
+
+/*
+ * Sloppy slow way to get an entry with only a C string.
+ * Don't use this if you can help it.  It forces a hash calculation
+ * every time.
+ */
+Object *
+dict_getitem_cstr(Object *o, const char *cstr_key)
+{
+        Object *key = stringvar_new(cstr_key);
+        Object *res = dict_getitem(o, key);
+        VAR_DECR_REF(key);
+        return res;
+}
+
+/**
+ * dict_setitem - Insert an attribute to dictionary if it doesn't exist,
+ *                  or change the existing attribute if it does.
+ * @self:       Dictionary object
+ * @key:        Name of attribute key
+ * @attr:       Value to set.  NULL means 'delete the entry'
+ *
+ * This does not touch the type's built-in-method attributes.
+ *
+ * Return: RES_OK or RES_ERROR.
+ */
+enum result_t
+dict_setitem(Object *dict, Object *key, Object *attr)
+{
+        return dict_insert(dict, key, attr, 0);
+}
+
+/*
+ * like dict_setitem, but throw error if @key already exists.
+ * Used by the symbol table to prevent duplicate declarations.
+ * @attr may not be NULL this time.
+ */
+enum result_t
+dict_setitem_exclusive(Object *dict,
+                         Object *key, Object *attr)
+{
+        return dict_insert(dict, key, attr, DF_EXCL);
+}
+
+/*
+ * like dict_setitem, but throw error if @key does not exist.
+ * Used by the symbol table to change global variable values.
+ * @attr may not be NULL.
+ */
+enum result_t
+dict_setitem_replace(Object *dict,
+                       Object *key, Object *attr)
+{
+        return dict_insert(dict, key, attr, DF_SWAP);
+}
+
+/*
+ * early-initialization function called from moduleinit_builtin.
+ * Hacky way to not require loading an EvilCandy script every
+ * time that says something like
+ *      let print = __gbl__._builtins.print;
+ *      let len   = __gbl__._builtins.len;
+ *      ...
+ *  ...and so on.
+ */
+void
+dict_add_to_globals(Object *dict)
+{
+        int i;
+        struct dictvar_t *d = V2D(dict);
+        bug_on(!isvar_dict(dict));
+
+        for (i = 0; i < d->d_size; i++) {
+                Object *k = d->d_keys[i];
+                if (k == NULL || k == BUCKET_DEAD)
+                        continue;
+
+                vm_add_global(k, d->d_vals[i]);
+        }
+}
+
+/**
+ * dict_add_properties - Add built-in instance-specific properties
+ *              for a dictionary.
+ * @dict: Instance to add properties for
+ * @tbl:  Table of property callbacks, terminated with .name=NULL
+ */
+void
+dict_add_properties(Object *dict, const struct type_prop_t *tbl)
+{
+        struct class_t *class;
+        Object *classdict;
+
+        bug_on(!isvar_dict(dict));
+        class = dict_assert_hasclass(V2D(dict));
+        classdict = class->c_properties;
+        if (!classdict) {
+                classdict = dictvar_new();
+                class->c_properties = classdict;
+        }
+
+        /* XXX: slight DRY violation with var_initialize_type() */
+        while (tbl->name != NULL) {
+                Object *v, *k;
+                enum result_t res;
+
+                v = propertyvar_new(tbl);
+                k = stringvar_new(tbl->name);
+                res = dict_setitem_exclusive(classdict, k, v);
+                VAR_DECR_REF(k);
+                VAR_DECR_REF(v);
+
+                bug_on(res != RES_OK);
+                (void)res;
+
+                tbl++;
+        }
+}
+
+/**
+ * dict_add_cdestructor - Add a C destructor callback
+ * @func: Function to call.
+ *
+ * It would be cleaner to just use dict_add_cdestructor, but this
+ * bypasses artificial overhead.  It has the added benefit that a user's
+ * destructor will not override this.  (A user's destructor will be
+ * called first.)
+ */
+void
+dict_add_cdestructor(Object *dict, void (*func)(Object *))
+{
+        struct dictvar_t *d = V2D(dict);
+        struct class_t *cls;
+
+        bug_on(!isvar_dict(dict));
+
+        cls = dict_assert_hasclass(d);
+        bug_on(cls->c_creset);
+
+        cls->c_creset = func;
+}
+
+/**
+ * dict_copyto - Copy contents of dicitonary @from to dictionary @to
+ *
+ * Return: RES_OK or RES_ERROR
+ */
+int
+dict_copyto(Object *to, Object *from)
+{
+        int i;
+        struct dictvar_t *d = V2D(from);
+
+        bug_on(!isvar_dict(to) || !isvar_dict(from));
+        for (i = 0; i < d->d_size; i++) {
+                Object *k = d->d_keys[i];
+                if (k == NULL || k == BUCKET_DEAD)
+                        continue;
+                if (dict_setitem(to, k, d->d_vals[i]) != RES_OK)
+                        return RES_ERROR;
+        }
+        return RES_OK;
+}
+
+/**
+ * dict_setstr - Install an alternative to the dictionary's default
+ *               .str() method
+ * @dict:       Dictionary to represent
+ * @cb:         A callable object (function or method) which returns
+ *              a string object, or NullVar if there was an error.
+ *              It should operate on argument 0, NOT 'this'!
+ */
+void
+dict_setstr(Object *dict, Object *cb)
+{
+        Object *oldstr;
+        struct class_t *cls;
+        struct dictvar_t *d = V2D(dict);
+        bug_on(!isvar_dict(dict));
+
+        cls = dict_assert_hasclass(d);
+        oldstr = cls->c_str;
+        cls->c_str = VAR_NEW_REF(cb);
+
+        if (oldstr)
+                VAR_DECR_REF(oldstr);
+}
+
+/**
+ * dict_set_priv - Set a dictionary's private data
+ * @dict:       Dictionary
+ * @priv:       Private data to associate with the instance @dict
+ *
+ * Used by built-in modules which would rather use dictionaries rather
+ * than make too many strict, built-in data types.
+ */
+void
+dict_set_priv(Object *dict, void *priv)
+{
+        struct class_t *cls;
+        struct dictvar_t *d = V2D(dict);
+        bug_on(!isvar_dict(dict));
+
+        cls = dict_assert_hasclass(d);
+
+        /* Only set this once */
+        bug_on(!!cls->c_priv);
+        cls->c_priv = priv;
+}
+
+/**
+ * dict_get_priv - Get private data installed with dict_set_priv()
+ */
+void *
+dict_get_priv(Object *dict)
+{
+        struct dictvar_t *d = V2D(dict);
+        bug_on(!isvar_dict(dict));
+
+        return d->d_class ? d->d_class->c_priv : NULL;
+}
+
+/**
+ * DO NOT CONFUSE WITH dict_setitem()!!
+ *
+ * This is meant only to be called from var_setattr(), since
+ * dictionaries require more special attention than other
+ * sequential/mappable objects.
+ *
+ * To just set an entry from a dictionary, use dict_setitem().
+ */
+enum result_t
+dict_setattr(Object *dict, Object *key, Object *attr)
+{
+        struct class_t *class;
+        Object *prop;
+        enum result_t res;
+
+        /*
+         * Pseudo code for what's going on below...
+         *
+         * if dict.instance_property[key]
+         *      dict.instance_property[key] = attr;
+         * elif dict.method_property[key]
+         *      dict.method_property[key] = attr;
+         * else
+         *      dict[key] = attr
+         *
+         * If a property exists and it is not writable, then an exception
+         * will be thrown without attempting to insert @key into regular
+         * dictionary entries.
+         */
+        class = V2D(dict)->d_class;
+        if (class && class->c_properties) {
+                prop = dict_getitem(class->c_properties, key);
+                if (prop)
+                        goto have_prop;
+        }
+
+        bug_on(!DictType.methods);
+        prop = dict_getitem(DictType.methods, key);
+        if (prop)
+                goto have_prop;
+
+        /* Not a property to set, insert into dictionary */
+        return dict_setitem(dict, key, attr);
+
+have_prop:
+        res = property_set(prop, dict, attr);
+        VAR_DECR_REF(prop);
+        return res;
+}
+
+/**
+ * DO NOT CONFUSE WITH dict_getitem()!!
+ *
+ * This is meant only to be called from var_getattr(), since
+ * dictionaries require more special attention than other
+ * sequential/mappable objects.
+ *
+ * To just get an entry from a dictionary, use dict_getitem().
+ */
+Object *
+dict_getattr(Object *dict, Object *key)
+{
+        Object *ret;
+        struct class_t *class;
+
+        bug_on(!isvar_dict(dict));
+
+        /*
+         * Order of precedence...
+         * 1. dictionary entries
+         * 3. instance-specific built-in properties
+         * 2. DictType built-in methods or properties
+         *
+         * XXX Should dict_add_properties() copy DictType.methods into
+         * class->c_properties during assert_hasclass()?  If so, we can
+         * skip the third check for any dictionary where class exists.
+         */
+
+        /* plain-jane dictionary entry */
+        ret = dict_getitem(dict, key);
+        if (ret)
+                goto found;
+
+        /* Instance-specific built-in property */
+        class = V2D(dict)->d_class;
+        if (class && class->c_properties) {
+                ret = dict_getitem(class->c_properties, key);
+                if (ret) {
+                        bug_on(!isvar_property(ret));
+
+                        Object *tmp = ret;
+                        ret = property_get(tmp, dict);
+                        VAR_DECR_REF(tmp);
+                        goto found;
+                }
+        }
+
+        /* DictType built-in method */
+        ret = dict_getitem(DictType.methods, key);
+        if (ret) {
+               if (isvar_property(ret)) {
+                        Object *tmp = ret;
+                        ret = property_get(ret, dict);
+                        VAR_DECR_REF(tmp);
+                }
+                goto found;
+        }
+
+        err_attribute("get", key, dict);
+        return ErrorVar;
+
+found:
+        /*
+         * We have no way of knowing if this is a pure function or an
+         * instance method, so assume the latter case.
+         *
+         * XXX REVISIT: A majority of the time, 'this' is used nowhere
+         * in a function, so creating and destroying a method object
+         * every time a user gets it out of a dictionary is way more
+         * costly than just de-referencing a function's XptrType struct
+         * to check for a does-it-use-'this' flag.  assemble_post() could
+         * scan its opcode array at compile time and set the flag.
+         */
+        if (isvar_function(ret)) {
+                Object *tmp = ret;
+                ret = methodvar_new(tmp, dict);
+                VAR_DECR_REF(tmp);
+        }
+        return ret;
+}
+
+struct type_t DictIterType = {
+        .flags          = 0,
+        .name           = "dict_iterator",
+        .opm            = NULL,
+        .cbm            = NULL,
+        .mpm            = NULL,
+        .sqm            = NULL,
+        .size           = sizeof(struct dict_iterator_t),
+        .str            = NULL,
+        .cmp            = NULL,
+        .cmpz           = NULL,
+        .reset          = dict_iter_reset,
+        .prop_getsets   = NULL,
+        .create         = NULL,
+        .hash           = NULL,
+        .get_iter       = NULL,
+        .iter_next      = dict_iter_next,
 };
 
 struct type_t DictType = {
-        .flags  = 0,
-        .name   = "dict",
-        .opm    = &dict_op_methods,
-        .cbm    = dict_cb_methods,
-        .mpm    = &dict_map_methods,
-        .sqm    = NULL,
-        .size   = sizeof(struct dictvar_t),
-        .str    = dict_str,
-        .cmp    = dict_cmp,
-        .cmpz   = dict_cmpz,
-        .reset  = dict_reset,
-        .prop_getsets = dict_prop_getsets,
-        .create = dict_create,
-        .hash   = NULL,
-        .get_iter = dict_get_iter,
+        .flags          = 0,
+        .name           = "dict",
+        .opm            = &dict_op_methods,
+        .cbm            = dict_cb_methods,
+        .mpm            = &dict_map_methods,
+        .sqm            = NULL,
+        .size           = sizeof(struct dictvar_t),
+        .str            = dict_str,
+        .cmp            = dict_cmp,
+        .cmpz           = dict_cmpz,
+        .reset          = dict_reset,
+        .prop_getsets   = dict_prop_getsets,
+        .create         = dict_create,
+        .hash           = NULL,
+        .get_iter       = dict_get_iter,
+        .iter_next      = NULL,
 };
 
 

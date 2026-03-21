@@ -88,6 +88,18 @@ dict_assert_hasclass(struct dictvar_t *d)
         return d->d_class;
 }
 
+static Object *
+dict_assert_hasclassdict(struct dictvar_t *d)
+{
+        struct class_t *class = dict_assert_hasclass(d);
+        Object *ret = class->c_properties;
+        if (!ret) {
+                ret = dictvar_new();
+                class->c_properties = ret;
+        }
+        return ret;
+}
+
 /* **********************************************************************
  *                      Hash table helpers
  ***********************************************************************/
@@ -914,6 +926,51 @@ do_dict_setdestructor(Frame *fr)
 }
 
 static Object *
+do_dict_addprop(Frame *fr)
+{
+        Object *self, *classdict, *name, *prop;
+        Object *getter, *setter, *getterkw, *setterkw;
+        enum result_t res;
+
+        self = vm_get_this(fr);
+        bug_on(!isvar_dict(self));
+
+        getter = setter = NULL;
+        getterkw = setterkw = NULL;
+        if (vm_getargs(fr, "<s>[|<x><x>]{|<x><x>}",
+                       &name, &getter, &setter,
+                       STRCONST_ID(get), &getterkw,
+                       STRCONST_ID(set), &setterkw) == RES_ERROR) {
+                return ErrorVar;
+        }
+        if (getterkw) {
+                if (getter) {
+                        err_doublearg("get");
+                        return ErrorVar;
+                }
+                getter = getterkw;
+        }
+
+        if (setterkw) {
+                if (setter && setterkw) {
+                        err_doublearg("set");
+                        return ErrorVar;
+                }
+                setter = setterkw;
+        }
+        if (setter == NullVar)
+                setter = NULL;
+        if (getter == NullVar)
+                getter = NULL;
+        classdict = dict_assert_hasclassdict(V2D(self));
+        prop = propertyvar_new_user(setter, getter, name);
+        res = dict_setitem(classdict, name, prop);
+        VAR_DECR_REF(name);
+        VAR_DECR_REF(prop);
+        return res == RES_OK ? NULL : ErrorVar;
+}
+
+static Object *
 dict_getprop_length(Object *self)
 {
         bug_on(!isvar_dict(self));
@@ -1004,6 +1061,7 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("items",     do_dict_items,       0, 0, -1, -1),
         V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
+        V_INITTBL("addprop",   do_dict_addprop,     3, 3,  1,  2),
         V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
         V_INITTBL("setdestructor", do_dict_setdestructor, 1, 1, -1, -1),
         V_INITTBL("setstr",    do_dict_setstr,      1, 1, -1, -1),
@@ -1374,23 +1432,17 @@ dict_add_to_globals(Object *dict)
 void
 dict_add_properties(Object *dict, const struct type_prop_t *tbl)
 {
-        struct class_t *class;
         Object *classdict;
 
         bug_on(!isvar_dict(dict));
-        class = dict_assert_hasclass(V2D(dict));
-        classdict = class->c_properties;
-        if (!classdict) {
-                classdict = dictvar_new();
-                class->c_properties = classdict;
-        }
+        classdict = dict_assert_hasclassdict(V2D(dict));
 
         /* XXX: slight DRY violation with var_initialize_type() */
         while (tbl->name != NULL) {
                 Object *v, *k;
                 enum result_t res;
 
-                v = propertyvar_new(tbl);
+                v = propertyvar_new_intl(tbl);
                 k = stringvar_new(tbl->name);
                 res = dict_setitem_exclusive(classdict, k, v);
                 VAR_DECR_REF(k);

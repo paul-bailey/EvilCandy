@@ -245,7 +245,7 @@ var_initialize_type(struct type_t *tp)
                 Object *v, *k;
                 enum result_t res;
 
-                v = propertyvar_new(p);
+                v = propertyvar_new_intl(p);
                 k = stringvar_new(p->name);
                 res = dict_setitem_exclusive(dict, k, v);
                 VAR_DECR_REF(k);

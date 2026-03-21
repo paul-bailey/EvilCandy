@@ -98,6 +98,8 @@ enum {
         STRCONST_IDX_buffering,
         STRCONST_IDX_null,
         STRCONST_IDX__,
+        STRCONST_IDX_get,
+        STRCONST_IDX_set,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,

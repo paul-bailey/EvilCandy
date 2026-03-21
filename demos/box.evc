@@ -117,11 +117,22 @@ let Box = function(**kwargs) {
 
     let box_count = ``() priv.count``;
 
-    return {
-        'borderchar': priv.borderchar,
+    let ret = {
+        '_borderchar': priv.borderchar,
         'print': box_print,
         'count': box_count
     };
+
+    /*
+     * Better to just have an item named 'borderchar' in this case,
+     * but this tests our ability to create user-defined properties.
+     */
+    ret.addprop('borderchar', get=function() {
+        return this._borderchar;
+    }, set=function(v) {
+        this._borderchar = v;
+    });
+    return ret;
 };
 
 let box1 = Box(padleft=2, borderchar='#');

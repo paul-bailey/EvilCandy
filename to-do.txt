@@ -50,7 +50,6 @@ Must Do
   - Support double star in function call
   - Handle no-args to dir() function.
   - Add mutable alternative to bytes
-  - Add user-defined properties to dictionaries
   - Add self-documentation
   - Finalize closure behavior, be more like theoretical closures.
   - Fill in math, cmath, io, socket libraries
@@ -59,6 +58,7 @@ Must Do
   - Finish path resolution
   - Make consistent and accurate error reporting
 
+  - **done** Add user-defined properties to dictionaries
   - **done** Pass arguments to script.
   - **done** Add dir() function
   - **done** Untangle comparisons and matches, esp. wrt sets and dicts.
@@ -98,9 +98,7 @@ Must Do
   commit onto the repository.
 
 * ``this`` keyword barely tested; it will probably break a lot of
-  stuff that seems to work without it.  Logically it should not work
-  in the callback of a .foreach method, at least the way my program
-  works at the moment.
+  stuff that seems to work without it.
 
 * Start adding in test scaffolding where possible.
 

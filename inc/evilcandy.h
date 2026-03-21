@@ -274,7 +274,9 @@ extern Object *methodvar_new(Object *func, Object *owner);
 extern Object *method_peek_self(Object *meth);
 
 /* types/property.c */
-extern Object *propertyvar_new(const struct type_prop_t *props);
+extern Object *propertyvar_new_intl(const struct type_prop_t *props);
+extern Object *propertyvar_new_user(Object *setter,
+                                    Object *getter, Object *name);
 extern Object *property_get(Object *prop, Object *owner);
 extern enum result_t property_set(Object *prop,
                                   Object *owner, Object *value);

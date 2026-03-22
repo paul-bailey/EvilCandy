@@ -558,7 +558,12 @@ do_assign_name(Frame *fr, instruction_t ii)
 
         val = pop(fr);
         key = RODATA(fr, ii);
+#warning "fix this"
+#if 1
+        ret = symbol_put(fr, key, val, vm.globals);
+#else
         ret = symbol_put(fr, key, val, vm.locals);
+#endif
         VAR_DECR_REF(val);
         return ret;
 }
@@ -568,7 +573,12 @@ do_new_name(Frame *fr, instruction_t ii)
 {
         if (!vm.locals)
                 vm.locals = dictvar_new();
+#warning "fix this"
+#if 1
+        return new_global_or_name(fr, ii, vm.globals);
+#else
         return new_global_or_name(fr, ii, vm.locals);
+#endif
 }
 
 static int

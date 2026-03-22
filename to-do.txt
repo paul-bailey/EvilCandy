@@ -3,6 +3,9 @@ Bugs
 
 * BUGs 3/2026:
 
+        * URGENT In interactive mode, cannot assign a name when in a program flow
+          statement.
+
         * **I'll tolerate it** (pseudo-bug) illusion of memory leaks when exiting
           via UAPI exit().  Not all of the breadcrumbs are accounted for.  See
           where suspected, vm.c do_call_func().
@@ -82,6 +85,10 @@ Must Do
   - **done** Get prompt working
   - **done** Add support for deleting elements and global variables
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
+
+* array pop() method should return item popped.
+
+* range slice should return another range, not a list
 
 * intern string literals and identifiers.
 

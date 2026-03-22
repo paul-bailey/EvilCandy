@@ -108,6 +108,8 @@ Must Do
 
 * Fix the cyclic-reference problem in GC.
 
+* Add input() built-in function
+
 
 * **no** Now that variadic functions are internally made into fixed-size
   functions, at least for user-defined functions, we can now get rid of

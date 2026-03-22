@@ -41,6 +41,19 @@ The code will not executed until ENTER
 after a full top-level statement has been typed.
 (More on what constitutes a "statement" later.)
 
+If a statement returns a value,
+and the value is not the ``null`` object,
+that value will be printed to the standard output.
+(To print the value of ``null``, use the ``print`` function.)
+
+.. code-block::
+
+   evc> 123;
+   123
+   evc> null;
+   evc> print(null);
+   null
+
 Hello World
 -----------
 
@@ -86,7 +99,7 @@ ie. having the first line be something like:
 
 .. code-block:: bash
 
-   #!/uar/bin/env evilcandy
+   #!/usr/bin/env evilcandy
 
 so that a file can execute itself.
 
@@ -192,6 +205,8 @@ Conversion from a string to an integer depends on the nature of the text.
 If it contains a leading '0x', '0b', or '0o',
 then the correct base must be specified.
 
+.. code-block::
+
    evc> integer('0o777', 8);
    511
 
@@ -270,7 +285,7 @@ This can be changed with the special keyword argument ``sep``.
 Keyword arguments are very similar in EvilCandy as they are with Python.
 They take the form of *key* ``=`` *value*.
 
-.. caution::
+.. note::
 
    Not all functions take keyword arguments.
    Users should take care how they call functions;
@@ -357,7 +372,7 @@ A *string* is an array of sequential characters,
 or Unicode points.
 Its literal expression in EvilCandy is as text
 wrapped by single or double quotes.
-If quotes exist within the text, they must be escaped by a backslash ``\\``.
+If quotes exist within the text, they must be escaped by a backslash \\.
 Alternatively, if only one kind of quote exists in the text,
 you could wrap it with the other kind.
 
@@ -374,7 +389,7 @@ simply by typing two backslashes instead of one,
 or the interpreter will think they are escaping the next character.
 For the second input below, when typing ENTER,
 the interpreter added the quote, semicolon and newline to the string
-being parsed; it still thinks its receiving text to put into a string.
+being parsed; it still thinks it is receiving text to put into a string.
 
 .. code-block::
 
@@ -429,7 +444,7 @@ Strings can be repeated if multiplied by an integer.
 
 .. code-block::
 
-   evc> /* my favorite story */ 3 * 'well';
+   evc> 3 * 'well'; # my favorite story
    'wellwellwell'
 
 Strings can be indexed according to character, starting from index zero.
@@ -481,12 +496,12 @@ and may contain mixed types.
 
 .. code-block::
 
-        evc> let x = ['a', 'b', 'c'];
-        evc> x;
-        ['a', 'b', 'c']
-        evc> let y = ['some_text', 1, 12.7, ['another', 'list']];
-        evc> y;
-        ['some_text', 1, 12.7, ['another', 'list']]
+   evc> let x = ['a', 'b', 'c'];
+   evc> x;
+   ['a', 'b', 'c']
+   evc> let y = ['some_text', 1, 12.7, ['another', 'list']];
+   evc> y;
+   ['some_text', 1, 12.7, ['another', 'list']]
 
 Lists may be concatenated with the ``+`` operator,
 or repeated by multiplying by an integer.
@@ -524,7 +539,7 @@ argument.  You may also delete a list item with the ``delete`` keyword.
    [1, 3, 5]
    evc> delete x[1];
    evc> x;
-   [1, 3]
+   [1, 5]
 
 Indexing and slicing are the same for strings as for arrays,
 except that unlike with strings, arrays can be assigned by slices.
@@ -535,52 +550,4 @@ except that unlike with strings, arrays can be assigned by slices.
    evc> x[0:5:2] = ['one', 'three', 'five'];
    evc> x;
    ['one', 'two', 'three', 'four', 'five']
-
-Basic Program Flow
-------------------
-
-EvilCandy uses some common program-flow statements like
-``if``, ``do``, ``while``, and ``for``.
-
-The ``while`` statement takes the form
-
-        ``while`` ``(`` *expr* ``)`` *statement*
-
-The expression is something that will either evaluate to true or not,
-and statement is any executable statement, usually a block statement.
-
-The following rudimentary (and slightly incorrect) square-root
-algorithm is an example of program flow:
-
-.. code-block::
-
-   # find the square root of 10 and assign it to y
-   let x = 10.0;
-   let y = x;
-   let i = 0;
-   while (i < 20) {
-           let result = y * y;
-           if (result > x) {
-                   max = y;
-           } else if (result < x) {
-                   min = y;
-                   if (max < y)
-                           max *= 2.0;
-           } else {
-                   # functionally equivalent to "i = 20;"
-                   break;
-           }
-           y = min + (max - min) / 2.0;
-           i++;
-   }
-
-   print(y);
-
-.. note::
-
-   The body of the ``while`` loop in this case is indented,
-   but *the interpreter does not care*.
-   Indentation has no effect on program flow,
-   so never let nicely-indented code fool you into thinking
-   it is correct.
 

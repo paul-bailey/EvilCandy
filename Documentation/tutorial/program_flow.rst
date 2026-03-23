@@ -356,6 +356,119 @@ the function will return ``null``.
    evc> print(do_nothing());
    null
 
+Nested Functions and Closures
+-----------------------------
+
+Functions can be nested arbitrarily deep.  The obvious use for this
+is for helper functions which do not need to be repeated anywhere.
+In this case, it should be noted that function-call overhead is not
+trivial, so if it takes part in a highly iterative or algorithmically
+intense part of the program, it may be better not to nest a function.
+
+But there are other uses, and here we'll talk about *lambdas* and
+*closures*.  To keep things simple, I will just use "lambda" as a word
+synonymous with "function handle"; a function can return a handle to
+another function.  A closure is a function which encapsulates
+information outside of its scope and remembers it each time it is called.
+(For C programmers, think of this as a function with a local static
+variable, except that in EvilCandy's case, the variable is initialized
+not at compile time, but later, each time the function is instantiated.)
+A function which returns a closure, then, is very powerful.
+
+Take, for instance, the following example:
+
+.. code-block::
+
+   evc> let multer = function(n) {
+    ...    return function(x) {
+    ...            return x * n;
+    ...    };
+    ... };
+   evc> let doubler = multer(2);
+   evc> let tripler = multer(3);
+
+In this example, ``multer(n)`` returns a lambda which multiplies an input
+by the value specificied by ``n``.  ``doubler`` and ``tripler`` have been
+assigned different instantiations of this lambda.  Now let's see what
+they do:
+
+.. code-block::
+
+   evc> doubler(3);
+   6
+   evc> tripler(3);
+   9
+
+Although it's more correct to say that the lambda instantiated by and
+returned from ``multer`` is a closure, it's more common to say that
+``n``, the argument passed to ``multer`` and remembered by the lambda,
+is the closure.  Going forward, I will use the latter, more casual,
+definition of "closure".
+
+A few things to also note about closures:
+
+1. In EvilCandy, every script is thought of as a function at the top
+   level, so any function that accesses script-scope variables will
+   create a closure.  The above example could also be express in
+   this way, and ``n`` will still be a closure:
+
+   .. code-block::
+
+      evc> let n = 2;
+      evc> let doubler = function(x) {
+       ...    return x * n;
+       ... };
+      evc> n = 3;
+      evc> let tripler = function(x) {
+       ...    return x * n;
+       ... };
+      evc> doubler(3);
+      6
+      evc> tripler(3);
+      9
+
+   Note also that changing ``n`` in its normal scope (setting it to 3)
+   did not affect the ``n`` value of ``doubler``.  This is because
+   ``n`` wasn't really "changed".  It was reassigned.  The closure
+   received its own handle to the earlier ``n``, so reassigning the
+   "outer" ``n`` has no effect on ``doubler``.  This has implications
+   for mutable objects, which I'll get to in a minute.
+
+2. Accessing global variables will not result in the creation of a
+   closure, since every scope has access to every global variable.
+   The example in note 1 above will not work if ``n`` was declared
+   with ``global`` instead of ``let``.
+
+3. A closure is writable, but it will only take effect in the enclosed
+   function, not the original scope.
+
+   .. code-block::
+
+      evc> let n = 1;
+      evc> let x = function() { n++; };
+      evc> x(); # increment "enclosed" n
+      evc> n;   # see no change to "outer" n
+      1
+
+   As a side-note, there are so few cases where reassigning a closure
+   like this is useful, that some programming languages like Python
+   do not even allow it.
+
+4. If closure data is mutable, such as a list, then modifying (not
+   reassigning) the closure data *will* effect the data in the outer scope.
+
+   .. code-block::
+
+      evc> let x = [];
+      evc> let f = function(val) {
+       ...    x.append(val);
+       ... };
+      evc> f(1);
+      evc> x;
+      [1]
+
+   This has useful implications for creating private data when building
+   user-defined classes.
 
 Notes
 -----

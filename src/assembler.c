@@ -345,6 +345,7 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
 
         bug_on((unsigned)code > 255);
         bug_on((unsigned)arg1 > 255);
+        /* XXX: This is an error, not a bug */
         bug_on(arg2 >= 32768 || arg2 < -32768);
 
         ii.code = code;
@@ -2349,7 +2350,7 @@ RECURSION_DECLARE(as_recursion);
  *      single-line expr:       STMT ';'
  *      block:                  '{' STMT ';' STMT ';'... '}'
  *
- * See Tutorial.rst for the details.
+ * See Documentation for the details.
  */
 static void
 assemble_stmt(struct assemble_t *a, unsigned int flags, int continueto)

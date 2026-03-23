@@ -1027,8 +1027,6 @@ token_state_new(FILE *fp, const char *filename)
 
 /**
  * token_get_this_line - get currently-being-parsed line
- * @col: Variable to hold column of last token parsed or partially parsed.
- *       This may not be NULL.
  *
  *      BEWARE!!  This pointer may be invalidated on next call
  *      to get_tok, so don't save the result.  Either copy it
@@ -1040,3 +1038,33 @@ token_get_this_line(struct token_state_t *state)
         return state->line;
 }
 
+/**
+ * token_flush_tty - Flush remainder of line for interactive mode
+ * @state:      Tokenizer state machine, or NULL to just flush remainder
+ *              of saved TTY line "gbl.iatok"
+ *
+ * Used to clear the remainder of the line if an error is encountered by
+ * the interpreter.  Otherwise, the remainder of this line will be
+ * interpreted as the beginning of the next statement.  In the example
+ *      'let x = 5 +; 5;'
+ * a syntax error will be thrown at the first semicolon, but the ' 5;'
+ * will then be parsed in the next pass of the interpreter loop.  Calling
+ * this function upon detection of an error prevents that.
+ */
+void
+token_flush_tty(struct token_state_t *state)
+{
+        /* Not an issue in script mode */
+        if (!state->tty)
+                return;
+
+        if (gbl.iatok.line) {
+                efree(gbl.iatok.line);
+                memset(&gbl.iatok, 0, sizeof(gbl.iatok));
+        }
+
+        if (state && state->line) {
+                state->line[0] = 0;
+                state->s = state->line;
+        }
+}

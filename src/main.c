@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <token.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -166,10 +167,12 @@ run_tty(void)
                         if (!gbl.opt.disassemble_only) {
                                 Object *res;
                                 res = vm_exec_script(ex, NULL);
-                                if (res == ErrorVar)
+                                if (res == ErrorVar) {
                                         err_print_last(stderr);
-                                else
+                                        token_flush_tty(NULL);
+                                } else {
                                         VAR_DECR_REF(res);
+                                }
                         }
                         VAR_DECR_REF(ex);
                 }

@@ -3,7 +3,7 @@ Bugs
 
 * BUGs 3/2026:
 
-        * In interactive mode, a syntax error sometimes lets the
+        * **fixed** In interactive mode, a syntax error sometimes lets the
           remainder of the line be parsed from where the error occurred.
 
         * **fixed** In interactive mode, cannot assign a name when in a program flow

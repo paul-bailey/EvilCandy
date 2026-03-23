@@ -2450,6 +2450,7 @@ assemble_splash_error(struct assemble_t *a)
                         fputc(' ', stderr);
                 fprintf(stderr, "^\n");
         }
+        token_flush_tty(a->prog);
 }
 
 /**

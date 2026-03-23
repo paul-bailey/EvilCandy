@@ -1054,16 +1054,15 @@ token_get_this_line(struct token_state_t *state)
 void
 token_flush_tty(struct token_state_t *state)
 {
-        /* Not an issue in script mode */
-        if (!state->tty)
-                return;
-
         if (gbl.iatok.line) {
                 efree(gbl.iatok.line);
                 memset(&gbl.iatok, 0, sizeof(gbl.iatok));
         }
 
         if (state && state->line) {
+                /* Not an issue in script mode */
+                if (!state->tty)
+                        return;
                 state->line[0] = 0;
                 state->s = state->line;
         }

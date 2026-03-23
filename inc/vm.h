@@ -54,7 +54,6 @@ extern Object *vm_exec_script(Object *top_level, Frame *fr);
 extern Object *vm_exec_func(Frame *fr, Object *func,
                             Object *args, Object *kwargs);
 extern void vm_add_global(Object *name, Object *var);
-extern Object *vm_get_global(const char *name);
 extern bool vm_symbol_exists(Object *key);
 extern bool vm_pointers_in_stack(Object **start, Object **end);
 static inline Object *vm_get_this(Frame *fr)

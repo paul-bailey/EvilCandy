@@ -3,7 +3,7 @@ Bugs
 
 * BUGs 3/2026:
 
-        * URGENT In interactive mode, cannot assign a name when in a program flow
+        * **fixed** In interactive mode, cannot assign a name when in a program flow
           statement.
 
         * **I'll tolerate it** (pseudo-bug) illusion of memory leaks when exiting

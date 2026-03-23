@@ -74,7 +74,7 @@ extern Object *evc_file_open(int fd, const char *name, bool binary,
 
 /* assembler.c */
 extern Object *assemble(const char *filename,
-                        FILE *fp, bool toeof, int *status);
+                        FILE *fp, Object *localdict, int *status);
 /* cwd.c */
 extern Object *evc_getcwd(void);
 

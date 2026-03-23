@@ -245,6 +245,21 @@ as_peek(struct assemble_t *a, bool may_be_eof)
         return res;
 }
 
+static bool
+as_is_ialocal(struct assemble_t *a, Object *name)
+{
+        if (!a->localdict)
+                return false;
+        bug_on(!isvar_string(name));
+        /*
+         * Only true if we're in the top-level function;
+         * We'll need to convert it into a closure otherwise.
+         */
+        if (a->fr->list.prev != &a->active_frames)
+                return false;
+        return var_hasattr(a->localdict, name);
+}
+
 static int
 as_closure_seek(struct assemble_t *a, Object *name)
 {
@@ -945,7 +960,8 @@ maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos)
         if (!this_frame)
                 return -1;
 
-        if (as_symbol_seek(a, name, NULL) >= 0) {
+        if (as_symbol_seek(a, name, NULL) >= 0 ||
+            as_is_ialocal(a, name)) {
                 /*
                  * 'atomic' instead of assemble_expr(), because if we see
                  * 'x.y', the closure should be x, not its descendant y.
@@ -995,22 +1011,16 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
         } else {
                 int namei = as_seek_rodata_tok(a, name);
                 if (instr == INSTR_ASSIGN_LOCAL) {
-                        if (!!(flags & FE_TOP))
+                        if (as_is_ialocal(a, name->v))
                                 instr = INSTR_ASSIGN_NAME;
                         else
                                 instr = INSTR_ASSIGN_GLOBAL;
                 } else {
-                        /*
-                         * XXX: If we're here, flags are meaningless.
-                         * Means we can't distinguish between global and
-                         * name.  Functionally this is fine... just have
-                         * VM's LOAD_GLOBAL handler first check for dict
-                         * of locals before falling back on globals, but
-                         *      1. That's slow
-                         *      2. It makes for misleading disassembly
-                         */
                         bug_on(instr != INSTR_LOAD_LOCAL);
-                        instr = INSTR_LOAD_GLOBAL;
+                        if (as_is_ialocal(a, name->v))
+                                instr = INSTR_LOAD_NAME;
+                        else
+                                instr = INSTR_LOAD_GLOBAL;
                 }
                 add_instr(a, instr, 0, namei);
         }
@@ -1828,6 +1838,14 @@ assemble_declare(struct assemble_t *a, struct token_t *name,
                 /* Interactive, top-level scope */
                 namei = as_seek_rodata_tok(a, name);
                 add_instr(a, INSTR_NEW_NAME, 0, namei);
+                bug_on(!a->localdict);
+                /* We really just care about the key, hence NullVar */
+                if (dict_setitem_exclusive(a->localdict, name->v, NullVar)
+                    == RES_ERROR) {
+                        err_setstr(SyntaxError,
+                                   "Redefining variable ('%s')", name->v);
+                        as_err(a, AE_GEN);
+                }
         } else {
                 bug_on(!name);
                 namei = fakestack_declare(a, name->v);
@@ -2329,7 +2347,7 @@ assemble_stmt(struct assemble_t *a, unsigned int flags, int continueto)
  *      error would be thrown before returning if that's the case.
  */
 static struct assemble_t *
-new_assembler(const char *source_file_name, FILE *fp)
+new_assembler(const char *source_file_name, FILE *fp, Object *localdict)
 {
         struct assemble_t *a;
         struct token_state_t *prog;
@@ -2345,6 +2363,12 @@ new_assembler(const char *source_file_name, FILE *fp)
         a->oc = NULL;
         /* don't let the first ones be zero, that looks bad */
         a->func = FUNC_INIT;
+        if (localdict) {
+                a->localdict = dictvar_new();
+                dict_copyto(a->localdict, localdict);
+        } else {
+                a->localdict = NULL;
+        }
         list_init(&a->active_frames);
         list_init(&a->finished_frames);
         assemble_frame_push(a, as_next_funcno(a));
@@ -2390,6 +2414,8 @@ as_delete_frame_list(struct list_t *parent_list)
 static void
 free_assembler(struct assemble_t *a)
 {
+        if (a->localdict)
+                VAR_DECR_REF(a->localdict);
         as_delete_frame_list(&a->active_frames);
         as_delete_frame_list(&a->finished_frames);
         token_state_free(a->prog);
@@ -2652,9 +2678,8 @@ assemble_frame_pop(struct assemble_t *a)
  * assemble - Parse input and convert into byte code
  * @filename:   Name of file, for usage later by serializer and disassembler
  * @fp:         Handle to the open source file, at its starting position.
- * @toeof:      true to parse an entire input stream.
- *              false to parse a single statement.
- *              Use true for scripts and false for interactive TTY mode.
+ * @localdict:  NULL if in script mode.  If in interactive mode, the
+ *              dictionary used by the VM for top-level local variables.
  * @status:     stores RES_OK if all is well or RES_ERROR if an assembler
  *              error occurred.
  *
@@ -2664,19 +2689,22 @@ assemble_frame_pop(struct assemble_t *a)
  *         (check status).
  */
 Object *
-assemble(const char *filename, FILE *fp, bool toeof, int *status)
+assemble(const char *filename, FILE *fp, Object *localdict, int *status)
 {
         int localstatus;
         struct xptrvar_t *ret;
         struct assemble_t *a;
+        bool toeof;
         CLOCK_DECLARE();
 
-        a = new_assembler(filename, fp);
+        a = new_assembler(filename, fp, localdict);
         if (!a) {
                 /* no program, just eof */
                 *status = RES_OK;
                 return NULL;
         }
+
+        toeof = !localdict;
 
         /*
          * If first token is a dot, it can't be EvilCandy source,

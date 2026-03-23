@@ -8,8 +8,7 @@
  * Still, EvilCandy takes JavaScript's Middle Way:  Internal code which
  * accesses dictionaries using these API functions directly can treat a
  * dictionary like a pure associative array, while dictionaries accessed
- * by user code are assumed to be class instantiations.  The code in this
- * file plays dumb to either case.
+ * by user code are assumed to be class instantiations.
  */
 #include <evilcandy.h>
 
@@ -48,7 +47,7 @@ struct class_t {
  * @d_lock:             Display lock
  * @d_class:            If non-NULL, pointer to class methods and info,
  *                      used for external code or built-in modules, in
- *                      which dictionaries like user-defined classes
+ *                      which dictionaries behave like user-defined classes
  *                      rather than pure dictionaries.
  *
  * d_keys, d_vals, and d_map are allocated in one call each time the

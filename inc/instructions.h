@@ -106,6 +106,7 @@ instr_uses_rodata(instruction_t ii)
         case INSTR_NEW_GLOBAL:
         case INSTR_NEW_NAME:
         case INSTR_LOAD_GLOBAL:
+        case INSTR_LOAD_NAME:
         case INSTR_ASSIGN_GLOBAL:
         case INSTR_ASSIGN_NAME:
                 return true;

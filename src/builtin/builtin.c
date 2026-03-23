@@ -196,7 +196,7 @@ do_import(Frame *fr)
                 err_errno("Cannot access '%s' properly", file_name);
                 return ErrorVar;
         }
-        ex = assemble(file_name, fp, true, &status);
+        ex = assemble(file_name, fp, NULL, &status);
         pop_path(fp);
 
         /* we're assembling top, so ex should be NULL if error */

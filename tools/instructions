@@ -24,10 +24,9 @@ PUSH_LOCAL
 # Load a variable or const and push it onto the stack.
 LOAD_CONST
 LOAD_LOCAL
-# There is no LOAD_NAME, the LOAD_GLOBAL handler takes care of both
-# scenarios.
-# arg2 points to name in .rodata
+# for global/name, arg2 points to name in .rodata
 LOAD_GLOBAL
+LOAD_NAME
 
 # similar to LOAD_LOCAL IARG_PTR_FP, except here we don't know
 # whether arg2 is within range, so throw an exception if it is not.

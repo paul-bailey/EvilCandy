@@ -87,7 +87,7 @@ run_script(const char *filename, FILE *fp, Frame *fr)
         Object *retval;
         int status;
 
-        ex = assemble(filename, fp, true, &status);
+        ex = assemble(filename, fp, NULL, &status);
         if (!ex)
                 return;
         bug_on(status != RES_OK);
@@ -151,7 +151,7 @@ run_tty(void)
                 int status;
                 Object *ex;
 
-                ex = assemble("<stdin>", stdin, false, &status);
+                ex = assemble("<stdin>", stdin, vm_localdict(), &status);
                 if (ex == NULL) {
                         if (status == RES_OK) {
                                 /* normal EOF, user typed ^d */

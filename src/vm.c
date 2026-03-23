@@ -395,18 +395,6 @@ do_load_global(Frame *fr, instruction_t ii)
         name = RODATA(fr, ii);
         bug_on(!isvar_string(name));
 
-        /*
-         * This doesn't waste as much time as it appears to.  If we're in
-         * interactive mode, the speed bottleneck is the user typing, not
-         * the additional dictionary look-up.  If running a script, then
-         * vm.locals will be NULL, so the first dict lookup will be skipped.
-         */
-        if (vm.locals) {
-                p = dict_getitem(vm.locals, name);
-                if (p)
-                        goto done;
-        }
-
         bug_on(!vm.globals);
 
         p = dict_getitem(vm.globals, name);
@@ -415,9 +403,28 @@ do_load_global(Frame *fr, instruction_t ii)
                 return RES_ERROR;
         }
 
-done:
         push(fr, p);
         return RES_OK;
+}
+
+static int
+do_load_name(Frame *fr, instruction_t ii)
+{
+        Object *p, *name;
+
+        name = RODATA(fr, ii);
+        bug_on(!isvar_string(name));
+
+        if (vm.locals) {
+                p = dict_getitem(vm.locals, name);
+                if (p) {
+                        push(fr, p);
+                        return RES_OK;
+                }
+        }
+
+        err_setstr(NameError, "Symbol %N not found", name);
+        return RES_ERROR;
 }
 
 static int
@@ -558,12 +565,7 @@ do_assign_name(Frame *fr, instruction_t ii)
 
         val = pop(fr);
         key = RODATA(fr, ii);
-#warning "fix this"
-#if 1
-        ret = symbol_put(fr, key, val, vm.globals);
-#else
         ret = symbol_put(fr, key, val, vm.locals);
-#endif
         VAR_DECR_REF(val);
         return ret;
 }
@@ -573,12 +575,7 @@ do_new_name(Frame *fr, instruction_t ii)
 {
         if (!vm.locals)
                 vm.locals = dictvar_new();
-#warning "fix this"
-#if 1
-        return new_global_or_name(fr, ii, vm.globals);
-#else
         return new_global_or_name(fr, ii, vm.locals);
-#endif
 }
 
 static int
@@ -1352,6 +1349,7 @@ vm_add_global(Object *name, Object *var)
         (void)res;
 }
 
+#warning "deprecated function"
 Object *
 vm_get_global(const char *name)
 {
@@ -1455,6 +1453,19 @@ vm_clear_frames_for_exit(void)
          */
 }
 
+/*
+ * XXX: vm namespace is clean enough.  Any reason we can't put
+ * vm in gbl and avoid having functions like this?
+ */
+Object *
+vm_localdict(void)
+{
+        /* if requested, then it needs to exist */
+        if (!vm.locals)
+                vm.locals = dictvar_new();
+        return vm.locals;
+}
+
 void
 cfile_init_vm(void)
 {
@@ -1491,4 +1502,5 @@ cfile_deinit_vm(void)
         vm.globals = NULL;
         vm.stack = vm.stack_end = NULL;
 }
+
 

@@ -1726,11 +1726,19 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
 
         needsize = gather_names(a, &names, &star);
         if (needsize > 1) {
-                /* eg. "a, b = (some, iterable)" */
+                /* eg. "a, b" or "a, b = (some, iterable)" */
                 struct list_t *p;
 
-#warning "solve this"
-                /* XXX What about empty statement like "a, b;"? */
+                if (a->oc->t == OC_SEMI) {
+                        /* empty statement, e.g. "a, b" */
+                        token_pos_t pos = AS_LIST2NAMES(names.prev)->pos;
+                        (void)as_swap_pos(a, pos);
+                        as_unlex(a);
+                        assemble_expr(a, true);
+                        cleanup_names(&names);
+                        return 1;
+                }
+
                 if (a->oc->t != OC_EQ) {
                         cleanup_names(&names);
                         err_ae_expect(a, OC_EQ);

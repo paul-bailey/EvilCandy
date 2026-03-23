@@ -29,8 +29,8 @@
     };
 
     return {
-        tonine: mkiter(10),
-        toten: mkiter(11),
+        'tonine': mkiter(10),
+        'toten': mkiter(11),
         "✓": "check"
     };
 })());
@@ -80,10 +80,10 @@ print(f"~0 is {~0}");
         print(f"typeof(e) for each e in {str}");
         // XXX need to add enumerate function
         let i = 0;
-        for (k in o) {
+        for (k, v in o.items()) {
             if (i && !(i & 3))
                 print('');
-            print('\t', typeof(o[k]), k, end='');
+            print('\t', typeof(v), k, end='');
             i++;
         }
         print('');

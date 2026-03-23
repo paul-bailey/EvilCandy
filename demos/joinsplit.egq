@@ -3,6 +3,7 @@
 // some code to see how join, append, and foreach behave
 print(' '.join(['a', 'b', 'c', 'd']));
 
+// TODO: add enumerate: "for (e, i in enumearate['a', 'b', 'c'])"
 (['a', 'b', 'c'].foreach(function(e, i){
         print(i, ': ', e, sep='', end='; ');
 }));

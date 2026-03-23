@@ -785,37 +785,19 @@ done:
 static void
 assemble_dictdef(struct assemble_t *a, int count, int where)
 {
-        switch (where) {
-        case 1:
-                goto where_1;
-        case 2:
-                goto where_2;
-        case 3:
-                goto where_3;
-        default:
-                bug();
-        }
+        /* XXX: deprecated, there used to be more 'where' choices */
+        bug_on(where != 3);
+        goto where_3;
 
         do {
                 as_lex(a);
 
-                if (a->oc->t == OC_LBRACK) {
-where_1:
-                        /* computed key */
-                        assemble_expr(a, false);
-                        as_errlex(a, OC_RBRACK);
-                } else if (istok_atomic_key(a->oc->t)) {
-                        /* key is literal text */
-where_2:
-                        ainstr_load_const(a, a->oc);
-                } else if (a->oc->t == OC_RBRACE) {
+                if (a->oc->t == OC_RBRACE) {
                         /* comma after last elem */
                         break;
-                } else {
-                        err_setstr(SyntaxError,
-                                "Invalid token for uncomputed dictionary key");
-                        as_err(a, AE_EXPECT);
                 }
+                as_unlex(a);
+                assemble_expr(a, false);
                 as_lex(a);
                 if (a->oc->t != OC_COLON) {
                         err_setstr(SyntaxError,
@@ -824,8 +806,8 @@ where_2:
                 }
 where_3:
                 assemble_expr(a, false);
-                count++;
                 as_lex(a);
+                count++;
         } while (a->oc->t == OC_COMMA);
         as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);
 
@@ -851,41 +833,12 @@ assemble_setdef(struct assemble_t *a)
         count = 0;
         as_unlex(a);
         do {
-                bool could_be_dict = !count;
                 as_lex(a);
-                if (a->oc->t == OC_LBRACK) {
-                        /*
-                         * Lists are unhashable, so this MUST be for a
-                         * computed dictionary key.
-                         */
-                        if (!could_be_dict)
-                                as_err(a, AE_EXPECT);
-                        assemble_dictdef(a, count, 1);
-                        return;
-                }
-
                 if (a->oc->t == OC_MUL) {
+                        /* TODO: make necessary changes to allow this */
                         err_setstr(SyntaxError,
                                    "starred arguments not allowed here");
                         as_err(a, AE_EXPECT);
-                }
-
-                /*
-                 * FIXME: Requiring computed keys to exist only within
-                 * square brackets is an artifact of when EvilCandy was
-                 * more strictly trying to look like JavaScript.  But
-                 * the requirement is purely artificial; it's actually
-                 * **easier** to be more versatile and not require it.
-                 */
-                if (istok_atomic_key(a->oc->t)) {
-                        if (as_peek(a, false) == OC_COLON) {
-                                if (!could_be_dict)
-                                        as_err(a, AE_EXPECT);
-                                assemble_dictdef(a, count, 2);
-                                return;
-                        }
-                } else {
-                        could_be_dict = false;
                 }
 
                 /* comma after last elem */
@@ -896,7 +849,7 @@ assemble_setdef(struct assemble_t *a)
                 assemble_expr(a, false);
                 as_lex(a);
                 if (a->oc->t == OC_COLON) {
-                        if (!could_be_dict)
+                        if (count > 0)
                                 as_err(a, AE_EXPECT);
                         assemble_dictdef(a, count, 3);
                         return;

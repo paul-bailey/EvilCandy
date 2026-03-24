@@ -4,9 +4,7 @@ Program Flow
 Of course programming is more than crunching numbers in sequence.
 There are also decision points, branching, and looping.
 Take for instance this code to calculate π using the Leibniz
-algorithm (albeit inaccurately due to the low number of iterations):
-
-.. code-block::
+algorithm (albeit inaccurately due to the low number of iterations)::
 
    evc> let result = 0;
    evc> let num = 4.0;
@@ -34,7 +32,7 @@ as the *body* of the "while" statement.
 
 EvilCandy uses ``if`` statements more or less the same way
 as JavaScript or C:
-They take one of two form:
+They take one of two forms:
 
 | ``if (`` *expr* ``)`` *stmt*
 
@@ -70,9 +68,7 @@ If your program for some reason needs a true statement
 to be exactly one and a false statement to be exactly zero,
 you could convert it with the logical-not ``!`` operator.
 Two in a row will convert a true value into the integer 1
-and a false value into the integer 0.
-
-.. code-block::
+and a false value into the integer 0.::
 
    evc> !!'A';  # string length is one, so it's true
    1
@@ -86,9 +82,7 @@ and a false value into the integer 0.
 .. note::
 
    A string is *true* if its length is greater than zero,
-   even if it contains only embedded nulchars:
-
-   .. code-block::
+   even if it contains only embedded nulchars::
 
       evc> !!'\0\0\0';
       1
@@ -160,9 +154,7 @@ The defaults for ``start_value`` and ``step_size`` are zero and one,
 respectively.
 
 So to repeat the Leibniz example above using a for loop,
-it may look like this:
-
-.. code-block::
+it may look like this::
 
    evc> let result = 0;
    evc> let num = 4.0;
@@ -196,9 +188,7 @@ the semicolon is not needed.
 
 The following example is a little trivial (why calculate it if you
 already know the answer?),
-but it demonstrates the usefulness of ``else`` in the ``for`` loop.
-
-.. code-block::
+but it demonstrates the usefulness of ``else`` in the ``for`` loop::
 
    evc> let result = 0;
    evc> let num = 4.0;
@@ -227,16 +217,14 @@ Indentation is useful for human readability,
 but the interpreter does not care.
 **Always use braces around** ``for`` **loops**,
 even for bodies containing only a single simple statement.
-Otherwise indentation can be misleading.  Consider the following.
+Otherwise indentation can be misleading.  Consider the following::
 
-   .. code-block::
-
-        # THIS IS BAD!
-        for (x in y)
-            if (x)
-                do_this();
-        else
-            do_that();
+  # THIS IS BAD!
+  for (x in y)
+      if (x)
+          do_this();
+  else
+      do_that();
 
 The ``else`` in this example appears as
 the ``else`` clause of the ``for`` statement,
@@ -256,9 +244,7 @@ which can then be used without worrying about its implementation" [#]_ [#]_.
 
 To begin with, we don't want to repeat typing the Leibniz algorithm
 every time we want to execute it.
-So we put it into a function as follows:
-
-.. code-block::
+So we put it into a function as follows::
 
    evc> let leibniz = function(n) {
     ...    let result = 0;
@@ -275,9 +261,7 @@ So we put it into a function as follows:
 
 The semicolon at the end of the function definition
 is needed in this case because,
-if you look closely, you will see that it takes the form:
-
-.. code-block::
+if you look closely, you will see that it takes the form::
 
    let name = expression;
 
@@ -296,9 +280,7 @@ is not permitted in EvilCandy.
 
 For this example, I've chosen an argument ``n`` to determine
 how many iterations of the algorithm to use.  Clearly the
-more iterations the more accurate the result.
-
-.. code-block::
+more iterations the more accurate the result::
 
    evc> leibniz(10);
    3.0916238066678399
@@ -308,9 +290,7 @@ more iterations the more accurate the result.
    3.1415921535897242
 
 Unlike JavaScript, the number of arguments to a function
-is strictly enforced.
-
-.. code-block::
+is strictly enforced::
 
    evc> leibniz(100, 1);
    [EvilCandy] ArgumentError Expected at most 1 args but got 2
@@ -318,25 +298,23 @@ is strictly enforced.
    [EvilCandy] ArgumentError Expected at least 1 args but got 0
 
 Variadic functions or functions taking keyword arguments
-can use star or double-star notation, similar to Python.
-When calling a function with keyword arguments, place the
-keyword arguments at the end of the argument list, and use
-the format *keyword=value*.
-
-.. code-block::
+can use star or double-star notation, similar to Python::
 
    evc> let foo = function(*args, **kwargs) {
     ...    print('args:', args);
     ...    print('kwargs:', kwargs);
     ... };
+
+When calling a function with keyword arguments, place the
+keyword arguments at the end of the argument list, and use
+the format *keyword=value*::
+
    evc> foo('line', 1, kw_a='a', kw_b='b');
    args: ['line', 1]
    kwargs: {'kw_a': 'a', 'kw_b': 'b'}
 
 A sequential object can be unpacked into the argument list
-using the star operator.
-
-.. code-block::
+using the star operator::
 
    evc> let x = [1,2,3];
    evc> foo(*x);
@@ -359,9 +337,7 @@ while in the second case, there is one argument, a list containing
 All functions return a result.
 If program flow reaches an end
 without encountering the ``return`` statement,
-the function will return ``null``.
-
-.. code-block::
+the function will return ``null``::
 
    evc> let do_nothing = function() {;};
    evc> do_nothing();
@@ -393,9 +369,7 @@ information outside of its scope and remembers it each time it is called.
    is initialized during runtime, each time the function is instantiated.
 
 A function which returns a closure, then, is very powerful.
-Take, for instance, the following example:
-
-.. code-block::
+Take, for instance, the following example::
 
    evc> let multer = function(n) {
     ...    return function(x) {
@@ -417,9 +391,7 @@ a variable in a higher-up scope.
 
 ``doubler`` and ``tripler`` have been
 assigned different instantiations of the lambda returned by ``multer``.
-Now let's see what they do:
-
-.. code-block::
+Now let's see what they do::
 
    evc> doubler(3);
    6
@@ -449,9 +421,7 @@ A few things to also note about closures:
    calls "global".
 
    The above ``multer`` example could also be expressed in this way,
-   and ``n`` will still be a closure:
-
-   .. code-block::
+   and ``n`` will still be a closure::
 
       evc> let n = 2;
       evc> let doubler = function(x) {
@@ -480,9 +450,7 @@ A few things to also note about closures:
    with ``global`` instead of ``let``.
 
 3. A closure is technically writable, but it will only take effect in the
-   enclosed function, not the original scope.
-
-   .. code-block::
+   enclosed function, not the original scope::
 
       evc> let n = 1;
       evc> let x = function() { n++; };
@@ -495,9 +463,7 @@ A few things to also note about closures:
    Python do not even allow it [#]_.
 
 4. If closure data is mutable, such as a list, then modifying (rather than
-   reassigning) the closure data *will* effect the data in the outer scope.
-
-   .. code-block::
+   reassigning) the closure data *will* effect the data in the outer scope::
 
       evc> let x = [];
       evc> let f = function(val) {
@@ -516,17 +482,13 @@ IIFEs
 Because all functions are anonymous, and because EvilCandy treats a
 function's definition like any other literal expression,
 immediately-invoked function expressions (IIFEs, pronounced "iffies")
-are possible.  A trivial example of an IFFE is:
-
-.. code-block::
+are possible.  A trivial example of an IFFE is::
 
    evc> function(x) { return x + 1; }(5);
    6
 
 Common practice is to wrap the function expression in parentheses, as a
-conventional way to say "this is an evaluation statement".
-
-.. code-block::
+conventional way to say "this is an evaluation statement"::
 
    evc> (function(x) { return x + 1; })(5);
    6
@@ -537,9 +499,7 @@ Frankly, IIFEs are an accident of how the language works, not a
 deliberate feature.  They were more useful in JavaScript thirty years ago,
 back when computers were made of wood and sails and TCP was transported
 by carrier pigeons, so it mattered how big a JavaScript file got.
-Given the two choices:
-
-.. code-block::
+Given the two choices::
 
    # choice one:
    let x = (function() {
@@ -547,7 +507,7 @@ Given the two choices:
         return calculated_value;
    })();
 
-.. code-block::
+::
 
    # choice two:
    let x;
@@ -562,9 +522,7 @@ especially when using JavaScript's ``=>`` lambda notation,
 that they use it even in highly-iterative loops [#]_.
 
 If you don't care about cuteness but you do care about namespace clutter,
-you could still use the second example, rewritten as:
-
-.. code-block::
+you could still use the second example, rewritten as::
 
    # choice three:
    let x;
@@ -582,9 +540,7 @@ Lambda Notation
 ~~~~~~~~~~~~~~~
 
 The ``multer`` example above involves small trivial functions.
-An alternative way to express them is as follows:
-
-.. code-block::
+An alternative way to express them is as follows::
 
    evc> let multer = function(n) {
     ...      return ``(x) x * n``;

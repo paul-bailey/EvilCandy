@@ -1,6 +1,10 @@
 /*
  * op.c - built-in methods for operators like + and -
  * FIXME: Half of this should be in var.c and half should be in vm.c
+ *
+ * FIXME: Lots of return-NULLs in places where an exception was thrown!
+ *        If an Object* is the return value and there was an exception,
+ *        the return value should always be ErrorVar.
  */
 #include <evilcandy.h>
 
@@ -42,6 +46,7 @@ get_binop_method(Object *a, Object *b)
 Object *                                                \
 qop_##Field (Object *a, Object *b)                      \
 {                                                       \
+        Object *ret;                                    \
         const struct operator_methods_t *opm;           \
         if ((opm = get_binop_method(a, b)) == NULL      \
             || opm->Field == NULL) {                    \
@@ -49,7 +54,10 @@ qop_##Field (Object *a, Object *b)                      \
                 return NULL;                            \
         }                                               \
         bug_on(!opm->Field);                            \
-        return opm->Field(a, b);                        \
+        ret = opm->Field(a, b);                         \
+        if (ret == ErrorVar)                            \
+                ret = NULL;                             \
+        return ret;                                     \
 }
 
 BINARY_OP_BASIC_FUNC(pow, "**")

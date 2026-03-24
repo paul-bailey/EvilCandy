@@ -10,7 +10,7 @@ be modified.
 Tuples are unique among EvilCandy's built-in types in that
 they may or may not be hashable depending on whether their
 contents are all hashable.
-This affects whether a tuple may be placed in a dictionary.
+This affects whether a tuple may be used as a key in a dictionary.
 
 Tuples are expressed as a comma-delimited sequence of expressions,
 encased in parentheses, such as ``(1, 2)``.
@@ -101,13 +101,13 @@ Sets can support various operators::
 
   evc> let x = {1, 2, 3, 4};
   evc> let y = {3, 4, 5};
-  evc> x | y;   # union operator
+  evc> x | y;   // union operator
   {1, 2, 3, 4, 5}
-  evc> x - y;   # difference operator
+  evc> x - y;   // difference operator
   {1, 2}
-  evc> x & y;   # intersection operator
+  evc> x & y;   // intersection operator
   {3, 4}
-  evc> x ^ y;   # exclusive OR operator
+  evc> x ^ y;   // exclusive OR operator
   {1, 2, 5}
 
 Sets can be declared with the ``set()`` function.
@@ -131,8 +131,9 @@ considered an empty dictionary::
 Dictionaries
 ------------
 
-A dictionary is what eggheads call *associative arrays*
-and what JavaScript calls *objects*.
+What eggheads call *associative arrays*
+and JavaScript calls *objects*,
+I call *dictionaries*, like Python does.
 Although EvilCandy's dictionaries are not pure dictionaries
 as in Python—they are very much the way to create user-defined
 classes—I have chosen to use Python's term "dictionary",
@@ -152,14 +153,14 @@ The key may be any hashable object::
   evc> x = {[1]: 'a'};
   [EvilCandy] KeyError 'list' is unhashable
 
-They are indexed according to key, not insertion number::
+Dictionaries are indexed according to key, not insertion number::
 
   evc> let x = {'a': 5, 1: 5};
   evc> x['a'];
   5
-  evc> x[1]; # 1 is a key to x
+  evc> x[1]; // 1 is a key to x
   5
-  evc> x[0]; # 0 is not a key to x
+  evc> x[0]; // 0 is not a key to x
   [EvilCandy] TypeError Cannot get attribute '0' of type dict
 
 If a key is a string, and it happens to follow the same rules
@@ -173,7 +174,9 @@ dot notation::
   1
 
 If a key does not exist, then that member of the dictionary
-cannot be read.  It *can* be written, however::
+cannot be read.  It *can* be written, however.
+Writing to a non-existent entry in a dictionary will
+silently create the entry::
 
   evc> let x = {};
   evc> x.a;
@@ -182,7 +185,8 @@ cannot be read.  It *can* be written, however::
   evc> x;
   {'a': 1}
 
-It can also be reassigned or deleted with the ``delete`` keyword::
+A dictionary entry can be reassigned.
+Using the ``delete`` keyword, it can also be deleted::
 
   evc> let x = {'a': 1, 'b': 2, 'c': 3};
   evc> x.b = 'two';
@@ -196,27 +200,27 @@ using keyword arguments::
   evc> dict(name='paul', status='bald');
   {'name': 'paul', 'status': 'bald'}
 
-Pitfall Notice for JavaScript Users
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. caution::
 
-If a key expression in a dictionary literal is just an identifier,
-EvilCandy will evaluate the identifier to create the key.
-It will *not* convert the identifier into a string the way many
-JavaScript implementations will do.  Given the following::
+   People familiar with JavaScript may run into a pitfall when declaring
+   keys in dictionary literals.  If the key expression is just an
+   identifier, EvilCandy will evaluate the identifier to create the key.
+   It will *not* convert the identifier into a string the way many
+   JavaScript implementations will do.  Given the following::
 
-   let a = 'not_a';
-   let x = { a: 1 };
+      let a = 'not_a';
+      let x = { a: 1 };
 
-The resultant dictionary would be::
+   The resultant dictionary would be::
 
-   # JavaScript result:
-   { 'a': 1 }
+      // JavaScript result:
+      { 'a': 1 }
 
-   # EvilCandy result:
-   { 'not_a': 1 }
+      // EvilCandy result:
+      { 'not_a': 1 }
 
-In JavaScript, square brackets force an identifier in the key expression
-to be evaluated rather than converted into a string.  EvilCandy *always*
-evaluates the key expression.  Square brackets will just cause an
-exception to be thrown, since lists are unhashable.
+   In JavaScript, square brackets force an identifier in the key expression
+   to be evaluated rather than converted into a string.  EvilCandy *always*
+   evaluates the key expression.  In EvilCandy, square brackets in the key
+   will just cause an exception to be thrown, since lists are unhashable.
 

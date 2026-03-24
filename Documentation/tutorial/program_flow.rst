@@ -15,7 +15,7 @@ algorithm (albeit inaccurately due to the low number of iterations)::
     ...    den += 2;
     ...    result -= num / den;
     ...    den += 2;
-    ...    i++;  # "++" means "increment by one"
+    ...    i++;  // "++" means "increment by one"
     ... }
    evc> print(result);
    3.1390926574960143
@@ -87,9 +87,9 @@ you could convert it with the logical-not ``!`` operator.
 Two in a row will convert a true value into the integer 1
 and a false value into the integer 0.::
 
-   evc> !!'A';  # string length is one, so it's true
+   evc> !!'A';  // string length is one, so it's true
    1
-   evc> !!'';   # empty string is false
+   evc> !!'';   // empty string is false
    0
    evc> true;
    1
@@ -126,11 +126,11 @@ In a control loop, ``break`` quits the loop early.
 ``continue`` skips the remainder of the current iteration
 and moves on to the next iteration::
 
-  # determine if 127 is a prime number
+  // determine if 127 is a prime number
   let n = 127;
   let i = 2;
   while (i < n) {
-        # percent operated on integers means "modulo"
+        // percent operated on integers means "modulo"
         if ((n % i) == 0)
                 break;
         i++;
@@ -253,8 +253,8 @@ but it demonstrates the usefulness of ``else`` in the ``for`` loop::
     ...     den += 2;
     ...     result -= num / den;
     ...     den += 2;
-    ...     # from the 'while' example above you can see
-    ...     # that this 'break' will never occur.
+    ...     // from the 'while' example above you can see
+    ...     // that this 'break' will never occur.
     ...     if (abs(result - 3.14) < 0.0001)
     ...         break;
     ... } else {
@@ -274,7 +274,7 @@ but the interpreter does not care.
 even for bodies containing only a single simple statement.
 Otherwise indentation can be misleading.  Consider the following::
 
-  # THIS IS BAD!
+  // THIS IS BAD!
   for (x in y)
       if (x)
           do_this();
@@ -484,8 +484,8 @@ definition of "closure".
 A few things to also note about closures:
 
 1. In EvilCandy, every script is thought of as a function at the top
-   level, so any function that accesses script-scope variables will
-   create a closure.  The same is true in interactive mode.
+   level, so any function within it that accesses script-scope variables
+   will create a closure.  The same is true in interactive mode.
    This is different from, for example, Python, which treats variables
    declared at the top level as something very similar to what EvilCandy
    calls "global".
@@ -509,7 +509,7 @@ A few things to also note about closures:
    Note also that changing ``n`` in its normal scope
    (setting it to 3 on the fifth line)
    did not affect the ``n`` value of ``doubler``.  This is because
-   ``n`` wasn't really "changed" at the top level.  It was reassigned.
+   ``n`` wasn't really "changed" at the top level.  It was reassigned [#]_.
    The closure received its own handle to the earlier ``n``,
    so reassigning the "outer" ``n`` has no effect on ``doubler``.
    This has implications for mutable objects, which I'll get to in a minute.
@@ -524,8 +524,8 @@ A few things to also note about closures:
 
       evc> let n = 1;
       evc> let x = function() { n++; };
-      evc> x(); # increment "enclosed" n
-      evc> n;   # see no change to "outer" n
+      evc> x(); // increment "enclosed" n
+      evc> n;   // see no change to "outer" n
       1
 
    I say "technically," because there are so few cases where reassigning
@@ -571,17 +571,17 @@ back when computers were made of wood and sails and TCP was transported
 by carrier pigeons, so it mattered how big a JavaScript file got.
 Given the two choices::
 
-   # choice one:
+   // choice one:
    let x = (function() {
-        # ...code that calculates a value...
+        // ...code that calculates a value...
         return calculated_value;
    })();
 
 ::
 
-   # choice two:
+   // choice two:
    let x;
-   # ...code that calculates a value...
+   // ...code that calculates a value...
    x = calculated_value;
 
 The latter is faster, due to the lack of a frame swap, while the
@@ -591,16 +591,20 @@ but JavaScript users in particular are so addicted to this sort of thing,
 especially when using JavaScript's ``=>`` lambda notation,
 that they use it even in highly-iterative loops [#]_.
 
-If you don't care about cuteness but you do care about namespace clutter,
+If you don't care about cuteness but you do care about namespace clutter
+from all the temporary variables you add to calculate the result,
 you could still use the second example, rewritten as::
 
-   # choice three:
+   // choice three:
    let x;
    {
-        # ...calculate a value...
+        // ...calculate a value...
         x = calculated_value;
    }
 
+This lacks the overhead of a function call [#]_,
+and it limits the scope of the temporary
+variables to within the braces.
 Just be sure that ``x`` itself is declared outside the braces.
 More on that when discussing variable scope.
 
@@ -659,6 +663,14 @@ Notes
 
 .. [#]
 
+   In the example, it woud also be reassigned instead of modified
+   if the increment ``++`` operator was used.
+   ``x++;`` is equivalent to ``x=x+1;``
+   That is, x is *assigned* a new integer object equal
+   to one greater than its old self.
+
+.. [#]
+
    Except that in this *particular* case, Python would not turn ``n``
    into a closure anyway, since variables declared at the top-level scope
    in Python's interactive mode are more or less the same as what
@@ -675,3 +687,10 @@ Notes
    they can perform optimizations you never heard of),
    and the only performance hit is due to a reduced locality of reference.
 
+.. [#]
+
+   Actually, it has no overhead at all.  It will compile the same as if
+   it wasn't there.  Local-variable namespace issues are sorted out
+   entirely during compile time.  By runtime, with the exception of the
+   top level during interactive mode, all local variable names have been
+   replaced by stack offsets.

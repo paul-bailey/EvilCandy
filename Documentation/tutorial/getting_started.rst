@@ -11,7 +11,7 @@ To run a script with EvilCandy,
 you must either name it on the command line
 or pass it through EvilCandy as a pipe:
 
-.. code::
+.. code-block:: sh
 
         # execute 'myscript.evc':
         evilcandy myscript.evc
@@ -44,9 +44,7 @@ after a full top-level statement has been typed.
 If a statement returns a value,
 and the value is not the ``null`` object,
 that value will be printed to the standard output.
-(To print the value of ``null``, use the ``print`` function.)
-
-.. code-block::
+To print the value of ``null``, use the ``print`` function.::
 
    evc> 123;
    123
@@ -57,11 +55,9 @@ that value will be printed to the standard output.
 Hello World
 -----------
 
-In EvilCandy, a "hello world" program is the following line:
+In EvilCandy, a "hello world" program is the following line::
 
-.. code::
-
-        print("Hello world");
+   print("Hello world");
 
 There is no need to import any IO modules into the namespace
 before using the function ``print``.
@@ -292,13 +288,18 @@ They take the form of *key* ``=`` *value*.
    unlike JavaScript, EvilCandy is strict about
    the number of arguments passed to functions.
 
-To have multiple calls to ``print`` print to the same line,
-use the ``end`` keyword argument:
+To keep the output of ``print`` on the same line across
+multiple calls, use the ``end`` keyword argument:
 
 .. code-block::
 
-   evc> print('earth, ', end=''); print('wind, fire');
+   evc> {
+    ...    print('earth, ', end='');
+    ...    print('wind, ', end='');
+    ...    print('fire');
+    ... }
    earth, wind, fire
+
 
 Print Objects Other Than Strings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -328,6 +329,24 @@ usually within angle brackets:
    evc> print(print);
    <function (intl) at 0x10c7c9360>
 
+Printing With f-strings
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Text beginning with ``f'`` or ``f"`` is a format string,
+also called an "f-string."
+A pair of curly braces in the string wraps something to be evaluated
+and inserted into the text::
+
+   evc> let age = 20;
+   evc> print(f'I wish I was {age} again');
+   I wish I was 20 again
+
+Within the curly braces, a colon ``:`` followed by printf-like
+formatting instructions will specify the conversion::
+
+   evc> let val = 511;
+   evc> print(f'The register contains a value of 0x{val:08X}');
+   The register contains a value of 0x000001FF
 
 Basic Programming With EvilCandy
 --------------------------------
@@ -338,11 +357,34 @@ Number Calculations
 Let's start with the most basic calculations.
 EvilCandy processes the usual mathematical operators,
 ``*`` for multiplication, ``/`` for division, ``+`` and ``-``
-and so on.  Parentheses are for grouping.
-(Do not think you are too fussy with parentheses.
+and so on.
+``%`` is the modulo (remainder) operator.
+``**`` is the power operator;
+like Python, power is built-in to the language.
+
+EvilCandy also has a number of bitwise operators that
+can be used on integers.
+Do not confuse these *bitwise* operators
+with *logical* operators,
+which are used in truth statements and such.
+Unless you are used to C or assembly
+(or unless you are working with sets,
+which we'll discuss later),
+chances are you are looking for the logical operators.
+The bitwise operators are:
+
+  | ``^`` for exclusive OR
+  | ``|`` for inclusive OR
+  | ``&`` for AND
+  | ``~`` for NOT
+  | ``<<`` for left shift
+  | ``>>`` for right shift
+
+Parentheses are for grouping.
+Do not think you are being too fussy with parentheses.
 The order of operations is very inconsistent
-from one programming language to another.)
-EvilCandy has an exponentiation operator like Python, ``**``.
+from one programming language to another,
+so parenthesize any time you are unsure.
 
 All division between integers is floored.
 Any arithmetic between numbers of different types
@@ -351,9 +393,9 @@ These priorities are: complex > float > integer.
 
 .. code::
 
-   evc> 1 / 2.0;        # answer will be float
+   evc> 1 / 2.0;        // answer will be float
    0.5
-   evc> 3 + (1.0 + 4j); # answer will be complex
+   evc> 3 + (1.0 + 4j); // answer will be complex
    (4+4j)
 
 Integers are limited to values that can be stored in
@@ -378,10 +420,10 @@ you could wrap it with the other kind.
 
 .. code-block::
 
-   # Escaped quote
+   // Escaped quote
    let y = 'Grabthar\'s hammer';
 
-   # Alternative quote used, slightly more readable
+   // Alternative quote used, slightly more readable
    let x = "Grabthar's hammer";
 
 Backslashes themselves must be escaped,
@@ -391,7 +433,7 @@ For the second input below, when typing ENTER,
 the interpreter added the quote, semicolon and newline to the string
 being parsed; it still thinks it is receiving text to put into a string.
 
-.. code-block::
+.. code-block:: none
 
    evc> '\\';
    '\\'
@@ -419,7 +461,7 @@ Otherwise they may be concatenated with the ``+`` operator.
 
 String literals may wrap multiple lines.
 
-.. code-block::
+.. code-block:: js
 
    evc> 'This is a line.
     ... This is another line.';
@@ -428,9 +470,13 @@ String literals may wrap multiple lines.
 .. note::
 
    Wrapping lines in this way tends to render the code difficult to read,
-   since it may require un-aligned margins.  A better way is this:
+   since it messes up indentation.  A better way is this::
 
-   .. code-block::
+      evc> 'This is a line.\n'
+       ... 'This is another line.';
+      'This is a line.\nThis is another line.'
+
+   or, if speed is not a concern::
 
       evc> '\n'.join([
        ...    'This is a line.',
@@ -444,7 +490,7 @@ Strings can be repeated if multiplied by an integer.
 
 .. code-block::
 
-   evc> 3 * 'well'; # my favorite story
+   evc> 3 * 'well'; // my favorite story
    'wellwellwell'
 
 Strings can be indexed according to character, starting from index zero.
@@ -480,6 +526,11 @@ function or by the string-object's ``length`` attribute.
    evc> length('abc');
    3
 
+.. note::
+
+   The ``length`` atribute is not used with every sequential object class.
+   The ``length()`` function is better supported.
+
 Lists
 ~~~~~
 
@@ -505,6 +556,7 @@ and may contain mixed types.
 
 Lists may be concatenated with the ``+`` operator,
 or repeated by multiplying by an integer.
+This will always result in the creation of a new list.
 
 .. code-block::
 
@@ -518,10 +570,10 @@ You may append an item to a list using the class's built-in ``.append()`` method
 
 .. code-block::
 
-   evc> let x = [1, 2];
-   evc> x.append('three!');
+   evc> let x = ['Peter', 'Paul'];
+   evc> x.append('Mary');
    evc> x;
-   [1, 2, 'three!']
+   ['Peter', 'Paul', 'Mary']
 
 You may delete an item in a list using either the ``.remove()`` method
 or the ``.pop()`` method.  ``remove`` removes the first item matching

@@ -613,35 +613,57 @@ More on that when discussing variable scope.
 Lambda Notation
 ~~~~~~~~~~~~~~~
 
-The ``multer`` example above involves small trivial functions.
-An alternative way to express them is as follows::
+The lambda returned by ``multer`` in the above example is trivially small.
+An alternative way to express it is as follows::
 
    evc> let multer = function(n) {
-    ...      return ``(x) x * n``;
+    ...      return (x) => x * n;
     ... };
 
-This is EvilCandy's *lambda notation*, although we are being very
+This is EvilCandy's *lambda notation* [#]_, although we are being very
 loose with the word "lambda", which here means "a way to make
 a short function look shorter."
 The general form is:
 
 | When the return value can be calculated in a single expression:
-|        `````` ``(`` *args* ``)`` *expr* ``````
+|        ``(`` *args* ``) =>`` *expr*
 
 | When the return value requires a block expression:
-|       `````` ``(`` *args* ``) {`` *stmts* ``}`` ``````
+|        ``(`` *args* ``) => {`` *stmts* ``}``
 
 In the first example, *expr* is not a full statement;
 it is just an evaluable expression.
-It is not followed by a semicolon.
 In the second example,
 the benefit of lambda notation—brevity—is lost,
 so it's best to use normal function notation.
 
-In practice, a lambda function will not be executed any differently
-just because it was expressed this way instead of using normal function
-notation.  It is merely a visual shorthand, which is only useful for
-short functions.
+A lambda expression does not permit starred arguments or keyword
+arguments.  It should just be a sequence of comma-delimited identifiers.
+If its argument list needs to be more complicated than that,
+use normal function notation.
+
+In practice, a function declared with lambda notation will not execute
+any differently than an equivalent function declared with normal notation.
+This notation is merely a visual shorthand, and it is only useful for
+already-short functions.
+
+Lambda notation is most useful in an IIFE (but see above rant),
+where a simple transformation is being performed.  Due to the nature
+of the notation, lambda IIFEs need to be wrapped in parentheses before
+passing arguments::
+
+  evc> let x = 'hello';
+  evc> x = ((x) => x + '\n')(x);
+  evc> x;
+  'hello\n'
+
+.. note::
+
+   Do not confuse ``=>`` with ``>=``. When doing a comparison,
+   the ``>`` or ``<`` is always to the *left* of the ``=``.
+
+     | ``>=`` means "greater than or equal to".
+     | ``=>`` means "lambda arrow thingy".
 
 Notes
 -----
@@ -694,3 +716,9 @@ Notes
    entirely during compile time.  By runtime, with the exception of the
    top level during interactive mode, all local variable names have been
    replaced by stack offsets.
+
+.. [#]
+
+   Our lambda notation is modeled after JavaScript's, which cutely
+   immitates the ``λ ↦`` notation used in lambda calculus.
+

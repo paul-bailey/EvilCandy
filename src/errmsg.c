@@ -11,9 +11,9 @@ err_hashable(Object *obj, const char *fname)
 {
         const char *msg;
         if (isvar_tuple(obj)) {
-                msg = "contains unhashable data";
+                msg = " contains unhashable data";
         } else {
-                msg = "is unhashable";
+                msg = " is unhashable";
         }
         err_setstr(KeyError, "%s%s'%s'%s",
                 fname ? fname : "", fname ? "(): " : "",

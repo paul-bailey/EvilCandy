@@ -27,6 +27,7 @@ not a throrough catalogue of the language's features.
 
    getting_started.rst
    program_flow.rst
+   data_types.rst
 
 .. [#]
 

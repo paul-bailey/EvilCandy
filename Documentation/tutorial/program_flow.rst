@@ -45,6 +45,23 @@ statement, otherwise skip it.
 In the latter case, execute *stmt1* if true
 or *stmt2* if false.
 
+If statements may be chained the usual way::
+
+  if (x == 1)
+        action_1();
+  else if (x == 2)
+        action_2();
+  else if (x == 3)
+        action_3();
+  else
+        action_4();
+
+.. note::
+
+   Version 0.1.0 does not support ``switch`` or its many aliases, such
+   as ``match`` in Python or ``case`` in bash.  Adding it to a later
+   version is on the to-do list.
+
 Evaluating boolean expressions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -102,6 +119,44 @@ Both cases enable local variables to be declared within the braces
 without cluttering up the outer namespace.
 (More on variable scope later).
 
+"break" and "continue" statements
+---------------------------------
+
+In a control loop, ``break`` quits the loop early.
+``continue`` skips the remainder of the current iteration
+and moves on to the next iteration::
+
+  # determine if 127 is a prime number
+  let n = 127;
+  let i = 2;
+  while (i < n) {
+        # percent operated on integers means "modulo"
+        if ((n % i) == 0)
+                break;
+        i++;
+  }
+  if (i == n)
+        print("prime");
+  else
+        print("not prime");
+
+In this example, the loop quits early if a number ``i`` is found
+such that n / i will leave no remainder (n modulo i).
+
+Here is a (rather weird) alternative to the ``while`` loop,
+using ``continue``::
+
+   while (i < n) {
+        if ((n % i) != 0) {
+                i++;
+                continue;
+        }
+        break;
+   }
+
+As long as ``i`` is not an integer divisor of ``n``,
+the ``continue`` will prevent the loop from breaking early.
+
 "for" Statements
 ----------------
 
@@ -119,22 +174,22 @@ for every iteration of the loop.
 Since any traditional ``for`` loop can be implemented
 by a ``while`` loop...
 
-        | ``for(`` A ``;`` B ``;`` C ``)``
-        |          *stmt*
+    | for (A; B; C)
+    |     *stmt*
 
-is the same as
+is functionally equivalent to
 
-        | A;
-        | ``while (`` B ``) {``
-        |          *stmt*
-        |          C
-        | ``}``
+    | A;
+    | while (B) {
+    |     *stmt*
+    |     C
+    | }
 
 ...there is no need for a C-like ``for`` statement.
 
 In EvilCandy, the ``for`` statement takes the form:
 
-        | ``for (`` *identifier* ``in`` *sequence* ``)``
+        | ``for`` (*identifier* ``in`` *sequence*)
         |         *stmt*
 
 *sequence* may be any iterable object, like a list, or even
@@ -333,6 +388,21 @@ while in the second case, there is one argument, a list containing
    Version 0.1.0 does not support double-star unpacking during a function
    call, e.g. ``foo(**x);``.  Implementing that is on the to-do list.
    Until then, use the *keyword=value* format.
+
+.. note::
+
+   Version 0.1.0 does not support Python-like default arguments,
+   e.g. function protos like::
+
+     function foo(a, b=1, c=2) {...
+
+   Implementing that is on the to-do list.
+   Until then, use a proto like::
+
+     function foo(*args) {...
+
+   and set defaults or user-provided values based upon
+   the length of ``args``.
 
 All functions return a result.
 If program flow reaches an end

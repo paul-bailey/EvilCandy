@@ -115,7 +115,7 @@ EvilCandy's ``for`` statements resemble Python's rather than
 JavaScript's verbose C-like ``for`` statements.
 The Python-style ``for`` loop is inherently faster
 than the traditional ``for`` statement,
-due to some under-the-hood implementation details involving
+due to some under-the-hood implementation details which avoid
 the creation and destruction of objects during the iteration step.
 They are also faster than JavaScript's
 sequential objects' ``.foreach()`` method,
@@ -183,12 +183,12 @@ This is because EvilCandy's ``for`` loop
 also uses an optional ``else`` clause,
 so the interpreter will hold off execution until it gets
 the next token;
-if it's not ``else``, then the iterpreter
+if it's not ``else``, then the interpreter
 will assume it to be the start of the next statement
 and therefore execute the ``for`` loop.
 To force execution before typing the next statement
 (``print`` in this example),
-the enpty statement ``;`` will do the trick.
+the empty statement ``;`` will do the trick.
 If the interpreter is parsing a script,
 or if it is in interactive mode
 but nested at least one layer deep in program flow,
@@ -227,7 +227,7 @@ Indentation is useful for human readability,
 but the interpreter does not care.
 **Always use braces around** ``for`` **loops**,
 even for bodies containing only a single simple statement.
-Otherwise indendation can be misleading.  Consider the following.
+Otherwise indentation can be misleading.  Consider the following.
 
    .. code-block::
 
@@ -246,7 +246,10 @@ but it is actually part of the ``if`` statement.
 Functions
 ---------
 
-Unless we're discussing some egg-headed CS concept of a function,
+Function Basics
+~~~~~~~~~~~~~~~
+
+Unless we are discussing some egg-headed CS concept of a function,
 the most succinct definition of a function is in K&R:
 "A function provides a convenient way to encapsulate some computation,
 which can then be used without worrying about its implementation" [#]_ [#]_.
@@ -316,6 +319,9 @@ is strictly enforced.
 
 Variadic functions or functions taking keyword arguments
 can use star or double-star notation, similar to Python.
+When calling a function with keyword arguments, place the
+keyword arguments at the end of the argument list, and use
+the format *keyword=value*.
 
 .. code-block::
 
@@ -327,7 +333,7 @@ can use star or double-star notation, similar to Python.
    args: ['line', 1]
    kwargs: {'kw_a': 'a', 'kw_b': 'b'}
 
-A sequential object can be unpacked into the argument
+A sequential object can be unpacked into the argument list
 using the star operator.
 
 .. code-block::
@@ -344,6 +350,12 @@ In the above first case, there are three arguments, 1, 2, and 3,
 while in the second case, there is one argument, a list containing
 1, 2, and 3.
 
+.. note::
+
+   Version 0.1.0 does not support double-star unpacking during a function
+   call, e.g. ``foo(**x);``.  Implementing that is on the to-do list.
+   Until then, use the *keyword=value* format.
+
 All functions return a result.
 If program flow reaches an end
 without encountering the ``return`` statement,
@@ -357,7 +369,7 @@ the function will return ``null``.
    null
 
 Nested Functions and Closures
------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Functions can be nested arbitrarily deep.  The obvious use for this
 is for helper functions which do not need to be repeated anywhere.
@@ -370,11 +382,17 @@ But there are other uses, and here we'll talk about *lambdas* and
 synonymous with "function handle"; a function can return a handle to
 another function.  A closure is a function which encapsulates
 information outside of its scope and remembers it each time it is called.
-(For C programmers, think of this as a function with a local static
-variable, except that in EvilCandy's case, the variable is initialized
-not at compile time, but later, each time the function is instantiated.)
-A function which returns a closure, then, is very powerful.
 
+.. note::
+
+   For C programmers, think of a closure as a function with a local static
+   variable. But there are two differences. One, in C, a function has only
+   a single instantiation, while in EvilCandy, a function can have many
+   instantiations.  Two, in C, the static variable is initialized when
+   the program is compiled and linked, while in EvilCandy, the variable
+   is initialized during runtime, each time the function is instantiated.
+
+A function which returns a closure, then, is very powerful.
 Take, for instance, the following example:
 
 .. code-block::
@@ -387,10 +405,19 @@ Take, for instance, the following example:
    evc> let doubler = multer(2);
    evc> let tripler = multer(3);
 
-In this example, ``multer(n)`` returns a lambda which multiplies an input
-by the value specificied by ``n``.  ``doubler`` and ``tripler`` have been
-assigned different instantiations of this lambda.  Now let's see what
-they do:
+In this example, ``multer(n)`` returns a lambda which multiplies an
+argument ``x`` by the value specified by ``n``.
+But ``n`` is in the parent function's scope, not the lambda's scope;
+when ``multer`` returns, its value
+``n`` will go out of scope.
+So that ``n`` will still be available to the lambda later,
+it will be stored with the lambda's own instantiation data.
+Closures like these are created every time a function accesses
+a variable in a higher-up scope.
+
+``doubler`` and ``tripler`` have been
+assigned different instantiations of the lambda returned by ``multer``.
+Now let's see what they do:
 
 .. code-block::
 
@@ -398,6 +425,13 @@ they do:
    6
    evc> tripler(3);
    9
+   evc> doubler('a');
+   'aa'
+   evc> tripler('a');
+   'aaa'
+
+``doubler`` in this example will always multiply its input by 2
+and ``tripler`` will always multiply its input by 3.
 
 Although it's more correct to say that the lambda instantiated by and
 returned from ``multer`` is a closure, it's more common to say that
@@ -409,8 +443,13 @@ A few things to also note about closures:
 
 1. In EvilCandy, every script is thought of as a function at the top
    level, so any function that accesses script-scope variables will
-   create a closure.  The above example could also be express in
-   this way, and ``n`` will still be a closure:
+   create a closure.  The same is true in interactive mode.
+   This is different from, for example, Python, which treats variables
+   declared at the top level as something very similar to what EvilCandy
+   calls "global".
+
+   The above ``multer`` example could also be expressed in this way,
+   and ``n`` will still be a closure:
 
    .. code-block::
 
@@ -427,20 +466,21 @@ A few things to also note about closures:
       evc> tripler(3);
       9
 
-   Note also that changing ``n`` in its normal scope (setting it to 3)
+   Note also that changing ``n`` in its normal scope
+   (setting it to 3 on the fifth line)
    did not affect the ``n`` value of ``doubler``.  This is because
-   ``n`` wasn't really "changed".  It was reassigned.  The closure
-   received its own handle to the earlier ``n``, so reassigning the
-   "outer" ``n`` has no effect on ``doubler``.  This has implications
-   for mutable objects, which I'll get to in a minute.
+   ``n`` wasn't really "changed" at the top level.  It was reassigned.
+   The closure received its own handle to the earlier ``n``,
+   so reassigning the "outer" ``n`` has no effect on ``doubler``.
+   This has implications for mutable objects, which I'll get to in a minute.
 
 2. Accessing global variables will not result in the creation of a
    closure, since every scope has access to every global variable.
    The example in note 1 above will not work if ``n`` was declared
    with ``global`` instead of ``let``.
 
-3. A closure is writable, but it will only take effect in the enclosed
-   function, not the original scope.
+3. A closure is technically writable, but it will only take effect in the
+   enclosed function, not the original scope.
 
    .. code-block::
 
@@ -450,11 +490,11 @@ A few things to also note about closures:
       evc> n;   # see no change to "outer" n
       1
 
-   As a side-note, there are so few cases where reassigning a closure
-   like this is useful, that some programming languages like Python
-   do not even allow it.
+   I say "technically," because there are so few cases where reassigning
+   a closure like this is useful that some programming languages like
+   Python do not even allow it [#]_.
 
-4. If closure data is mutable, such as a list, then modifying (not
+4. If closure data is mutable, such as a list, then modifying (rather than
    reassigning) the closure data *will* effect the data in the outer scope.
 
    .. code-block::
@@ -469,6 +509,109 @@ A few things to also note about closures:
 
    This has useful implications for creating private data when building
    user-defined classes.
+
+IIFEs
+~~~~~
+
+Because all functions are anonymous, and because EvilCandy treats a
+function's definition like any other literal expression,
+immediately-invoked function expressions (IIFEs, pronounced "iffies")
+are possible.  A trivial example of an IFFE is:
+
+.. code-block::
+
+   evc> function(x) { return x + 1; }(5);
+   6
+
+Common practice is to wrap the function expression in parentheses, as a
+conventional way to say "this is an evaluation statement".
+
+.. code-block::
+
+   evc> (function(x) { return x + 1; })(5);
+   6
+
+``<rant>``
+
+Frankly, IIFEs are an accident of how the language works, not a
+deliberate feature.  They were more useful in JavaScript thirty years ago,
+back when computers were made of wood and sails and TCP was transported
+by carrier pigeons, so it mattered how big a JavaScript file got.
+Given the two choices:
+
+.. code-block::
+
+   # choice one:
+   let x = (function() {
+        # ...code that calculates a value...
+        return calculated_value;
+   })();
+
+.. code-block::
+
+   # choice two:
+   let x;
+   # ...code that calculates a value...
+   x = calculated_value;
+
+The latter is faster, due to the lack of a frame swap, while the
+former is *cuter*.  It may not matter in already-slow parts of the code,
+where not much is going on algorithmically,
+but JavaScript users in particular are so addicted to this sort of thing,
+especially when using JavaScript's ``=>`` lambda notation,
+that they use it even in highly-iterative loops [#]_.
+
+If you don't care about cuteness but you do care about namespace clutter,
+you could still use the second example, rewritten as:
+
+.. code-block::
+
+   # choice three:
+   let x;
+   {
+        # ...calculate a value...
+        x = calculated_value;
+   }
+
+Just be sure that ``x`` itself is declared outside the braces.
+More on that when discussing variable scope.
+
+``</rant>``
+
+Lambda Notation
+~~~~~~~~~~~~~~~
+
+The ``multer`` example above involves small trivial functions.
+An alternative way to express them is as follows:
+
+.. code-block::
+
+   evc> let multer = function(n) {
+    ...      return ``(x) x * n``;
+    ... };
+
+This is EvilCandy's *lambda notation*, although we are being very
+loose with the word "lambda", which here means "a way to make
+a short function look shorter."
+The general form is:
+
+| When the return value can be calculated in a single expression:
+|        `````` ``(`` *args* ``)`` *expr* ``````
+
+| When the return value requires a block expression:
+|       `````` ``(`` *args* ``) {`` *stmts* ``}`` ``````
+
+In the first example, *expr* is not a full statement;
+it is just an evaluable expression.
+It is not followed by a semicolon.
+In the second example,
+the benefit of lambda notation—brevity—is lost,
+so it's best to use normal function notation.
+
+In practice, a lambda function will not be executed any differently
+just because it was expressed this way instead of using normal function
+notation.  It is merely a visual shorthand, which is only useful for
+short functions.
 
 Notes
 -----
@@ -488,4 +631,21 @@ Notes
    I would replace "computation" with "computation OR execution",
    since the word "function" has also become interchangeable with "subroutine".
 
+.. [#]
+
+   Except that in this *particular* case, Python would not turn ``n``
+   into a closure anyway, since variables declared at the top-level scope
+   in Python's interactive mode are more or less the same as what
+   EvilCandy calls "global".  Where Python does not allow it are
+   instances like the ``multer`` example; if the lambda modifies ``n``
+   in some way, Python would throw an exception.
+
+.. [#]
+
+   Function calls in EvilCandy (and most every other scripting language)
+   are non-trivial.  They aren't like C, where the stack overhead of a
+   function call is negligible (especially on ARM architecture,
+   where compilers have gotten so smart
+   they can perform optimizations you never heard of),
+   and the only performance hit is due to a reduced locality of reference.
 

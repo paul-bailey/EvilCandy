@@ -58,13 +58,13 @@ Must Do
   - Handle no-args to dir() function.
   - Add mutable alternative to bytes
   - Add self-documentation
-  - Finalize closure behavior, be more like theoretical closures.
   - Fill in math, cmath, io, socket libraries
   - Fill in built-in methods for strings, arrays, etc.
   - Fill in __gbl__._sys
   - Finish path resolution
   - Make consistent and accurate error reporting
 
+  - **fine with as-is** Finalize closure behavior, be more like theoretical closures.
   - **done** Add user-defined properties to dictionaries
   - **done** Pass arguments to script.
   - **done** Add dir() function
@@ -207,6 +207,9 @@ Mebbe/Wishlist/Low-prio bugs
 
 * Replace jmp_buf in token.c with either fussier management of helper
   functions' return values, or with a big damn get_tok function.
+
+* Review whether certain functions can be called using a reduced
+  fast-path method.
 
 
 * **done** Replace stack arrangement of FOREACH_ITER to use an iterator of the

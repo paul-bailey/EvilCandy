@@ -64,6 +64,7 @@ ANDEQ           '&='            assign
 EQ3             '==='
 NEQ3            '!=='
 LSHIFT3         '>>>'
+RARROW          '=>'
 FUNCARG         "__funcarg__"
 DELETE          "delete"
 FUNC            "function"

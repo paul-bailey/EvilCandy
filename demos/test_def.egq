@@ -41,7 +41,7 @@ print("\t{}\n\t{}".format(helloworld, helloagain));
     let a = o();
     a.a = 'x';
     let b = o();
-    let c =  { d: 1 };
+    let c =  { 'd': 1 };
     let d = o(c);
     print("A");
     printobj(a);

@@ -131,7 +131,8 @@ as_next_funcno(struct assemble_t *a)
 static inline token_pos_t
 as_savetok(struct assemble_t *a, struct token_t *dst)
 {
-        memcpy(dst, a->oc, sizeof(*dst));
+        if (dst)
+                memcpy(dst, a->oc, sizeof(*dst));
         return token_get_pos(a->prog);
 }
 
@@ -501,6 +502,89 @@ fakestack_declare(struct assemble_t *a, Object *name)
         return idx;
 }
 
+struct names_t {
+        struct list_t list;
+        struct token_t tok;
+        token_pos_t pos;
+        int namei;
+};
+#define AS_LIST2NAMES(p) (container_of(p, struct names_t, list))
+
+static void
+cleanup_names(struct list_t *names)
+{
+        struct list_t *p, *q;
+        list_foreach_safe(p, q, names) {
+                list_remove(p);
+                /* list is first entry */
+                efree(AS_LIST2NAMES(p));
+        }
+}
+
+/*
+ * common to assemble_unpacker and assemble_declarator stmt
+ * This should end with token state pointing at '=' or (if
+ * let/global) ';'
+ */
+static int
+gather_names(struct assemble_t *a, struct list_t *names,
+             int *star_idx, bool suppress_errors)
+{
+        struct names_t *name;
+        int needsize = 0; /*< start at 1 to account for firstname */
+        int star = -1;
+        const char *emsg;
+
+        list_init(names);
+        bug_on(a->oc->t != OC_IDENTIFIER && a->oc->t != OC_MUL);
+        as_unlex(a);
+
+        do {
+                as_lex(a);
+
+                if (a->oc->t == OC_MUL) {
+                        if (star >= 0)
+                                goto epermit;
+                        star = needsize;
+                        as_lex(a);
+                }
+
+                if (a->oc->t != OC_IDENTIFIER)
+                        goto eident;
+
+                name = emalloc(sizeof(*name));
+                name->pos = as_savetok(a, &name->tok);
+                list_add_front(&name->list, names);
+
+                needsize++;
+
+                as_lex(a);
+        } while (a->oc->t == OC_COMMA);
+
+        bug_on(needsize < 1);
+        if (needsize == 1 && star >= 0) {
+                bug_on(star != 0);
+                goto esingle;
+        }
+        *star_idx = star;
+        return needsize;
+
+eident:
+        emsg = "expected: identifier";
+        goto err;
+epermit:
+        emsg = "starred expression not allowed here";
+        goto err;
+esingle:
+        emsg = "starred target cannot be a single item";
+err:
+        if (!suppress_errors) {
+                err_setstr(SyntaxError, "%s", emsg);
+                as_err(a, AE_EXPECT);
+        }
+        return -1;
+}
+
 /*
  * Parse either "i" of "x[i]" or "i:j:k" of "x[i:j:k]".
  * Return token state such that next as_lex() ought to point at
@@ -555,7 +639,7 @@ assemble_slice(struct assemble_t *a)
 }
 
 static void
-assemble_function(struct assemble_t *a, bool lambda, int funcno)
+assemble_function(struct assemble_t *a, bool lambda, bool arrow, int funcno)
 {
         if (lambda) {
                 /* peek if brace */
@@ -563,11 +647,14 @@ assemble_function(struct assemble_t *a, bool lambda, int funcno)
                 as_unlex(a);
                 if (t == OC_LBRACE) {
                         assemble_stmt(a, 0, 0);
-                        as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
+                        if (!arrow)
+                                as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                 } else {
                         assemble_expr(a, true);
-                        as_lex(a);
-                        as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
+                        if (!arrow) {
+                                as_lex(a);
+                                as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
+                        }
                         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
                         add_instr(a, INSTR_END, 0, 0);
                         /* we know we have return so we can skip */
@@ -657,7 +744,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
 
         bug_on(kwarg == optarg && kwarg >= 0);
 
-        assemble_function(a, lambda, funcno);
+        assemble_function(a, lambda, false, funcno);
 
         /* for user functions, minargs == maxargs */
         bug_on(minargs != seqvar_size(a->fr->af_args));
@@ -716,12 +803,86 @@ done:
                 add_instr(a, INSTR_DEFLIST, 0, n_items);
 }
 
+static bool
+assemble_arrow_lambda(struct assemble_t *a)
+{
+        struct list_t names, *p;
+        int needsize, funcno;
+        token_pos_t pos = as_savetok(a, NULL);
+
+        as_lex(a);
+        if (a->oc->t == OC_RPAR) {
+                /* check for zero-arg lambda */
+                as_lex(a);
+                if (a->oc->t == OC_RARROW) {
+                        needsize = 0;
+                        list_init(&names);
+                        as_unlex(a);
+                        /* fall through, continue processing */
+                } else {
+                        goto not_arrow;
+                }
+        } else if (a->oc->t != OC_IDENTIFIER) {
+                as_unlex(a);
+                return false;
+        } else {
+                int dummy = -1;
+                needsize = gather_names(a, &names, &dummy, true);
+                bug_on(needsize == 0);
+                /*
+                 * Don't allow unpacking in arrow lambda's.  Such a
+                 * lambda would be complicated enough to negate the
+                 * benefit of this notation anyway.
+                 *
+                 * != ')' is probably an error, but let assemble_tupledef
+                 * figure it out.
+                 */
+                if (needsize < 0 || dummy >= 0 || a->oc->t != OC_RPAR)
+                        goto not_arrow;
+        }
+
+        as_lex(a);
+        if (a->oc->t != OC_RARROW)
+                goto not_arrow;
+
+        funcno = as_next_funcno(a);
+
+        ainstr_load_const_obj(a, idvar_new(funcno));
+        add_instr(a, INSTR_DEFFUNC, 0, 0);
+
+        assemble_frame_push(a, funcno);
+        list_foreach(p, &names) {
+                struct names_t *n = AS_LIST2NAMES(p);
+                array_append(a->fr->af_args, n->tok.v);
+        }
+        cleanup_names(&names);
+        assemble_function(a, true, true, funcno);
+
+        as_frame_swap(a);
+        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, needsize);
+        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, needsize);
+        as_frame_swap(a);
+
+        assemble_frame_pop(a);
+        return true;
+
+not_arrow:
+        cleanup_names(&names);
+        (void)as_swap_pos(a, pos);
+        return false;
+}
+
 static void
 assemble_tupledef(struct assemble_t *a)
 {
         int n_items = 0;
         bool has_comma;
         bool have_star = false;
+
+        /* If "(..." is actually "(args) => expr", do that instead */
+        if (assemble_arrow_lambda(a))
+                return;
+
         as_lex(a);
         if (a->oc->t == OC_RPAR) {
                 /* empty tuple */
@@ -1155,6 +1316,9 @@ assemble_expr5_atomic(struct assemble_t *a)
                 assemble_setdef(a);
                 break;
         case OC_LAMBDA:
+                err_setstr(SyntaxError,
+                        "double-backquote lambda notation no longer supported");
+                as_err(a, AE_GEN);
                 assemble_funcdef(a, true);
                 break;
         case OC_THIS:
@@ -1597,79 +1761,6 @@ assemble_this(struct assemble_t *a, unsigned int flags)
         return assemble_primary_elements__(a);
 }
 
-struct names_t {
-        struct list_t list;
-        struct token_t tok;
-        token_pos_t pos;
-        int namei;
-};
-#define AS_LIST2NAMES(p) (container_of(p, struct names_t, list))
-
-static void
-cleanup_names(struct list_t *names)
-{
-        struct list_t *p, *q;
-        list_foreach_safe(p, q, names) {
-                list_remove(p);
-                /* list is first entry */
-                efree(AS_LIST2NAMES(p));
-        }
-}
-
-/*
- * common to assemble_unpacker and assemble_declarator stmt
- * This should end with token state pointing at '=' or (if
- * let/global) ';'
- */
-static int
-gather_names(struct assemble_t *a, struct list_t *names, int *star_idx)
-{
-        struct names_t *name;
-        int needsize = 0; /*< start at 1 to account for firstname */
-        int star = -1;
-
-        list_init(names);
-        bug_on(a->oc->t != OC_IDENTIFIER && a->oc->t != OC_MUL);
-        as_unlex(a);
-
-        do {
-                as_lex(a);
-
-                if (a->oc->t == OC_MUL) {
-                        if (star >= 0) {
-                                err_setstr(SyntaxError,
-                                        "starred expression not allowed here");
-                                as_err(a, AE_EXPECT);
-                        }
-                        star = needsize;
-                        as_lex(a);
-                }
-
-                if (a->oc->t != OC_IDENTIFIER) {
-                        err_ae_expect(a, OC_IDENTIFIER);
-                        as_err(a, AE_EXPECT);
-                }
-
-                name = emalloc(sizeof(*name));
-                name->pos = as_savetok(a, &name->tok);
-                list_add_front(&name->list, names);
-
-                needsize++;
-
-                as_lex(a);
-        } while (a->oc->t == OC_COMMA);
-
-        bug_on(needsize < 1);
-        if (needsize == 1 && star >= 0) {
-                bug_on(star != 0);
-                err_setstr(SyntaxError,
-                           "starred target cannot be a single item");
-                as_err(a, AE_EXPECT);
-        }
-        *star_idx = star;
-        return needsize;
-}
-
 /* return 1 if item left on the stack, 0 if not */
 static int
 assemble_identifier(struct assemble_t *a, unsigned int flags)
@@ -1678,7 +1769,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         int needsize, star;
         struct names_t *n;
 
-        needsize = gather_names(a, &names, &star);
+        needsize = gather_names(a, &names, &star, false);
         if (needsize > 1) {
                 /* eg. "a, b" or "a, b = (some, iterable)" */
                 struct list_t *p;
@@ -1854,7 +1945,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 as_err(a, AE_EXPECT);
         }
 
-        needsize = gather_names(a, &names, &star);
+        needsize = gather_names(a, &names, &star, false);
         (void)star;
 
         global = tok == OC_GBL;
@@ -2110,7 +2201,7 @@ assemble_foreach1(struct assemble_t *a, int breakto)
                 err_ae_expect(a, OC_IDENTIFIER);
                 as_err(a, AE_EXPECT);
         }
-        needsize = gather_names(a, &names, &star);
+        needsize = gather_names(a, &names, &star, false);
 
         if (a->oc->t != OC_IN) {
                 err_ae_expect(a, OC_IN);

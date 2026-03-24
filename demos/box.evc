@@ -115,7 +115,7 @@ let Box = function(**kwargs) {
         priv.count++;
     };
 
-    let box_count = ``() priv.count``;
+    let box_count = () => priv.count;
 
     let ret = {
         '_borderchar': priv.borderchar,

@@ -50,7 +50,7 @@ OROR            '||'            logical
 LEQ             '<='            compare
 GEQ             '>='            compare
 NEQ             '!='            compare
-LAMBDA          '``'
+DBACKQ          '``'
 PLUSEQ          '+='            assign
 MINUSEQ         '-='            assign
 MULEQ           '*='            assign

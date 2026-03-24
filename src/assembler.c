@@ -639,7 +639,7 @@ assemble_slice(struct assemble_t *a)
 }
 
 static void
-assemble_function(struct assemble_t *a, bool lambda, bool arrow, int funcno)
+assemble_function(struct assemble_t *a, bool lambda, int funcno)
 {
         if (lambda) {
                 /* peek if brace */
@@ -647,14 +647,8 @@ assemble_function(struct assemble_t *a, bool lambda, bool arrow, int funcno)
                 as_unlex(a);
                 if (t == OC_LBRACE) {
                         assemble_stmt(a, 0, 0);
-                        if (!arrow)
-                                as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
                 } else {
                         assemble_expr(a, true);
-                        if (!arrow) {
-                                as_lex(a);
-                                as_err_if(a, a->oc->t != OC_LAMBDA, AE_LAMBDA);
-                        }
                         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
                         add_instr(a, INSTR_END, 0, 0);
                         /* we know we have return so we can skip */
@@ -672,7 +666,7 @@ assemble_function(struct assemble_t *a, bool lambda, bool arrow, int funcno)
 }
 
 static void
-assemble_funcdef(struct assemble_t *a, bool lambda)
+assemble_funcdef(struct assemble_t *a)
 {
         int funcno = as_next_funcno(a);
         int minargs = 0;
@@ -744,7 +738,7 @@ assemble_funcdef(struct assemble_t *a, bool lambda)
 
         bug_on(kwarg == optarg && kwarg >= 0);
 
-        assemble_function(a, lambda, false, funcno);
+        assemble_function(a, false, funcno);
 
         /* for user functions, minargs == maxargs */
         bug_on(minargs != seqvar_size(a->fr->af_args));
@@ -856,7 +850,7 @@ assemble_arrow_lambda(struct assemble_t *a)
                 array_append(a->fr->af_args, n->tok.v);
         }
         cleanup_names(&names);
-        assemble_function(a, true, true, funcno);
+        assemble_function(a, true, funcno);
 
         as_frame_swap(a);
         add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, needsize);
@@ -1307,19 +1301,13 @@ assemble_expr5_atomic(struct assemble_t *a)
                 break;
 
         case OC_FUNC:
-                assemble_funcdef(a, false);
+                assemble_funcdef(a);
                 break;
         case OC_LBRACK:
                 assemble_arraydef(a);
                 break;
         case OC_LBRACE:
                 assemble_setdef(a);
-                break;
-        case OC_LAMBDA:
-                err_setstr(SyntaxError,
-                        "double-backquote lambda notation no longer supported");
-                as_err(a, AE_GEN);
-                assemble_funcdef(a, true);
                 break;
         case OC_THIS:
                 add_instr(a, INSTR_LOAD_LOCAL, IARG_PTR_THIS, 0);

@@ -58,28 +58,38 @@ Tuples can be nested or concatenated to make new tuples::
   evc> (1, 2) + (3, 4);
   (1, 2, 3, 4)
 
-The tuple's built-in ``count()`` method will count the number
-of times a matching object is found in the tuple::
+This is another bad place to be careless with parentheses::
 
-  evc> let x = ('a', 'a', 'b', 'c');
-  evc> x.count('a');
-  2
-  evc> x.count('b');
-  1
-  evc> x.count('x');
-  0
+  evc> 1, 2 + 3, 4;  // won't be what you think
+  (1, 5, 4)
 
-The tuple's built-in ``index()`` will return the lowest index number
-where an item is found, or within a start-stop range if the arguments
-are provided.  An exception will be thrown if the item is not found::
+Tuples have the following built-in methods:
 
-  evc> let x = ('a', 'a', 'b', 'c', 'd');
-  evc> x.index('b');
-  2
-  evc> x.index('b', 2, 4);
-  2
-  evc> x.index('b', 3, 4);
-  [EvilCandy] ValueError item not in list
+.. method:: count(item)
+
+   count the number of times ``item`` is found in the tuple::
+
+     evc> let x = ('a', 'a', 'b', 'c');
+     evc> x.count('a');
+     2
+     evc> x.count('b');
+     1
+     evc> x.count('x');
+     0
+
+.. method:: index(item)
+
+   Return the lowest index number
+   where an item is found, or within a start-stop range if the arguments
+   are provided.  An exception will be thrown if the item is not found::
+
+     evc> let x = ('a', 'a', 'b', 'c', 'd');
+     evc> x.index('b');
+     2
+     evc> x.index('b', 2, 4);
+     2
+     evc> x.index('b', 3, 4);
+     [EvilCandy] ValueError item not in list
 
 Sets
 ----

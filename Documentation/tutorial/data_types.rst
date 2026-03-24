@@ -5,8 +5,8 @@ Tuples
 ------
 
 Tuples are similar to lists, except that they are immutable.
-They may be accessed the same way as a list, except that they cannot
-be modified.
+They may be accessed the same way as a list—using
+indexes and slices—except that they cannot be modified.
 Tuples are unique among EvilCandy's built-in types in that
 they may or may not be hashable depending on whether their
 contents are all hashable.
@@ -57,6 +57,29 @@ Tuples can be nested or concatenated to make new tuples::
   ((1, 2), (3, 4))
   evc> (1, 2) + (3, 4);
   (1, 2, 3, 4)
+
+The tuple's built-in ``count()`` method will count the number
+of times a matching object is found in the tuple::
+
+  evc> let x = ('a', 'a', 'b', 'c');
+  evc> x.count('a');
+  2
+  evc> x.count('b');
+  1
+  evc> x.count('x');
+  0
+
+The tuple's built-in ``index()`` will return the lowest index number
+where an item is found, or within a start-stop range if the arguments
+are provided.  An exception will be thrown if the item is not found::
+
+  evc> let x = ('a', 'a', 'b', 'c', 'd');
+  evc> x.index('b');
+  2
+  evc> x.index('b', 2, 4);
+  2
+  evc> x.index('b', 3, 4);
+  [EvilCandy] ValueError item not in list
 
 Sets
 ----
@@ -223,4 +246,95 @@ using keyword arguments::
    to be evaluated rather than converted into a string.  EvilCandy *always*
    evaluates the key expression.  In EvilCandy, square brackets in the key
    will just cause an exception to be thrown, since lists are unhashable.
+
+Dictionaries have the following built-in methods:
+
+.. method:: clear
+
+        Empty the dictionary's contents.
+
+.. method:: copy
+
+        Return a shallow copy of the dictionary.  Modifications to the
+        returned dictionary will not affect the original dictionary,
+        except when modifying its mutable contents.
+
+.. method:: delitem(k)
+
+        ``x.delitem(k)`` is functionally equivalent to, but slower than,
+        ``delete x[k]``.
+
+.. method:: items
+
+        Return an object which, when iterated over, will return a tuple
+        of a key-value pair.  This is useful in ``for`` loops::
+
+          evc> let x = { 'subject': 'speling', 'grade': 'F' };
+          evc> for (key, value in x.items()) {
+           ...    print(f'{key:-8s}: {value}');
+           ... };
+          subject : speling
+          grade   : F
+
+.. method:: keys
+
+        Return a list of the dictionary's keys.  Given a dictionary ``x``,
+        ``x.keys()`` is equivalent to ``list(x)``.  The keyword ``sorted``,
+        if set to true, will cause the list to be sorted::
+
+          evc> let x = dict(a=1, c=3, b=2);
+          evc> list(x);
+          ['c', 'b', 'a']
+          evc> x.keys();
+          ['c', 'b', 'a']
+          evc> x.keys(sorted=true);
+          ['a', 'b', 'c']
+
+.. method:: values
+
+        Similar to ``keys()``, but for values, and with no sorted operator.
+
+.. note::
+
+   ``.keys()`` and ``.values()`` return lists,
+   while ``.items()`` returns an object that cannot be accessed
+   directly but which can be iterated over.
+   In a ``for`` loop, it is almost
+   always to use ``.items()`` or (if the values are unnecessary) the
+   dictionary directly than to use ``keys`` or ``values``.
+
+.. method:: addprop(name[, getter[, setter]])
+.. method:: purloin(key)
+.. method:: setstr(func)
+.. method:: setdestructor(func)
+
+   These methods will be discussed later, when we move on to class
+   building.
+
+
+Bytes
+-----
+
+Bytes are a sequence of 8-bit unsigned values.
+They are expressed similar to strings, except that they begin
+with ``b'`` or ``b"``.  They must be written entirely in printable ASCII.
+Unprintable characters must be escaped with a backslash.
+Besides the usual enumerated escapes (``\n``, ``\t``, etc.),
+any number between zero and 255, inclusive, can be escaped,
+using the form ``\NNN`` for octal numbers and ``\xNN``
+for hexadecimal numbers.
+
+Bytes components can be accessed similarly to lists and strings,
+using index numbers or slices, but they cannot be modified.
+Accessing with an index number will return an integer.
+Accessing with a slice will return another bytes object::
+
+  evc> let x = b'\xffabc\n';
+  evc> x[0];
+  255
+  evc> x[1]; // ie. "get value of ASCII 'a'"
+  97
+  evc> x[1:];
+  b'abc\n'
+
 

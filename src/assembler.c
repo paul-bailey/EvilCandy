@@ -50,6 +50,10 @@
  *          break us out.
  * @FE_TOP: Two things must be true: 1. We're in interactive mode,
  *          AND 2. we're at the top-level statement
+ * @FE_CHECKTUPLE: Used by assemble_expr() to determine whether
+ *          it should check if an expression is followed by a
+ *          comma and, if so, build a tuple.  This supports lazy
+ *          tuple expressions that don't use parentheses.
  * @FEE_MASK: OR flags with this to turn it into one of the
  *          three mutually-exclusive arguments to
  *          assemble_primary_elements
@@ -66,15 +70,16 @@ enum {
         FE_CONTINUE     = 0x02,
         FE_TOP          = 0x04,
         FE_SKIPNULLASSIGN=0x08,
+        FE_CHECKTUPLE   = 0x10,
 
         /*
          * bits 4-5, three mutually-exclusive arguments to
          * assemble_primary_elements.
          */
-        FEE_EVAL        = 0x00, /* use with FEE_MASK */
-        FEE_ASGN        = 0x10,
-        FEE_DEL         = 0x20,
-        FEE_MASK        = 0x30,
+        FEE_EVAL        = 0x000, /* use with FEE_MASK */
+        FEE_ASGN        = 0x100,
+        FEE_DEL         = 0x200,
+        FEE_MASK        = 0x300,
 };
 
 /* TODO: This should be in evcenums, it could be used in many places */
@@ -108,7 +113,7 @@ enum {
 
 enum { FUNC_INIT = 1 };
 
-static void assemble_expr(struct assemble_t *a, bool tuple_if_comma);
+static void assemble_expr(struct assemble_t *a, unsigned int flags);
 static void assemble_stmt(struct assemble_t *a, unsigned int flags,
                           int continueto);
 static void assemble_expr5_atomic(struct assemble_t *a);
@@ -711,7 +716,7 @@ assemble_slice(struct assemble_t *a)
                 } else {
                         /* value provided */
                         as_unlex(a);
-                        assemble_expr(a, false);
+                        assemble_expr(a, 0);
                         as_lex(a);
                 }
 
@@ -768,7 +773,7 @@ assemble_function_body(struct assemble_t *a,
                 cleanup_arglist(alist);
 
                 if (lambda && as_peek(a, false) != OC_LBRACE) {
-                        assemble_expr(a, true);
+                        assemble_expr(a, FE_CHECKTUPLE);
                         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
                         add_instr(a, INSTR_END, 0, 0);
                 } else {
@@ -824,7 +829,7 @@ assemble_arraydef(struct assemble_t *a)
                         have_star = true;
                         star_here = true;
                 }
-                assemble_expr(a, false);
+                assemble_expr(a, 0);
                 if (have_star) {
                         int instr;
                         if (star_here)
@@ -909,7 +914,7 @@ assemble_tupledef(struct assemble_t *a)
                         have_star = true;
                         star_here = true;
                 }
-                assemble_expr(a, false);
+                assemble_expr(a, 0);
                 if (have_star) {
                         int instr;
                         if (star_here)
@@ -960,7 +965,7 @@ assemble_dictdef(struct assemble_t *a, int count, int where)
                         break;
                 }
                 as_unlex(a);
-                assemble_expr(a, false);
+                assemble_expr(a, 0);
                 as_lex(a);
                 if (a->oc->t != OC_COLON) {
                         err_setstr(SyntaxError,
@@ -968,7 +973,7 @@ assemble_dictdef(struct assemble_t *a, int count, int where)
                         as_err(a, AE_EXPECT);
                 }
 where_3:
-                assemble_expr(a, false);
+                assemble_expr(a, 0);
                 as_lex(a);
                 count++;
         } while (a->oc->t == OC_COMMA);
@@ -1009,7 +1014,7 @@ assemble_setdef(struct assemble_t *a)
                         break;
 
                 as_unlex(a);
-                assemble_expr(a, false);
+                assemble_expr(a, 0);
                 as_lex(a);
                 if (a->oc->t == OC_COLON) {
                         if (count > 0)
@@ -1029,7 +1034,7 @@ assemble_fstring(struct assemble_t *a)
 {
         int count = 0;
         do {
-                assemble_expr(a, true);
+                assemble_expr(a, FE_CHECKTUPLE);
                 count++;
                 as_lex(a);
         } while (a->oc->t == OC_FSTRING_CONTINUE);
@@ -1194,7 +1199,7 @@ assemble_call_func(struct assemble_t *a)
                         as_unlex(a);
                 }
                 as_unlex(a);
-                assemble_expr(a, false);
+                assemble_expr(a, 0);
                 /*
                  * FIXME: This is naive.  Consider something where a
                  * generator would be preferred:
@@ -1235,7 +1240,7 @@ assemble_call_func(struct assemble_t *a)
                                            "Normal arguments may not follow keyword arguments");
                                 as_err(a, AE_GEN);
                         }
-                        assemble_expr(a, false);
+                        assemble_expr(a, 0);
                         count++;
                         as_lex(a);
                 } while (a->oc->t == OC_COMMA);
@@ -1542,9 +1547,10 @@ assemble_expr1_ternary(struct assemble_t *a)
 
 /**
  * assemble_expr - sister function to assemble_stmt.
- * @tuple_if_comma: If true and the first token after the expression
- *              is a comma, continue parsing expressions and put into
- *              a tuple.
+ * @flags: If FE_CHECKTUPLE is set and the expression is followed by a
+ *         comma, continue parsing expressions and put into a tuple.
+ *         If FE_CHECKTUPLE is cleared, a comma at this level is not
+ *         part of the expression.
  *
  * This and its assemble_exprN_XXX descendants form a recursive-descent
  * parser that builds up the instructions for evaluating the EXPR part of
@@ -1565,13 +1571,13 @@ assemble_expr1_ternary(struct assemble_t *a)
  *    recurse into assemble_stmt() again.
  */
 static void
-assemble_expr(struct assemble_t *a, bool tuple_if_comma)
+assemble_expr(struct assemble_t *a, unsigned int flags)
 {
         size_t n = 1;
         as_lex(a);
 
         assemble_expr1_ternary(a);
-        if (tuple_if_comma && a->oc->t == OC_COMMA) {
+        if (!!(flags & FE_CHECKTUPLE) && a->oc->t == OC_COMMA) {
                 do {
                         as_lex(a);
                         assemble_expr1_ternary(a);
@@ -1637,7 +1643,7 @@ assemble_preassign(struct assemble_t *a, int t)
 
         default:
                 bug_on(t == OC_EQ || !istok_assign(t));
-                assemble_expr(a, true);
+                assemble_expr(a, FE_CHECKTUPLE);
                 add_instr(a, asgntok2instr(t), 0, 0);
         }
 }
@@ -1657,7 +1663,7 @@ maybe_modattr(struct assemble_t *a, unsigned int flags)
                 int t = as_lex(a);
                 if (istok_assign(t)) {
                         if (t == OC_EQ) {
-                                assemble_expr(a, true);
+                                assemble_expr(a, FE_CHECKTUPLE);
                         } else {
                                 add_instr(a, INSTR_COPY, 0, 2);
                                 add_instr(a, INSTR_COPY, 0, 2);
@@ -1777,7 +1783,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                         token_pos_t pos = AS_LIST2NAMES(names.prev)->pos;
                         (void)as_swap_pos(a, pos);
                         as_unlex(a);
-                        assemble_expr(a, true);
+                        assemble_expr(a, FE_CHECKTUPLE);
                         cleanup_names(&names);
                         return 1;
                 }
@@ -1787,7 +1793,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                         err_ae_expect(a, OC_EQ);
                         as_err(a, AE_EXPECT);
                 }
-                assemble_expr(a, true);
+                assemble_expr(a, FE_CHECKTUPLE);
                 if (star < 0) {
                         add_instr(a, INSTR_UNPACK, 0, needsize);
                 } else {
@@ -1809,7 +1815,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * Don't load, INSTR_ASSIGN_LOCAL knows where from frame
                  * pointer to store 'value'
                  */
-                assemble_expr(a, true);
+                assemble_expr(a, FE_CHECKTUPLE);
                 ainstr_assign_symbol(a, &n->tok, n->pos, flags);
                 cleanup_names(&names);
                 return 0;
@@ -1845,7 +1851,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 as_unlex(a);
                 as_unlex(a);
-                assemble_expr(a, true);
+                assemble_expr(a, FE_CHECKTUPLE);
                 return 1;
         }
 }
@@ -1974,7 +1980,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 as_err(a, AE_EXPECT);
         }
 
-        assemble_expr(a, true);
+        assemble_expr(a, FE_CHECKTUPLE);
 
         if (needsize != 1) {
                 if (star < 0) {
@@ -2010,7 +2016,7 @@ assemble_return(struct assemble_t *a)
         if (as_peek(a, false) == OC_SEMI) {
                 ainstr_return_null(a);
         } else {
-                assemble_expr(a, true);
+                assemble_expr(a, FE_CHECKTUPLE);
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
         }
 }
@@ -2069,7 +2075,7 @@ assemble_if(struct assemble_t *a)
          */
         while (a->oc->t == OC_IF) {
                 int jmpend = as_next_label(a);
-                assemble_expr(a, true);
+                assemble_expr(a, FE_CHECKTUPLE);
                 add_instr(a, INSTR_B_IF, 0, jmpelse);
                 assemble_stmt(a, 0, 0);
                 add_instr(a, INSTR_B, 0, true_jmpend);
@@ -2106,7 +2112,7 @@ assemble_while(struct assemble_t *a)
         as_set_label(a, start);
 
         as_errlex(a, OC_LPAR);
-        assemble_expr(a, true);
+        assemble_expr(a, FE_CHECKTUPLE);
         as_errlex(a, OC_RPAR);
 
         add_instr(a, INSTR_B_IF, 0, breakto);
@@ -2129,7 +2135,7 @@ assemble_do(struct assemble_t *a)
         as_set_label(a, start);
         assemble_stmt(a, FE_CONTINUE, start);
         as_errlex(a, OC_WHILE);
-        assemble_expr(a, true);
+        assemble_expr(a, FE_CHECKTUPLE);
         add_instr(a, INSTR_B_IF, 1, start);
 
         ainstr_pop_block(a, IARG_LOOP);
@@ -2208,7 +2214,7 @@ assemble_foreach1(struct assemble_t *a, int breakto)
         }
 
         /* push 'haystack onto the stack */
-        assemble_expr(a, true);
+        assemble_expr(a, FE_CHECKTUPLE);
 
         if (have_par) {
                 as_lex(a);
@@ -2257,7 +2263,7 @@ assemble_foreach(struct assemble_t *a)
 static void
 assemble_throw(struct assemble_t *a)
 {
-        assemble_expr(a, true);
+        assemble_expr(a, FE_CHECKTUPLE);
         add_instr(a, INSTR_THROW, 0, 0);
 }
 
@@ -2369,7 +2375,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         default:
                 /* value expression */
                 as_unlex(a);
-                assemble_expr(a, true);
+                assemble_expr(a, FE_CHECKTUPLE);
                 need_pop = 1;
                 break;
         }

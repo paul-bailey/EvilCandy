@@ -175,7 +175,6 @@ do_import(Frame *fr)
         Object *res, *ex, *args, *kwargs;
         enum { R, X } how;
         FILE *fp;
-        int status;
 
         if (vm_getargs(fr, "sc<[]><{}>!:import", &file_name,
                        &mode, &args, &kwargs) == RES_ERROR) {
@@ -196,13 +195,10 @@ do_import(Frame *fr)
                 err_errno("Cannot access '%s' properly", file_name);
                 return ErrorVar;
         }
-        ex = assemble(file_name, fp, NULL, &status);
+        ex = assemble(file_name, fp, NULL);
         pop_path(fp);
 
-        /* we're assembling top, so ex should be NULL if error */
-        bug_on(status != RES_OK && ex != NULL);
-
-        if (!ex) {
+        if (!ex || ex == ErrorVar) {
                 if (!err_occurred()) {
                         err_setstr(RuntimeError,
                                    "Failed to import module '%s'", file_name);

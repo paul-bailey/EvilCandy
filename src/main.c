@@ -86,12 +86,11 @@ run_script(const char *filename, FILE *fp, Frame *fr)
 {
         Object *ex;
         Object *retval;
-        int status;
 
-        ex = assemble(filename, fp, NULL, &status);
+        ex = assemble(filename, fp, NULL);
         if (!ex)
                 return;
-        bug_on(status != RES_OK);
+        bug_on(ex == ErrorVar);
 
         if (gbl.opt.disassemble) {
                 FILE *dfp;
@@ -149,19 +148,12 @@ run_tty(void)
         }
 
         while (!feof(stdin)) {
-                int status;
-                Object *ex;
-
-                ex = assemble("<stdin>", stdin, vm_localdict(), &status);
-                if (ex == NULL) {
-                        if (status == RES_OK) {
-                                /* normal EOF, user typed ^d */
-                                break;
-                        }
+                Object *ex = assemble("<stdin>", stdin, vm_localdict());
+                if (!ex) {
+                        break;
+                } else if (ex == ErrorVar) {
                         err_print_last(stderr);
                 } else {
-                        bug_on(status != RES_OK);
-
                         if (dfp)
                                 disassemble_lite(dfp, ex);
                         if (!gbl.opt.disassemble_only) {

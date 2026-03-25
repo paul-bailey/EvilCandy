@@ -2914,9 +2914,6 @@ assemble_splash_error(struct assemble_t *a)
  *              a single full statement; this may contain sub-statements
  *              if, for example, it's a program flow statement or it
  *              contains a function definition.
- * @status:     stores RES_OK if all is well (ex could still be NULL if
- *              normal EOF), RES_ERROR if an assembler error occurred.
- *              This may not be NULL
  *
  * Return: Either...
  *      a) Array of executable instructions for the top-level scope,
@@ -2927,22 +2924,19 @@ assemble_splash_error(struct assemble_t *a)
  *         last variable referencing them is destroyed.
  *      b) NULL if @a is already at end of input
  */
-static struct xptrvar_t *
-assemble_next(struct assemble_t *a, bool toeof, int *status)
+static Object *
+assemble_next(struct assemble_t *a, bool toeof)
 {
         struct xptrvar_t *ex;
 
-        if (a->oc && a->oc->t == OC_EOF) {
-                *status = RES_OK;
+        if (a->oc && a->oc->t == OC_EOF)
                 return NULL;
-        }
 
         do {
                 if (assemble_stmt(a, toeof ? 0 : FE_TOP, -1) < 0) {
                         bug_on(!err_occurred());
                         assemble_splash_error(a);
-                        *status = RES_ERROR;
-                        return NULL;
+                        return ErrorVar;
                 }
         } while (toeof && a->oc->t != OC_EOF);
         add_instr(a, INSTR_END, 0, 0);
@@ -2951,9 +2945,7 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
         list_add_front(&a->fr->list, &a->finished_frames);
 
         ex = assemble_post(a);
-        *status = RES_OK;
-
-        return ex;
+        return (Object *)ex;
 }
 
 /* **********************************************************************
@@ -3089,29 +3081,25 @@ assemble_frame_pop(struct assemble_t *a)
  * @fp:         Handle to the open source file, at its starting position.
  * @localdict:  NULL if in script mode.  If in interactive mode, the
  *              dictionary used by the VM for top-level local variables.
- * @status:     stores RES_OK if all is well or RES_ERROR if an assembler
- *              error occurred.
  *
- * Return: Either...
- *      a) A struct xptrvar_t which is ready for passing to the VM.
- *      b) NULL if the input is already at EOF or if there was an error
- *         (check status).
+ * Return: One of the following...
+ *            - XptrType object ready for the VM to use
+ *            - ErrroVar if error
+ *            - NULL if EOF encountered before there was anything to
+ *              interpret.
  */
 Object *
-assemble(const char *filename, FILE *fp, Object *localdict, int *status)
+assemble(const char *filename, FILE *fp, Object *localdict)
 {
-        int localstatus, firsttok;
-        struct xptrvar_t *ret;
+        int firsttok;
+        Object *ret;
         struct assemble_t *a;
         bool toeof;
         CLOCK_DECLARE();
 
         a = new_assembler(filename, fp, localdict);
-        if (!a) {
-                /* no program, just eof */
-                *status = RES_OK;
+        if (!a)
                 return NULL;
-        }
 
         toeof = !localdict;
 
@@ -3123,34 +3111,26 @@ assemble(const char *filename, FILE *fp, Object *localdict, int *status)
         CLOCK_SAVE();
         if (as_lex(a) < 0) {
                 /* oops, never mind, something's unparseable */
-                *status = RES_ERROR;
                 free_assembler(a);
-                return NULL;
+                return ErrorVar;;
         }
         firsttok = a->oc->t;
         as_unlex(a);
         if (toeof && firsttok == OC_PER) {
-                ret = reassemble(a);
-                /* reassemble can only succeed or fail */
+                ret = (Object *)reassemble(a);
                 if (!ret) {
+                        /* reassemble can only succeed or fail */
                         err_print_last(stderr);
-                        localstatus = RES_ERROR;
-                } else {
-                        localstatus = RES_OK;
+                        ret = ErrorVar;
                 }
         } else {
-                ret = assemble_next(a, toeof, &localstatus);
+                ret = assemble_next(a, toeof);
         }
         CLOCK_REPORT();
 
-        /* status cannot be OK if ret is NULL and toeof is true */
-        bug_on(toeof && ret == NULL && localstatus == RES_OK);
-        bug_on(localstatus == RES_OK && err_occurred());
-
-        if (status)
-                *status = localstatus;
-
+        bug_on(ret != ErrorVar && err_occurred());
         free_assembler(a);
-        return (Object *)ret;
+
+        return ret;
 }
 

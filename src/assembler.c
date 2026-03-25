@@ -542,7 +542,7 @@ gather_names(struct assemble_t *a, struct list_t *names,
              int *star_idx, enum errhandler_t errhandler)
 {
         struct names_t *name;
-        int needsize = 0; /*< start at 1 to account for firstname */
+        int needsize = 0;
         int star = -1;
         const char *emsg;
 
@@ -944,6 +944,7 @@ assemble_tupledef(struct assemble_t *a)
                 as_lex(a);
                 n_items++;
         } while (a->oc->t == OC_COMMA);
+        /* TODO: if comprehension, this would be 'for' */
         as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
 
         /* "(x,)" is a tuple.  "(x)" is whatever x is */
@@ -1367,7 +1368,7 @@ assemble_expr3_unarypre(struct assemble_t *a)
                         op = INSTR_BITWISE_NOT;
                 else if (t == OC_MINUS)
                         op = INSTR_NEGATE;
-                else if (t == OC_EXCLAIM)
+                else if (t == OC_EXCLAIM || t == OC_NOTSTR)
                         op = INSTR_LOGICAL_NOT;
                 else /* +, do nothing*/
                         op = -1;
@@ -1514,10 +1515,12 @@ assemble_expr2_binary(struct assemble_t *a)
         };
         static const struct token_to_opcode_t LOG_AND_TOK2OP[] = {
                 { .tok = OC_ANDAND, .opcode = INSTR_LOGICAL_AND, },
+                { .tok = OC_ANDSTR, .opcode = INSTR_LOGICAL_AND, },
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t LOG_OR_TOK2OP[] = {
                 { .tok = OC_OROR,   .opcode = INSTR_LOGICAL_OR, },
+                { .tok = OC_ORSTR,  .opcode = INSTR_LOGICAL_OR, },
                 { .tok = -1 }
         };
         static const struct operator_state_t BINARY_OPERATORS[] = {

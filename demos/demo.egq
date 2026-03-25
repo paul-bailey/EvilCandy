@@ -42,7 +42,7 @@
     (function(mypow) {
         print(f"\tMy Pow: 4^4 = {mypow(4, 4)}");
     })(function(x, y) {
-        if (typeof(x) != "integer" || typeof(y) != "integer")
+        if (typeof(x) != "integer" or typeof(y) != "integer")
             throw "wrong type!";
 
         // these are ints, so negative powers always
@@ -81,7 +81,7 @@ print(f"~0 is {~0}");
         // XXX need to add enumerate function
         let i = 0;
         for (k, v in o.items()) {
-            if (i && !(i & 3))
+            if (i and !(i & 3))
                 print('');
             print('\t', typeof(v), k, end='');
             i++;

@@ -397,7 +397,7 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
         struct token_t *tok;
         Object *o = parse_rodata1(ra, tkstate);
         if (o == ErrorVar)
-                return -1;
+                goto err_clean_tokstate;
 
         if (get_tok(tkstate, &tok) < 0)
                 goto err_clean;
@@ -405,14 +405,16 @@ parse_rodata(struct reassemble_t *ra, const char *pc)
                 ra_err(ra, "excess tokens on line");
                 goto err_clean;
         }
-        token_state_free(tkstate);
 
+        token_state_free(tkstate);
         assemble_seek_rodata(ra->a, o);
         VAR_DECR_REF(o);
         return 0;
 
 err_clean:
         VAR_DECR_REF(o);
+err_clean_tokstate:
+        token_state_free(tkstate);
         return -1;
 }
 

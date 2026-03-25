@@ -194,10 +194,6 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
-* Replace setjmp in assemble.c with normal stack unwinding.  May need
-  to replace EOF with OC_EOF so that a <0 check will always mean
-  'error'.
-
 * Add way to mark current location while parsing, so that token.c and
   main.c aren't making their own separate and different error splashes.
 
@@ -213,6 +209,7 @@ Mebbe/Wishlist/Low-prio bugs
   fast-path method.
 
 
+* **done** Replace setjmp in assemble.c with normal stack unwinding.
 * **done** Replace stack arrangement of FOREACH_ITER to use an iterator of the
   sort used in var.c, any/all/max/min functions.  This ought to speed
   up the for loop a tiny bit, because instead of constantly operating

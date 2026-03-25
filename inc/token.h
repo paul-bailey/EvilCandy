@@ -38,6 +38,7 @@ extern token_pos_t token_get_pos(struct token_state_t *state);
 extern token_pos_t token_swap_pos(struct token_state_t *state, token_pos_t pos);
 extern char *token_get_this_line(struct token_state_t *state);
 extern void token_flush_tty(struct token_state_t *state);
+extern struct token_t *get_tok_at(struct token_state_t *state, token_pos_t pos);
 
 #endif /* EGQ_OPCODES_H */
 

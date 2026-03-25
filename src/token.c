@@ -67,6 +67,15 @@ struct token_state_t {
         unsigned int start_line;
 };
 
+#define TOKBUF_WIDTH_  sizeof(void *)
+#define TOKBUF(state_) ((struct token_t **)(state_)->pgm.s)
+#define TOKBUF_SIZE(state_) \
+        (buffer_size(&(state_)->pgm) / TOKBUF_WIDTH_)
+#define TOKBUF_PUT(state_, tokp_) \
+do { \
+        buffer_putd(&(state_)->pgm, &(tokp_), TOKBUF_WIDTH_); \
+} while (0)
+
 static void token_state_free_(struct token_state_t *state, bool free_self);
 
 static const char *EVILCANDY_PS1 = "evc> ";
@@ -672,33 +681,34 @@ tokenize(struct token_state_t *state)
                         .stop_col = 0,
                         .v = NULL,
                 };
+                struct token_t *oc = ememdup(&eofoc, sizeof(eofoc));
+                TOKBUF_PUT(state, oc);
                 state->eof = true;
-                buffer_putd(&state->pgm, &eofoc, sizeof(eofoc));
         } else {
-                struct token_t oc;
+                struct token_t *oc = emalloc(sizeof(*oc));
 
-                oc.t = ret;
+                oc->t = ret;
                 /* state->start_xxx was set in tokenize_helper() */
-                oc.start_line = state->start_line;
-                oc.stop_line  = state->lineno;
-                oc.start_col  = state->start_col;
-                oc.stop_col   = (size_t)(state->s - state->line);
+                oc->start_line = state->start_line;
+                oc->stop_line  = state->lineno;
+                oc->start_col  = state->start_col;
+                oc->stop_col   = (size_t)(state->s - state->line);
 
                 switch (ret) {
                 case OC_NULL:
-                        oc.v = VAR_NEW_REF(NullVar);
+                        oc->v = VAR_NEW_REF(NullVar);
                         break;
                 case OC_TRUE:
-                        oc.v = VAR_NEW_REF(gbl.one);
+                        oc->v = VAR_NEW_REF(gbl.one);
                         break;
                 case OC_FALSE:
-                        oc.v = VAR_NEW_REF(gbl.zero);
+                        oc->v = VAR_NEW_REF(gbl.zero);
                         break;
                 case OC_BYTES:
-                        oc.v = bytesvar_from_source(state->tok.s);
-                        if (oc.v == ErrorVar) {
+                        oc->v = bytesvar_from_source(state->tok.s);
+                        if (oc->v == ErrorVar) {
                                 ret = bad_literal(state, "bytes");
-                                oc.v = NULL;
+                                oc->v = NULL;
                         }
                         break;
                 case OC_INTEGER:
@@ -707,7 +717,7 @@ tokenize(struct token_state_t *state)
                         if (evc_strtol(state->tok.s, NULL, 0, &i) == RES_ERROR) {
                                 ret = bad_literal(state, "integer");
                         } else {
-                                oc.v = intvar_new(i);
+                                oc->v = intvar_new(i);
                         }
                         break;
                     }
@@ -717,7 +727,7 @@ tokenize(struct token_state_t *state)
                         if (evc_strtod(state->tok.s, NULL, &f) == RES_ERROR) {
                                 ret = bad_literal(state, "double");
                         } else {
-                                oc.v = floatvar_new(f);
+                                oc->v = floatvar_new(f);
                         }
                         break;
                     }
@@ -727,34 +737,34 @@ tokenize(struct token_state_t *state)
                         if (evc_strtod(state->tok.s, NULL, &im) == RES_ERROR) {
                                 ret = bad_literal(state, "double");
                         } else {
-                                oc.v = complexvar_new(0.0, im);
+                                oc->v = complexvar_new(0.0, im);
                         }
                         break;
                     }
                 case OC_IDENTIFIER:
                         /* FIXME: will need to de-dup this */
-                        oc.v = stringvar_new(state->tok.s);
+                        oc->v = stringvar_new(state->tok.s);
                         break;
                 case OC_STRING:
                 case OC_FSTRING_END:
-                        oc.v = stringvar_from_source(state->tok.s, true);
-                        if (oc.v == ErrorVar) {
+                        oc->v = stringvar_from_source(state->tok.s, true);
+                        if (oc->v == ErrorVar) {
                                 ret = bad_literal(state, "string");
-                                oc.v = NULL;
+                                oc->v = NULL;
                         }
                         break;
                 default:
-                        oc.v = NULL;
+                        oc->v = NULL;
                 }
 
-                if (state->dedup && oc.v && isvar_string(oc.v)) {
+                if (state->dedup && oc->v && isvar_string(oc->v)) {
                         enum result_t res;
-                        res = set_additem(state->dedup, oc.v, &oc.v);
+                        res = set_additem(state->dedup, oc->v, &oc->v);
                         bug_on(res != RES_OK);
                         (void)res;
                 }
 
-                buffer_putd(&state->pgm, &oc, sizeof(oc));
+                TOKBUF_PUT(state, oc);
         }
         state->ntok++;
         return ret;
@@ -793,8 +803,6 @@ token_init_state(struct token_state_t *state, FILE *fp, const char *filename)
         }
 }
 
-#define TOKBUF(state_) ((struct token_t *)(state_)->pgm.s)
-
 int
 get_tok_from_cstring(const char *s, char **endptr, struct token_t *dst)
 {
@@ -807,7 +815,8 @@ get_tok_from_cstring(const char *s, char **endptr, struct token_t *dst)
 
         ret = tokenize(&state);
         if (ret >= 0) {
-                memcpy(dst, TOKBUF(&state), sizeof(*dst));
+                struct token_t *src = TOKBUF(&state)[0];
+                memcpy(dst, src, sizeof(void *));
                 /* cleaning state below would consume this */
                 if (dst->v)
                         VAR_INCR_REF(dst->v);
@@ -846,6 +855,7 @@ int
 get_tok(struct token_state_t *state, struct token_t **tok)
 {
         struct token_t *cur;
+        struct token_t **tokbuf = TOKBUF(state);
 
         bug_on(tok == NULL);
 
@@ -860,23 +870,42 @@ get_tok(struct token_state_t *state, struct token_t **tok)
                          * Keep returning EOF token
                          */
                         bug_on(state->ntok <= 0);
-                        cur = TOKBUF(state) + state->ntok - 1;
+                        cur = tokbuf[state->ntok - 1];
                         bug_on(cur->t != OC_EOF);
                         goto done;
                 }
                 if (tokenize(state) == RES_ERROR)
                         return RES_ERROR;
                 bug_on(state->nexttok >= state->ntok);
+                /* need to refresh this */
+                tokbuf = TOKBUF(state);
         }
 
-        /* tokenize() may have changed state->nexttok, so refresh this */
-        cur = TOKBUF(state) + state->nexttok;
-        state->nexttok++;
+        cur = tokbuf[state->nexttok++];
 
 done:
         *tok = cur;
         bug_on(cur->t == 0 || (cur->t >= OC_NTOK));
         return cur->t;
+}
+
+/**
+ * get_tok_at - similar to get_tok(), but do not update state position
+ * @state: Token state machine
+ * @pos:   Position to get token at.  This must be within the size
+ *         of the token array.  It should be a former return value
+ *         of token_get_pos.
+ *
+ * Return: Token at @pos
+ */
+struct token_t *
+get_tok_at(struct token_state_t *state, token_pos_t pos)
+{
+        struct token_t **tokbuf = TOKBUF(state);
+
+        bug_on(pos >= state->ntok);
+        bug_on((int)pos < 0);
+        return tokbuf[pos];
 }
 
 /**
@@ -893,14 +922,16 @@ done:
 void
 unget_tok(struct token_state_t *state, struct token_t **tok)
 {
+        struct token_t **tokbuf = TOKBUF(state);
         bug_on(state->nexttok <= 0);
         state->nexttok--;
-        *tok = TOKBUF(state) + state->nexttok - 1;
+        *tok = tokbuf[state->nexttok - 1];
 }
 
 token_pos_t
 token_swap_pos(struct token_state_t *state, token_pos_t pos)
 {
+        bug_on(pos > TOKBUF_SIZE(state));
         token_pos_t ret = state->nexttok;
         state->nexttok = pos;
         return ret;
@@ -964,21 +995,20 @@ skip_free:
 static void
 token_state_free_(struct token_state_t *state, bool free_self)
 {
-        struct token_t *tok, *endtok;
-        int n;
+        struct token_t **tokbuf;
+        size_t i, n;
 
         buffer_free(&state->tok);
         buffer_free(&state->fstring_tok);
         if (state->line)
                 token_state_free_line(state);
-        n = buffer_size(&state->pgm) / sizeof(struct token_t);
+        n = TOKBUF_SIZE(state);
         bug_on(n != state->ntok);
-        tok = TOKBUF(state);
-        endtok = &tok[n];
-        while (tok < endtok) {
-                if (tok->v)
-                        VAR_DECR_REF(tok->v);
-                tok++;
+        tokbuf = TOKBUF(state);
+        for (i = 0; i < n; i++) {
+                if (tokbuf[i]->v)
+                        VAR_DECR_REF(tokbuf[i]->v);
+                efree(tokbuf[i]);
         }
         buffer_free(&state->pgm);
 

@@ -136,11 +136,22 @@ as_next_funcno(struct assemble_t *a)
  * @src is assumed to be a->oc, but we'll keep it general.
  */
 static inline token_pos_t
-as_savetok(struct assemble_t *a, struct token_t *dst)
+as_savetok(struct assemble_t *a, struct token_t **tok)
 {
-        if (dst)
-                memcpy(dst, a->oc, sizeof(*dst));
+        if (tok)
+                *tok = a->oc;
         return token_get_pos(a->prog);
+}
+
+static inline struct token_t *
+as_pos2tok(struct assemble_t *a, token_pos_t pos)
+{
+        /*
+         * minus one because @pos is a return value of as_savetok().
+         * The token returned from token_get_pos() will have been
+         * incremented.
+         */
+        return get_tok_at(a->prog, pos - 1);
 }
 
 /* conclude what you started with as_frame_take() */
@@ -566,11 +577,12 @@ fakestack_declare(struct assemble_t *a, Object *name)
  */
 struct names_t {
         struct list_t list;
-        struct token_t tok;
         token_pos_t pos;
         int namei;
 };
-#define AS_LIST2NAMES(p) (container_of(p, struct names_t, list))
+
+#define AS_LIST2NAMES(p)        (container_of(p, struct names_t, list))
+#define AS_NAME2TOK(a_, n_)     as_pos2tok(a_, (n_)->pos)
 
 static void
 cleanup_names(struct list_t *names)
@@ -617,7 +629,7 @@ gather_names(struct assemble_t *a, struct list_t *names,
                         goto eident;
 
                 name = emalloc(sizeof(*name));
-                name->pos = as_savetok(a, &name->tok);
+                name->pos = as_savetok(a, NULL);
                 list_add_front(&name->list, names);
 
                 needsize++;
@@ -716,7 +728,7 @@ gather_arglist(struct assemble_t *a,
                         goto err_not_identifier;
 
                 name = emalloc(sizeof(*name));
-                name->pos = as_savetok(a, &name->tok);
+                name->pos = as_savetok(a, NULL);
                 list_add_tail(&name->list, &alist->names);
                 alist->n++;
                 if (as_lex(a) < 0)
@@ -847,7 +859,8 @@ assemble_function_body(struct assemble_t *a,
                 bool have_brace;
                 list_foreach(p, &alist->names) {
                         struct names_t *n = AS_LIST2NAMES(p);
-                        array_append(a->fr->af_args, n->tok.v);
+                        struct token_t *tok = AS_NAME2TOK(a, n);
+                        array_append(a->fr->af_args, tok->v);
                 }
 
                 if (as_lex(a) < 0)
@@ -1260,15 +1273,16 @@ maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos, int *idx)
  * ainstr_load/assign_symbol
  *
  * @name:  name of symbol, token assumed to be saved from a->oc already.
- * @instr: either INSTR_LOAD_LOCAL, or INSTR_ASSIGN_LOCAL
+ * @instr: either INSTR_LOAD_LOCAL, or INSTR_ASSIGN_LOCAL.  It will be
+ *         changed to NAME or GLOBAL if necessary.
  * @pos:   Saved token position when saving name; needed to maybe pass to
  *         seek_or_add const
  */
 static int
-ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
-                      int instr, token_pos_t pos, unsigned int flags)
+ainstr_load_or_assign(struct assemble_t *a, int instr, token_pos_t pos)
 {
         int idx, arg, namei;
+        struct token_t *name = as_pos2tok(a, pos);
 
         /* first check if in local namespace */
         if ((idx = as_symbol_seek(a, name->v, &arg)) >= 0) {
@@ -1303,17 +1317,15 @@ ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
 }
 
 static int
-ainstr_load_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
+ainstr_load_symbol(struct assemble_t *a, token_pos_t pos)
 {
-        return ainstr_load_or_assign(a, name, INSTR_LOAD_LOCAL, pos, 0);
+        return ainstr_load_or_assign(a, INSTR_LOAD_LOCAL, pos);
 }
 
 static int
-ainstr_assign_symbol(struct assemble_t *a, struct token_t *name,
-                      token_pos_t pos, unsigned int flags)
+ainstr_assign_symbol(struct assemble_t *a, token_pos_t pos)
 {
-        return ainstr_load_or_assign(a, name,
-                                     INSTR_ASSIGN_LOCAL, pos, flags);
+        return ainstr_load_or_assign(a, INSTR_ASSIGN_LOCAL, pos);
 }
 
 static int
@@ -1435,7 +1447,7 @@ assemble_expr5_atomic(struct assemble_t *a)
         switch (a->oc->t) {
         case OC_IDENTIFIER: {
                 token_pos_t pos = as_savetok(a, NULL);
-                if (ainstr_load_symbol(a, a->oc, pos) < 0)
+                if (ainstr_load_symbol(a, pos) < 0)
                         return -1;
                 break;
         }
@@ -2046,10 +2058,8 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                 }
                 list_foreach(p, &names) {
                         n = AS_LIST2NAMES(p);
-                        if (ainstr_assign_symbol(a, &n->tok,
-                                                 n->pos, flags) < 0) {
+                        if (ainstr_assign_symbol(a, n->pos) < 0)
                                 goto err_cleanup;
-                        }
                 }
                 goto zero;
         }
@@ -2063,7 +2073,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 if (assemble_expr(a, FE_CHECKTUPLE) < 0)
                         goto err_cleanup;
-                ainstr_assign_symbol(a, &n->tok, n->pos, flags);
+                ainstr_assign_symbol(a, n->pos);
                 goto zero;
         } else if (istok_assign(a->oc->t)) {
                 /*
@@ -2071,11 +2081,11 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * x += value;
                  * ...
                  */
-                if (ainstr_load_symbol(a, &n->tok, n->pos) < 0)
+                if (ainstr_load_symbol(a, n->pos) < 0)
                         goto err_cleanup;
                 if (assemble_preassign(a, a->oc->t) < 0)
                         goto err_cleanup;
-                ainstr_assign_symbol(a, &n->tok, n->pos, flags);
+                ainstr_assign_symbol(a, n->pos);
                 goto zero;
         } else if (istok_indirection(a->oc->t)) {
                 /*
@@ -2087,7 +2097,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * calling a function or modifying one of x's descendants.
                  */
                 as_unlex(a);
-                if (ainstr_load_symbol(a, &n->tok, n->pos) < 0)
+                if (ainstr_load_symbol(a, n->pos) < 0)
                         goto err_cleanup;
                 cleanup_names(&names);
                 return assemble_primary_elements__(a);
@@ -2121,8 +2131,8 @@ out:
 static int
 assemble_delete(struct assemble_t *a, unsigned int flags)
 {
-        struct token_t name;
         token_pos_t pos;
+        struct token_t *name;
 
         if (as_lex(a) < 0)
                 return -1;
@@ -2131,9 +2141,9 @@ assemble_delete(struct assemble_t *a, unsigned int flags)
         if (as_lex(a) < 0)
                 return -1;
         if (istok_indirection(a->oc->t)) {
-                if (name.t != OC_THIS && name.t != OC_IDENTIFIER)
+                if (name->t != OC_THIS && name->t != OC_IDENTIFIER)
                         goto baddelete;
-                if (ainstr_load_symbol(a, &name, pos) < 0)
+                if (ainstr_load_symbol(a, pos) < 0)
                         return -1;
                 if (assemble_primary_elements(a, FEE_DEL) < 0)
                         return -1;
@@ -2147,12 +2157,12 @@ assemble_delete(struct assemble_t *a, unsigned int flags)
                  * from the namespace after all; it would allow
                  * redeclaration, which could come in handy.
                  */
-                if (name.t != OC_IDENTIFIER)
+                if (name->t != OC_IDENTIFIER)
                         goto baddelete;
 
                 as_unlex(a);
                 ainstr_load_null(a);
-                ainstr_assign_symbol(a, &name, pos, flags);
+                ainstr_assign_symbol(a, pos);
         }
         return 0;
 
@@ -2234,7 +2244,8 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         list_foreach(p, &names) {
                 struct names_t *n = AS_LIST2NAMES(p);
-                n->namei = assemble_declare(a, &n->tok,
+                struct token_t *tok = AS_NAME2TOK(a, n);
+                n->namei = assemble_declare(a, tok,
                                             global, flags | extraflags);
                 if (n->namei < 0)
                         goto err_clean;
@@ -2311,7 +2322,7 @@ assemble_return(struct assemble_t *a)
 static int
 assemble_try(struct assemble_t *a)
 {
-        struct token_t exctok;
+        struct token_t *exctok;
         int finally = as_next_label(a);
         int catch = as_next_label(a);
 
@@ -2343,7 +2354,7 @@ assemble_try(struct assemble_t *a)
          * The exception handler will do that for us in
          * execute loop.
          */
-        if (fakestack_declare(a, exctok.v) < 0)
+        if (fakestack_declare(a, exctok->v) < 0)
                 return -1;
         if (assemble_stmt(a, 0, 0) < 0)
                 return -1;
@@ -2476,8 +2487,9 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
         if (needsize == 1) {
                 /* needle is the 'a' of 'for (a in b)' */
                 struct names_t *n = AS_LIST2NAMES(names->next);
-                bug_on(!n->tok.v);
-                n->namei = fakestack_declare(a, n->tok.v);
+                struct token_t *tok = AS_NAME2TOK(a, n);
+                bug_on(!tok->v);
+                n->namei = fakestack_declare(a, tok->v);
                 if (n->namei < 0)
                         return -1;
                 add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
@@ -2491,8 +2503,9 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
 
                 list_foreach(p, names) {
                         struct names_t *n = AS_LIST2NAMES(p);
-                        bug_on(!n->tok.v);
-                        n->namei = fakestack_declare(a, n->tok.v);
+                        struct token_t *tok = AS_NAME2TOK(a, n);
+                        bug_on(!tok->v);
+                        n->namei = fakestack_declare(a, tok->v);
                         if (n->namei < 0)
                                 return -1;
                         i++;

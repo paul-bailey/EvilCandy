@@ -259,12 +259,72 @@ as_closure_seek(struct assemble_t *a, Object *name)
         return array_indexof(a->fr->af_closures, name);
 }
 
+/*
+ * DOC: localmap_xxx() Helper Functions and Scope Visibility Stuff:
+ *
+ * Scope at the sub-function level--that is, using braces or program-flow
+ * loops to limit a local variable's scope--is sort of an illusion in
+ * EvilCandy.  The assembler manages it by simply preventing compilation
+ * of instructions that would access out-of-scope variables; however, the
+ * variables will still remain on the stack during the entirety of a
+ * function's execution, whether they remain in scope or not, and not get
+ * cleared until the function completes.
+ *
+ * .af_locals is the assembler's stack of variable names, growing and
+ * shrinking while assembling a function, so that we know whether a name
+ * exists in scope or not.  It has a parallel array, .af_localmap, which
+ * translates an index in .af_locals to the actual stack index where the
+ * variable will exist on the stack during runtime.  .af_nlocals keeps
+ * track of how the runtime stack will grow. .af_names is its parallel,
+ * used for debug purposes; it is an array of the names as they will
+ * appear on the stack; it could contain the same name twice, then, in
+ * the case of code like this:
+ *
+ *      {
+ *              let x;
+ *      }
+ *      {
+ *              let x;
+ *      }
+ *
+ * Here, .af_names would then contain at least two entries matching 'x',
+ * while .af_locals will still always have either one or zero entries
+ * matching 'x'.
+ *
+ * The algorithm is this:
+ *
+ * When declaring variable:
+ *      o Ensure its name is not in .af_locals, then append it.
+ *      o Append an index number in .af_localmap equal to .af_nlocals
+ *      o Append its name to .af_names for disassembly, etc.
+ *      o Increment .af_nlocals by one
+ *
+ * When leaving a block statement or loop:
+ *      o Shrink .af_locals to the appropriate spot
+ *      o Shrink .af_localmap by the same amount
+ *      o keep .af_nlocals and .af_names as they are
+ *
+ * This way, any newly declared variable will be assigned a new index
+ * without clobbering an old variable.
+ *
+ * XXX: Non-clobbering is easy, but is it necessary?  The only bad effect
+ * of clobbering is we'd have to give up the debug-usefulness of
+ * .af_names, not that it's really that useful. On the other hand,
+ * clobbering improves the chance that some variables will be freed
+ * earlier when they are no longer needed, and it reduces stack usage.
+ */
+
 static size_t
 localmap_size(struct assemble_t *a)
 {
         return buffer_size(&a->fr->af_localmap) / sizeof(int);
 }
 
+/*
+ * Helper to as_symbol_seek.  Convert a current-namespace index into the
+ * actual stack position of a named local variable.
+ * @idx is an index in a->fr->af_locals
+ */
 static int
 localmap_idx(struct assemble_t *a, int idx)
 {

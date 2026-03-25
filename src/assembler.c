@@ -142,29 +142,6 @@ as_savetok(struct assemble_t *a, struct token_t *dst)
         return token_get_pos(a->prog);
 }
 
-/*
- * This is so dirty, but we have to because we need to stuff
- * future frame with arg defs while adding instructions to old
- * frame.
- */
-static void
-as_frame_swap(struct assemble_t *a)
-{
-        struct as_frame_t *fr = a->fr;
-
-        bug_on(list_is_empty(&a->active_frames));
-        bug_on(a->active_frames.prev != &fr->list);
-        bug_on(a->fr->list.next != &a->active_frames);
-        bug_on(a->fr->list.prev == &a->active_frames);
-
-        fr = list2frame(a->fr->list.prev);
-        list_remove(&fr->list);
-
-        bug_on(list_is_empty(&a->active_frames));
-        list_add_tail(&fr->list, &a->active_frames);
-        a->fr = fr;
-}
-
 /* conclude what you started with as_frame_take() */
 static void
 as_frame_restore(struct assemble_t *a, struct as_frame_t *fr)

@@ -429,14 +429,23 @@ you could wrap it with the other kind.
 Backslashes themselves must be escaped,
 simply by typing two backslashes instead of one,
 or the interpreter will think they are escaping the next character.
-For the second input below, when typing ENTER,
-the interpreter added the quote, semicolon and newline to the string
-being parsed; it still thinks it is receiving text to put into a string.
+
+Correct example. The interpreter will complete the statement:
 
 .. code-block:: none
+   :class: example-good
 
    evc> '\\';
    '\\'
+
+Incorrect example.
+The user has pressed ENTER, but
+the interpreter thinks that the second quote, semicolon, and newline
+are part of the original string:
+
+.. code-block:: none
+   :class: example-bad
+
    evc> '\';
    ...
 
@@ -461,7 +470,7 @@ Otherwise they may be concatenated with the ``+`` operator.
 
 String literals may wrap multiple lines.
 
-.. code-block:: js
+.. code-block:: none
 
    evc> 'This is a line.
     ... This is another line.';

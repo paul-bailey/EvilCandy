@@ -29,6 +29,18 @@ root_doc = 'contents'
 highlight_language = 'js'
 suppress_warnings = ['misc.highlighting_failure']
 
+
 html_theme = 'alabaster'
+html_sidebars = {
+    '**': [
+        'about.html',
+        'navigation.html',
+        'relations.html',
+    ]
+}
+html_theme_options = {
+    'fixed_sidebar': True,
+    'sidebar_collapse': True,
+}
 html_static_path = ['_static']
 html_css_files = ['css/custom.css']

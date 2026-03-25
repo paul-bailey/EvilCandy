@@ -1,4 +1,17 @@
 .admonition.rant {
         border-color: rgb(255, 100, 100);
         border-width: 0px 0px 0px thick;
+        background-color: rgb(245, 245, 245);
+}
+
+.example-bad pre {
+        border: solid;
+        border-width: 0px 0px 0px thick;
+        border-color: rgb(255, 100, 100);
+}
+
+.example-good pre {
+        border: solid;
+        border-width: 0px 0px 0px thick;
+        border-color: rgb(100, 200, 100);
 }

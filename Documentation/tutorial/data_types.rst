@@ -309,9 +309,9 @@ Dictionaries have the following built-in methods:
    ``.keys()`` and ``.values()`` return lists,
    while ``.items()`` returns an object that cannot be accessed
    directly but which can be iterated over.
-   In a ``for`` loop, it is almost
-   always to use ``.items()`` or (if the values are unnecessary) the
-   dictionary directly than to use ``keys`` or ``values``.
+   In a ``for`` loop, it is almost always better
+   to use ``.items()`` or (if the values are unnecessary) the
+   dictionary directly than to use ``.keys()`` or ``.values()``.
 
 .. method:: addprop(name[, getter[, setter]])
 .. method:: purloin(key)

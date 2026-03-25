@@ -268,18 +268,22 @@ without stopping the iteration early with ``break``,
 then the body of ``else`` will be executed.
 
 This also illustrates a pitfall to avoid.
-Indentation is useful for human readability,
-but the interpreter does not care.
+Indentation expresses programmer's *conscience intent*,
+which is not necessarily the actual program flow.
+The interpreter does not care about indentation.
 **Always use braces around** ``for`` **loops**,
 even for bodies containing only a single simple statement.
-Otherwise indentation can be misleading.  Consider the following::
+Otherwise indentation can be misleading.  Consider the following:
 
-  // THIS IS BAD!
-  for (x in y)
-      if (x)
-          do_this();
-  else
-      do_that();
+.. code-block::
+   :class: example-bad
+
+   // THIS IS BAD!
+   for (x in y)
+       if (x)
+           do_this();
+   else
+       do_that();
 
 The ``else`` in this example appears as
 the ``else`` clause of the ``for`` statement,
@@ -563,52 +567,65 @@ conventional way to say "this is an evaluation statement"::
    evc> (function(x) { return x + 1; })(5);
    6
 
-``<rant>``
+.. admonition:: rant
+   :class: rant
 
-Frankly, IIFEs are an accident of how the language works, not a
-deliberate feature.  They were more useful in JavaScript thirty years ago,
-back when computers were made of wood and sails and TCP was transported
-by carrier pigeons, so it mattered how big a JavaScript file got.
-Given the two choices::
+   Frankly, IIFEs are an accident of how the language works, not a
+   deliberate feature.
+   Functions' and subroutines' most important utility is the
+   prevention of repeated code.
+   IIFEs do not serve this purpose;
+   they do keep the namespace clean,
+   but in EvilCandy *that is often not necessary*.
+   Function calls in EvilCandy (and most every other scripting language)
+   are non-trivial.  They aren't like C, where the stack overhead of a
+   call is negligible [#]_
+   and the only performance hit is due to a reduced locality of reference.
+   IIFEs were more useful in JavaScript thirty years ago,
+   back when computers were made of wood and sails and TCP was transported
+   by carrier pigeons, so it mattered how big a JavaScript file got.
 
-   // choice one:
-   let x = (function() {
-        // ...code that calculates a value...
-        return calculated_value;
-   })();
+   Given the two choices::
 
-::
+      // choice one:
+      let x = (function() {
+           // ...code that calculates a value...
+           return calculated_value;
+      })();
 
-   // choice two:
-   let x;
-   // ...code that calculates a value...
-   x = calculated_value;
+   ::
 
-The latter is faster, due to the lack of a frame swap, while the
-former is *cuter*.  It may not matter in already-slow parts of the code,
-where not much is going on algorithmically,
-but JavaScript users in particular are so addicted to this sort of thing,
-especially when using JavaScript's ``=>`` lambda notation,
-that they use it even in highly-iterative loops [#]_.
+      // choice two:
+      let x;
+      // ...code that calculates a value...
+      x = calculated_value;
 
-If you don't care about cuteness but you do care about namespace clutter
-from all the temporary variables you add to calculate the result,
-you could still use the second example, rewritten as::
+   The latter is faster, due to the lack of a frame push, while the
+   former is *cuter*.  It may not matter in already-slow parts of the code,
+   where not much is going on algorithmically,
+   but JavaScript users in particular are so addicted to this sort of thing,
+   especially when using JavaScript's ``=>`` lambda notation,
+   that they use it even in highly-iterative loops.
 
-   // choice three:
-   let x;
-   {
-        // ...calculate a value...
-        x = calculated_value;
-   }
+   If you care about the namespace clutter caused by adding a bunch
+   of temporary variables to calculate a result,
+   you could still use the second example, rewritten as::
 
-This lacks the overhead of a function call [#]_,
-and it limits the scope of the temporary
-variables to within the braces.
-Just be sure that ``x`` itself is declared outside the braces.
-More on that when discussing variable scope.
+      // choice three:
+      let x;
+      {
+           // ...calculate a value...
+           x = calculated_value;
+      }
 
-``</rant>``
+   This lacks the overhead of a function call [#]_,
+   and it limits the scope of the temporary
+   variables to within the braces.
+   Just be sure that ``x`` itself is declared outside the braces.
+   More on that when discussing variable scope.
+
+   **tl;dr** IIFEs are considered...well, not *harmful*,
+   but they are rarely useful enough to justify themselves.
 
 Lambda Notation
 ~~~~~~~~~~~~~~~
@@ -637,24 +654,23 @@ In the second example,
 the benefit of lambda notation—brevity—is lost,
 so it's best to use normal function notation.
 
-A lambda expression does not permit starred arguments or keyword
-arguments.  It should just be a sequence of comma-delimited identifiers.
-If its argument list needs to be more complicated than that,
-use normal function notation.
-
-In practice, a function declared with lambda notation will not execute
-any differently than an equivalent function declared with normal notation.
-This notation is merely a visual shorthand, and it is only useful for
-already-short functions.
+You have the same range of choices for arguments in a lambda expression
+(keyword arguments, variadic arguments, etc.),
+but if you need anything more than
+just one or two ordinary positional arguments,
+you are better off using normal function notation.
+Lambda notation does not change how a function will execute;
+it is merely a cosmetic shorthand,
+so it is only useful for already-short functions.
 
 Lambda notation is most useful in an IIFE (but see above rant),
 where a simple transformation is being performed.  Due to the nature
 of the notation, lambda IIFEs need to be wrapped in parentheses before
 passing arguments::
 
-  evc> let x = 'hello';
-  evc> x = ((x) => x + '\n')(x);
-  evc> x;
+  evc> let hi = 'hello';
+  evc> hi = ((x) => x + '\n')(hi);
+  evc> hi;
   'hello\n'
 
 .. note::
@@ -702,12 +718,9 @@ Notes
 
 .. [#]
 
-   Function calls in EvilCandy (and most every other scripting language)
-   are non-trivial.  They aren't like C, where the stack overhead of a
-   function call is negligible (especially on ARM architecture,
-   where compilers have gotten so smart
-   they can perform optimizations you never heard of),
-   and the only performance hit is due to a reduced locality of reference.
+   Especially on ARM architecture,
+   and especially since compilers have gotten so smart
+   they can perform optimizations you never dreamed of.
 
 .. [#]
 

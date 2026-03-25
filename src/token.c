@@ -137,7 +137,6 @@ tok_next_line(struct token_state_t *state)
                 break;
         case TKINP_STRING:
                 res = -1;
-                state->line = NULL;
                 break;
         default:
                 bug();
@@ -537,6 +536,7 @@ skip_whitespace(struct token_state_t *state)
                          * contents.  So we aren't repeating the same
                          * thing when the do loop reiterates.
                          */
+                        bug_on(!state->line || !state->s);
                         s = state->s;
                         while (*s != '\0' && isspace((int)(*s)))
                                 ++s;

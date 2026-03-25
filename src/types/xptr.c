@@ -71,8 +71,13 @@ xptrvar_new(const struct xptr_cfg_t *cfg)
         Object *v = var_new(&XptrType);
         struct xptrvar_t *x = V2XP(v);
 
-        x->rodata = tuplevar_from_stack(array_get_data(cfg->rodata),
-                                        seqvar_size(cfg->rodata), false);
+        if (cfg->rodata && seqvar_size(cfg->rodata) > 0) {
+                x->rodata = tuplevar_from_stack(array_get_data(cfg->rodata),
+                                                seqvar_size(cfg->rodata),
+                                                false);
+        } else {
+                x->rodata = NULL;
+        }
         if (cfg->names) {
                 x->names = tuplevar_from_stack(array_get_data(cfg->names),
                                                seqvar_size(cfg->names),
@@ -80,6 +85,8 @@ xptrvar_new(const struct xptr_cfg_t *cfg)
         } else {
                 x->names = NULL;
         }
+        bug_on(!cfg->instr);
+        bug_on(!cfg->n_instr);
         x->instr        = cfg->instr;
         x->n_instr      = cfg->n_instr;
         x->file_name    = estrdup(cfg->file_name);

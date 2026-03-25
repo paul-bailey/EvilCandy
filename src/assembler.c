@@ -2677,8 +2677,19 @@ static int
 assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                      int continueto)
 {
-        int need_pop = 0;
-        int pop_arg = !!(flags & FE_TOP) ? IARG_POP_PRINT : IARG_POP_NORMAL;
+        int pop_arg, need_pop = 0;
+
+        /*
+         * XXX: We need a better way to know if we are...
+         *      in TTY mode at the top
+         *      in script mode
+         *      in string mode at the top
+         *      in string mode not at the top
+         */
+        if (!!(flags & FE_TOP) && a->fp)
+                pop_arg = IARG_POP_PRINT;
+        else
+                pop_arg = IARG_POP_NORMAL;
 
         if (as_lex(a) < 0)
                 return -1;
@@ -2753,8 +2764,13 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         }
 
         /* Throw result away */
-        if (need_pop)
-                add_instr(a, INSTR_POP, pop_arg, 0);
+        if (need_pop) {
+                if (!a->fp) {
+                        add_instr(a, INSTR_RETURN_VALUE, 0, 0);
+                } else {
+                        add_instr(a, INSTR_POP, pop_arg, 0);
+                }
+        }
 
         if (as_lex(a) < 0)
                 return -1;
@@ -2790,24 +2806,21 @@ assemble_stmt(struct assemble_t *a, unsigned int flags, int continueto)
         return ret;
 }
 
-/*
- * new_assembler - Start an assembler state machine for a new input stream
- * @source_file_name: Name of input stream, for error reporting;
- *              must not be NULL
- * @fp:         FILE handle associated with @source_file_name
- *
- * Return: Handle to the assembler state machine.  This is never NULL; an
- *      error would be thrown before returning if that's the case.
- */
 static struct assemble_t *
-new_assembler(const char *source_file_name, FILE *fp, Object *localdict)
+new_assembler(const char *source_file_name, FILE *fp,
+              Object *localdict, const char *src_str)
 {
         struct assemble_t *a;
         struct token_state_t *prog;
 
-        prog = token_state_new(fp, notdir(source_file_name));
-        if (!prog) /* no tokens, just eof */
-                return NULL;
+        if (fp) {
+                prog = token_state_new(fp, notdir(source_file_name));
+                if (!prog) /* no tokens, just eof */
+                        return NULL;
+        } else {
+                bug_on(!src_str);
+                prog = token_state_from_string(src_str);
+        }
 
         a = ecalloc(sizeof(*a));
         a->file_name = (char *)source_file_name;
@@ -2826,6 +2839,19 @@ new_assembler(const char *source_file_name, FILE *fp, Object *localdict)
         list_init(&a->finished_frames);
         assemble_frame_push(a, as_next_funcno(a));
         return a;
+}
+
+static struct assemble_t *
+new_string_assembler(const char *str)
+{
+        return new_assembler("<string>", NULL, NULL, str);
+}
+
+static struct assemble_t *
+new_file_assembler(const char *source_file_name,
+                   FILE *fp, Object *localdict)
+{
+        return new_assembler(source_file_name, fp, localdict, NULL);
 }
 
 static void
@@ -2925,7 +2951,7 @@ assemble_splash_error(struct assemble_t *a)
  *      b) NULL if @a is already at end of input
  */
 static Object *
-assemble_next(struct assemble_t *a, bool toeof)
+assemble_next(struct assemble_t *a, bool toeof, unsigned int flags)
 {
         struct xptrvar_t *ex;
 
@@ -2933,9 +2959,20 @@ assemble_next(struct assemble_t *a, bool toeof)
                 return NULL;
 
         do {
-                if (assemble_stmt(a, toeof ? 0 : FE_TOP, -1) < 0) {
+                if (assemble_stmt(a, flags, -1) < 0) {
                         bug_on(!err_occurred());
-                        assemble_splash_error(a);
+                        /*
+                         * If in string mode, we were called from UAPI
+                         * eval(); pass the exception upstream.
+                         * otherwise, print the error.
+                         *
+                         * FIXME: What if we're here from import()?
+                         * We would also want to pass the exception
+                         * upstream, but here we don't know whether
+                         * we should do that.
+                         */
+                        if (a->fp)
+                                assemble_splash_error(a);
                         return ErrorVar;
                 }
         } while (toeof && a->oc->t != OC_EOF);
@@ -3097,7 +3134,7 @@ assemble(const char *filename, FILE *fp, Object *localdict)
         bool toeof;
         CLOCK_DECLARE();
 
-        a = new_assembler(filename, fp, localdict);
+        a = new_file_assembler(filename, fp, localdict);
         if (!a)
                 return NULL;
 
@@ -3106,13 +3143,12 @@ assemble(const char *filename, FILE *fp, Object *localdict)
         /*
          * If first token is a dot, it can't be EvilCandy source,
          * but it could be a disassembly.
-         * XXX: toeof wasn't meant to be synonymous with !(interactive mode)
          */
         CLOCK_SAVE();
         if (as_lex(a) < 0) {
                 /* oops, never mind, something's unparseable */
                 free_assembler(a);
-                return ErrorVar;;
+                return ErrorVar;
         }
         firsttok = a->oc->t;
         as_unlex(a);
@@ -3124,13 +3160,34 @@ assemble(const char *filename, FILE *fp, Object *localdict)
                         ret = ErrorVar;
                 }
         } else {
-                ret = assemble_next(a, toeof);
+                ret = assemble_next(a, toeof, localdict ? FE_TOP : 0);
         }
         CLOCK_REPORT();
 
         bug_on(ret != ErrorVar && err_occurred());
         free_assembler(a);
 
+        return ret;
+}
+
+/**
+ * assemble_string - Like assemble, but using a C string for input
+ * @str: string containing EvilCandy-syntax code.
+ *
+ * Return: Same type of result as assemble().
+ */
+Object *
+assemble_string(const char *str)
+{
+        struct assemble_t *a;
+        Object *ret;
+
+        a = new_string_assembler(str);
+        if (!a)
+                return NULL;
+
+        ret = assemble_next(a, true, FE_TOP);
+        free_assembler(a);
         return ret;
 }
 

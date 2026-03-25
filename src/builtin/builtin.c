@@ -504,6 +504,24 @@ do_disassemble(Frame *fr)
         return NULL;
 }
 
+static Object *
+do_eval(Frame *fr)
+{
+        char *expr;
+        Object *ex, *ret;
+
+        if (vm_getargs(fr, "s!:eval", &expr) == RES_ERROR)
+                return ErrorVar;
+        ex = assemble_string(expr);
+        if (!ex || ex == ErrorVar) {
+                ret = ex;
+        } else {
+                ret = vm_exec_script(ex, fr);
+                VAR_DECR_REF(ex);
+        }
+        return ret;
+}
+
 static const struct type_inittbl_t builtin_inittbl[] = {
         /*         name     callback  min max opt kw */
         V_INITTBL("abs",    do_abs,    1, 1, -1, -1),
@@ -511,6 +529,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("any",    do_any,    1, 1, -1, -1),
         V_INITTBL("dir",    do_dir,    1, 1, -1, -1),
         V_INITTBL("disassemble", do_disassemble, 1, 1, -1, -1),
+        V_INITTBL("eval",   do_eval,   1, 1, -1, -1),
         V_INITTBL("hash",   do_hash,   1, 1, -1, -1),
         V_INITTBL("length", do_length, 1, 1, -1, -1),
         V_INITTBL("min",    do_min,    1, 1,  0, -1),

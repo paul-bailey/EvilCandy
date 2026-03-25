@@ -88,13 +88,9 @@ enum errhandler_t {
         ERRH_EXCEPTION,
 };
 
-#define as_err(a, e) longjmp((a)->env, e)
-#define as_err_if(a, cond, e) \
-        do { if (cond) as_err(a, e); } while (0)
 #define as_badeof(a) do { \
         DBUG("Bad EOF, trapped in assembly.c line %d", __LINE__); \
         err_setstr(SyntaxError, "Unexpected termination"); \
-        as_err(a, AE_GEN); \
 } while (0)
 
 enum {
@@ -113,10 +109,10 @@ enum {
 
 enum { FUNC_INIT = 1 };
 
-static void assemble_expr(struct assemble_t *a, unsigned int flags);
-static void assemble_stmt(struct assemble_t *a, unsigned int flags,
-                          int continueto);
-static void assemble_expr5_atomic(struct assemble_t *a);
+static int assemble_expr(struct assemble_t *a, unsigned int flags);
+static int assemble_stmt(struct assemble_t *a, unsigned int flags,
+                         int continueto);
+static int assemble_expr5_atomic(struct assemble_t *a);
 static int assemble_primary_elements(struct assemble_t *a,
                                      unsigned int flags);
 
@@ -189,10 +185,8 @@ as_unlex(struct assemble_t *a)
 static int
 as_lex(struct assemble_t *a)
 {
-        int ret = get_tok(a->prog, &a->oc);
-        if (ret == RES_ERROR)
-                as_err(a, AE_PARSER);
-        return ret;
+        /* if err, get_tok should have set exception */
+        return get_tok(a->prog, &a->oc);
 }
 
 static void
@@ -202,36 +196,46 @@ err_ae_expect(struct assemble_t *a, int exp)
                    token_name(exp), token_name(a->oc->t));
 }
 
+static void
+err_ae_brack(void)
+{
+        err_setstr(SyntaxError, "unbalanced bracket");
+}
+
+static void
+err_ae_par(void)
+{
+        err_setstr(SyntaxError, "unbalanced parenthesis");
+}
+
+static void
+err_ae_brace(void)
+{
+        err_setstr(SyntaxError, "unbalanced brace");
+}
+
 static int
 as_errlex(struct assemble_t *a, int exp)
 {
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         if (a->oc->t != exp) {
                 err_ae_expect(a, exp);
-                as_err(a, AE_EXPECT);
+                return -1;
         }
-        return a->oc->t;
+        return 0;
 }
 
 static inline token_pos_t
 as_swap_pos(struct assemble_t *a, token_pos_t pos)
 {
+        int status;
         token_pos_t ret = token_swap_pos(a->prog, pos);
         as_unlex(a);
-        as_lex(a);
+        status = as_lex(a);
+        bug_on(status < 0);
+        (void)status;
         return ret;
-}
-
-static int
-as_peek(struct assemble_t *a, bool may_be_eof)
-{
-        int res;
-        as_lex(a);
-        res = a->oc->t;
-        if (!may_be_eof && a->oc->t == OC_EOF)
-                as_badeof(a);
-        as_unlex(a);
-        return res;
 }
 
 static bool
@@ -351,16 +355,17 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
  * If either are untrue, all hell will break loose when the disassembly
  * begins to execute.
  */
-static void
+static int
 as_set_label(struct assemble_t *a, int jmp)
 {
         unsigned long val = as_frame_ninstr(a->fr);
         if (val > 32767) {
                 err_setstr(RangeError,
                            "Cannot compile: instruction set too large for jump labels");
-                as_err(a, AE_GEN);
+                return -1;
         }
         assemble_frame_set_label(a->fr, jmp, val);
+        return 0;
 }
 
 static int
@@ -414,18 +419,21 @@ ainstr_load_const_int(struct assemble_t *a, long long ival)
         ainstr_load_const_obj(a, iobj);
 }
 
-static void
+static int
 ainstr_push_block(struct assemble_t *a, int arg1, int arg2)
 {
         struct as_frame_t *fr = a->fr;
-        if (fr->nest >= FRAME_NEST_MAX)
-                as_err(a, AE_OVERFLOW);
+        if (fr->nest >= FRAME_NEST_MAX) {
+                err_setstr(SyntaxError, "frame/scope nest overflow");
+                return -1;
+        }
 
         fr->scope[fr->nest++] = fr->fp;
 
         fr->fp = seqvar_size(fr->af_locals);
         if (arg1 != IARG_BLOCK)
                 add_instr(a, INSTR_PUSH_BLOCK, arg1, arg2);
+        return 0;
 }
 
 /* helper to ainstr_pop_block */
@@ -469,6 +477,8 @@ ainstr_return_null(struct assemble_t *a)
  * @name is name of variable being declared.
  *
  * XXX REVISIT: This has an old, now misleading, function name
+ *
+ * return idx >= 0, or -1 if error;
  */
 static int
 fakestack_declare(struct assemble_t *a, Object *name)
@@ -476,8 +486,7 @@ fakestack_declare(struct assemble_t *a, Object *name)
         int idx;
         if (name && as_symbol_seek(a, name, NULL) >= 0) {
                 err_setstr(SyntaxError, "Redefining variable ('%s')", name);
-                as_err(a, AE_GEN);
-                return 0;
+                return -1;
         }
 
         bug_on(!name);
@@ -533,13 +542,15 @@ gather_names(struct assemble_t *a, struct list_t *names,
         as_unlex(a);
 
         do {
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        goto err;
 
                 if (a->oc->t == OC_MUL) {
                         if (star >= 0)
                                 goto epermit;
                         star = needsize;
-                        as_lex(a);
+                        if (as_lex(a) < 0)
+                                goto err;
                 }
 
                 if (a->oc->t != OC_IDENTIFIER)
@@ -551,7 +562,8 @@ gather_names(struct assemble_t *a, struct list_t *names,
 
                 needsize++;
 
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        goto err;
         } while (a->oc->t == OC_COMMA);
 
         bug_on(needsize < 1);
@@ -575,7 +587,6 @@ err:
         switch (errhandler) {
         case ERRH_EXCEPTION:
                 err_setstr(SyntaxError, "%s", emsg);
-                as_err(a, AE_EXPECT);
                 break;
         case ERRH_RETURN:
                 break;
@@ -611,7 +622,7 @@ gather_arglist(struct assemble_t *a,
                struct arglist_t *alist,
                enum errhandler_t errhandler)
 {
-        const char *emsg;
+        const char *emsg = NULL;
 
         list_init(&alist->names);
         alist->star = -1;
@@ -619,7 +630,9 @@ gather_arglist(struct assemble_t *a,
         alist->n = 0;
         do {
                 struct names_t *name;
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        goto err_parser;
+
                 if (a->oc->t == OC_RPAR)
                         break;
                 if (alist->starstar >= 0)
@@ -628,10 +641,12 @@ gather_arglist(struct assemble_t *a,
                         if (alist->star >= 0)
                                 goto err_multi_variadic;
                         alist->star = alist->n;
-                        as_lex(a);
+                        if (as_lex(a) < 0)
+                                goto err_parser;
                 } else if (a->oc->t == OC_POW) {
                         alist->starstar = alist->n;
-                        as_lex(a);
+                        if (as_lex(a) < 0)
+                                goto err_parser;
                 } else {
                         /* normal */
                         if (alist->star >= 0)
@@ -644,12 +659,16 @@ gather_arglist(struct assemble_t *a,
                 name->pos = as_savetok(a, &name->tok);
                 list_add_tail(&name->list, &alist->names);
                 alist->n++;
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        goto err_parser;
         } while (a->oc->t == OC_COMMA);
         if (a->oc->t != OC_RPAR)
                 goto err_missing_rpar;
         return RES_OK;
 
+err_parser:
+        errhandler = ERRH_RETURN;
+        goto err;
 err_missing_rpar:
         emsg = "Expected ')' or ','";
         goto err;
@@ -670,7 +689,6 @@ err:
         switch (errhandler) {
         case ERRH_EXCEPTION:
                 err_setstr(SyntaxError, "%s", emsg);
-                as_err(a, AE_GEN);
                 break;
         case ERRH_RETURN:
                 break;
@@ -686,14 +704,15 @@ err:
  * Return token state such that next as_lex() ought to point at
  * closing right bracket "]".
  */
-static void
+static int
 assemble_slice(struct assemble_t *a)
 {
         int endmarker = OC_RBRACK;
         int i;
 
         for (i = 0; i < 3; i++) {
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
                 if (a->oc->t == OC_COLON || a->oc->t == endmarker) {
                         /*
                          * ie. something like [:j] instead of [i:j:k]
@@ -705,7 +724,7 @@ assemble_slice(struct assemble_t *a)
                                 if (a->oc->t == endmarker) {
                                         err_setstr(SyntaxError,
                                                    "Empty subscript");
-                                        as_err(a, AE_GEN);
+                                        return -1;
                                 }
                                 ainstr_load_const_int(a, 0);
                         } else if (i == 1) {
@@ -716,29 +735,34 @@ assemble_slice(struct assemble_t *a)
                 } else {
                         /* value provided */
                         as_unlex(a);
-                        assemble_expr(a, 0);
-                        as_lex(a);
+                        if (assemble_expr(a, 0) < 0)
+                                return -1;
+                        if (as_lex(a) < 0)
+                                return -1;
                 }
 
                 if (a->oc->t == endmarker) {
                         as_unlex(a);
                         if (i == 0) /* not a slice, just a subscript */
-                                return;
+                                return 0;
                 } else if (i != 2 && a->oc->t != OC_COLON) {
                         err_setstr(SyntaxError,
                                    "Expected: either ':' or '%s'",
                                    token_name(endmarker));
-                        as_err(a, AE_GEN);
+                        return -1;
                 }
         }
         add_instr(a, INSTR_DEFTUPLE, 0, 3);
+        return 0;
 }
 
 /*
  * Helper to assemble_arrow_lambda() and assmeble_funcdef().
  * @alist is cleaned up in this function, don't use afterwards.
+ *
+ * return 0 if success, -1 if error
  */
-static void
+static int
 assemble_function_body(struct assemble_t *a,
                        bool lambda, struct arglist_t *alist)
 {
@@ -760,24 +784,25 @@ assemble_function_body(struct assemble_t *a,
         assemble_frame_push(a, funcno);
         {
                 struct list_t *p;
+                bool have_brace;
                 list_foreach(p, &alist->names) {
                         struct names_t *n = AS_LIST2NAMES(p);
                         array_append(a->fr->af_args, n->tok.v);
                 }
 
-                /*
-                 * This is not symmetrical looking, but we want to do
-                 * this before descending into below expression/statement
-                 * calls, since they could trigger an early longjmp().
-                 */
-                cleanup_arglist(alist);
+                if (as_lex(a) < 0)
+                        return -1;
+                have_brace = a->oc->t == OC_LBRACE;
+                as_unlex(a);
 
-                if (lambda && as_peek(a, false) != OC_LBRACE) {
-                        assemble_expr(a, FE_CHECKTUPLE);
+                if (lambda && !have_brace) {
+                        if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                                return -1;
                         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
                         add_instr(a, INSTR_END, 0, 0);
                 } else {
-                        assemble_stmt(a, 0, 0);
+                        if (assemble_stmt(a, 0, 0) < 0)
+                                return -1;
                         /*
                          * This is often unreachable to the VM, but in
                          * case statement reached end without hitting
@@ -788,48 +813,56 @@ assemble_function_body(struct assemble_t *a,
                 }
         }
         assemble_frame_pop(a);
+        return 0;
 }
 
-static void
+static int
 assemble_funcdef(struct assemble_t *a)
 {
         struct arglist_t alist;
+        int ret;
 
-        as_errlex(a, OC_LPAR);
-        gather_arglist(a, &alist, ERRH_EXCEPTION);
+        if (as_errlex(a, OC_LPAR) < 0)
+                return -1;
+        if (gather_arglist(a, &alist, ERRH_EXCEPTION) < 0)
+                return -1;
 
-        /* arglist cleaned up in assemble_function_body */
-        assemble_function_body(a, false, &alist);
+        ret = assemble_function_body(a, false, &alist);
+        cleanup_arglist(&alist);
+        return ret;
 }
 
-static void
+static int
 assemble_arraydef(struct assemble_t *a)
 {
         int n_items = 0;
         bool have_star = false;
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         if (a->oc->t == OC_RBRACK) /* empty array */
                 goto done;
         as_unlex(a);
 
         do {
+                bool star_here = false;
+                if (as_lex(a) < 0)
+                        return -1;
                 /*
                  * sloppy ",]", but allow it anyway,
                  * since everyone else does.
                  */
-                bool star_here = false;
-                if (as_peek(a, false) == OC_RBRACK) {
-                        as_lex(a);
+                if (a->oc->t == OC_RBRACK)
                         break;
-                }
-                if (as_peek(a, false) == OC_MUL) {
-                        as_lex(a);
+                if (a->oc->t == OC_MUL) {
                         add_instr(a, INSTR_DEFLIST, 0, n_items);
                         have_star = true;
                         star_here = true;
+                } else {
+                        as_unlex(a);
                 }
-                assemble_expr(a, 0);
+                if (assemble_expr(a, 0) < 0)
+                        return -1;
                 if (have_star) {
                         int instr;
                         if (star_here)
@@ -838,37 +871,54 @@ assemble_arraydef(struct assemble_t *a)
                                 instr = INSTR_LIST_APPEND;
                         add_instr(a, instr, 0, 0);
                 }
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
                 n_items++;
         } while (a->oc->t == OC_COMMA);
-        as_err_if(a, a->oc->t != OC_RBRACK, AE_BRACK);
+        if (a->oc->t != OC_RBRACK) {
+                err_ae_brack();
+                return -1;
+        }
 
 done:
         if (!have_star)
                 add_instr(a, INSTR_DEFLIST, 0, n_items);
+        return 0;
 }
 
-static bool
+/* return 1 (true) if arrow lambda, 0 if not, -1 if error */
+static int
 assemble_arrow_lambda(struct assemble_t *a)
 {
+        int ret;
         struct arglist_t alist;
         token_pos_t pos = as_savetok(a, NULL);
 
-        if (gather_arglist(a, &alist, ERRH_RETURN) == RES_ERROR)
+        if (gather_arglist(a, &alist, ERRH_RETURN) == RES_ERROR) {
+                if (err_occurred())
+                        goto err_clean;
                 goto not_arrow;
+        }
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                goto err_clean;
         if (a->oc->t != OC_RARROW)
                 goto not_arrow;
 
-        /* arglist cleaned up in assemble_function_body */
-        assemble_function_body(a, true, &alist);
-        return true;
+        /* must be lambda, so error hereafter is for-real error */
+        ret = assemble_function_body(a, true, &alist);
+        cleanup_arglist(&alist);
+        return ret < 0 ? ret : 1;
 
 not_arrow:
         cleanup_arglist(&alist);
         (void)as_swap_pos(a, pos);
-        return false;
+        return 0;
+
+err_clean:
+        /* parser error, don't suppress this one */
+        cleanup_arglist(&alist);
+        return -1;
 }
 
 /*
@@ -878,18 +928,19 @@ not_arrow:
  * be the start of a lambda expression's argument list, and
  * if we add comprehensions, that too.
  */
-static void
+static int
 assemble_tupledef(struct assemble_t *a)
 {
-        int n_items = 0;
+        int res, n_items = 0;
         bool has_comma;
         bool have_star = false;
 
         /* If "(..." is actually "(args) => expr", do that instead */
-        if (assemble_arrow_lambda(a))
-                return;
+        if ((res = assemble_arrow_lambda(a)) != 0)
+                return res < 0 ? res : 0;
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         if (a->oc->t == OC_RPAR) {
                 /* empty tuple */
                 goto done;
@@ -903,18 +954,21 @@ assemble_tupledef(struct assemble_t *a)
                  * there's no other way to express a tuple of length 1.
                  */
                 bool star_here = false;
-                if (as_peek(a, false) == OC_RPAR) {
-                        as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
+                if (a->oc->t == OC_RPAR) {
                         has_comma = true;
                         break;
                 }
-                if (as_peek(a, false) == OC_MUL) {
-                        as_lex(a);
+                if (a->oc->t == OC_MUL) {
                         add_instr(a, INSTR_DEFLIST, 0, n_items);
                         have_star = true;
                         star_here = true;
+                } else {
+                        as_unlex(a);
                 }
-                assemble_expr(a, 0);
+                if (assemble_expr(a, 0) < 0)
+                        return -1;
                 if (have_star) {
                         int instr;
                         if (star_here)
@@ -923,20 +977,24 @@ assemble_tupledef(struct assemble_t *a)
                                 instr = INSTR_LIST_APPEND;
                         add_instr(a, instr, 0, 0);
                 }
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
                 n_items++;
         } while (a->oc->t == OC_COMMA);
         /* TODO: if comprehension, this would be 'for' */
-        as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
+        if (a->oc->t != OC_RPAR) {
+                err_ae_par();
+                return -1;
+        }
 
         /* "(x,)" is a tuple.  "(x)" is whatever x is */
         if (!has_comma && n_items == 1) {
                 if (have_star) {
                         err_setstr(SyntaxError,
                                 "cannot use starred expression here");
-                        as_err(a, AE_EXPECT);
+                        return -1;
                 }
-                return;
+                return 0;
         }
 done:
         if (have_star) {
@@ -944,13 +1002,14 @@ done:
         } else {
                 add_instr(a, INSTR_DEFTUPLE, 0, n_items);
         }
+        return 0;
 }
 
 /*
  * called from assemble_setdef() as soon as it finds out it's
  * parsing a dict instead of a set
  */
-static void
+static int
 assemble_dictdef(struct assemble_t *a, int count, int where)
 {
         /* XXX: deprecated, there used to be more 'where' choices */
@@ -958,55 +1017,66 @@ assemble_dictdef(struct assemble_t *a, int count, int where)
         goto where_3;
 
         do {
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
 
                 if (a->oc->t == OC_RBRACE) {
                         /* comma after last elem */
                         break;
                 }
                 as_unlex(a);
-                assemble_expr(a, 0);
-                as_lex(a);
+                if (assemble_expr(a, 0) < 0)
+                        return -1;
+                if (as_lex(a) < 0)
+                        return -1;
                 if (a->oc->t != OC_COLON) {
                         err_setstr(SyntaxError,
                                 "Uncomputed dictionary key must a single-token expression");
-                        as_err(a, AE_EXPECT);
+                        return -1;
                 }
 where_3:
-                assemble_expr(a, 0);
-                as_lex(a);
+                if (assemble_expr(a, 0) < 0)
+                        return -1;
+                if (as_lex(a) < 0)
+                        return -1;
                 count++;
         } while (a->oc->t == OC_COMMA);
-        as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);
+        if (a->oc->t != OC_RBRACE) {
+                err_ae_brace();
+                return -1;
+        }
 
         add_instr(a, INSTR_DEFDICT, 0, count);
+        return 0;
 }
 
 /*
  * Try parsing a set.  If it turns out this is a dict, call
  * assemble_dictdef() instead.
  */
-static void
+static int
 assemble_setdef(struct assemble_t *a)
 {
         int count;
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         if (a->oc->t == OC_RBRACE) {
                 /* actually an empty dict, not a set */
                 add_instr(a, INSTR_DEFDICT, 0, 0);
-                return;
+                return 0;
         }
 
         count = 0;
         as_unlex(a);
         do {
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
                 if (a->oc->t == OC_MUL) {
                         /* TODO: make necessary changes to allow this */
                         err_setstr(SyntaxError,
                                    "starred arguments not allowed here");
-                        as_err(a, AE_EXPECT);
+                        return -1;
                 }
 
                 /* comma after last elem */
@@ -1014,29 +1084,38 @@ assemble_setdef(struct assemble_t *a)
                         break;
 
                 as_unlex(a);
-                assemble_expr(a, 0);
-                as_lex(a);
+                if (assemble_expr(a, 0) < 0)
+                        return -1;
+                if (as_lex(a) < 0)
+                        return -1;
                 if (a->oc->t == OC_COLON) {
-                        if (count > 0)
-                                as_err(a, AE_EXPECT);
-                        assemble_dictdef(a, count, 3);
-                        return;
+                        if (count > 0) {
+                                err_ae_expect(a, OC_COMMA);
+                                return -1;
+                        }
+                        return assemble_dictdef(a, count, 3);
                 }
                 count++;
         } while (a->oc->t == OC_COMMA);
-        as_err_if(a, a->oc->t != OC_RBRACE, AE_BRACE);
+        if (a->oc->t != OC_RBRACE) {
+                err_ae_brace();
+                return -1;
+        }
         add_instr(a, INSTR_DEFLIST, 0, count);
         add_instr(a, INSTR_DEFSET, 0, 0);
+        return 0;
 }
 
-static void
+static int
 assemble_fstring(struct assemble_t *a)
 {
         int count = 0;
         do {
-                assemble_expr(a, FE_CHECKTUPLE);
+                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                        return -1;
                 count++;
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
         } while (a->oc->t == OC_FSTRING_CONTINUE);
 
         if (a->oc->t != OC_FSTRING_END) {
@@ -1045,20 +1124,21 @@ assemble_fstring(struct assemble_t *a)
                  * unterminated quote
                  */
                 err_setstr(SyntaxError, "Expected: end of f-string");
-                as_err(a, AE_EXPECT);
+                return -1;
         }
 
         add_instr(a, INSTR_DEFTUPLE, 0, count);
         ainstr_load_const(a, a->oc);
         add_instr(a, INSTR_FORMAT, 0, 0);
+        return 0;
 }
 
 /*
  * helper to ainstr_load_symbol, @name is not in local namespace,
  * check enclosing function before resorting to LOAD_GLOBAL
  */
-static int
-maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos)
+static enum result_t
+maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos, int *idx)
 {
         /*
          * Check for closure.  When we started parsing this (child)
@@ -1079,11 +1159,14 @@ maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos)
         bool success = false;
 
         this_frame = as_frame_take(a);
-        if (!this_frame)
-                return -1;
+        if (!this_frame) {
+                *idx = -1;
+                return RES_OK;
+        }
 
         if (as_symbol_seek(a, name, NULL) >= 0 ||
             as_is_ialocal(a, name)) {
+                int status;
                 /*
                  * 'atomic' instead of assemble_expr(), because if we see
                  * 'x.y', the closure should be x, not its descendant y.
@@ -1092,8 +1175,11 @@ maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos)
                  * multiple methods of the same instantiation.
                  */
                 pos = as_swap_pos(a, pos);
-                assemble_expr5_atomic(a);
+                status = assemble_expr5_atomic(a);
                 as_swap_pos(a, pos);
+
+                if (status < 0)
+                        return RES_ERROR;
 
                 /* back to identifier */
                 add_instr(a, INSTR_ADD_CLOSURE, 0, 0);
@@ -1106,7 +1192,8 @@ maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos)
                 array_append(a->fr->af_closures, name);
 
         /* try this again */
-        return as_closure_seek(a, name);
+        *idx = as_closure_seek(a, name);
+        return RES_OK;
 }
 
 /*
@@ -1117,79 +1204,90 @@ maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos)
  * @pos:   Saved token position when saving name; needed to maybe pass to
  *         seek_or_add const
  */
-static void
+static int
 ainstr_load_or_assign(struct assemble_t *a, struct token_t *name,
                       int instr, token_pos_t pos, unsigned int flags)
 {
-        /*
-         * XXX let namei be an arg, -1 means "calculate namei",
-         * this removes DRY violation with assemble_declarator_stmt()
-         */
-        int idx, arg;
+        int idx, arg, namei;
+
+        /* first check if in local namespace */
         if ((idx = as_symbol_seek(a, name->v, &arg)) >= 0) {
                 add_instr(a, instr, arg, idx);
-        } else if ((idx = maybe_closure(a, name->v, pos)) >= 0) {
-                add_instr(a, instr, IARG_PTR_CP, idx);
-        } else {
-                int namei = as_seek_rodata_tok(a, name);
-                if (instr == INSTR_ASSIGN_LOCAL) {
-                        if (as_is_ialocal(a, name->v))
-                                instr = INSTR_ASSIGN_NAME;
-                        else
-                                instr = INSTR_ASSIGN_GLOBAL;
-                } else {
-                        bug_on(instr != INSTR_LOAD_LOCAL);
-                        if (as_is_ialocal(a, name->v))
-                                instr = INSTR_LOAD_NAME;
-                        else
-                                instr = INSTR_LOAD_GLOBAL;
-                }
-                add_instr(a, instr, 0, namei);
+                return 0;
         }
+
+        /* check if in ancestor scope, maybe add closure */
+        if (maybe_closure(a, name->v, pos, &idx) == RES_ERROR)
+                return -1;
+        if (idx >= 0) {
+                add_instr(a, instr, IARG_PTR_CP, idx);
+                return 0;
+        }
+
+        /* Must be global or interactive-mode top-level local */
+        namei = as_seek_rodata_tok(a, name);
+        if (instr == INSTR_ASSIGN_LOCAL) {
+                if (as_is_ialocal(a, name->v))
+                        instr = INSTR_ASSIGN_NAME;
+                else
+                        instr = INSTR_ASSIGN_GLOBAL;
+        } else {
+                bug_on(instr != INSTR_LOAD_LOCAL);
+                if (as_is_ialocal(a, name->v))
+                        instr = INSTR_LOAD_NAME;
+                else
+                        instr = INSTR_LOAD_GLOBAL;
+        }
+        add_instr(a, instr, 0, namei);
+        return 0;
 }
 
-static void
+static int
 ainstr_load_symbol(struct assemble_t *a, struct token_t *name, token_pos_t pos)
 {
-        ainstr_load_or_assign(a, name, INSTR_LOAD_LOCAL, pos, 0);
+        return ainstr_load_or_assign(a, name, INSTR_LOAD_LOCAL, pos, 0);
 }
 
-static void
+static int
 ainstr_assign_symbol(struct assemble_t *a, struct token_t *name,
                       token_pos_t pos, unsigned int flags)
 {
-        ainstr_load_or_assign(a, name, INSTR_ASSIGN_LOCAL, pos, flags);
+        return ainstr_load_or_assign(a, name,
+                                     INSTR_ASSIGN_LOCAL, pos, flags);
 }
 
-static void
+static int
 assemble_call_func(struct assemble_t *a)
 {
         int n_items = 0;
         int kwind = -1;
         bool have_star = false;
 
-        as_errlex(a, OC_LPAR);
+        if (as_errlex(a, OC_LPAR) < 0)
+                return -1;
 
         do {
                 bool star_here = false;
-                if (as_peek(a, false) == OC_RPAR) {
-                        as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
+                if (a->oc->t == OC_RPAR)
                         break;
-                }
-                if (as_peek(a, false) == OC_MUL) {
-                        as_lex(a);
+                if (a->oc->t == OC_MUL) {
                         add_instr(a, INSTR_DEFLIST, 0, n_items);
                         have_star = true;
                         star_here = true;
+                        if (as_lex(a) < 0)
+                                return -1;
                 }
-                as_lex(a);
+
                 if (a->oc->t == OC_IDENTIFIER) {
-                        as_lex(a);
+                        if (as_lex(a) < 0)
+                                return -1;
                         if (a->oc->t == OC_EQ) {
                                 if (star_here) {
                                         err_setstr(SyntaxError,
                                             "cannot use starred expression here");
-                                        as_err(a, AE_EXPECT);
+                                        return -1;
                                 }
                                 kwind = n_items;
                                 as_unlex(a);
@@ -1199,7 +1297,8 @@ assemble_call_func(struct assemble_t *a)
                         as_unlex(a);
                 }
                 as_unlex(a);
-                assemble_expr(a, 0);
+                if (assemble_expr(a, 0) < 0)
+                        return -1;
                 /*
                  * FIXME: This is naive.  Consider something where a
                  * generator would be preferred:
@@ -1214,7 +1313,8 @@ assemble_call_func(struct assemble_t *a)
                                 instr = INSTR_LIST_APPEND;
                         add_instr(a, instr, 0, 0);
                 }
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
                 n_items++;
         } while (a->oc->t == OC_COMMA);
 
@@ -1225,24 +1325,28 @@ assemble_call_func(struct assemble_t *a)
                 Object *tmp, *kw = arrayvar_new(0);
                 int count = 0;
                 do {
-                        as_lex(a);
+                        if (as_lex(a) < 0)
+                                return -1;
                         if (a->oc->t == OC_RPAR)
                                 break;
                         if (a->oc->t != OC_IDENTIFIER) {
                                 err_setstr(SyntaxError,
                                            "Malformed keyword argument");
-                                as_err(a, AE_GEN);
+                                return -1;
                         }
                         array_append(kw, a->oc->v);
-                        as_lex(a);
+                        if (as_lex(a) < 0)
+                                return -1;
                         if (a->oc->t != OC_EQ) {
                                 err_setstr(SyntaxError,
                                            "Normal arguments may not follow keyword arguments");
-                                as_err(a, AE_GEN);
+                                return -1;
                         }
-                        assemble_expr(a, 0);
+                        if (assemble_expr(a, 0) < 0)
+                                return -1;
                         count++;
-                        as_lex(a);
+                        if (as_lex(a) < 0)
+                                return -1;
                 } while (a->oc->t == OC_COMMA);
 
                 /* transform kw from a list into a blossoming tuple */
@@ -1257,32 +1361,43 @@ assemble_call_func(struct assemble_t *a)
                 ainstr_load_null(a);
         }
 
-        as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
+        if (a->oc->t != OC_RPAR) {
+                err_ae_par();
+                return -1;
+        }
         add_instr(a, INSTR_CALL_FUNC, 0, 0);
+        return 0;
 }
 
-static void
+static int
 assemble_expr5_atomic(struct assemble_t *a)
 {
         switch (a->oc->t) {
         case OC_IDENTIFIER: {
-                struct token_t namesav;
-                token_pos_t pos = as_savetok(a, &namesav);
-                ainstr_load_symbol(a, &namesav, pos);
+                token_pos_t pos = as_savetok(a, NULL);
+                if (ainstr_load_symbol(a, a->oc, pos) < 0)
+                        return -1;
                 break;
         }
 
         case OC_FUNCARG: {
                 long long offs;
-                as_errlex(a, OC_LPAR);
-                as_errlex(a, OC_INTEGER);
+                if (as_errlex(a, OC_LPAR) < 0)
+                        return -1;
+                if (as_errlex(a, OC_INTEGER) < 0)
+                        return -1;
                 offs = intvar_toll(a->oc->v);
                 if (offs > 32767 || offs < 0) {
                         err_setstr(SyntaxError,
                                    "__funcargs__ must take arg in range of 0...32767");
-                        as_err(a, AE_OVERFLOW);
+                        return -1;
                 }
-                as_errlex(a, OC_RPAR);
+                if (as_lex(a) < 0)
+                        return -1;
+                if (a->oc->t != OC_RPAR) {
+                        err_setstr(SyntaxError, "Unbalanced parenthesis");
+                        return -1;
+                }
                 add_instr(a, INSTR_LOAD_ARG, 0, offs);
                 break;
         }
@@ -1297,10 +1412,12 @@ assemble_expr5_atomic(struct assemble_t *a)
                 ainstr_load_const(a, a->oc);
                 break;
         case OC_FSTRING_START:
-                assemble_fstring(a);
+                if (assemble_fstring(a) < 0)
+                        return -1;
                 break;
         case OC_LPAR:
-                assemble_tupledef(a);
+                if (assemble_tupledef(a) < 0)
+                        return -1;
                 break;
 
         case OC_NULL:
@@ -1314,33 +1431,42 @@ assemble_expr5_atomic(struct assemble_t *a)
                 break;
 
         case OC_FUNC:
-                assemble_funcdef(a);
+                if (assemble_funcdef(a) < 0)
+                        return -1;
                 break;
         case OC_LBRACK:
-                assemble_arraydef(a);
+                if (assemble_arraydef(a) < 0)
+                        return -1;
                 break;
         case OC_LBRACE:
-                assemble_setdef(a);
+                if (assemble_setdef(a) < 0)
+                        return -1;
                 break;
         case OC_THIS:
                 add_instr(a, INSTR_LOAD_LOCAL, IARG_PTR_THIS, 0);
                 break;
         default:
-                as_err(a, AE_BADTOK);
+                err_setstr(SyntaxError, "Unexpected token %s",
+                           token_name(a->oc->t));
+                return -1;
         }
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
+        return 0;
 }
 
 /* Check for indirection: things like a.b, a['b'], a[b], a(b)... */
-static void
+static int
 assemble_expr4_elems(struct assemble_t *a)
 {
-        assemble_expr5_atomic(a);
+        if (assemble_expr5_atomic(a) < 0)
+                return -1;
         assemble_primary_elements(a, FEE_EVAL);
+        return 0;
 }
 
-static void
+static int
 assemble_expr3_unarypre(struct assemble_t *a)
 {
         if (istok_unarypre(a->oc->t)) {
@@ -1355,14 +1481,17 @@ assemble_expr3_unarypre(struct assemble_t *a)
                 else /* +, do nothing*/
                         op = -1;
 
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
                 /* recurse, we could have something like !! */
-                assemble_expr3_unarypre(a);
+                if (assemble_expr3_unarypre(a) < 0)
+                        return -1;
 
                 if (op >= 0)
                         add_instr(a, op, 0, 0);
+                return 0;
         } else {
-                assemble_expr4_elems(a);
+                return assemble_expr4_elems(a);
         }
 }
 
@@ -1379,14 +1508,13 @@ struct operator_state_t {
 };
 
 /* Helper to assemble_expr2_binary - the recursive part */
-static void
+static int
 assemble_binary_operators_r(struct assemble_t *a,
                             const struct operator_state_t *tbl)
 {
         if (tbl->toktbl == NULL) {
                 /* carry on to unarypre and atom */
-                assemble_expr3_unarypre(a);
-                return;
+                return assemble_expr3_unarypre(a);
         }
 
         /*
@@ -1399,7 +1527,9 @@ assemble_binary_operators_r(struct assemble_t *a,
         int label = -1;
         bool have_operator = 0;
 
-        assemble_binary_operators_r(a, tbl + 1);
+        if (assemble_binary_operators_r(a, tbl + 1) < 0)
+                return -1;
+
         do {
                 const struct token_to_opcode_t *t;
                 for (t = tbl->toktbl; t->tok >= 0; t++) {
@@ -1421,8 +1551,10 @@ assemble_binary_operators_r(struct assemble_t *a,
                         bug_on(label < 0);
                 }
 
-                as_lex(a);
-                assemble_binary_operators_r(a, tbl + 1);
+                if (as_lex(a) < 0)
+                        return -1;
+                if (assemble_binary_operators_r(a, tbl + 1) < 0)
+                        return -1;
 
                 if (!logical) {
                         if (tbl->opcode < 0)
@@ -1434,13 +1566,15 @@ assemble_binary_operators_r(struct assemble_t *a,
         } while (tbl->loop);
 
         if (logical && have_operator) {
-                as_set_label(a, label);
+                if (as_set_label(a, label) < 0)
+                        return -1;
                 bug_on(label < 0);
         }
+        return 0;
 }
 
 /* Parse and compile operators with left- and right-side operands */
-static void
+static int
 assemble_expr2_binary(struct assemble_t *a)
 {
         /*
@@ -1519,30 +1653,38 @@ assemble_expr2_binary(struct assemble_t *a)
                 { POW_TOK2OP,       true,  -1 },
                 { NULL },
         };
-        assemble_binary_operators_r(a, BINARY_OPERATORS);
+        return assemble_binary_operators_r(a, BINARY_OPERATORS);
 }
 
-static void
+static int
 assemble_expr1_ternary(struct assemble_t *a)
 {
-        assemble_expr2_binary(a);
+        if (assemble_expr2_binary(a) < 0)
+                return -1;
         if (a->oc->t == OC_QUEST) {
                 int b_end = as_next_label(a);
                 int b_if_false = as_next_label(a);
                 add_instr(a, INSTR_B_IF, 0, b_if_false);
-                as_lex(a);
-                assemble_expr2_binary(a);
+                if (as_lex(a) < 0)
+                        return -1;
+                if (assemble_expr2_binary(a) < 0)
+                        return -1;
                 add_instr(a, INSTR_B, 0, b_end);
-                as_set_label(a, b_if_false);
+                if (as_set_label(a, b_if_false) < 0)
+                        return -1;
                 if (a->oc->t != OC_COLON) {
                         err_setstr(SyntaxError,
                                    "Expected: ':' in ternary expression");
-                        as_err(a, AE_GEN);
+                        return -1;
                 }
-                as_lex(a);
-                assemble_expr2_binary(a);
-                as_set_label(a, b_end);
+                if (as_lex(a) < 0)
+                        return -1;
+                if (assemble_expr2_binary(a) < 0)
+                        return -1;
+                if (as_set_label(a, b_end) < 0)
+                        return -1;
         }
+        return 0;
 }
 
 /**
@@ -1570,17 +1712,22 @@ assemble_expr1_ternary(struct assemble_t *a)
  * 2. assemble_expr5_atomic() could, and at the top level likely will,
  *    recurse into assemble_stmt() again.
  */
-static void
+static int
 assemble_expr(struct assemble_t *a, unsigned int flags)
 {
         size_t n = 1;
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
 
-        assemble_expr1_ternary(a);
+        if (assemble_expr1_ternary(a) < 0)
+                return -1;
+
         if (!!(flags & FE_CHECKTUPLE) && a->oc->t == OC_COMMA) {
                 do {
-                        as_lex(a);
-                        assemble_expr1_ternary(a);
+                        if (as_lex(a) < 0)
+                                return -1;
+                        if (assemble_expr1_ternary(a) < 0)
+                                return -1;
                         n++;
                 } while (a->oc->t == OC_COMMA);
         }
@@ -1588,6 +1735,7 @@ assemble_expr(struct assemble_t *a, unsigned int flags)
                 add_instr(a, INSTR_DEFTUPLE, 0, n);
 
         as_unlex(a);
+        return 0;
 }
 
 /* t is '+=', '/=', etc. */
@@ -1626,7 +1774,7 @@ asgntok2instr(int t)
  * of just '=', perform the operation.  Calling code will then perform
  * the assignment (SETATTR, ASSIGN, etc.)
  */
-static void
+static int
 assemble_preassign(struct assemble_t *a, int t)
 {
         /* first check the ones that don't call assemble_expr */
@@ -1643,16 +1791,21 @@ assemble_preassign(struct assemble_t *a, int t)
 
         default:
                 bug_on(t == OC_EQ || !istok_assign(t));
-                assemble_expr(a, FE_CHECKTUPLE);
+                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                        return -1;
                 add_instr(a, asgntok2instr(t), 0, 0);
         }
+        return 0;
 }
 
+/* return -1 if error, 1 if attribute modified, 0 if not */
 static int
 maybe_modattr(struct assemble_t *a, unsigned int flags)
 {
         if (flags == FEE_DEL) {
                 int t = as_lex(a);
+                if (t < 0)
+                        return -1;
                 if (istok_indirection(t)) {
                         as_unlex(a);
                         return 0;
@@ -1661,14 +1814,18 @@ maybe_modattr(struct assemble_t *a, unsigned int flags)
                 return 1;
         } else if (flags == FEE_ASGN) {
                 int t = as_lex(a);
+                if (t < 0)
+                        return -1;
                 if (istok_assign(t)) {
                         if (t == OC_EQ) {
-                                assemble_expr(a, FE_CHECKTUPLE);
+                                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                                        return -1;
                         } else {
                                 add_instr(a, INSTR_COPY, 0, 2);
                                 add_instr(a, INSTR_COPY, 0, 2);
                                 add_instr(a, INSTR_GETATTR, 0, 0);
-                                assemble_preassign(a, t);
+                                if (assemble_preassign(a, t) < 0)
+                                        return -1;
                         }
                         add_instr(a, INSTR_SETATTR, 0, 0);
                         return 1;
@@ -1686,53 +1843,76 @@ maybe_modattr(struct assemble_t *a, unsigned int flags)
  * @may_assign: false if we are in the assemble_exprN() loop above
  *              true if called from assemble_ident|this() below
  *
- * Return: 1 if an evaluated item is dangling on the stack, 0 if not
+ * Return: 1 if an evaluated item is dangling on the stack
+ *         0 if not
+ *         -1 if error
  */
 static int
 assemble_primary_elements(struct assemble_t *a, unsigned int flags)
 {
         flags &= FEE_MASK;
         while (istok_indirection(a->oc->t)) {
+                int mres;
                 switch (a->oc->t) {
                 case OC_PER:
-                        as_errlex(a, OC_IDENTIFIER);
+                        if (as_errlex(a, OC_IDENTIFIER) < 0)
+                                return -1;
                         ainstr_load_const(a, a->oc);
-                        if (maybe_modattr(a, flags))
+                        mres = maybe_modattr(a, flags);
+                        if (mres < 0)
+                                return -1;
+                        else if (mres)
                                 return 0;
                         add_instr(a, INSTR_GETATTR, 0, 0);
                         break;
 
                 case OC_LBRACK:
-                        assemble_slice(a);
-                        if (as_lex(a) == OC_RBRACK) {
-                                if (maybe_modattr(a, flags))
+                        if (assemble_slice(a) < 0)
+                                return -1;
+                        if (as_lex(a) < 0)
+                                return -1;
+                        if (a->oc->t == OC_RBRACK) {
+                                mres = maybe_modattr(a, flags);
+                                if (mres < 0)
+                                        return -1;
+                                else if (mres)
                                         return 0;
                                 as_unlex(a);
                         }
                         add_instr(a, INSTR_GETATTR, 0, 0);
-                        as_errlex(a, OC_RBRACK);
+                        if (as_errlex(a, OC_RBRACK) < 0)
+                                return -1;
                         break;
 
                 case OC_LPAR:
                         as_unlex(a);
-                        assemble_call_func(a);
+                        if (assemble_call_func(a) < 0)
+                                return -1;
                         /*
                          * XXX: I don't know a faster way to do this
                          * without spaghettifying the code.
                          */
-                        if (flags == FEE_DEL &&
-                            !istok_indirection(as_peek(a, false))) {
-                                err_setstr(SyntaxError,
-                                           "Trying to delete function call");
-                                as_err(a, AE_GEN);
+                        if (flags == FEE_DEL) {
+                                int t;
+                                if (as_lex(a) < 0)
+                                        return -1;
+                                t = a->oc->t;
+                                as_unlex(a);
+                                if (!istok_indirection(t)) {
+                                        err_setstr(SyntaxError,
+                                                   "Trying to delete function call");
+                                        return -1;
+                                }
                         }
                         break;
 
                 default:
-                        as_err(a, AE_BADTOK);
+                        err_setstr(SyntaxError, "Invalid token");
+                        return -1;
                 }
 
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
         }
 
         if (!!flags && a->oc->t == OC_SEMI)
@@ -1744,7 +1924,8 @@ assemble_primary_elements(struct assemble_t *a, unsigned int flags)
 static int
 assemble_primary_elements__(struct assemble_t *a)
 {
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         if (a->oc->t == OC_SEMI) {
                 as_unlex(a);
                 return 1;
@@ -1765,15 +1946,18 @@ assemble_this(struct assemble_t *a, unsigned int flags)
         return assemble_primary_elements__(a);
 }
 
-/* return 1 if item left on the stack, 0 if not */
+/* return 1 if item left on the stack, 0 if not, -1 if error */
 static int
 assemble_identifier(struct assemble_t *a, unsigned int flags)
 {
         struct list_t names;
         int needsize, star;
         struct names_t *n;
+        int ret;
 
         needsize = gather_names(a, &names, &star, ERRH_EXCEPTION);
+        if (needsize < 0)
+                return -1;
         if (needsize > 1) {
                 /* eg. "a, b" or "a, b = (some, iterable)" */
                 struct list_t *p;
@@ -1783,17 +1967,17 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                         token_pos_t pos = AS_LIST2NAMES(names.prev)->pos;
                         (void)as_swap_pos(a, pos);
                         as_unlex(a);
-                        assemble_expr(a, FE_CHECKTUPLE);
-                        cleanup_names(&names);
-                        return 1;
+                        if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                                goto err_cleanup;
+                        goto one;
                 }
 
                 if (a->oc->t != OC_EQ) {
-                        cleanup_names(&names);
                         err_ae_expect(a, OC_EQ);
-                        as_err(a, AE_EXPECT);
+                        goto err_cleanup;
                 }
-                assemble_expr(a, FE_CHECKTUPLE);
+                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                        goto err_cleanup;
                 if (star < 0) {
                         add_instr(a, INSTR_UNPACK, 0, needsize);
                 } else {
@@ -1802,10 +1986,12 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                 }
                 list_foreach(p, &names) {
                         n = AS_LIST2NAMES(p);
-                        ainstr_assign_symbol(a, &n->tok, n->pos, flags);
+                        if (ainstr_assign_symbol(a, &n->tok,
+                                                 n->pos, flags) < 0) {
+                                goto err_cleanup;
+                        }
                 }
-                cleanup_names(&names);
-                return 0;
+                goto zero;
         }
 
         n = AS_LIST2NAMES(names.next);
@@ -1815,21 +2001,22 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * Don't load, INSTR_ASSIGN_LOCAL knows where from frame
                  * pointer to store 'value'
                  */
-                assemble_expr(a, FE_CHECKTUPLE);
+                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                        goto err_cleanup;
                 ainstr_assign_symbol(a, &n->tok, n->pos, flags);
-                cleanup_names(&names);
-                return 0;
+                goto zero;
         } else if (istok_assign(a->oc->t)) {
                 /*
                  * x++;
                  * x += value;
                  * ...
                  */
-                ainstr_load_symbol(a, &n->tok, n->pos);
-                assemble_preassign(a, a->oc->t);
+                if (ainstr_load_symbol(a, &n->tok, n->pos) < 0)
+                        goto err_cleanup;
+                if (assemble_preassign(a, a->oc->t) < 0)
+                        goto err_cleanup;
                 ainstr_assign_symbol(a, &n->tok, n->pos, flags);
-                cleanup_names(&names);
-                return 0;
+                goto zero;
         } else if (istok_indirection(a->oc->t)) {
                 /*
                  * x(args);
@@ -1840,7 +2027,8 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  * calling a function or modifying one of x's descendants.
                  */
                 as_unlex(a);
-                ainstr_load_symbol(a, &n->tok, n->pos);
+                if (ainstr_load_symbol(a, &n->tok, n->pos) < 0)
+                        goto err_cleanup;
                 cleanup_names(&names);
                 return assemble_primary_elements__(a);
         } else {
@@ -1851,26 +2039,44 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
                  */
                 as_unlex(a);
                 as_unlex(a);
-                assemble_expr(a, FE_CHECKTUPLE);
-                return 1;
+                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                        goto err_cleanup;
+                goto one;
         }
+
+err_cleanup:
+        ret = -1;
+        goto out;
+one:
+        ret = 1;
+        goto out;
+zero:
+        ret = 0;
+        goto out;
+out:
+        cleanup_names(&names);
+        return ret;
 }
 
-static void
+static int
 assemble_delete(struct assemble_t *a, unsigned int flags)
 {
         struct token_t name;
         token_pos_t pos;
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         pos = as_savetok(a, &name);
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         if (istok_indirection(a->oc->t)) {
                 if (name.t != OC_THIS && name.t != OC_IDENTIFIER)
                         goto baddelete;
-                ainstr_load_symbol(a, &name, pos);
-                assemble_primary_elements(a, FEE_DEL);
+                if (ainstr_load_symbol(a, &name, pos) < 0)
+                        return -1;
+                if (assemble_primary_elements(a, FEE_DEL) < 0)
+                        return -1;
         } else {
                 /*
                  * Cannot delete variables, but we can reduce their
@@ -1888,16 +2094,20 @@ assemble_delete(struct assemble_t *a, unsigned int flags)
                 ainstr_load_null(a);
                 ainstr_assign_symbol(a, &name, pos, flags);
         }
-        return;
+        return 0;
 
 baddelete:
         /* back up for more accurate error reporting */
         as_unlex(a);
         err_setstr(SyntaxError, "Invalid expression for delete");
-        as_err(a, AE_GEN);
+        return -1;
 }
 
-/* common to assemble_declarator_stmt and assemble_foreach */
+/*
+ * helper to assemble_declarator_stmt
+ *
+ * return index >= 0, or -1 if error
+ */
 static int
 assemble_declare(struct assemble_t *a, struct token_t *name,
                  bool global, unsigned int flags)
@@ -1917,11 +2127,13 @@ assemble_declare(struct assemble_t *a, struct token_t *name,
                     == RES_ERROR) {
                         err_setstr(SyntaxError,
                                    "Redefining variable ('%s')", name->v);
-                        as_err(a, AE_GEN);
+                        return -1;
                 }
         } else {
                 bug_on(!name);
                 namei = fakestack_declare(a, name->v);
+                if (namei < 0)
+                        return -1;
                 if (!(flags & FE_SKIPNULLASSIGN)) {
                         /*
                          * XXX: This opcode is needed for example when re-
@@ -1935,7 +2147,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name,
         return namei;
 }
 
-static void
+static int
 assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 {
         struct list_t names, *p;
@@ -1943,13 +2155,16 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
         int needsize, star;
         unsigned int extraflags = 0;
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         if (a->oc->t != OC_MUL && a->oc->t != OC_IDENTIFIER) {
                 err_ae_expect(a, OC_IDENTIFIER);
-                as_err(a, AE_EXPECT);
+                return -1;
         }
 
         needsize = gather_names(a, &names, &star, ERRH_EXCEPTION);
+        if (needsize < 0)
+                return -1;
         (void)star;
 
         global = tok == OC_GBL;
@@ -1961,6 +2176,8 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 struct names_t *n = AS_LIST2NAMES(p);
                 n->namei = assemble_declare(a, &n->tok,
                                             global, flags | extraflags);
+                if (n->namei < 0)
+                        goto err_clean;
         }
 
         if (a->oc->t == OC_SEMI) {
@@ -1969,18 +2186,17 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                  * We are allowing it and ignoring the star. Should we?
                  */
                 as_unlex(a);
-                cleanup_names(&names);
-                return;
+                goto done;
         }
 
         if (a->oc->t != OC_EQ) {
                 /* for initializers, only '=', not '+=' or such */
                 err_ae_expect(a, OC_EQ);
-                cleanup_names(&names);
-                as_err(a, AE_EXPECT);
+                goto err_clean;
         }
 
-        assemble_expr(a, FE_CHECKTUPLE);
+        if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                goto err_clean;
 
         if (needsize != 1) {
                 if (star < 0) {
@@ -2007,63 +2223,87 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 }
                 add_instr(a, instr, arg1, n->namei);
         }
+done:
         cleanup_names(&names);
+        return 0;
+err_clean:
+        cleanup_names(&names);
+        return -1;
 }
 
-static void
+static int
 assemble_return(struct assemble_t *a)
 {
-        if (as_peek(a, false) == OC_SEMI) {
+        if (as_lex(a) < 0)
+                return -1;
+        if (a->oc->t == OC_SEMI) {
+                as_unlex(a);
                 ainstr_return_null(a);
         } else {
-                assemble_expr(a, FE_CHECKTUPLE);
+                as_unlex(a);
+                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                        return -1;
                 add_instr(a, INSTR_RETURN_VALUE, 0, 0);
         }
+        return 0;
 }
 
-static void
+static int
 assemble_try(struct assemble_t *a)
 {
         struct token_t exctok;
         int finally = as_next_label(a);
         int catch = as_next_label(a);
 
-        ainstr_push_block(a, IARG_TRY, catch);
+        if (ainstr_push_block(a, IARG_TRY, catch) < 0)
+                return -1;
 
         /* block of the try { ... } statement */
-        assemble_stmt(a, 0, 0);
+        if (assemble_stmt(a, 0, 0) < 0)
+                return -1;
         add_instr(a, INSTR_B, 0, finally);
 
         ainstr_pop_block(a, IARG_TRY);
 
-        as_errlex(a, OC_CATCH);
-        as_set_label(a, catch);
+        if (as_errlex(a, OC_CATCH) < 0)
+                return -1;
+        if (as_set_label(a, catch) < 0)
+                return -1;
 
         /* block of the catch(x) { ... } statement */
-        as_errlex(a, OC_LPAR);
-        as_errlex(a, OC_IDENTIFIER);
+        if (as_errlex(a, OC_LPAR) < 0)
+                return -1;
+        if (as_errlex(a, OC_IDENTIFIER) < 0)
+                return -1;
         as_savetok(a, &exctok);
-        as_errlex(a, OC_RPAR);
+        if (as_errlex(a, OC_RPAR) < 0)
+                return -1;
         /*
          * No instructions for pushing this on the stack.
          * The exception handler will do that for us in
          * execute loop.
          */
-        fakestack_declare(a, exctok.v);
-        assemble_stmt(a, 0, 0);
-        as_lex(a);
+        if (fakestack_declare(a, exctok.v) < 0)
+                return -1;
+        if (assemble_stmt(a, 0, 0) < 0)
+                return -1;
+        if (as_lex(a) < 0)
+                return -1;
 
-        as_set_label(a, finally);
+        if (as_set_label(a, finally) < 0)
+                return -1;
 
         if (a->oc->t == OC_FINALLY) {
                 /* block of the finally { ... } statement */
-                assemble_stmt(a, 0, 0);
+                if (assemble_stmt(a, 0, 0) < 0)
+                        return -1;
         } else {
                 as_unlex(a);
         }
+        return 0;
 }
 
-static void
+static int
 assemble_if(struct assemble_t *a)
 {
         int true_jmpend = as_next_label(a);
@@ -2075,75 +2315,100 @@ assemble_if(struct assemble_t *a)
          */
         while (a->oc->t == OC_IF) {
                 int jmpend = as_next_label(a);
-                assemble_expr(a, FE_CHECKTUPLE);
+                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                        return -1;
                 add_instr(a, INSTR_B_IF, 0, jmpelse);
-                assemble_stmt(a, 0, 0);
+                if (assemble_stmt(a, 0, 0) < 0)
+                        return -1;
                 add_instr(a, INSTR_B, 0, true_jmpend);
-                as_set_label(a, jmpelse);
+                if (as_set_label(a, jmpelse) < 0)
+                        return -1;
 
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
                 if (a->oc->t == OC_ELSE) {
                         jmpelse = jmpend;
-                        as_lex(a);
+                        if (as_lex(a) < 0)
+                                return -1;
                 } else {
                         as_unlex(a);
-                        as_set_label(a, jmpend);
+                        if (as_set_label(a, jmpend) < 0)
+                                return -1;
                         goto done;
                 }
         }
 
         /* final else */
         as_unlex(a);
-        as_set_label(a, jmpelse);
-        assemble_stmt(a, 0, 0);
+        if (as_set_label(a, jmpelse) < 0)
+                return -1;
+        if (assemble_stmt(a, 0, 0) < 0)
+                return -1;
 
 done:
-        as_set_label(a, true_jmpend);
+        if (as_set_label(a, true_jmpend) < 0)
+                return -1;
+        return 0;
 }
 
-static void
+static int
 assemble_while(struct assemble_t *a)
 {
         int start = as_next_label(a);
         int breakto = as_next_label(a);
 
-        ainstr_push_block(a, IARG_LOOP, breakto);
+        if (ainstr_push_block(a, IARG_LOOP, breakto) < 0)
+                return -1;
 
-        as_set_label(a, start);
+        if (as_set_label(a, start) < 0)
+                return -1;
 
-        as_errlex(a, OC_LPAR);
-        assemble_expr(a, FE_CHECKTUPLE);
-        as_errlex(a, OC_RPAR);
+        if (as_errlex(a, OC_LPAR) < 0)
+                return -1;
+        if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                return -1;
+        if (as_errlex(a, OC_RPAR) < 0)
+                return -1;
 
         add_instr(a, INSTR_B_IF, 0, breakto);
-        assemble_stmt(a, FE_CONTINUE, start);
+        if (assemble_stmt(a, FE_CONTINUE, start) < 0)
+                return -1;
         add_instr(a, INSTR_B, 0, start);
 
         ainstr_pop_block(a, IARG_LOOP);
 
-        as_set_label(a, breakto);
+        if (as_set_label(a, breakto) < 0)
+                return -1;
+        return 0;
 }
 
-static void
+static int
 assemble_do(struct assemble_t *a)
 {
         int start = as_next_label(a);
         int breakto = as_next_label(a);
 
-        ainstr_push_block(a, IARG_LOOP, breakto);
+        if (ainstr_push_block(a, IARG_LOOP, breakto) < 0)
+                return -1;
 
-        as_set_label(a, start);
-        assemble_stmt(a, FE_CONTINUE, start);
-        as_errlex(a, OC_WHILE);
-        assemble_expr(a, FE_CHECKTUPLE);
+        if (as_set_label(a, start) < 0)
+                return -1;
+        if (assemble_stmt(a, FE_CONTINUE, start) < 0)
+                return -1;
+        if (as_errlex(a, OC_WHILE) < 0)
+                return -1;
+        if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                return -1;
         add_instr(a, INSTR_B_IF, 1, start);
 
         ainstr_pop_block(a, IARG_LOOP);
 
-        as_set_label(a, breakto);
+        if (as_set_label(a, breakto) < 0)
+                return -1;
+        return 0;
 }
 
-static void
+static int
 assemble_foreach2(struct assemble_t *a, struct list_t *names,
                   int star, int needsize)
 {
@@ -2153,6 +2418,8 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                 struct names_t *n = AS_LIST2NAMES(names->next);
                 bug_on(!n->tok.v);
                 n->namei = fakestack_declare(a, n->tok.v);
+                if (n->namei < 0)
+                        return -1;
                 add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
         } else {
                 /*
@@ -2166,6 +2433,8 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                         struct names_t *n = AS_LIST2NAMES(p);
                         bug_on(!n->tok.v);
                         n->namei = fakestack_declare(a, n->tok.v);
+                        if (n->namei < 0)
+                                return -1;
                         i++;
                 }
                 bug_on(i != needsize);
@@ -2180,11 +2449,14 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                         add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
                 }
         }
-        assemble_stmt(a, FE_CONTINUE, iternext);
-        as_set_label(a, iternext);
+        if (assemble_stmt(a, FE_CONTINUE, iternext) < 0)
+                return -1;
+        if (as_set_label(a, iternext) < 0)
+                return -1;
+        return 0;
 }
 
-static void
+static int
 assemble_foreach1(struct assemble_t *a, int breakto)
 {
         struct list_t names;
@@ -2194,84 +2466,106 @@ assemble_foreach1(struct assemble_t *a, int breakto)
         int needsize;
         bool have_par = false;
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         if (a->oc->t == OC_LPAR) {
                 have_par = true;
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
         }
 
         /* save names of the 'needles' in 'for (needles in haystack)' */
         if (a->oc->t != OC_MUL && a->oc->t != OC_IDENTIFIER) {
                 err_ae_expect(a, OC_IDENTIFIER);
-                as_err(a, AE_EXPECT);
+                return -1;
         }
         needsize = gather_names(a, &names, &star, ERRH_EXCEPTION);
+        if (needsize < 0)
+                return -1;
 
         if (a->oc->t != OC_IN) {
                 err_ae_expect(a, OC_IN);
-                cleanup_names(&names);
-                as_err(a, AE_EXPECT);
+                goto err_cleanup;
         }
 
         /* push 'haystack onto the stack */
-        assemble_expr(a, FE_CHECKTUPLE);
+        if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                goto err_cleanup;
 
         if (have_par) {
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        goto err_cleanup;
                 if (a->oc->t != OC_RPAR) {
                         err_ae_expect(a, OC_RPAR);
-                        cleanup_names(&names);
-                        as_err(a, AE_EXPECT);
+                        goto err_cleanup;
                 }
         }
 
         /* maybe replace 'haystack' with its keys */
         add_instr(a, INSTR_FOREACH_SETUP, 0, 0);
-        as_set_label(a, iter);
+        if (as_set_label(a, iter) < 0)
+                goto err_cleanup;
         add_instr(a, INSTR_FOREACH_ITER, 0, forelse);
 
-        ainstr_push_block(a, IARG_BLOCK, 0);
-        assemble_foreach2(a, &names, star, needsize);
+        if (ainstr_push_block(a, IARG_BLOCK, 0) < 0)
+                goto err_cleanup;
+        if (assemble_foreach2(a, &names, star, needsize) < 0)
+                goto err_cleanup;
         ainstr_pop_block(a, IARG_BLOCK);
 
         add_instr(a, INSTR_B, 0, iter);
 
-        as_set_label(a, forelse);
-        as_lex(a);
+        if (as_set_label(a, forelse) < 0)
+                goto err_cleanup;
+        if (as_lex(a) < 0)
+                goto err_cleanup;
         if (a->oc->t == OC_EOF) {
                 as_badeof(a);
+                goto err_cleanup;
         } else if (a->oc->t == OC_ELSE) {
-                assemble_stmt(a, 0, 0);
+                if (assemble_stmt(a, 0, 0) < 0)
+                        goto err_cleanup;
         } else {
                 as_unlex(a);
         }
         cleanup_names(&names);
+        return 0;
+
+err_cleanup:
+        cleanup_names(&names);
+        return -1;
 }
 
-static void
+static int
 assemble_foreach(struct assemble_t *a)
 {
         int breakto = as_next_label(a);
-        ainstr_push_block(a, IARG_LOOP, breakto);
+        if (ainstr_push_block(a, IARG_LOOP, breakto) < 0)
+                return -1;
 
-        assemble_foreach1(a, breakto);
+        if (assemble_foreach1(a, breakto) < 0)
+                return -1;
 
         ainstr_pop_block(a, IARG_LOOP);
-        as_set_label(a, breakto);
+        if (as_set_label(a, breakto) < 0)
+                return -1;
+        return 0;
 }
 
-static void
+static int
 assemble_throw(struct assemble_t *a)
 {
-        assemble_expr(a, FE_CHECKTUPLE);
+        if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                return -1;
         add_instr(a, INSTR_THROW, 0, 0);
+        return 0;
 }
 
 /*
  * parse '{' stmt; stmt;... '}'
  * The first '{' has already been read.
  */
-static void
+static int
 assemble_block_stmt(struct assemble_t *a, unsigned int flags,
                     int continueto)
 {
@@ -2284,66 +2578,75 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags,
                 arg2 = 0;
         }
 
-        ainstr_push_block(a, arg1, arg2);
+        if (ainstr_push_block(a, arg1, arg2) < 0)
+                return -1;
 
         /* don't pass this down */
         flags &= ~FE_CONTINUE;
 
         for (;;) {
                 /* peek for end of compound statement */
-                as_lex(a);
+                if (as_lex(a) < 0)
+                        return -1;
                 if (a->oc->t == OC_RBRACE)
                         break;
                 as_unlex(a);
 
-                assemble_stmt(a, flags, -1);
+                if (assemble_stmt(a, flags, -1) < 0)
+                        return -1;
         }
         ainstr_pop_block(a, arg1);
+        return 0;
 }
 
 /* parse the stmt of 'stmt' + ';' */
-static void
+static int
 assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                      int continueto)
 {
         int need_pop = 0;
         int pop_arg = !!(flags & FE_TOP) ? IARG_POP_PRINT : IARG_POP_NORMAL;
 
-        as_lex(a);
+        if (as_lex(a) < 0)
+                return -1;
         /* cases return early if semicolon not expected at the end */
         switch (a->oc->t) {
         case OC_DELETE:
-                assemble_delete(a, flags);
-                return;
+                return assemble_delete(a, flags);
         case OC_EOF:
-                return;
+                return 0;
         case OC_MUL:
         case OC_IDENTIFIER:
                 need_pop = assemble_identifier(a, flags);
+                if (need_pop < 0)
+                        return -1;
                 break;
         case OC_THIS:
                 /* not a saucy challenge */
                 need_pop = assemble_this(a, flags);
+                if (need_pop < 0)
+                        return -1;
                 break;
         case OC_SEMI:
                 /* empty statement */
                 as_unlex(a);
                 break;
         case OC_RPAR:
-                as_err(a, AE_PAR);
-                as_unlex(a);
-                break;
+                err_setstr(SyntaxError, "Unbalanced parenthesis");
+                return -1;
         case OC_LET:
         case OC_GBL:
-                assemble_declarator_stmt(a, a->oc->t, flags);
+                if (assemble_declarator_stmt(a, a->oc->t, flags) < 0)
+                        return -1;
                 break;
         case OC_RETURN:
                 if (!!(flags & FE_TOP)) {
                         err_setstr(SyntaxError,
                                 "Cannot return in interactive mode while outside of a function");
-                        as_err(a, AE_EXPECT);
+                        return -1;
                 }
-                assemble_return(a);
+                if (assemble_return(a) < 0)
+                        return -1;
                 break;
         case OC_BREAK:
                 add_instr(a, INSTR_BREAK, 0, 0);
@@ -2352,30 +2655,26 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 add_instr(a, INSTR_CONTINUE, 0, 0);
                 break;
         case OC_THROW:
-                assemble_throw(a);
+                if (assemble_throw(a) < 0)
+                        return -1;
                 break;
         case OC_TRY:
-                assemble_try(a);
-                return;
+                return assemble_try(a);
         case OC_IF:
-                assemble_if(a);
-                return;
+                return assemble_if(a);
         case OC_WHILE:
-                assemble_while(a);
-                return;
+                return assemble_while(a);
         case OC_FOR:
-                assemble_foreach(a);
-                return;
+                return assemble_foreach(a);
         case OC_LBRACE:
-                assemble_block_stmt(a, flags & ~FE_TOP, continueto);
-                return;
+                return assemble_block_stmt(a, flags & ~FE_TOP, continueto);
         case OC_DO:
-                assemble_do(a);
-                return;
+                return assemble_do(a);
         default:
                 /* value expression */
                 as_unlex(a);
-                assemble_expr(a, FE_CHECKTUPLE);
+                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                        return -1;
                 need_pop = 1;
                 break;
         }
@@ -2384,7 +2683,13 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         if (need_pop)
                 add_instr(a, INSTR_POP, pop_arg, 0);
 
-        as_errlex(a, OC_SEMI);
+        if (as_lex(a) < 0)
+                return -1;
+        if (a->oc->t != OC_SEMI) {
+                err_ae_expect(a, OC_SEMI);
+                return -1;
+        }
+        return 0;
 }
 
 RECURSION_DECLARE(as_recursion);
@@ -2400,14 +2705,16 @@ RECURSION_DECLARE(as_recursion);
  *
  * See Documentation for the details.
  */
-static void
+static int
 assemble_stmt(struct assemble_t *a, unsigned int flags, int continueto)
 {
+        int ret;
+
         RECURSION_DEFAULT_START(as_recursion);
-
-        assemble_stmt_simple(a, flags, continueto);
-
+        ret = assemble_stmt_simple(a, flags, continueto);
         RECURSION_END(as_recursion);
+
+        return ret;
 }
 
 /*
@@ -2551,74 +2858,27 @@ static struct xptrvar_t *
 assemble_next(struct assemble_t *a, bool toeof, int *status)
 {
         struct xptrvar_t *ex;
-        int res;
 
         if (a->oc && a->oc->t == OC_EOF) {
                 *status = RES_OK;
                 return NULL;
         }
 
-        if ((res = setjmp(a->env)) != 0) {
-                const char *msg;
-
-                switch (res) {
-                default:
-                case AE_GEN:
-                        msg = "Assembly error";
-                        break;
-                case AE_BADTOK:
-                        msg = "Invalid token";
-                        break;
-                case AE_EXPECT:
-                        msg = "Expected token missing";
-                        break;
-                case AE_OVERFLOW:
-                        msg = "Frame overflow";
-                        break;
-                case AE_PAR:
-                        msg = "Unbalanced parenthesis";
-                        break;
-                case AE_LAMBDA:
-                        msg = "Unbalanced lambda";
-                        break;
-                case AE_BRACK:
-                        msg = "Unbalanced bracket";
-                        break;
-                case AE_BRACE:
-                        msg = "Unbalanced brace";
-                        break;
-                case AE_PARSER:
-                        /* Parser already set error message */
-                        msg = NULL;
-                        break;
+        do {
+                if (assemble_stmt(a, toeof ? 0 : FE_TOP, -1) < 0) {
+                        bug_on(!err_occurred());
+                        assemble_splash_error(a);
+                        *status = RES_ERROR;
+                        return NULL;
                 }
+        } while (toeof && a->oc->t != OC_EOF);
+        add_instr(a, INSTR_END, 0, 0);
 
-                if (msg && !err_occurred())
-                        err_setstr(SyntaxError, "%s", msg);
+        list_remove(&a->fr->list);
+        list_add_front(&a->fr->list, &a->finished_frames);
 
-                assemble_splash_error(a);
-
-                /*
-                 * TODO: probably more meticulous cleanup needed here,
-                 * we don't know exactly where we failed.
-                 */
-                *status = RES_ERROR;
-                ex = NULL;
-        } else {
-                do {
-                        assemble_stmt(a, toeof ? 0 : FE_TOP, -1);
-                } while (toeof && a->oc->t != OC_EOF);
-                add_instr(a, INSTR_END, 0, 0);
-
-                list_remove(&a->fr->list);
-                list_add_front(&a->fr->list, &a->finished_frames);
-
-                ex = assemble_post(a);
-
-                *status = RES_OK;
-        }
-
-        RECURSION_RESET(as_recursion);
+        ex = assemble_post(a);
+        *status = RES_OK;
 
         return ex;
 }
@@ -2635,7 +2895,9 @@ assemble_next(struct assemble_t *a, bool toeof, int *status)
 void
 assemble_label_here(struct assemble_t *a)
 {
-        as_set_label(a, as_next_label(a));
+        int res = as_set_label(a, as_next_label(a));
+        bug_on(res < 0);
+        (void)res;
 }
 
 void
@@ -2765,7 +3027,7 @@ assemble_frame_pop(struct assemble_t *a)
 Object *
 assemble(const char *filename, FILE *fp, Object *localdict, int *status)
 {
-        int localstatus;
+        int localstatus, firsttok;
         struct xptrvar_t *ret;
         struct assemble_t *a;
         bool toeof;
@@ -2786,7 +3048,15 @@ assemble(const char *filename, FILE *fp, Object *localdict, int *status)
          * XXX: toeof wasn't meant to be synonymous with !(interactive mode)
          */
         CLOCK_SAVE();
-        if (toeof && as_peek(a, true) == OC_PER) {
+        if (as_lex(a) < 0) {
+                /* oops, never mind, something's unparseable */
+                *status = RES_ERROR;
+                free_assembler(a);
+                return NULL;
+        }
+        firsttok = a->oc->t;
+        as_unlex(a);
+        if (toeof && firsttok == OC_PER) {
                 ret = reassemble(a);
                 /* reassemble can only succeed or fail */
                 if (!ret) {

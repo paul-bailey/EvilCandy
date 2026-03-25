@@ -59,7 +59,6 @@ struct as_frame_t {
  * @prog:       The token state machine
  * @oc:         Pointer into current parsed token in @prog
  * @func:       Label number for next function
- * @env:        Buffer to longjmp from in case of error
  * @active_frames:
  *              Linked list of frames that have not been fully parsed.
  *              Because functions can be declared and defined in the
@@ -78,7 +77,6 @@ struct assemble_t {
         struct token_state_t *prog;
         struct token_t *oc;
         int func;
-        jmp_buf env;
         struct list_t active_frames;
         struct list_t finished_frames;
         struct as_frame_t *fr;

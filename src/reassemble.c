@@ -214,172 +214,206 @@ err_start:
         return -1;
 }
 
+static Object *parse_rodata1(struct reassemble_t *ra,
+                             struct token_state_t *tkstate);
+
+/* parse rodata as a tuple or complex expression */
 static Object *
-parse_rodata1(struct reassemble_t *ra, const char *pc, char **endptr)
+parse_rodata2(struct reassemble_t *ra, struct token_state_t *tkstate)
 {
         Object *o;
-        struct token_t tok;
-        int status, negative;
+        struct token_t *tok;
+        struct buffer_t b;
+        bool istuple = false;
+        size_t n;
+        Object **stack;
 
-        if (*pc == '(') {
-                struct buffer_t b;
-                size_t i, n;
-                Object *child, **stack, *ret;
+        buffer_init(&b);
+        n = 0;
 
-                buffer_init(&b);
+        do {
+                Object *child;
 
-                n = 0;
-                for (;;) {
-                        child = parse_rodata1(ra, skip_ws(pc+1), endptr);
-                        if (!child)
-                                goto err_tupleclean;
-                        n++;
-                        buffer_putd(&b, &child, sizeof(Object *));
-                        pc = skip_ws(*endptr);
-                        if (*pc == ',') {
-                                continue;
-                        } else if (*pc == ')') {
-                                break;
-                        } else {
-                                ra_err(ra, "malformed tuple");
-                                goto err_tupleclean;
-                        }
+                /* if we have at least one comma, it's a tuple */
+                if (n > 0)
+                        istuple = true;
+
+                /* first, check for zero- or one-sized tuple */
+                if (get_tok(tkstate, &tok) < 0)
+                        goto err_tupleclean;
+                if (tok->t == OC_RPAR)
+                        break;
+                unget_tok(tkstate, &tok);
+
+                child = parse_rodata1(ra, tkstate);
+                if (child == ErrorVar)
+                        goto err_tupleclean;
+                n++;
+                buffer_putd(&b, &child, sizeof(Object *));
+                if (get_tok(tkstate, &tok) < 0)
+                        goto err_tupleclean;
+        } while (tok->t == OC_COMMA);
+        if (tok->t != OC_RPAR) {
+                ra_err(ra, "malformed tuple");
+                goto err_tupleclean;
+        }
+
+        stack = (Object **)b.s;
+        bug_on(n != buffer_size(&b) / sizeof(Object *));
+        if (!istuple) {
+                /* Can only be a complex number */
+                bug_on(n != 1);
+                o = stack[0];
+                if (!isvar_complex(o)) {
+                        ra_err(ra, "malformed tuple");
+                        goto err_tupleclean;
                 }
-
-                *endptr = skip_ws(pc+1);
-                stack = (Object **)b.s;
-                bug_on(n != buffer_size(&b) / sizeof(Object *));
-                ret = tuplevar_from_stack(stack, n, true);
-                buffer_free(&b);
-                return ret;
-err_tupleclean:
-                stack = (Object **)b.s;
-                /* n could be different depending where we erred above */
-                n = buffer_size(&b) * sizeof(Object *);
-                for (i = 0; i < n; i++)
-                        VAR_DECR_REF(stack[i]);
-                buffer_free(&b);
-                return NULL;
-        }
-
-        /*
-         * .rodata is either an ID to more code, or an atomic--but not
-         * necessarily single-token--object.  Numbers are the only
-         * objects that might have multiple tokens, but we can parse
-         * the plus, minus, negative signs easily enough without
-         * egregiously usurping the tokenizer's job.  For everything
-         * else, it's best to leave it to the tokenizer.
-         */
-
-        if (*pc == '<') {
-                /* ID for more code */
-                long long id;
-
-                pc++;
-                errno = 0;
-                id = strtoull(pc, endptr, 0);
-                if (errno || *endptr == pc) {
-                        ra_err(ra, "Malformed function ID");
-                        return NULL;
-                }
-                pc = *endptr;
-                if (*pc != '>') {
-                        ra_err(ra, "Missing '>'");
-                        return NULL;
-                }
-                pc = skip_ws(pc + 1);
-                *endptr = (char *)pc;
-                o = idvar_new(id);
-                return o;
-        }
-
-        negative = 0;
-        if (*pc == '-') {
-                pc++;
-                negative = 1;
-        }
-        tok.v = NULL;
-        status = get_tok_from_cstring(pc, endptr, &tok);
-        if (status < 0 || tok.v == NULL) {
-                ra_err(ra, "Malformed rodata token");
-                return NULL;
-        }
-        o = tok.v;
-        pc = skip_ws(*endptr);
-        if (negative) {
-                /* negative number */
-                if (tok.t != OC_INTEGER && tok.t != OC_FLOAT) {
-                        ra_err(ra, "Unary minus before a non-number");
-                        goto err_clear_left;
-                }
-                Object *tmp = qop_negate(o);
-                bug_on(!tmp || tmp == ErrorVar);
-                VAR_DECR_REF(o);
-                o = tmp;
-        } else if (tok.t != OC_INTEGER && tok.t != OC_FLOAT) {
-                /* Not a number */
-                *endptr = (char *)pc;
-                return o;
-        }
-
-        /* real number: "[-]X", or... */
-        if (*pc == '\0') {
-real:
-                *endptr = (char *)pc;
-                return o;
-        }
-
-        /* ...complex number. pc at "+/- Imag" */
-        negative = 0;
-        if (*pc == '-' || *pc == '+') {
-                if (*pc == '-')
-                        negative = 1;
-                pc = skip_ws(pc + 1);
         } else {
-                /* ...or just bad input */
-                goto real;
+                if (n) {
+                        o = tuplevar_from_stack(stack, n, true);
+                } else {
+                        o = tuplevar_new(0);
+                }
         }
-
-        tok.v = NULL;
-        status = get_tok_from_cstring(pc, endptr, &tok);
-        if (status < 0 || tok.t != OC_COMPLEX) {
-                ra_err(ra, "Expected: complex number");
-                goto err_clear_left;
-        }
-
-        pc = skip_ws(*endptr);
-        {
-                binary_operator_t func = negative ? qop_sub : qop_add;
-                Object *tmp = func(o, tok.v);
-                bug_on(!tmp || tmp == ErrorVar);
-                VAR_DECR_REF(o);
-                VAR_DECR_REF(tok.v);
-                o = tmp;
-        }
-
-        *endptr = (char *)pc;
+        buffer_free(&b);
         return o;
 
-err_clear_left:
-        if (o)
-                VAR_DECR_REF(o);
-        return NULL;
+err_tupleclean:
+        if (n > 0) {
+                size_t i;
+                stack = (Object **)b.s;
+                /*
+                 * n could be different depending where the error
+                 * was above.
+                 */
+                n = buffer_size(&b) / sizeof(Object *);
+                for (i = 0; i < n; i++)
+                        VAR_DECR_REF(stack[i]);
+        }
+        buffer_free(&b);
+        return ErrorVar;
 }
 
-/*
- * Parse one rodata line.
- * @pc points at first nonwhitespace character beyond ".rodata"
- */
+static Object *
+parse_rodata1(struct reassemble_t *ra, struct token_state_t *tkstate)
+{
+        Object *o;
+        struct token_t *tok;
+        int sign;
+
+        if (get_tok(tkstate, &tok) < 0)
+                return ErrorVar;
+        if (tok->t == OC_LPAR)
+                return parse_rodata2(ra, tkstate);
+
+        if (tok->t == OC_LT) {
+                /* ID for more code */
+                long long id;
+                if (get_tok(tkstate, &tok) < 0)
+                        return ErrorVar;
+                if (tok->t != OC_INTEGER) {
+                        ra_err(ra, "malformed function ID");
+                        return ErrorVar;
+                }
+                id = intvar_toll(tok->v);
+                if (get_tok(tkstate, &tok) < 0)
+                        return ErrorVar;
+                if (tok->t != OC_GT) {
+                        ra_err(ra, "malformed function ID");
+                        return ErrorVar;
+                }
+                return idvar_new(id);
+        }
+
+        sign = 0;
+        if (tok->t == OC_MINUS) {
+                sign = -1;
+                if (get_tok(tkstate, &tok) < 0)
+                        return ErrorVar;
+        } else if (tok->t == OC_PLUS) {
+                sign = 1;
+                if (get_tok(tkstate, &tok) < 0)
+                        return ErrorVar;
+        }
+        if (tok->v == NULL) {
+                ra_err(ra, "Malformed rodata token");
+                return ErrorVar;
+        }
+        o = VAR_NEW_REF(tok->v);
+        if (isvar_number(o)) {
+                if (!sign)
+                        sign = 1;
+                if (sign < 0) {
+                        Object *tmp = qop_negate(o);
+                        bug_on(!tmp || tmp == ErrorVar);
+                        VAR_DECR_REF(o);
+                        o = tmp;
+                }
+        } else if (sign) {
+                ra_err(ra, "Malformed rodata token");
+                return ErrorVar;
+        }
+        if (get_tok(tkstate, &tok) < 0)
+                goto err_clean_o;
+
+        if (tok->t != OC_MINUS && tok->t != OC_PLUS) {
+                /* real number or some other one-token object */
+                unget_tok(tkstate, &tok);
+                return o;
+        }
+
+        /* By now, expression can only be +/- REAL +/- IMAGINARY */
+
+        if (!isvar_real(o)) {
+                ra_err(ra, "Malformed rodata token");
+                goto err_clean_o;
+        }
+        sign = tok->t == OC_MINUS ? -1 : 1;
+        if (get_tok(tkstate, &tok) < 0)
+                goto err_clean_o;
+
+        if (tok->t != OC_COMPLEX) {
+                ra_err(ra, "Malformed rodata token");
+                goto err_clean_o;
+        }
+        {
+                binary_operator_t func = sign < 0 ? qop_sub : qop_add;
+                Object *tmp = func(0, tok->v);
+                bug_on(!tmp || tmp == ErrorVar);
+                o = tmp;
+                VAR_DECR_REF(tmp);
+        }
+        return o;
+
+err_clean_o:
+        VAR_DECR_REF(o);
+        return ErrorVar;
+}
+
 static int
 parse_rodata(struct reassemble_t *ra, const char *pc)
 {
-        char *endptr;
-        Object *o = parse_rodata1(ra, pc, &endptr);
-        if (!o)
+        struct token_state_t *tkstate = token_state_from_string(pc);
+        struct token_t *tok;
+        Object *o = parse_rodata1(ra, tkstate);
+        if (o == ErrorVar)
                 return -1;
+
+        if (get_tok(tkstate, &tok) < 0)
+                goto err_clean;
+        if (tok->t != OC_EOF) {
+                ra_err(ra, "excess tokens on line");
+                goto err_clean;
+        }
+        token_state_free(tkstate);
+
         assemble_seek_rodata(ra->a, o);
         VAR_DECR_REF(o);
         return 0;
+
+err_clean:
+        VAR_DECR_REF(o);
+        return -1;
 }
 
 /**

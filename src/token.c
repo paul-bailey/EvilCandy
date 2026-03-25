@@ -58,7 +58,11 @@ struct token_state_t {
         int ntok;
         int nexttok;
         bool eof;
-        bool tty;
+        enum {
+                TKINP_FILE = 0,
+                TKINP_TTY,
+                TKINP_STRING,
+        } inp;
         char fstring;
         size_t fstring_pos;
         jmp_buf env;
@@ -103,7 +107,8 @@ tok_next_line(struct token_state_t *state)
         if (!state->fp)
                 return res;
 
-        if (state->tty) {
+        switch (state->inp) {
+        case TKINP_TTY:
                 bug_on(!state->fp);
                 if (gbl.iatok.line) {
                         /* XXX: bug if state->line != NULL here? */
@@ -126,8 +131,16 @@ tok_next_line(struct token_state_t *state)
                 res = myreadline(&state->line, &state->_slen,
                                  state->fp, state->prompt);
                 state->prompt = EVILCANDY_PS2;
-        } else {
+                break;
+        case TKINP_FILE:
                 res = egetline(&state->line, &state->_slen, state->fp);
+                break;
+        case TKINP_STRING:
+                res = -1;
+                state->line = NULL;
+                break;
+        default:
+                bug();
         }
 
         if (res != -1) {
@@ -794,40 +807,18 @@ token_init_state(struct token_state_t *state, FILE *fp, const char *filename)
          * is more overhead than it's worth
          */
         state->dedup = fp ? setvar_new(NULL) : NULL;
-        if (fp && isatty(fileno(fp))) {
-                state->tty = true;
-                state->prompt = EVILCANDY_PS1;
+        if (fp) {
+                if (isatty(fileno(fp))) {
+                        state->inp = TKINP_TTY;
+                        state->prompt = EVILCANDY_PS1;
+                } else {
+                        state->inp = TKINP_FILE;
+                        state->prompt = NULL;
+                }
         } else {
-                state->tty = false;
+                state->inp = TKINP_STRING;
                 state->prompt = NULL;
         }
-}
-
-int
-get_tok_from_cstring(const char *s, char **endptr, struct token_t *dst)
-{
-        struct token_state_t state;
-        int ret;
-
-        token_init_state(&state, NULL, NULL);
-        state.line = (char *)s;
-        state.s = state.line;
-
-        ret = tokenize(&state);
-        if (ret >= 0) {
-                struct token_t *src = TOKBUF(&state)[0];
-                memcpy(dst, src, sizeof(void *));
-                /* cleaning state below would consume this */
-                if (dst->v)
-                        VAR_INCR_REF(dst->v);
-                if (endptr)
-                        *endptr = state.s;
-        }
-
-        /* don't let token_state_free touch this */
-        state.line = state.s = NULL;
-        token_state_free_(&state, false);
-        return ret;
 }
 
 /**
@@ -965,7 +956,7 @@ token_state_free_line(struct token_state_t *state)
                  * state to gbl.iatok, and retrieve it next
                  * token_next_line().
                  */
-                if (state->tty && *s != '\0') {
+                if (state->inp == TKINP_TTY && *s != '\0') {
                         bug_on(gbl.iatok.line != NULL);
                         gbl.iatok.line   = state->line;
                         gbl.iatok.s = gbl.iatok.line + (s-state->line);
@@ -1000,7 +991,7 @@ token_state_free_(struct token_state_t *state, bool free_self)
 
         buffer_free(&state->tok);
         buffer_free(&state->fstring_tok);
-        if (state->line)
+        if (state->line && state->inp != TKINP_STRING)
                 token_state_free_line(state);
         n = TOKBUF_SIZE(state);
         bug_on(n != state->ntok);
@@ -1056,6 +1047,35 @@ token_state_new(FILE *fp, const char *filename)
 }
 
 /**
+ * token_state_from_string - Get a new token state machine using
+ *                      a C-string as an input instead of a file.
+ * @cstring: C-string to use as input.  This will not be copied, so it
+ *           must remain in persistent memory until token_state_free().
+ *
+ * Return: New token state machine.
+ */
+struct token_state_t *
+token_state_from_string(const char *cstring)
+{
+        struct token_state_t *state = emalloc(sizeof(*state));
+        token_init_state(state, NULL, NULL);
+        /*
+         * TODO: More formal to have something like:
+         *
+         *      state->inp_cstring = cstring;
+         *      state->inp_ptr     = cstring;
+         *      if (tok_next_line(state) == -1) {
+         *      ...
+         *
+         * where tok_next_line() will copy from state->inp_ptr to next
+         * newline into state->line.
+         */
+        state->line = (char *)cstring;
+        state->s = state->line;
+        return state;
+}
+
+/**
  * token_get_this_line - get currently-being-parsed line
  *
  *      BEWARE!!  This pointer may be invalidated on next call
@@ -1091,7 +1111,7 @@ token_flush_tty(struct token_state_t *state)
 
         if (state && state->line) {
                 /* Not an issue in script mode */
-                if (!state->tty)
+                if (state->inp != TKINP_TTY)
                         return;
                 state->line[0] = 0;
                 state->s = state->line;

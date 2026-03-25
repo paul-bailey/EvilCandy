@@ -77,6 +77,12 @@ enum {
         FEE_MASK        = 0x30,
 };
 
+/* TODO: This should be in evcenums, it could be used in many places */
+enum errhandler_t {
+        ERRH_RETURN = 1,
+        ERRH_EXCEPTION,
+};
+
 #define as_err(a, e) longjmp((a)->env, e)
 #define as_err_if(a, cond, e) \
         do { if (cond) as_err(a, e); } while (0)
@@ -502,6 +508,11 @@ fakestack_declare(struct assemble_t *a, Object *name)
         return idx;
 }
 
+/*
+ * XXX: gather|cleanup_names's and gather|cleanup_args's routines
+ * are sooo close to only having to use the same structs, we could
+ * make this cleaner.
+ */
 struct names_t {
         struct list_t list;
         struct token_t tok;
@@ -528,7 +539,7 @@ cleanup_names(struct list_t *names)
  */
 static int
 gather_names(struct assemble_t *a, struct list_t *names,
-             int *star_idx, bool suppress_errors)
+             int *star_idx, enum errhandler_t errhandler)
 {
         struct names_t *name;
         int needsize = 0; /*< start at 1 to account for firstname */
@@ -578,11 +589,114 @@ epermit:
 esingle:
         emsg = "starred target cannot be a single item";
 err:
-        if (!suppress_errors) {
+        cleanup_names(names);
+        switch (errhandler) {
+        case ERRH_EXCEPTION:
                 err_setstr(SyntaxError, "%s", emsg);
                 as_err(a, AE_EXPECT);
+                break;
+        case ERRH_RETURN:
+                break;
+        default:
+                bug();
         }
         return -1;
+}
+
+struct arglist_t {
+        struct list_t names;
+        int star;
+        int starstar;
+        int n;
+};
+
+static void
+cleanup_arglist(struct arglist_t *alist)
+{
+        struct list_t *p, *tmp;
+        list_foreach_safe(p, tmp, &alist->names) {
+                list_remove(p);
+                efree(AS_LIST2NAMES(p));
+        }
+}
+
+/*
+ * parse args (for a function *definition*, not for a function *call*)
+ * a->oc->t points at the first token after the opening parenthesis.
+ */
+static enum result_t
+gather_arglist(struct assemble_t *a,
+               struct arglist_t *alist,
+               enum errhandler_t errhandler)
+{
+        const char *emsg;
+
+        list_init(&alist->names);
+        alist->star = -1;
+        alist->starstar = -1;
+        alist->n = 0;
+        do {
+                struct names_t *name;
+                as_lex(a);
+                if (a->oc->t == OC_RPAR)
+                        break;
+                if (alist->starstar >= 0)
+                        goto err_posarg_after_kw;
+                if (a->oc->t == OC_MUL) {
+                        if (alist->star >= 0)
+                                goto err_multi_variadic;
+                        alist->star = alist->n;
+                        as_lex(a);
+                } else if (a->oc->t == OC_POW) {
+                        alist->starstar = alist->n;
+                        as_lex(a);
+                } else {
+                        /* normal */
+                        if (alist->star >= 0)
+                                goto err_posarg_after_variadic;
+                }
+                if (a->oc->t != OC_IDENTIFIER)
+                        goto err_not_identifier;
+
+                name = emalloc(sizeof(*name));
+                name->pos = as_savetok(a, &name->tok);
+                list_add_tail(&name->list, &alist->names);
+                alist->n++;
+                as_lex(a);
+        } while (a->oc->t == OC_COMMA);
+        if (a->oc->t != OC_RPAR)
+                goto err_missing_rpar;
+        return RES_OK;
+
+err_missing_rpar:
+        emsg = "Expected ')' or ','";
+        goto err;
+err_not_identifier:
+        emsg = "Function argument is not an identifier";
+        goto err;
+err_posarg_after_variadic:
+        emsg = "You may not declare positional argument after variadic argument";
+        goto err;
+err_multi_variadic:
+        emsg = "You may only declare one variadic argument";
+        goto err;
+err_posarg_after_kw:
+        emsg = "You may not declare arguments after a keyword argument";
+        goto err;
+err:
+        cleanup_arglist(alist);
+        switch (errhandler) {
+        case ERRH_EXCEPTION:
+                err_setstr(SyntaxError, "%s", emsg);
+                as_err(a, AE_GEN);
+                break;
+        case ERRH_RETURN:
+                break;
+        default:
+                bug();
+        }
+        /* TODO: perform cleanup */
+        return RES_ERROR;
 }
 
 /*
@@ -638,117 +752,72 @@ assemble_slice(struct assemble_t *a)
         add_instr(a, INSTR_DEFTUPLE, 0, 3);
 }
 
+/*
+ * Helper to assemble_arrow_lambda() and assmeble_funcdef().
+ * @alist is cleaned up in this function, don't use afterwards.
+ */
 static void
-assemble_function(struct assemble_t *a, bool lambda, int funcno)
+assemble_function_body(struct assemble_t *a,
+                       bool lambda, struct arglist_t *alist)
 {
-        if (lambda) {
-                /* peek if brace */
-                int t = as_lex(a);
-                as_unlex(a);
-                if (t == OC_LBRACE) {
-                        assemble_stmt(a, 0, 0);
-                } else {
+        int funcno = as_next_funcno(a);
+
+        ainstr_load_const_obj(a, idvar_new(funcno));
+        add_instr(a, INSTR_DEFFUNC, 0, 0);
+        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, alist->n);
+        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, alist->n);
+        if (alist->star >= 0) {
+                add_instr(a, INSTR_FUNC_SETATTR,
+                          IARG_FUNC_OPTIND, alist->star);
+        }
+        if (alist->starstar >= 0) {
+                add_instr(a, INSTR_FUNC_SETATTR,
+                          IARG_FUNC_KWIND, alist->starstar);
+        }
+
+        assemble_frame_push(a, funcno);
+        {
+                struct list_t *p;
+                list_foreach(p, &alist->names) {
+                        struct names_t *n = AS_LIST2NAMES(p);
+                        array_append(a->fr->af_args, n->tok.v);
+                }
+
+                /*
+                 * This is not symmetrical looking, but we want to do
+                 * this before descending into below expression/statement
+                 * calls, since they could trigger an early longjmp().
+                 */
+                cleanup_arglist(alist);
+
+                if (lambda && as_peek(a, false) != OC_LBRACE) {
                         assemble_expr(a, true);
                         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
                         add_instr(a, INSTR_END, 0, 0);
-                        /* we know we have return so we can skip */
-                        return;
+                } else {
+                        assemble_stmt(a, 0, 0);
+                        /*
+                         * This is often unreachable to the VM, but in
+                         * case statement reached end without hitting
+                         * "return", we need to preven VM from over-
+                         * running instruction set.
+                         */
+                        ainstr_return_null(a);
                 }
-        } else {
-                assemble_stmt(a, 0, 0);
         }
-        /*
-         * This is often unreachable to the VM, but in case statement
-         * reached end without hitting "return", we need to preven VM
-         * from overrunning instruction set.
-         */
-        ainstr_return_null(a);
+        assemble_frame_pop(a);
 }
 
 static void
 assemble_funcdef(struct assemble_t *a)
 {
-        int funcno = as_next_funcno(a);
-        int minargs = 0;
-        int optarg = -1;
-        int kwarg = -1;
-
-        /* placeholder for XptrType, resolved in assemble_frame_to_xptr() */
-        ainstr_load_const_obj(a, idvar_new(funcno));
-        add_instr(a, INSTR_DEFFUNC, 0, 0);
-        assemble_frame_push(a, funcno);
+        struct arglist_t alist;
 
         as_errlex(a, OC_LPAR);
-        do {
-                enum { NORMAL, OPTIND, KWIND } kind;
-                as_lex(a);
-                if (a->oc->t == OC_RPAR)
-                        break;
+        gather_arglist(a, &alist, ERRH_EXCEPTION);
 
-                if (kwarg >= 0) {
-                        err_setstr(SyntaxError,
-                                "You may not declare arguments after keyword argument");
-                        as_err(a, AE_GEN);
-                }
-
-                if (a->oc->t == OC_MUL) {
-                        kind = OPTIND;
-                        if (optarg >= 0) {
-                                err_setstr(SyntaxError,
-                                        "You may only declare one variadic argument");
-                                as_err(a, AE_GEN);
-                        }
-                        optarg = seqvar_size(a->fr->af_args);
-                        as_lex(a);
-                } else if (a->oc->t == OC_POW) {
-                        kind = KWIND;
-                        kwarg = seqvar_size(a->fr->af_args);
-                        as_lex(a);
-                } else {
-                        kind = NORMAL;
-                        if (optarg >= 0) {
-                                err_setstr(SyntaxError,
-                                        "You may not declare normal argument after variadic argument");
-                                as_err(a, AE_GEN);
-                        }
-                }
-
-                if (a->oc->t != OC_IDENTIFIER) {
-                        err_setstr(SyntaxError,
-                                "Function argument is not an identifier");
-                        as_err(a, AE_GEN);
-                }
-
-                if (kind == OPTIND) {
-                        as_frame_swap(a);
-                        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_OPTIND, optarg);
-                        as_frame_swap(a);
-                } else if (kind == KWIND) {
-                        as_frame_swap(a);
-                        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_KWIND, kwarg);
-                        as_frame_swap(a);
-                }
-
-                Object *name = a->oc->v;
-                as_lex(a);
-                array_append(a->fr->af_args, name);
-                minargs = seqvar_size(a->fr->af_args);
-        } while (a->oc->t == OC_COMMA);
-        as_err_if(a, a->oc->t != OC_RPAR, AE_PAR);
-
-        bug_on(kwarg == optarg && kwarg >= 0);
-
-        assemble_function(a, false, funcno);
-
-        /* for user functions, minargs == maxargs */
-        bug_on(minargs != seqvar_size(a->fr->af_args));
-
-        as_frame_swap(a);
-        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, minargs);
-        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, minargs);
-        as_frame_swap(a);
-
-        assemble_frame_pop(a);
+        /* arglist cleaned up in assemble_function_body */
+        assemble_function_body(a, false, &alist);
 }
 
 static void
@@ -800,72 +869,33 @@ done:
 static bool
 assemble_arrow_lambda(struct assemble_t *a)
 {
-        struct list_t names, *p;
-        int needsize, funcno;
+        struct arglist_t alist;
         token_pos_t pos = as_savetok(a, NULL);
 
-        as_lex(a);
-        if (a->oc->t == OC_RPAR) {
-                /* check for zero-arg lambda */
-                as_lex(a);
-                if (a->oc->t == OC_RARROW) {
-                        needsize = 0;
-                        list_init(&names);
-                        as_unlex(a);
-                        /* fall through, continue processing */
-                } else {
-                        goto not_arrow;
-                }
-        } else if (a->oc->t != OC_IDENTIFIER) {
-                as_unlex(a);
-                return false;
-        } else {
-                int dummy = -1;
-                needsize = gather_names(a, &names, &dummy, true);
-                bug_on(needsize == 0);
-                /*
-                 * Don't allow unpacking in arrow lambda's.  Such a
-                 * lambda would be complicated enough to negate the
-                 * benefit of this notation anyway.
-                 *
-                 * != ')' is probably an error, but let assemble_tupledef
-                 * figure it out.
-                 */
-                if (needsize < 0 || dummy >= 0 || a->oc->t != OC_RPAR)
-                        goto not_arrow;
-        }
+        if (gather_arglist(a, &alist, ERRH_RETURN) == RES_ERROR)
+                goto not_arrow;
 
         as_lex(a);
         if (a->oc->t != OC_RARROW)
                 goto not_arrow;
 
-        funcno = as_next_funcno(a);
-
-        ainstr_load_const_obj(a, idvar_new(funcno));
-        add_instr(a, INSTR_DEFFUNC, 0, 0);
-
-        assemble_frame_push(a, funcno);
-        list_foreach(p, &names) {
-                struct names_t *n = AS_LIST2NAMES(p);
-                array_append(a->fr->af_args, n->tok.v);
-        }
-        cleanup_names(&names);
-        assemble_function(a, true, funcno);
-
-        as_frame_swap(a);
-        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, needsize);
-        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, needsize);
-        as_frame_swap(a);
-
-        assemble_frame_pop(a);
+        /* arglist cleaned up in assemble_function_body */
+        assemble_function_body(a, true, &alist);
         return true;
 
 not_arrow:
-        cleanup_names(&names);
+        cleanup_arglist(&alist);
         (void)as_swap_pos(a, pos);
         return false;
 }
 
+/*
+ * or, assemble_presumably_a_tuple_tupldef()
+ * Opening parenthesis could mean so many different things...
+ * encapsulate a single expression, be the start of a tuple,
+ * be the start of a lambda expression's argument list, and
+ * if we add comprehensions, that too.
+ */
 static void
 assemble_tupledef(struct assemble_t *a)
 {
@@ -1757,7 +1787,7 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         int needsize, star;
         struct names_t *n;
 
-        needsize = gather_names(a, &names, &star, false);
+        needsize = gather_names(a, &names, &star, ERRH_EXCEPTION);
         if (needsize > 1) {
                 /* eg. "a, b" or "a, b = (some, iterable)" */
                 struct list_t *p;
@@ -1933,7 +1963,7 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
                 as_err(a, AE_EXPECT);
         }
 
-        needsize = gather_names(a, &names, &star, false);
+        needsize = gather_names(a, &names, &star, ERRH_EXCEPTION);
         (void)star;
 
         global = tok == OC_GBL;
@@ -2189,7 +2219,7 @@ assemble_foreach1(struct assemble_t *a, int breakto)
                 err_ae_expect(a, OC_IDENTIFIER);
                 as_err(a, AE_EXPECT);
         }
-        needsize = gather_names(a, &names, &star, false);
+        needsize = gather_names(a, &names, &star, ERRH_EXCEPTION);
 
         if (a->oc->t != OC_IN) {
                 err_ae_expect(a, OC_IN);

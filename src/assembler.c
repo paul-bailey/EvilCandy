@@ -331,14 +331,8 @@ localmap_idx(struct assemble_t *a, int idx)
 {
         int *arr = (int *)(a->fr->af_localmap.s);
         bug_on(!arr);
-        bug_on(idx > localmap_size(a));
-
-        /*
-         * this should always returns the same number or greater,
-         * never lesser.
-         */
+        bug_on(idx >= localmap_size(a));
         bug_on(idx > arr[idx]);
-
         idx = arr[idx];
         bug_on(idx >= a->fr->af_nlocals);
         return idx;
@@ -757,7 +751,6 @@ err:
         default:
                 bug();
         }
-        /* TODO: perform cleanup */
         return RES_ERROR;
 }
 
@@ -869,7 +862,7 @@ assemble_function_body(struct assemble_t *a,
                         /*
                          * This is often unreachable to the VM, but in
                          * case statement reached end without hitting
-                         * "return", we need to preven VM from over-
+                         * "return", we need to prevent VM from over-
                          * running instruction set.
                          */
                         ainstr_return_null(a);
@@ -962,6 +955,7 @@ assemble_arrow_lambda(struct assemble_t *a)
                         goto err_clean;
                 goto not_arrow;
         }
+        /* TODO: perform cleanup */
 
         if (as_lex(a) < 0)
                 goto err_clean;
@@ -1199,6 +1193,10 @@ assemble_fstring(struct assemble_t *a)
 /*
  * helper to ainstr_load_symbol, @name is not in local namespace,
  * check enclosing function before resorting to LOAD_GLOBAL
+ * @idx will store index of closure, or -1 if it is not a closure.
+ *
+ * Return: RES_ERROR if an error was encountered (unrelated to whether
+ *         idx was found), RES_OK otherwise.
  */
 static enum result_t
 maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos, int *idx)
@@ -1209,14 +1207,6 @@ maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos, int *idx)
          * function-variable stage.  So we're able to switch back to
          * the parent to check if variable is in *its* scope...
          * evaluate it and add the command to add a closure.
-         *
-         * FIXME: Note the recursive nature of this.  If the variable
-         * is not in the parent scope either, the call to
-         * assemble_expr5_atomic will call us again for the grandparent,
-         * and so on until the highest-level scope that is still inside
-         * a function.  That means if the closure is in, say, a great-
-         * grandparent, and the parent/grandparent scopes don't use it,
-         * we'd wastefully add closures to those functions as well.
          */
         struct as_frame_t *this_frame;
         bool success = false;
@@ -1902,11 +1892,14 @@ maybe_modattr(struct assemble_t *a, unsigned int flags)
 
 /*
  * Descend the rabbit hole of 'a.b[c].d().e' monsters.
- * @may_assign: false if we are in the assemble_exprN() loop above
- *              true if called from assemble_ident|this() below
+ * @flags: contains one of the three bitfield values when ANDed
+ *         with FEE_MASK:
+ *         - FEE_DEL: delete element
+ *         - FEE_ASGN: assign to element if followed by '=', '+=', etc.
+ *         - FEE_EVAL: do not assign, evaluate only
  *
  * Return: 1 if an evaluated item is dangling on the stack
- *         0 if not
+ *         0 if not, e.g. because an assignment occurred
  *         -1 if error
  */
 static int
@@ -1950,10 +1943,6 @@ assemble_primary_elements(struct assemble_t *a, unsigned int flags)
                         as_unlex(a);
                         if (assemble_call_func(a) < 0)
                                 return -1;
-                        /*
-                         * XXX: I don't know a faster way to do this
-                         * without spaghettifying the code.
-                         */
                         if (flags == FEE_DEL) {
                                 int t;
                                 if (as_lex(a) < 0)
@@ -1962,7 +1951,7 @@ assemble_primary_elements(struct assemble_t *a, unsigned int flags)
                                 as_unlex(a);
                                 if (!istok_indirection(t)) {
                                         err_setstr(SyntaxError,
-                                                   "Trying to delete function call");
+                                            "Trying to delete anonymous result of function call");
                                         return -1;
                                 }
                         }
@@ -1995,7 +1984,7 @@ assemble_primary_elements__(struct assemble_t *a)
         return assemble_primary_elements(a, FEE_ASGN);
 }
 
-/* return 1 if item left on the stack, 0 if not */
+/* return 1 if item left on the stack, 0 if not, -1 if error */
 static int
 assemble_this(struct assemble_t *a, unsigned int flags)
 {
@@ -2339,11 +2328,6 @@ assemble_try(struct assemble_t *a)
         as_savetok(a, &exctok);
         if (as_errlex(a, OC_RPAR) < 0)
                 return -1;
-        /*
-         * No instructions for pushing this on the stack.
-         * The exception handler will do that for us in
-         * execute loop.
-         */
         if (fakestack_declare(a, exctok->v) < 0)
                 return -1;
         if (assemble_stmt(a, 0, 0) < 0)
@@ -2372,7 +2356,7 @@ assemble_if(struct assemble_t *a)
         /*
          * The 'if' of 'else if' is technically the start of its own
          * statement, so we could do this recursively and more simply,
-         * but let's instead be friendlier to the stack.
+         * but let's instead be friendlier to the C stack.
          */
         while (a->oc->t == OC_IF) {
                 int jmpend = as_next_label(a);
@@ -2485,7 +2469,7 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                 add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
         } else {
                 /*
-                 * 'needle is itself a sequence, the unnamed container
+                 * needle is itself a sequence, the unnamed container
                  * of 'a' and 'b' and child of 'c' in 'for (a, b in c)'.
                  */
                 struct list_t *p;
@@ -2757,8 +2741,8 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         case OC_DO:
                 return assemble_do(a);
         default:
-                /* value expression */
 eval_only:
+                /* value expression */
                 as_unlex(a);
                 if (assemble_expr(a, FE_CHECKTUPLE) < 0)
                         return -1;
@@ -2838,7 +2822,6 @@ new_assembler(const char *source_file_name, FILE *fp,
         a->fp = fp;
         a->prog = prog;
         a->oc = NULL;
-        /* don't let the first ones be zero, that looks bad */
         a->func = FUNC_INIT;
         if (localdict) {
                 a->inp_type = AS_TTY;
@@ -2874,21 +2857,13 @@ as_delete_frame_list(struct list_t *parent_list)
         list_foreach_safe(li, tmp, parent_list) {
                 struct as_frame_t *fr = list2frame(li);
                 list_remove(&fr->list);
-                /*
-                 * These buffers are arrays of pointers.  We only need to
-                 * free the arrays; the actual pointers are maintained by
-                 * token.c, which frees them in due time.
-                 */
+
                 VAR_DECR_REF(fr->af_locals);
                 VAR_DECR_REF(fr->af_args);
                 VAR_DECR_REF(fr->af_closures);
                 VAR_DECR_REF(fr->af_rodata);
                 VAR_DECR_REF(fr->af_names);
 
-                /*
-                 * These are safe to free, because if we aren't unwinding
-                 * due to failure, buffer_trim reset these already.
-                 */
                 buffer_free(&fr->af_localmap);
                 buffer_free(&fr->af_labels);
                 buffer_free(&fr->af_instr);
@@ -2897,12 +2872,6 @@ as_delete_frame_list(struct list_t *parent_list)
         }
 }
 
-/**
- * free_assembler - Free an assembler state machine
- * @a:          Handle to the assembler state machine
- * @err:        Zero to keep the executable opcodes in memory,
- *              non-zero to delete those also.
- */
 static void
 free_assembler(struct assemble_t *a)
 {
@@ -2950,18 +2919,13 @@ assemble_splash_error(struct assemble_t *a)
  *                 assembly instructions
  * @a:          Handle to the assembler state machine
  * @toeof:      `true' to parse an entire input stream.  `false' to parse
- *              a single full statement; this may contain sub-statements
- *              if, for example, it's a program flow statement or it
- *              contains a function definition.
+ *              a single top-level statement
+ * @flags:      FE_xxx flags to pass down the assembler
  *
- * Return: Either...
- *      a) Array of executable instructions for the top-level scope,
- *         which happens to be all you need.  The instructions for any
- *         functions defined in the script exist out there in RAM
- *         somewhere, but they will be reached eventually, since they are
- *         referenced by top-level instructions.  GC will happen when the
- *         last variable referencing them is destroyed.
- *      b) NULL if @a is already at end of input
+ * Return: one of...
+ *       - Top-level XptrType object for this file/stream/string.
+ *       - NULL if @a is already at end of input
+ *       - ErrorVar if an error occurred
  */
 static Object *
 assemble_next(struct assemble_t *a, bool toeof, unsigned int flags)
@@ -2982,7 +2946,9 @@ assemble_next(struct assemble_t *a, bool toeof, unsigned int flags)
                          * FIXME: What if we're here from import()?
                          * We would also want to pass the exception
                          * upstream, but here we don't know whether
-                         * we should do that.
+                         * we should do that.  This is a low-prio fixme,
+                         * because in the future we want all error
+                         * reporting to be done from the same place.
                          */
                         if (a->fp)
                                 assemble_splash_error(a);
@@ -3038,14 +3004,13 @@ assemble_frame_set_label(struct as_frame_t *fr, int jmp, unsigned long val)
         data = (unsigned short *)fr->af_labels.s;
         /*
          * Limit to 15 bits instead of 16, because the final jump arg
-         * will be directional.  We need an extended-arg method for
+         * will be directional.  We will need an extended-arg method for
          * instructions before we can support Functions of Unusual Size.
          */
         bug_on(val > 32767);
         data[jmp] = (unsigned short)val;
 }
 
-/* extern linkage because assemble_post.c needs it */
 int
 assemble_seek_rodata(struct assemble_t *a, Object *v)
 {
@@ -3086,8 +3051,8 @@ assemble_frame_push(struct assemble_t *a, long long funcno)
 }
 
 /*
- * Doesn't destroy it, it just removes it from active list.
- * We'll iterate through these when we're done.
+ * This doesn't destroy the frame.
+ * It just removes the frame from the 'active' list.
  */
 void
 assemble_frame_pop(struct assemble_t *a)

@@ -4,6 +4,10 @@
 // program.  I'm keeping it for now, because when refactoring code, its
 // makes a useful, quick-and-dirty way to check if whatever changes I
 // just made totally broke the program.
+//
+// Do not take what you see below as an endorsement of the style.  I
+// rather dislike => arrow notation for large functions, but this demo
+// sanity-checks that they work.
 
 (function(iterator) {
     iterator['whoami'] = function() {
@@ -19,11 +23,10 @@
     print("iterator['✓'] is", iterator['✓']);
 })((function (){
     let mkiter = function(stop) {
-        return function(start) {
+        return (start) => {
             print('\t', end='');
-            for (i in range(start, stop)) {
+            for i in range(start, stop)
                 print(i, end=' ');
-            }
             print('');
         };
     };
@@ -62,7 +65,7 @@
     print("\tBuiltin Pow: 4^4 =", 4**4);
 })(import("math.evc", "x"));
 
-(function(s) {
+((s) => {
     print(f"length '{length(s)}' for '{s}'");
     print("Replace 'is' with 'at':");
     print(f"\tOld text: '{s}'");
@@ -73,34 +76,32 @@ print("");
 print(f"~0xfffffffffffffffa is {~0xfffffffffffffffa}");
 print(f"~0 is {~0}");
 
-{
-    print("");
-    print("Now here's a demo of foreach:");
-    let prtypeof = function(o, str) {
-        print(f"typeof(e) for each e in {str}");
-        // XXX need to add enumerate function
+print("");
+print("Now here's a demo of foreach:");
+((strs) => {
+    for str in strs {
         let i = 0;
-        for (k, v in o.items()) {
-            if (i and !(i & 3))
+
+        print(f"typeof(e) for each e in {str}");
+        for k, v in eval(str).items() {
+            if (i and !(i & 1))
                 print('');
-            print('\t', typeof(v), k, end='');
+            print(f'\t{typeof(v):-12s}{k:-12s}', end='');
             i++;
         }
         print('');
-    };
-    prtypeof(__gbl__, "__gbl__");
-    prtypeof(__gbl__._builtins, "__gbl__._builtins");
-}
+    }
+})(["__gbl__", "__gbl__._builtins"]);
 
-(function(ahasb) {
-    ahasb(__gbl__, '__gbl__', 'MarioBros');
-    ahasb(__gbl__, '__gbl__', '_builtins');
-})(function (obj, objname, key) {
+((ahasb) => {
+    ahasb('__gbl__', 'MarioBros');
+    ahasb('__gbl__', '_builtins');
+})((objname, key) => {
     print("Does", objname, f"have child '{key}'?");
-    print("\t...", obj has key ? "yes!" : "no :(");
+    print("\t...", key in eval(objname) ? "yes!" : "no :(");
 });
 
-(function(**kw) {
+((**kw) => {
     print("UTF-8/ANSI escape test");
     print("\tValues of", kw.beeta, "will give rise to dom!");
     let s = "Be \U0001f600!";

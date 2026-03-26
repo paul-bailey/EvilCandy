@@ -212,6 +212,31 @@ file_get_silent(Object *fo, int type)
  *                  Any-file callbacks et al.
  ***********************************************************************/
 
+/*
+ * helper to evc_file_read, evc_file_write
+ * Check if @fo has a method to 'method_key', return that if it does,
+ * NULL if it does not.
+ * No exception will be thrown.
+ */
+static Object *
+rwmethod(Object *fo, Object *method_key)
+{
+        Object *method = dict_getitem(fo, method_key);
+        if (!method)
+                return NULL;
+        if (isvar_method(method))
+                return method;
+
+        if (isvar_function(method)) {
+                Object *tmp = method;
+                method = methodvar_new(tmp, fo);
+                VAR_DECR_REF(tmp);
+                return method;
+        }
+        VAR_DECR_REF(method);
+        return NULL;
+}
+
 static Object *
 file_getprop_fd(Object *self)
 {
@@ -1194,8 +1219,29 @@ Object *
 evc_file_read(Object *fo, ssize_t size)
 {
         struct rawfile_t *f;
+        struct file_wrapper_t *fw;
 
-        f = fwrapper_get_priv(fo, "internal_read", FILE_ANY, 1);
+        if (!isvar_dict(fo)) {
+                err_setstr(TypeError, "object is not a file");
+                return ErrorVar;
+        }
+        fw = dict_get_priv(fo);
+
+        if (!fw || fw->fw_magic != DICT_MAGIC_FILE_WRAPPER) {
+                Object *res, *method;
+                method = rwmethod(fo, STRCONST_ID(read));
+                if (!method) {
+                        filerr("internal_read",
+                               "object is not a file and has no 'read' method");
+                        return ErrorVar;
+                }
+
+                res = vm_exec_func(NULL, method, NULL, NULL);
+                VAR_DECR_REF(method);
+                return res;
+        }
+
+        f = file_get_priv(fw->fw_base, "internal_read", FILE_ANY, 1);
         if (!f)
                 return ErrorVar;
 
@@ -1222,9 +1268,42 @@ evc_file_read(Object *fo, ssize_t size)
 ssize_t
 evc_file_write(Object *fo, Object *data)
 {
+        struct file_wrapper_t *fw;
         struct rawfile_t *f;
 
-        f = fwrapper_get_priv(fo, "internal_write", FILE_ANY, 1);
+        if (!isvar_dict(fo)) {
+                err_setstr(TypeError, "object is not a file");
+                return -1;
+        }
+        fw = dict_get_priv(fo);
+        if (!fw || fw->fw_magic != DICT_MAGIC_FILE_WRAPPER) {
+                Object *res, *args, *method;
+                ssize_t ret;
+
+                method = rwmethod(fo, STRCONST_ID(write));
+                if (!method) {
+                        filerr("internal_write",
+                               "object is not a file and has no 'write' method");
+                        return -1;
+                }
+                args = arrayvar_from_stack(&data, 1, false);
+                res = vm_exec_func(NULL, method, args, NULL);
+                VAR_DECR_REF(args);
+                VAR_DECR_REF(method);
+                if (res == ErrorVar)
+                        return -1;
+                if (!isvar_int(res)) {
+                        err_setstr(RuntimeError,
+                                "'%N' returned %s but an integer was expected",
+                                STRCONST_ID(write), typestr(res));
+                        VAR_DECR_REF(res);
+                        return -1;
+                }
+                ret = (ssize_t)intvar_toll(res);
+                VAR_DECR_REF(res);
+                return ret;
+        }
+        f = file_get_priv(fw->fw_base, "internal_write", FILE_ANY, 1);
         if (!f)
                 return -1;
 

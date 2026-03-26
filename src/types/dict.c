@@ -1620,19 +1620,38 @@ dict_setattr(Object *dict, Object *key, Object *attr)
         class = V2D(dict)->d_class;
         if (class && class->c_properties) {
                 prop = dict_getitem(class->c_properties, key);
-                if (prop)
-                        goto have_prop;
+                if (prop) {
+                        if (isvar_property(prop))
+                                goto have_prop;
+                        else
+                                VAR_DECR_REF(prop);
+                }
         }
 
         bug_on(!DictType.methods);
         prop = dict_getitem(DictType.methods, key);
-        if (prop)
-                goto have_prop;
+        if (prop) {
+                if (isvar_property(prop))
+                        goto have_prop;
+                else
+                        VAR_DECR_REF(prop);
+        }
 
         /* Not a property to set, insert into dictionary */
-        return dict_setitem(dict, key, attr);
+        res = dict_setitem(dict, key, attr);
+        if (res != RES_OK) {
+                /* this should always succeed if not deleting */
+                bug_on(attr != NULL);
+                err_setstr(ValueError, "Cannot delete item %N", key);
+        }
+        return res;
 
 have_prop:
+        if (!attr) {
+                err_setstr(ValueError, "cannot delete property this way");
+                VAR_DECR_REF(prop);
+                return RES_ERROR;
+        }
         res = property_set(prop, dict, attr);
         VAR_DECR_REF(prop);
         return res;
@@ -1740,7 +1759,6 @@ found:
  *   2. A copy of old_class's properties, if any exist.
  *
  * It does NOT receive:
- *   1. old_class's .str method
  *   2. old_class's .reset method
  */
 enum result_t

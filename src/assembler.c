@@ -54,6 +54,7 @@
  *          it should check if an expression is followed by a
  *          comma and, if so, build a tuple.  This supports lazy
  *          tuple expressions that don't use parentheses.
+ * @FE_EVALONLY: If set, only parse evaluation expressions.
  * @FEE_MASK: OR flags with this to turn it into one of the
  *          three mutually-exclusive arguments to
  *          assemble_primary_elements
@@ -71,6 +72,7 @@ enum {
         FE_TOP          = 0x04,
         FE_SKIPNULLASSIGN=0x08,
         FE_CHECKTUPLE   = 0x10,
+        FE_EVALONLY     = 0x20,
 
         /*
          * bits 4-5, three mutually-exclusive arguments to
@@ -2670,7 +2672,8 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         need_pop = 0;
         need_semi = 1;
         if (!!(flags & FE_TOP)) {
-                if (a->inp_type == AS_STRING) {
+                if (a->inp_type == AS_STRING &&
+                    !!(flags & FE_EVALONLY)) {
                         /*
                          * Special case:  don't require things like
                          * "eval('2.5;')" when "eval('2.5')" will do.
@@ -3187,16 +3190,21 @@ assemble(const char *filename, FILE *fp, Object *localdict)
  * Return: Same type of result as assemble().
  */
 Object *
-assemble_string(const char *str)
+assemble_string(const char *str, bool eval_only)
 {
         struct assemble_t *a;
         Object *ret;
+        unsigned int flags;
 
         a = new_string_assembler(str);
         if (!a)
                 return NULL;
 
-        ret = assemble_next(a, false, FE_TOP);
+        if (eval_only)
+                flags = FE_TOP | FE_EVALONLY;
+        else
+                flags = 0;
+        ret = assemble_next(a, false, flags);
 
         /* Make sure it was one expression */
         if (ret != NULL && ret != ErrorVar) {

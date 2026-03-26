@@ -512,7 +512,7 @@ do_eval(Frame *fr)
 
         if (vm_getargs(fr, "s!:eval", &expr) == RES_ERROR)
                 return ErrorVar;
-        ex = assemble_string(expr);
+        ex = assemble_string(expr, true);
         if (!ex || ex == ErrorVar) {
                 ret = ex;
         } else {

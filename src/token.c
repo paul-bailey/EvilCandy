@@ -35,7 +35,7 @@ enum {
  * @ntok:       Number of tokens in @pgm
  * @nexttok:    Next token in @pgm to get with get_tok()
  * @eof:        True if @fp has reached EOF
- * @tty:        True if @fp is a terminal
+ * @inp:        Type of input, file, tty, or string
  * @fstring:    single- or double-quote char if tokenizer is in the middle
  *              of an F-string, nullchar otherwise.
  * @env:        Jump buffer, USE ONLY IN THE tokenize_helper() CONTEXT!
@@ -1068,7 +1068,9 @@ token_state_from_string(const char *cstring)
          *      ...
          *
          * where tok_next_line() will copy from state->inp_ptr to next
-         * newline into state->line.
+         * newline into state->line.  The problem with just assigning
+         * state->line to cstring is that we can't keep track of line
+         * number should any '\n' be embedded in cstring.
          */
         state->line = (char *)cstring;
         state->s = state->line;

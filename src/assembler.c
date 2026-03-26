@@ -2677,22 +2677,33 @@ static int
 assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                      int continueto)
 {
-        int pop_arg, need_pop = 0;
+        int pop_arg, need_pop, need_semi;
 
-        /*
-         * XXX: We need a better way to know if we are...
-         *      in TTY mode at the top
-         *      in script mode
-         *      in string mode at the top
-         *      in string mode not at the top
-         */
-        if (!!(flags & FE_TOP) && a->fp)
-                pop_arg = IARG_POP_PRINT;
-        else
+        need_pop = 0;
+        need_semi = 1;
+        if (!!(flags & FE_TOP)) {
+                if (a->inp_type == AS_STRING) {
+                        /*
+                         * Special case:  don't require things like
+                         * "eval('2.5;')" when "eval('2.5')" will do.
+                         */
+                        need_semi = 0;
+                        if (as_lex(a) < 0)
+                                return -1;
+                        if (a->oc->t == OC_EOF)
+                                return 0;
+                        goto eval_only;
+                } else {
+                        bug_on(a->inp_type != AS_TTY);
+                        pop_arg = IARG_POP_PRINT;
+                }
+        } else {
                 pop_arg = IARG_POP_NORMAL;
+        }
 
         if (as_lex(a) < 0)
                 return -1;
+
         /* cases return early if semicolon not expected at the end */
         switch (a->oc->t) {
         case OC_DELETE:
@@ -2756,10 +2767,12 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 return assemble_do(a);
         default:
                 /* value expression */
+eval_only:
                 as_unlex(a);
                 if (assemble_expr(a, FE_CHECKTUPLE) < 0)
                         return -1;
                 need_pop = 1;
+
                 break;
         }
 
@@ -2775,8 +2788,12 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         if (as_lex(a) < 0)
                 return -1;
         if (a->oc->t != OC_SEMI) {
-                err_ae_expect(a, OC_SEMI);
-                return -1;
+                if (need_semi) {
+                        err_ae_expect(a, OC_SEMI);
+                        return -1;
+                } else {
+                        as_unlex(a);
+                }
         }
         return 0;
 }
@@ -2813,6 +2830,9 @@ new_assembler(const char *source_file_name, FILE *fp,
         struct assemble_t *a;
         struct token_state_t *prog;
 
+        bug_on((!!fp) == (!!src_str));
+        bug_on(!!localdict && !!src_str);
+
         if (fp) {
                 prog = token_state_new(fp, notdir(source_file_name));
                 if (!prog) /* no tokens, just eof */
@@ -2830,9 +2850,11 @@ new_assembler(const char *source_file_name, FILE *fp,
         /* don't let the first ones be zero, that looks bad */
         a->func = FUNC_INIT;
         if (localdict) {
+                a->inp_type = AS_TTY;
                 a->localdict = dictvar_new();
                 dict_copyto(a->localdict, localdict);
         } else {
+                a->inp_type = a->fp ? AS_SCRIPT : AS_STRING;
                 a->localdict = NULL;
         }
         list_init(&a->active_frames);
@@ -3186,7 +3208,22 @@ assemble_string(const char *str)
         if (!a)
                 return NULL;
 
-        ret = assemble_next(a, true, FE_TOP);
+        ret = assemble_next(a, false, FE_TOP);
+
+        /* Make sure it was one expression */
+        if (ret != NULL && ret != ErrorVar) {
+                if (as_lex(a) < 0) {
+                        VAR_DECR_REF(ret);
+                        return ErrorVar;
+                }
+                if (a->oc->t != OC_EOF) {
+                        err_setstr(SyntaxError,
+                                "Excess tokens in eval() string");
+                        VAR_DECR_REF(ret);
+                        return ErrorVar;
+                }
+
+        }
         free_assembler(a);
         return ret;
 }

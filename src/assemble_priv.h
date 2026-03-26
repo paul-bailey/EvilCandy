@@ -70,6 +70,7 @@ struct as_frame_t {
  *              @active frames
  * @localdict:  If in script mode, NULL.  If in interactive mode, this
  *              is the dictionary of top-level local variables.
+ * @inp_type:    What kind of input are we receiving? TTY? Script?...
  */
 struct assemble_t {
         char *file_name;
@@ -81,6 +82,11 @@ struct assemble_t {
         struct list_t finished_frames;
         struct as_frame_t *fr;
         Object *localdict;
+        enum {
+                AS_SCRIPT,      /* script file */
+                AS_TTY,         /* interactive mode */
+                AS_STRING,      /* evaluation-only string */
+        } inp_type;
 };
 
 #define list2frame(li) container_of(li, struct as_frame_t, list)

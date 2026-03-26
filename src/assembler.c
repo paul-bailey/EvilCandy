@@ -122,19 +122,7 @@ as_next_funcno(struct assemble_t *a)
         return a->func++;
 }
 
-/*
- * See comments above get_tok().
- * We cannot naively have something like
- *      old_tokptr = a->oc;
- *      as_lex();
- *      next_tokptr = a->oc;
- * because as_lex() doesn't always merely increment the pointer a->oc.
- * It might also move the token array with realloc, invalidating the old
- * pointer.  So we occasionally have to declare a local struct token_t
- * and copy a->oc's contents to it.
- *
- * @src is assumed to be a->oc, but we'll keep it general.
- */
+/* @src is assumed to be a->oc, but we'll keep it general */
 static inline token_pos_t
 as_savetok(struct assemble_t *a, struct token_t **tok)
 {

@@ -844,12 +844,8 @@ socket_create(int fd, int domain, int type, int proto)
                 TBLEND,
         };
         struct socketvar_t *skv;
-        Object *skobj;
+        Object *skobj_inner, *skobj_outer;
 
-        /*
-         * pre-allocated rather than declared on stack, in case
-         * bytesvar_new packs skv into unaligned buffer.
-         */
         skv = emalloc(sizeof(*skv));
         skv->magic       = DICT_MAGIC_SOCK;
         skv->fd          = fd;
@@ -858,18 +854,13 @@ socket_create(int fd, int domain, int type, int proto)
         skv->proto       = proto;
         skv->addrlen     = dom2alen(domain);
 
-        /*
-         * Forgive me for what I am about to do...
-         * Here I am making a supposedly immutable bytes object which I
-         * will modify and mutate throughout the lifespan of this socket
-         * object.  I still need to implement something like Python's
-         * bytearray class to do this properly.
-         */
-        skobj = dictvar_from_methods(NULL, sockmethods_inittbl);
+        skobj_inner = dictvar_from_methods(NULL, sockmethods_inittbl);
+        skobj_outer = dictvar_new();
 
-        dict_set_priv(skobj, skv);
-        dict_add_cdestructor(skobj, sock_destructor);
-        return skobj;
+        dict_set_priv(skobj_inner, skv);
+        dict_add_cdestructor(skobj_inner, sock_destructor);
+        dict_inherit(skobj_outer, skobj_inner, true);
+        return skobj_outer;
 }
 
 static Object *

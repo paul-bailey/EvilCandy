@@ -88,9 +88,8 @@ run_script(const char *filename, FILE *fp, Frame *fr)
         Object *retval;
 
         ex = assemble(filename, fp, NULL);
-        if (!ex)
+        if (!ex || ex == ErrorVar)
                 return;
-        bug_on(ex == ErrorVar);
 
         if (gbl.opt.disassemble) {
                 FILE *dfp;

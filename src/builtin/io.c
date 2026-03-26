@@ -272,7 +272,7 @@ destroy_common(Object *fo)
 static struct rawfile_t *
 file_str_get_priv(Frame *fr, int type)
 {
-        Object *fo = vm_get_arg(fr, 0);
+        Object *fo = vm_get_this(fr);
         if (!fo || !isvar_dict(fo))
                 return NULL;
         return file_get_silent(fo, type);
@@ -289,16 +289,6 @@ file_wrapper_reset(Object *fwo)
         }
 }
 
-static Object *
-file_wrapper_str(Frame *fr)
-{
-        Object *fwo = vm_get_arg(fr, 0);
-        bug_on(!isvar_dict(fwo));
-        struct file_wrapper_t *fw = dict_get_priv(fwo);
-        if (fw && fw->fw_magic == DICT_MAGIC_FILE_WRAPPER)
-                return var_str(fw->fw_base);
-        return NULL;
-}
 
 /* **********************************************************************
  *              Raw (unbuffered binary) files
@@ -476,6 +466,7 @@ open_raw(int fd, struct fileconfig_t *cfg)
                 V_INITTBL("write",      do_raw_write,    1, 1, -1, -1),
                 V_INITTBL("close",      do_raw_close,    0, 0, -1, -1),
                 V_INITTBL("iseof",      do_iseof,        0, 0, -1, -1),
+                V_INITTBL("__str__",    raw_str,         0, 0, -1, -1),
                 TBLEND,
         };
         static const struct type_prop_t rawfile_props[] = {
@@ -488,22 +479,19 @@ open_raw(int fd, struct fileconfig_t *cfg)
                 }
         };
         struct rawfile_t *raw;
-        Object *ret, *strfunc;
+        Object *ret;
 
         raw = file_new(fd, sizeof(*raw), cfg);
         if (cfg->readable)
                 raw->fr_read = raw_read;
         if (cfg->writable)
                 raw->fr_write = raw_write;
-        strfunc = funcvar_new_intl(raw_str, 1, 1);
 
         ret = dictvar_from_methods(NULL, rawfile_cb_methods);
         dict_set_priv(ret, raw);
         dict_add_cdestructor(ret, raw_destructor);
-        dict_setstr(ret, strfunc);
         dict_add_properties(ret, rawfile_props);
 
-        VAR_DECR_REF(strfunc);
 
         return ret;
 }
@@ -739,6 +727,7 @@ open_binary(int fd, struct fileconfig_t *cfg)
                 V_INITTBL("write",      do_bin_write,    1, 1, -1, -1),
                 V_INITTBL("close",      do_bin_close,    0, 0, -1, -1),
                 V_INITTBL("iseof",      do_iseof,        0, 0, -1, -1),
+                V_INITTBL("__str__",    bin_str,         0, 0, -1, -1),
                 TBLEND,
         };
         static const struct type_prop_t binfile_props[] = {
@@ -751,27 +740,19 @@ open_binary(int fd, struct fileconfig_t *cfg)
                 }
         };
         struct binfile_t *bin;
-        Object *ret, *strfunc;
+        Object *ret;
 
         bin = file_new(fd, sizeof(*bin), cfg);
         if (cfg->readable)
                 bin->fb_read = bin_read;
         if (cfg->writable)
                 bin->fb_write = bin_write;
-        /* same strfunc as raw, we don't have codec */
-        strfunc = funcvar_new_intl(bin_str, 1, 1);
 
         ret = dictvar_from_methods(NULL, binfile_cb_methods);
         dict_set_priv(ret, bin);
         dict_add_cdestructor(ret, bin_destructor);
-        dict_setstr(ret, strfunc);
         dict_add_properties(ret, binfile_props);
-
-        VAR_DECR_REF(strfunc);
-
         return ret;
-        err_setstr(NotImplementedError, "binary files not yet implemented");
-        return ErrorVar;
 }
 
 /* **********************************************************************
@@ -1155,6 +1136,7 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
                 V_INITTBL("write",      do_text_write,    1, 1, -1, -1),
                 V_INITTBL("close",      do_text_close,    0, 0, -1, -1),
                 V_INITTBL("iseof",      do_iseof,         0, 0, -1, -1),
+                V_INITTBL("__str__",    text_str,         0, 0, -1, -1),
                 TBLEND,
         };
         static const struct type_prop_t textfile_props[] = {
@@ -1171,7 +1153,7 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
                 }
         };
         struct textfile_t *txt;
-        Object *ret, *strfunc;
+        Object *ret;
 
         txt = file_new(fd, sizeof(*txt), cfg);
         txt->ft_codec = codec;
@@ -1182,15 +1164,10 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
         if (cfg->writable)
                 txt->ft_write = text_write;
 
-        strfunc = funcvar_new_intl(text_str, 1, 1);
-
         ret = dictvar_from_methods(NULL, textfile_cb_methods);
         dict_set_priv(ret, txt);
         dict_add_cdestructor(ret, text_destructor);
-        dict_setstr(ret, strfunc);
         dict_add_properties(ret, textfile_props);
-
-        VAR_DECR_REF(strfunc);
 
         return ret;
 }
@@ -1281,7 +1258,7 @@ isvar_file(Object *o)
 Object *
 finish_open(int fd, struct fileconfig_t *cfg, int codec)
 {
-        Object *inner_dict, *outer_dict, *strfunc;
+        Object *inner_dict, *outer_dict;
         struct file_wrapper_t *fw;
         switch (cfg->type) {
         case FILE_TEXT:
@@ -1314,11 +1291,6 @@ finish_open(int fd, struct fileconfig_t *cfg, int codec)
         fw->fw_base = inner_dict;
         dict_set_priv(outer_dict, fw);
         dict_add_cdestructor(outer_dict, file_wrapper_reset);
-
-        strfunc = funcvar_new_intl(file_wrapper_str, 1, 1);
-        dict_setstr(outer_dict, strfunc);
-        VAR_DECR_REF(strfunc);
-
         return outer_dict;
 
 err_outer_ref:

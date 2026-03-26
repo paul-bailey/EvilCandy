@@ -16,8 +16,6 @@
  * struct class_t - A dictionary's .d_class points to this or NULL
  * @c_ureset: User-defined reset callback function, or NULL
  * @c_creset: Internal reset callback function, or NULL
- * @c_str:    Way to represent self, alternative to dict_str().
- *            ***Call vm_get_arg(0), not vm_get_this()!***
  * @c_priv:   Private data, for built-in objects.  External code would
  *            not need this, since they can bury their private data in
  *            closures.  (Technically so can built-in modules, but it's
@@ -38,7 +36,6 @@
 struct class_t {
         Object *c_ureset;
         void (*c_creset)(Object *);
-        Object *c_str;
         void *c_priv;
         Object *c_properties;
 };
@@ -682,12 +679,6 @@ dict_reset(Object *o)
                         cb(o);
                 }
 
-                if (cls->c_str) {
-                        Object *func = cls->c_str;
-                        cls->c_str = NULL;
-                        VAR_DECR_REF(func);
-                }
-
                 if (cls->c_properties) {
                         Object *p = cls->c_properties;
                         cls->c_properties = NULL;
@@ -707,43 +698,40 @@ dict_str(Object *o)
 {
         struct dictvar_t *d;
         struct string_writer_t wr;
-        struct class_t *cls;
-        int i;
-        int count;
-        Object *ret;
+        int i, count;
+        Object *ret, *method;
 
         bug_on(!isvar_dict(o));
         d = V2D(o);
 
-        if ((cls = d->d_class) != NULL && cls->c_str != NULL) {
-                bool err = err_occurred();
-                Object *args = arrayvar_from_stack(&o, 1, false);
-                ret = vm_exec_func(NULL, cls->c_str, args, NULL);
-                VAR_DECR_REF(args);
-
-                /* Fast path return user-define representation */
-                if (isvar_string(ret) && seqvar_size(ret) > 0)
-                        return ret;
-
-                /*
-                 * Something went wrong.
-                 * NullVar or ErrorVar.  Fall back to regular
-                 * representation.
-                 */
-                if (ret != ErrorVar) {
-                        /*
-                         * We should bug-trap ret != NullVar, but
-                         * d->d_str could be a user function whose
-                         * actions are out of our control.
-                         */
-                        VAR_DECR_REF(ret);
-                } else if (!err && err_occurred()) {
-                        /* No way to throw exception from here */
-                        err_clear();
+        if ((method = dict_getitem(o, STRCONST_ID(__str__))) != NULL) {
+                if (isvar_function(method)) {
+                        Object *tmp = method;
+                        method = methodvar_new(tmp, o);
+                        VAR_DECR_REF(tmp);
+                } else if (!isvar_method(method)) {
+                        VAR_DECR_REF(method);
+                        goto default_str;
                 }
-                ret = NULL;
+                ret = vm_exec_func(NULL, method, NULL, NULL);
+                VAR_DECR_REF(method);
+
+                if (ret == ErrorVar) {
+                        ret = NULL;
+                        goto default_str;
+                }
+
+                if (!isvar_string(ret) || err_occurred()) {
+                        VAR_DECR_REF(ret);
+                        ret = NULL;
+                        err_clear();
+                        goto default_str;
+                }
+
+                return ret;
         }
 
+default_str:
         if (dict_lock(d) == RES_ERROR)
                 return VAR_NEW_REF(STRCONST_ID(locked_dict_str));
 
@@ -805,19 +793,6 @@ err:
 /* **********************************************************************
  *                      Built-in Methods
  ***********************************************************************/
-
-static Object *
-do_dict_setstr(Frame *fr)
-{
-        Object *self, *func;
-
-        self = vm_get_this(fr);
-        if (vm_getargs(fr, "<x>:dict.setstr", &func) == RES_ERROR)
-                return ErrorVar;
-
-        dict_setstr(self, func);
-        return NULL;
-}
 
 static Object *
 do_dict_delitem(Frame *fr)
@@ -1152,7 +1127,6 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("addprop",   do_dict_addprop,     3, 3,  1,  2),
         V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
         V_INITTBL("setdestructor", do_dict_setdestructor, 1, 1, -1, -1),
-        V_INITTBL("setstr",    do_dict_setstr,      1, 1, -1, -1),
         V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
         TBLEND,
 };
@@ -1580,30 +1554,6 @@ dict_copyto(Object *to, Object *from)
 }
 
 /**
- * dict_setstr - Install an alternative to the dictionary's default
- *               .str() method
- * @dict:       Dictionary to represent
- * @cb:         A callable object (function or method) which returns
- *              a string object, or NullVar if there was an error.
- *              It should operate on argument 0, NOT 'this'!
- */
-void
-dict_setstr(Object *dict, Object *cb)
-{
-        Object *oldstr;
-        struct class_t *cls;
-        struct dictvar_t *d = V2D(dict);
-        bug_on(!isvar_dict(dict));
-
-        cls = dict_assert_hasclass(d);
-        oldstr = cls->c_str;
-        cls->c_str = VAR_NEW_REF(cb);
-
-        if (oldstr)
-                VAR_DECR_REF(oldstr);
-}
-
-/**
  * dict_set_priv - Set a dictionary's private data
  * @dict:       Dictionary
  * @priv:       Private data to associate with the instance @dict
@@ -1829,8 +1779,6 @@ dict_inherit(Object *self, Object *base, bool interpolate_methods)
                         if (res == RES_ERROR)
                                 goto err;
                 }
-                if (basec->c_str && !selfc->c_str)
-                        selfc->c_str = VAR_NEW_REF(basec->c_str);
         }
         return RES_OK;
 

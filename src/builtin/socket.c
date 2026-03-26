@@ -331,15 +331,11 @@ socket_str(Frame *fr)
         struct socketvar_t *skv;
         char buf[256];
 
-        skobj = vm_get_arg(fr, 0);
+        skobj = vm_get_this(fr);
         bug_on(!skobj || !isvar_dict(skobj));
 
         skv = socket_get_priv(skobj, ".str", 0);
 
-        /*
-         * See dict_setstr - str method returns NullVar back if it
-         * cannot represent the dict in the predicted way.
-         */
         if (!skv)
                 return VAR_NEW_REF(NullVar);
 
@@ -843,11 +839,12 @@ socket_create(int fd, int domain, int type, int proto)
                 V_INITTBL("send",     do_send,     2, 2, -1,  1),
                 V_INITTBL("sendto",   do_sendto,   3, 3, -1,  2),
                 V_INITTBL("close",    do_close,    0, 0, -1, -1),
+                V_INITTBL("__str__",  socket_str,  0, 0, -1, -1),
                 /* TODO: [gs]etsockopt and common ioctl wrappers */
                 TBLEND,
         };
         struct socketvar_t *skv;
-        Object *skobj, *strfunc;
+        Object *skobj;
 
         /*
          * pre-allocated rather than declared on stack, in case
@@ -872,11 +869,6 @@ socket_create(int fd, int domain, int type, int proto)
 
         dict_set_priv(skobj, skv);
         dict_add_cdestructor(skobj, sock_destructor);
-
-        strfunc = funcvar_new_intl(socket_str, 1, 1);
-        dict_setstr(skobj, strfunc);
-        VAR_DECR_REF(strfunc);
-
         return skobj;
 }
 

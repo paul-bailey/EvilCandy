@@ -260,7 +260,6 @@ extern enum result_t dict_setitem_exclusive(Object *dict,
                                 Object *key, Object *attr);
 extern int dict_copyto(Object *to, Object *from);
 extern void dict_add_cdestructor(Object *dict, void (*func)(Object *));
-extern void dict_setstr(Object *dict, Object *cb);
 extern void dict_set_priv(Object *dict, void *priv);
 extern void *dict_get_priv(Object *dict);
 extern void dict_add_properties(Object *dict,

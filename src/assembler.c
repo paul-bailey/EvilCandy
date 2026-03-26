@@ -3207,7 +3207,7 @@ assemble_string(const char *str, bool eval_only)
         ret = assemble_next(a, false, flags);
 
         /* Make sure it was one expression */
-        if (ret != NULL && ret != ErrorVar) {
+        if (eval_only && ret != NULL && ret != ErrorVar) {
                 if (as_lex(a) < 0) {
                         VAR_DECR_REF(ret);
                         return ErrorVar;

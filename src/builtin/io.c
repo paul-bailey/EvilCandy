@@ -180,19 +180,6 @@ file_get_priv(Object *fo, const char *fname,
         return ret;
 }
 
-static struct rawfile_t *
-fwrapper_get_priv(Object *fwo, const char *fname,
-                  enum file_type_t type, bool check_open)
-{
-        struct file_wrapper_t *fw = dict_get_priv(fwo);
-        if (!fw || fw->fw_magic != DICT_MAGIC_FILE_WRAPPER) {
-                filerr(fname, "file_wrapper's dictionary corrupted");
-                return NULL;
-        }
-        return file_get_priv(fw->fw_base, fname, type, check_open);
-
-}
-
 static inline struct rawfile_t *
 file_fget_priv(Frame *fr, const char *fname,
                enum file_type_t type, bool check_open)
@@ -1365,6 +1352,12 @@ finish_open(int fd, struct fileconfig_t *cfg, int codec)
         if (dict_inherit(outer_dict, inner_dict, true) != RES_OK)
                 goto err_outer_ref;
 
+        /*
+         * Since we have CAPI extern hooks to file (evc_file...()), we
+         * need a way to get to the "inner" dict's private data, so
+         * the "outer" dict needs private data which points to the
+         * "inner" dict, and therefore it also needs a cleanup callback.
+         */
         fw = emalloc(sizeof(*fw));
         fw->fw_magic = DICT_MAGIC_FILE_WRAPPER;
         fw->fw_base = inner_dict;

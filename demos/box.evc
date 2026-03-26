@@ -14,12 +14,12 @@ let Box = function(**kwargs) {
         'borderchar': '*'
     } | kwargs;
 
-    let test_borderchar = function(c) {
-        if (typeof(c) != 'string'){
+    let test_borderchar = (c) => {
+        if (typeof(c) != 'string')
             throw (err_border, 'borderchar not a string');
-        } if (length(c) != 1) {
+        if (length(c) != 1)
             throw (err_border, 'borderchar must be 1 char');
-        }
+        return c;
     };
 
     if (priv has 'pad') {
@@ -43,32 +43,33 @@ let Box = function(**kwargs) {
     // dictionary, so using it as a closure should not prevent printme
     // and showcount from having access to the same 'count'.
     priv.count = 0;
-
     test_borderchar(priv.borderchar);
 
-    let box_print = function(longstr, **kw) {
+    let ret = {};
+    ret.addprop('borderchar',
+                (() => priv.borderchar),
+                /* btw you should never use lambda notation this way :) */
+                (v) => { priv.borderchar = test_borderchar(v); });
+    ret.addprop('count', get=(() => priv.count));
+    ret.print = (longstr, **kw) => {
         let maxwidth = priv.maxwidth;
         let borderchar;
         let a;
         let topbottom;
 
-        if (kw has 'borderchar') {
-            test_borderchar(kw.borderchar);
-            borderchar = kw.borderchar;
-        } else {
-            borderchar = this.borderchar;
-        }
-        if (kw has 'width') {
+        borderchar = kw has 'borderchar'
+                     ? test_borderchar(kw.borderchar)
+                     : this.borderchar;
+        if (kw has 'width')
             maxwidth = kw.width;
-        }
 
-        // Quite hacky yet, still need find(), enumerate(), built-ins
-        // to make this cleaner.  Use IIFE to keep ns from cluttering up.
-        a = (function(old_arr, maxwidth) {
+        // break longstr into word sequence, put back together
+        // in lines.
+        a = ((old_arr, maxwidth) => {
             let na = [];
             let str = '';
             let curlen = 0;
-            for (word in old_arr) {
+            for word in old_arr {
                 let len;
                 if (curlen > 0) {
                     str += ' ';
@@ -83,10 +84,8 @@ let Box = function(**kwargs) {
 
                 str += word;
                 curlen += len;
-            } else {
-                if (length(str) > 0) {
-                    na.append(str.strip());
-                }
+            } else if (length(str) > 0) {
+                na.append(str.strip());
             }
             return na;
         })(longstr.split(), maxwidth - priv.padleft - 1);
@@ -96,9 +95,9 @@ let Box = function(**kwargs) {
                              (maxwidth-2) * ' ',
                              borderchar]);
         print(maxwidth * borderchar);
-        for (i in range(priv.padtop))
+        for i in range(priv.padtop)
             print(topbottom);
-        for (line in a) {
+        for line in a {
             let padright;
             line = ''.join([borderchar,
                            priv.padleft * ' ',
@@ -109,29 +108,12 @@ let Box = function(**kwargs) {
 
             print(line + padright * ' ' + borderchar);
         }
-        for (i in range(priv.padbottom))
+        for i in range(priv.padbottom)
             print(topbottom);
         print(maxwidth * borderchar);
         priv.count++;
     };
 
-    let box_count = () => priv.count;
-
-    let ret = {
-        '_borderchar': priv.borderchar,
-        'print': box_print,
-        'count': box_count
-    };
-
-    /*
-     * Better to just have an item named 'borderchar' in this case,
-     * but this tests our ability to create user-defined properties.
-     */
-    ret.addprop('borderchar', get=function() {
-        return this._borderchar;
-    }, set=function(v) {
-        this._borderchar = v;
-    });
     return ret;
 };
 
@@ -146,7 +128,7 @@ box2.print('...And I am box2!  Is my box bigger than box1?');
 
 box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
 
-if (box1.count() != 2 || box2.count() != 1)
+if (box1.count != 2 || box2.count != 1)
     throw "something suspicious with the box counts";
 
 box2.print('NO YOU DON\'T! LOOK AT MEEEEE!!!', borderchar='!');

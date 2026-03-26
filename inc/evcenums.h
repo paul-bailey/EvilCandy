@@ -167,6 +167,8 @@ enum floats_enc_t {
  */
 enum {
         DICT_MAGIC_FILE = 'F' << 24 | 'I' << 16 | 'L' << 8 | 'E',
+        DICT_MAGIC_FILE_WRAPPER
+                        = 'F' << 24 | 'W' << 16 | 'R' << 8 | 'P',
         DICT_MAGIC_SOCK = 'S' << 24 | 'O' << 16 | 'C' << 8 | 'K',
 };
 

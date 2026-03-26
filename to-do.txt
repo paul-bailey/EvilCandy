@@ -3,6 +3,9 @@ Bugs
 
 * BUGs 3/2026:
 
+        * Hazard which requires policy change, see FIXME in struct class_t,
+          src/types/dict.c.  Related to inheritance problem.
+
         * **fixed** In interactive mode, a syntax error sometimes lets the
           remainder of the line be parsed from where the error occurred.
 
@@ -50,6 +53,8 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Solve the inheritance problem with dictionaries, esp. wrt
+    struct class_t inheritance.
   - Implement set xor operator.
   - At minimum complete a walkthrough tutorial in Documentation.
   - Add appropriate interrupt handlers for things like EINTR.

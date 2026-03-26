@@ -2,6 +2,7 @@
 
 struct propertyvar_t {
         Object base;
+        Object *pr_owner;
         enum {
                 PR_INTL = 1,
                 PR_USER,
@@ -48,6 +49,8 @@ property_set(Object *prop, Object *owner, Object *value)
 {
         struct propertyvar_t *pr = V2P(prop);
         bug_on(!isvar_property(prop));
+        if (pr->pr_owner)
+                owner = pr->pr_owner;
         if (pr->pr_kind == PR_INTL) {
                 if (pr->pr_props.setprop)
                         return pr->pr_props.setprop(owner, value);
@@ -94,6 +97,8 @@ property_get(Object *prop, Object *owner)
 {
         struct propertyvar_t *pr = V2P(prop);
         bug_on(!isvar_property(prop));
+        if (pr->pr_owner)
+                owner = pr->pr_owner;
         if (pr->pr_kind == PR_INTL) {
                 if (pr->pr_props.getprop)
                         return pr->pr_props.getprop(owner);
@@ -115,6 +120,65 @@ property_get(Object *prop, Object *owner)
                            pr->pr_name, typestr(owner));
         }
         return ErrorVar;
+}
+
+/**
+ * property_inherit - Make a copy of a property, bound to the original's
+ *                    class
+ * @prop:       property to copy
+ * @old_class:  class to which @prop belonged.
+ *
+ * Return: new property
+ *
+ * This is sort of a hack, but a necessary one.  The following
+ * explanation concerns CAPI properties, not UAPI properties, where
+ * this is not a concern.
+ *
+ * Normally, properties reside in a dictionary for a single class (or
+ * instantiation, in the case of dictionaries, see struct class_t in
+ * dict.c).  They do not contain a handle to their owner, because that
+ * would cause a cyclic reference; instead, the owner is passed as an
+ * argument to property_set()/property_get() in this file.
+ *
+ * This is a problem when inheriting from one class to another.  We need
+ * to copy a property from one dict to the new one.  But now the wrong
+ * 'owner' is in the get/set argument list.
+ *
+ * So the hack is:
+ *   1. Keep properties in their original instance unbound,
+ *      and use the 'owner' argument in property_set()/property_get().
+ *   2. If the property is not in its original instance, use its bound
+ *      owner.
+ *   3. In the case of chained inheritance, only bind it the first time.
+ *
+ */
+Object *
+property_inherit(Object *prop, Object *old_class)
+{
+        Object *ret;
+        struct propertyvar_t *pr_old, *pr_new;
+        void *src, *dst;
+        size_t len;
+
+        /* currently we only "inherit" dictionaries */
+        bug_on(!isvar_dict(old_class));
+        bug_on(!isvar_property(prop));
+
+        pr_old = V2P(prop);
+        if (pr_old->pr_owner || pr_old->pr_kind == PR_INTL)
+                return VAR_NEW_REF(prop);
+
+        ret = var_new(&PropertyType);
+        pr_new = V2P(ret);
+
+        src = (void *)pr_old + sizeof(Object);
+        dst = (void *)pr_new + sizeof(Object);
+        len = sizeof(struct propertyvar_t) - sizeof(Object);
+
+        memcpy(dst, src, len);
+        pr_new->pr_owner = VAR_NEW_REF(old_class);
+
+        return ret;
 }
 
 Object *

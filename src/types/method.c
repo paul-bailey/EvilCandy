@@ -80,7 +80,7 @@ method_str(Object *meth)
 
         memset(buf, 0, sizeof(buf));
         snprintf(buf, sizeof(buf)-1,
-                 "<function owned by %llu>",
+                 "<method owned by %llu>",
                  (unsigned long long)m->owner);
         return stringvar_new(buf);
 }

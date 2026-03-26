@@ -24,6 +24,16 @@
  *            faster to just bypass all that overhead.)
  * @c_properties:
  *            Dictionary of subclass properties.
+ *
+ * If .c_priv is used, it means this dictionary has built-in functions,
+ * in which case *this* dictionary should never be visible to the UAPI.
+ * (For built-in functions that don't use private data, e.g. the math
+ * module, this doesn't matter.)  The UAPI should get a wrapper dictionary,
+ * containing MethodType objects bound to this dictionary.  Otherwise,
+ * if the union operator is used, or {}.inherit(this_dict) is called,
+ * the built-in functions that use .c_priv will lose access to it;
+ * worst-case is, they are not checking magic numbers and are messing
+ * with some other data.
  */
 struct class_t {
         Object *c_ureset;
@@ -554,6 +564,72 @@ dict_add_udestructor(Object *dict, Object *func)
         return RES_OK;
 }
 
+/* flags argument to dict_copyto_ */
+enum {
+        DF_INTERPOLATE_METHODS    = 0x0001,
+        DF_INTERPOLATE_PROPERTIES = 0x0002,
+};
+
+/*
+ * Helper to dict_copyto_with_flags - maybe transform @v into a
+ *      method or a bound property.
+ * This produces a reference for return value, even if it's just @v
+ *
+ * XXX REVISIT: 'interpolate' is a strange and misleading name.
+ *      So is 'intercept', 'transform', 'wrap', and any other name
+ *      I can think of.
+ */
+static Object *
+d_interpolate(Object *v, Object *owner, unsigned int flags)
+{
+        if (!!(flags & DF_INTERPOLATE_METHODS) && isvar_function(v))
+                return methodvar_new(v, owner);
+        if (!!(flags & DF_INTERPOLATE_PROPERTIES) && isvar_property(v))
+                return property_inherit(v, owner);
+        return VAR_NEW_REF(v);
+}
+
+/*
+ * dict_copyto - Copy contents of dicitonary @from to dictionary @to
+ * @to:         Dictionary we're copying to
+ * @from:       Dictionary we're copying from
+ * @owner:      Owner of methods and properties (usually @from, but not
+ *              necessarily.  This is only used if @flags is set
+ * @flags:      DF_INTERPOLATE_xxxx flags
+ *
+ * Return: RES_OK or RES_ERROR
+ */
+static enum result_t
+dict_copyto_with_flags(Object *to, Object *from,
+                        Object *owner, unsigned int flags)
+{
+        int i;
+        struct dictvar_t *d = V2D(from);
+
+        bug_on(!isvar_dict(to) || !isvar_dict(from));
+        for (i = 0; i < d->d_size; i++) {
+                Object *k, *v;
+
+                k = d->d_keys[i];
+                if (k == NULL || k == BUCKET_DEAD)
+                        continue;
+                v = d->d_vals[i];
+                if (flags) {
+                        int res;
+                        v = d_interpolate(v, owner, flags);
+                        res = dict_setitem(to, k, v);
+                        VAR_DECR_REF(v);
+                        if (res != RES_OK)
+                                return RES_ERROR;
+                } else if (dict_setitem(to, k, v) != RES_OK) {
+                        return RES_ERROR;
+                }
+        }
+        return RES_OK;
+}
+
+
+
 /* **********************************************************************
  *              Built-in Operator Callbacks
  ***********************************************************************/
@@ -715,6 +791,8 @@ dict_union(Object *a, Object *b)
                 goto err;
         if (dict_copyto(c, b) != RES_OK)
                 goto err;
+
+        /* XXX: what is a, b have a class struct? copy that over too? */
         return c;
 
 err:
@@ -964,6 +1042,22 @@ do_dict_addprop(Frame *fr)
 }
 
 static Object *
+do_dict_inherit(Frame *fr)
+{
+        Object *base, *self;
+
+        self = vm_get_this(fr);
+        bug_on(!isvar_dict(self));
+
+        if (vm_getargs(fr, "<{}>!:inherit", &base) == RES_ERROR)
+                return ErrorVar;
+
+        if (dict_inherit(self, base, false) == RES_ERROR)
+                return ErrorVar;
+        return NULL;
+}
+
+static Object *
 dict_getprop_length(Object *self)
 {
         bug_on(!isvar_dict(self));
@@ -1053,6 +1147,7 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
         V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("items",     do_dict_items,       0, 0, -1, -1),
+        V_INITTBL("inherit",   do_dict_inherit,     1, 1, -1, -1),
         V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
         V_INITTBL("addprop",   do_dict_addprop,     3, 3,  1,  2),
         V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
@@ -1474,23 +1569,14 @@ dict_add_cdestructor(Object *dict, void (*func)(Object *))
 /**
  * dict_copyto - Copy contents of dicitonary @from to dictionary @to
  *
+ * Note: @to will receive functions from @from directly.
+ *
  * Return: RES_OK or RES_ERROR
  */
 int
 dict_copyto(Object *to, Object *from)
 {
-        int i;
-        struct dictvar_t *d = V2D(from);
-
-        bug_on(!isvar_dict(to) || !isvar_dict(from));
-        for (i = 0; i < d->d_size; i++) {
-                Object *k = d->d_keys[i];
-                if (k == NULL || k == BUCKET_DEAD)
-                        continue;
-                if (dict_setitem(to, k, d->d_vals[i]) != RES_OK)
-                        return RES_ERROR;
-        }
-        return RES_OK;
+        return dict_copyto_with_flags(to, from, from, 0);
 }
 
 /**
@@ -1681,6 +1767,76 @@ found:
                 VAR_DECR_REF(tmp);
         }
         return ret;
+}
+
+/**
+ * DOC: Inheritance
+ *
+ * Inheritance in EvilCandy is half-baked, and that's the way I like it.
+ * For a line like:
+ *
+ *         let new_class = {}.inherit(old_class);
+ *
+ * new_class will receive:
+ *   1. A shallow copy of old_class.  Regarding private data:
+ *      a. For user-defined methods, private data would exist in the form
+ *         of closures; there is no need to intercept functions and wrap
+ *         them into method objects during the shallow-copy process.
+ *      b. For internal functions, if they access private data, they
+ *         should never have been made available to the UAPI in any form
+ *         *but* as methods.  To prevent cyclic reference, two dictionaries
+ *         are created; for an example how this works, see how some of the
+ *         built-in modules (io.c and socket.c, e.g.) use dict_inherit().
+ *   2. A copy of old_class's properties, if any exist.
+ *
+ * It does NOT receive:
+ *   1. old_class's .str method
+ *   2. old_class's .reset method
+ */
+enum result_t
+dict_inherit(Object *self, Object *base, bool interpolate_methods)
+{
+        enum {
+                INTERP_FLAGS = DF_INTERPOLATE_METHODS |
+                                DF_INTERPOLATE_PROPERTIES,
+        };
+        unsigned int flags;
+        struct dictvar_t *dbase;
+
+        bug_on(!isvar_dict(self));
+        bug_on(!isvar_dict(base));
+
+        flags = interpolate_methods ? INTERP_FLAGS : 0;
+        if (dict_copyto_with_flags(self, base, base, flags) != RES_OK)
+                goto err;
+
+        dbase = V2D(base);
+        if (dbase->d_class) {
+                struct class_t *basec, *selfc;
+
+                basec = dbase->d_class;
+                selfc = dict_assert_hasclass(V2D(self));
+
+                if (basec->c_properties) {
+                        int res;
+                        if (!selfc->c_properties)
+                                selfc->c_properties = dictvar_new();
+
+                        /* Always interpolate the class dict */
+                        res = dict_copyto_with_flags(selfc->c_properties,
+                                                     basec->c_properties,
+                                                     base, INTERP_FLAGS);
+                        if (res == RES_ERROR)
+                                goto err;
+                }
+                if (basec->c_str && !selfc->c_str)
+                        selfc->c_str = VAR_NEW_REF(basec->c_str);
+        }
+        return RES_OK;
+
+err:
+        err_setstr(RuntimeError, "dict copy failed");
+        return RES_ERROR;
 }
 
 struct type_t DictItemsIterType = {

@@ -16,6 +16,11 @@ enum {
         IO_BUFFER_SIZE = 8 * 1024, /* yeahsurewhynot */
 };
 
+struct file_wrapper_t {
+        unsigned int fw_magic;
+        Object *fw_base;
+};
+
 /**
  * struct rawfile_t - Raw unbuffered file
  * @fr_fd:       File descriptor, or -1 if an in-memory file only
@@ -175,6 +180,19 @@ file_get_priv(Object *fo, const char *fname,
         return ret;
 }
 
+static struct rawfile_t *
+fwrapper_get_priv(Object *fwo, const char *fname,
+                  enum file_type_t type, bool check_open)
+{
+        struct file_wrapper_t *fw = dict_get_priv(fwo);
+        if (!fw || fw->fw_magic != DICT_MAGIC_FILE_WRAPPER) {
+                filerr(fname, "file_wrapper's dictionary corrupted");
+                return NULL;
+        }
+        return file_get_priv(fw->fw_base, fname, type, check_open);
+
+}
+
 static inline struct rawfile_t *
 file_fget_priv(Frame *fr, const char *fname,
                enum file_type_t type, bool check_open)
@@ -258,6 +276,28 @@ file_str_get_priv(Frame *fr, int type)
         if (!fo || !isvar_dict(fo))
                 return NULL;
         return file_get_silent(fo, type);
+}
+
+static void
+file_wrapper_reset(Object *fwo)
+{
+        struct file_wrapper_t *fw = dict_get_priv(fwo);
+        if (fw && fw->fw_magic == DICT_MAGIC_FILE_WRAPPER) {
+                if (fw->fw_base)
+                        VAR_DECR_REF(fw->fw_base);
+                efree(fw);
+        }
+}
+
+static Object *
+file_wrapper_str(Frame *fr)
+{
+        Object *fwo = vm_get_arg(fr, 0);
+        bug_on(!isvar_dict(fwo));
+        struct file_wrapper_t *fw = dict_get_priv(fwo);
+        if (fw && fw->fw_magic == DICT_MAGIC_FILE_WRAPPER)
+                return var_str(fw->fw_base);
+        return NULL;
 }
 
 /* **********************************************************************
@@ -1177,7 +1217,8 @@ Object *
 evc_file_read(Object *fo, ssize_t size)
 {
         struct rawfile_t *f;
-        f = file_get_priv(fo, "internal_read", FILE_ANY, 1);
+
+        f = fwrapper_get_priv(fo, "internal_read", FILE_ANY, 1);
         if (!f)
                 return ErrorVar;
 
@@ -1205,7 +1246,8 @@ ssize_t
 evc_file_write(Object *fo, Object *data)
 {
         struct rawfile_t *f;
-        f = file_get_priv(fo, "internal_write", FILE_ANY, 1);
+
+        f = fwrapper_get_priv(fo, "internal_write", FILE_ANY, 1);
         if (!f)
                 return -1;
 
@@ -1223,9 +1265,12 @@ bool
 isvar_file(Object *o)
 {
         if (isvar_dict(o)) {
-                struct rawfile_t *raw = dict_get_priv(o);
-                if (raw)
-                        return raw->fr_magic == DICT_MAGIC_FILE;
+                struct file_wrapper_t *fw = dict_get_priv(o);
+                if (fw && fw->fw_magic == DICT_MAGIC_FILE_WRAPPER) {
+                        struct rawfile_t *raw = dict_get_priv(fw->fw_base);
+                        if (raw)
+                                return raw->fr_magic == DICT_MAGIC_FILE;
+                }
         }
         return false;
 }
@@ -1236,17 +1281,49 @@ isvar_file(Object *o)
 Object *
 finish_open(int fd, struct fileconfig_t *cfg, int codec)
 {
+        Object *inner_dict, *outer_dict, *strfunc;
+        struct file_wrapper_t *fw;
         switch (cfg->type) {
         case FILE_TEXT:
-                return open_text(fd, cfg, codec);
+                inner_dict = open_text(fd, cfg, codec);
+                break;
         case FILE_BINARY:
-                return open_binary(fd, cfg);
+                inner_dict = open_binary(fd, cfg);
+                break;
         case FILE_RAW:
-                return open_raw(fd, cfg);
+                inner_dict = open_raw(fd, cfg);
+                break;
         default:
                 bug();
                 return ErrorVar;
         }
+
+        if (inner_dict == ErrorVar || inner_dict == NULL)
+                return ErrorVar;
+
+        /*
+         * FIXME: I'm "inheriting" backwards!, requiring
+         * a double-dereference for many of these operations.
+         */
+        outer_dict = dictvar_new();
+        if (dict_inherit(outer_dict, inner_dict, true) != RES_OK)
+                goto err_outer_ref;
+
+        fw = emalloc(sizeof(*fw));
+        fw->fw_magic = DICT_MAGIC_FILE_WRAPPER;
+        fw->fw_base = inner_dict;
+        dict_set_priv(outer_dict, fw);
+        dict_add_cdestructor(outer_dict, file_wrapper_reset);
+
+        strfunc = funcvar_new_intl(file_wrapper_str, 1, 1);
+        dict_setstr(outer_dict, strfunc);
+        VAR_DECR_REF(strfunc);
+
+        return outer_dict;
+
+err_outer_ref:
+        VAR_DECR_REF(outer_dict);
+        return ErrorVar;
 }
 
 /**

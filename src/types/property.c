@@ -136,8 +136,10 @@ propertyvar_new_user(Object *setter, Object *getter, Object *name)
         struct propertyvar_t *pr = V2P(ret);
         pr->pr_kind = PR_USER;
 
-        pr->pr_set = VAR_NEW_REF(setter);
-        pr->pr_get = VAR_NEW_REF(getter);
+        if (setter)
+                pr->pr_set = VAR_NEW_REF(setter);
+        if (getter)
+                pr->pr_get = VAR_NEW_REF(getter);
         pr->pr_name = VAR_NEW_REF(name);
         return ret;
 }

@@ -1759,7 +1759,8 @@ found:
  *   2. A copy of old_class's properties, if any exist.
  *
  * It does NOT receive:
- *   2. old_class's .reset method
+ *   1. old_class's .c_ureset method
+ *   2. old_class's CAPI data (.c_priv, .c_creset)
  */
 enum result_t
 dict_inherit(Object *self, Object *base, bool interpolate_methods)

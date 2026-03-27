@@ -1464,8 +1464,8 @@ evc_file_open(int fd, const char *name, bool binary,
 static Object *
 do_open(Frame *fr)
 {
-        const char *name, *mode, *s;
-        Object *encarg = NULL;
+        const char *mode, *s;
+        Object *namearg, *encarg = NULL;
         struct fileconfig_t cfg;
         enum result_t res;
         bool binary = false;
@@ -1478,7 +1478,7 @@ do_open(Frame *fr)
         int fd;
         Object *ret;
 
-        res = vm_getargs(fr, "ss{|<s>ii}:open", &name, &mode,
+        res = vm_getargs(fr, "<si>s{|<s>ii}:open", &namearg, &mode,
                          STRCONST_ID(encoding), &encarg,
                          STRCONST_ID(closefd), &closefd,
                          STRCONST_ID(buffering), &buffering);
@@ -1581,13 +1581,47 @@ do_open(Frame *fr)
         } else {
                 cfg.type = FILE_TEXT;
         }
-        cfg.name = estrdup(name);
         cfg.mode = estrdup(mode);
+        cfg.name = NULL;
 
-        fd = open(cfg.name, flags, 0666);
-        if (fd < 0) {
-                err_errno("cannot open %s", cfg.name);
-                goto err;
+        if (isvar_string(namearg)) {
+                const char *name = string_cstring(namearg);
+                if (strlen(name) != string_nbytes(namearg)) {
+                        err_setstr(ArgumentError, "embedded null char");
+                        goto err;
+                }
+                cfg.name = estrdup(name);
+                fd = open(cfg.name, flags, 0666);
+                if (fd < 0) {
+                        err_errno("cannot open %s", cfg.name);
+                        goto err;
+                }
+        } else {
+                long long ival;
+                int oflags;
+                bug_on(!isvar_int(namearg));
+                ival = intvar_toll(namearg);
+                if (ival < 0LL || ival > INT_MAX) {
+                        err_setstr(ArgumentError, "fd out of range");
+                        goto err;
+                }
+                fd = (int)ival;
+                oflags = fcntl(fd, F_GETFL);
+                if (oflags < 0) {
+                        err_setstr(ArgumentError, "invalid fd");
+                        goto err;
+                }
+                oflags &= O_RDWR | O_RDONLY | O_WRONLY;
+                if (flags == O_RDONLY && cfg.writable) {
+                        err_setstr(ArgumentError,
+                                "invalid mode: file is not writable");
+                        goto err;
+                }
+                if (flags == O_WRONLY && cfg.readable) {
+                        err_setstr(ArgumentError,
+                                "invalid mode: file is not readable");
+                        goto err;
+                }
         }
 
         ret = finish_open(fd, &cfg, codec);
@@ -1597,7 +1631,8 @@ do_open(Frame *fr)
         return ret;
 
 err:
-        efree(cfg.name);
+        if (cfg.name)
+                efree(cfg.name);
         efree(cfg.mode);
         return ErrorVar;
 }

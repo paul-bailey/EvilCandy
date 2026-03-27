@@ -273,6 +273,10 @@ static inline bool isvar_property(Object *v)
         { return v->v_type == &PropertyType; }
 static inline bool isvar_set(Object *v)
         { return v->v_type == &SetType; }
+static inline bool isvar_class(Object *o)
+        { return o->v_type == &ClassType; }
+static inline bool isvar_instance(Object *o)
+        { return o->v_type == &InstanceType; }
 
 static inline bool isvar_number(Object *v)
         { return !!(v->v_type->flags & OBF_NUMBER); }
@@ -286,10 +290,6 @@ static inline bool isvar_map(Object *v)
         { return v->v_type->mpm != NULL; }
 static inline bool hasvar_len(Object *v)
         { return v->v_type->get_iter != NULL; }
-static inline bool isvar_class(Object *o)
-        { return o->v_type = &ClassType; }
-static inline bool isvar_instance(Object *o)
-        { return o->v_type = &InstanceType; }
 
 /*
  * Some objects made public so some functions can be inline.

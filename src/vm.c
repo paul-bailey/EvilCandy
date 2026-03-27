@@ -871,6 +871,40 @@ do_getattr(Frame *fr, instruction_t ii)
 }
 
 static int
+do_getattr_super(Frame *fr, instruction_t ii)
+{
+        Object *attr, *key, *obj;
+        int ret;
+
+        key = pop(fr);
+        obj = pop(fr);
+
+        ret = RES_ERROR;
+
+        /* "super" makes no sense for anything else */
+        if (!isvar_instance(obj)) {
+                err_setstr(TypeError,
+                        "super() may only be used for instances");
+                goto done;
+        }
+        attr = instance_super_getattr(obj, key);
+        if (!attr) {
+                err_setstr(KeyError,
+                           "no super or super has no instance of %N",
+                           key);
+                goto done;
+        }
+
+        push(fr, attr);
+        ret = RES_OK;
+
+done:
+        VAR_DECR_REF(key);
+        VAR_DECR_REF(obj);
+        return ret;
+}
+
+static int
 do_delattr(Frame *fr, instruction_t ii)
 {
         Object *obj, *key;
@@ -1315,7 +1349,7 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
         Object *res, *owner;
 
         if (isvar_class(func)) {
-                return instancevar_new(func);
+                return instancevar_new(func, args, kwargs);
         } else if (isvar_method(func)) {
                 Object *meth = func;
                 if (methodvar_tofunc(meth, &func, &owner) == RES_ERROR)

@@ -212,7 +212,9 @@ extern Object *bytes_getslice(Object *bytes, ssize_t start,
 extern Object *bytesvar_new_sg(size_t size, ...);
 
 /* types/class.c */
-extern Object *instancevar_new(Object *class);
+extern Object *instance_super_getattr(Object *instance,
+                                      Object *attribute_name);
+extern Object *instancevar_new(Object *class, Object *args, Object *kwargs);
 extern Object *classvar_new(Object *bases, Object *dict);
 
 /* types/comlex.c */

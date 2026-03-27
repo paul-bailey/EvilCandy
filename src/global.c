@@ -57,6 +57,7 @@ initialize_string_consts(void)
                 STRCONST_CSTR(get),
                 STRCONST_CSTR(set),
                 STRCONST_CSTR(__str__),
+                STRCONST_CSTR(__init__),
                 STRCONST_CSTR(read),
                 STRCONST_CSTR(write),
                 [STRCONST_IDX_spc] = " ",

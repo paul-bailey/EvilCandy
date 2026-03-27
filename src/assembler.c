@@ -1483,12 +1483,69 @@ assemble_call_func(struct assemble_t *a)
         return 0;
 }
 
+/*
+ * Return: 1 if we processed "super().IDENTIFIER", 0 if not, -1 if error.
+ * If returning zero, the token position will be at the same position
+ * as before the call.
+ */
+static int
+assemble_super_expr(struct assemble_t *a)
+{
+        token_pos_t pos = as_savetok(a, NULL);
+        const char *s;
+
+        bug_on(a->oc->t != OC_IDENTIFIER);
+        bug_on(!a->oc->v || !isvar_string(a->oc->v));
+
+        s = string_cstring(a->oc->v);
+        bug_on(strlen(s) != string_nbytes(a->oc->v));
+
+        if (strcmp(s, "super"))
+                return 0;
+
+        if (as_lex(a) < 0)
+                return -1;
+        if (a->oc->t != OC_LPAR)
+                goto notsuper;
+        if (as_lex(a) < 0)
+                return -1;
+        if (a->oc->t != OC_RPAR)
+                goto notsuper;
+        if (as_lex(a) < 0)
+                return -1;
+        if (a->oc->t != OC_PER)
+                goto notsuper;
+        if (as_lex(a) < 0)
+                return -1;
+        if (a->oc->t != OC_IDENTIFIER)
+                goto notsuper;
+        /*
+         * At this point, we are most likely the soft-keyword super.
+         * Overrule any user-defined symbols named "super".
+         */
+        add_instr(a, INSTR_LOAD_LOCAL, IARG_PTR_THIS, 0);
+        ainstr_load_const(a, a->oc);
+        add_instr(a, INSTR_GETATTR_SUPER, 0, 0);
+        return 1;
+
+notsuper:
+        (void)as_swap_pos(a, pos);
+        return 0;
+}
+
 static int
 assemble_expr5_atomic(struct assemble_t *a)
 {
         switch (a->oc->t) {
         case OC_IDENTIFIER: {
-                token_pos_t pos = as_savetok(a, NULL);
+                token_pos_t pos;
+                int ret;
+
+                /* special case: treat "super" like a soft keyword */
+                ret = assemble_super_expr(a);
+                if (ret)
+                       return ret;
+                pos = as_savetok(a, NULL);
                 if (ainstr_load_symbol(a, pos) < 0)
                         return -1;
                 break;
@@ -2064,6 +2121,13 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         int needsize, star;
         struct names_t *n;
         int ret;
+
+        ret = assemble_super_expr(a);
+        if (ret) {
+                if (ret < 0)
+                        return -1;
+                return assemble_primary_elements__(a);
+        }
 
         needsize = gather_names(a, &names, &star, ERRH_EXCEPTION);
         if (needsize < 0)

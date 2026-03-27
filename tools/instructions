@@ -118,18 +118,20 @@ DEFCLASS
 ##
 #   GET/SET/LOAD/DELATTR
 #
-# GETATTR pops the key and containing object off the stack, and pushes
-# requested item onto the stack.
+# GETATTR  stack[-1]=key, stack[-2]=object
 #
-# SETATTR pops the item (the 'attribute') off the stack, pops the key off
-# the tack, pops the soon-to-be-containing object off the stack, inserts
-# the item into the containing object.  Nothing is pushed back on.
+# SETATTR  stack[-1]=value, stack[-2]=key, stack[-3]=object
 #
 # DELATTR deletes the item from its parent
 GETATTR
 SETATTR
 DELATTR
 
+# Get an attribute from an object's base class.
+# stack[-1]=key, stack[-2]=object (which should be 'this')
+GETATTR_SUPER
+
+# arg2=stack position from top to copy and push onto stack
 COPY
 
 ##

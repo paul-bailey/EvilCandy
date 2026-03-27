@@ -134,12 +134,82 @@ instance_setitem(Object *instance, Object *key, Object *item)
         return dict_setitem(V2INST(instance)->inst_attr, key, item);
 }
 
+static Object *
+instance_call(Object *instance, Object *method_name,
+              Object *args, Object *kwargs)
+{
+        Object *method = instance_getitem(instance, method_name);
+        if (!method)
+                return NULL;
+        if (!isvar_method(method)) {
+                /* do not throw error, let caller decide */
+                VAR_DECR_REF(method);
+                return NULL;
+        }
+        return vm_exec_func(NULL, method, args, kwargs);
+}
+
 static const struct map_methods_t instance_mpm = {
         .getitem = instance_getitem,
         .setitem = instance_setitem,
         .hasitem = instance_hasitem,
         .mpunion = NULL,
 };
+
+/**
+ * instance_super - Get the base class of an instance.
+ *
+ * Return: super or NULL if no super.  No exception will be thrown
+ *         if super not found.
+ */
+Object *
+instance_super_getattr(Object *instance, Object *attribute_name)
+{
+        Object *class, *bases;
+        size_t i, n;
+
+        bug_on(!isvar_instance(instance));
+        class = V2INST(instance)->inst_class;
+        bases = V2CL(class)->c_bases;
+        if (!bases)
+                return NULL;
+
+        n = seqvar_size(bases);
+        for (i = 0; i < n; i++) {
+                Object *super = tuple_borrowitem(bases, i);
+                Object *attr = class_getitem(super, attribute_name);
+                if (attr)
+                        return attr;
+        }
+
+        return NULL;
+}
+
+Object *
+verify_base_classes(Object *bases, size_t *size)
+{
+        size_t i, n;
+        if (isvar_tuple(bases)) {
+                VAR_INCR_REF(bases);
+        } else {
+                Object *stack[1] = { bases };
+                bases = tuplevar_from_stack(stack, 1, false);
+        }
+
+        n = seqvar_size(bases);
+        for (i = 0; i < n; i++) {
+                Object *obj = tuple_borrowitem(bases, i);
+                if (!isvar_class(obj)) {
+                        err_setstr(TypeError,
+                                   "base class may not be type '%s'",
+                                   typestr(obj));
+                        VAR_DECR_REF(bases);
+                        return ErrorVar;
+                }
+                (*size) += seqvar_size(obj);
+        }
+        return bases;
+}
 
 /**
  * classvar_new - Create a class
@@ -153,25 +223,13 @@ classvar_new(Object *bases, Object *dict)
         struct class_t *class;
         size_t size;
 
-        bug_on(bases && !isvar_tuple(bases));
         bug_on(!dict || !isvar_dict(dict));
 
         size = seqvar_size(dict);
         if (bases) {
-                size_t i, n;
-                n = seqvar_size(bases);
-                for (i = 0; i < n; i++) {
-                        Object *obj = tuple_borrowitem(bases, i);
-                        if (!isvar_dict(obj)) {
-                                err_setstr(TypeError,
-                                        "base class cannot be type '%s'",
-                                        typestr(obj));
-                                return ErrorVar;
-                        }
-                        size += seqvar_size(obj);
-                }
-
-                VAR_INCR_REF(bases);
+                bases = verify_base_classes(bases, &size);
+                if (bases == ErrorVar)
+                        return bases;
         }
 
         ret = var_new(&ClassType);
@@ -182,16 +240,41 @@ classvar_new(Object *bases, Object *dict)
         return ret;
 }
 
-/* FIXME: need args, all that */
+/**
+ * instancevar_new - Create a new instance
+ * @class:      Class to create an instance of
+ * @args:       Arguments to pass to constructor function
+ * @kwargs:     Keyword arguments to pass to constructor function
+ *
+ * Return: New instance of @class
+ */
 Object *
-instancevar_new(Object *class)
+instancevar_new(Object *class, Object *args, Object *kwargs)
 {
+        Object *init_result;
         Object *ret = var_new(&InstanceType);
 
+        bug_on(args && (!isvar_tuple(args) && !isvar_array(args)));
+        bug_on(kwargs && !isvar_dict(kwargs));
         bug_on(!isvar_class(class));
+
         V2INST(ret)->inst_class = VAR_NEW_REF(class);
         V2INST(ret)->inst_attr = dictvar_new();
-        /* TODO: if class has __init__, call it */
+        init_result = instance_call(ret, STRCONST_ID(__init__),
+                                    args, kwargs);
+        if (init_result == ErrorVar) {
+                VAR_DECR_REF(ret);
+                return ErrorVar;
+        } else if (init_result != NULL) {
+                VAR_DECR_REF(init_result);
+        } else if ((args && seqvar_size(args) > 0) ||
+                   (kwargs && seqvar_size(kwargs) > 0)) {
+                err_setstr(ArgumentError,
+                        "passing arguments to constructor which does not exist");
+                VAR_DECR_REF(ret);
+                return ErrorVar;
+        }
+        /* else: no args and no constructor, no problem! */
         return ret;
 }
 

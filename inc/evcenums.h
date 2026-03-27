@@ -101,6 +101,7 @@ enum {
         STRCONST_IDX_get,
         STRCONST_IDX_set,
         STRCONST_IDX___str__,
+        STRCONST_IDX___init__,
         STRCONST_IDX_read,
         STRCONST_IDX_write,
 

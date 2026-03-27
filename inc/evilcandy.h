@@ -211,6 +211,10 @@ extern Object *bytes_getslice(Object *bytes, ssize_t start,
                               ssize_t stop, ssize_t step);
 extern Object *bytesvar_new_sg(size_t size, ...);
 
+/* types/class.c */
+extern Object *instancevar_new(Object *class);
+extern Object *classvar_new(Object *bases, Object *dict);
+
 /* types/comlex.c */
 extern Object *complexvar_new(double real, double imag);
 

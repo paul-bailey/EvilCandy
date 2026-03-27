@@ -224,6 +224,8 @@ extern struct type_t RangeType;
 extern struct type_t UuidptrType;
 extern struct type_t IdType;
 extern struct type_t SetType;
+extern struct type_t InstanceType;
+extern struct type_t ClassType;
 
 /* iterators */
 extern struct type_t ArrayIterType;
@@ -284,6 +286,10 @@ static inline bool isvar_map(Object *v)
         { return v->v_type->mpm != NULL; }
 static inline bool hasvar_len(Object *v)
         { return v->v_type->get_iter != NULL; }
+static inline bool isvar_class(Object *o)
+        { return o->v_type = &ClassType; }
+static inline bool isvar_instance(Object *o)
+        { return o->v_type = &InstanceType; }
 
 /*
  * Some objects made public so some functions can be inline.

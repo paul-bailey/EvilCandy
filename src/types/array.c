@@ -231,6 +231,9 @@ array_getslice(Object *obj, ssize_t start, ssize_t stop, ssize_t step)
         ret = arrayvar_new(0);
 
         n = seqvar_size(obj);
+        if (!n)
+                return ret;
+
         if (start >= n)
                 start = n - 1;
         bug_on(start < 0);

@@ -978,54 +978,49 @@ err_clean:
         return -1;
 }
 
-/*
- * or, assemble_presumably_a_tuple_tupldef()
- * Opening parenthesis could mean so many different things...
- * encapsulate a single expression, be the start of a tuple,
- * be the start of a lambda expression's argument list, and
- * if we add comprehensions, that too.
- */
+/* return 1 if expression is (), 0 if not, -1 if error */
 static int
-assemble_tupledef(struct assemble_t *a)
+assemble_zero_item_tuple(struct assemble_t *a)
 {
-        int res, n_items = 0;
-        bool has_comma;
-        bool have_star = false;
-
-        /* If "(..." is actually "(args) => expr", do that instead */
-        if ((res = assemble_arrow_lambda(a)) != 0)
-                return res < 0 ? res : 0;
-
         if (as_lex(a) < 0)
                 return -1;
         if (a->oc->t == OC_RPAR) {
-                /* empty tuple */
-                goto done;
+                add_instr(a, INSTR_DEFTUPLE, 0, 0);
+                return 1;
         }
         as_unlex(a);
+        return 0;
+}
 
-        has_comma = false;
+/* return 1 if item parsed, 0 if not, -1 if error */
+static int
+assemble_tuple_or_expression(struct assemble_t *a, bool check_rpar)
+{
+        int n_items = 0;
+        bool must_be_tuple = false;
+        bool have_star = false;
+
         do {
-                /*
-                 * ie. ",)", actually necessary in this case, since
-                 * there's no other way to express a tuple of length 1.
-                 */
                 bool star_here = false;
+
+                must_be_tuple = n_items > 0;
                 if (as_lex(a) < 0)
                         return -1;
-                if (a->oc->t == OC_RPAR) {
-                        has_comma = true;
+
+                if ((check_rpar && a->oc->t == OC_RPAR) ||
+                    (!check_rpar && a->oc->t == OC_SEMI)) {
                         break;
-                }
-                if (a->oc->t == OC_MUL) {
+                } else if (a->oc->t == OC_MUL) {
                         add_instr(a, INSTR_DEFLIST, 0, n_items);
                         have_star = true;
                         star_here = true;
                 } else {
                         as_unlex(a);
                 }
+
                 if (assemble_expr(a, 0) < 0)
                         return -1;
+
                 if (have_star) {
                         int instr;
                         if (star_here)
@@ -1034,32 +1029,76 @@ assemble_tupledef(struct assemble_t *a)
                                 instr = INSTR_LIST_APPEND;
                         add_instr(a, instr, 0, 0);
                 }
+
+                n_items++;
                 if (as_lex(a) < 0)
                         return -1;
-                n_items++;
         } while (a->oc->t == OC_COMMA);
-        /* TODO: if comprehension, this would be 'for' */
-        if (a->oc->t != OC_RPAR) {
+
+        if (!check_rpar) {
+                as_unlex(a);
+        } else if (a->oc->t != OC_RPAR) {
+                /*
+                 * XXX REVISIT:  In the future this could be a
+                 * comprehension like "(x + 2 for x in y)",
+                 * so rather than throw an error, we should just restore
+                 * the token position and return false.  But it would
+                 * require us to be able to dry-run this, which is nearly
+                 * impossible, since the assemble_expr() call will
+                 * certainly add instructions.
+                 */
                 err_ae_par();
                 return -1;
         }
 
         /* "(x,)" is a tuple.  "(x)" is whatever x is */
-        if (!has_comma && n_items == 1) {
+        if (must_be_tuple) {
+                if (have_star)
+                        add_instr(a, INSTR_CAST_TUPLE, 0, 0);
+                else
+                        add_instr(a, INSTR_DEFTUPLE, 0, n_items);
+        } else {
+                bug_on(n_items != 1);
                 if (have_star) {
                         err_setstr(SyntaxError,
                                 "cannot use starred expression here");
                         return -1;
                 }
-                return 0;
         }
-done:
-        if (have_star) {
-                add_instr(a, INSTR_CAST_TUPLE, 0, 0);
-        } else {
-                add_instr(a, INSTR_DEFTUPLE, 0, n_items);
-        }
-        return 0;
+        return 1;
+}
+
+/*
+ * Assemble exprssion beginning with (...
+ *      (args) =>...            lambda expression
+ *      ()                      0-item tuple
+ *      (expr,)                 1-item tuple
+ *      (expr1, expr2...        multi-item tuple
+ *      (expr)                  non-tuple expression
+ *
+ * in the future:
+ *      (expr for ...           comprehension
+ */
+static int
+assemble_leftpar_expr(struct assemble_t *a)
+{
+        int res;
+
+        /* Try lambda expression */
+        if ((res = assemble_arrow_lambda(a)) != 0)
+                return res < 0 ? res : 0;
+
+        /* Try "()," a zero-item tuple */
+        if ((res = assemble_zero_item_tuple(a)) != 0)
+                return res < 0 ? res : 0;
+
+        /* Try "(expr)" or non-zero-sized tuple */
+        if ((res = assemble_tuple_or_expression(a, true)) != 0)
+                return res < 0 ? res : 0;
+
+        err_setstr(SyntaxError,
+                "expected: tuple, lambda, or parentheses-wrapped expression");
+        return -1;
 }
 
 /*
@@ -1468,7 +1507,7 @@ assemble_expr5_atomic(struct assemble_t *a)
                         return -1;
                 break;
         case OC_LPAR:
-                if (assemble_tupledef(a) < 0)
+                if (assemble_leftpar_expr(a) < 0)
                         return -1;
                 break;
 
@@ -1767,26 +1806,18 @@ assemble_expr1_ternary(struct assemble_t *a)
 static int
 assemble_expr(struct assemble_t *a, unsigned int flags)
 {
-        size_t n = 1;
-        if (as_lex(a) < 0)
-                return -1;
+        if (!!(flags & FE_CHECKTUPLE)) {
+                if (assemble_tuple_or_expression(a, false) < 0)
+                        return -1;
+        } else {
+                if (as_lex(a) < 0)
+                        return -1;
 
-        if (assemble_expr1_ternary(a) < 0)
-                return -1;
-
-        if (!!(flags & FE_CHECKTUPLE) && a->oc->t == OC_COMMA) {
-                do {
-                        if (as_lex(a) < 0)
-                                return -1;
-                        if (assemble_expr1_ternary(a) < 0)
-                                return -1;
-                        n++;
-                } while (a->oc->t == OC_COMMA);
+                if (assemble_expr1_ternary(a) < 0)
+                        return -1;
+                as_unlex(a);
         }
-        if (n > 1)
-                add_instr(a, INSTR_DEFTUPLE, 0, n);
 
-        as_unlex(a);
         return 0;
 }
 

@@ -1106,11 +1106,10 @@ assemble_leftpar_expr(struct assemble_t *a)
  * parsing a dict instead of a set
  */
 static int
-assemble_dictdef(struct assemble_t *a, int count, int where)
+assemble_dictdef(struct assemble_t *a, int count)
 {
-        /* XXX: deprecated, there used to be more 'where' choices */
-        bug_on(where != 3);
-        goto where_3;
+        /* 'start' is the spot where assemble_setdef left off */
+        goto start;
 
         do {
                 if (as_lex(a) < 0)
@@ -1123,14 +1122,9 @@ assemble_dictdef(struct assemble_t *a, int count, int where)
                 as_unlex(a);
                 if (assemble_expr(a, 0) < 0)
                         return -1;
-                if (as_lex(a) < 0)
+                if (as_errlex(a, OC_COLON) < 0)
                         return -1;
-                if (a->oc->t != OC_COLON) {
-                        err_setstr(SyntaxError,
-                                "Uncomputed dictionary key must a single-token expression");
-                        return -1;
-                }
-where_3:
+start:
                 if (assemble_expr(a, 0) < 0)
                         return -1;
                 if (as_lex(a) < 0)
@@ -1189,7 +1183,7 @@ assemble_setdef(struct assemble_t *a)
                                 err_ae_expect(a, OC_COMMA);
                                 return -1;
                         }
-                        return assemble_dictdef(a, count, 3);
+                        return assemble_dictdef(a, count);
                 }
                 count++;
         } while (a->oc->t == OC_COMMA);

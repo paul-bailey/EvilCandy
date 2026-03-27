@@ -112,6 +112,9 @@ DEFTUPLE
 # create a set from list on top of stack
 DEFSET
 
+# create a class. stack[-1] = dict; stack[-2] = tuple
+DEFCLASS
+
 ##
 #   GET/SET/LOAD/DELATTR
 #

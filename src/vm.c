@@ -624,6 +624,22 @@ do_deffunc(Frame *fr, instruction_t ii)
 }
 
 static int
+do_defclass(Frame *fr, instruction_t ii)
+{
+        Object *dict, *bases, *class;
+
+        dict = pop(fr);
+        bases = pop(fr);
+        class = classvar_new(bases, dict);
+        VAR_DECR_REF(bases);
+        VAR_DECR_REF(dict);
+        if (class == ErrorVar)
+                return RES_ERROR;
+        push(fr, class);
+        return RES_OK;
+}
+
+static int
 do_add_closure(Frame *fr, instruction_t ii)
 {
         Object *clo = pop(fr);
@@ -1298,7 +1314,9 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
         Frame *fr;
         Object *res, *owner;
 
-        if (isvar_method(func)) {
+        if (isvar_class(func)) {
+                return instancevar_new(func);
+        } else if (isvar_method(func)) {
                 Object *meth = func;
                 if (methodvar_tofunc(meth, &func, &owner) == RES_ERROR)
                         return ErrorVar;

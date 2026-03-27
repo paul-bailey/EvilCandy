@@ -285,6 +285,8 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &SetType,
         &UuidptrType,
         &IdType,
+        &ClassType,
+        &InstanceType,
 
         /* the iterators */
         &ArrayIterType,

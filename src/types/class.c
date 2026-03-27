@@ -182,6 +182,7 @@ classvar_new(Object *bases, Object *dict)
         return ret;
 }
 
+/* FIXME: need args, all that */
 Object *
 instancevar_new(Object *class)
 {

@@ -1080,13 +1080,15 @@ assemble_tuple_or_expression(struct assemble_t *a, bool check_rpar)
  *      (expr for ...           comprehension
  */
 static int
-assemble_leftpar_expr(struct assemble_t *a)
+assemble_leftpar_expr(struct assemble_t *a, bool may_be_lambda)
 {
         int res;
 
         /* Try lambda expression */
-        if ((res = assemble_arrow_lambda(a)) != 0)
-                return res < 0 ? res : 0;
+        if (may_be_lambda) {
+                if ((res = assemble_arrow_lambda(a)) != 0)
+                        return res < 0 ? res : 0;
+        }
 
         /* Try "()," a zero-item tuple */
         if ((res = assemble_zero_item_tuple(a)) != 0)
@@ -1106,10 +1108,11 @@ assemble_leftpar_expr(struct assemble_t *a)
  * parsing a dict instead of a set
  */
 static int
-assemble_dictdef(struct assemble_t *a, int count)
+assemble_dictdef(struct assemble_t *a, int count, bool from_set)
 {
         /* 'start' is the spot where assemble_setdef left off */
-        goto start;
+        if (from_set)
+                goto start;
 
         do {
                 if (as_lex(a) < 0)
@@ -1183,7 +1186,7 @@ assemble_setdef(struct assemble_t *a)
                                 err_ae_expect(a, OC_COMMA);
                                 return -1;
                         }
-                        return assemble_dictdef(a, count);
+                        return assemble_dictdef(a, count, true);
                 }
                 count++;
         } while (a->oc->t == OC_COMMA);
@@ -1193,6 +1196,32 @@ assemble_setdef(struct assemble_t *a)
         }
         add_instr(a, INSTR_DEFLIST, 0, count);
         add_instr(a, INSTR_DEFSET, 0, 0);
+        return 0;
+}
+
+/*
+ * saw "class", expect:
+ *      (base) { dict }
+ *      (bases,...) { dict }
+ *      () { dict }
+ */
+static int
+assemble_classdef(struct assemble_t *a)
+{
+        int res;
+        /*
+         * Do not just call assemble_expr() twice; enforce 'class'
+         * to be followed by at least literal expressions.
+         */
+        if (as_errlex(a, OC_LPAR) < 0)
+                return -1;
+        if ((res = assemble_leftpar_expr(a, false)) < 0)
+                return -1;
+        if (as_errlex(a, OC_LBRACE) < 0)
+                return -1;
+        if (assemble_dictdef(a, 0, false))
+                return -1;
+        add_instr(a, INSTR_DEFCLASS, 0, 0);
         return 0;
 }
 
@@ -1487,6 +1516,11 @@ assemble_expr5_atomic(struct assemble_t *a)
                 break;
         }
 
+        case OC_CLASS:
+                if (assemble_classdef(a) < 0)
+                        return -1;
+                break;
+
         case OC_INTEGER:
         case OC_BYTES:
         case OC_FLOAT:
@@ -1501,7 +1535,7 @@ assemble_expr5_atomic(struct assemble_t *a)
                         return -1;
                 break;
         case OC_LPAR:
-                if (assemble_leftpar_expr(a) < 0)
+                if (assemble_leftpar_expr(a, true) < 0)
                         return -1;
                 break;
 

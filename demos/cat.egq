@@ -1,9 +1,9 @@
 #!./evilcandy
 
 // Print myself
-(function(name, Io) {
+(function(name) {
     try {
-        let f = Io.open(name, "r");
+        let f = open(name, "r");
         let s;
         while (true) {
             s = f.readline();
@@ -16,6 +16,6 @@
         let type, msg = e;
         print('Got a', type, ':', msg);
     }
-})("demos/cat.egq", import("io.evc", "x"));
+})("demos/cat.egq");
 
 // : vim: set syntax=javascript :

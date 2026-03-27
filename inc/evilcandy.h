@@ -216,6 +216,9 @@ extern Object *instance_super_getattr(Object *instance,
                                       Object *attribute_name);
 extern Object *instancevar_new(Object *class, Object *args, Object *kwargs);
 extern Object *classvar_new(Object *bases, Object *dict);
+extern void instance_set_priv(Object *instance,
+                              void (*cleanup)(void *), void *priv);
+extern void *instance_get_priv(Object *instance);
 
 /* types/comlex.c */
 extern Object *complexvar_new(double real, double imag);

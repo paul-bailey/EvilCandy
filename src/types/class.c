@@ -15,6 +15,8 @@ struct instance_t {
         Object obj_head;
         Object *inst_class;
         Object *inst_attr;
+        void *inst_priv;
+        void (*inst_cleanup)(void *);
 };
 
 #define V2CL(obj_)        ((struct class_t *)(obj_))
@@ -77,13 +79,55 @@ static void
 instance_reset(Object *instance)
 {
         Object *x;
+        struct instance_t *inst = V2INST(instance);
 
-        x = V2INST(instance)->inst_attr;
+        bug_on(!isvar_instance(instance));
+        if (inst->inst_priv && inst->inst_cleanup)
+                inst->inst_cleanup(inst->inst_priv);
+        inst->inst_cleanup = NULL;
+        inst->inst_priv = NULL;
+
+        x = inst->inst_attr;
+        inst->inst_attr = NULL;
         if (x)
                 VAR_DECR_REF(x);
+
         x = V2INST(instance)->inst_class;
+        inst->inst_class = NULL;
         if (x)
                 VAR_DECR_REF(x);
+}
+
+/**
+ * instance_set_priv - Set instance private data
+ * @instance:   Class instance
+ * @cleanup:    callback to clean up private data during .reset().
+ *              If NULL, then no cleanup will occur.
+ * @priv:       Private data
+ *
+ * For internal classes only
+ */
+void
+instance_set_priv(Object *instance, void (*cleanup)(void *), void *priv)
+{
+        struct instance_t *inst = V2INST(instance);
+        bug_on(!isvar_instance(instance));
+        bug_on(inst->inst_priv || inst->inst_cleanup);
+
+        inst->inst_priv = priv;
+        inst->inst_cleanup = cleanup;
+}
+
+/**
+ * instance_get_priv - Get private data installed with instance
+ *
+ * For internal classes only
+ */
+void *
+instance_get_priv(Object *instance)
+{
+        bug_on(!isvar_instance(instance));
+        return V2INST(instance)->inst_priv;
 }
 
 static Object *

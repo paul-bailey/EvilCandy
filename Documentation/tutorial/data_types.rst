@@ -167,11 +167,11 @@ Dictionaries
 What eggheads call *associative arrays*
 and JavaScript calls *objects*,
 I call *dictionaries*, like Python does.
-Although EvilCandy's dictionaries are not pure dictionaries
-as in Python—they are very much the way to create user-defined
-classes—I have chosen to use Python's term "dictionary",
-since calling one kind of object an "object" to distinguish
-it from other kinds of objects is just frustrating.
+I have chosen to use Python's term
+since (1) in EvilCandy they are pure dictionaries,
+requiring some special tricks to behave like class instances,
+and (2) calling one kind of object an "object" to distinguish
+it from other kinds of objects is practically trolling.
 
 A dictionary's literal expression is a comma-delimited sequence
 of key:value pairs, surrounded by curly braces, for example::
@@ -186,14 +186,14 @@ The key may be any hashable object::
   evc> x = {[1]: 'a'};
   [EvilCandy] KeyError 'list' is unhashable
 
-Dictionaries are indexed according to key, not insertion number::
+Dictionaries are accessed by key, not index number::
 
   evc> let x = {'a': 5, 1: 5};
-  evc> x['a'];
+  evc> x['a'];  // 'a' is a key to x
   5
-  evc> x[1]; // 1 is a key to x
+  evc> x[1];    // 1 is a key to x
   5
-  evc> x[0]; // 0 is not a key to x
+  evc> x[0];    // 0 is not a key to x
   [EvilCandy] TypeError Cannot get attribute '0' of type dict
 
 If a key is a string, and it happens to follow the same rules
@@ -227,35 +227,36 @@ Using the ``delete`` keyword, it can also be deleted::
   evc> x;
   {'b': 'two', 'a': 1}
 
+
 Dictionaries can be defined also using the ``dict()`` function,
 using keyword arguments::
 
   evc> dict(name='paul', status='bald');
   {'name': 'paul', 'status': 'bald'}
 
-.. caution::
+Dictionaries can be combined with the union ``|`` operator::
 
-   People familiar with JavaScript may run into a pitfall when declaring
-   keys in dictionary literals.  If the key expression is just an
-   identifier, EvilCandy will evaluate the identifier to create the key.
-   It will *not* convert the identifier into a string the way many
-   JavaScript implementations will do.  Given the following::
+        let box = function(**kwargs) {
+                let options = {
+                        'borderwidth': 1,
+                        'padding': 10,
+                } | kwargs;
 
-      let a = 'not_a';
-      let x = { a: 1 };
+In this example, ``options`` is the union of ``kwargs`` and a
+dictionary of default items.  For any key collision, the right-hand
+side of the ``|`` operator takes precedence.  The result will be a
+third dictionary, making it safe to do something like::
 
-   The resultant dictionary would be::
+        let box = function(base1, base2, base3) {
+                /* ... code that builds up result ... */
+                return base3 | base2 | base1 | result;
+        };
 
-      // JavaScript result:
-      { 'a': 1 }
+This can be used as a form of inheritance.  We'll discuss using
+dictionaries as pseudo-classes in another part of this tutorial.
 
-      // EvilCandy result:
-      { 'not_a': 1 }
-
-   In JavaScript, square brackets force an identifier in the key expression
-   to be evaluated rather than converted into a string.  EvilCandy *always*
-   evaluates the key expression.  In EvilCandy, square brackets in the key
-   will just cause an exception to be thrown, since lists are unhashable.
+Dictionary Attributes
+~~~~~~~~~~~~~~~~~~~~~
 
 Dictionaries have the following built-in methods:
 
@@ -313,14 +314,65 @@ Dictionaries have the following built-in methods:
    to use ``.items()`` or (if the values are unnecessary) the
    dictionary directly than to use ``.keys()`` or ``.values()``.
 
-.. method:: addprop(name[, getter[, setter]])
-.. method:: purloin(key)
-.. method:: setstr(func)
-.. method:: setdestructor(func)
+Differences Between EvilCandy Dictionaries and JavaScript Objects
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-   These methods will be discussed later, when we move on to class
-   building.
+Keys in Literals
+````````````````
 
+People familiar with JavaScript may run into a pitfall when declaring
+keys in dictionary literals.  If the key expression is just an
+identifier, EvilCandy will evaluate the identifier to create the key.
+It will *not* convert the identifier into a string the way many
+JavaScript implementations will do.  Given the following::
+
+      let a = 'not_a';
+      let x = { a: 1 };
+
+The resultant dictionary would be::
+
+      // JavaScript result:
+      { 'a': 1 }
+
+      // EvilCandy result:
+      { 'not_a': 1 }
+
+In JavaScript, square brackets force an identifier in the key expression
+to be evaluated rather than converted into a string.  EvilCandy *always*
+evaluates the key expression.  In EvilCandy, square brackets in the key
+will just cause an exception to be thrown, since lists are unhashable.
+
+Item-Attribute Collision
+````````````````````````
+
+Since dictionaries can use both dot notation and square-bracket notation
+to get an item, this raises a question:
+What if the dictionary's contents contain keys matching its
+built-in attributes? [#]_
+
+Just remember these two points:
+
+#. Square-bracket notation *only* gets items
+#. Dot notation gets attributes; for dictionaries it returns
+   items only as a fallback if the attribute does not exist.
+
+Dictionaries Are Not Class Instances
+````````````````````````````````````
+
+The following is technically true of JavaScript as well, but it's
+even more true with EvilCandy:
+
+A function stored in a dictionary is *not* a "method" of the dictionary!
+Although there is a way
+to combine dictionaries, functions, and closures
+to behave like class instances,
+it requires a specific way of instantiating them
+(and, just as with JavaScript, it's quite elegant).
+But either way, you should *never* use the ``this`` keyword
+in a function that is not a method defined
+using ``class`` notation.
+We'll discuss classes—both the real kind and the pseudo kind
+with dictionaries—in a later part of this tutorial.
 
 Bytes
 -----
@@ -347,4 +399,14 @@ Accessing with a slice will return another bytes object::
   evc> x[1:];
   b'abc\n'
 
+Notes
+-----
 
+.. [#]
+
+   I was tempted to use double-underscores for the dictionary's
+   attributes, but one, that enforces ugly-looking code; and
+   two, it reduces the likelihood of the problem without eliminating it.
+   The other solution was to enforce
+   that dictionary items be accessed only with square-bracket
+   notation, but I would go mad writing code like that.

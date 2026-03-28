@@ -60,24 +60,6 @@ class_getitem(Object *class, Object *key)
         return NULL;
 }
 
-static int
-class_hasitem(Object *class, Object *key)
-{
-        struct class_t *cls;
-        size_t i, n;
-
-        cls = V2CL(class);
-        if (var_hasitem(cls->c_dict, key))
-                return true;
-        n = seqvar_size(cls->c_bases);
-        for (i = 0; i < n; i++) {
-                Object *item = tuple_borrowitem(cls->c_bases, i);
-                if (class_hasitem(item, key))
-                        return true;
-        }
-        return false;
-}
-
 static void
 instance_reset(Object *instance)
 {
@@ -165,16 +147,6 @@ found:
         return ret;
 }
 
-static int
-instance_hasitem(Object *instance, Object *key)
-{
-        struct instance_t *inst = V2INST(instance);
-        bug_on(!isvar_instance(instance));
-        if (var_hasitem(inst->inst_attr, key))
-                return 1;
-        return class_hasitem(inst->inst_class, key);
-}
-
 static enum result_t
 instance_setitem(Object *instance, Object *key, Object *item)
 {
@@ -214,13 +186,6 @@ instance_str(Object *instance)
 {
         return instance_call(instance, STRCONST_ID(__str__), NULL, NULL);
 }
-
-static const struct map_methods_t instance_mpm = {
-        .getitem = instance_getitem,
-        .setitem = instance_setitem,
-        .hasitem = instance_hasitem,
-        .mpunion = NULL,
-};
 
 Object *
 instance_getattr(Object *instance, Object *key)
@@ -430,7 +395,7 @@ struct type_t InstanceType = {
         .name           = "instance",
         .opm            = NULL,
         .cbm            = NULL,
-        .mpm            = &instance_mpm,
+        .mpm            = NULL,
         .sqm            = NULL,
         .size           = sizeof(struct instance_t),
         .str            = instance_str,

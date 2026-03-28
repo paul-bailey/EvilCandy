@@ -526,8 +526,7 @@ var_getitem_map(Object *v, Object *key)
                 if (ret)
                         return ret;
         }
-        err_setstr(KeyError, "%s object has no attribute %N",
-                   typestr(v), key);
+        err_subscript("get", key, v);
         return ErrorVar;
 }
 

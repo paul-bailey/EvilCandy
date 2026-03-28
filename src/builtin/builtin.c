@@ -11,20 +11,12 @@ do_dir(Frame *fr)
 
         bug_on(!gbl.stdout_file || !gbl.nl);
 
-        /*
-         * FIXME: If !arg, we should list local vars + global vars.  But we
-         * don't know what the locals are, since @fr is for this function!
-         * We shouldn't blindly assume that vm.c's vm.locals will do,
-         * because theoretically this could be inside a scripted function,
-         * perhaps for debugging purposes.
-         */
         arg = vm_get_arg(fr, 0);
         if (!arg) {
-                err_frame_minargs(fr, 1);
-                return ErrorVar;
-        }
-
-        if (isvar_instance(arg)) {
+                arr = arrayvar_new(0);
+                array_extend(arr, vm_globaldict());
+                var_sort(arr);
+        } else if (isvar_instance(arg)) {
                 arr = instance_dir(arg);
         } else {
                 bug_on(!arg->v_type->methods);
@@ -32,7 +24,6 @@ do_dir(Frame *fr)
                 array_extend(arr, arg->v_type->methods);
                 var_sort(arr);
         }
-        var_sort(arr);
         str = var_str(arr);
         VAR_DECR_REF(arr);
 
@@ -507,7 +498,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("abs",    do_abs,    1, 1, -1, -1),
         V_INITTBL("all",    do_all,    1, 1, -1, -1),
         V_INITTBL("any",    do_any,    1, 1, -1, -1),
-        V_INITTBL("dir",    do_dir,    1, 1, -1, -1),
+        V_INITTBL("dir",    do_dir,    0, 1, -1, -1),
         V_INITTBL("disassemble", do_disassemble, 1, 1, -1, -1),
         V_INITTBL("eval",   do_eval,   1, 1, -1, -1),
         V_INITTBL("hash",   do_hash,   1, 1, -1, -1),

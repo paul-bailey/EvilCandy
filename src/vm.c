@@ -1550,6 +1550,11 @@ vm_clear_frames_for_exit(void)
  * XXX: vm namespace is clean enough.  Any reason we can't put
  * vm in gbl and avoid having functions like this?
  */
+
+/*
+ * Return dict of interactive-mode top-level variables.
+ * This does not produce a new reference for the return value.
+ */
 Object *
 vm_localdict(void)
 {
@@ -1557,6 +1562,17 @@ vm_localdict(void)
         if (!vm.locals)
                 vm.locals = dictvar_new();
         return vm.locals;
+}
+
+/*
+ * Return dict of global variables.
+ * This does not produce a new reference for the return value.
+ */
+Object *
+vm_globaldict(void)
+{
+        bug_on(!vm.globals);
+        return vm.globals;
 }
 
 void

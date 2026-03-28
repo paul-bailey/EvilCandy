@@ -63,6 +63,7 @@ static inline Object *vm_get_arg(Frame *fr, unsigned int idx)
 static inline int vm_get_argc(Frame *fr)
         { return fr->ap; }
 extern Object *vm_localdict(void);
+extern Object *vm_globaldict(void);
 
 /* execute_loop shared between vm.c and function.c, else private */
 extern Object *execute_loop(Frame *fr);

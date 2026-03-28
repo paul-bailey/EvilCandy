@@ -13,34 +13,6 @@
 #include <evilcandy.h>
 
 /**
- * struct class_t - A dictionary's .d_class points to this or NULL
- * @c_ureset: User-defined reset callback function, or NULL
- * @c_creset: Internal reset callback function, or NULL
- * @c_priv:   Private data, for built-in objects.  External code would
- *            not need this, since they can bury their private data in
- *            closures.  (Technically so can built-in modules, but it's
- *            faster to just bypass all that overhead.)
- * @c_properties:
- *            Dictionary of subclass properties.
- *
- * If .c_priv is used, it means this dictionary has built-in functions,
- * in which case *this* dictionary should never be visible to the UAPI.
- * (For built-in functions that don't use private data, e.g. the math
- * module, this doesn't matter.)  The UAPI should get a wrapper dictionary,
- * containing MethodType objects bound to this dictionary.  Otherwise,
- * if the union operator is used, or {}.inherit(this_dict) is called,
- * the built-in functions that use .c_priv will lose access to it;
- * worst-case is, they are not checking magic numbers and are messing
- * with some other data.
- */
-struct class_t {
-        Object *c_ureset;
-        void (*c_creset)(Object *);
-        void *c_priv;
-        Object *c_properties;
-};
-
-/**
  * struct dictvar_t - Descriptor for an object handle
  * @d_size:             Array size of d_keys/d_vals, always a power of 2
  * @d_used:             Active entries in hash table
@@ -52,10 +24,6 @@ struct class_t {
  * @d_map:              Array mapping entries in order to their indices
  *                      in @d_keys/@d_vals.  Used for iterating.
  * @d_lock:             Display lock
- * @d_class:            If non-NULL, pointer to class methods and info,
- *                      used for external code or built-in modules, in
- *                      which dictionaries behave like user-defined classes
- *                      rather than pure dictionaries.
  *
  * d_keys, d_vals, and d_map are allocated in one call each time the
  * table resizes.  The allocation pointer is at d_keys.
@@ -71,40 +39,12 @@ struct dictvar_t {
         Object **d_vals;
         void *d_map;
         int d_lock;
-        struct class_t *d_class;
 };
 
 #define V2D(v)          ((struct dictvar_t *)(v))
 #define V2SQ(v)         ((struct seqvar_t *)(v))
 #define OBJ_SIZE(v)     seqvar_size(v)
 
-
-/* **********************************************************************
- *                      .d_class helpers
- ***********************************************************************/
-
-static struct class_t *
-dict_assert_hasclass(struct dictvar_t *d)
-{
-        if (!d->d_class) {
-                size_t len = sizeof(struct class_t);
-                d->d_class = emalloc(len);
-                memset(d->d_class, 0, len);
-        }
-        return d->d_class;
-}
-
-static Object *
-dict_assert_hasclassdict(struct dictvar_t *d)
-{
-        struct class_t *class = dict_assert_hasclass(d);
-        Object *ret = class->c_properties;
-        if (!ret) {
-                ret = dictvar_new();
-                class->c_properties = ret;
-        }
-        return ret;
-}
 
 /* **********************************************************************
  *                      Hash table helpers
@@ -515,84 +455,13 @@ dict_hasitem(Object *dict, Object *key)
         return i >= 0 && V2D(dict)->d_keys[i] != NULL;
 }
 
-/**
- * dict_add_udestructor - Add a user-defined destructor
- * @func: Function to call
- *
- * Return: RES_OK or, if @func is invalid, RES_ERROR.  A dictionary
- * may only have one destructor callback.  If this is called multiple
- * times, the old destructor will be replaced by the new destructor.
- */
-static enum result_t
-dict_add_udestructor(Object *dict, Object *func)
-{
-        struct dictvar_t *d;
-        struct class_t *cls;
-
-        bug_on(!isvar_dict(dict));
-        if (func == NullVar) {
-                func = NULL;
-        } else if (isvar_method(func)) {
-                if (method_peek_self(func) == dict) {
-                        /*
-                         * Inserting a destructor in the dictionary it
-                         * destroys is a bad idea, because it causes a
-                         * cyclic reference, preventing the dictionary
-                         * from ever getting freed.
-                         */
-                        err_setstr(ValueError,
-                                "dictionary's destructor may not be a method of itself");
-                        return RES_ERROR;
-                }
-        } else if (!isvar_function(func)) {
-                err_setstr(TypeError, "destructor must be a function");
-                return RES_ERROR;
-        }
-
-        d = V2D(dict);
-        cls = dict_assert_hasclass(d);
-        if (cls->c_ureset) {
-                VAR_DECR_REF(cls->c_ureset);
-                cls->c_ureset = NULL;
-        }
-        if (func)
-                VAR_INCR_REF(func);
-        cls->c_ureset = func;
-        return RES_OK;
-}
-
-/* flags argument to dict_copyto_ */
-enum {
-        DF_INTERPOLATE_METHODS    = 0x0001,
-        DF_INTERPOLATE_PROPERTIES = 0x0002,
-};
-
-/*
- * Helper to dict_copyto_with_flags - maybe transform @v into a
- *      method or a bound property.
- * This produces a reference for return value, even if it's just @v
- *
- * XXX REVISIT: 'interpolate' is a strange and misleading name.
- *      So is 'intercept', 'transform', 'wrap', and any other name
- *      I can think of.
- */
-static Object *
-d_interpolate(Object *v, Object *owner, unsigned int flags)
-{
-        if (!!(flags & DF_INTERPOLATE_METHODS) && isvar_function(v))
-                return methodvar_new(v, owner);
-        if (!!(flags & DF_INTERPOLATE_PROPERTIES) && isvar_property(v))
-                return property_inherit(v, owner);
-        return VAR_NEW_REF(v);
-}
-
 /*
  * dict_copyto - Copy contents of dicitonary @from to dictionary @to
  * @to:         Dictionary we're copying to
  * @from:       Dictionary we're copying from
  * @owner:      Owner of methods and properties (usually @from, but not
  *              necessarily.  This is only used if @flags is set
- * @flags:      DF_INTERPOLATE_xxxx flags
+ * @flags:      currently unused
  *
  * Return: RES_OK or RES_ERROR
  */
@@ -611,14 +480,7 @@ dict_copyto_with_flags(Object *to, Object *from,
                 if (k == NULL || k == BUCKET_DEAD)
                         continue;
                 v = d->d_vals[i];
-                if (flags) {
-                        int res;
-                        v = d_interpolate(v, owner, flags);
-                        res = dict_setitem(to, k, v);
-                        VAR_DECR_REF(v);
-                        if (res != RES_OK)
-                                return RES_ERROR;
-                } else if (dict_setitem(to, k, v) != RES_OK) {
+                if (dict_setitem(to, k, v) != RES_OK) {
                         return RES_ERROR;
                 }
         }
@@ -651,43 +513,6 @@ dict_reset(Object *o)
 {
         struct dictvar_t *dict = V2D(o);
         bug_on(!isvar_dict(o));
-
-        if (dict->d_class) {
-                struct class_t *cls = dict->d_class;
-
-                if (cls->c_ureset) {
-                        Object *func, *args, *res;
-
-                        func = cls->c_ureset;
-                        cls->c_ureset = NULL;
-
-                        args = arrayvar_from_stack(&o, 1, false);
-                        res = vm_exec_func(NULL, func, args, NULL);
-                        VAR_DECR_REF(args);
-
-                        /* FIXME: Error return value is unhandled here! */
-                        if (res != ErrorVar)
-                                VAR_DECR_REF(res);
-
-                        VAR_DECR_REF(func);
-                }
-
-                if (cls->c_creset) {
-                        void (*cb)(Object *) = cls->c_creset;
-                        cls->c_creset = NULL;
-
-                        cb(o);
-                }
-
-                if (cls->c_properties) {
-                        Object *p = cls->c_properties;
-                        cls->c_properties = NULL;
-                        VAR_DECR_REF(p);
-                }
-
-                dict->d_class = NULL;
-                efree(cls);
-        }
 
         dict_clear_noresize(dict);
         efree(dict->d_keys);
@@ -960,56 +785,6 @@ do_dict_clear(Frame *fr)
 }
 
 static Object *
-do_dict_setdestructor(Frame *fr)
-{
-        Object *self, *func;
-        enum result_t res;
-
-        self = vm_get_this(fr);
-        func = vm_get_arg(fr, 0);
-        res = dict_add_udestructor(self, func);
-        return res == RES_ERROR ? ErrorVar : NULL;
-}
-
-static Object *
-do_dict_addprop(Frame *fr)
-{
-        Object *self, *prop, *classdict, *name;
-        enum result_t res;
-
-        self = vm_get_this(fr);
-        bug_on(!isvar_dict(self));
-
-        prop = NULL;
-        if (vm_getargs(fr, "<s><*>", &name, &prop) == RES_ERROR)
-                return ErrorVar;
-        if (!isvar_property(prop)) {
-                err_setstr(TypeError, "addprop() expected property but got %s",
-                           typestr(prop));
-                return ErrorVar;
-        }
-        classdict = dict_assert_hasclassdict(V2D(self));
-        res = dict_setitem(classdict, name, prop);
-        return res == RES_OK ? NULL : ErrorVar;
-}
-
-static Object *
-do_dict_inherit(Frame *fr)
-{
-        Object *base, *self;
-
-        self = vm_get_this(fr);
-        bug_on(!isvar_dict(self));
-
-        if (vm_getargs(fr, "<{}>!:inherit", &base) == RES_ERROR)
-                return ErrorVar;
-
-        if (dict_inherit(self, base, false) == RES_ERROR)
-                return ErrorVar;
-        return NULL;
-}
-
-static Object *
 dict_getprop_length(Object *self)
 {
         bug_on(!isvar_dict(self));
@@ -1099,11 +874,8 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
         V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("items",     do_dict_items,       0, 0, -1, -1),
-        V_INITTBL("inherit",   do_dict_inherit,     1, 1, -1, -1),
         V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
-        V_INITTBL("addprop",   do_dict_addprop,     2, 2, -1, -1),
         V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
-        V_INITTBL("setdestructor", do_dict_setdestructor, 1, 1, -1, -1),
         V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
         TBLEND,
 };
@@ -1463,61 +1235,6 @@ dict_add_to_globals(Object *dict)
 }
 
 /**
- * dict_add_properties - Add built-in instance-specific properties
- *              for a dictionary.
- * @dict: Instance to add properties for
- * @tbl:  Table of property callbacks, terminated with .name=NULL
- */
-void
-dict_add_properties(Object *dict, const struct type_prop_t *tbl)
-{
-        Object *classdict;
-
-        bug_on(!isvar_dict(dict));
-        classdict = dict_assert_hasclassdict(V2D(dict));
-
-        /* XXX: slight DRY violation with var_initialize_type() */
-        while (tbl->name != NULL) {
-                Object *v, *k;
-                enum result_t res;
-
-                v = propertyvar_new_intl(tbl);
-                k = stringvar_new(tbl->name);
-                res = dict_setitem_exclusive(classdict, k, v);
-                VAR_DECR_REF(k);
-                VAR_DECR_REF(v);
-
-                bug_on(res != RES_OK);
-                (void)res;
-
-                tbl++;
-        }
-}
-
-/**
- * dict_add_cdestructor - Add a C destructor callback
- * @func: Function to call.
- *
- * It would be cleaner to just use dict_add_cdestructor, but this
- * bypasses artificial overhead.  It has the added benefit that a user's
- * destructor will not override this.  (A user's destructor will be
- * called first.)
- */
-void
-dict_add_cdestructor(Object *dict, void (*func)(Object *))
-{
-        struct dictvar_t *d = V2D(dict);
-        struct class_t *cls;
-
-        bug_on(!isvar_dict(dict));
-
-        cls = dict_assert_hasclass(d);
-        bug_on(cls->c_creset);
-
-        cls->c_creset = func;
-}
-
-/**
  * dict_copyto - Copy contents of dicitonary @from to dictionary @to
  *
  * Note: @to will receive functions from @from directly.
@@ -1528,40 +1245,6 @@ int
 dict_copyto(Object *to, Object *from)
 {
         return dict_copyto_with_flags(to, from, from, 0);
-}
-
-/**
- * dict_set_priv - Set a dictionary's private data
- * @dict:       Dictionary
- * @priv:       Private data to associate with the instance @dict
- *
- * Used by built-in modules which would rather use dictionaries rather
- * than make too many strict, built-in data types.
- */
-void
-dict_set_priv(Object *dict, void *priv)
-{
-        struct class_t *cls;
-        struct dictvar_t *d = V2D(dict);
-        bug_on(!isvar_dict(dict));
-
-        cls = dict_assert_hasclass(d);
-
-        /* Only set this once */
-        bug_on(!!cls->c_priv);
-        cls->c_priv = priv;
-}
-
-/**
- * dict_get_priv - Get private data installed with dict_set_priv()
- */
-void *
-dict_get_priv(Object *dict)
-{
-        struct dictvar_t *d = V2D(dict);
-        bug_on(!isvar_dict(dict));
-
-        return d->d_class ? d->d_class->c_priv : NULL;
 }
 
 /**
@@ -1576,16 +1259,13 @@ dict_get_priv(Object *dict)
 enum result_t
 dict_setattr(Object *dict, Object *key, Object *attr)
 {
-        struct class_t *class;
         Object *prop;
         enum result_t res;
 
         /*
          * Pseudo code for what's going on below...
          *
-         * if dict.instance_property[key]
-         *      dict.instance_property[key] = attr;
-         * elif dict.method_property[key]
+         * dict.method_property[key]
          *      dict.method_property[key] = attr;
          * else
          *      dict[key] = attr
@@ -1594,16 +1274,6 @@ dict_setattr(Object *dict, Object *key, Object *attr)
          * will be thrown without attempting to insert @key into regular
          * dictionary entries.
          */
-        class = V2D(dict)->d_class;
-        if (class && class->c_properties) {
-                prop = dict_getitem(class->c_properties, key);
-                if (prop) {
-                        if (isvar_property(prop))
-                                goto have_prop;
-                        else
-                                VAR_DECR_REF(prop);
-                }
-        }
 
         bug_on(!DictType.methods);
         prop = dict_getitem(DictType.methods, key);
@@ -1647,39 +1317,19 @@ Object *
 dict_getattr(Object *dict, Object *key)
 {
         Object *ret;
-        struct class_t *class;
 
         bug_on(!isvar_dict(dict));
 
         /*
          * Order of precedence...
          * 1. dictionary entries
-         * 3. instance-specific built-in properties
          * 2. DictType built-in methods or properties
-         *
-         * XXX Should dict_add_properties() copy DictType.methods into
-         * class->c_properties during assert_hasclass()?  If so, we can
-         * skip the third check for any dictionary where class exists.
          */
 
         /* plain-jane dictionary entry */
         ret = dict_getitem(dict, key);
         if (ret)
-                goto found;
-
-        /* Instance-specific built-in property */
-        class = V2D(dict)->d_class;
-        if (class && class->c_properties) {
-                ret = dict_getitem(class->c_properties, key);
-                if (ret) {
-                        bug_on(!isvar_property(ret));
-
-                        Object *tmp = ret;
-                        ret = property_get(tmp, dict, key);
-                        VAR_DECR_REF(tmp);
-                        goto found;
-                }
-        }
+                return ret;
 
         /* DictType built-in method */
         ret = dict_getitem(DictType.methods, key);
@@ -1713,74 +1363,6 @@ found:
                 VAR_DECR_REF(tmp);
         }
         return ret;
-}
-
-/**
- * DOC: Inheritance
- *
- * Inheritance in EvilCandy is half-baked, and that's the way I like it.
- * For a line like:
- *
- *         let new_class = {}.inherit(old_class);
- *
- * new_class will receive:
- *   1. A shallow copy of old_class.  Regarding private data:
- *      a. For user-defined methods, private data would exist in the form
- *         of closures; there is no need to intercept functions and wrap
- *         them into method objects during the shallow-copy process.
- *      b. For internal functions, if they access private data, they
- *         should never have been made available to the UAPI in any form
- *         *but* as methods.  To prevent cyclic reference, two dictionaries
- *         are created; for an example how this works, see how some of the
- *         built-in modules (io.c and socket.c, e.g.) use dict_inherit().
- *   2. A copy of old_class's properties, if any exist.
- *
- * It does NOT receive:
- *   1. old_class's .c_ureset method
- *   2. old_class's CAPI data (.c_priv, .c_creset)
- */
-enum result_t
-dict_inherit(Object *self, Object *base, bool interpolate_methods)
-{
-        enum {
-                INTERP_FLAGS = DF_INTERPOLATE_METHODS |
-                                DF_INTERPOLATE_PROPERTIES,
-        };
-        unsigned int flags;
-        struct dictvar_t *dbase;
-
-        bug_on(!isvar_dict(self));
-        bug_on(!isvar_dict(base));
-
-        flags = interpolate_methods ? INTERP_FLAGS : 0;
-        if (dict_copyto_with_flags(self, base, base, flags) != RES_OK)
-                goto err;
-
-        dbase = V2D(base);
-        if (dbase->d_class) {
-                struct class_t *basec, *selfc;
-
-                basec = dbase->d_class;
-                selfc = dict_assert_hasclass(V2D(self));
-
-                if (basec->c_properties) {
-                        int res;
-                        if (!selfc->c_properties)
-                                selfc->c_properties = dictvar_new();
-
-                        /* Always interpolate the class dict */
-                        res = dict_copyto_with_flags(selfc->c_properties,
-                                                     basec->c_properties,
-                                                     base, INTERP_FLAGS);
-                        if (res == RES_ERROR)
-                                goto err;
-                }
-        }
-        return RES_OK;
-
-err:
-        err_setstr(RuntimeError, "dict copy failed");
-        return RES_ERROR;
 }
 
 struct type_t DictItemsIterType = {

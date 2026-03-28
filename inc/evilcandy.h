@@ -272,14 +272,6 @@ extern enum result_t dict_setitem_replace(Object *dict,
 extern enum result_t dict_setitem_exclusive(Object *dict,
                                 Object *key, Object *attr);
 extern int dict_copyto(Object *to, Object *from);
-extern void dict_add_cdestructor(Object *dict, void (*func)(Object *));
-extern void dict_set_priv(Object *dict, void *priv);
-extern void *dict_get_priv(Object *dict);
-extern void dict_add_properties(Object *dict,
-                                const struct type_prop_t *tbl);
-extern enum result_t dict_inherit(Object *self, Object *base,
-                                  bool interpolate_methods);
-/* helpers to var.c, do not confuse with dict_[gs]etitem() */
 extern Object *dict_getattr(Object *dict, Object *key);
 enum result_t dict_setattr(Object *dict, Object *key, Object *attr);
 
@@ -295,7 +287,7 @@ extern Object *propertyvar_new_user(Object *setter, Object *getter);
 extern Object *property_get(Object *prop, Object *owner, Object *name);
 extern enum result_t property_set(Object *prop, Object *owner,
                                   Object *value, Object *name);
-extern Object *property_inherit(Object *prop, Object *old_class);
+// extern Object *property_inherit(Object *prop, Object *old_class);
 
 /* types/set.c */
 extern Object *setvar_new(Object *seq);

@@ -539,12 +539,13 @@ static int
 fakestack_declare(struct assemble_t *a, Object *name)
 {
         int idx;
+        bug_on(!name);
+        bug_on(!isvar_string(name));
         if (name && as_symbol_seek(a, name, NULL) >= 0) {
-                err_setstr(SyntaxError, "Redefining variable ('%s')", name);
+                err_setstr(SyntaxError, "Redefining variable (%N)", name);
                 return -1;
         }
 
-        bug_on(!name);
         idx = a->fr->af_nlocals;
         array_append(a->fr->af_locals, name);
         array_append(a->fr->af_names, name);
@@ -2307,7 +2308,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name,
                 if (dict_setitem_exclusive(a->localdict, name->v, NullVar)
                     == RES_ERROR) {
                         err_setstr(SyntaxError,
-                                   "Redefining variable ('%s')", name->v);
+                                   "Redefining variable (%N)", name->v);
                         return -1;
                 }
         } else {

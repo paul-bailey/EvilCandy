@@ -6,8 +6,7 @@
 static Object *
 do_dir(Frame *fr)
 {
-        Object *arg, *arr, *str;
-        int res;
+        Object *arg, *arr;
 
         bug_on(!gbl.stdout_file || !gbl.nl);
 
@@ -24,15 +23,7 @@ do_dir(Frame *fr)
                 array_extend(arr, arg->v_type->methods);
                 var_sort(arr);
         }
-        str = var_str(arr);
-        VAR_DECR_REF(arr);
-
-        res = evc_file_write(gbl.stdout_file, str);
-        if (res >= 0)
-                res = evc_file_write(gbl.stdout_file, gbl.nl);
-        VAR_DECR_REF(str);
-
-        return res < 0 ? ErrorVar : NULL;
+        return arr;
 }
 
 static Object *

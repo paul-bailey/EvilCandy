@@ -95,7 +95,7 @@ instance_reset(Object *instance)
         if (x)
                 VAR_DECR_REF(x);
 
-        x = V2INST(instance)->inst_class;
+        x = inst->inst_class;
         inst->inst_class = NULL;
         if (x)
                 VAR_DECR_REF(x);

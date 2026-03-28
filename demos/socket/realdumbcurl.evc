@@ -7,74 +7,56 @@ let host    = 'www.nytimes.com';
 let port    = 80;
 let uri     = '/sitemap.xml';
 
-let curl = (function() {
-    // The stuff outside of this IIFE is a demo; the stuff inside will, I
-    // hope, get developed enough to put into lib, so that users can import
-    // something like 'HTTPServer.evc'.
+let curl = (class () {
+    '__init__': function() {
+        this.sk = (() => {
+            let sock = import('socket.evc', 'x');
+            return sock.socket(sock.AF_INET, sock.SOCK_STREAM, 0);
+        })();
+    },
+    'get': function(url, *port) {
+        let sk = this.sk;
+        let BUFSIZE = 64 * 1024;
+        let host, uri, addr, buf;
 
-    // Return an object with two methods...
-    //  .get(ipaddr[, port])    Get an HTTP file from somewhere
-    //  .close()                Close the underlying connection
-    //
-    // Most webservers do not use port 80 anymore, so the response will most
-    // likely be a 404 or 302 error.  That's ok, because the real purpose of
-    // this is just to test my socket library.  As the library grows, so will
-    // this demo.
-    let sk = (function() {
-        let sock = import('socket.evc', 'x');
-        let FAMILY = sock.AF_INET;
-        let TYPE   = sock.SOCK_STREAM;
-        return sock.socket(FAMILY, TYPE, 0);
-    })();
+        if (port.length == 0)
+            port = 80;
+        else
+            port = port[0];
 
-    let cleanup = function(sk) {
-        sk.close();
-    };
+        host, uri = url.rsplit(sep='/');
+        uri = '/' + uri;
+        addr = (host, port);
+        if (host[0:4] == 'www.')
+            host = host[4:];
+        buf = b'';
 
-    return {
-        'get': function(url, *port) {
-            let BUFSIZE = 64 * 1024;
-            let host, uri, addr, buf;
+        try {
+            let header;
+            let b;
 
-            if (port.length == 0)
-                port = 80;
-            else
-                port = port[0];
-
-            host, uri = url.rsplit(sep='/');
-            uri = '/' + uri;
-            addr = (host, port);
-            if (host[0:4] == 'www.')
-                host = host[4:];
-            buf = b'';
-
-            try {
-                let header;
-                let b;
-
-                header = f'GET {uri} HTTP/1.1\r\n'
-                       + f'Host: {host}\r\n'
-                       + f'Connection: close\r\n\r\n';
-                sk.connect(addr);
-                sk.send(header);
-                // XXX: if no server on this port, the
-                // 'Connection: close' field might not be
-                // interpreted, so we need to add some
-                // timeouts to our socket library.
-                do {
-                    b = sk.recv(BUFSIZE);
-                    buf += b;
-                } while (b.length > 0);
-            } catch (e) {
-                cleanup(sk);
-                throw e;
-            }
-            return buf;
-        },
-        'close': function() {
+            header = f'GET {uri} HTTP/1.1\r\n'
+                   + f'Host: {host}\r\n'
+                   + f'Connection: close\r\n\r\n';
+            sk.connect(addr);
+            sk.send(header);
+            // XXX: if no server on this port, the
+            // 'Connection: close' field might not be
+            // interpreted, so we need to add some
+            // timeouts to our socket library.
+            do {
+                b = sk.recv(BUFSIZE);
+                buf += b;
+            } while (b.length > 0);
+        } catch (e) {
             cleanup(sk);
+            throw e;
         }
-    };
+        return buf;
+    },
+    'close': function() {
+        this.sk.close();
+    }
 })();
 
 let url  = host + uri;

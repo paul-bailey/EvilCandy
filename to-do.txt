@@ -197,6 +197,10 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
+* Make struct type_t into an object, use with ClassVar to create dynamic
+  struct type_t's that can more quickly eg. call a class's __str__ method.
+  Cf. Python's 'slots' paradigm.
+
 * Add way to mark current location while parsing, so that token.c and
   main.c aren't making their own separate and different error splashes.
 

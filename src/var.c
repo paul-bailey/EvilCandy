@@ -907,8 +907,21 @@ var_sort(Object *v)
 Object *
 var_str(Object *v)
 {
-        if (v->v_type->str)
-                return v->v_type->str(v);
+        if (v->v_type->str) {
+                Object *ret = v->v_type->str(v);
+                if (ret && !isvar_string(ret)) {
+                        VAR_DECR_REF(ret);
+                        err_clear();
+                        ret = NULL;
+                } else if (ret == ErrorVar) {
+                        err_clear();
+                        ret = NULL;
+                }
+
+                if (ret)
+                        return ret;
+                /* else, fall through, use default implementation */
+        }
 
         return stringvar_from_format("<%s at %p>", v->v_type->name, v);
 }

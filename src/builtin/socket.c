@@ -328,7 +328,7 @@ socket_str(Frame *fr)
         char buf[256];
 
         skobj = vm_get_this(fr);
-        bug_on(!skobj || !isvar_dict(skobj));
+        bug_on(!skobj || !isvar_instance(skobj));
 
         skv = socket_get_priv(skobj, ".str", 0);
 

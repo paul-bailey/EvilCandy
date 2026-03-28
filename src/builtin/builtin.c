@@ -6,55 +6,35 @@
 static Object *
 do_dir(Frame *fr)
 {
-        Object *p, *keys, *str;
+        Object *arg, *arr, *str;
         int res;
 
         bug_on(!gbl.stdout_file || !gbl.nl);
 
         /*
-         * FIXME: If !p, we should list local vars + global vars.  But we
+         * FIXME: If !arg, we should list local vars + global vars.  But we
          * don't know what the locals are, since @fr is for this function!
          * We shouldn't blindly assume that vm.c's vm.locals will do,
          * because theoretically this could be inside a scripted function,
          * perhaps for debugging purposes.
          */
-        p = vm_get_arg(fr, 0);
-        if (!p) {
+        arg = vm_get_arg(fr, 0);
+        if (!arg) {
                 err_frame_minargs(fr, 1);
                 return ErrorVar;
         }
-        bug_on(!p->v_type->methods);
 
-        keys = dict_keys(p->v_type->methods, false);
-        if (isvar_dict(p)) {
-                /*
-                 * Add dict items to built-in methods, clobber any that
-                 * match, using our set algorithms.  This looks really
-                 * slow and fussy, but since the typ.  use-case is when
-                 * someone is typing, I can spare a little bit of time
-                 * on this.
-                 */
-                Object *set, *tmp, *it;
-
-                tmp = dict_keys(p, false);
-                array_extend(keys, tmp);
-                VAR_DECR_REF(tmp);
-
-                set = setvar_new(keys);
-                array_delete_chunk(keys, 0, seqvar_size(keys));
-                it = iterator_get(set);
-                bug_on(!it);
-                for (tmp = iterator_next(it);
-                     tmp; tmp = iterator_next(it)) {
-                        array_append(keys, tmp);
-                        VAR_DECR_REF(tmp);
-                }
-                VAR_DECR_REF(it);
+        if (isvar_instance(arg)) {
+                arr = instance_dir(arg);
+        } else {
+                bug_on(!arg->v_type->methods);
+                arr = arrayvar_new(0);
+                array_extend(arr, arg->v_type->methods);
+                var_sort(arr);
         }
-
-        var_sort(keys);
-        str = var_str(keys);
-        VAR_DECR_REF(keys);
+        var_sort(arr);
+        str = var_str(arr);
+        VAR_DECR_REF(arr);
 
         res = evc_file_write(gbl.stdout_file, str);
         if (res >= 0)

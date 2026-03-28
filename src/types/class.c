@@ -209,6 +209,12 @@ verify_base_classes(Object *bases, size_t *size)
         return bases;
 }
 
+static Object *
+instance_str(Object *instance)
+{
+        return instance_call(instance, STRCONST_ID(__str__), NULL, NULL);
+}
+
 static const struct map_methods_t instance_mpm = {
         .getitem = instance_getitem,
         .setitem = instance_setitem,
@@ -368,6 +374,39 @@ instancevar_new(Object *class, Object *args,
         return ret;
 }
 
+/**
+ * helper to built-in dir().
+ * Return an array containing directory of instance attributes.
+ */
+Object *
+instance_dir(Object *instance)
+{
+        struct instance_t *inst;
+        struct class_t *class;
+        Object *set, *ret;
+        size_t i, n;
+
+        inst = V2INST(instance);
+        class = V2CL(inst->inst_class);
+
+        set = setvar_new(inst->inst_attr);
+        set_extend(set, class->c_dict);
+
+        n = 0;
+        if (class->c_bases)
+                n = seqvar_size(class->c_bases);
+        for (i = 0; i < n; i++) {
+                Object *base = tuple_borrowitem(class->c_bases, i);
+                set_extend(set, V2CL(base)->c_dict);
+        }
+        ret = arrayvar_new(0);
+        array_extend(ret, set);
+        var_sort(ret);
+
+        VAR_DECR_REF(set);
+        return ret;
+}
+
 struct type_t ClassType = {
         .flags          = 0,
         .name           = "class",
@@ -394,7 +433,7 @@ struct type_t InstanceType = {
         .mpm            = &instance_mpm,
         .sqm            = NULL,
         .size           = sizeof(struct instance_t),
-        .str            = NULL,
+        .str            = instance_str,
         .cmp            = NULL,
         .cmpz           = NULL,
         .reset          = instance_reset,

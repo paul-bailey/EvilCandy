@@ -535,36 +535,50 @@ set_additem(Object *set, Object *child, Object **unique)
 }
 
 /**
+ * set_extend - Append all of an iterable object's items into a set
+ * @set: Set to extend
+ * @seq: Iterable object
+ *
+ * Return: RES_OK or RES_ERROR
+ */
+enum result_t
+set_extend(Object *set, Object *seq)
+{
+        Object *it, *item;
+
+        if (!seq)
+                return RES_OK;
+
+        it = iterator_get(seq);
+        if (!it) {
+                err_iterable(seq, "set");
+                return RES_ERROR;
+        }
+        for (item = iterator_next(it); item != NULL; item = iterator_next(it)) {
+                if (set_additem(set, item, NULL) == RES_ERROR) {
+                        err_hashable(item, NULL);
+                        VAR_DECR_REF(item);
+                        VAR_DECR_REF(it);
+                        return RES_ERROR;
+                }
+                VAR_DECR_REF(item);
+        }
+        VAR_DECR_REF(it);
+        return RES_OK;
+}
+
+/**
  * setvar_new - Create a new set
  * @seq: List to create set out of
  */
 Object *
 setvar_new(Object *seq)
 {
-        Object *ret, *item;
-        Object *it;
-
-        if (!seq)
-                return setvar_instantiate();
-
-        it = iterator_get(seq);
-        if (!it) {
-                err_iterable(seq, "set");
+        Object *ret = setvar_instantiate();
+        if (set_extend(ret, seq) == RES_ERROR) {
+                VAR_DECR_REF(ret);
                 return ErrorVar;
         }
-        ret = setvar_instantiate();
-
-        for (item = iterator_next(it); item != NULL; item = iterator_next(it)) {
-                if (set_additem(ret, item, NULL) == RES_ERROR) {
-                        err_hashable(item, NULL);
-                        VAR_DECR_REF(item);
-                        VAR_DECR_REF(ret);
-                        VAR_DECR_REF(it);
-                        return ErrorVar;
-                }
-                VAR_DECR_REF(item);
-        }
-        VAR_DECR_REF(it);
         return ret;
 }
 

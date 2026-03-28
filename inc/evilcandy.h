@@ -228,6 +228,7 @@ extern Object *instance_call(Object *instance, Object *method_name,
 extern Object *instance_getattr(Object *instance, Object *key);
 extern enum result_t instance_setattr(Object *instance,
                                 Object *key, Object *value);
+extern Object *instance_dir(Object *instance);
 
 /* types/comlex.c */
 extern Object *complexvar_new(double real, double imag);
@@ -293,6 +294,7 @@ extern enum result_t property_set(Object *prop, Object *owner,
 
 /* types/set.c */
 extern Object *setvar_new(Object *seq);
+extern enum result_t set_extend(Object *set, Object *seq);
 extern enum result_t set_additem(Object *set, Object *child, Object **unique);
 extern Object *set_unique(Object *set, Object *item);
 

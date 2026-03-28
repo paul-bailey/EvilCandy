@@ -212,13 +212,15 @@ extern Object *bytes_getslice(Object *bytes, ssize_t start,
 extern Object *bytesvar_new_sg(size_t size, ...);
 
 /* types/class.c */
+extern Object *classvar_new(Object *bases, Object *dict);
 extern Object *instance_super_getattr(Object *instance,
                                       Object *attribute_name);
-extern Object *instancevar_new(Object *class, Object *args, Object *kwargs);
-extern Object *classvar_new(Object *bases, Object *dict);
+extern Object *instancevar_new(Object *class, Object *args,
+                               Object *kwargs, bool call_init);
+extern Object *instance_get_class(Object *instance);
+extern void *instance_get_priv(Object *instance);
 extern void instance_set_priv(Object *instance,
                               void (*cleanup)(void *), void *priv);
-extern void *instance_get_priv(Object *instance);
 
 /* types/comlex.c */
 extern Object *complexvar_new(double real, double imag);

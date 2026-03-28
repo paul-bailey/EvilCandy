@@ -1331,8 +1331,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
  *              callback
  * @fr_old:     Frame we're currently in
  * @func:       Function to call
- * @arc:        Number of arguments being passed to the function
- * @argv:       Array of arguments
+ * @args:       Array of arguments
  * @kwargs:     Dictionary of keyword args, which may be NULL.
  *
  * Return: Return value of function being called or ErrorVar if execution
@@ -1349,7 +1348,7 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
         Object *res, *owner;
 
         if (isvar_class(func)) {
-                return instancevar_new(func, args, kwargs);
+                return instancevar_new(func, args, kwargs, true);
         } else if (isvar_method(func)) {
                 Object *meth = func;
                 if (methodvar_tofunc(meth, &func, &owner) == RES_ERROR)

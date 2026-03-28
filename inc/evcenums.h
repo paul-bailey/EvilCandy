@@ -104,6 +104,7 @@ enum {
         STRCONST_IDX___init__,
         STRCONST_IDX_read,
         STRCONST_IDX_write,
+        STRCONST_IDX_socket,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,

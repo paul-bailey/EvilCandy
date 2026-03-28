@@ -57,7 +57,8 @@
  */
 #include <unistd.h> /* for close() */
 
-static Object *socket_create(int fd, int domain, int type, int proto);
+static Object *socket_create_from(Object *instance, int fd, int domain,
+                                  int type, int proto);
 
 struct evc_sockaddr_t {
         union {
@@ -311,12 +312,7 @@ socket_get_priv(Object *skobj, const char *fname, bool check_open)
 {
         struct socketvar_t *skv;
 
-        skv = (struct socketvar_t *)dict_get_priv(skobj);
-        if (!skv || skv->magic  != DICT_MAGIC_SOCK) {
-                skerr(TypeError, "[possible bug] data corrupted", fname);
-                return NULL;
-        }
-
+        skv = (struct socketvar_t *)instance_get_priv(skobj);
         if (check_open && skv->fd < 0)  {
                 skerr(TypeError, "socket closed", fname);
                 return NULL;
@@ -344,6 +340,45 @@ socket_str(Frame *fr)
         /* TODO: Something fancier than this */
         snprintf(buf, sizeof(buf)-1, "<socket @%p>", skobj);
         return stringvar_new(buf);
+}
+
+/* Don't ask what a "destroyer of socks" portends */
+static void
+sock_destructor(void *data)
+{
+        struct socketvar_t *skv = (struct socketvar_t *)data;
+        int fd = skv->fd;
+        skv->fd = -1;
+        if (fd >= 0)
+                close(fd);
+        efree(skv);
+}
+
+static void
+socket_initialize_private_data(Object *instance,
+                int fd, int domain, int type, int protocol)
+{
+        struct socketvar_t *skv = emalloc(sizeof(*skv));
+        skv->magic       = DICT_MAGIC_SOCK;
+        skv->fd          = fd;
+        skv->domain      = domain;
+        skv->type        = type;
+        skv->proto       = protocol;
+        skv->addrlen     = dom2alen(domain);
+
+        instance_set_priv(instance, sock_destructor, skv);
+}
+
+static Object *
+socket_create_from(Object *instance, int fd, int domain, int type, int proto)
+{
+        Object *ret, *class;
+
+        class = instance_get_class(instance);
+        ret = instancevar_new(class, NULL, NULL, false);
+        VAR_DECR_REF(class);
+        socket_initialize_private_data(ret, fd, domain, type, proto);
+        return ret;
 }
 
 /* (client, addr) = sk.accept() */
@@ -376,8 +411,8 @@ do_accept(Frame *fr)
         if (!ao)
                 goto err_closefd;
 
-        sknew = socket_create(newfd, skv->domain,
-                              skv->type, skv->proto);
+        sknew = socket_create_from(skobj, newfd, skv->domain,
+                                   skv->type, skv->proto);
         bug_on(!sknew || sknew == ErrorVar);
 
         ret = var_from_format("(OO)", sknew, ao);
@@ -757,12 +792,8 @@ do_close(Frame *fr)
         return ret;
 }
 
-/*
- * TODO: kwargs, default to AF_UNIX, SOCK_STREAM,
- * option to make socketpair instead of single socket.
- */
 static Object *
-do_socket(Frame *fr)
+socket_init(Frame *fr)
 {
         static const int VALID_DOMAINS[] = {
                 AF_INET,
@@ -777,7 +808,10 @@ do_socket(Frame *fr)
                 -1
         };
         int fd, domain, type, protocol;
+        Object *instance;
 
+        fd = -1;
+        instance = vm_get_this(fr);
         if (vm_getargs(fr, "iii", &domain, &type, &protocol) == RES_ERROR)
                 return ErrorVar;
         if (validate_int(domain, VALID_DOMAINS, "domain") == RES_ERROR)
@@ -796,38 +830,13 @@ do_socket(Frame *fr)
                 return ErrorVar;
         }
 
-        return socket_create(fd, domain, type, protocol);
+        socket_initialize_private_data(instance, fd,
+                                       domain, type, protocol);
+        return instance;
 }
-
-static void
-sock_destructor(Object *skobj)
-{
-        int fd;
-        struct socketvar_t *skv;
-
-        skv = socket_get_priv(skobj, "__destructor__", 0);
-        if (!skv) {
-                DBUG("Possible bug in C function %s: socket missing data",
-                     __FUNCTION__);
-                return;
-        }
-
-        fd = skv->fd;
-        skv->fd = -1;
-        if (fd >= 0)
-                close(fd);
-        efree(skv);
-}
-
-/*
- * Don't confuse the below functions: create_socket_instance()
- * creates one instantiation of the socket namespace, while
- * socket_create() instantiates a single socket.  The latter
- * is a helper to do_socket() and do_accept().
- */
 
 static Object *
-socket_create(int fd, int domain, int type, int proto)
+create_socket_class(void)
 {
         static const struct type_inittbl_t sockmethods_inittbl[] = {
                 V_INITTBL("accept",   do_accept,   0, 0, -1, -1),
@@ -840,40 +849,23 @@ socket_create(int fd, int domain, int type, int proto)
                 V_INITTBL("sendto",   do_sendto,   3, 3, -1,  2),
                 V_INITTBL("close",    do_close,    0, 0, -1, -1),
                 V_INITTBL("__str__",  socket_str,  0, 0, -1, -1),
+                V_INITTBL("__init__", socket_init, 3, 3, -1, -1),
                 /* TODO: [gs]etsockopt and common ioctl wrappers */
                 TBLEND,
         };
-        struct socketvar_t *skv;
-        Object *skobj_inner, *skobj_outer;
-
-        skv = emalloc(sizeof(*skv));
-        skv->magic       = DICT_MAGIC_SOCK;
-        skv->fd          = fd;
-        skv->domain      = domain;
-        skv->type        = type;
-        skv->proto       = proto;
-        skv->addrlen     = dom2alen(domain);
-
-        skobj_inner = dictvar_from_methods(NULL, sockmethods_inittbl);
-        skobj_outer = dictvar_new();
-
-        dict_set_priv(skobj_inner, skv);
-        dict_add_cdestructor(skobj_inner, sock_destructor);
-        dict_inherit(skobj_outer, skobj_inner, true);
-        return skobj_outer;
+        Object *methods = dictvar_from_methods(NULL, sockmethods_inittbl);
+        Object *ret = classvar_new(NULL, methods);
+        VAR_DECR_REF(methods);
+        return ret;
 }
 
 static Object *
 create_socket_instance(Frame *fr)
 {
-        static const struct type_inittbl_t socket_inittbl[] = {
-                /* TODO: gethostbyname, socketpair, getaddrinfo */
-                V_INITTBL("socket",  do_socket,  3, 3, -1, -1),
-                TBLEND,
-        };
+        Object *socket_class, *skobj, *enums;
 
-        Object *skobj = dictvar_new();
-        Object *enums = gbl.mns[MNS_SOCKET];
+        skobj = dictvar_new();
+        enums = gbl.mns[MNS_SOCKET];
         if (!enums) {
                 /*
                  * First instance, we need to initialize dict.  Putting
@@ -923,7 +915,10 @@ create_socket_instance(Frame *fr)
                 gbl.mns[MNS_SOCKET] = enums;
         }
         dict_copyto(skobj, enums);
-        return dictvar_from_methods(skobj, socket_inittbl);
+        socket_class = create_socket_class();
+        dict_setitem(skobj, STRCONST_ID(socket), socket_class);
+        VAR_DECR_REF(socket_class);
+        return skobj;
 }
 
 void

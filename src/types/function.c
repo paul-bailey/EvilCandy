@@ -84,6 +84,7 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
         } else if (fh->f_optind >= 0) {
                 Object **data;
 
+                bug_on(!isvar_array(args));
                 if (fh->f_optind > seqvar_size(args)) {
                         err_setstr(ArgumentError,
                                 "expected %ld args but got %ld",
@@ -101,6 +102,7 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
                 fr->stack[fh->f_optind] = VAR_NEW_REF(args);
                 fr->ap = fh->f_optind + 1;
         } else {
+                bug_on(!isvar_array(args));
                 fr->ap = seqvar_size(args);
                 if (!vm_pointers_in_stack(fr->stack, fr->stack + fr->ap)) {
                         err_setstr(ArgumentError,

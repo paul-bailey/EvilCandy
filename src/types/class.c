@@ -43,9 +43,12 @@ class_getitem(Object *class, Object *key)
         Object *ret;
 
         cls = V2CL(class);
+        bug_on(!cls->c_dict);
         ret = dict_getitem(cls->c_dict, key);
         if (ret)
                 return ret;
+        if (!cls->c_bases)
+                return NULL;
 
         n = seqvar_size(cls->c_bases);
         for (i = 0; i < n; i++) {
@@ -138,6 +141,8 @@ instance_getitem(Object *instance, Object *key)
 
         inst = V2INST(instance);
         bug_on(!isvar_instance(instance));
+        bug_on(!inst->inst_attr);
+        bug_on(!inst->inst_class);
 
         ret = dict_getitem(inst->inst_attr, key);
         if (ret)
@@ -193,12 +198,47 @@ instance_call(Object *instance, Object *method_name,
         return vm_exec_func(NULL, method, args, kwargs);
 }
 
+static Object *
+verify_base_classes(Object *bases, size_t *size)
+{
+        size_t i, n;
+        if (isvar_tuple(bases)) {
+                VAR_INCR_REF(bases);
+        } else {
+                Object *stack[1] = { bases };
+                bases = tuplevar_from_stack(stack, 1, false);
+        }
+
+        n = seqvar_size(bases);
+        for (i = 0; i < n; i++) {
+                Object *obj = tuple_borrowitem(bases, i);
+                if (!isvar_class(obj)) {
+                        err_setstr(TypeError,
+                                   "base class may not be type '%s'",
+                                   typestr(obj));
+                        VAR_DECR_REF(bases);
+                        return ErrorVar;
+                }
+                (*size) += seqvar_size(obj);
+        }
+        return bases;
+}
+
 static const struct map_methods_t instance_mpm = {
         .getitem = instance_getitem,
         .setitem = instance_setitem,
         .hasitem = instance_hasitem,
         .mpunion = NULL,
 };
+
+Object *
+instance_get_class(Object *instance)
+{
+        Object *ret;
+        bug_on(!isvar_instance(instance));
+        ret = V2INST(instance)->inst_class;
+        return VAR_NEW_REF(ret);
+}
 
 /**
  * instance_super - Get the base class of an instance.
@@ -227,32 +267,6 @@ instance_super_getattr(Object *instance, Object *attribute_name)
         }
 
         return NULL;
-}
-
-Object *
-verify_base_classes(Object *bases, size_t *size)
-{
-        size_t i, n;
-        if (isvar_tuple(bases)) {
-                VAR_INCR_REF(bases);
-        } else {
-                Object *stack[1] = { bases };
-                bases = tuplevar_from_stack(stack, 1, false);
-        }
-
-        n = seqvar_size(bases);
-        for (i = 0; i < n; i++) {
-                Object *obj = tuple_borrowitem(bases, i);
-                if (!isvar_class(obj)) {
-                        err_setstr(TypeError,
-                                   "base class may not be type '%s'",
-                                   typestr(obj));
-                        VAR_DECR_REF(bases);
-                        return ErrorVar;
-                }
-                (*size) += seqvar_size(obj);
-        }
-        return bases;
 }
 
 /**
@@ -289,11 +303,15 @@ classvar_new(Object *bases, Object *dict)
  * @class:      Class to create an instance of
  * @args:       Arguments to pass to constructor function
  * @kwargs:     Keyword arguments to pass to constructor function
+ * @call_init:  true to call init, false otherwise.  This is almost
+ *              always true, except with some built-in classes where
+ *              it's easier to initialize stuff without a UAPI call.
  *
  * Return: New instance of @class
  */
 Object *
-instancevar_new(Object *class, Object *args, Object *kwargs)
+instancevar_new(Object *class, Object *args,
+                Object *kwargs, bool call_init)
 {
         Object *init_result;
         Object *ret = var_new(&InstanceType);
@@ -304,6 +322,9 @@ instancevar_new(Object *class, Object *args, Object *kwargs)
 
         V2INST(ret)->inst_class = VAR_NEW_REF(class);
         V2INST(ret)->inst_attr = dictvar_new();
+        if (!call_init)
+                return ret;
+
         init_result = instance_call(ret, STRCONST_ID(__init__),
                                     args, kwargs);
         if (init_result == ErrorVar) {

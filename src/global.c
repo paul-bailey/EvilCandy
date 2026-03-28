@@ -60,6 +60,7 @@ initialize_string_consts(void)
                 STRCONST_CSTR(__init__),
                 STRCONST_CSTR(read),
                 STRCONST_CSTR(write),
+                STRCONST_CSTR(socket),
                 [STRCONST_IDX_spc] = " ",
                 [STRCONST_IDX_mpty] = "",
                 [STRCONST_IDX_wtspc] = " \r\n\t\v\f",

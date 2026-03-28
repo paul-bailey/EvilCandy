@@ -22,6 +22,7 @@ struct global_t {
         Object *cwd;
         Object *mns[N_MNS];
         Object *codecs[N_CODEC]; /* maps codec to int obj */
+        Object *classes[N_GBL_CLASSES];
 
         /*
          * private fields, put in global struct just so cleanup

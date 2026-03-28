@@ -188,6 +188,11 @@ cfile_deinit_global(void)
                         VAR_DECR_REF(gbl.codecs[i]);
         }
 
+        for (i = 0; i < N_GBL_CLASSES; i++) {
+                if (gbl.classes[i])
+                        VAR_DECR_REF(gbl.classes[i]);
+        }
+
         if (gbl.iatok.line)
                 efree(gbl.iatok.line);
         memset(&gbl.iatok, 0, sizeof(gbl.iatok));

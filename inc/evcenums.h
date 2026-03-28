@@ -130,6 +130,14 @@ enum {
         N_MNS,
 };
 
+/* indices into gbl.classes */
+enum {
+        GBL_CLASS_RAWFILE = 0,
+        GBL_CLASS_BINFILE,
+        GBL_CLASS_TXTFILE,
+        N_GBL_CLASSES,
+};
+
 /* @mode arg to filevar_new */
 enum {
         FMODE_BINARY    = 0x01,

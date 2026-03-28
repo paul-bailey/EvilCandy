@@ -184,21 +184,6 @@ instance_setitem(Object *instance, Object *key, Object *item)
 }
 
 static Object *
-instance_call(Object *instance, Object *method_name,
-              Object *args, Object *kwargs)
-{
-        Object *method = instance_getitem(instance, method_name);
-        if (!method)
-                return NULL;
-        if (!isvar_method(method)) {
-                /* do not throw error, let caller decide */
-                VAR_DECR_REF(method);
-                return NULL;
-        }
-        return vm_exec_func(NULL, method, args, kwargs);
-}
-
-static Object *
 verify_base_classes(Object *bases, size_t *size)
 {
         size_t i, n;
@@ -238,6 +223,34 @@ instance_get_class(Object *instance)
         bug_on(!isvar_instance(instance));
         ret = V2INST(instance)->inst_class;
         return VAR_NEW_REF(ret);
+}
+
+/**
+ * instance_call - Call an instance method
+ * @instance:           Instance
+ * @method_name:        Name of the method to call (a dictionary key)
+ * @args:               Args to pass to the method (an array)
+ * @kwargs:             Keyword args to pass to the method (a dict)
+ *
+ * Return: NULL if method not found, result of call otherwise.
+ *      If return value is NULL, no exception will be thrown.
+ */
+Object *
+instance_call(Object *instance, Object *method_name,
+              Object *args, Object *kwargs)
+{
+        Object *ret;
+        Object *method = instance_getitem(instance, method_name);
+        if (!method)
+                return NULL;
+        if (!isvar_method(method)) {
+                /* do not throw error, let caller decide */
+                VAR_DECR_REF(method);
+                return NULL;
+        }
+        ret = vm_exec_func(NULL, method, args, kwargs);
+        VAR_DECR_REF(method);
+        return ret;
 }
 
 /**

@@ -221,6 +221,8 @@ extern Object *instance_get_class(Object *instance);
 extern void *instance_get_priv(Object *instance);
 extern void instance_set_priv(Object *instance,
                               void (*cleanup)(void *), void *priv);
+extern Object *instance_call(Object *instance, Object *method_name,
+                             Object *args, Object *kwargs);
 
 /* types/comlex.c */
 extern Object *complexvar_new(double real, double imag);

@@ -287,7 +287,6 @@ extern Object *propertyvar_new_user(Object *setter, Object *getter);
 extern Object *property_get(Object *prop, Object *owner, Object *name);
 extern enum result_t property_set(Object *prop, Object *owner,
                                   Object *value, Object *name);
-// extern Object *property_inherit(Object *prop, Object *old_class);
 
 /* types/set.c */
 extern Object *setvar_new(Object *seq);

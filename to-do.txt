@@ -3,7 +3,7 @@ Bugs
 
 * BUGs 3/2026:
 
-        * Hazard which requires policy change, see FIXME in struct class_t,
+        * **fixed** Hazard which requires policy change, see FIXME in struct class_t,
           src/types/dict.c.  Related to inheritance problem.
 
         * **fixed** In interactive mode, a syntax error sometimes lets the
@@ -53,8 +53,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
-  - Solve the inheritance problem with dictionaries, esp. wrt
-    struct class_t inheritance.
+  - Separate attribute and item, settle dot-notation rules for dict
   - Implement set xor operator.
   - At minimum complete a walkthrough tutorial in Documentation.
   - Add appropriate interrupt handlers for things like EINTR.
@@ -70,6 +69,7 @@ Must Do
   - Finish path resolution
   - Make consistent and accurate error reporting
 
+  - **circumvented** Solve the inheritance problem with dictionaries
   - **fine with as-is** Finalize closure behavior, be more like theoretical closures.
   - **done** Add user-defined properties to dictionaries
   - **done** Pass arguments to script.

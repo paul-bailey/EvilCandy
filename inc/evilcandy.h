@@ -277,8 +277,6 @@ extern enum result_t dict_setitem_replace(Object *dict,
 extern enum result_t dict_setitem_exclusive(Object *dict,
                                 Object *key, Object *attr);
 extern int dict_copyto(Object *to, Object *from);
-extern Object *dict_getattr(Object *dict, Object *key);
-enum result_t dict_setattr(Object *dict, Object *key, Object *attr);
 
 /* types/method.c */
 extern int methodvar_tofunc(Object *meth,

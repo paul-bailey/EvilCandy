@@ -813,6 +813,24 @@ do_defdict_k(Frame *fr, instruction_t ii)
 }
 
 static int
+do_setitem(Frame *fr, instruction_t ii)
+{
+        Object *val, *key, *obj;
+        int ret = 0;
+
+        val = pop(fr);
+        key = pop(fr);
+        obj = pop(fr);
+
+        ret = var_setitem(obj, key, val);
+
+        VAR_DECR_REF(key);
+        VAR_DECR_REF(val);
+        VAR_DECR_REF(obj);
+        return ret;
+}
+
+static int
 do_setattr(Frame *fr, instruction_t ii)
 {
         Object *val, *key, *obj;
@@ -842,6 +860,26 @@ do_setattr(Frame *fr, instruction_t ii)
 
         VAR_DECR_REF(key);
         VAR_DECR_REF(val);
+        VAR_DECR_REF(obj);
+        return ret;
+}
+
+static int
+do_getitem(Frame *fr, instruction_t ii)
+{
+        Object *item, *key, *obj;
+        int ret;
+
+        key = pop(fr);
+        obj = pop(fr);
+        item = var_getitem(obj, key);
+        if (item == ErrorVar) {
+                ret = RES_ERROR;
+        } else {
+                push(fr, item);
+                ret = RES_OK;
+        }
+        VAR_DECR_REF(key);
         VAR_DECR_REF(obj);
         return ret;
 }
@@ -913,6 +951,20 @@ do_delattr(Frame *fr, instruction_t ii)
         key = pop(fr);
         obj = pop(fr);
         res = var_delattr(obj, key);
+        VAR_DECR_REF(key);
+        VAR_DECR_REF(obj);
+        return res;
+}
+
+static int
+do_delitem(Frame *fr, instruction_t ii)
+{
+        Object *obj, *key;
+        int res;
+
+        key = pop(fr);
+        obj = pop(fr);
+        res = var_delitem(obj, key);
         VAR_DECR_REF(key);
         VAR_DECR_REF(obj);
         return res;

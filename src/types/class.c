@@ -67,7 +67,7 @@ class_hasitem(Object *class, Object *key)
         size_t i, n;
 
         cls = V2CL(class);
-        if (var_hasattr(cls->c_dict, key))
+        if (var_hasitem(cls->c_dict, key))
                 return true;
         n = seqvar_size(cls->c_bases);
         for (i = 0; i < n; i++) {
@@ -170,7 +170,7 @@ instance_hasitem(Object *instance, Object *key)
 {
         struct instance_t *inst = V2INST(instance);
         bug_on(!isvar_instance(instance));
-        if (var_hasattr(inst->inst_attr, key))
+        if (var_hasitem(inst->inst_attr, key))
                 return 1;
         return class_hasitem(inst->inst_class, key);
 }
@@ -215,6 +215,18 @@ static const struct map_methods_t instance_mpm = {
         .hasitem = instance_hasitem,
         .mpunion = NULL,
 };
+
+Object *
+instance_getattr(Object *instance, Object *key)
+{
+        return instance_getitem(instance, key);
+}
+
+enum result_t
+instance_setattr(Object *instance, Object *key, Object *value)
+{
+        return instance_setitem(instance, key, value);
+}
 
 Object *
 instance_get_class(Object *instance)

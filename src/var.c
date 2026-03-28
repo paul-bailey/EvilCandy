@@ -512,15 +512,8 @@ var_index_capi(size_t size, ssize_t *a, ssize_t *b)
         }
 }
 
-/*
- * Either @v is a dictionary or @key is a string, which could be for a
- * built-in method or property of @v, whatever @v's type.
- *
- * XXX: Code rot alert!! Thus far, only dictionaries are mappable, so
- * this function is never getting called.
- */
 static Object *
-var_getattr_map(Object *v, Object *key)
+var_getitem_map(Object *v, Object *key)
 {
         /*
          * first check if v maps it. If failed, check the
@@ -531,50 +524,15 @@ var_getattr_map(Object *v, Object *key)
         if (mpm && mpm->getitem) {
                 ret = mpm->getitem(v, key);
                 if (ret)
-                        goto found;
+                        return ret;
         }
-
-        /* try built-in methods or properties */
-
-        /* ...whose key must be a string */
-        if (!isvar_string(key))
-                goto badtype;
-
-        ret = dict_getitem(v->v_type->methods, key);
-        if (ret) {
-                if (isvar_property(ret)) {
-                        Object *tmp = property_get(ret, v, key);
-                        VAR_DECR_REF(ret);
-                        /* XXX if prop is func, swap below? */
-                        return tmp;
-                }
-                goto found;
-        }
-
         err_setstr(KeyError, "%s object has no attribute %N",
                    typestr(v), key);
-        return ErrorVar;
-
-found:
-        /*
-         * Save "owner" with function, so when it's called it
-         * knows who its "this" is.
-         */
-        if (isvar_function(ret)) {
-                Object *tmp = ret;
-                ret = methodvar_new(tmp, v);
-                VAR_DECR_REF(tmp);
-        }
-        return ret;
-
-        /* else, invalid key, fall through */
-badtype:
-        err_attribute("get", key, v);
         return ErrorVar;
 }
 
 static Object *
-var_getattr_seq(Object *v, Object *key)
+var_getitem_seq(Object *v, Object *key)
 {
         const struct seq_methods_t *sqm = v->v_type->sqm;
         bug_on(!sqm);
@@ -619,7 +577,7 @@ var_getattr_seq(Object *v, Object *key)
         }
 
 badtype:
-        err_attribute("get", key, v);
+        err_subscript("get", key, v);
         return ErrorVar;
 
 badkey:
@@ -629,6 +587,19 @@ badkey:
         return ErrorVar;
 }
 
+Object *
+var_getitem(Object *v, Object *key)
+{
+        if (isvar_map(v) || isvar_string(key)) {
+                return var_getitem_map(v, key);
+        } else if (isvar_seq(v)) {
+                return var_getitem_seq(v, key);
+        } else {
+                err_subscript("get", key, v);
+                return ErrorVar;
+        }
+}
+
 /**
  * var_getattr - Generalized get-attribute
  * @v:  Variable whose attribute we're seeking
@@ -636,32 +607,39 @@ badkey:
  *
  * Return: Attribute of @v, or ErrorVar if not found.
  *
- * This implements the EvilCandy expression: v[key]
- *
- * If @key is an integer, it gets the indexed item @v.
- * If @key is a string, it first checks if @v is a dictionary storing
- * @key, then it checks if @v is any type with a property or built-in
- * method named @key.
- *
- * ONLY vm.c SHOULD USE THIS!  It accesses a dictionary which may not
- * yet exist during initialization, but which will be available by the
- * time the VM is running.  It also does some interpolating to make
- * dictionaries behave more like instances rather than pure dictionaries,
- * something internal code has no need for.
+ * This implements the EvilCandy expression: v.key
  */
 Object *
 var_getattr(Object *v, Object *key)
 {
-        if (isvar_dict(v)) {
-                return dict_getattr(v, key);
-        } else if (isvar_map(v) || isvar_string(key)) {
-                return var_getattr_map(v, key);
-        } else if (isvar_seq(v)) {
-                return var_getattr_seq(v, key);
-        } else {
+        Object *ret;
+        if (isvar_instance(v))
+                return instance_getattr(v, key);
+        ret = dict_getitem(v->v_type->methods, key);
+        if (!ret) {
+                if (isvar_dict(v)) {
+                        /*
+                         * special case: dictionaries use dot notation
+                         * Treat like 'getitem', do not transform
+                         * functions or properties.
+                         */
+                        ret = dict_getitem(v, key);
+                        if (ret)
+                                return ret;
+                }
                 err_attribute("get", key, v);
                 return ErrorVar;
         }
+        if (isvar_property(ret)) {
+                Object *tmp = ret;
+                ret = property_get(ret, v, key);
+                VAR_DECR_REF(tmp);
+        } else if (isvar_function(ret)) {
+                Object *tmp = ret;
+                ret = methodvar_new(tmp, v);
+                VAR_DECR_REF(tmp);
+        }
+        return ret;
 }
 
 /**
@@ -674,7 +652,7 @@ var_getattr(Object *v, Object *key)
  *      a consideration.
  */
 bool
-var_hasattr(Object *haystack, Object *needle)
+var_hasitem(Object *haystack, Object *needle)
 {
         const struct seq_methods_t *sqm = haystack->v_type->sqm;
         const struct map_methods_t *mpm = haystack->v_type->mpm;
@@ -693,45 +671,23 @@ var_hasattr(Object *haystack, Object *needle)
  * set a property in @v, regardless of @v's type.
  */
 static enum result_t
-var_setattr_map(Object *v, Object *key, Object *attr)
+var_setitem_map(Object *v, Object *key, Object *attr)
 {
-        Object *prop;
-        enum result_t ret;
         const struct map_methods_t *map = v->v_type->mpm;
-        if (!map || !map->setitem)
-                goto badtype;
+        if (!map || !map->setitem) {
+                err_subscript("set", key, v);
+                return RES_ERROR;
+        }
 
         if (isvar_string(key) && seqvar_size(key) == 0) {
                 err_setstr(KeyError, "key may not be empty");
                 return RES_ERROR;
         }
-        ret = map->setitem(v, key, attr);
-        if (ret == RES_OK)
-                return ret;
-
-        /* try property, whose key must be string */
-        if (!isvar_string(key))
-                goto badtype;
-
-        /* may not delete built-in properties */
-        if (!attr)
-                goto badtype;
-
-        err_clear();
-        prop = dict_getitem(v->v_type->methods, key);
-        if (prop && isvar_property(prop)) {
-                ret = property_set(prop, v, attr, key);
-                VAR_DECR_REF(prop);
-                return ret;
-        }
-
-badtype:
-        err_attribute("set", key, v);
-        return RES_ERROR;
+        return map->setitem(v, key, attr);
 }
 
 static enum result_t
-var_setattr_seq(Object *v, Object *key, Object *attr)
+var_setitem_seq(Object *v, Object *key, Object *attr)
 {
         const struct seq_methods_t *seq = v->v_type->sqm;
         bug_on(!seq);
@@ -772,25 +728,57 @@ badkey:
 }
 
 /**
+ * var_setitem - Generalized set-item
+ * @v:          Variable whose item we're setting
+ * @key:        index number, slice, name, etc.
+ * @value:      Value to set item to
+ *
+ * Return: RES_OK or RES_ERROR
+ *
+ * This implements
+ *              v[key] = value;       # value != NULL
+ *              delete v[key];        # value == NULL
+ */
+enum result_t
+var_setitem(Object *v, Object *key, Object *value)
+{
+        if (isvar_map(v) || isvar_string(key)) {
+                return var_setitem_map(v, key, value);
+        } else if (isvar_seq(v)) {
+                return var_setitem_seq(v, key, value);
+        } else {
+                err_subscript("set", key, v);
+                return RES_ERROR;
+        }
+}
+
+/**
  * var_setattr - Generalized set-attribute
  * @v:          Variable whose attribute we're setting
  * @key:        Variable storing the index number or name
- * @attr:       Variable storing the attribute to set.  This will be
- *              copied, so calling function still must handle GC for this
+ * @attr:       Variable storing the attribute to set.
  * Return:      RES_OK if success, RES_ERROR if failure does not exist.
  *
- * This implements v[key] = attr;
+ * This implements
+ *              v.key = attr;   # attr != NULL
+ *              delete v.key;   # attr == NULL
  */
 enum result_t
 var_setattr(Object *v, Object *key, Object *attr)
 {
         if (isvar_dict(v)) {
-                return dict_setattr(v, key, attr);
-        } else if (isvar_map(v) || isvar_string(key)) {
-                return var_setattr_map(v, key, attr);
-        } else if (isvar_seq(v)) {
-                return var_setattr_seq(v, key, attr);
+                /* special case, dictionaries use dot notation */
+                return dict_setitem(v, key, attr);
+        } else if (isvar_instance(v)) {
+                return instance_setattr(v, key, attr);
         } else {
+                enum result_t ret;
+                Object *prop = dict_getitem(v->v_type->methods, key);
+                if (prop && isvar_property(prop)) {
+                        ret = property_set(prop, v, attr, key);
+                        VAR_DECR_REF(prop);
+                        return ret;
+                }
                 err_attribute("set", key, v);
                 return RES_ERROR;
         }
@@ -865,9 +853,9 @@ var_compare_iarg(Object *a, Object *b, int iarg)
                 if (iarg == IARG_NEQ3)
                         cmp = !cmp;
         } else if (iarg == IARG_HAS) {
-                cmp = var_hasattr(a, b);
+                cmp = var_hasitem(a, b);
         } else if (iarg == IARG_IN) {
-                cmp = var_hasattr(b, a);
+                cmp = var_hasitem(b, a);
         } else {
                 cmp = var_compare(a, b);
                 switch (iarg) {

@@ -110,10 +110,14 @@ VAR_NEW_REF(Object *v)
 extern Object *var_new(struct type_t *type);
 extern void var_initialize_type(struct type_t *tp);
 extern Object *var_getattr(Object *v, Object *deref);
-extern bool var_hasattr(Object *haystack, Object *needle);
+extern Object *var_getitem(Object *v, Object *deref);
+extern bool var_hasitem(Object *haystack, Object *needle);
 extern enum result_t var_setattr(Object *v, Object *deref, Object *attr);
+extern enum result_t var_setitem(Object *v, Object *deref, Object *item);
 static inline enum result_t var_delattr(Object *v, Object *deref)
         { return var_setattr(v, deref, NULL); }
+static inline enum result_t var_delitem(Object *v, Object *deref)
+        { return var_setitem(v, deref, NULL); }
 extern int var_compare(Object *a, Object *b);
 extern bool var_compare_iarg(Object *a, Object *b, int iarg);
 extern int var_sort(Object *v);

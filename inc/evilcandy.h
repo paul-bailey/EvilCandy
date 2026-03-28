@@ -110,6 +110,8 @@ extern void err_decode(int codec, const char *why);
 extern void err_ord(int codec, long ord);
 extern void err_attribute(const char *getorset,
                           Object *deref, Object *obj);
+extern void err_subscript(const char *getorset,
+                          Object *deref, Object *obj);
 extern void err_index(Object *index);
 extern void err_argtype(const char *what);
 extern void err_locked(void);
@@ -223,6 +225,9 @@ extern void instance_set_priv(Object *instance,
                               void (*cleanup)(void *), void *priv);
 extern Object *instance_call(Object *instance, Object *method_name,
                              Object *args, Object *kwargs);
+extern Object *instance_getattr(Object *instance, Object *key);
+extern enum result_t instance_setattr(Object *instance,
+                                Object *key, Object *value);
 
 /* types/comlex.c */
 extern Object *complexvar_new(double real, double imag);

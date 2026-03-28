@@ -53,15 +53,26 @@ err_ord(int codec, long ord)
                    codec >= 0 ? codecbuf : "");
 }
 
+#define VAR_STR(x)  (isvar_string(x) ? VAR_NEW_REF(x) : var_str(x))
 /* @getorset: either "get" or "set" */
 void
 err_attribute(const char *getorset, Object *deref, Object *obj)
 {
-        Object *key = var_str(deref);
+        Object *key = VAR_STR(deref);
         err_setstr(TypeError, "Cannot %s attribute %N of type %s",
                    getorset, key, typestr(obj));
         VAR_DECR_REF(key);
 }
+
+void
+err_subscript(const char *getorset, Object *deref, Object *obj)
+{
+        Object *key = VAR_STR(deref);
+        err_setstr(TypeError, "Cannot %s item %N of type %s",
+                   getorset, key, typestr(obj));
+        VAR_DECR_REF(key);
+}
+#undef VAR_STR
 
 void
 err_index(Object *index)

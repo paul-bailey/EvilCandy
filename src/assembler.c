@@ -251,7 +251,7 @@ as_is_ialocal(struct assemble_t *a, Object *name)
          */
         if (a->fr->list.prev != &a->active_frames)
                 return false;
-        return var_hasattr(a->localdict, name);
+        return var_hasitem(a->localdict, name);
 }
 
 static int
@@ -1966,10 +1966,14 @@ assemble_preassign(struct assemble_t *a, int t)
         return 0;
 }
 
-/* return -1 if error, 1 if attribute modified, 0 if not */
+/*
+ * return -1 if error, 1 if attribute modified, 0 if not
+ * @attr: if true, instruction is xxxATTR, not xxxITEM
+ */
 static int
-maybe_modattr(struct assemble_t *a, unsigned int flags)
+maybe_modattr(struct assemble_t *a, unsigned int flags, bool attr)
 {
+        int instr;
         if (flags == FEE_DEL) {
                 int t = as_lex(a);
                 if (t < 0)
@@ -1978,7 +1982,8 @@ maybe_modattr(struct assemble_t *a, unsigned int flags)
                         as_unlex(a);
                         return 0;
                 }
-                add_instr(a, INSTR_DELATTR, 0, 0);
+                instr = attr ? INSTR_DELATTR : INSTR_DELITEM;
+                add_instr(a, instr, 0, 0);
                 return 1;
         } else if (flags == FEE_ASGN) {
                 int t = as_lex(a);
@@ -1989,13 +1994,17 @@ maybe_modattr(struct assemble_t *a, unsigned int flags)
                                 if (assemble_expr(a, FE_CHECKTUPLE) < 0)
                                         return -1;
                         } else {
+                                instr = attr
+                                        ? INSTR_GETATTR
+                                        : INSTR_GETITEM;
                                 add_instr(a, INSTR_COPY, 0, 2);
                                 add_instr(a, INSTR_COPY, 0, 2);
-                                add_instr(a, INSTR_GETATTR, 0, 0);
+                                add_instr(a, instr, 0, 0);
                                 if (assemble_preassign(a, t) < 0)
                                         return -1;
                         }
-                        add_instr(a, INSTR_SETATTR, 0, 0);
+                        instr = attr ? INSTR_SETATTR : INSTR_SETITEM;
+                        add_instr(a, instr, 0, 0);
                         return 1;
                 }
                 as_unlex(a);
@@ -2029,7 +2038,7 @@ assemble_primary_elements(struct assemble_t *a, unsigned int flags)
                         if (as_errlex(a, OC_IDENTIFIER) < 0)
                                 return -1;
                         ainstr_load_const(a, a->oc);
-                        mres = maybe_modattr(a, flags);
+                        mres = maybe_modattr(a, flags, true);
                         if (mres < 0)
                                 return -1;
                         else if (mres)
@@ -2043,14 +2052,14 @@ assemble_primary_elements(struct assemble_t *a, unsigned int flags)
                         if (as_lex(a) < 0)
                                 return -1;
                         if (a->oc->t == OC_RBRACK) {
-                                mres = maybe_modattr(a, flags);
+                                mres = maybe_modattr(a, flags, false);
                                 if (mres < 0)
                                         return -1;
                                 else if (mres)
                                         return 0;
                                 as_unlex(a);
                         }
-                        add_instr(a, INSTR_GETATTR, 0, 0);
+                        add_instr(a, INSTR_GETITEM, 0, 0);
                         if (as_errlex(a, OC_RBRACK) < 0)
                                 return -1;
                         break;

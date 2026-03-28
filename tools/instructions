@@ -116,16 +116,19 @@ DEFSET
 DEFCLASS
 
 ##
-#   GET/SET/LOAD/DELATTR
+#   GET/SET/DELATTR
 #
 # GETATTR  stack[-1]=key, stack[-2]=object
-#
 # SETATTR  stack[-1]=value, stack[-2]=key, stack[-3]=object
-#
-# DELATTR deletes the item from its parent
+# DELATTR  stack[-1]=key, stack[-2]=object
 GETATTR
 SETATTR
 DELATTR
+
+# Like xxxATTR, but for items, not attributes
+GETITEM
+SETITEM
+DELITEM
 
 # Get an attribute from an object's base class.
 # stack[-1]=key, stack[-2]=object (which should be 'this')

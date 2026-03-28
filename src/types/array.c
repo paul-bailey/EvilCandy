@@ -234,10 +234,6 @@ array_getslice(Object *obj, ssize_t start, ssize_t stop, ssize_t step)
         if (!n)
                 return ret;
 
-        if (start >= n)
-                start = n - 1;
-        bug_on(start < 0);
-
         if (start == stop)
                 return ret;
 

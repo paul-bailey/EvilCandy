@@ -421,17 +421,17 @@ tup2slice(Object *obj, Object *tup,
         if (i < 0) {
                 i += size;
                 if (i < 0)
-                        i = 0;
+                        i = k < 0 ? -1 : 0;
         } else if (i >= size) {
-                i = size;
+                i = k < 0 ? size - 1 : size;
         }
 
         if (j < 0) {
                 j += size;
-                if (j < -1)
-                        j = -1;
-        } else if (j > size) {
-                j = size;
+                if (j < 0)
+                        j = k < 0 ? -1 : 0;
+        } else if (j >= size) {
+                j = k < 0 ? size - 1 : size;
         }
 
         if (k == 0) {
@@ -441,10 +441,7 @@ tup2slice(Object *obj, Object *tup,
 
         if ((i < j && k < 0)
             || (i > j && k > 0)) {
-                /* Length zero.  Still pass to callback, since
-                 * only it knows what zero-length object to create.
-                 */
-                i = j = 0;
+                i = j;
         }
 
         *start = i;
@@ -562,13 +559,6 @@ var_getitem_seq(Object *v, Object *key)
                 /* Cannot slice an empty sequence */
                 if ((seqsize = seqvar_size(v)) == 0)
                         return VAR_NEW_REF(v);
-
-                /*
-                 * For setslice this could == size, but for getslice we
-                 * need this to be safely in range.
-                 */
-                if (start >= seqsize)
-                        start = seqsize - 1;
 
                 return sqm->getslice(v, start, stop, step);
         } else {

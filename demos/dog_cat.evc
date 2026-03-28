@@ -1,0 +1,64 @@
+/*
+ * Two demos, in which I rewrote some Python examples of inheritance in
+ * EvilCandy.  The Python originals were produced by Google AI.
+ *
+ * The first demonstrates basic inheritance.
+ * The second demonstrates using super().
+ */
+
+/*
+ *                  demo 1
+ *
+ *  Expected output:
+ *          Rocky barks: Woof! Woof!
+ *          Tom meows: Meow!
+ */
+let Animal = class() {
+    '__init__': (name) => { this.name = name; },
+    'speak': () => f'{this.name} makes a generic sound'
+};
+
+let Dog = class(Animal) {
+    'speak': () => f'{this.name} barks: Woof! Woof!'
+};
+
+let Cat = class(Animal) {
+    'speak': () => f'{this.name} meows: Meow!'
+};
+
+let dog_instance = Dog('Rocky');
+let cat_instance = Cat('Tom');
+print(dog_instance.speak());
+print(cat_instance.speak());
+
+/*
+ *                  demo 2
+ *
+ *  Expected output:
+ *          Name: Jane Doe
+ *          Graduation Year: 2025
+ */
+let Person = class() {
+    '__init__': function(fname, lname) {
+        this.firstname = fname;
+        this.lastname = lname;
+    },
+    'display_name': function() {
+        print(f'Name: {this.firstname} {this.lastname}');
+    }
+};
+
+let Student = class(Person) {
+    '__init__': function (fname, lname, graduation_year) {
+        super().__init__(fname, lname);
+        this.graduation_year = graduation_year;
+    },
+    'display_details': function() {
+        this.display_name();
+        print(f'Graduation Year: {this.graduation_year}');
+    }
+};
+
+let student1 = Student("Jane", "Doe", 2025);
+student1.display_details();
+

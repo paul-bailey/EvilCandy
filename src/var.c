@@ -768,9 +768,15 @@ var_setattr(Object *v, Object *key, Object *attr)
 {
         if (isvar_dict(v)) {
                 /* special case, dictionaries use dot notation */
-                return dict_setitem(v, key, attr);
+                if (dict_setitem(v, key, attr) < 0)
+                        goto err_delete;
+                return RES_OK;
         } else if (isvar_instance(v)) {
-                return instance_setattr(v, key, attr);
+                if (instance_setattr(v, key, attr) < 0)
+                        goto err_delete;
+                return RES_OK;
+        } else if (!attr) {
+                goto err_delete;
         } else {
                 enum result_t ret;
                 Object *prop = dict_getitem(v->v_type->methods, key);
@@ -782,6 +788,10 @@ var_setattr(Object *v, Object *key, Object *attr)
                 err_attribute("set", key, v);
                 return RES_ERROR;
         }
+
+err_delete:
+        err_attribute("delete", key, v);
+        return RES_ERROR;
 }
 
 static int

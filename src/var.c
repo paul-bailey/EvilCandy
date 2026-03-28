@@ -543,7 +543,7 @@ var_getattr_map(Object *v, Object *key)
         ret = dict_getitem(v->v_type->methods, key);
         if (ret) {
                 if (isvar_property(ret)) {
-                        Object *tmp = property_get(ret, v);
+                        Object *tmp = property_get(ret, v, key);
                         VAR_DECR_REF(ret);
                         /* XXX if prop is func, swap below? */
                         return tmp;
@@ -720,7 +720,7 @@ var_setattr_map(Object *v, Object *key, Object *attr)
         err_clear();
         prop = dict_getitem(v->v_type->methods, key);
         if (prop && isvar_property(prop)) {
-                ret = property_set(prop, v, attr);
+                ret = property_set(prop, v, attr, key);
                 VAR_DECR_REF(prop);
                 return ret;
         }

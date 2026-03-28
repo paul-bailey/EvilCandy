@@ -47,10 +47,11 @@ let Box = function(**kwargs) {
 
     let ret = {};
     ret.addprop('borderchar',
-                (() => priv.borderchar),
-                /* btw you should never use lambda notation this way :) */
-                (v) => { priv.borderchar = test_borderchar(v); });
-    ret.addprop('count', get=(() => priv.count));
+                property((() => priv.borderchar),
+                         function(v) {
+                            priv.borderchar = test_borderchar(v);
+                         }));
+    ret.addprop('count', property(get=(() => priv.count)));
     ret.print = (longstr, **kw) => {
         let maxwidth = priv.maxwidth;
         let borderchar;

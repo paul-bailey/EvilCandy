@@ -21,7 +21,9 @@ struct global_t {
         Object *fzero;
         Object *cwd;
         Object *mns[N_MNS];
-        Object *codecs[N_CODEC]; /* maps codec to int obj */
+        /* maps codec to int obj */
+        Object *codecs[N_CODEC];
+        /* c-api handles to some built-in classes */
         Object *classes[N_GBL_CLASSES];
 
         /*

@@ -974,45 +974,22 @@ do_dict_setdestructor(Frame *fr)
 static Object *
 do_dict_addprop(Frame *fr)
 {
-        Object *self, *classdict, *name, *prop;
-        Object *getter, *setter, *getterkw, *setterkw;
+        Object *self, *prop, *classdict, *name;
         enum result_t res;
 
         self = vm_get_this(fr);
         bug_on(!isvar_dict(self));
 
-        getter = setter = NULL;
-        getterkw = setterkw = NULL;
-        if (vm_getargs(fr, "<s>[|<x><x>]{|<x><x>}",
-                       &name, &getter, &setter,
-                       STRCONST_ID(get), &getterkw,
-                       STRCONST_ID(set), &setterkw) == RES_ERROR) {
+        prop = NULL;
+        if (vm_getargs(fr, "<s><*>", &name, &prop) == RES_ERROR)
+                return ErrorVar;
+        if (!isvar_property(prop)) {
+                err_setstr(TypeError, "addprop() expected property but got %s",
+                           typestr(prop));
                 return ErrorVar;
         }
-        if (getterkw) {
-                if (getter) {
-                        err_doublearg("get");
-                        return ErrorVar;
-                }
-                getter = getterkw;
-        }
-
-        if (setterkw) {
-                if (setter && setterkw) {
-                        err_doublearg("set");
-                        return ErrorVar;
-                }
-                setter = setterkw;
-        }
-        if (setter == NullVar)
-                setter = NULL;
-        if (getter == NullVar)
-                getter = NULL;
         classdict = dict_assert_hasclassdict(V2D(self));
-        prop = propertyvar_new_user(setter, getter, name);
         res = dict_setitem(classdict, name, prop);
-        VAR_DECR_REF(name);
-        VAR_DECR_REF(prop);
         return res == RES_OK ? NULL : ErrorVar;
 }
 
@@ -1124,7 +1101,7 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("items",     do_dict_items,       0, 0, -1, -1),
         V_INITTBL("inherit",   do_dict_inherit,     1, 1, -1, -1),
         V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
-        V_INITTBL("addprop",   do_dict_addprop,     3, 3,  1,  2),
+        V_INITTBL("addprop",   do_dict_addprop,     2, 2, -1, -1),
         V_INITTBL("purloin",   do_dict_purloin,     0, 1, -1, -1),
         V_INITTBL("setdestructor", do_dict_setdestructor, 1, 1, -1, -1),
         V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
@@ -1652,7 +1629,7 @@ have_prop:
                 VAR_DECR_REF(prop);
                 return RES_ERROR;
         }
-        res = property_set(prop, dict, attr);
+        res = property_set(prop, dict, attr, key);
         VAR_DECR_REF(prop);
         return res;
 }
@@ -1698,7 +1675,7 @@ dict_getattr(Object *dict, Object *key)
                         bug_on(!isvar_property(ret));
 
                         Object *tmp = ret;
-                        ret = property_get(tmp, dict);
+                        ret = property_get(tmp, dict, key);
                         VAR_DECR_REF(tmp);
                         goto found;
                 }
@@ -1709,7 +1686,7 @@ dict_getattr(Object *dict, Object *key)
         if (ret) {
                if (isvar_property(ret)) {
                         Object *tmp = ret;
-                        ret = property_get(ret, dict);
+                        ret = property_get(ret, dict, key);
                         VAR_DECR_REF(tmp);
                 }
                 goto found;

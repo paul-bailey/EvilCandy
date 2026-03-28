@@ -159,7 +159,7 @@ found:
                 VAR_DECR_REF(tmp);
         } else if (isvar_property(ret)) {
                 Object *tmp = ret;
-                ret = property_get(ret, instance);
+                ret = property_get(ret, instance, key);
                 VAR_DECR_REF(tmp);
         }
         return ret;

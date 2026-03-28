@@ -291,11 +291,10 @@ extern Object *method_peek_self(Object *meth);
 
 /* types/property.c */
 extern Object *propertyvar_new_intl(const struct type_prop_t *props);
-extern Object *propertyvar_new_user(Object *setter,
-                                    Object *getter, Object *name);
-extern Object *property_get(Object *prop, Object *owner);
-extern enum result_t property_set(Object *prop,
-                                  Object *owner, Object *value);
+extern Object *propertyvar_new_user(Object *setter, Object *getter);
+extern Object *property_get(Object *prop, Object *owner, Object *name);
+extern enum result_t property_set(Object *prop, Object *owner,
+                                  Object *value, Object *name);
 extern Object *property_inherit(Object *prop, Object *old_class);
 
 /* types/set.c */

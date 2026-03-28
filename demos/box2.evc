@@ -1,0 +1,136 @@
+#!/usr/bin/env evilcandy
+
+// Evil twin of box.evc
+//      box.evc: Use a dictionary to behave like a class instantiation
+//      box2.evc: Use an actual class instantiation.
+
+let err_border = 100;
+
+let Box = class() {
+    '__init__': (**kwargs) => {
+        let priv = {
+            'padleft':      4,
+            'maxwidth':     73,
+            'padtop':       1,
+            'padbottom':    1,
+            'borderchar':   '*'
+        } | kwargs;
+        if ('pad' in priv) {
+            priv.padleft    = priv.pad;
+            priv.padtop     = priv.pad;
+            priv.padbottom  = priv.pad;
+        } else {
+            if ('hpad' in priv) {
+                priv.padleft  = priv.hpad;
+                priv.padright = priv.hpad;
+            }
+            if ('vpad' in priv) {
+                priv.padtop     = priv.vpad;
+                priv.padbottom  = priv.vpad;
+            }
+        }
+        priv.count = 0;
+        this._test_borderchar(priv.borderchar);
+        this._priv = priv;
+    },
+    'borderchar': property(get=function(){
+                      return this._priv.borderchar;
+                  }, set=function(v) {
+                      this._priv.borderchar = this._test_borderchar(v);
+                  }),
+    'count': property(() => this._priv.count),
+    '_test_borderchar': function(c) {
+        if (typeof(c) != 'string')
+            throw (err_border, 'borderchar not a string');
+        if (length(c) != 1)
+            throw (err_border, 'borderchar must be 1 char');
+        return c;
+    },
+    'print': function(longstr, **kw) {
+        let priv = this._priv;
+        let test_borderchar = this._test_borderchar;
+        let maxwidth = priv.maxwidth;
+        let borderchar;
+        let topbottom;
+        let a;
+
+        borderchar = 'borderchar' in kw
+                     ? test_borderchar(kw.borderchar)
+                     : this.borderchar;
+        if (kw has 'width')
+            maxwidth = kw.width;
+
+        // break longstr into word sequence, put back together
+        // in lines.
+        a = ((old_arr, maxwidth) => {
+            let na = [];
+            let str = '';
+            let curlen = 0;
+            for word in old_arr {
+                let len;
+                if (curlen > 0) {
+                    str += ' ';
+                    curlen++;
+                }
+                len = length(word);
+                if (curlen + len >= maxwidth) {
+                    na.append(str.strip());
+                    str = '';
+                    curlen = 0;
+                }
+
+                str += word;
+                curlen += len;
+            } else if (length(str) > 0) {
+                na.append(str.strip());
+            }
+            return na;
+        })(longstr.split(), maxwidth - priv.padleft - 1);
+
+        // Now print it all.
+        topbottom = ''.join([borderchar,
+                             (maxwidth-2) * ' ',
+                             borderchar]);
+        print(maxwidth * borderchar);
+        for i in range(priv.padtop)
+            print(topbottom);
+        for line in a {
+            let padright;
+            line = ''.join([borderchar,
+                           priv.padleft * ' ',
+                           line]);
+            padright = maxwidth - length(line) - 1;
+            if (padright < 0)
+                padright = 0;
+
+            print(line + padright * ' ' + borderchar);
+        }
+        for i in range(priv.padbottom)
+            print(topbottom);
+        print(maxwidth * borderchar);
+        priv.count++;
+   }
+};
+
+let box1 = Box(padleft=2, borderchar='#');
+let box2 = Box(maxwidth=80, pad=2);
+
+box1.print('hello world! I\'m box1! '
+           'Does my string wrap nicely from one line to the next? '
+           'Is there a nice border around me?');
+
+box2.print('...And I am box2!  Is my box bigger than box1?');
+
+box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
+
+if (box1.count != 2 || box2.count != 1) {
+    print(f'box1.count={box1.count}, box2.count={box2.count}');
+    throw "something suspicious with the box counts";
+}
+
+box2.print('NO YOU DON\'T! LOOK AT MEEEEE!!!', borderchar='!');
+
+box1.borderchar = '.';
+
+box1.print('bruh', width=20);
+

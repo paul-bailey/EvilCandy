@@ -45,77 +45,80 @@ let Box = function(**kwargs) {
     priv.count = 0;
     test_borderchar(priv.borderchar);
 
-    let ret = {};
-    ret.addprop('borderchar',
-                property((() => priv.borderchar),
-                         function(v) {
-                            priv.borderchar = test_borderchar(v);
-                         }));
-    ret.addprop('count', property(get=(() => priv.count)));
-    ret.print = (longstr, **kw) => {
-        let maxwidth = priv.maxwidth;
-        let borderchar;
-        let a;
-        let topbottom;
+    return {
+        'borderchar': function(*c) {
+            let n = length(c);
+            if (n > 1)
+                throw err_border, "expected at most one arg to borderchar";
+            else if (n == 1)
+                priv.borderchar = test_borderchar(c[0]);
+            else
+                return priv.borderchar;
+        },
+        'count': function() { return priv.count; },
+        'print': function(longstr, **kw) {
+            let maxwidth = priv.maxwidth;
+            let borderchar;
+            let a;
+            let topbottom;
 
-        borderchar = kw has 'borderchar'
-                     ? test_borderchar(kw.borderchar)
-                     : this.borderchar;
-        if (kw has 'width')
-            maxwidth = kw.width;
+            borderchar = kw has 'borderchar'
+                         ? test_borderchar(kw.borderchar)
+                         : priv.borderchar;
+            if (kw has 'width')
+                maxwidth = kw.width;
 
-        // break longstr into word sequence, put back together
-        // in lines.
-        a = ((old_arr, maxwidth) => {
-            let na = [];
-            let str = '';
-            let curlen = 0;
-            for word in old_arr {
-                let len;
-                if (curlen > 0) {
-                    str += ' ';
-                    curlen++;
-                }
-                len = length(word);
-                if (curlen + len >= maxwidth) {
+            // break longstr into word sequence, put back together
+            // in lines.
+            a = ((old_arr, maxwidth) => {
+                let na = [];
+                let str = '';
+                let curlen = 0;
+                for word in old_arr {
+                    let len;
+                    if (curlen > 0) {
+                        str += ' ';
+                        curlen++;
+                    }
+                    len = length(word);
+                    if (curlen + len >= maxwidth) {
+                        na.append(str.strip());
+                        str = '';
+                        curlen = 0;
+                    }
+
+                    str += word;
+                    curlen += len;
+                } else if (length(str) > 0) {
                     na.append(str.strip());
-                    str = '';
-                    curlen = 0;
                 }
+                return na;
+            })(longstr.split(), maxwidth - priv.padleft - 1);
 
-                str += word;
-                curlen += len;
-            } else if (length(str) > 0) {
-                na.append(str.strip());
+            // Now print it all.
+            topbottom = ''.join([borderchar,
+                                 (maxwidth-2) * ' ',
+                                 borderchar]);
+            print(maxwidth * borderchar);
+            for i in range(priv.padtop)
+                print(topbottom);
+            for line in a {
+                let padright;
+                line = ''.join([borderchar,
+                               priv.padleft * ' ',
+                               line]);
+                padright = maxwidth - length(line) - 1;
+                if (padright < 0)
+                    padright = 0;
+
+                print(line + padright * ' ' + borderchar);
             }
-            return na;
-        })(longstr.split(), maxwidth - priv.padleft - 1);
-
-        // Now print it all.
-        topbottom = ''.join([borderchar,
-                             (maxwidth-2) * ' ',
-                             borderchar]);
-        print(maxwidth * borderchar);
-        for i in range(priv.padtop)
-            print(topbottom);
-        for line in a {
-            let padright;
-            line = ''.join([borderchar,
-                           priv.padleft * ' ',
-                           line]);
-            padright = maxwidth - length(line) - 1;
-            if (padright < 0)
-                padright = 0;
-
-            print(line + padright * ' ' + borderchar);
+            for i in range(priv.padbottom)
+                print(topbottom);
+            print(maxwidth * borderchar);
+            priv.count++;
         }
-        for i in range(priv.padbottom)
-            print(topbottom);
-        print(maxwidth * borderchar);
-        priv.count++;
     };
-
-    return ret;
 };
 
 let box1 = Box(padleft=2, borderchar='#');
@@ -129,11 +132,12 @@ box2.print('...And I am box2!  Is my box bigger than box1?');
 
 box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
 
-if (box1.count != 2 || box2.count != 1)
+if (box1.count() != 2 || box2.count() != 1)
     throw "something suspicious with the box counts";
 
 box2.print('NO YOU DON\'T! LOOK AT MEEEEE!!!', borderchar='!');
 
-box1.borderchar = '.';
+box1.borderchar('.');
 
 box1.print('bruh', width=20);
+

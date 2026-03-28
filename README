@@ -82,29 +82,24 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
 * It has the skeleton of a math and IO library, but these are mainly
   as they were when I threw them together just to see if something works.
 
-* I want to rewrite the parser before I finish some language basics.
-  I have not yet decided on everything I want.  These include things
-  like policy regarding 'else' statement in a 'for' loop, generators,
-  comprehensions... that kind of stuff.
+* Comprehensions and generators are not supported yet.
 
 * It is single-threaded, and it will probably remain that way at least
   for a while.
 
-* It does not support externally-linkable modules.  Currently all the
+* It does not support externally-linkable C modules.  Currently all the
   C code has to be compiled into a single binary.
 
-* It is loaded with thrown-together code that needs refactoring and
-  make-professional-ing.  There is not a lot of portability checking,
-  for example, nor is there much rigorous boundary checking for things
-  like values that are too big for the width of the variable that will
-  store them.
+* I have thus far only run this on Darwin, and compiled it with clang.
 
-* I have thus far only run this on Darwin, and compiled it with...
-  well I *think* it's gcc, but I think that clang and xcode like to
-  lie and call themselves gcc and gmake, I'm not really sure.  But
-  I have not yet done much to make it portable besides a recent
-  migration out of my hand-typed Makefile to an automake-generated
-  Makefile.
+* I have not finished making all my final decisions about syntax.
+  Currently it supports ``this``, but I may remove that in favor of
+  Python's first-argument-is-self approach.
+
+* It has all the characteristics of a source tree that has been maintained
+  by just one person without someone else stress-testing it.  It is loaded
+  with thrown-together code that needs refactoring and make-professional-ing.
+  There is not a lot of portability checking.
 
 So no, EvilCandy is not a ship-able release candidate.
 
@@ -125,8 +120,7 @@ In a nutshell, the resemblance between EvilCandy and JavaScript is mostly
 cosmetic.  The biggest similarity is in the way functions can be pretty
 much declared and defined anywhere.
 
-Tutorial.rst details the syntax and functionality of the language.
-But here are some major differences...
+Here are some major differences...
 
 * All functions are anonymous.  They must be assigned to some variable
   to be accessed by a "name," otherwise they will go out of scope and
@@ -135,13 +129,12 @@ But here are some major differences...
 * There is no ``var`` keyword.  There are only ``let`` and ``global``.
 
 * There (so far) is no ``yield`` statement or any generators or
-  comprehensions.
+  comprehensions.  This may change in the future.
 
-* The ``for`` loop may either be like JS's verbose C-like for-loop,
-  or it may be like Python's eye-friendly for-loop. Depends on how it's
-  expressed.  See documentation for details.  This also means that where
-  speed is a concern, you can avoid the frame-swapping overhead that
-  comes with an array's or dictionary's ``.foreach`` built-in method.
+* The ``for`` loop resembles Python's for loop rather than JavaScript's
+  C-like for loop.  This also means that where speed is a concern, you
+  can avoid the frame-swapping overhead that comes with an array's or
+  dictionary's ``.foreach`` built-in method.
 
 * EvilCandy has a ``range`` data-type like Python, to facilitate using
   the Python-like for-loop for general-purpose do-this-a-million-times
@@ -159,32 +152,22 @@ But here are some major differences...
   seems too heavily tailored for Web browsers to be a good model for
   EvilCandy.
 
-* Some other examples of syntactic changes:
+* I really like the ``else`` clause to Python's ``for`` loop, so I
+  implemented a ``for`` loop that has an optional ``else`` statement,
+  despite the hazard that comes with not using braces (considering an
+  if-else statement in an un-braced ``for`` statement).
 
-  * JavaScript's arrow notation, while cutely imitating the notation of
-    lambda Calculus, is hard to read and even harder for an assembler to
-    parse.  EvilCandy uses an entirely different notation for lambda
-    functions.
+* EvilCandy (currently) has nothing to do with the Document Object Model.
 
-  * I really like the ``else`` clause to Python's ``for`` loop, so I
-    implemented a ``for`` loop that has an
-    optional ``else`` statement.  (**But I might change it** because I
-    have found that this feature is not as well-suited to JS-like syntax
-    as it is to Python, considering how easy it is for a statement with
-    no braces and misleading tabs to confuse a programmer where the
-    program flow is actually going.)
+* EvilCandy is more bare-bones with its native types.  There is a
+  ``class`` syntax, but no ``this.Prototype.Init`` or whatnot.
 
-  * Instead of ``in`` there's ``has``.
-
-  * EvilCandy (currently) has nothing to do with the Document Object Model.
-
-* EvilCandy is more bare-bones with its native types.  There is no
-  ``class`` syntax, no ``thing.Prototype.Init`` or whatnot.  The use
-  of IIFE's, closures, lambda, and functions that can return associative
-  arrays, are all such elegant ways to create a user-defined class
-  without actually calling it a class, that the other stuff just clutters
-  the language up.
-
+* Associative arrays are not class instantiations; they are just pure
+  dictionaries.  As with JavaScript, you could combine closures and
+  dictionaries in a way that forgoes ``class`` syntax altogether, but
+  you have to be more particular about it, because the ``this`` keyword
+  will only not work properly in them.  ``this`` should only be used
+  with class methods.
 
 How Fast Is EvilCandy?
 ----------------------

@@ -53,7 +53,6 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
-  - Separate attribute and item, settle dot-notation rules for dict
   - Implement set xor operator.
   - At minimum complete a walkthrough tutorial in Documentation.
   - Add appropriate interrupt handlers for things like EINTR.
@@ -69,6 +68,7 @@ Must Do
   - Finish path resolution
   - Make consistent and accurate error reporting
 
+  - **done** Separate attribute and item, settle dot-notation rules for dict
   - **circumvented** Solve the inheritance problem with dictionaries
   - **fine with as-is** Finalize closure behavior, be more like theoretical closures.
   - **done** Add user-defined properties to dictionaries
@@ -114,9 +114,6 @@ Must Do
   tests, which can be run in one go to check things before pushing a
   commit onto the repository.
 
-* ``this`` keyword barely tested; it will probably break a lot of
-  stuff that seems to work without it.
-
 * Start adding in test scaffolding where possible.
 
 * Figure out how to deal with duplicate or cyclic loads.  It can't just
@@ -127,9 +124,8 @@ Must Do
 
 * Add input() built-in function
 
-* Add eval() built-in function
 
-
+* **done** Add eval() built-in function
 * **no** Now that variadic functions are internally made into fixed-size
   functions, at least for user-defined functions, we can now get rid of
   the AP/FP distinction.
@@ -172,7 +168,7 @@ Library/Language Features
 
 * Support generators and comprehensions
 
-* Add ``decorate`` method for dictionaries, so that user-defined objects
+* Add ``decorate`` method for classes, so that user-defined objects
   can be added, anded, divided, etc.
 
 * Support soft keywords

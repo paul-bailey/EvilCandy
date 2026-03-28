@@ -267,7 +267,6 @@ static const struct seq_methods_t range_seq_methods = {
 };
 
 static const struct type_inittbl_t range_cb_methods[] = {
-        V_INITTBL("foreach", var_foreach_generic, 1, 2, -1, -1),
         TBLEND,
 };
 

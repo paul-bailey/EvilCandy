@@ -808,7 +808,6 @@ static const struct type_inittbl_t dict_cb_methods[] = {
         V_INITTBL("clear",     do_dict_clear,       0, 0, -1, -1),
         V_INITTBL("copy",      do_dict_copy,        0, 0, -1, -1),
         V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
-        V_INITTBL("foreach",   var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("items",     do_dict_items,       0, 0, -1, -1),
         V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
         V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),

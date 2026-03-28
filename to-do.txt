@@ -152,6 +152,8 @@ Must Do
 Library/Language Features
 -------------------------
 
+* Create a base class for exceptions and use that.
+
 * Support things like "(a(b,c)) = x", ie. recursive unpacking.
 
 * Add 'const' keyword.  Implemented like 'let', except parser prevents
@@ -196,6 +198,12 @@ Library/Language Features
 
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
+
+* Change all built-in functions so they are required to have the proto
+  "function(*args, **kwargs)".  This way, the minargs, maxargs limitation
+  is always the same, and the *actual* specification of a UAPI built-in
+  callback would be defined in one place, the format string of vm_getargs.
+  This would be way less error-prone.
 
 * Make struct type_t into an object, use with ClassVar to create dynamic
   struct type_t's that can more quickly eg. call a class's __str__ method.

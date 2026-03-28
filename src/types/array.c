@@ -1045,7 +1045,6 @@ static const struct type_inittbl_t array_cb_methods[] = {
         V_INITTBL("copy",       do_array_copy,       0, 0, -1, -1),
         V_INITTBL("count",      do_array_count,      1, 1, -1, -1),
         V_INITTBL("extend",     do_array_extend,     1, 1, -1, -1),
-        V_INITTBL("foreach",    var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("index",      do_array_index,      2, 2,  1, -1),
         V_INITTBL("insert",     do_array_insert,     2, 2, -1, -1),
         V_INITTBL("pop",        do_array_pop,        0, 1, -1, -1),

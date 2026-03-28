@@ -8,8 +8,6 @@ do_dir(Frame *fr)
 {
         Object *arg, *arr;
 
-        bug_on(!gbl.stdout_file || !gbl.nl);
-
         arg = vm_get_arg(fr, 0);
         if (!arg) {
                 arr = arrayvar_new(0);

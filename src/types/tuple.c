@@ -558,7 +558,6 @@ tuple_get_iter(Object *tup)
 
 
 static const struct type_inittbl_t tuple_cb_methods[] = {
-        V_INITTBL("foreach", var_foreach_generic, 1, 2, -1, -1),
         V_INITTBL("count",   do_tuple_count,      1, 1, -1, -1),
         V_INITTBL("index",   do_tuple_index,      2, 2,  1, -1),
         TBLEND,

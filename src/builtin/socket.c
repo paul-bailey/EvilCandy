@@ -832,7 +832,7 @@ socket_init(Frame *fr)
 
         socket_initialize_private_data(instance, fd,
                                        domain, type, protocol);
-        return instance;
+        return NULL;
 }
 
 static Object *

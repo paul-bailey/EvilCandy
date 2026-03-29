@@ -9,6 +9,7 @@ struct class_t {
         struct seqvar_t obj_head;
         Object *c_bases;
         Object *c_dict;
+        Object *c_name;
 };
 
 struct instance_t {
@@ -31,6 +32,10 @@ class_reset(Object *class)
                 VAR_DECR_REF(x);
 
         x = V2CL(class)->c_dict;
+        if (x)
+                VAR_DECR_REF(x);
+
+        x = V2CL(class)->c_name;
         if (x)
                 VAR_DECR_REF(x);
 }
@@ -144,7 +149,23 @@ verify_base_classes(Object *bases, size_t *size)
 static Object *
 instance_str(Object *instance)
 {
-        return instance_call(instance, STRCONST_ID(__str__), NULL, NULL);
+        Object *name_obj, *ret;
+        const char *name;
+
+        ret = instance_call(instance, STRCONST_ID(__str__), NULL, NULL);
+        if (ret && ret != ErrorVar)
+                return ret;
+
+        err_clear();
+        name_obj = V2CL(V2INST(instance)->inst_class)->c_name;
+        if (name_obj) {
+                name = string_cstring(name_obj);
+        } else {
+                name = "<anonymous class>";
+        }
+
+        return stringvar_from_format("<instance of %s at %p>",
+                                     name, instance);
 }
 
 Object *
@@ -261,15 +282,17 @@ instance_super_getattr(Object *instance, Object *attribute_name)
  * classvar_new - Create a class
  * @bases: A tuple containing inherited base classes
  * @dict: Dictionary of methods, properties, and data
+ * @name: NULL, NullVar, or a string object that names the class.
  */
 Object *
-classvar_new(Object *bases, Object *dict)
+classvar_new(Object *bases, Object *dict, Object *name)
 {
         Object *ret;
         struct class_t *class;
         size_t size;
 
         bug_on(!dict || !isvar_dict(dict));
+        bug_on(name && name != NullVar && !isvar_string(name));
 
         size = seqvar_size(dict);
         if (bases) {
@@ -278,10 +301,14 @@ classvar_new(Object *bases, Object *dict)
                         return bases;
         }
 
+        if (name == NullVar)
+                name = NULL;
+
         ret = var_new(&ClassType);
         class = V2CL(ret);
         class->c_bases = bases;
         class->c_dict = VAR_NEW_REF(dict);
+        class->c_name = name ? VAR_NEW_REF(name) : NULL;
         seqvar_set_size(ret, size);
         return ret;
 }

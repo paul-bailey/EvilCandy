@@ -612,13 +612,15 @@ do_deffunc(Frame *fr, instruction_t ii)
 static int
 do_defclass(Frame *fr, instruction_t ii)
 {
-        Object *dict, *bases, *class;
+        Object *dict, *bases, *name, *class;
 
+        name = pop(fr);
         dict = pop(fr);
         bases = pop(fr);
-        class = classvar_new(bases, dict);
+        class = classvar_new(bases, dict, name);
         VAR_DECR_REF(bases);
         VAR_DECR_REF(dict);
+        VAR_DECR_REF(name);
         if (class == ErrorVar)
                 return RES_ERROR;
         push(fr, class);

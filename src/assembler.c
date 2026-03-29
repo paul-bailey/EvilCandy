@@ -872,7 +872,7 @@ assemble_function_body(struct assemble_t *a,
 }
 
 static int
-assemble_funcdef(struct assemble_t *a)
+assemble_funcdef(struct assemble_t *a, struct token_t *name)
 {
         struct arglist_t alist;
         int ret;
@@ -882,6 +882,7 @@ assemble_funcdef(struct assemble_t *a)
         if (gather_arglist(a, &alist, ERRH_EXCEPTION) < 0)
                 return -1;
 
+        /* TODO: Use 'name' */
         ret = assemble_function_body(a, false, &alist);
         cleanup_arglist(&alist);
         return ret;
@@ -1205,7 +1206,7 @@ assemble_setdef(struct assemble_t *a)
  *      () { dict }
  */
 static int
-assemble_classdef(struct assemble_t *a)
+assemble_classdef(struct assemble_t *a, struct token_t *name)
 {
         int res;
         /*
@@ -1220,6 +1221,12 @@ assemble_classdef(struct assemble_t *a)
                 return -1;
         if (assemble_dictdef(a, 0, false))
                 return -1;
+
+        if (name)
+                ainstr_load_const(a, name);
+        else
+                ainstr_load_null(a);
+
         add_instr(a, INSTR_DEFCLASS, 0, 0);
         return 0;
 }
@@ -1598,7 +1605,7 @@ assemble_expr5_atomic(struct assemble_t *a)
         }
 
         case OC_CLASS:
-                if (assemble_classdef(a) < 0)
+                if (assemble_classdef(a, NULL) < 0)
                         return -1;
                 break;
 
@@ -1631,7 +1638,7 @@ assemble_expr5_atomic(struct assemble_t *a)
                 break;
 
         case OC_FUNC:
-                if (assemble_funcdef(a) < 0)
+                if (assemble_funcdef(a, NULL) < 0)
                         return -1;
                 break;
         case OC_LBRACK:
@@ -2783,10 +2790,10 @@ assemble_named_callable(struct assemble_t *a, int parsed_token,
         /* assemble */
         switch (parsed_token) {
         case OC_FUNC:
-                result = assemble_funcdef(a);
+                result = assemble_funcdef(a, name_token);
                 break;
         case OC_CLASS:
-                result = assemble_classdef(a);
+                result = assemble_classdef(a, name_token);
                 break;
         default:
                 result = -1;

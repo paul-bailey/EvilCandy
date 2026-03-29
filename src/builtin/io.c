@@ -425,7 +425,7 @@ open_raw(int fd, struct fileconfig_t *cfg)
                 };
                 Object *methods;
                 methods = dictvar_from_methods(NULL, rawfile_cb_methods);
-                class = classvar_new(NULL, methods);
+                class = classvar_new(NULL, methods, NULL);
                 VAR_DECR_REF(methods);
                 gbl.classes[GBL_CLASS_RAWFILE] = class;
         }
@@ -680,7 +680,7 @@ open_binary(int fd, struct fileconfig_t *cfg)
                 };
                 Object *methods;
                 methods = dictvar_from_methods(NULL, binfile_cb_methods);
-                class = classvar_new(NULL, methods);
+                class = classvar_new(NULL, methods, NULL);
                 VAR_DECR_REF(methods);
                 gbl.classes[GBL_CLASS_BINFILE] = class;
         }
@@ -1064,7 +1064,7 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
                 };
                 Object *methods;
                 methods = dictvar_from_methods(NULL, textfile_cb_methods);
-                class = classvar_new(NULL, methods);
+                class = classvar_new(NULL, methods, NULL);
                 VAR_DECR_REF(methods);
                 gbl.classes[GBL_CLASS_TXTFILE] = class;
         }

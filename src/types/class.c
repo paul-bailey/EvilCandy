@@ -116,46 +116,6 @@ instance_get_priv(Object *instance)
 }
 
 static Object *
-instance_getitem(Object *instance, Object *key)
-{
-        Object *ret;
-        struct instance_t *inst;
-
-        inst = V2INST(instance);
-        bug_on(!isvar_instance(instance));
-        bug_on(!inst->inst_attr);
-        bug_on(!inst->inst_class);
-
-        ret = dict_getitem(inst->inst_attr, key);
-        if (ret)
-                goto found;
-        ret = class_getitem(inst->inst_class, key);
-        if (ret)
-                goto found;
-        return NULL;
-
-found:
-        if (isvar_function(ret)) {
-                Object *tmp = ret;
-                ret = methodvar_new(tmp, instance);
-                VAR_DECR_REF(tmp);
-        } else if (isvar_property(ret)) {
-                Object *tmp = ret;
-                ret = property_get(ret, instance, key);
-                VAR_DECR_REF(tmp);
-        }
-        return ret;
-}
-
-static enum result_t
-instance_setitem(Object *instance, Object *key, Object *item)
-{
-        /* FIXME: what if we're setting a property? */
-        bug_on(!isvar_instance(instance));
-        return dict_setitem(V2INST(instance)->inst_attr, key, item);
-}
-
-static Object *
 verify_base_classes(Object *bases, size_t *size)
 {
         size_t i, n;
@@ -190,13 +150,41 @@ instance_str(Object *instance)
 Object *
 instance_getattr(Object *instance, Object *key)
 {
-        return instance_getitem(instance, key);
+        Object *ret;
+        struct instance_t *inst;
+
+        inst = V2INST(instance);
+        bug_on(!isvar_instance(instance));
+        bug_on(!inst->inst_attr);
+        bug_on(!inst->inst_class);
+
+        ret = dict_getitem(inst->inst_attr, key);
+        if (ret)
+                goto found;
+        ret = class_getitem(inst->inst_class, key);
+        if (ret)
+                goto found;
+        return NULL;
+
+found:
+        if (isvar_function(ret)) {
+                Object *tmp = ret;
+                ret = methodvar_new(tmp, instance);
+                VAR_DECR_REF(tmp);
+        } else if (isvar_property(ret)) {
+                Object *tmp = ret;
+                ret = property_get(ret, instance, key);
+                VAR_DECR_REF(tmp);
+        }
+        return ret;
 }
 
 enum result_t
 instance_setattr(Object *instance, Object *key, Object *value)
 {
-        return instance_setitem(instance, key, value);
+        /* FIXME: what if we're setting a property? */
+        bug_on(!isvar_instance(instance));
+        return dict_setitem(V2INST(instance)->inst_attr, key, value);
 }
 
 Object *
@@ -223,7 +211,7 @@ instance_call(Object *instance, Object *method_name,
               Object *args, Object *kwargs)
 {
         Object *ret;
-        Object *method = instance_getitem(instance, method_name);
+        Object *method = instance_getattr(instance, method_name);
         if (!method)
                 return NULL;
         if (!isvar_method(method)) {
@@ -237,10 +225,14 @@ instance_call(Object *instance, Object *method_name,
 }
 
 /**
- * instance_super - Get the base class of an instance.
+ * instance_super_getattr - Get an attribute from the base class of an
+ *                          instance.
+ * @instance: Instance to get the super from
+ * @attribute_name: Name of the attribute
  *
- * Return: super or NULL if no super.  No exception will be thrown
- *         if super not found.
+ * Return: super's attribute or NULL if either no super or super does not
+ *         contain attribute.  No exception will be thrown if super not
+ *         found.
  */
 Object *
 instance_super_getattr(Object *instance, Object *attribute_name)

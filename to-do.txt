@@ -53,7 +53,6 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
-  - Implement set xor operator.
   - At minimum complete a walkthrough tutorial in Documentation.
   - Add appropriate interrupt handlers for things like EINTR.
   - Fill in set library.
@@ -66,6 +65,7 @@ Must Do
   - Finish path resolution
   - Make consistent and accurate error reporting
 
+  - **done** Implement set xor operator.
   - **done** Handle no-args to dir() function.
   - **no** Use double-underscores for dict builtins to give users more name options.
   - **done** Separate attribute and item, settle dot-notation rules for dict

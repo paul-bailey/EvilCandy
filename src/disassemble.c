@@ -117,16 +117,23 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex,
         v = tuple_getitem_noref(ex->rodata, i);
 
         if (isvar_xptr(v)) {
+                struct xptrvar_t *x = (struct xptrvar_t *)v;
                 /* XXX: it's a bug not to put this in configure.ac */
                 bug_on(sizeof(void *) > sizeof(long long));
+                if (in_comment && x->funcname) {
+                        fprintf(fp, "%s", string_cstring(x->funcname));
+                        return;
+                }
                 fprintf(fp, "<%p>", v);
+                if (!in_comment && x->funcname) {
+                        fprintf(fp, "\t# %s", string_cstring(x->funcname));
+                }
         } else {
                 Object *str = var_str(v);
                 bug_on(!isvar_string(str) || !string_isascii(str));
                 if (in_comment) {
                         const char *s = string_cstring(str);
                         size_t len = string_nbytes(str);
-                        /* XXX What if len != strlen(s)? */
                         if (len > 20) {
                                 len = 20;
                                 while (len--)
@@ -298,6 +305,10 @@ disassemble_recursive(FILE *fp, struct xptrvar_t *ex, unsigned int flags)
 
         fprintf(fp, ".start <%p>\n", ex);
         if (!!(flags & DF_VERBOSE)) {
+                if (ex->funcname) {
+                        fprintf(fp, "# function %s\n",
+                                string_cstring(ex->funcname));
+                }
                 fprintf(fp, "# in file \"%s\"\n", ex->file_name);
                 fprintf(fp, "# starting at line %d\n", ex->file_line);
                 labels = build_labels(ex, &nlabel);

@@ -203,9 +203,12 @@ parse_funcid(struct reassemble_t *ra, const char *pc, bool may_push)
          * Don't do this for entry point, new_assembler() already did
          * that.  We're losing the function number here, but that's OK
          * because no one needs to point to the entry point.
+         *
+         * TODO: Add optional "name" to .start directive, so we don't
+         * lose function name in reassembly.
          */
         if (may_push)
-                assemble_frame_push(ra->a, id);
+                assemble_frame_push(ra->a, id, NULL);
 
         return 0;
 

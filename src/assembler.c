@@ -818,7 +818,7 @@ assemble_slice(struct assemble_t *a)
  */
 static int
 assemble_function_body(struct assemble_t *a,
-                       bool lambda, struct arglist_t *alist)
+                       bool lambda, struct arglist_t *alist, Object *name)
 {
         int funcno = as_next_funcno(a);
 
@@ -835,7 +835,7 @@ assemble_function_body(struct assemble_t *a,
                           IARG_FUNC_KWIND, alist->starstar);
         }
 
-        assemble_frame_push(a, funcno);
+        assemble_frame_push(a, funcno, name);
         {
                 struct list_t *p;
                 bool have_brace;
@@ -882,8 +882,8 @@ assemble_funcdef(struct assemble_t *a, struct token_t *name)
         if (gather_arglist(a, &alist, ERRH_EXCEPTION) < 0)
                 return -1;
 
-        /* TODO: Use 'name' */
-        ret = assemble_function_body(a, false, &alist);
+        ret = assemble_function_body(a, false, &alist,
+                                     name ? name->v : NULL);
         cleanup_arglist(&alist);
         return ret;
 }
@@ -963,7 +963,7 @@ assemble_arrow_lambda(struct assemble_t *a)
                 goto not_arrow;
 
         /* must be lambda, so error hereafter is for-real error */
-        ret = assemble_function_body(a, true, &alist);
+        ret = assemble_function_body(a, true, &alist, NULL);
         cleanup_arglist(&alist);
         return ret < 0 ? ret : 1;
 
@@ -3041,7 +3041,7 @@ new_assembler(const char *source_file_name, FILE *fp,
         }
         list_init(&a->active_frames);
         list_init(&a->finished_frames);
-        assemble_frame_push(a, as_next_funcno(a));
+        assemble_frame_push(a, as_next_funcno(a), NULL);
         return a;
 }
 
@@ -3071,6 +3071,8 @@ as_delete_frame_list(struct list_t *parent_list)
                 VAR_DECR_REF(fr->af_closures);
                 VAR_DECR_REF(fr->af_rodata);
                 VAR_DECR_REF(fr->af_names);
+                if (fr->af_funcname)
+                        VAR_DECR_REF(fr->af_funcname);
 
                 buffer_free(&fr->af_localmap);
                 buffer_free(&fr->af_labels);
@@ -3232,7 +3234,7 @@ assemble_seek_rodata(struct assemble_t *a, Object *v)
 }
 
 void
-assemble_frame_push(struct assemble_t *a, long long funcno)
+assemble_frame_push(struct assemble_t *a, long long funcno, Object *name)
 {
         struct as_frame_t *fr;
 
@@ -3244,6 +3246,7 @@ assemble_frame_push(struct assemble_t *a, long long funcno)
         fr->af_closures = arrayvar_new(0);
         fr->af_rodata   = arrayvar_new(0);
         fr->af_names    = arrayvar_new(0);
+        fr->af_funcname = name ? VAR_NEW_REF(name) : NULL;
         /* memset did this, but just in case buffer.c internals change... */
         buffer_init(&fr->af_localmap);
         buffer_init(&fr->af_labels);

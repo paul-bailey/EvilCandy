@@ -15,6 +15,8 @@ xptr_reset(Object *v)
                 efree(ex->file_name);
         if (ex->names)
                 VAR_DECR_REF(ex->names);
+        if (ex->funcname)
+                VAR_DECR_REF(ex->funcname);
 }
 
 static int
@@ -92,6 +94,9 @@ xptrvar_new(const struct xptr_cfg_t *cfg)
         x->file_name    = estrdup(cfg->file_name);
         x->file_line    = cfg->file_line;
         x->n_locals     = cfg->n_locals;
+        x->funcname     = cfg->funcname;
+        if (x->funcname)
+                VAR_INCR_REF(x->funcname);
         return v;
 }
 

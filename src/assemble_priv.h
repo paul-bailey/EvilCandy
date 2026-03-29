@@ -20,6 +20,8 @@
  *               The actual locals array will not.
  * @af_names:    For debug purposes, names of local variables in the
  *               order in which they would appear on the stack.
+ * @af_funcname: Name of function if not anonymous.  Always NULL if
+ *               anonymous.
  * @af_labels:   Jump labels, array of short ints
  * @af_instr;    Instructions, array of instruction_t
  * @scope:       Current {...} scope within the function
@@ -43,6 +45,7 @@ struct as_frame_t {
         Object *af_closures;
         Object *af_rodata;
         Object *af_names;
+        Object *af_funcname;
         struct buffer_t af_localmap;
         struct buffer_t af_labels;
         struct buffer_t af_instr;
@@ -109,7 +112,8 @@ static inline int as_frame_nlabel(struct as_frame_t *fr)
 /* assemble.c */
 extern int assemble_seek_rodata(struct assemble_t *a, Object *v);
 extern void assemble_label_here(struct assemble_t *a);
-extern void assemble_frame_push(struct assemble_t *a, long long funcno);
+extern void assemble_frame_push(struct assemble_t *a,
+                                long long funcno, Object *name);
 extern void assemble_frame_pop(struct assemble_t *a);
 extern void assemble_add_instr(struct assemble_t *a, int opcode,
                                int arg1, int arg2);

@@ -833,6 +833,7 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
                 cfg.instr       = buffer_trim(&fr->af_instr);
                 cfg.n_locals    = fr->af_nlocals;
                 cfg.names       = fr->af_names;
+                cfg.funcname    = fr->af_funcname;
                 x = (struct xptrvar_t *)xptrvar_new(&cfg);
         } while (0);
 

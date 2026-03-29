@@ -308,11 +308,32 @@ set_union_op(Object *a, Object *b)
         return new;
 }
 
+/* helper to set_exclusive_op */
+static void
+set_exclusive_from_one(Object *output, Object *this_set, Object *other_set)
+{
+        struct setvar_t *sv = (struct setvar_t *)this_set;
+        size_t i;
+        for (i = 0; i < sv->s_size; i++) {
+                enum result_t res;
+                Object *k = sv->s_keys[i];
+                if (!k || k == BUCKET_DEAD)
+                        continue;
+                if (set_hasitem(other_set, k))
+                        continue;
+                res = set_additem(output, k, NULL);
+                bug_on(res == RES_ERROR);
+                (void)res;
+        }
+}
+
 static Object *
 set_exclusive_op(Object *a, Object *b)
 {
-        err_setstr(NotImplementedError, "'^' not yet implemented for sets");
-        return ErrorVar;
+        Object *new = setvar_instantiate();
+        set_exclusive_from_one(new, a, b);
+        set_exclusive_from_one(new, b, a);
+        return new;
 }
 
 static Object *

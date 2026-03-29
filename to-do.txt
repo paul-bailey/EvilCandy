@@ -56,10 +56,8 @@ Must Do
   - Implement set xor operator.
   - At minimum complete a walkthrough tutorial in Documentation.
   - Add appropriate interrupt handlers for things like EINTR.
-  - Use double-underscores for dict builtins to give users more name options.
   - Fill in set library.
   - Support double star in function call
-  - Handle no-args to dir() function.
   - Add mutable alternative to bytes
   - Add self-documentation
   - Fill in math, cmath, io, socket libraries
@@ -68,6 +66,8 @@ Must Do
   - Finish path resolution
   - Make consistent and accurate error reporting
 
+  - **done** Handle no-args to dir() function.
+  - **no** Use double-underscores for dict builtins to give users more name options.
   - **done** Separate attribute and item, settle dot-notation rules for dict
   - **circumvented** Solve the inheritance problem with dictionaries
   - **fine with as-is** Finalize closure behavior, be more like theoretical closures.
@@ -199,12 +199,6 @@ Library/Language Features
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
-* Change all built-in functions so they are required to have the proto
-  "function(*args, **kwargs)".  This way, the minargs, maxargs limitation
-  is always the same, and the *actual* specification of a UAPI built-in
-  callback would be defined in one place, the format string of vm_getargs.
-  This would be way less error-prone.
-
 * Make struct type_t into an object, use with ClassVar to create dynamic
   struct type_t's that can more quickly eg. call a class's __str__ method.
   Cf. Python's 'slots' paradigm.
@@ -224,6 +218,11 @@ Mebbe/Wishlist/Low-prio bugs
   fast-path method.
 
 
+* **done** Change all built-in functions so they are required to have the proto
+  "function(*args, **kwargs)".  This way, the minargs, maxargs limitation
+  is always the same, and the *actual* specification of a UAPI built-in
+  callback would be defined in one place, the format string of vm_getargs.
+  This would be way less error-prone.
 * **done** Replace setjmp in assemble.c with normal stack unwinding.
 * **done** Replace stack arrangement of FOREACH_ITER to use an iterator of the
   sort used in var.c, any/all/max/min functions.  This ought to speed

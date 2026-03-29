@@ -531,12 +531,10 @@ ainstr_return_null(struct assemble_t *a)
  * Declare a local variable.
  * @name is name of variable being declared.
  *
- * XXX REVISIT: This has an old, now misleading, function name
- *
  * return idx >= 0, or -1 if error;
  */
 static int
-fakestack_declare(struct assemble_t *a, Object *name)
+as_add_local(struct assemble_t *a, Object *name)
 {
         int idx;
         bug_on(!name);
@@ -1602,7 +1600,7 @@ assemble_expr5_atomic(struct assemble_t *a)
                  * we don't need to save empty var in rodata,
                  * regular push operation pushes empty by default.
                  * This is still part of the evaluation, so no need
-                 * for fakestack_declare().
+                 * for as_add_local().
                  */
                 ainstr_load_null(a);
                 break;
@@ -2313,7 +2311,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name,
                 }
         } else {
                 bug_on(!name);
-                namei = fakestack_declare(a, name->v);
+                namei = as_add_local(a, name->v);
                 if (namei < 0)
                         return -1;
                 if (!(flags & FE_SKIPNULLASSIGN)) {
@@ -2461,7 +2459,7 @@ assemble_try(struct assemble_t *a)
         as_savetok(a, &exctok);
         if (as_errlex(a, OC_RPAR) < 0)
                 return -1;
-        if (fakestack_declare(a, exctok->v) < 0)
+        if (as_add_local(a, exctok->v) < 0)
                 return -1;
         if (assemble_stmt(a, 0, 0) < 0)
                 return -1;
@@ -2596,7 +2594,7 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                 struct names_t *n = AS_LIST2NAMES(names->next);
                 struct token_t *tok = AS_NAME2TOK(a, n);
                 bug_on(!tok->v);
-                n->namei = fakestack_declare(a, tok->v);
+                n->namei = as_add_local(a, tok->v);
                 if (n->namei < 0)
                         return -1;
                 add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
@@ -2612,7 +2610,7 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                         struct names_t *n = AS_LIST2NAMES(p);
                         struct token_t *tok = AS_NAME2TOK(a, n);
                         bug_on(!tok->v);
-                        n->namei = fakestack_declare(a, tok->v);
+                        n->namei = as_add_local(a, tok->v);
                         if (n->namei < 0)
                                 return -1;
                         i++;

@@ -1,7 +1,6 @@
 /*
  * To test reduce_pathname_in_place:
- *      set TEST_RPIP to 1
- *      cc -DTEST_RPIP path2.c
+ *      cc -DTEST_RPIP path.c
  *      ./a.out
  * If you can think of some more ways to test it,
  * add it to main() below.

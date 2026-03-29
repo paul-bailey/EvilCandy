@@ -22,7 +22,7 @@
     print("length(iterator) is", length(iterator));
     print("iterator['✓'] is", iterator['✓']);
 })((function (){
-    let mkiter = function(stop) {
+    function mkiter(stop) {
         return (start) => {
             print('\t', end='');
             for i in range(start, stop)

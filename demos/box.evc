@@ -3,7 +3,7 @@
 // This is not the best class in the world, it's just to half-test,
 // half-demonstrate the features of the language.  All kinds of bad
 // input are possible, especially abusively long words.
-let Box = function(**kwargs) {
+function Box(**kwargs) {
     let err_border = 100;
 
     let priv = {

@@ -1363,10 +1363,35 @@ ainstr_load_symbol(struct assemble_t *a, token_pos_t pos)
         return ainstr_load_or_assign(a, INSTR_LOAD_LOCAL, pos);
 }
 
+/*
+ * Which to use:
+ * Use ainstr_assign_symbol for
+ *      x = y;
+ * Use ainstr_assign_initializer for
+ *      let x = y;
+ */
 static int
 ainstr_assign_symbol(struct assemble_t *a, token_pos_t pos)
 {
         return ainstr_load_or_assign(a, INSTR_ASSIGN_LOCAL, pos);
+}
+
+static int
+ainstr_assign_initializer(struct assemble_t *a, unsigned int flags,
+                          bool global, int namei)
+{
+        int instr, arg1;
+        arg1 = 0;
+        if (global) {
+                instr = INSTR_ASSIGN_GLOBAL;
+        } else if (!!(flags & FE_TOP)) {
+                instr = INSTR_ASSIGN_NAME;
+        } else {
+                instr = INSTR_ASSIGN_LOCAL;
+                arg1 = IARG_PTR_AP;
+        }
+        add_instr(a, instr, arg1, namei);
+        return 0;
 }
 
 static int
@@ -2287,6 +2312,15 @@ baddelete:
  * helper to assemble_declarator_stmt
  *
  * return index >= 0, or -1 if error
+ *
+ * FE_SKIPNULLASSIGN is because we could be parsing a repetitive loop, in
+ * which case the variable needs to be reset each iteration (since it's
+ * technically being re-declared).
+ *
+ * DO use FE_SKIPNULLASSIGN if the line is
+ *      let x = initializer;
+ * DO NOT use FE_SKIPNULLASIGN if the line is
+ *      let x;
  */
 static int
 assemble_declare(struct assemble_t *a, struct token_t *name,
@@ -2315,11 +2349,6 @@ assemble_declare(struct assemble_t *a, struct token_t *name,
                 if (namei < 0)
                         return -1;
                 if (!(flags & FE_SKIPNULLASSIGN)) {
-                        /*
-                         * XXX: This opcode is needed for example when re-
-                         * starting a {...} namespace in a for loop, but in most
-                         * cases this is a redundant step.
-                         */
                         ainstr_load_null(a);
                         add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, namei);
                 }
@@ -2391,18 +2420,11 @@ assemble_declarator_stmt(struct assemble_t *a, int tok, unsigned int flags)
 
         list_foreach(p, &names) {
                 struct names_t *n = AS_LIST2NAMES(p);
-                int instr, arg1 = 0;
-
-                /* XXX: DRY violation with ainstr_assign_symbol */
-                if (global) {
-                        instr = INSTR_ASSIGN_GLOBAL;
-                } else if (!!(flags & FE_TOP)) {
-                        instr = INSTR_ASSIGN_NAME;
-                } else {
-                        instr = INSTR_ASSIGN_LOCAL;
-                        arg1 = IARG_PTR_AP;
+                if (ainstr_assign_initializer(a, flags,
+                                              global, n->namei) < 0) {
+                        goto err_clean;
                 }
-                add_instr(a, instr, arg1, n->namei);
+
         }
 done:
         cleanup_names(&names);
@@ -2740,6 +2762,45 @@ assemble_throw(struct assemble_t *a)
 }
 
 /*
+ * "function name(){...}" as opposed to "let name = function(){...};"
+ * "class name(){...}"    as opposed to "let name = class(){...};"
+ *
+ * assemble_eval_expr() deals with the latter case, this deals with the
+ * former, making it functionally equivalent to the latter.
+ * These are only permitted as statements; they cannot exist as
+ * expressions, e.g. "let x = function y() {...};"
+ */
+static int
+assemble_named_callable(struct assemble_t *a, int parsed_token,
+                        struct token_t *name_token, unsigned int flags)
+{
+        int result;
+        int namei = assemble_declare(a, name_token, false,
+                                     flags | FE_SKIPNULLASSIGN);
+        if (namei < 0)
+                return -1;
+
+        /* assemble */
+        switch (parsed_token) {
+        case OC_FUNC:
+                result = assemble_funcdef(a);
+                break;
+        case OC_CLASS:
+                result = assemble_classdef(a);
+                break;
+        default:
+                result = -1;
+                bug();
+        }
+        if (result < 0)
+                return -1;
+
+        if (ainstr_assign_initializer(a, flags, false, namei) < 0)
+                return -1;
+        return 0;
+}
+
+/*
  * parse '{' stmt; stmt;... '}'
  * The first '{' has already been read.
  */
@@ -2840,6 +2901,17 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 if (assemble_declarator_stmt(a, a->oc->t, flags) < 0)
                         return -1;
                 break;
+        case OC_FUNC:
+        case OC_CLASS: {
+                int tk = a->oc->t;
+                if (as_lex(a) < 0)
+                        return -1;
+                if (a->oc->t != OC_IDENTIFIER) {
+                        as_unlex(a);
+                        goto eval_only;
+                }
+                return assemble_named_callable(a, tk, a->oc, flags);
+        }
         case OC_RETURN:
                 if (!!(flags & FE_TOP)) {
                         err_setstr(SyntaxError,
@@ -2891,14 +2963,12 @@ eval_only:
                 }
         }
 
-        if (as_lex(a) < 0)
-                return -1;
-        if (a->oc->t != OC_SEMI) {
-                if (need_semi) {
+        if (need_semi) {
+                if (as_lex(a) < 0)
+                        return -1;
+                if (a->oc->t != OC_SEMI) {
                         err_ae_expect(a, OC_SEMI);
                         return -1;
-                } else {
-                        as_unlex(a);
                 }
         }
         return 0;

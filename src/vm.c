@@ -10,20 +10,6 @@
  * consists of the callbacks; the table itself is auto-generated as
  * "vm_gen.c.h" and inserted with an #include in the middle of JUMP_TABLE
  * below.
- *
- * This is slightly less optimal than a switch statement, since the
- * callbacks need access to some upstream variables; C's pass-by-value
- * enforcement requires the overhead of passing pointers onto the stack
- * during these function calls.  The problem with switch statements is
- * that they will compile into a (crippling, in this case) if-else-if
- * block unless you take the sort of fussy precautions that are way too
- * easy to overlook.  Looking at Cpython's code, I see that they use a
- * fifty-mile-long switch statement with tons of gimmicks like a choice
- * between replacing it with an indefinitely recursible tail-call system
- * or a rat's nest of goto labels with a Gnu-specific array of goto
- * targets.  Well, more power to them, since they also have legions of
- * developers to check each other.  I'll play it safe and accept being
- * like 5% slower.
  */
 #include <evilcandy.h>
 #include <token.h>

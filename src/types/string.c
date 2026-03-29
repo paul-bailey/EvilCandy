@@ -1,17 +1,18 @@
 /*
  * string.c - Built-in methods for string data types
  *
- *      Creating new string objects:
- *      ----------------------------
- *
  * Strings have two buffers (unless they happen to be 100%-ASCII). The
  * first is the string objects's .s field, a C-string containing only
- * ASCII or UTF-8 encoded characters.  This is '\0'-terminated; EvilCandy
- * strings may not have embedded zeroes, or else this won't work.  The
- * other buffer is an array of Unicode points, whose width is specified
- * by the string's .s_width field.  For speed, the Unicode arrays are
- * operated on the most.  The C string is used for hashing and printing
- * (since most every output takes UTF-8).
+ * ASCII or UTF-8 encoded characters.  string_cstring() returns this
+ * (directly, not copied).  The second buffer is an array of Unicode
+ * points, whose width is specified by the string's .s_width field.  For
+ * speed, the Unicode arrays are operated on the most.  The C string is
+ * used for hashing and printing (since most every output takes UTF-8).
+ *
+ * seqvar_size(str) measures number of Unicode points, not the number of
+ * encoded C-string bytes.  For the latter, use string_nbytes().  If
+ * string_nbytes(str) does not match strlen(string_cstring(str)), it
+ * means that 'str' has embedded nullchars.
  *
  * If any .s field is not properly UTF-8 encoded, then different Objects
  * with the exact same Unicode points could end up with different hashes.
@@ -21,12 +22,17 @@
  * argument is properly-encoded already.
  *
  * creation for INTERNAL use:
- *         stringvar_new()
- *         stringvar_newn()
- *         stringvar_nocopy()
+ *      stringvar_new()
+ *      stringvar_newn()
+ *      stringvar_from_ascii()
+ *      stringvar_from_format()
+ *      stringvar_from_vformat()
  *
  * creation from USER literal:
- *         stringvar_from_source()
+ *      stringvar_from_source()
+ *
+ * Other creation methods are from existing string or using the string-
+ * writer API.
  */
 #include <evilcandy.h>
 #include <errno.h>
@@ -549,27 +555,6 @@ str_finish_digit(Object *str, size_t *pos, long startpoint)
 /* **********************************************************************
  *                      format2 and helpers
  ***********************************************************************/
-
-/*
- * FIXME: It would be great to reduce these ~500 lines of code to just:
- *
- *      ssize_t need_len = snprintf(NULL, 0, msg, ap);
- *      if (need_len > 0) {
- *              new_ptr = realloc(buf->s, buf->size + need_len + 1);
- *              sprintf(new_ptr + buf->size, msg, ap);
- *              buf->s = new_ptr;
- *              buf->size += need_len;
- *      }
- *
- * The double-call is a lot of overhead, but my hand-coded implementation
- * below is probably not much faster, and not nearly as well debugged.
- * Using asprintf() would have only the overhead of realloc and strcat,
- * but it seems to be Gnu-only.  The hard part would be figuring out how
- * to build ap, since it's not called from a variadic function.
- *
- * Is this snprintf behavior (return proper count if size=0) standard? or
- * is it specific to just POSIX?
- */
 
 struct fmt_args_t {
         int conv;

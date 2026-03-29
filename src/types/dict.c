@@ -4,11 +4,6 @@
  * JavaScript calls these "objects".  Python calls them "dictionaries".
  * Calling one kind of an object an 'object' to distinguish it from another
  * kind of object is kind of janky, so I'm going with Python on this one.
- *
- * Still, EvilCandy takes JavaScript's Middle Way:  Internal code which
- * accesses dictionaries using these API functions directly can treat a
- * dictionary like a pure associative array, while dictionaries accessed
- * by user code are assumed to be class instantiations.
  */
 #include <evilcandy.h>
 
@@ -605,7 +600,6 @@ dict_union(Object *a, Object *b)
         if (dict_copyto(c, b) != RES_OK)
                 goto err;
 
-        /* XXX: what is a, b have a class struct? copy that over too? */
         return c;
 
 err:

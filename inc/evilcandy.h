@@ -203,6 +203,8 @@ extern enum result_t array_delete_chunk(Object *array,
 extern ssize_t array_indexof(Object *arr, Object *item);
 extern ssize_t array_rindexof(Object *arr, Object *item);
 extern ssize_t array_indexof_strict(Object *arr, Object *item);
+extern Object *array_getslice(Object *obj, ssize_t start,
+                              ssize_t stop, ssize_t step);
 
 /* types/bytes.c */
 extern Object *bytesvar_new(const unsigned char *buf, size_t len);
@@ -245,8 +247,7 @@ extern Object *floatvar_new(double value);
 
 /* types/function.c */
 extern Object *funcvar_new_user(Object *ex);
-extern Object *funcvar_new_intl(Object *(*cb)(Frame *),
-                               int minargs, int maxargs);
+extern Object *funcvar_new_intl(Object *(*cb)(Frame *));
 extern Object *funcvar_from_lut(const struct type_inittbl_t *tbl);
 extern int function_setattr(Object *func, int attr, int value);
 extern Object *function_call(Frame *fr, Object *args, Object *kwargs);

@@ -137,8 +137,8 @@ range_create(Frame *fr)
         Object *arg, *args;
         int argc, start, stop, step;
 
-        args = vm_get_arg(fr, 0);
-        bug_on(!args || !isvar_array(args));
+        if (vm_getargs(fr, "<[]>{!}:range", &args) == RES_ERROR)
+                return ErrorVar;
         argc = seqvar_size(args);
         if (argc < 1 || argc > 3) {
                 if (argc < 1)

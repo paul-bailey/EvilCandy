@@ -274,14 +274,15 @@ function_get_executable(Object *func)
  *      number of args is variable
  */
 Object *
-funcvar_new_intl(Object *(*cb)(Frame *),
-                 int minargs, int maxargs)
+funcvar_new_intl(Object *(*cb)(Frame *))
 {
         Object *func = funcvar_alloc(FUNC_INTERNAL);
         struct funcvar_t *fh = V2FUNC(func);
         fh->f_cb = cb;
-        fh->f_minargs = minargs;
-        fh->f_maxargs = maxargs;
+        fh->f_minargs = 2;
+        fh->f_maxargs = 2;
+        fh->f_optind  = 0;
+        fh->f_kwind   = 1;
         return func;
 }
 
@@ -292,14 +293,7 @@ funcvar_new_intl(Object *(*cb)(Frame *),
 Object *
 funcvar_from_lut(const struct type_inittbl_t *tbl)
 {
-        Object *func;
-
-        func = funcvar_new_intl(tbl->fn, tbl->minargs, tbl->maxargs);
-        if (tbl->optind >= 0)
-                function_setattr(func, IARG_FUNC_OPTIND, tbl->optind);
-        if (tbl->kwind >= 0)
-                function_setattr(func, IARG_FUNC_KWIND, tbl->kwind);
-        return func;
+        return funcvar_new_intl(tbl->fn);
 }
 
 /**
@@ -318,6 +312,7 @@ function_setattr(Object *func, int attr, int value)
                            typestr(func));
                 return RES_ERROR;
         }
+        bug_on(fh->f_magic == FUNC_INTERNAL);
 
         switch (attr) {
         case IARG_FUNC_MINARGS:

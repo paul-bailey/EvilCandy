@@ -1158,6 +1158,10 @@ string_printf(Object *self, Object *args, Object *kwargs)
  *           Built-in type props and methods (not format2)
  * *********************************************************************/
 
+/* enough UAPI functions use this argument format */
+#define FMT_1ARG_STRING(fname)  ("[<s>!]{!}:" fname)
+#define FMT_2ARG_STRING(fname)  ("[<s><s>!]{!}:" fname)
+
 static Object *
 string_getprop_length(Object *self)
 {
@@ -1186,12 +1190,13 @@ string_getprop_width(Object *self)
 static Object *
 string_format_mthd(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        Object *list = vm_get_arg(fr, 0);
+        Object *self, *list;
 
+        self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
-        bug_on(!isvar_array(list));
+        if (vm_getargs(fr, "<[]>{!}", &list) == RES_ERROR)
+                return ErrorVar;
 
         return string_format(self, list);
 }
@@ -1236,7 +1241,7 @@ STRIP_HELPER(16, uint16_t)
 STRIP_HELPER(32, uint32_t)
 
 static Object *
-string_lrstrip(Frame *fr, unsigned int flags)
+string_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
 {
         Object *self, *arg, *ret;
         void *src, *skip;
@@ -1244,12 +1249,11 @@ string_lrstrip(Frame *fr, unsigned int flags)
         struct stringvar_t *vsrc, *vskip;
 
         self = vm_get_this(fr);
-        arg = vm_get_arg(fr, 0);
-
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        if (arg && arg_type_check(arg, &StringType) == RES_ERROR)
+        arg = NULL;
+        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
                 return ErrorVar;
 
         /* no need to produce a reference, we're just borrowing */
@@ -1302,6 +1306,9 @@ string_lrstrip(Frame *fr, unsigned int flags)
         return ret;
 }
 
+#define string_lrstrip(fr, flg, fname) \
+        string_lrstrip_(fr, flg, "[|<s>!]{!}:" fname)
+
 /*
  * lstrip()             no args implies whitespace
  * lstrip(charset)      charset is string
@@ -1309,7 +1316,7 @@ string_lrstrip(Frame *fr, unsigned int flags)
 static Object *
 string_lstrip(Frame *fr)
 {
-        return string_lrstrip(fr, 0);
+        return string_lrstrip(fr, 0, "lstrip");
 }
 
 /*
@@ -1319,7 +1326,7 @@ string_lstrip(Frame *fr)
 static Object *
 string_rstrip(Frame *fr)
 {
-        return string_lrstrip(fr, SF_RIGHT);
+        return string_lrstrip(fr, SF_RIGHT, "rstrip");
 }
 
 /*
@@ -1329,8 +1336,10 @@ string_rstrip(Frame *fr)
 static Object *
 string_strip(Frame *fr)
 {
-        return string_lrstrip(fr, SF_CENTER);
+        return string_lrstrip(fr, SF_CENTER, "strip");
 }
+
+#undef string_lrstrip
 
 static Object *
 string_replace(Frame *fr)
@@ -1342,15 +1351,12 @@ string_replace(Frame *fr)
         size_t wr_wid;
 
         haystack = vm_get_this(fr);
-        needle = vm_get_arg(fr, 0);
-        repl = vm_get_arg(fr, 1);
-
         if (arg_type_check(haystack, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(needle, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, FMT_2ARG_STRING("replace"), &needle, &repl)
+            == RES_ERROR) {
                 return ErrorVar;
-        if (arg_type_check(repl, &StringType) == RES_ERROR)
-                return ErrorVar;
+        }
 
         nwid = string_width(needle);
         hwid = string_width(haystack);
@@ -1411,25 +1417,19 @@ return_self:
 }
 
 static Object *
-string_lrjust(Frame *fr, unsigned int flags)
+string_lrjust_(Frame *fr, unsigned int flags, const char *fmt)
 {
-        Object *self, *arg;
+        Object *self;
         struct string_writer_t wr;
         ssize_t newlen, selflen, padlen;
 
         bug_on((flags & (SF_CENTER|SF_RIGHT)) == (SF_CENTER|SF_RIGHT));
 
         self = vm_get_this(fr);
-        arg = vm_get_arg(fr, 0);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        arg = vm_get_arg(fr, 0);
-        if (arg_type_check(arg, &IntType) == RES_ERROR)
-                return ErrorVar;
-
-        newlen = intvar_toi(arg);
-        if (err_occurred())
+        if (vm_getargs(fr, fmt, &newlen) == RES_ERROR)
                 return ErrorVar;
 
         selflen = seqvar_size(self);
@@ -1458,19 +1458,30 @@ string_lrjust(Frame *fr, unsigned int flags)
         return stringvar_from_writer(&wr);
 }
 
+#define string_lrjust(fr, flg, fname) \
+        string_lrjust_(fr, flg, "[z!]{!}:" fname)
+
 /* rjust(amt)   integer arg */
 static Object *
 string_rjust(Frame *fr)
 {
-        return string_lrjust(fr, SF_RIGHT);
+        return string_lrjust(fr, SF_RIGHT, "rjust");
 }
 
 /* rjust(amt)    integer arg */
 static Object *
 string_ljust(Frame *fr)
 {
-        return string_lrjust(fr, 0);
+        return string_lrjust(fr, 0, "ljust");
 }
+
+static Object *
+string_center(Frame *fr)
+{
+        return string_lrjust(fr, SF_CENTER, "center");
+}
+
+#undef string_lrjust
 
 /*
  * XXX REVISIT: replace with iter_xxx() API,
@@ -1480,14 +1491,17 @@ static Object *
 string_join(Frame *fr)
 {
         struct string_writer_t wr;
-        Object *self = vm_get_this(fr);
-        Object *arg = vm_get_arg(fr, 0);
+        Object *self, *arg;
         size_t i, n, width;
 
+        self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        if (!arg || !isvar_seq_readable(arg)) {
+        if (vm_getargs(fr, "[<*>!]{!}:join", &arg) == RES_ERROR)
+                return ErrorVar;
+
+        if (!isvar_seq_readable(arg)) {
                 err_setstr(ArgumentError, "Expected: sequential object");
                 return ErrorVar;
         }
@@ -1586,12 +1600,6 @@ string_capitalize(Frame *fr)
 }
 
 static Object *
-string_center(Frame *fr)
-{
-        return string_lrjust(fr, SF_CENTER);
-}
-
-static Object *
 string_count(Frame *fr)
 {
         int count;
@@ -1600,10 +1608,9 @@ string_count(Frame *fr)
         void *hsrc, *nsrc;
 
         haystack = vm_get_this(fr);
-        needle = vm_get_arg(fr, 0);
         if (arg_type_check(haystack, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(needle, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, "[<s>!]{!}:count", &needle) == RES_ERROR)
                 return ErrorVar;
 
         hlen = seqvar_size(haystack);
@@ -1638,16 +1645,15 @@ done:
 }
 
 static Object *
-string_starts_or_ends_with(Frame *fr, unsigned int flags)
+string_starts_or_ends_with_(Frame *fr, unsigned int flags, const char *fmt)
 {
         Object *self, *arg;
         size_t i, n1, n2, start;
 
         self = vm_get_this(fr);
-        arg = vm_get_arg(fr, 0);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(arg, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
                 return ErrorVar;
 
         n1 = seqvar_size(self);
@@ -1672,17 +1678,22 @@ hasnt:
         return VAR_NEW_REF(gbl.zero);
 }
 
+#define string_starts_or_ends_with(fr, flg, fname) \
+        string_starts_or_ends_with_(fr, flg, FMT_1ARG_STRING(fname))
+
 static Object *
 string_endswith(Frame *fr)
 {
-        return string_starts_or_ends_with(fr, SF_RIGHT);
+        return string_starts_or_ends_with(fr, SF_RIGHT, "endswith");
 }
 
 static Object *
 string_startswith(Frame *fr)
 {
-        return string_starts_or_ends_with(fr, 0);
+        return string_starts_or_ends_with(fr, 0, "startswith");
 }
+
+#undef string_starts_or_ends_with
 
 static Object *
 string_expandtabs(Frame *fr)
@@ -1697,7 +1708,7 @@ string_expandtabs(Frame *fr)
                 return ErrorVar;
 
         tabsize = 8;
-        if (vm_getargs(fr, "{|i}:expandtabs",
+        if (vm_getargs(fr, "[!]{|i}:expandtabs",
                         STRCONST_ID(tabsize), &tabsize) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -1742,17 +1753,16 @@ string_expandtabs(Frame *fr)
 }
 
 static Object *
-string_index_or_find(Frame *fr, unsigned int flags)
+string_index_or_find_(Frame *fr, unsigned int flags, const char *fmt)
 {
-        Object *self = vm_get_this(fr);
-        Object *arg = vm_get_arg(fr, 0);
+        Object *self, *arg;
         ssize_t res;
 
+        self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(arg, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
                 return ErrorVar;
-
         res = find_idx(self, arg, flags);
         if (res < 0) {
                 if (!(flags & SF_SUPPRESS)) {
@@ -1764,44 +1774,46 @@ string_index_or_find(Frame *fr, unsigned int flags)
         return res ? intvar_new(res) : VAR_NEW_REF(gbl.zero);
 }
 
+#define string_index_or_find(fr, flg, fname) \
+        string_index_or_find_(fr, flg, FMT_1ARG_STRING(fname))
+
 static Object *
 string_find(Frame *fr)
 {
-        return string_index_or_find(fr, SF_SUPPRESS);
+        return string_index_or_find(fr, SF_SUPPRESS, "find");
 }
 
 static Object *
 string_index(Frame *fr)
 {
-        return string_index_or_find(fr, 0);
+        return string_index_or_find(fr, 0, "index");
 }
 
 static Object *
 string_rfind(Frame *fr)
 {
-        return string_index_or_find(fr, SF_SUPPRESS | SF_RIGHT);
+        return string_index_or_find(fr, SF_SUPPRESS | SF_RIGHT, "rfind");
 }
 
 static Object *
 string_rindex(Frame *fr)
 {
-        return string_index_or_find(fr, SF_RIGHT);
+        return string_index_or_find(fr, SF_RIGHT, "rindex");
 }
 
+#undef string_index_or_find
+
 static Object *
-string_lrpartition(Frame *fr, unsigned int flags)
+string_lrpartition_(Frame *fr, unsigned int flags, const char *fmt)
 {
         Object *self, *arg, *tup, **td;
         ssize_t idx;
 
         self = vm_get_this(fr);
-        arg = vm_get_arg(fr, 0);
-
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(arg, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
                 return ErrorVar;
-
         if (seqvar_size(arg) == 0) {
                 err_setstr(ValueError, "Separator may not be empty");
                 return ErrorVar;
@@ -1843,32 +1855,35 @@ string_lrpartition(Frame *fr, unsigned int flags)
         return tup;
 }
 
+#define string_lrpartition(fr, flg, fname) \
+        string_lrpartition_(fr, flg, FMT_1ARG_STRING(fname))
+
 static Object *
 string_partition(Frame *fr)
 {
-        return string_lrpartition(fr, 0);
+        return string_lrpartition(fr, 0, "partition");
 }
 
 static Object *
 string_rpartition(Frame *fr)
 {
-        return string_lrpartition(fr, SF_RIGHT);
+        return string_lrpartition(fr, SF_RIGHT, "rpartition");
 }
 
+#undef string_lrpartition
+
 static Object *
-string_removelr(Frame *fr, unsigned int flags)
+string_removelr_(Frame *fr, unsigned int flags, const char *fmt)
 {
         Object *self, *arg;
         size_t idx, pos, start, stop;
 
         self = vm_get_this(fr);
-        arg = vm_get_arg(fr, 0);
 
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (arg_type_check(arg, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
                 return ErrorVar;
-
         if (seqvar_size(arg) > seqvar_size(self))
                 goto return_self;
 
@@ -1893,17 +1908,22 @@ return_self:
         return self;
 }
 
+#define string_removelr(fr, flg, fname) \
+        string_removelr_(fr, flg, FMT_1ARG_STRING(fname))
+
 static Object *
 string_removeprefix(Frame *fr)
 {
-        return string_removelr(fr, 0);
+        return string_removelr(fr, 0, "removeprefix");
 }
 
 static Object *
 string_removesuffix(Frame *fr)
 {
-        return string_removelr(fr, SF_RIGHT);
+        return string_removelr(fr, SF_RIGHT, "removesuffix");
 }
+
+#undef string_removelr
 
 static Object *
 string_lrsplit(Frame *fr, unsigned int flags)
@@ -1922,7 +1942,9 @@ string_lrsplit(Frame *fr, unsigned int flags)
         separg = NULL;
         maxsplit = -1;
         combine = false;
-        fmt = !!(flags & SF_RIGHT) ? "{|<s>i}:rsplit": "{|<s>i}:split";
+        fmt = !!(flags & SF_RIGHT)
+                ? "[!]{|<s>i}:rsplit"
+                : "[!]{|<s>i}:split";
         if (vm_getargs(fr, fmt, STRCONST_ID(sep), &separg,
                        STRCONST_ID(maxsplit), &maxsplit) == RES_ERROR) {
                 return ErrorVar;
@@ -2049,7 +2071,7 @@ string_splitlines(Frame *fr)
         self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
-        if (vm_getargs(fr, "{|i}:splitlines",
+        if (vm_getargs(fr, "[!]{|i}:splitlines",
                        STRCONST_ID(keepends), &keepends) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -2098,7 +2120,7 @@ static Object *
 string_zfill(Frame *fr)
 {
         Object *self;
-        int nz;
+        ssize_t nz;
         size_t src_size;
         struct string_writer_t wr;
         long plusminus;
@@ -2107,7 +2129,7 @@ string_zfill(Frame *fr)
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
-        if (vm_getargs(fr, "i:zfill", &nz) == RES_ERROR)
+        if (vm_getargs(fr, "[z!]{!}:zfill", &nz) == RES_ERROR)
                 return ErrorVar;
 
         src_size = seqvar_size(self);
@@ -2342,45 +2364,45 @@ string_upper(Frame *fr)
 }
 
 static struct type_inittbl_t string_methods[] = {
-        V_INITTBL("capitalize",   string_capitalize,   0, 0, -1, -1),
-        V_INITTBL("center",       string_center,       1, 1, -1, -1),
-        V_INITTBL("count",        string_count,        1, 1, -1, -1),
-        V_INITTBL("endswith",     string_endswith,     1, 1, -1, -1),
-        V_INITTBL("expandtabs",   string_expandtabs,   1, 1, -1,  0),
-        V_INITTBL("find",         string_find,         1, 1, -1, -1),
-        V_INITTBL("format",       string_format_mthd,  1, 1,  0, -1),
-        V_INITTBL("index",        string_index,        1, 1, -1, -1),
-        V_INITTBL("isalnum",      string_isalnum,      0, 0, -1, -1),
-        V_INITTBL("isalpha",      string_isalpha,      0, 0, -1, -1),
-        V_INITTBL("isascii",      string_isascii_mthd, 0, 0, -1, -1),
-        V_INITTBL("isdigit",      string_isdigit,      0, 0, -1, -1),
-        V_INITTBL("isident",      string_isident,      0, 0, -1, -1),
-        V_INITTBL("isprintable",  string_isprintable,  0, 0, -1, -1),
-        V_INITTBL("isspace",      string_isspace,      0, 0, -1, -1),
-        V_INITTBL("istitle",      string_istitle,      0, 0, -1, -1),
-        V_INITTBL("isupper",      string_isupper,      0, 0, -1, -1),
-        V_INITTBL("join",         string_join,         1, 1, -1, -1),
-        V_INITTBL("ljust",        string_ljust,        1, 1, -1, -1),
-        V_INITTBL("lower",        string_lower,        0, 0, -1, -1),
-        V_INITTBL("lstrip",       string_lstrip,       0, 1, -1, -1),
-        V_INITTBL("partition",    string_partition,    1, 1, -1, -1),
-        V_INITTBL("removeprefix", string_removeprefix, 1, 1, -1, -1),
-        V_INITTBL("removesuffix", string_removesuffix, 1, 1, -1, -1),
-        V_INITTBL("replace",      string_replace,      2, 2, -1, -1),
-        V_INITTBL("rfind",        string_rfind,        1, 1, -1, -1),
-        V_INITTBL("rindex",       string_rindex,       1, 1, -1, -1),
-        V_INITTBL("rjust",        string_rjust,        1, 1, -1, -1),
-        V_INITTBL("rpartition",   string_rpartition,   1, 1, -1, -1),
-        V_INITTBL("rsplit",       string_rsplit,       1, 1, -1,  0),
-        V_INITTBL("rstrip",       string_rstrip,       0, 1, -1, -1),
-        V_INITTBL("split",        string_split,        1, 1, -1,  0),
-        V_INITTBL("splitlines",   string_splitlines,   1, 1, -1,  0),
-        V_INITTBL("startswith",   string_startswith,   1, 1, -1, -1),
-        V_INITTBL("strip",        string_strip,        0, 1, -1, -1),
-        V_INITTBL("swapcase",     string_swapcase,     0, 0, -1, -1),
-        V_INITTBL("title",        string_title,        0, 0, -1, -1),
-        V_INITTBL("upper",        string_upper,        0, 0, -1, -1),
-        V_INITTBL("zfill",        string_zfill,        1, 1, -1, -1),
+        V_INITTBL("capitalize",   string_capitalize),
+        V_INITTBL("center",       string_center),
+        V_INITTBL("count",        string_count),
+        V_INITTBL("endswith",     string_endswith),
+        V_INITTBL("expandtabs",   string_expandtabs),
+        V_INITTBL("find",         string_find),
+        V_INITTBL("format",       string_format_mthd),
+        V_INITTBL("index",        string_index),
+        V_INITTBL("isalnum",      string_isalnum),
+        V_INITTBL("isalpha",      string_isalpha),
+        V_INITTBL("isascii",      string_isascii_mthd),
+        V_INITTBL("isdigit",      string_isdigit),
+        V_INITTBL("isident",      string_isident),
+        V_INITTBL("isprintable",  string_isprintable),
+        V_INITTBL("isspace",      string_isspace),
+        V_INITTBL("istitle",      string_istitle),
+        V_INITTBL("isupper",      string_isupper),
+        V_INITTBL("join",         string_join),
+        V_INITTBL("ljust",        string_ljust),
+        V_INITTBL("lower",        string_lower),
+        V_INITTBL("lstrip",       string_lstrip),
+        V_INITTBL("partition",    string_partition),
+        V_INITTBL("removeprefix", string_removeprefix),
+        V_INITTBL("removesuffix", string_removesuffix),
+        V_INITTBL("replace",      string_replace),
+        V_INITTBL("rfind",        string_rfind),
+        V_INITTBL("rindex",       string_rindex),
+        V_INITTBL("rjust",        string_rjust),
+        V_INITTBL("rpartition",   string_rpartition),
+        V_INITTBL("rsplit",       string_rsplit),
+        V_INITTBL("rstrip",       string_rstrip),
+        V_INITTBL("split",        string_split),
+        V_INITTBL("splitlines",   string_splitlines),
+        V_INITTBL("startswith",   string_startswith),
+        V_INITTBL("strip",        string_strip),
+        V_INITTBL("swapcase",     string_swapcase),
+        V_INITTBL("title",        string_title),
+        V_INITTBL("upper",        string_upper),
+        V_INITTBL("zfill",        string_zfill),
 
         TBLEND,
 };
@@ -2665,7 +2687,7 @@ string_create(Frame *fr)
         int encoding2 = -1;
         Object *what = NULL;
         bug_on(!gbl.mns[MNS_CODEC]);
-        if (vm_getargs(fr, "[|<*>e]{|e}:string", &what,
+        if (vm_getargs(fr, "[|<*>e!]{|e}:string", &what,
                        gbl.mns[MNS_CODEC], &encoding,
                        STRCONST_ID(encoding),
                        gbl.mns[MNS_CODEC], &encoding2) == RES_ERROR) {

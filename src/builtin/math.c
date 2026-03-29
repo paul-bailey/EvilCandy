@@ -4,30 +4,25 @@
 #include <evilcandy.h>
 #include <math.h>
 
-static int
-get_floatarg(Frame *fr, int argno, double *d)
+static double
+get_floatarg(Object *x)
 {
-        Object *x = vm_get_arg(fr, argno);
-        bug_on(!x);
         if (isvar_float(x)) {
-                *d = floatvar_tod(x);
-        } else if (isvar_int(x)) {
-                *d = (double)intvar_toll(x);
+                return floatvar_tod(x);
         } else {
-                err_setstr(TypeError,
-                           "Expected: integer or float but got %s",
-                           typestr(x));
-                return RES_ERROR;
+                bug_on(!isvar_int(x));
+                return (double)intvar_toll(x);
         }
-        return RES_OK;
 }
 
 static Object *
 math_1arg(Frame *fr, double (*cb)(double))
 {
         double x;
-        if (get_floatarg(fr, 0, &x) == RES_ERROR)
+        Object *xo;
+        if (vm_getargs(fr, "[<if>!]{!}", &xo) == RES_ERROR)
                 return ErrorVar;
+        x = get_floatarg(xo);
         return floatvar_new(cb(x));
 }
 
@@ -35,10 +30,11 @@ static Object *
 math_2arg(Frame *fr, double (*cb)(double, double))
 {
         double x, y;
-        if (get_floatarg(fr, 0, &x) == RES_ERROR)
+        Object *xo, *yo;
+        if (vm_getargs(fr, "[<if><if>!]{!}", &xo, &yo) == RES_ERROR)
                 return ErrorVar;
-        if (get_floatarg(fr, 1, &y) == RES_ERROR)
-                return ErrorVar;
+        x = get_floatarg(xo);
+        y = get_floatarg(yo);
         return floatvar_new(cb(x, y));
 }
 
@@ -74,28 +70,28 @@ MATHMETHOD(tan,   1)
 MATHMETHOD(tanh,  1)
 
 
-#define MATHTBL(func_, narg_) \
-        V_INITTBL(#func_, do_##func_, narg_, narg_, -1, -1)
+#define MATHTBL(func_) \
+        V_INITTBL(#func_, do_##func_)
 
 static const struct type_inittbl_t math_inittbl[] = {
-        MATHTBL(acos,   1),
-        MATHTBL(asin,   1),
-        MATHTBL(atan,   1),
-        MATHTBL(atan2,  2),
-        MATHTBL(acosh,  1),
-        MATHTBL(asinh,  1),
-        MATHTBL(atanh,  1),
-        MATHTBL(ceil,   1),
-        MATHTBL(cos,    1),
-        MATHTBL(cosh,   1),
-        MATHTBL(floor,  1),
-        MATHTBL(hypot,  2),
-        MATHTBL(pow,    2),
-        MATHTBL(sin,    1),
-        MATHTBL(sinh,   1),
-        MATHTBL(sqrt,   1),
-        MATHTBL(tan,    1),
-        MATHTBL(tanh,   1),
+        MATHTBL(acos),
+        MATHTBL(asin),
+        MATHTBL(atan),
+        MATHTBL(atan2),
+        MATHTBL(acosh),
+        MATHTBL(asinh),
+        MATHTBL(atanh),
+        MATHTBL(ceil),
+        MATHTBL(cos),
+        MATHTBL(cosh),
+        MATHTBL(floor),
+        MATHTBL(hypot),
+        MATHTBL(pow),
+        MATHTBL(sin),
+        MATHTBL(sinh),
+        MATHTBL(sqrt),
+        MATHTBL(tan),
+        MATHTBL(tanh),
         /*
          * TODO: Support at least some of the following standard-C
          *       functions:

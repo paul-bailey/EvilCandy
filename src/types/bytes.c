@@ -52,42 +52,6 @@ intvar_to_byte(Object *iobj, bool suppress)
         return (int)ival;
 }
 
-static enum result_t
-bytes_unpack_self(Frame *fr, const unsigned char **self, size_t *selflen)
-{
-        Object *selfobj = vm_get_this(fr);
-        if (arg_type_check(selfobj, &BytesType) == RES_ERROR)
-                return RES_ERROR;
-        *self = bytes_get_data(selfobj);
-        *selflen = seqvar_size(selfobj);
-        return RES_OK;
-}
-
-/* Used when arg[argno] is expected to be bytes */
-static enum result_t
-bytes_unpack_argno(Frame *fr, int argno,
-                   const unsigned char **arg, size_t *arglen)
-{
-        Object *argobj = vm_get_arg(fr, argno);
-        if (arg_type_check(argobj, &BytesType) == RES_ERROR)
-                return RES_ERROR;
-        *arg = bytes_get_data(argobj);
-        *arglen = seqvar_size(argobj);
-        return RES_OK;
-}
-
-/*
- * Used when arg is bytes and self, arg data and length are needed.
- */
-static enum result_t
-bytes_unpack_1arg(Frame *fr, const unsigned char **self, size_t *selflen,
-                  const unsigned char **arg, size_t *arglen)
-{
-        if (bytes_unpack_self(fr, self, selflen) == RES_ERROR)
-                return RES_ERROR;
-        return bytes_unpack_argno(fr, 0, arg, arglen);
-}
-
 static Object *
 bytes_getitem(Object *a, size_t idx)
 {
@@ -501,13 +465,15 @@ do_bytes_decode(Frame *fr)
 static Object *
 do_bytes_count(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        Object *arg = vm_get_arg(fr, 0);
+        Object *self, *arg;
         const unsigned char *haystack;
         size_t hlen;
         int count = 0;
 
+        self = vm_get_this(fr);
         if (arg_type_check(self, &BytesType) == RES_ERROR)
+                return ErrorVar;
+        if (vm_getargs(fr, "[<bi>!]{!}", &arg) == RES_ERROR)
                 return ErrorVar;
 
         haystack = bytes_get_data(self);
@@ -519,24 +485,22 @@ do_bytes_count(Frame *fr)
                 const unsigned char *needle = bytes_get_data(arg);
                 size_t nlen = seqvar_size(arg);
                 count = memcount(haystack, hlen, needle, nlen);
-        } else if (isvar_int(arg)) {
+        } else {
                 /* single-char */
+                bug_on(!isvar_int(arg));
                 unsigned char v;
                 int ival = intvar_to_byte(arg, false);
                 if (ival < 0)
                         return ErrorVar;
                 v = (unsigned char)ival;
                 count = memcount(haystack, hlen, &v, 1);
-        } else {
-                err_argtype(typestr(arg));
-                return ErrorVar;
         }
 
         return count ? intvar_new(count) : VAR_NEW_REF(gbl.zero);
 }
 
 static Object *
-bytes_index_or_find(Frame *fr, unsigned int flags)
+bytes_index_or_find_(Frame *fr, unsigned int flags, const char *fmt)
 {
         Object *self, *arg;
         const unsigned char *found, *haystack;
@@ -545,10 +509,10 @@ bytes_index_or_find(Frame *fr, unsigned int flags)
         int res;
 
         self = vm_get_this(fr);
-        arg = vm_get_arg(fr, 0);
         if (arg_type_check(self, &BytesType) == RES_ERROR)
                 return ErrorVar;
-        bug_on(!arg);
+        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+                return ErrorVar;
 
         locfn = !!(flags & BF_RIGHT) ? memrmem : memmem;
 
@@ -557,16 +521,14 @@ bytes_index_or_find(Frame *fr, unsigned int flags)
         if (isvar_bytes(arg)) {
                 found = locfn(haystack, hlen,
                               bytes_get_data(arg), seqvar_size(arg));
-        } else if (isvar_int(arg)) {
+        } else {
+                bug_on(!isvar_int(arg));
                 unsigned char v8;
                 int ival = intvar_to_byte(arg, false);
                 if (ival < 0)
                         return ErrorVar;
                 v8 = ival;
                 found = locfn(haystack, hlen, &v8, 1);
-        } else {
-                err_argtype(typestr(arg));
-                return ErrorVar;
         }
         if (!found && !(flags & BF_SUPPRESS)) {
                 err_setstr(ValueError, "subbytes not found");
@@ -578,40 +540,47 @@ bytes_index_or_find(Frame *fr, unsigned int flags)
         return res ? intvar_new(res) : VAR_NEW_REF(gbl.zero);
 }
 
+#define bytes_index_or_find(fr, flg, fname) \
+        bytes_index_or_find_(fr, flg, "[<bi>!]{!}:" fname)
+
 static Object *
 do_bytes_find(Frame *fr)
 {
-        return bytes_index_or_find(fr, BF_SUPPRESS);
+        return bytes_index_or_find(fr, BF_SUPPRESS, "find");
 }
 
 static Object *
 do_bytes_index(Frame *fr)
 {
-        return bytes_index_or_find(fr, 0);
+        return bytes_index_or_find(fr, 0, "index");
 }
 
 static Object *
 do_bytes_rfind(Frame *fr)
 {
-        return bytes_index_or_find(fr, BF_RIGHT | BF_SUPPRESS);
+        return bytes_index_or_find(fr, BF_RIGHT | BF_SUPPRESS, "rfind");
 }
 
 static Object *
 do_bytes_rindex(Frame *fr)
 {
-        return bytes_index_or_find(fr, BF_RIGHT);
+        return bytes_index_or_find(fr, BF_RIGHT, "rindex");
 }
 
 static Object *
-bytes_removelr(Frame *fr, unsigned int flags)
+bytes_removelr_(Frame *fr, unsigned int flags, const char *fmt)
 {
+        Object *self, *arg;
         const unsigned char *needle, *haystack;
         size_t idx, nlen, hlen;
 
-        if (bytes_unpack_1arg(fr, &haystack, &hlen, &needle, &nlen)
-            == RES_ERROR) {
+        self = vm_get_this(fr);
+        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
                 return ErrorVar;
-        }
+        haystack = bytes_get_data(self);
+        hlen = seqvar_size(self);
+        needle = bytes_get_data(arg);
+        nlen = seqvar_size(arg);
 
         if (nlen > hlen)
                 return VAR_NEW_REF(vm_get_this(fr));
@@ -624,31 +593,38 @@ bytes_removelr(Frame *fr, unsigned int flags)
                 haystack += nlen;
         return bytesvar_newf(haystack, hlen - nlen, BF_COPY);
 }
+#define bytes_removelr(fr, flg, fname) \
+        bytes_removelr_(fr, flg, "[<b>!]{!}:" fname)
 
 static Object *
 do_bytes_removeprefix(Frame *fr)
 {
-        return bytes_removelr(fr, 0);
+        return bytes_removelr(fr, 0, "removeprefix");
 }
 
 static Object *
 do_bytes_removesuffix(Frame *fr)
 {
-        return bytes_removelr(fr, BF_RIGHT);
+        return bytes_removelr(fr, BF_RIGHT, "removesuffix");
 }
 
+#undef bytes_removelr
+
 static Object *
-bytes_starts_or_ends_with(Frame *fr, unsigned int flags)
+bytes_starts_or_ends_with_(Frame *fr, unsigned int flags, const char *fmt)
 {
-        Object *ret;
+        Object *ret, *arg, *self;
         const unsigned char *needle, *haystack;
         size_t nlen, hlen, idx;
 
-        if (bytes_unpack_1arg(fr, &haystack, &hlen, &needle, &nlen)
-            == RES_ERROR) {
+        self = vm_get_this(fr);
+        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
                 return ErrorVar;
-        }
 
+        haystack = bytes_get_data(self);
+        hlen = seqvar_size(self);
+        needle = bytes_get_data(arg);
+        nlen = seqvar_size(arg);
         if (nlen > hlen)
                 return VAR_NEW_REF(gbl.zero);
 
@@ -657,17 +633,22 @@ bytes_starts_or_ends_with(Frame *fr, unsigned int flags)
         return VAR_NEW_REF(ret);
 }
 
+#define bytes_starts_or_ends_with(fr, flg, fname) \
+        bytes_starts_or_ends_with_(fr, flg, "[<b>!]{!}:" fname)
+
 static Object *
 do_bytes_endswith(Frame *fr)
 {
-        return bytes_starts_or_ends_with(fr, BF_RIGHT);
+        return bytes_starts_or_ends_with(fr, BF_RIGHT, "endswith");
 }
 
 static Object *
 do_bytes_startswith(Frame *fr)
 {
-        return bytes_starts_or_ends_with(fr, 0);
+        return bytes_starts_or_ends_with(fr, 0, "startswith");
 }
+
+#undef bytes_starts_or_ends_with
 
 static Object *
 do_bytes_join(Frame *fr)
@@ -678,26 +659,20 @@ do_bytes_join(Frame *fr)
         size_t i, total_size, joinlen, arglen;
 
         self = vm_get_this(fr);
-        arg = vm_get_arg(fr, 0);
-
         if (arg_type_check(self, &BytesType) == RES_ERROR)
                 return ErrorVar;
+        if (vm_getargs(fr, "[<[]()>!]{!}:join", &arg) == RES_ERROR)
+                return ErrorVar;
+
         joinbuf = bytes_get_data(self);
         joinlen = seqvar_size(self);
 
-        /*
-         * The only sequence types that could possibly return bytes types
-         * are arrays or lists.  (Dictionaries cannot, because EvilCandy
-         * does not support bytes-type keys).  So we can simplify this
-         * by using direct access to a raw array.
-         */
+        /* XXX: support dictionaries whose keys are all bytes */
         if (isvar_array(arg)) {
                 data = array_get_data(arg);
-        } else if (isvar_tuple(arg)) {
-                data = tuple_get_data(arg);
         } else {
-                err_argtype(typestr(arg));
-                return ErrorVar;
+                bug_on(!isvar_tuple(arg));
+                data = tuple_get_data(arg);
         }
         total_size = 0;
         arglen = seqvar_size(arg);
@@ -732,17 +707,20 @@ do_bytes_join(Frame *fr)
 }
 
 static Object *
-bytes_lrpartition(Frame *fr, unsigned int flags)
+bytes_lrpartition_(Frame *fr, unsigned int flags, const char *fmt)
 {
-        Object *tup, **td;
+        Object *self, *separg, *tup, **td;
         const unsigned char *haystack, *needle, *found;
         size_t hlen, nlen;
 
-        if (bytes_unpack_1arg(fr, &haystack, &hlen, &needle, &nlen)
-            == RES_ERROR) {
+        self = vm_get_this(fr);
+        if (vm_getargs(fr, fmt, &separg) == RES_ERROR)
                 return ErrorVar;
-        }
 
+        haystack = bytes_get_data(self);
+        hlen = seqvar_size(self);
+        needle = bytes_get_data(separg);
+        nlen = seqvar_size(separg);
         if (nlen == 0) {
                 err_setstr(ValueError, "Separator may not be empty");
                 return ErrorVar;
@@ -769,7 +747,7 @@ bytes_lrpartition(Frame *fr, unsigned int flags)
                 } else {
                         td[0] = bytesvar_new(haystack, idx);
                 }
-                td[1] = VAR_NEW_REF(vm_get_arg(fr, 1));
+                td[1] = VAR_NEW_REF(separg);
                 idx += nlen;
                 if (idx == hlen) {
                         td[2] = VAR_NEW_REF(gbl.empty_bytes);
@@ -780,32 +758,43 @@ bytes_lrpartition(Frame *fr, unsigned int flags)
         return tup;
 }
 
+#define bytes_lrpartition(fr, flg, fname) \
+        bytes_lrpartition_(fr, flg, "[<b>!]{!}:" fname)
+
 static Object *
 do_bytes_partition(Frame *fr)
 {
-        return bytes_lrpartition(fr, 0);
+        return bytes_lrpartition(fr, 0, "partition");
 }
 
 static Object *
 do_bytes_rpartition(Frame *fr)
 {
-        return bytes_lrpartition(fr, BF_RIGHT);
+        return bytes_lrpartition(fr, BF_RIGHT, "rpartition");
 }
+
+#undef bytes_lrpartition
 
 static Object *
 do_bytes_replace(Frame *fr)
 {
+        Object *old_o, *new_o, *self_o;
         const unsigned char *self, *old, *new;
         size_t selflen, oldlen, newlen, finallen;
         struct buffer_t b;
         /* TODO: count arg */
 
-        if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
+        self_o = vm_get_this(fr);
+        if (vm_getargs(fr, "[<b><b>!]{!}:replace", &old_o, &new_o)
+            == RES_ERROR) {
                 return ErrorVar;
-        if (bytes_unpack_argno(fr, 0, &old, &oldlen) == RES_ERROR)
-                return ErrorVar;
-        if (bytes_unpack_argno(fr, 1, &new, &newlen) == RES_ERROR)
-                return ErrorVar;
+        }
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
+        old = bytes_get_data(old_o);
+        oldlen = seqvar_size(old_o);
+        new = bytes_get_data(new_o);
+        newlen = seqvar_size(new_o);
 
         buffer_init(&b);
         while (selflen > 0) {
@@ -829,23 +818,20 @@ do_bytes_replace(Frame *fr)
 }
 
 static Object *
-do_bytes_lrjust(Frame *fr, unsigned int flags)
+do_bytes_lrjust_(Frame *fr, unsigned int flags, const char *fmt)
 {
-        Object *arg;
+        Object *self_o;
         const unsigned char *self;
         unsigned char *newbuf, *dst, *end;
         size_t selflen, newlen, padlen;
 
         bug_on((flags & (BF_CENTER|BF_RIGHT)) == (BF_CENTER|BF_RIGHT));
-        if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
-                return ErrorVar;
 
-        arg = vm_get_arg(fr, 0);
-        if (arg_type_check(arg, &IntType) == RES_ERROR)
-                return ErrorVar;
+        self_o = vm_get_this(fr);
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
 
-        newlen = intvar_toi(arg);
-        if (err_occurred() || (ssize_t)newlen < 0)
+        if (vm_getargs(fr, fmt, &newlen) == RES_ERROR)
                 return ErrorVar;
 
         if (newlen < selflen)
@@ -873,43 +859,49 @@ do_bytes_lrjust(Frame *fr, unsigned int flags)
         return bytesvar_newf(newbuf, newlen, BF_COPY);
 }
 
+#define do_bytes_lrjust(fr, flg, fname) \
+        do_bytes_lrjust_(fr, flg, "[z!]{!}:" fname)
+
 static Object *
 do_bytes_center(Frame *fr)
 {
-        return do_bytes_lrjust(fr, BF_CENTER);
+        return do_bytes_lrjust(fr, BF_CENTER, "center");
 }
 
 static Object *
 do_bytes_ljust(Frame *fr)
 {
-        return do_bytes_lrjust(fr, 0);
+        return do_bytes_lrjust(fr, 0, "ljust");
 }
 
 static Object *
 do_bytes_rjust(Frame *fr)
 {
-        return do_bytes_lrjust(fr, BF_RIGHT);
+        return do_bytes_lrjust(fr, BF_RIGHT, "rjust");
 }
+
+#undef do_bytes_lrjust
 
 static Object *
 bytes_lrsplit(Frame *fr, unsigned int flags)
 {
         enum { LRSPLIT_STACK_SIZE = 64 };
 
-        Object *separg, *ret;
+        Object *separg, *ret, *self_o;
         const unsigned char *self, *sep;
         size_t selflen, seplen;
         int maxsplit;
         bool combine;
         const char *fmt;
 
-        if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
-                return ErrorVar;
+        self_o = vm_get_this(fr);
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
 
         combine = false;
         separg = NULL;
         maxsplit = -1;
-        fmt = !!(flags & BF_RIGHT) ? "{|<b>i}:rsplit" : "{|<b>i}:split";
+        fmt = !!(flags & BF_RIGHT) ? "[!]{|<b>i}:rsplit" : "[!]{|<b>i}:split";
         if (vm_getargs(fr, fmt, STRCONST_ID(sep), &separg,
                         STRCONST_ID(maxsplit), &maxsplit) == RES_ERROR) {
                 return ErrorVar;
@@ -991,17 +983,22 @@ do_bytes_rsplit(Frame *fr)
 }
 
 static Object *
-bytes_lrstrip(Frame *fr, unsigned int flags)
+bytes_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
 {
+        Object *arg, *self_o;
         const unsigned char *self, *chars;
         size_t selflen, charslen, selflen_save;
 
-        if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
+        self_o = vm_get_this(fr);
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
+        arg = NULL;
+        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
                 return ErrorVar;
 
-        if (vm_get_arg(fr, 0) != NULL) {
-                if (bytes_unpack_argno(fr, 0, &chars, &charslen) == RES_ERROR)
-                        return ErrorVar;
+        if (arg) {
+                chars = bytes_get_data(arg);
+                charslen = seqvar_size(arg);
         } else {
                 chars = (unsigned char *)ASCII_WS_CHARS;
                 charslen = ASCII_NWS_CHARS;
@@ -1035,34 +1032,42 @@ bytes_lrstrip(Frame *fr, unsigned int flags)
         return bytesvar_new(self, selflen);
 }
 
+#define bytes_lrstrip(fr, flg, fname) \
+        bytes_lrstrip_(fr, flg, "[|<b>]{!}:" fname)
+
 static Object *
 do_bytes_strip(Frame *fr)
 {
-        return bytes_lrstrip(fr, BF_CENTER);
+        return bytes_lrstrip(fr, BF_CENTER, "strip");
 }
 
 static Object *
 do_bytes_lstrip(Frame *fr)
 {
-        return bytes_lrstrip(fr, 0);
+        return bytes_lrstrip(fr, 0, "lstrip");
 }
 
 static Object *
 do_bytes_rstrip(Frame *fr)
 {
-        return bytes_lrstrip(fr, BF_RIGHT);
+        return bytes_lrstrip(fr, BF_RIGHT, "rstrip");
 }
+
+#undef bytes_lrstrip
 
 static Object *
 do_bytes_capitalize(Frame *fr)
 {
+        Object *self_o;
         const unsigned char *self;
         unsigned char *newbuf, *dst;
         size_t i, selflen;
 
-        if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
+        self_o = vm_get_this(fr);
+        if (VM_REFUSE_ARGS(fr, "capitalize") == RES_ERROR)
                 return ErrorVar;
-
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
         if (!selflen)
                 return VAR_NEW_REF(gbl.empty_bytes);
 
@@ -1077,17 +1082,19 @@ do_bytes_capitalize(Frame *fr)
 static Object *
 do_bytes_expandtabs(Frame *fr)
 {
+        Object *self_o;
         static const char SPC = ' ';
         int tabsize, col, nextstop;
         const unsigned char *self;
         size_t i, selflen, newlen;
         struct buffer_t b;
 
-        if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
-                return ErrorVar;
+        self_o = vm_get_this(fr);
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
 
         tabsize = 8;
-        if (vm_getargs(fr, "{|i}:expandtabs",
+        if (vm_getargs(fr, "[!]{|i}:expandtabs",
                        STRCONST_ID(tabsize), &tabsize) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -1125,10 +1132,11 @@ do_bytes_expandtabs(Frame *fr)
 static Object *
 bytes_is(Frame *fr, bool (*tst)(unsigned long))
 {
-        Object *self = vm_get_this(fr);
+        Object *self;
         const unsigned char *p8;
         size_t i, len;
 
+        self = vm_get_this(fr);
         if (arg_type_check(self, &BytesType) == RES_ERROR)
                 return ErrorVar;
 
@@ -1147,42 +1155,56 @@ bytes_is(Frame *fr, bool (*tst)(unsigned long))
 static Object *
 do_bytes_isalnum(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "isalnum") == RES_ERROR)
+                return ErrorVar;
         return bytes_is(fr, evc_isalnum);
 }
 
 static Object *
 do_bytes_isalpha(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "isalpha") == RES_ERROR)
+                return ErrorVar;
         return bytes_is(fr, evc_isalpha);
 }
 
 static Object *
 do_bytes_isascii(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "isascii") == RES_ERROR)
+                return ErrorVar;
         return bytes_is(fr, evc_isascii);
 }
 
 static Object *
 do_bytes_isdigit(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "isdigit") == RES_ERROR)
+                return ErrorVar;
         return bytes_is(fr, evc_isdigit);
 }
 
 static Object *
 do_bytes_islower(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "islower") == RES_ERROR)
+                return ErrorVar;
         return bytes_is(fr, evc_islower);
 }
 
 static Object *
 do_bytes_isspace(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "isspace") == RES_ERROR)
+                return ErrorVar;
         return bytes_is(fr, evc_isspace);
 }
 
 static Object *
 do_bytes_isupper(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "isupper") == RES_ERROR)
+                return ErrorVar;
         return bytes_is(fr, evc_isupper);
 }
 
@@ -1195,6 +1217,8 @@ do_bytes_istitle(Frame *fr)
         bool first = true;
 
         if (arg_type_check(self, &BytesType) == RES_ERROR)
+                return ErrorVar;
+        if (VM_REFUSE_ARGS(fr, "istitle") == RES_ERROR)
                 return ErrorVar;
 
         if (seqvar_size(self) == 0)
@@ -1242,18 +1266,24 @@ bytes_convert_case(Frame *fr, unsigned long (*convert)(unsigned long))
 static Object *
 do_bytes_lower(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "lower") == RES_ERROR)
+                return ErrorVar;
         return bytes_convert_case(fr, evc_tolower);
 }
 
 static Object *
 do_bytes_swapcase(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "swapcase") == RES_ERROR)
+                return ErrorVar;
         return bytes_convert_case(fr, to_swapcase);
 }
 
 static Object *
 do_bytes_upper(Frame *fr)
 {
+        if (VM_REFUSE_ARGS(fr, "upper") == RES_ERROR)
+                return ErrorVar;
         return bytes_convert_case(fr, evc_toupper);
 }
 
@@ -1263,13 +1293,14 @@ do_bytes_splitlines(Frame *fr)
         const unsigned char *src;
         size_t srclen;
         int keepends;
-        Object *ret;
+        Object *ret, *self;
 
-        if (bytes_unpack_self(fr, &src, &srclen) == RES_ERROR)
-                return ErrorVar;
+        self = vm_get_this(fr);
+        src = bytes_get_data(self);
+        srclen = seqvar_size(self);
 
         keepends = 0;
-        if (vm_getargs(fr, "{|i}:splitlines",
+        if (vm_getargs(fr, "[!]{|i}:splitlines",
                        STRCONST_ID(keepends), &keepends) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -1307,14 +1338,18 @@ do_bytes_splitlines(Frame *fr)
 static Object *
 do_bytes_title(Frame *fr)
 {
+        Object *self_o;
         const unsigned char *self;
         unsigned char *newbuf, *dst;
         size_t i, selflen;
         bool first;
 
-        if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
+        if (VM_REFUSE_ARGS(fr, "title") == RES_ERROR)
                 return ErrorVar;
 
+        self_o = vm_get_this(fr);
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
         if (!selflen)
                 return VAR_NEW_REF(gbl.empty_bytes);
         dst = newbuf = emalloc(selflen);
@@ -1339,21 +1374,19 @@ do_bytes_title(Frame *fr)
 static Object *
 do_bytes_zfill(Frame *fr)
 {
-        Object *arg;
+        Object *self_o;
         const unsigned char *self, *src;
         unsigned char *newbuf, *dst;
         size_t i, selflen, newlen;
         ssize_t nz;
 
-        if (bytes_unpack_self(fr, &self, &selflen) == RES_ERROR)
+        self_o = vm_get_this(fr);
+
+        if (vm_getargs(fr, "[z!]{!}:zfill", &nz) == RES_ERROR)
                 return ErrorVar;
 
-        arg = vm_get_arg(fr, 0);
-        if (arg_type_check(arg, &IntType) == RES_ERROR)
-                return ErrorVar;
-        nz = intvar_toi(arg);
-        if (err_occurred())
-                return ErrorVar;
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
         newlen = nz < selflen ? selflen : nz;
         newbuf = emalloc(newlen);
         nz -= selflen;
@@ -1596,44 +1629,44 @@ static const struct type_prop_t bytes_prop_getsets[] = {
 };
 
 static const struct type_inittbl_t bytes_cb_methods[] = {
-        V_INITTBL("capitalize",   do_bytes_capitalize,   0, 0, -1, -1),
-        V_INITTBL("center",       do_bytes_center,       1, 1, -1, -1),
-        V_INITTBL("count",        do_bytes_count,        1, 1, -1, -1),
-        V_INITTBL("decode",       do_bytes_decode,       0, 0, -1, -1),
-        V_INITTBL("endswith",     do_bytes_endswith,     1, 1, -1, -1),
-        V_INITTBL("expandtabs",   do_bytes_expandtabs,   1, 1, -1,  0),
-        V_INITTBL("find",         do_bytes_find,         1, 1, -1, -1),
-        V_INITTBL("index",        do_bytes_index,        1, 1, -1, -1),
-        V_INITTBL("isalnum",      do_bytes_isalnum,      0, 0, -1, -1),
-        V_INITTBL("isalpha",      do_bytes_isalpha,      0, 0, -1, -1),
-        V_INITTBL("isascii",      do_bytes_isascii,      0, 0, -1, -1),
-        V_INITTBL("isdigit",      do_bytes_isdigit,      0, 0, -1, -1),
-        V_INITTBL("islower",      do_bytes_islower,      0, 0, -1, -1),
-        V_INITTBL("isspace",      do_bytes_isspace,      0, 0, -1, -1),
-        V_INITTBL("istitle",      do_bytes_istitle,      0, 0, -1, -1),
-        V_INITTBL("isupper",      do_bytes_isupper,      0, 0, -1, -1),
-        V_INITTBL("join",         do_bytes_join,         1, 1, -1, -1),
-        V_INITTBL("ljust",        do_bytes_ljust,        1, 1, -1, -1),
-        V_INITTBL("lower",        do_bytes_lower,        0, 0, -1, -1),
-        V_INITTBL("lstrip",       do_bytes_lstrip,       0, 1, -1, -1),
-        V_INITTBL("partition",    do_bytes_partition,    1, 1, -1, -1),
-        V_INITTBL("removeprefix", do_bytes_removeprefix, 1, 1, -1, -1),
-        V_INITTBL("removesuffix", do_bytes_removesuffix, 1, 1, -1, -1),
-        V_INITTBL("replace",      do_bytes_replace,      2, 2, -1, -1),
-        V_INITTBL("rfind",        do_bytes_rfind,        1, 1, -1, -1),
-        V_INITTBL("rindex",       do_bytes_rindex,       1, 1, -1, -1),
-        V_INITTBL("rjust",        do_bytes_rjust,        1, 1, -1, -1),
-        V_INITTBL("rpartition",   do_bytes_rpartition,   1, 1, -1, -1),
-        V_INITTBL("rsplit",       do_bytes_rsplit,       1, 1, -1,  0),
-        V_INITTBL("rstrip",       do_bytes_rstrip,       0, 1, -1, -1),
-        V_INITTBL("split",        do_bytes_split,        1, 1, -1,  0),
-        V_INITTBL("splitlines",   do_bytes_splitlines,   1, 1, -1,  0),
-        V_INITTBL("startswith",   do_bytes_startswith,   1, 1, -1, -1),
-        V_INITTBL("strip",        do_bytes_strip,        0, 1, -1, -1),
-        V_INITTBL("swapcase",     do_bytes_swapcase,     0, 0, -1, -1),
-        V_INITTBL("title",        do_bytes_title,        0, 0, -1, -1),
-        V_INITTBL("upper",        do_bytes_upper,        0, 0, -1, -1),
-        V_INITTBL("zfill",        do_bytes_zfill,        1, 1, -1, -1),
+        V_INITTBL("capitalize",   do_bytes_capitalize),
+        V_INITTBL("center",       do_bytes_center),
+        V_INITTBL("count",        do_bytes_count),
+        V_INITTBL("decode",       do_bytes_decode),
+        V_INITTBL("endswith",     do_bytes_endswith),
+        V_INITTBL("expandtabs",   do_bytes_expandtabs),
+        V_INITTBL("find",         do_bytes_find),
+        V_INITTBL("index",        do_bytes_index),
+        V_INITTBL("isalnum",      do_bytes_isalnum),
+        V_INITTBL("isalpha",      do_bytes_isalpha),
+        V_INITTBL("isascii",      do_bytes_isascii),
+        V_INITTBL("isdigit",      do_bytes_isdigit),
+        V_INITTBL("islower",      do_bytes_islower),
+        V_INITTBL("isspace",      do_bytes_isspace),
+        V_INITTBL("istitle",      do_bytes_istitle),
+        V_INITTBL("isupper",      do_bytes_isupper),
+        V_INITTBL("join",         do_bytes_join),
+        V_INITTBL("ljust",        do_bytes_ljust),
+        V_INITTBL("lower",        do_bytes_lower),
+        V_INITTBL("lstrip",       do_bytes_lstrip),
+        V_INITTBL("partition",    do_bytes_partition),
+        V_INITTBL("removeprefix", do_bytes_removeprefix),
+        V_INITTBL("removesuffix", do_bytes_removesuffix),
+        V_INITTBL("replace",      do_bytes_replace),
+        V_INITTBL("rfind",        do_bytes_rfind),
+        V_INITTBL("rindex",       do_bytes_rindex),
+        V_INITTBL("rjust",        do_bytes_rjust),
+        V_INITTBL("rpartition",   do_bytes_rpartition),
+        V_INITTBL("rsplit",       do_bytes_rsplit),
+        V_INITTBL("rstrip",       do_bytes_rstrip),
+        V_INITTBL("split",        do_bytes_split),
+        V_INITTBL("splitlines",   do_bytes_splitlines),
+        V_INITTBL("startswith",   do_bytes_startswith),
+        V_INITTBL("strip",        do_bytes_strip),
+        V_INITTBL("swapcase",     do_bytes_swapcase),
+        V_INITTBL("title",        do_bytes_title),
+        V_INITTBL("upper",        do_bytes_upper),
+        V_INITTBL("zfill",        do_bytes_zfill),
         TBLEND,
 };
 

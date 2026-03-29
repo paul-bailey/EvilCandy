@@ -219,7 +219,7 @@ array_delete_chunk(Object *array, size_t at, size_t n_items)
 static bool slice_cmp_lt(ssize_t a, ssize_t b) { return a < b; }
 static bool slice_cmp_gt(ssize_t a, ssize_t b) { return a > b; }
 
-static Object *
+Object *
 array_getslice(Object *obj, ssize_t start, ssize_t stop, ssize_t step)
 {
         Object *ret, **src;
@@ -723,17 +723,14 @@ static Object *
 do_array_append(Frame *fr)
 {
         Object *self, *arg;
-        self = vm_get_this(fr);
-        arg = vm_get_arg(fr, 0);
 
+        self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
-        if (!arg) {
-                /* ugh, I know what it means */
-                err_argtype("item");
+        if (vm_getargs(fr, "[<*>!]{!}:append", &arg) == RES_ERROR)
                 return ErrorVar;
-        }
+
         array_append(self, arg);
         return NULL;
 }
@@ -744,6 +741,8 @@ do_array_copy(Frame *fr)
 {
         Object *self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+        if (VM_REFUSE_ARGS(fr, "copy") == RES_ERROR)
                 return ErrorVar;
         return array_getslice(self, 0, seqvar_size(self), 1);
 }
@@ -770,6 +769,8 @@ do_array_allocated(Frame *fr)
         Object *self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
+        if (VM_REFUSE_ARGS(fr, "allocated") == RES_ERROR)
+                return ErrorVar;
         return intvar_new(V2ARR(self)->alloc_size
                           / sizeof(Object *));
 }
@@ -779,6 +780,8 @@ do_array_clear(Frame *fr)
 {
         Object *self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+        if (VM_REFUSE_ARGS(fr, "clear") == RES_ERROR)
                 return ErrorVar;
         if (array_delete_chunk(self, 0, seqvar_size(self)) != RES_OK)
                 return ErrorVar;
@@ -793,9 +796,8 @@ do_array_extend(Frame *fr)
         self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
-
-        arg = vm_get_arg(fr, 0);
-        bug_on(!arg);
+        if (vm_getargs(fr, "[<*>!]{!}:extend", &arg) == RES_ERROR)
+                return ErrorVar;
 
         return array_extend(self, arg) == RES_OK ? NULL : ErrorVar;
 }
@@ -810,11 +812,10 @@ do_array_remove(Frame *fr)
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
-        arg = vm_get_arg(fr, 0);
-        bug_on(!arg);
+        if (vm_getargs(fr, "[<*>!]{!}:remove", &arg) == RES_ERROR)
+                return ErrorVar;
 
         data = array_get_data(self);
-
         n = seqvar_size(self);
         for (i = 0; i < n; i++) {
                 if (var_compare(data[i], arg) == 0) {
@@ -840,7 +841,7 @@ do_array_pop(Frame *fr)
                 return ErrorVar;
 
         at = 0;
-        if (vm_getargs(fr, "|z!:pop", &at) == RES_ERROR)
+        if (vm_getargs(fr, "[|z!]{!}:pop", &at) == RES_ERROR)
                 return ErrorVar;
 
         var_index_capi(seqvar_size(self), &at, NULL);
@@ -854,22 +855,14 @@ do_array_pop(Frame *fr)
 static Object *
 do_array_insert(Frame *fr)
 {
-        Object *idxarg, *valarg, *self;
-        int at;
+        Object *valarg, *self;
+        ssize_t at;
 
         self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
-        idxarg = vm_get_arg(fr, 0);
-        valarg = vm_get_arg(fr, 1);
-        bug_on(!valarg || !idxarg);
-
-        if (arg_type_check(idxarg, &IntType) == RES_ERROR)
-                return ErrorVar;
-
-        at = intvar_toi(idxarg);
-        if (err_occurred())
+        if (vm_getargs(fr, "[z<*>!]{!}:insert", &at, &valarg) == RES_ERROR)
                 return ErrorVar;
 
         if (at > seqvar_size(self)) {
@@ -900,7 +893,7 @@ do_array_index(Frame *fr)
         start = 0;
         stop = n;
 
-        if (vm_getargs(fr, "<*>[|zz!]:index", &xarg, &start, &stop)
+        if (vm_getargs(fr, "[<*>|zz!]:index", &xarg, &start, &stop)
             == RES_ERROR) {
                 return ErrorVar;
         }
@@ -931,8 +924,8 @@ do_array_count(Frame *fr)
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
-        xarg = vm_get_arg(fr, 0);
-        bug_on(!xarg);
+        if (vm_getargs(fr, "[<*>!]{!}:count", &xarg) == RES_ERROR)
+                return ErrorVar;
 
         n = seqvar_size(self);
         data = array_get_data(self);
@@ -949,6 +942,8 @@ do_array_reverse(Frame *fr)
 {
         Object *self = vm_get_this(fr);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
+                return ErrorVar;
+        if (VM_REFUSE_ARGS(fr, "reverse") == RES_ERROR)
                 return ErrorVar;
 
         array_reverse(self);
@@ -1035,17 +1030,17 @@ array_get_iter(Object *arr)
 }
 
 static const struct type_inittbl_t array_cb_methods[] = {
-        V_INITTBL("allocated",  do_array_allocated,  0, 0, -1, -1),
-        V_INITTBL("append",     do_array_append,     1, 1, -1, -1),
-        V_INITTBL("clear",      do_array_clear,      0, 0, -1, -1),
-        V_INITTBL("copy",       do_array_copy,       0, 0, -1, -1),
-        V_INITTBL("count",      do_array_count,      1, 1, -1, -1),
-        V_INITTBL("extend",     do_array_extend,     1, 1, -1, -1),
-        V_INITTBL("index",      do_array_index,      2, 2,  1, -1),
-        V_INITTBL("insert",     do_array_insert,     2, 2, -1, -1),
-        V_INITTBL("pop",        do_array_pop,        0, 1, -1, -1),
-        V_INITTBL("remove",     do_array_remove,     1, 1, -1, -1),
-        V_INITTBL("reverse",    do_array_reverse,    0, 0, -1, -1),
+        V_INITTBL("allocated",  do_array_allocated),
+        V_INITTBL("append",     do_array_append),
+        V_INITTBL("clear",      do_array_clear),
+        V_INITTBL("copy",       do_array_copy),
+        V_INITTBL("count",      do_array_count),
+        V_INITTBL("extend",     do_array_extend),
+        V_INITTBL("index",      do_array_index),
+        V_INITTBL("insert",     do_array_insert),
+        V_INITTBL("pop",        do_array_pop),
+        V_INITTBL("remove",     do_array_remove),
+        V_INITTBL("reverse",    do_array_reverse),
         /* TODO: sort */
         TBLEND,
 };

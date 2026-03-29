@@ -8,7 +8,9 @@ do_dir(Frame *fr)
 {
         Object *arg, *arr;
 
-        arg = vm_get_arg(fr, 0);
+        arg = NULL;
+        if (vm_getargs(fr, "[|<*>!]{!}:dir", &arg) == RES_ERROR)
+                return ErrorVar;
         if (!arg) {
                 arr = arrayvar_new(0);
                 array_extend(arr, vm_globaldict());
@@ -27,11 +29,9 @@ do_dir(Frame *fr)
 static Object *
 do_typeof(Frame *fr)
 {
-        Object *p = vm_get_arg(fr, 0);
-        if (!p) {
-                err_frame_minargs(fr, 1);
+        Object *p = NULL;
+        if (vm_getargs(fr, "[<*>!]{!}:typeof", &p) == RES_ERROR)
                 return ErrorVar;
-        }
         return stringvar_new(typestr(p));
 }
 
@@ -39,11 +39,9 @@ static Object *
 do_hash(Frame *fr)
 {
         hash_t hash;
-        Object *p = vm_get_arg(fr, 0);
-        if (!p) {
-                err_frame_minargs(fr, 1);
+        Object *p = NULL;
+        if (vm_getargs(fr, "[<*>!]{!}:hash", &p) == RES_ERROR)
                 return ErrorVar;
-        }
         hash = var_hash(p);
         if (hash == HASH_ERROR) {
                 err_hashable(p, "hash");
@@ -132,12 +130,16 @@ do_import(Frame *fr)
 {
         const char *file_name;
         long mode;
-        Object *res, *ex, *args, *kwargs;
+        Object *res, *ex, *kwargs, *arg_wrapper;
         enum { R, X } how;
         FILE *fp;
 
-        if (vm_getargs(fr, "sc<[]><{}>!:import", &file_name,
-                       &mode, &args, &kwargs) == RES_ERROR) {
+        if (vm_getargs(fr, "<[]><{}>:import", &arg_wrapper, &kwargs)
+            == RES_ERROR) {
+                return ErrorVar;
+        }
+        if (vm_getargs_sv(arg_wrapper, "[sc]:import", &file_name, &mode)
+            == RES_ERROR) {
                 return ErrorVar;
         }
 
@@ -173,9 +175,13 @@ do_import(Frame *fr)
         function_setattr(res, IARG_FUNC_OPTIND, 0);
         function_setattr(res, IARG_FUNC_KWIND, 1);
         if (how == X) {
-                Object *func = res;
+                Object *args, *func;
+                args = array_getslice(arg_wrapper, 2,
+                                      seqvar_size(arg_wrapper), 1);
+                func = res;
                 res = vm_exec_func(fr, func, args, kwargs);
                 VAR_DECR_REF(func);
+                VAR_DECR_REF(args);
         }
         /* else, how == R */
 
@@ -192,9 +198,11 @@ do_import(Frame *fr)
 static Object *
 do_exit(Frame *fr)
 {
-        Object *p = vm_get_arg(fr, 0);
-        if (p && isvar_string(p))
-                fprintf(stderr, "%s\n", string_cstring(p));
+        char *msg;
+        if (vm_getargs(fr, "[|s]{!}:exit", &msg) == RES_ERROR)
+                return ErrorVar;
+        if (msg)
+                fprintf(stderr, "%s\n", msg);
         /*
          * XXX: This clears some bug traps that will trigger due to an
          * exit from an arbitrary depth in our context.  But it still
@@ -225,23 +233,24 @@ do_exit(Frame *fr)
 static Object *
 do_setnl(Frame *fr)
 {
-        Object *nl = vm_get_arg(fr, 0);
-        if (!isvar_string(nl)) {
-                err_argtype("string");
+        Object *nl;
+
+        if (vm_getargs(fr, "[<s>!]{!}:setnl", &nl) == RES_ERROR)
                 return ErrorVar;
-        }
         if (gbl.nl)
                 VAR_DECR_REF(gbl.nl);
-        VAR_INCR_REF(nl);
-        gbl.nl = nl;
+        gbl.nl = VAR_NEW_REF(nl);
         return NULL;
 }
 
 static Object *
 do_exists(Frame *fr)
 {
-        Object *key = vm_get_arg(fr, 0);
+        Object *key;
         bool exists;
+
+        if (vm_getargs(fr, "[<s>!]{!}:exists", &key) == RES_ERROR)
+                return ErrorVar;
         if (!key || !isvar_string(key)) {
                 err_setstr(TypeError, "Expected: string");
                 return ErrorVar;
@@ -254,11 +263,9 @@ static Object *
 do_abs(Frame *fr)
 {
         const struct operator_methods_t *opm;
-        Object *v = vm_get_arg(fr, 0);
-        if (!v) {
-                err_frame_minargs(fr, 1);
+        Object *v;
+        if (vm_getargs(fr, "[<*>!]{!}:abs", &v) == RES_ERROR)
                 return ErrorVar;
-        }
         opm = v->v_type->opm;
         if (!opm || !opm->abs) {
                 err_setstr(TypeError, "Wrong type for abs() '%s'",
@@ -273,11 +280,10 @@ do_all(Frame *fr)
 {
         enum result_t status;
         bool result;
-        Object *v = vm_get_arg(fr, 0);
-        if (!v) {
-                err_frame_minargs(fr, 1);
+        Object *v;
+
+        if (vm_getargs(fr, "[<*>!]{!}:all", &v) == RES_ERROR)
                 return ErrorVar;
-        }
         result = var_all(v, &status);
         if (status != RES_OK)
                 return ErrorVar;
@@ -289,11 +295,10 @@ do_any(Frame *fr)
 {
         enum result_t status;
         bool result;
-        Object *v = vm_get_arg(fr, 0);
-        if (!v) {
-                err_frame_minargs(fr, 1);
+        Object *v;
+
+        if (vm_getargs(fr, "[<*>!]{!}:any", &v) == RES_ERROR)
                 return ErrorVar;
-        }
         result = var_any(v, &status);
         if (status != RES_OK)
                 return ErrorVar;
@@ -303,8 +308,9 @@ do_any(Frame *fr)
 static Object *
 do_length(Frame *fr)
 {
-        Object *v = vm_get_arg(fr, 0);
-        bug_on(!v);
+        Object *v;
+        if (vm_getargs(fr, "[<*>!]{!}:length", &v) == RES_ERROR)
+                return ErrorVar;
 
         if (hasvar_len(v)) {
                 return intvar_new(seqvar_size(v));
@@ -318,93 +324,39 @@ do_length(Frame *fr)
 static Object *
 do_max(Frame *fr)
 {
-        Object *res, *arg;
-        size_t i, n;
+        Object *arg;
 
-        arg = vm_get_arg(fr, 0);
-        bug_on(!arg);
-        bug_on(!isvar_array(arg));
-        n = seqvar_size(arg);
-        if (n == 0) {
+        /* FIXME: Change @arg to be any iterable object, not just an array */
+        if (vm_getargs(fr, "<[]>{!}:max", &arg) == RES_ERROR)
+                return ErrorVar;
+        switch (seqvar_size(arg)) {
+        case 0:
                 err_va_minargs(arg, 1);
                 return ErrorVar;
+        case 1:
+                return var_max(array_borrowitem(arg, 0));
+        default:
+                return var_max(arg);
         }
-        if (n == 1) {
-                /* caller provided one arg, an object to min() */
-                Object *obj = array_getitem(arg, 0);
-                res = var_max(obj);
-                VAR_DECR_REF(obj);
-                return res;
-        }
-
-        res = NULL;
-        for (i = 0; i < n; i++) {
-                int cmp;
-                Object *v = array_getitem(arg, i);
-                bug_on(!v);
-
-                if (!res) {
-                        res = v;
-                        continue;
-                }
-
-                cmp = var_compare(v, res);
-                if (cmp > 0) {
-                        if (res)
-                                VAR_DECR_REF(res);
-                        res = v;
-                } else {
-                        VAR_DECR_REF(v);
-                }
-        }
-        bug_on(!res);
-        return res;
 }
 
 static Object *
 do_min(Frame *fr)
 {
-        Object *res, *arg;
-        size_t i, n;
+        Object *arg;
 
-        arg = vm_get_arg(fr, 0);
-        bug_on(!arg);
-        bug_on(!isvar_array(arg));
-        n = seqvar_size(arg);
-        if (n == 0) {
+        /* FIXME: Change @arg to be any iterable object, not just an array */
+        if (vm_getargs(fr, "<[]>{!}:min", &arg) == RES_ERROR)
+                return ErrorVar;
+        switch (seqvar_size(arg)) {
+        case 0:
                 err_va_minargs(arg, 1);
                 return ErrorVar;
+        case 1:
+                return var_min(array_borrowitem(arg, 0));
+        default:
+                return var_min(arg);
         }
-        if (n == 1) {
-                /* caller provided one arg, an object to min() */
-                Object *obj = array_getitem(arg, 0);
-                res = var_min(obj);
-                VAR_DECR_REF(obj);
-                return res;
-        }
-
-        res = NULL;
-        for (i = 0; i < n; i++) {
-                int cmp;
-                Object *v = array_getitem(arg, i);
-                bug_on(!v);
-
-                if (!res) {
-                        res = v;
-                        continue;
-                }
-
-                cmp = var_compare(v, res);
-                if (cmp < 0) {
-                        if (res)
-                                VAR_DECR_REF(res);
-                        res = v;
-                } else {
-                        VAR_DECR_REF(v);
-                }
-        }
-        bug_on(!res);
-        return res;
 }
 
 static Object *
@@ -413,7 +365,7 @@ do_ord(Frame *fr)
         Object *str;
         long ord;
 
-        if (vm_getargs(fr, "<c>:ord", &str) == RES_ERROR)
+        if (vm_getargs(fr, "[<c>!]{!}:ord", &str) == RES_ERROR)
                 return ErrorVar;
 
         ord = string_ord(str, 0);
@@ -425,14 +377,12 @@ static Object *
 do_disassemble(Frame *fr)
 {
         /* TODO: optional file arg */
-        Object *method = NULL;
-        Object *func = vm_get_arg(fr, 0);
-        Object *ex;
-        if (!func) {
-                err_frame_minargs(fr, 1);
-                return ErrorVar;
-        }
+        Object *method, *func, *ex;
 
+        if (vm_getargs(fr, "[<*>!]{!}:disassemble", &func) == RES_ERROR)
+                return ErrorVar;
+
+        method = NULL;
         if (isvar_method(func)) {
                 enum result_t status;
                 Object *tmp;
@@ -470,7 +420,7 @@ do_eval(Frame *fr)
         char *expr;
         Object *ex, *ret;
 
-        if (vm_getargs(fr, "s!:eval", &expr) == RES_ERROR)
+        if (vm_getargs(fr, "[s!]{!}:eval", &expr) == RES_ERROR)
                 return ErrorVar;
         ex = assemble_string(expr, true);
         if (!ex || ex == ErrorVar) {
@@ -484,24 +434,24 @@ do_eval(Frame *fr)
 
 static const struct type_inittbl_t builtin_inittbl[] = {
         /*         name     callback  min max opt kw */
-        V_INITTBL("abs",    do_abs,    1, 1, -1, -1),
-        V_INITTBL("all",    do_all,    1, 1, -1, -1),
-        V_INITTBL("any",    do_any,    1, 1, -1, -1),
-        V_INITTBL("dir",    do_dir,    0, 1, -1, -1),
-        V_INITTBL("disassemble", do_disassemble, 1, 1, -1, -1),
-        V_INITTBL("eval",   do_eval,   1, 1, -1, -1),
-        V_INITTBL("hash",   do_hash,   1, 1, -1, -1),
-        V_INITTBL("length", do_length, 1, 1, -1, -1),
-        V_INITTBL("min",    do_min,    1, 1,  0, -1),
-        V_INITTBL("max",    do_max,    1, 1,  0, -1),
-        V_INITTBL("ord",    do_ord,    1, 1, -1, -1),
-        V_INITTBL("print",  do_print,  2, 2,  0,  1),
-        V_INITTBL("setnl",  do_setnl,  1, 1, -1, -1),
-        V_INITTBL("typeof", do_typeof, 1, 1, -1, -1),
+        V_INITTBL("abs",    do_abs),
+        V_INITTBL("all",    do_all),
+        V_INITTBL("any",    do_any),
+        V_INITTBL("dir",    do_dir),
+        V_INITTBL("disassemble", do_disassemble),
+        V_INITTBL("eval",   do_eval),
+        V_INITTBL("hash",   do_hash),
+        V_INITTBL("length", do_length),
+        V_INITTBL("min",    do_min),
+        V_INITTBL("max",    do_max),
+        V_INITTBL("ord",    do_ord),
+        V_INITTBL("print",  do_print),
+        V_INITTBL("setnl",  do_setnl),
+        V_INITTBL("typeof", do_typeof),
         /* XXX: maybe exit should be a method of __gbl__._sys */
-        V_INITTBL("exit",   do_exit,   0, 0, -1, -1),
-        V_INITTBL("exists", do_exists, 1, 1, -1, -1),
-        V_INITTBL("import", do_import, 4, 4,  2,  3),
+        V_INITTBL("exit",   do_exit),
+        V_INITTBL("exists", do_exists),
+        V_INITTBL("import", do_import),
         { .name = NULL },
 };
 

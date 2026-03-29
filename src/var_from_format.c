@@ -152,13 +152,7 @@ var_make_builtin(const char *fmt, va_list ap, char **endptr)
 
         bug_on(!cb);
 
-        if (min < 0)
-                min = 0;
-        func = funcvar_new_intl(cb, min, max);
-        if (kw >= 0)
-                function_setattr(func, IARG_FUNC_KWIND, kw);
-        if (opt >= 0)
-                function_setattr(func, IARG_FUNC_OPTIND, opt);
+        func = funcvar_new_intl(cb);
 
         bug_on(*fmt != '>');
         *endptr = (char *)fmt+1;

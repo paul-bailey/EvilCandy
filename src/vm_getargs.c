@@ -47,6 +47,7 @@
  *
  * '!'  Last arg was the highest-number valid argument.  Meaningful in
  *      tuples, arrays, or at the end of a format string for arguments.
+ *      In dictionaries, "{!}" can be used to refuse keyword arguments.
  *
  * '|'  End of mandatory arguments; remaining characters are for optional
  *      args.  If these optional arguments do not exist in the arguments,
@@ -211,6 +212,18 @@ get_dict_args(Object *dict, const char **fmt, va_list ap,
                 bug_on(c == '\0');
                 if (c == '}')
                         break;
+
+                if (c == '!') {
+                        if (dict && seqvar_size(dict) != 0) {
+                                err_setstr(TypeError,
+                                           "%s%sdoes not accept keyword arguments",
+                                           fname ? fname : "", fname ? "() " : "");
+                                return RES_ERROR;
+                        }
+                        c = *s++;
+                        bug_on(c != '}');
+                        break;
+                }
 
                 if (c == '|') {
                         bug_on(!(flags & GAF_MANDO));

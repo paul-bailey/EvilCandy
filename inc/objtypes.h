@@ -90,21 +90,14 @@ struct seq_methods_t {
  * struct type_inittbl_t - Used for initializing a built-in function.
  *      TBLEND declares an end to the table.
  */
-#define V_INITTBL(n, cb, m, M, o, k)    \
-        { .name = n, .fn = cb,          \
-          .minargs = m, .maxargs = M,   \
-          .optind = o, .kwind = k }
+#define V_INITTBL(n, cb) { .name = n, .fn = cb }
 
-#define TBLEND { .name = NULL }
+#define TBLEND { .name = NULL, .fn = NULL }
 
 /* XXX: should be called builtin_func_tbl_t or something */
 struct type_inittbl_t {
         const char *name;
         Object *(*fn)(Frame *);
-        int minargs;
-        int maxargs;
-        int optind;
-        int kwind;
 };
 
 /* see struct type_t below, @prop_getsets */

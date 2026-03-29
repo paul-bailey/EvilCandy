@@ -622,15 +622,12 @@ err:
 static Object *
 do_dict_delitem(Frame *fr)
 {
+        Object *name;
         Object *self = vm_get_this(fr);
-        Object *name = vm_get_arg(fr, 0);
-
         if (arg_type_check(self, &DictType) == RES_ERROR)
                 return ErrorVar;
-
-        if (arg_type_check(name, &StringType) != 0)
+        if (vm_getargs(fr, "[<*>!]{!}:delitem", &name) == RES_ERROR)
                 return ErrorVar;
-
         if (dict_setitem(self, name, NULL) != RES_OK)
                 return ErrorVar;
         return NULL;
@@ -647,7 +644,7 @@ do_dict_keys(Frame *fr)
                 return ErrorVar;
 
         sorted = 0ll;
-        if (vm_getargs(fr, "{|l}:keys", STRCONST_ID(sorted), &sorted)
+        if (vm_getargs(fr, "[!]{|l}:keys", STRCONST_ID(sorted), &sorted)
             == RES_ERROR) {
                 return ErrorVar;
         }
@@ -662,6 +659,8 @@ do_dict_items(Frame *fr)
         Object *self = vm_get_this(fr);
         if (arg_type_check(self, &DictType) == RES_ERROR)
                 return ErrorVar;
+        if (VM_REFUSE_ARGS(fr, "items") == RES_ERROR)
+                return ErrorVar;
         return dict_items(self);
 }
 
@@ -674,6 +673,8 @@ do_dict_values(Frame *fr)
         int i, j;
 
         if (arg_type_check(self, &DictType) == RES_ERROR)
+                return ErrorVar;
+        if (VM_REFUSE_ARGS(fr, "values") == RES_ERROR)
                 return ErrorVar;
 
         ret = arrayvar_new(seqvar_size(self));
@@ -703,6 +704,8 @@ do_dict_copy(Frame *fr)
 
         if (arg_type_check(self, &DictType) == RES_ERROR)
                 return ErrorVar;
+        if (VM_REFUSE_ARGS(fr, "copy") == RES_ERROR)
+                return ErrorVar;
 
         if (dict_copyto(ret, self) != RES_OK) {
                 VAR_DECR_REF(ret);
@@ -716,6 +719,8 @@ do_dict_clear(Frame *fr)
 {
         Object *self = vm_get_this(fr);
         bug_on(!isvar_dict(self));
+        if (VM_REFUSE_ARGS(fr, "clear") == RES_ERROR)
+                return ErrorVar;
         dict_clear(V2D(self));
         return NULL;
 }
@@ -805,12 +810,12 @@ dict_create(Frame *fr)
 }
 
 static const struct type_inittbl_t dict_cb_methods[] = {
-        V_INITTBL("clear",     do_dict_clear,       0, 0, -1, -1),
-        V_INITTBL("copy",      do_dict_copy,        0, 0, -1, -1),
-        V_INITTBL("delitem",   do_dict_delitem,     1, 1, -1, -1),
-        V_INITTBL("items",     do_dict_items,       0, 0, -1, -1),
-        V_INITTBL("keys",      do_dict_keys,        1, 1, -1,  0),
-        V_INITTBL("values",    do_dict_values,      0, 0, -1, -1),
+        V_INITTBL("clear",     do_dict_clear),
+        V_INITTBL("copy",      do_dict_copy),
+        V_INITTBL("delitem",   do_dict_delitem),
+        V_INITTBL("items",     do_dict_items),
+        V_INITTBL("keys",      do_dict_keys),
+        V_INITTBL("values",    do_dict_values),
         TBLEND,
 };
 

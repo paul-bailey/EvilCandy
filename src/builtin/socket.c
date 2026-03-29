@@ -282,7 +282,7 @@ obj2addr_(struct evc_sockaddr_t *sa, Object *arg, int domain,
  * @fname must be a literal, not a variable.
  */
 #define obj2addr(sa, arg, dom, fname_) \
-        obj2addr_(sa, arg, dom, "(sh):" fname_, fname_)
+        obj2addr_(sa, arg, dom, "[(sh)!]{!}:" fname_, fname_)
 
 /*
  * validate_int - Check that @ival is positive and matches one of the
@@ -444,8 +444,8 @@ do_bind(Frame *fr)
         struct evc_sockaddr_t sa;
 
         skobj = vm_get_this(fr);
-        addrarg = vm_get_arg(fr, 0);
-        bug_on(!addrarg);
+        if (vm_getargs(fr, "[<*>!]{!}:bind", &addrarg) == RES_ERROR)
+                return ErrorVar;
 
         skv = socket_get_priv(skobj, "bind", 1);
         if (!skv)
@@ -486,8 +486,8 @@ do_connect(Frame *fr)
          * here?
          */
         skobj = vm_get_this(fr);
-        addrarg = vm_get_arg(fr, 0);
-        bug_on(!addrarg);
+        if (vm_getargs(fr, "[<*>!]{!}:connect", &addrarg) == RES_ERROR)
+                return ErrorVar;
 
         skv = socket_get_priv(skobj, "connect", 1);
         if (!skv)
@@ -521,7 +521,7 @@ do_listen(Frame *fr)
         int backlog;
 
         skobj = vm_get_this(fr);
-        if (vm_getargs(fr, "i", &backlog) == RES_ERROR)
+        if (vm_getargs(fr, "[i!]{!}", &backlog) == RES_ERROR)
                 return ErrorVar;
         skv = socket_get_priv(skobj, "listen", 1);
         if (!skv)
@@ -605,7 +605,7 @@ recv_common_(Frame *fr,
 
 /* fname must be a literal, not a variable. */
 #define recv_common(fr_, cb_, data_, fname_) \
-        recv_common_(fr_, cb_, data_, "l{|i}:" fname_, fname_)
+        recv_common_(fr_, cb_, data_, "[l!]{|i}:" fname_, fname_)
 
 /*
  * msg = sk.recv(length, [flags=0]);
@@ -718,7 +718,7 @@ do_send(Frame *fr)
         if (!skv)
                 return ErrorVar;
 
-        if (vm_getargs(fr, "<bs>{|i}:send", &msg,
+        if (vm_getargs(fr, "[<bs>!]{|i}:send", &msg,
                         STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -752,7 +752,7 @@ do_sendto(Frame *fr)
 
         flags = 0;
         msg = ao = NULL;
-        if (vm_getargs(fr, "<bs><*>{|i}:sendto", &msg, &ao,
+        if (vm_getargs(fr, "[<bs><*>!]{|i}:sendto", &msg, &ao,
                         STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -812,7 +812,7 @@ socket_init(Frame *fr)
 
         fd = -1;
         instance = vm_get_this(fr);
-        if (vm_getargs(fr, "iii", &domain, &type, &protocol) == RES_ERROR)
+        if (vm_getargs(fr, "[iii!]{!}", &domain, &type, &protocol) == RES_ERROR)
                 return ErrorVar;
         if (validate_int(domain, VALID_DOMAINS, "domain") == RES_ERROR)
                 return ErrorVar;
@@ -839,17 +839,17 @@ static Object *
 create_socket_class(void)
 {
         static const struct type_inittbl_t sockmethods_inittbl[] = {
-                V_INITTBL("accept",   do_accept,   0, 0, -1, -1),
-                V_INITTBL("bind",     do_bind,     1, 1, -1, -1),
-                V_INITTBL("connect",  do_connect,  1, 1, -1, -1),
-                V_INITTBL("listen",   do_listen,   1, 1, -1, -1),
-                V_INITTBL("recv",     do_recv,     2, 2, -1,  1),
-                V_INITTBL("recvfrom", do_recvfrom, 2, 2, -1,  1),
-                V_INITTBL("send",     do_send,     2, 2, -1,  1),
-                V_INITTBL("sendto",   do_sendto,   3, 3, -1,  2),
-                V_INITTBL("close",    do_close,    0, 0, -1, -1),
-                V_INITTBL("__str__",  socket_str,  0, 0, -1, -1),
-                V_INITTBL("__init__", socket_init, 3, 3, -1, -1),
+                V_INITTBL("accept",   do_accept),
+                V_INITTBL("bind",     do_bind),
+                V_INITTBL("connect",  do_connect),
+                V_INITTBL("listen",   do_listen),
+                V_INITTBL("recv",     do_recv),
+                V_INITTBL("recvfrom", do_recvfrom),
+                V_INITTBL("send",     do_send),
+                V_INITTBL("sendto",   do_sendto),
+                V_INITTBL("close",    do_close),
+                V_INITTBL("__str__",  socket_str),
+                V_INITTBL("__init__", socket_init),
                 /* TODO: [gs]etsockopt and common ioctl wrappers */
                 TBLEND,
         };

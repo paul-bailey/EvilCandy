@@ -71,5 +71,6 @@ extern Object *execute_loop(Frame *fr);
 /* vm_getargs.c */
 extern enum result_t vm_getargs(Frame *fr, const char *fmt, ...);
 extern enum result_t vm_getargs_sv(Object *sv, const char *fmt, ...);
+#define VM_REFUSE_ARGS(fr_, fname_) vm_getargs((fr_), "[!]{!}:" fname_)
 
 #endif /* EVILCANDY_VM_H */

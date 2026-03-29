@@ -220,8 +220,8 @@ float_create(Frame *fr)
         size_t argc;
         Object *args, *arg;
 
-        args = vm_get_arg(fr, 0);
-        bug_on(!isvar_array(args));
+        if (vm_getargs(fr, "<[]>{!}:float", &args) == RES_ERROR)
+                return ErrorVar;
         argc = seqvar_size(args);
         if (argc > 1) {
                 err_maxargs(seqvar_size(args), 1);
@@ -261,7 +261,7 @@ badstring:
 }
 
 static const struct type_inittbl_t float_methods[] = {
-        V_INITTBL("conjugate", float_conjugate, 0, 0, -1, -1),
+        V_INITTBL("conjugate", float_conjugate),
         TBLEND,
 };
 

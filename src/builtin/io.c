@@ -342,7 +342,7 @@ do_raw_read(Frame *fr)
         struct rawfile_t *raw = file_fget_priv(fr, "read", 1);
         if (!raw)
                 return ErrorVar;
-        if (vm_getargs(fr, "[|l]:read", &size) == RES_ERROR)
+        if (vm_getargs(fr, "[|l!]{!}:read", &size) == RES_ERROR)
                 return ErrorVar;
 
         if (!raw->fr_readable) {
@@ -361,7 +361,7 @@ do_raw_write(Frame *fr)
         struct rawfile_t *raw = file_fget_priv(fr, "write", 1);
         if (!raw)
                 return ErrorVar;
-        if (vm_getargs(fr, "<b>:write", &bo) == RES_ERROR)
+        if (vm_getargs(fr, "[<b>!]{!}:write", &bo) == RES_ERROR)
                 return ErrorVar;
         if (!raw->fr_writable) {
                 filerr_permit("write", 1);
@@ -416,11 +416,11 @@ open_raw(int fd, struct fileconfig_t *cfg)
         class = gbl.classes[GBL_CLASS_RAWFILE];
         if (!class) {
                 static const struct type_inittbl_t rawfile_cb_methods[] = {
-                        V_INITTBL("read",       do_raw_read,     1, 1,  0, -1),
-                        V_INITTBL("write",      do_raw_write,    1, 1, -1, -1),
-                        V_INITTBL("close",      do_raw_close,    0, 0, -1, -1),
-                        V_INITTBL("iseof",      do_iseof,        0, 0, -1, -1),
-                        V_INITTBL("__str__",    raw_str,         0, 0, -1, -1),
+                        V_INITTBL("read",       do_raw_read),
+                        V_INITTBL("write",      do_raw_write),
+                        V_INITTBL("close",      do_raw_close),
+                        V_INITTBL("iseof",      do_iseof),
+                        V_INITTBL("__str__",    raw_str),
                         TBLEND,
                 };
                 Object *methods;
@@ -576,7 +576,7 @@ do_bin_read(Frame *fr)
         struct rawfile_t *raw = file_fget_priv(fr, "read", 1);
         if (!raw)
                 return ErrorVar;
-        if (vm_getargs(fr, "[|l]:read", &size) == RES_ERROR)
+        if (vm_getargs(fr, "[|l!]{!}:read", &size) == RES_ERROR)
                 return ErrorVar;
 
         if (!raw->fr_readable) {
@@ -594,7 +594,7 @@ do_bin_write(Frame *fr)
         struct rawfile_t *raw = file_fget_priv(fr, "write", 1);
         if (!raw)
                 return ErrorVar;
-        if (vm_getargs(fr, "<b>:write", &bo) == RES_ERROR)
+        if (vm_getargs(fr, "[<b>!]{!}:write", &bo) == RES_ERROR)
                 return ErrorVar;
         if (!raw->fr_writable) {
                 filerr_permit("write", 1);
@@ -671,11 +671,11 @@ open_binary(int fd, struct fileconfig_t *cfg)
         class = gbl.classes[GBL_CLASS_BINFILE];
         if (!class) {
                 static const struct type_inittbl_t binfile_cb_methods[] = {
-                        V_INITTBL("read",       do_bin_read,     1, 1,  0, -1),
-                        V_INITTBL("write",      do_bin_write,    1, 1, -1, -1),
-                        V_INITTBL("close",      do_bin_close,    0, 0, -1, -1),
-                        V_INITTBL("iseof",      do_iseof,        0, 0, -1, -1),
-                        V_INITTBL("__str__",    bin_str,         0, 0, -1, -1),
+                        V_INITTBL("read",       do_bin_read),
+                        V_INITTBL("write",      do_bin_write),
+                        V_INITTBL("close",      do_bin_close),
+                        V_INITTBL("iseof",      do_iseof),
+                        V_INITTBL("__str__",    bin_str),
                         TBLEND,
                 };
                 Object *methods;
@@ -824,7 +824,7 @@ do_text_read(Frame *fr)
         txt = CAST_TXT(file_fget_priv(fr, "read", 1));
         if (!txt)
                 return ErrorVar;
-        if (vm_getargs(fr, "[|l]:read", &size) == RES_ERROR)
+        if (vm_getargs(fr, "[|l!]{!}:read", &size) == RES_ERROR)
                 return ErrorVar;
         if (!txt->ft_readable) {
                 filerr_permit("read", 0);
@@ -964,7 +964,7 @@ do_text_write(Frame *fr)
         txt = CAST_TXT(file_fget_priv(fr, "write", 1));
         if (!txt)
                 return ErrorVar;
-        if (vm_getargs(fr, "<s>:write", &so) == RES_ERROR)
+        if (vm_getargs(fr, "[<s>!]{!}:write", &so) == RES_ERROR)
                 return ErrorVar;
         if (!txt->ft_writable) {
                 filerr_permit("write", 1);
@@ -1054,12 +1054,12 @@ open_text(int fd, struct fileconfig_t *cfg, int codec)
         class = gbl.classes[GBL_CLASS_TXTFILE];
         if (!class) {
                 static const struct type_inittbl_t textfile_cb_methods[] = {
-                        V_INITTBL("read",       do_text_read,     1, 1,  0, -1),
-                        V_INITTBL("readline",   do_text_readline, 0, 0, -1, -1),
-                        V_INITTBL("write",      do_text_write,    1, 1, -1, -1),
-                        V_INITTBL("close",      do_text_close,    0, 0, -1, -1),
-                        V_INITTBL("iseof",      do_iseof,         0, 0, -1, -1),
-                        V_INITTBL("__str__",    text_str,         0, 0, -1, -1),
+                        V_INITTBL("read",       do_text_read),
+                        V_INITTBL("readline",   do_text_readline),
+                        V_INITTBL("write",      do_text_write),
+                        V_INITTBL("close",      do_text_close),
+                        V_INITTBL("iseof",      do_iseof),
+                        V_INITTBL("__str__",    text_str),
                         TBLEND,
                 };
                 Object *methods;
@@ -1336,7 +1336,7 @@ do_open(Frame *fr)
         int fd;
         Object *ret;
 
-        res = vm_getargs(fr, "<si>s{|<s>ii}:open", &namearg, &mode,
+        res = vm_getargs(fr, "[<si>s!]{|<s>ii}:open", &namearg, &mode,
                          STRCONST_ID(encoding), &encarg,
                          STRCONST_ID(closefd), &closefd,
                          STRCONST_ID(buffering), &buffering);
@@ -1496,7 +1496,7 @@ err:
 }
 
 static const struct type_inittbl_t io_inittbl[] = {
-        V_INITTBL("open", do_open, 3, 3, -1,  2),
+        V_INITTBL("open", do_open),
         TBLEND,
 };
 

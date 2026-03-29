@@ -221,7 +221,7 @@ do_tuple_index(Frame *fr)
         start = 0;
         stop = n;
 
-        if (vm_getargs(fr, "<*>[|zz!]:index", &xarg, &start, &stop)
+        if (vm_getargs(fr, "[<*>|zz!]{!}:index", &xarg, &start, &stop)
             == RES_ERROR) {
                 return ErrorVar;
         }
@@ -248,8 +248,8 @@ do_tuple_count(Frame *fr)
         if (arg_type_check(self, &TupleType) == RES_ERROR)
                 return ErrorVar;
 
-        xarg = vm_get_arg(fr, 0);
-        bug_on(!xarg);
+        if (vm_getargs(fr, "[<*>!]{!}:count", &xarg) == RES_ERROR)
+                return ErrorVar;
 
         n = seqvar_size(self);
         data = tuple_get_data(self);
@@ -558,8 +558,8 @@ tuple_get_iter(Object *tup)
 
 
 static const struct type_inittbl_t tuple_cb_methods[] = {
-        V_INITTBL("count",   do_tuple_count,      1, 1, -1, -1),
-        V_INITTBL("index",   do_tuple_index,      2, 2,  1, -1),
+        V_INITTBL("count",   do_tuple_count),
+        V_INITTBL("index",   do_tuple_index),
         TBLEND,
 };
 

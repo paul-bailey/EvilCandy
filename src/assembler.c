@@ -407,30 +407,22 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
 static void
 insert_instr_at_bottom(struct assemble_t *a, int code, int arg1, int arg2)
 {
-        instruction_t ii, *src;
-        size_t i, n;
+        instruction_t ii, *instrs;
+        ssize_t i, n;
         unsigned short *labels;
-        struct buffer_t b;
 
-        bug_on((unsigned)code > 255);
-        bug_on((unsigned)arg1 > 255);
-        /* XXX: This is an error, not a bug */
-        bug_on(arg2 >= 32768 || arg2 < -32768);
+        /* first append it to make sure there's room */
+        add_instr(a, code, arg1, arg2);
 
-        ii.code = code;
-        ii.arg1 = arg1;
-        ii.arg2 = arg2;
+        /* now shift everything over and put the top onto the bottom */
+        n = as_frame_ninstr(a->fr);
+        instrs = (instruction_t *)a->fr->af_instr.s;
+        ii = instrs[n - 1];
+        for (i = n - 1; i >= 1; i--)
+                instrs[i] = instrs[i - 1];
+        instrs[0] = ii;
 
-        n = buffer_size(&a->fr->af_instr);
-        src = (instruction_t *)buffer_trim(&a->fr->af_instr);
-
-        buffer_init(&b);
-        buffer_putd(&b, &ii, sizeof(ii));
-        buffer_putd(&b, src, n);
-        memcpy(&a->fr->af_instr, &b, sizeof(b));
-        efree(src);
-
-        /* Every lable now needs to be one higher */
+        /* Every label now needs to be one higher */
         n = as_frame_nlabel(a->fr);
         labels = (unsigned short *)a->fr->af_labels.s;
         for (i = 0; i < n; i++)

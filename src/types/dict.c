@@ -899,7 +899,6 @@ struct dict_iterator_t {
         size_t i;
 };
 
-/* TODO: special alternatives which return values or key/value pairs */
 static Object *
 dict_iter_next(Object *it)
 {
@@ -951,8 +950,8 @@ dict_get_iter(Object *d)
  * *********************************************************************/
 
 /**
- * dict_keys - Get an alphabetically sorted list of all the keys
- *               currently in the dictionary.
+ * dict_keys - Get a list of all the keys currently in the dictionary.
+ * @sorted: If true, attempt to sort the keys.
  */
 Object *
 dict_keys(Object *obj, bool sorted)

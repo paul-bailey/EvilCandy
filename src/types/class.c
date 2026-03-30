@@ -57,7 +57,7 @@ class_getitem(Object *class, Object *key)
 
         n = seqvar_size(cls->c_bases);
         for (i = 0; i < n; i++) {
-                Object *item = tuple_borrowitem(cls->c_bases, i);
+                Object *item = tuple_getitem_noref(cls->c_bases, i);
                 ret = class_getitem(item, key);
                 if (ret)
                         return ret;
@@ -133,7 +133,7 @@ verify_base_classes(Object *bases, size_t *size)
 
         n = seqvar_size(bases);
         for (i = 0; i < n; i++) {
-                Object *obj = tuple_borrowitem(bases, i);
+                Object *obj = tuple_getitem_noref(bases, i);
                 if (!isvar_class(obj)) {
                         err_setstr(TypeError,
                                    "base class may not be type '%s'",
@@ -269,7 +269,7 @@ instance_super_getattr(Object *instance, Object *attribute_name)
 
         n = seqvar_size(bases);
         for (i = 0; i < n; i++) {
-                Object *super = tuple_borrowitem(bases, i);
+                Object *super = tuple_getitem_noref(bases, i);
                 Object *attr = class_getitem(super, attribute_name);
                 if (attr)
                         return attr;
@@ -368,7 +368,6 @@ instance_dir(Object *instance)
         struct instance_t *inst;
         struct class_t *class;
         Object *set, *ret;
-        size_t i, n;
 
         inst = V2INST(instance);
         class = V2CL(inst->inst_class);
@@ -376,12 +375,15 @@ instance_dir(Object *instance)
         set = setvar_new(inst->inst_attr);
         set_extend(set, class->c_dict);
 
-        n = 0;
-        if (class->c_bases)
+        if (class->c_bases) {
+                size_t i, n;
+                Object *base;
+
                 n = seqvar_size(class->c_bases);
-        for (i = 0; i < n; i++) {
-                Object *base = tuple_borrowitem(class->c_bases, i);
-                set_extend(set, V2CL(base)->c_dict);
+                for (i = 0; i < n; i++) {
+                        base = tuple_getitem_noref(class->c_bases, i);
+                        set_extend(set, V2CL(base)->c_dict);
+                }
         }
         ret = arrayvar_new(0);
         array_extend(ret, set);

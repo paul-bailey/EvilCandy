@@ -1101,9 +1101,6 @@ assemble_tuple_or_expression(struct assemble_t *a, bool check_rpar)
  *      (expr,)                 1-item tuple
  *      (expr1, expr2...        multi-item tuple
  *      (expr)                  non-tuple expression
- *
- * in the future:
- *      (expr for ...           comprehension
  */
 static int
 assemble_leftpar_expr(struct assemble_t *a, bool may_be_lambda)

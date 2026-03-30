@@ -305,7 +305,7 @@ To begin with, we don't want to repeat typing the Leibniz algorithm
 every time we want to execute it.
 So we put it into a function as follows::
 
-   evc> let leibniz = function(n) {
+   evc> leibniz = function(n) {
     ...    let result = 0;
     ...    let num = 4.0;
     ...    let den = 1;
@@ -324,18 +324,29 @@ if you look closely, you will see that it takes the form::
 
    let name = expression;
 
-This is similar to JavaScript's anonymous-function notation.
-However, **in EvilCandy all functions are anonymous**.
-The more conventional JavaScript way to name a function
+This is known as an "anonymous" function.  Treating a function definition
+as just another literal expression like this can be very useful in cases
+where you want to keep a definition close to its usage, such as in an
+argument list.  The non-anonymous way to express a function is::
 
-.. code-block:: js
-
-   // JavaScript function
    function leibniz(n) {
         .....
    }
 
-is not permitted in EvilCandy.
+...in which case the semicolon is not needed at the end.  When declaring
+a function in this way, the symbol name is *always* a local variable.
+To make a function name be global, you have one of two choices::
+
+   // choice 1: anonymous function assigned to global variable
+   global leibniz = fnction(n) {
+        ...
+   };
+
+   // choice 2: assign existing function to a new global variable
+   function leibniz(n) {
+        ...
+   }
+   global leibniz = leibniz
 
 For this example, I've chosen an argument ``n`` to determine
 how many iterations of the algorithm to use.  Clearly the
@@ -356,32 +367,45 @@ is strictly enforced::
    evc> leibniz();
    [EvilCandy] ArgumentError Expected at least 1 args but got 0
 
-Variadic functions or functions taking keyword arguments
-can use star or double-star notation, similar to Python::
+Variadic functions—functions with a variable number of arguments—can
+use a star notation::
 
-   evc> let foo = function(*args, **kwargs) {
-    ...    print('args:', args);
-    ...    print('kwargs:', kwargs);
+   evc> function foo(arg1, arg2, *var_args) {
+
+In this example, arg1, and arg2 are mandatory arguments.  The third
+argument, ``*var_args``, is a list containing any non-keyword arguments
+exceeding the number of mandatory positional arguments.  This list may
+be zero if (in this case) only two arguments were passed to the function.
+A function header may not contain any more positional arguments after the
+starred argument.
+
+Functions can accept keyword arguments with double-star notation.  When
+used, it must always be the last argument in the header.  (We will dicuss
+keyword arguments in greater detail later.)::
+
+   evc> function foo(*args, **kwargs) {
+    ...    print('Your positional args are:', args);
+    ...    print('Your keyword args are:', kwargs);
     ... };
 
-When calling a function with keyword arguments, place the
+When invoking a function using keyword arguments, place the
 keyword arguments at the end of the argument list, and use
 the format *keyword=value*::
 
    evc> foo('line', 1, kw_a='a', kw_b='b');
-   args: ['line', 1]
-   kwargs: {'kw_a': 'a', 'kw_b': 'b'}
+   Your positional args are: ['line', 1]
+   Your keyword args are: {'kw_a': 'a', 'kw_b': 'b'}
 
-A sequential object can be unpacked into the argument list
-using the star operator::
+When invoking a function, a sequential object can be unpacked into the
+argument list using the star operator::
 
    evc> let x = [1,2,3];
    evc> foo(*x);
-   args: [1, 2, 3]
-   kwargs: {}
+   Your positional args are: [1, 2, 3]
+   Your keyword args are: {}
    evc> foo(x);
-   args: [[1, 2, 3]]
-   kwargs: {}
+   Your positional args are: [[1, 2, 3]]
+   Your keyword args are: {}
 
 In the above first case, there are three arguments, 1, 2, and 3,
 while in the second case, there is one argument, a list containing
@@ -445,7 +469,7 @@ information outside of its scope and remembers it each time it is called.
 A function which returns a closure, then, is very powerful.
 Take, for instance, the following example::
 
-   evc> let multer = function(n) {
+   evc> function multer(n) {
     ...    return function(x) {
     ...            return x * n;
     ...    };
@@ -534,7 +558,10 @@ A few things to also note about closures:
 
    I say "technically," because there are so few cases where reassigning
    a closure like this is useful that some programming languages like
-   Python do not even allow it [#]_.
+   Python do not even allow it [#]_.  Note that ``++`` is not an in-place
+   operator; integers are mutable.  So in this example, ``n++`` is just
+   syntactic sugar for ``n = n + 1;``.  That is, "n is reassigned to an
+   object whose value is one greater."
 
 4. If closure data is mutable, such as a list, then modifying (rather than
    reassigning) the closure data *will* effect the data in the outer scope::

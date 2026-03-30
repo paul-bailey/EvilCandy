@@ -82,7 +82,7 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
 * It has the skeleton of a math and IO library, but these are mainly
   as they were when I threw them together just to see if something works.
 
-* Comprehensions and generators are not supported yet.
+* Generators are supported, but so far comprehensions are not.
 
 * It is single-threaded, and it will probably remain that way at least
   for a while.

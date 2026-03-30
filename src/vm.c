@@ -38,7 +38,7 @@ static inline Object *pop(Frame *fr)
         { return POP_(fr); }
 
 static inline Object *RODATA(Frame *fr, instruction_t ii)
-        { return tuple_getitem_noref(fr->ex->_rodata, ii.arg2); }
+        { return tuple_borrowitem_(fr->ex->_rodata, ii.arg2); }
 
 #else /* DEBUG */
 
@@ -60,7 +60,7 @@ static inline Object *
 RODATA(Frame *fr, instruction_t ii)
 {
         bug_on(ii.arg2 >= seqvar_size(fr->ex->rodata));
-        return tuple_getitem_noref(fr->ex->rodata, ii.arg2);
+        return tuple_borrowitem_(fr->ex->rodata, ii.arg2);
 }
 
 #endif /* DEBUG */

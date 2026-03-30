@@ -351,7 +351,7 @@ static inline Object *seqvar_getitem(Object *v, size_t i)
         { return v->v_type->sqm->getitem(v, i); }
 
 /* only call if index has been checked */
-static inline Object *tuple_getitem_noref(Object *v, size_t i)
+static inline Object *tuple_borrowitem_(Object *v, size_t i)
         { return ((struct tuplevar_t *)v)->items[i]; }
 
 /*

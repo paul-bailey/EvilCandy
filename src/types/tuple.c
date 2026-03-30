@@ -186,14 +186,16 @@ tuple_hasitem(Object *tup, Object *item)
 Object *
 tuple_getitem(Object *tup, size_t idx)
 {
-        struct tuplevar_t *va = V2TUP(tup);
+        Object *item;
 
         bug_on(!isvar_tuple(tup));
         bug_on(idx >= seqvar_size(tup));
-        VAR_INCR_REF(va->items[idx]);
-        return va->items[idx];
+
+        item = tuple_borrowitem_(tup, idx);
+        return VAR_NEW_REF(item);
 }
 
+/* Like tuple_getitem, but do not produce a reference */
 Object *
 tuple_borrowitem(Object *tup, size_t idx)
 {

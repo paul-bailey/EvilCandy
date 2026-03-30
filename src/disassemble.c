@@ -114,7 +114,7 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex,
                  */
                 bug();
         }
-        v = tuple_getitem_noref(ex->rodata, i);
+        v = tuple_borrowitem_(ex->rodata, i);
 
         if (isvar_xptr(v)) {
                 struct xptrvar_t *x = (struct xptrvar_t *)v;
@@ -260,7 +260,7 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i,
                 } else if (ex->names && ii->arg1 == IARG_PTR_AP &&
                            (ii->code == INSTR_LOAD_LOCAL ||
                             ii->code == INSTR_ASSIGN_LOCAL)) {
-                        Object *name = tuple_getitem_noref(ex->names, ii->arg2);
+                        Object *name = tuple_borrowitem_(ex->names, ii->arg2);
                         if (name) {
                                 if (len < COMNTPOS)
                                         spaces(fp, COMNTPOS - len);
@@ -330,7 +330,7 @@ disassemble_recursive(FILE *fp, struct xptrvar_t *ex, unsigned int flags)
         fprintf(fp, ".end\n\n\n");
 
         for (i = 0; i < seqvar_size(ex->rodata); i++) {
-                Object *v = tuple_getitem_noref(ex->rodata, i);
+                Object *v = tuple_borrowitem_(ex->rodata, i);
                 if (isvar_xptr(v)) {
                         disassemble_recursive(fp,
                                         (struct xptrvar_t *)v, flags);

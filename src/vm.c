@@ -1389,6 +1389,8 @@ execute_loop(Frame *fr)
 
                         if (!bl || bl->type != IARG_TRY) {
                                 retval = ErrorVar;
+                                if (fr->kind == FRAME_GENERATOR)
+                                        retval = NULL;
                                 goto out;
                         }
 

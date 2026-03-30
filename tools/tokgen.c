@@ -138,7 +138,7 @@ static struct token_t *
 next_token(FILE *fp)
 {
         struct token_t *ret;
-        int i, ntok, q;
+        int ntok, q;
         int tagidx = 2; /* may be overruled below */
         char *s;
 

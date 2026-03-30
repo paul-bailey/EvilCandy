@@ -1,4 +1,5 @@
 ACLOCAL_AMFLAGS = -I build/m4
+AM_CFLAGS = -Wall
 
 bin_PROGRAMS = evilcandy
 check_PROGRAMS = tools/tokgen tools/gen

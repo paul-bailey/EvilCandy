@@ -88,8 +88,10 @@ run_script(const char *filename, FILE *fp, Frame *fr)
         Object *retval;
 
         ex = assemble(filename, fp, NULL);
-        if (!ex || ex == ErrorVar)
-                return;
+        if (!ex || ex == ErrorVar) {
+                retval = ex;
+                goto done_skip_ex;
+        }
 
         if (gbl.opt.disassemble) {
                 FILE *dfp;
@@ -125,7 +127,7 @@ run_script(const char *filename, FILE *fp, Frame *fr)
 
 done:
         VAR_DECR_REF(ex);
-
+done_skip_ex:
         if (retval == ErrorVar)
                 err_print_last(stderr);
         else if (retval)

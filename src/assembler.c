@@ -1029,7 +1029,7 @@ assemble_tuple_or_expression(struct assemble_t *a, bool check_rpar)
         do {
                 bool star_here = false;
 
-                must_be_tuple = n_items > 0;
+                must_be_tuple = n_items > 0; /* IE we got comma now */
                 if (as_lex(a) < 0)
                         return -1;
 
@@ -1084,7 +1084,16 @@ assemble_tuple_or_expression(struct assemble_t *a, bool check_rpar)
                 else
                         add_instr(a, INSTR_DEFTUPLE, 0, n_items);
         } else {
-                bug_on(n_items != 1);
+                if (n_items != 1) {
+                        /*
+                         * we're called from top of eval_expr() too, so
+                         * a bad expression like 'let x = ;' would get us
+                         * to this very spot.
+                         */
+                        bug_on(n_items != 0);
+                        err_setstr(SyntaxError, "expected: expression");
+                        return -1;
+                }
                 if (have_star) {
                         err_setstr(SyntaxError,
                                 "cannot use starred expression here");
@@ -3125,37 +3134,6 @@ free_assembler(struct assemble_t *a)
         efree(a);
 }
 
-/* Tell user where they screwed up */
-static void
-assemble_splash_error(struct assemble_t *a)
-{
-        int col;
-        char *line = NULL;
-        int lineno;
-
-        bug_on(!err_occurred());
-
-        err_print_last(stderr);
-        if (a->oc) {
-                lineno = a->oc->start_line;
-                col = a->oc->start_col;
-        } else {
-                lineno = 1;
-                col = 0;
-        }
-        fprintf(stderr, "in file '%s' near line '%d'\n",
-                a->file_name, lineno);
-        line = token_get_this_line(a->prog);
-        if (line) {
-                fprintf(stderr, "Suspected error location:\n");
-                fprintf(stderr, "\t%s\n\t", line);
-                while (col-- > 0)
-                        fputc(' ', stderr);
-                fprintf(stderr, "^\n");
-        }
-        token_flush_tty(a->prog);
-}
-
 /**
  * assemble_next - Parse input and convert into an array of pseudo-
  *                 assembly instructions
@@ -3180,20 +3158,6 @@ assemble_next(struct assemble_t *a, bool toeof, unsigned int flags)
         do {
                 if (assemble_stmt(a, flags, -1) < 0) {
                         bug_on(!err_occurred());
-                        /*
-                         * If in string mode, we were called from UAPI
-                         * eval(); pass the exception upstream.
-                         * otherwise, print the error.
-                         *
-                         * FIXME: What if we're here from import()?
-                         * We would also want to pass the exception
-                         * upstream, but here we don't know whether
-                         * we should do that.  This is a low-prio fixme,
-                         * because in the future we want all error
-                         * reporting to be done from the same place.
-                         */
-                        if (a->fp)
-                                assemble_splash_error(a);
                         return ErrorVar;
                 }
         } while (toeof && a->oc->t != OC_EOF);

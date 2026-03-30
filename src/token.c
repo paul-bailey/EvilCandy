@@ -529,6 +529,8 @@ skip_whitespace(struct token_state_t *state)
         do {
                 char *s;
                 do {
+                        if (!state->line || !state->s)
+                                return OC_EOF;
                         /*
                          * Careful!  This looks like a spinlock bug,
                          * but it isn't.  tok_next_line() below updates
@@ -536,7 +538,6 @@ skip_whitespace(struct token_state_t *state)
                          * contents.  So we aren't repeating the same
                          * thing when the do loop reiterates.
                          */
-                        bug_on(!state->line || !state->s);
                         s = state->s;
                         while (*s != '\0' && isspace((int)(*s)))
                                 ++s;

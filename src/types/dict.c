@@ -519,39 +519,11 @@ dict_str(Object *o)
         struct dictvar_t *d;
         struct string_writer_t wr;
         int i, count;
-        Object *ret, *method;
+        Object *ret;
 
         bug_on(!isvar_dict(o));
         d = V2D(o);
 
-        if ((method = dict_getitem(o, STRCONST_ID(__str__))) != NULL) {
-                if (isvar_function(method)) {
-                        Object *tmp = method;
-                        method = methodvar_new(tmp, o);
-                        VAR_DECR_REF(tmp);
-                } else if (!isvar_method(method)) {
-                        VAR_DECR_REF(method);
-                        goto default_str;
-                }
-                ret = vm_exec_func(NULL, method, NULL, NULL);
-                VAR_DECR_REF(method);
-
-                if (ret == ErrorVar) {
-                        ret = NULL;
-                        goto default_str;
-                }
-
-                if (!isvar_string(ret) || err_occurred()) {
-                        VAR_DECR_REF(ret);
-                        ret = NULL;
-                        err_clear();
-                        goto default_str;
-                }
-
-                return ret;
-        }
-
-default_str:
         if (dict_lock(d) == RES_ERROR)
                 return VAR_NEW_REF(STRCONST_ID(locked_dict_str));
 

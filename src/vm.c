@@ -143,12 +143,7 @@ vmframe_get_or_alloc(void)
 static Frame *
 vmframe_new_generator_frame(Frame *fr)
 {
-        /*
-         * FIXME: This should be calculated dynamically
-         * in assembler.c.  It can be abused.  What if the generator
-         * itself calls a function, thereby extending the use of its
-         * own stack?
-         */
+        /* FIXME: This should be calculated dynamically in assembler.c */
         enum { GENERATOR_STACK_SIZE = 100 };
         size_t i, stack_pos, stack_size;
         Frame *ret;
@@ -167,7 +162,7 @@ vmframe_new_generator_frame(Frame *fr)
         ret->clo = fr->clo;
 
         stack_pos = (size_t)(fr->stackptr - fr->stack);
-        stack_size = ret->n_locals + GENERATOR_STACK_SIZE;
+        stack_size = ret->ap + ret->n_locals + GENERATOR_STACK_SIZE;
         ret->stack = emalloc(sizeof(Object *) * stack_size);
         ret->stackptr = ret->stack + stack_pos;
         ret->stack_end = ret->stack + stack_size;
@@ -1330,7 +1325,7 @@ check_ghost_errors(int res)
 
         if (e && res == RES_OK)
                 DBUG1("Ghost error slipped by");
-        if (!e && res != RES_OK && res != RES_RETURN)
+        if (!e && res != RES_OK && res != RES_RETURN && res != RES_YIELD)
                 DBUG1("Error return but none reported");
 }
 #else

@@ -256,6 +256,9 @@ extern void function_add_default(Object *func,
                         Object *deflt, int argno);
 extern Object *function_get_executable(Object *func);
 
+/* types/generator.c */
+extern Object *generatorvar_new(Frame *frame);
+
 /* types/integer.c */
 extern Object *intvar_new(long long value);
 

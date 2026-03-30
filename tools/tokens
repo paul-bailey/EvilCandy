@@ -92,6 +92,7 @@ ANDSTR          "and"           logical
 ORSTR           "or"            logical
 NOTSTR          "not"           unarypre
 CLASS           "class"
+YIELD           "yield"
 EOF
 STRING                          atomic_key
 FSTRING_START

@@ -13,17 +13,20 @@
  *          Rocky barks: Woof! Woof!
  *          Tom meows: Meow!
  */
-let Animal = class() {
+class Animal() {
     '__init__': (name) => { this.name = name; },
+    '__str__': () => f'Animal({this.name})';
     'speak': () => f'{this.name} makes a generic sound'
 };
 
-let Dog = class(Animal) {
+class Dog(Animal) {
     'speak': () => f'{this.name} barks: Woof! Woof!'
+    '__str__': () => f'Dog({this.name})';
 };
 
 let Cat = class(Animal) {
     'speak': () => f'{this.name} meows: Meow!'
+    '__str__': () => f'Cat({this.name})';
 };
 
 let dog_instance = Dog('Rocky');

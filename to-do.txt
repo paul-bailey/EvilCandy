@@ -53,6 +53,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Make it possible to handle/report errors in iterators.
   - At minimum complete a walkthrough tutorial in Documentation.
   - Add appropriate interrupt handlers for things like EINTR.
   - Fill in set library.
@@ -168,7 +169,7 @@ Library/Language Features
 * Parse UnicodeData.txt to make a Unicode version of ctype.h
   This might also allow utf8-encoded symbol names.
 
-* Support generators and comprehensions
+* Support comprehensions
 
 * Add ``decorate`` method for classes, so that user-defined objects
   can be added, anded, divided, etc.
@@ -187,6 +188,7 @@ Library/Language Features
 * Add shell environment to sys module
 
 
+* **done** support generators
 * **done** make frames/code objects visible to user
 * **done** Add way to pass arguments to imported scripts, and a way for the
   script to access them.

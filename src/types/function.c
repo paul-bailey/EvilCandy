@@ -206,10 +206,6 @@ err_consume_kwargs:
         if (kwargs)
                 VAR_DECR_REF(kwargs);
 err:
-        /*
-         * fr->ap may have changed since we started this function,
-         * so we need to update fr->stackptr accordingly.
-         */
         return ErrorVar;
 }
 

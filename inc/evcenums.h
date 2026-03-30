@@ -41,12 +41,14 @@ enum {
  *
  * For functions that must return a Object (which is like half of
  * them), return ErrorVar if there is an error.  (I'm trying to reduce
- * the number of points where NULL could be returned, since it's so easy
- * to accidentally de-reference them and cause a segmentation fault.)
+ * the number of points where NULL could be returned as an error, since
+ * there are so many instances where a NULL result should not cause an
+ * exception.)
  *
  * @RES_OK:             Success
  * @RES_EXCEPTION:      User raised an exception
  * @RES_RETURN:         Return from function or script.  Used only by VM
+ * @RES_YIELD:          Return from a generator.  Used only by VM
  * @RES_ERROR:          Marklar error. Sometimes I plan ahead and think
  *                      things through.  Other times I type away YOLO-like
  *                      and say "I should return an error code here but I
@@ -60,6 +62,7 @@ enum result_t {
         RES_OK = 0,
         RES_EXCEPTION = 1,
         RES_RETURN = 2,
+        RES_YIELD = 3,
         RES_ERROR = -1,
 };
 

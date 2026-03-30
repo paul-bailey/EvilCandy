@@ -45,7 +45,7 @@ static inline Object *RODATA(Frame *fr, instruction_t ii)
 static void
 push(Frame *fr, Object *v)
 {
-        bug_on(fr->stackptr >= vm.stack_end);
+        bug_on(fr->stackptr >= fr->stack_end);
         PUSH_(fr, v);
 }
 
@@ -119,9 +119,9 @@ err:
  */
 
 static Frame *
-vmframe_alloc(Object *fn, Object *owner, Frame *fr_old)
+vmframe_get_or_alloc(void)
 {
-        Frame *ret, *cur;
+        Frame *ret;
         struct list_t *li = vm.free_frames.next;
         if (li == &vm.free_frames) {
                 ret = ecalloc(sizeof(*ret));
@@ -132,8 +132,62 @@ vmframe_alloc(Object *fn, Object *owner, Frame *fr_old)
                 memset(ret, 0, sizeof(*ret));
                 list_init(&ret->alloc_list);
         }
+        return ret;
+}
 
-        if (fr_old) {
+/*
+ * @fr is the frame of the function returning a generator, which is also
+ * the function *of* the generator, so just copy this frame into a new
+ * one.
+ */
+static Frame *
+vmframe_new_generator_frame(Frame *fr)
+{
+        /*
+         * FIXME: This should be calculated dynamically
+         * in assembler.c.  It can be abused.  What if the generator
+         * itself calls a function, thereby extending the use of its
+         * own stack?
+         */
+        enum { GENERATOR_STACK_SIZE = 100 };
+        size_t i, stack_pos, stack_size;
+        Frame *ret;
+
+        ret = vmframe_get_or_alloc();
+        if (fr->owner)
+                ret->owner = VAR_NEW_REF(fr->owner);
+        if (fr->func)
+                ret->func = VAR_NEW_REF(fr->func);
+        ret->ex = fr->ex;
+        ret->ap = fr->ap;
+        ret->n_blocks = fr->n_blocks;
+        ret->n_locals = fr->n_locals;
+        memcpy(ret->blocks, fr->blocks, sizeof(ret->blocks));
+        ret->ppii = fr->ppii;
+        ret->clo = fr->clo;
+
+        stack_pos = (size_t)(fr->stackptr - fr->stack);
+        stack_size = ret->n_locals + GENERATOR_STACK_SIZE;
+        ret->stack = emalloc(sizeof(Object *) * stack_size);
+        ret->stackptr = ret->stack + stack_pos;
+        ret->stack_end = ret->stack + stack_size;
+        for (i = 0; i < stack_pos; i++)
+                ret->stack[i] = VAR_NEW_REF(fr->stack[i]);
+        ret->kind = FRAME_GENERATOR;
+        return ret;
+}
+
+static Frame *
+vmframe_alloc(Object *fn, Object *owner, Frame *fr_old)
+{
+        Frame *ret, *cur;
+        ret = vmframe_get_or_alloc();
+        /*
+         * If called from a generator or a coroutine, do not use
+         * fr_old's stack.  It's small and intended only for that
+         * function.
+         */
+        if (fr_old && fr_old->kind == FRAME_NORMAL) {
                 ret->stack = fr_old->stackptr;
         } else if ((cur = vm_current_frame()) != NULL) {
                 /* probably a destructor called from VAR_DECR_REF */
@@ -146,8 +200,10 @@ vmframe_alloc(Object *fn, Object *owner, Frame *fr_old)
         ret->func  = fn;
         ret->ap = 0;
         ret->stackptr = ret->stack + ret->ap;
+        ret->stack_end = vm.stack_end;
         VAR_INCR_REF(owner);
         VAR_INCR_REF(fn);
+        ret->kind = FRAME_NORMAL;
 
         list_add_tail(&ret->alloc_list, &vm.active_frames);
         return ret;
@@ -168,6 +224,9 @@ vmframe_free(Frame *fr)
                         Object *v = pop(fr);
                         VAR_DECR_REF(v);
                 }
+
+                if (fr->kind == FRAME_GENERATOR)
+                        efree(fr->stack);
 
                 if (fr->owner)
                         VAR_DECR_REF(fr->owner);
@@ -567,6 +626,21 @@ do_new_name(Frame *fr, instruction_t ii)
 static int
 do_return_value(Frame *fr, instruction_t ii)
 {
+        return RES_RETURN;
+}
+
+static int
+do_yield_value(Frame *fr, instruction_t ii)
+{
+        return RES_YIELD;
+}
+
+static int
+do_return_generator(Frame *fr, instruction_t ii)
+{
+        Frame *coro = vmframe_new_generator_frame(fr);
+        Object *generator = generatorvar_new(coro);
+        push(fr, generator);
         return RES_RETURN;
 }
 
@@ -1263,6 +1337,12 @@ check_ghost_errors(int res)
 # define check_ghost_errors(x_) do { (void)0; } while (0)
 #endif
 
+/*
+ * If return value is NULL, it means @fr was a generator which has
+ * completed.  Do not access @fr in this case, because it will have
+ * been freed.
+ * All other cases, return value is either a valid object or ErrorVar.
+ */
 Object *
 execute_loop(Frame *fr)
 {
@@ -1284,12 +1364,15 @@ execute_loop(Frame *fr)
 
                 if (res == RES_RETURN) {
                         retval = pop(fr);
-                        /*
-                         * IMPORTANT FIXME!! What was retval?
-                         * If it was a stack variable, do I need to VAR_INCR_REF?
-                         * What if it was a closure?
-                         * This may be causing memory leaks or worse, vice-versa.
-                         */
+                        if (fr->kind == FRAME_GENERATOR) {
+                                if (retval != ErrorVar)
+                                        VAR_DECR_REF(retval);
+                                retval = NULL;
+                        }
+                        goto out;
+                } else if (res == RES_YIELD) {
+                        bug_on(fr->kind != FRAME_GENERATOR);
+                        retval = pop(fr);
                         goto out;
                 } else {
                         /* res should be either RES_ERROR or RES_EXCEPTION */
@@ -1330,9 +1413,16 @@ execute_loop(Frame *fr)
          * We hit INSTR_END without any RETURN.
          * Return null by default.
          */
-        retval = VAR_NEW_REF(NullVar);
+        if (fr->kind == FRAME_GENERATOR)
+                retval = NULL;
+        else
+                retval = VAR_NEW_REF(NullVar);
 
 out:
+        if (!retval) {
+                bug_on(fr->kind != FRAME_GENERATOR);
+                vmframe_free(fr);
+        }
         RECURSION_END_FUNC();
         return retval;
 }

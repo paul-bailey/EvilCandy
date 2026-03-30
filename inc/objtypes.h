@@ -228,6 +228,7 @@ extern struct type_t TupleIterType;
 extern struct type_t SetIterType;
 extern struct type_t RangeIterType;
 extern struct type_t StringIterType;
+extern struct type_t GeneratorType;
 
 /* special-purpose iterators */
 extern struct type_t DictItemsType;
@@ -270,6 +271,8 @@ static inline bool isvar_class(Object *o)
         { return o->v_type == &ClassType; }
 static inline bool isvar_instance(Object *o)
         { return o->v_type == &InstanceType; }
+static inline bool isvar_generator(Object *obj)
+        { return obj->v_type == &GeneratorType; }
 
 static inline bool isvar_number(Object *v)
         { return !!(v->v_type->flags & OBF_NUMBER); }

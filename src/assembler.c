@@ -403,6 +403,40 @@ add_instr(struct assemble_t *a, int code, int arg1, int arg2)
         buffer_putd(&a->fr->af_instr, &ii, sizeof(ii));
 }
 
+/* "Yield" statements make us do this */
+static void
+insert_instr_at_bottom(struct assemble_t *a, int code, int arg1, int arg2)
+{
+        instruction_t ii, *src;
+        size_t i, n;
+        unsigned short *labels;
+        struct buffer_t b;
+
+        bug_on((unsigned)code > 255);
+        bug_on((unsigned)arg1 > 255);
+        /* XXX: This is an error, not a bug */
+        bug_on(arg2 >= 32768 || arg2 < -32768);
+
+        ii.code = code;
+        ii.arg1 = arg1;
+        ii.arg2 = arg2;
+
+        n = buffer_size(&a->fr->af_instr);
+        src = (instruction_t *)buffer_trim(&a->fr->af_instr);
+
+        buffer_init(&b);
+        buffer_putd(&b, &ii, sizeof(ii));
+        buffer_putd(&b, src, n);
+        memcpy(&a->fr->af_instr, &b, sizeof(b));
+        efree(src);
+
+        /* Every lable now needs to be one higher */
+        n = as_frame_nlabel(a->fr);
+        labels = (unsigned short *)a->fr->af_labels.s;
+        for (i = 0; i < n; i++)
+                labels[i] += 1;
+}
+
 /*
  * The assumption here is:
  *      1. @jmp is a return value from a prev. call to as_next_label
@@ -2442,8 +2476,10 @@ err_clean:
 }
 
 static int
-assemble_return(struct assemble_t *a)
+assemble_return_or_yield(struct assemble_t *a, int tok)
 {
+        int opcode = (tok == OC_RETURN)
+                     ? INSTR_RETURN_VALUE : INSTR_YIELD_VALUE;
         if (as_lex(a) < 0)
                 return -1;
         if (a->oc->t == OC_SEMI) {
@@ -2453,7 +2489,13 @@ assemble_return(struct assemble_t *a)
                 as_unlex(a);
                 if (assemble_expr(a, FE_CHECKTUPLE) < 0)
                         return -1;
-                add_instr(a, INSTR_RETURN_VALUE, 0, 0);
+                add_instr(a, opcode, 0, 0);
+        }
+
+        if (tok == OC_YIELD) {
+                instruction_t *ii = (instruction_t *)a->fr->af_instr.s;
+                if (ii[0].code != INSTR_RETURN_GENERATOR)
+                        insert_instr_at_bottom(a, INSTR_RETURN_GENERATOR, 0, 0);
         }
         return 0;
 }
@@ -2920,12 +2962,13 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 return assemble_named_callable(a, tk, a->oc, flags);
         }
         case OC_RETURN:
+        case OC_YIELD:
                 if (!!(flags & FE_TOP)) {
                         err_setstr(SyntaxError,
                                 "Cannot return in interactive mode while outside of a function");
                         return -1;
                 }
-                if (assemble_return(a) < 0)
+                if (assemble_return_or_yield(a, a->oc->t) < 0)
                         return -1;
                 break;
         case OC_BREAK:

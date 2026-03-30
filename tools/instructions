@@ -62,6 +62,8 @@ NEW_NAME
 
 # pop top of stack and return its value
 RETURN_VALUE
+RETURN_GENERATOR
+YIELD_VALUE
 
 # call function, of course.
 # arg2 is the number arguments that have been passed.

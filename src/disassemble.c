@@ -214,6 +214,8 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i,
         }
 
         fprintf(fp, "%8s%-16s", "", instruction_name(ii->code));
+        if (strlen(instruction_name(ii->code)) >= 16)
+                fputc(' ', fp);
         switch (ii->code) {
         case INSTR_ASSIGN_LOCAL:
         case INSTR_LOAD_LOCAL:

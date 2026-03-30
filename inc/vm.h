@@ -17,6 +17,7 @@ struct block_t {
  * @stackptr:   Current stack position
  * @stack:      Base of the frame stack, which actually points into a
  *              shared global stack.
+ * @stack_end:  Stack limit.  @stackptr may not exceed this position.
  * @ex:         Executable code being run by this frame
  * @ap:         Array offset from @stack where arguments end.  This is
  *              the start of the evaluation stack, where local variables
@@ -36,9 +37,14 @@ struct block_t {
  * Its fields should only be used by vm.c and (for now) types/function.c
  */
 struct vmframe_t {
+        enum {
+                FRAME_NORMAL = 0,
+                FRAME_GENERATOR = 1,
+        } kind;
         Object *owner, *func;
         Object **stackptr;
         Object **stack;
+        Object **stack_end;
         struct xptrvar_t *ex;
         int ap;
         int n_blocks;

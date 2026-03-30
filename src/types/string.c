@@ -443,7 +443,7 @@ err:
 static void *
 widen_buffer(Object *str, size_t width)
 {
-        void *tbuf, *src, *dst, *end;
+        unsigned char *tbuf, *src, *dst, *end;
         size_t n, old_width;
 
         old_width = string_width(str);
@@ -493,9 +493,9 @@ find_idx_substr(Object *haystack, Object *needle,
         if (hwid < nwid || hlen < nlen) {
                 idx = -1;
         } else {
-                void *found;
-                void *hsrc = string_data(haystack) + startpos * hwid;
-                void *nsrc = string_data(needle);
+                unsigned char *found, *hsrc, *nsrc;
+                hsrc = voidp_add(string_data(haystack), startpos * hwid);
+                nsrc = string_data(needle);
                 if (hwid != nwid)
                         nsrc = widen_buffer(needle, hwid);
                 if (!!(flags & SF_RIGHT))
@@ -1280,7 +1280,8 @@ string_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
                 ret = VAR_NEW_REF(STRCONST_ID(mpty));
         } else {
                 /* Use original buffers, in case we had widened them. */
-                void *newp = vsrc->s_unicode + vsrc->s_width * src_newstart;
+                void *newp = voidp_add(vsrc->s_unicode,
+                                       vsrc->s_width * src_newstart);
                 ret = stringvar_from_points(newp, vsrc->s_width,
                                             src_newend - src_newstart, SF_COPY);
         }
@@ -1332,7 +1333,7 @@ string_replace(Frame *fr)
         struct string_writer_t wr;
         Object *haystack, *needle, *repl;
         size_t hlen, nlen, hwid, nwid, start;
-        void *hsrc, *nsrc;
+        unsigned char *hsrc, *nsrc;
         size_t wr_wid;
 
         haystack = vm_get_this(fr);
@@ -1371,9 +1372,9 @@ string_replace(Frame *fr)
         start = 0;
         while (start < hlen) {
                 size_t idx;
-                void *found;
-                void *th = hsrc + start * hwid;
+                unsigned char *found, *th;
 
+                th = hsrc + start * hwid;
                 found = memmem(th, hlen - start, nsrc, nlen);
                 if (!found) {
                         if (start == 0)
@@ -1589,8 +1590,8 @@ string_count(Frame *fr)
 {
         int count;
         Object *haystack, *needle;
-        size_t hlen, nlen, hwid, nwid;
-        void *hsrc, *nsrc;
+        size_t i, hlen, nlen, hwid, nwid;
+        unsigned char *hsrc, *nsrc;
 
         haystack = vm_get_this(fr);
         if (arg_type_check(haystack, &StringType) == RES_ERROR)
@@ -1612,8 +1613,7 @@ string_count(Frame *fr)
         else
                 nsrc = string_data(needle);
 
-        size_t i = 0;
-        count = 0;
+        i = count = 0;
         while (i + nlen <= hlen) {
                 if (!memcmp(hsrc + i * hwid, nsrc, nlen * hwid)) {
                         count++;
@@ -1817,7 +1817,7 @@ string_lrpartition_(Frame *fr, unsigned int flags, const char *fmt)
                 td[2] = VAR_NEW_REF(STRCONST_ID(mpty));
         } else {
                 size_t wid = string_width(self);
-                void *points = string_data(self);
+                unsigned char *points = string_data(self);
                 if (idx == 0) {
                         td[0] = VAR_NEW_REF(STRCONST_ID(mpty));
                 } else {
@@ -1918,7 +1918,7 @@ string_lrsplit(Frame *fr, unsigned int flags)
         const char *fmt;
         int maxsplit;
         size_t hwid, hlen, nwid, nlen;
-        void *hsrc, *nsrc;
+        unsigned char *hsrc, *nsrc;
         bool combine;
 
         self = vm_get_this(fr);
@@ -1965,7 +1965,7 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 Object *substr;
                 while (hlen > nlen && maxsplit-- != 0) {
                         ssize_t idx;
-                        void *found;
+                        unsigned char *found;
                         found = memrmem(hsrc, hlen, nsrc, nlen);
                         if (!found)
                                 break;
@@ -1997,8 +1997,8 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 size_t start = 0;
                 while (start < hlen && maxsplit-- != 0) {
                         ssize_t idx;
-                        void *found;
-                        void *th = hsrc + start * hwid;
+                        unsigned char *found;
+                        unsigned char *th = hsrc + start * hwid;
 
                         found = memmem(th, hlen - start, nsrc, nlen);
                         if (!found)
@@ -2759,7 +2759,7 @@ string_writer_decode_utf8(struct string_writer_t *wr, const void *data,
                 if (state->state != UTF8_STATE_ASCII) {
                         /* end before full decode */
                         bug_on(u8 != end);
-                        return (size_t)((void *)u8 - data);
+                        return (size_t)(u8 - (unsigned char *)data);
                 }
 
                 if (point > UNICODE_MAXCHR)
@@ -2862,7 +2862,7 @@ string_writer_decode_utf8(struct string_writer_t *wr, const void *data,
                         u8++;
                 }
         }
-        return (size_t)((void *)u8 - data);
+        return (size_t)(u8 - (unsigned char *)data);
 
 err_start_byte:
         err_decode(CODEC_UTF8, "bad start byte");
@@ -3067,7 +3067,7 @@ stringvar_from_substr(Object *old, size_t start, size_t stop)
 
         width = string_width(old);
         len  = stop - start;
-        buf = string_data(old) + start * width;
+        buf = voidp_add(string_data(old), start * width);
         /*
          * Quickly scan unicode to determine if width of substring
          * does not need to shrink.  If not, we can call the quicker

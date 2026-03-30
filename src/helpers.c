@@ -145,7 +145,7 @@ memcount(const void *haystack, size_t hlen,
         } else if (nlen > hlen && hlen > 0) {
                 i = 0;
                 while (i + nlen < hlen) {
-                        if (!memcmp(&haystack[i], needle, nlen)) {
+                        if (!memcmp(voidp_add(haystack, i), needle, nlen)) {
                                 count++;
                                 i += nlen;
                         } else {
@@ -174,7 +174,7 @@ memmem(const void *haystack, size_t hlen,
                 if (!memcmp(haystack, needle, nlen))
                         return (void *)haystack;
                 hlen--;
-                haystack++;
+                voidp_incr(&haystack);
         }
         return NULL;
 }
@@ -192,11 +192,11 @@ memrmem(const void *haystack, size_t hlen,
         if (!nlen)
                 return NULL;
 
-        end = haystack + hlen - nlen;
+        end = voidp_add(haystack, hlen - nlen);
         while (end >= haystack) {
                 if (!memcmp(end, needle, nlen))
                         return (void *)end;
-                end--;
+                voidp_decr(&end);
         }
         return NULL;
 }
@@ -255,7 +255,7 @@ mem_is_ascii(const void *p, size_t size)
         size_t tlen;
 
         /* XXX: awfully involved, only faster if @size is very long */
-        true_end = p + size;
+        true_end = voidp_add(p, size);
         tlen = (size_t)p;
         tlen &= ALIGN;
         if (tlen)
@@ -264,24 +264,24 @@ mem_is_ascii(const void *p, size_t size)
         if (tlen > size)
                 tlen = size;
 
-        tmp_end = p + tlen;
+        tmp_end = voidp_add(p, tlen);
         while (p < tmp_end) {
                 if ((*(unsigned char *)p & 0x80) != 0)
                         return false;
-                p++;
+                voidp_incr(&p);
         }
 
-        tmp_end = true_end - ALIGN;
+        tmp_end = voidp_add(true_end, -ALIGN);
         while (p < tmp_end) {
                 if ((*(unsigned long *)p & ASCIILONG) != 0)
                         return false;
-                p++;
+                voidp_incr(&p);
         }
 
         while (p < true_end) {
                 if ((*(unsigned char *)p & 0x80) != 0)
                         return false;
-                p++;
+                voidp_incr(&p);
         }
         return true;
 }
@@ -290,13 +290,13 @@ size_t
 mem_find_nonascii(const void *p, size_t size)
 {
         const void *start = p;
-        const void *end = p + size;
+        const void *end = voidp_add(p, size);
         while (p < end) {
                 if ((*(unsigned char *)p & 0x80) != 0)
                         break;
-                p++;
+                voidp_incr(&p);
         }
-        return p - start;
+        return (size_t)((char *)p - (char *)start);
 }
 
 #undef ALIGN

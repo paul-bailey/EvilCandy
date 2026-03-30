@@ -68,7 +68,7 @@ string_writer_get_ascii(struct string_writer_t *wr,
                         wr->p.p = erealloc(wr->p.p, need_size);
                         wr->n_alloc = need_size;
                 }
-                memcpy(wr->p.p + wr->pos, buf, n_ascii);
+                memcpy(voidp_add(wr->p.p, wr->pos), buf, n_ascii);
                 wr->pos += n_ascii;
                 wr->pos_i = wr->pos;
         } else {

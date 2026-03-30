@@ -53,6 +53,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - Resolve issue wrt setting instance properties.
   - Make it possible to handle/report errors in iterators.
   - At minimum complete a walkthrough tutorial in Documentation.
   - Add appropriate interrupt handlers for things like EINTR.
@@ -95,6 +96,9 @@ Must Do
   - **done** Get prompt working
   - **done** Add support for deleting elements and global variables
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
+
+* compiler makes about a bajillion warnings when '-pedantic' flag is used.
+  Almost all of them have to do with void pointer arithmetic, a Gnu extension.
 
 * array pop() method should return item popped.
 

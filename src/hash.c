@@ -40,7 +40,7 @@ hash_t
 calc_object_hash_generic(Object *key)
 {
         /* Do not hash refcnt etc */
-        void *ptr = (void *)key + sizeof(Object);
+        void *ptr = (void *)((char *)key + sizeof(Object));
         size_t size = key->v_type->size - sizeof(Object);
         return fnv_hash(ptr, size);
 }

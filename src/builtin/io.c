@@ -247,12 +247,12 @@ static ssize_t
 raw_read_wrapper(int fd, void *buf, size_t size)
 {
         void *p = buf;
-        void *end = buf + size;
+        void *end = voidp_add(buf, size);
         while (p < end) {
                 ssize_t nread;
 
                 errno = 0;
-                nread = read(fd, p, end-p);
+                nread = read(fd, p, voidp_diff(end, p));
                 if (nread < 0) {
                         if (errno == EINTR)
                                 continue;
@@ -261,9 +261,9 @@ raw_read_wrapper(int fd, void *buf, size_t size)
                 } else if (nread == 0) {
                         break;
                 }
-                p += nread;
+                p = voidp_add(p, nread);
         }
-        return p - buf;
+        return voidp_diff(p, buf);
 }
 
 static ssize_t
@@ -272,21 +272,21 @@ raw_write_wrapper(int fd, const void *buf, size_t size)
         const void *p, *end;
 
         buf = p = buf;
-        end = buf + size;
+        end = voidp_add(buf, size);
         while (p < end) {
                 ssize_t nwritten;
 
                 errno = 0;
-                nwritten = write(fd, p, end - p);
+                nwritten = write(fd, p, voidp_diff(end, p));
                 if (nwritten <= 0) {
                         if (errno == EINTR)
                                 continue;
                         filerr_sys("write");
                         return -1;
                 }
-                p += nwritten;
+                p = voidp_add(p, nwritten);
         }
-        return p - buf;
+        return voidp_diff(p, buf);
 }
 
 static Object *

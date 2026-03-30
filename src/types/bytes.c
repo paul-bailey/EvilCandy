@@ -323,7 +323,7 @@ bytesvar_new_sg(size_t size, ...)
                 tlen = va_arg(ap, size_t);
                 bug_on(tlen > size);
                 memcpy(dst, src, tlen);
-                dst += tlen;
+                dst = voidp_add(dst, tlen);
                 size -= tlen;
         }
         va_end(ap);

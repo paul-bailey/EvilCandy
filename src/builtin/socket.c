@@ -338,7 +338,7 @@ socket_str(Frame *fr)
         memset(buf, 0, sizeof(buf));
 
         /* TODO: Something fancier than this */
-        snprintf(buf, sizeof(buf)-1, "<socket @%p>", skobj);
+        snprintf(buf, sizeof(buf)-1, "<socket @%p>", (void *)skobj);
         return stringvar_new(buf);
 }
 
@@ -673,15 +673,16 @@ send_wrapper(int fd, Object *msg, int flags,
                 buf = bytes_get_data(msg);
                 bufsize = seqvar_size(msg);
         }
-        end = buf + bufsize;
+        end = voidp_add(buf, bufsize);
 
         while (buf < end) {
+                ssize_t sendlen = voidp_diff(end, buf);
                 errno = 0;
                 if (addr) {
-                        n = sendto(fd, buf, end - buf,
+                        n = sendto(fd, buf, sendlen,
                                    flags, addr, addrlen);
                 } else {
-                        n = send(fd, buf, end - buf, flags);
+                        n = send(fd, buf, sendlen, flags);
                 }
                 if (n < 0) {
                         /* XXX: what about EAGAIN, EWOULDBLOCK? */
@@ -690,7 +691,7 @@ send_wrapper(int fd, Object *msg, int flags,
                         skerr_syscall(addr ? "sendto" : "send");
                         return RES_ERROR;
                 }
-                buf += n;
+                buf = voidp_add(buf, n);
         }
         return RES_OK;
 }

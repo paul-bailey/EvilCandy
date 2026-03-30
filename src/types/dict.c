@@ -247,7 +247,7 @@ transfer_table(struct dictvar_t *dict, size_t old_size)
 
         /* Default remaining d_map to -1 */
         iwid = index_width(dict->d_size);
-        memset(dict->d_map + n * iwid,
+        memset(voidp_add(dict->d_map, n * iwid),
                -1, (dict->d_size - n) * iwid);
         /*
          * old_vals, old_map were alloc'd with old_keys, so they're

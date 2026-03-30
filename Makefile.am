@@ -1,5 +1,5 @@
 ACLOCAL_AMFLAGS = -I build/m4
-AM_CFLAGS = -Wall
+AM_CFLAGS = -Wall -pedantic-errors
 
 bin_PROGRAMS = evilcandy
 check_PROGRAMS = tools/tokgen tools/gen

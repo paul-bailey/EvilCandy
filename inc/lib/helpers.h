@@ -59,4 +59,37 @@ extern size_t mem_find_nonascii(const void *p, size_t size);
  */
 #define OP_CMP(a_, b_) (a_ == b_ ? 0 : (a_ < b_ ? -1 : 1))
 
+/*
+ *              void pointer arithmetic
+ *
+ * -pedantic in CFLAGS makes me do this.
+ * void pointer arithmetic is a Gnu extension.
+ */
+
+static inline void *
+voidp_add(const void *p, ssize_t offs)
+{
+        return (void *)((char *)p + offs);
+}
+
+static inline void
+voidp_incr(const void **pp)
+{
+        *pp = voidp_add(*pp, 1);
+}
+
+static inline void
+voidp_decr(const void **pp)
+{
+        *pp = voidp_add(*pp, -1);
+}
+
+static inline ssize_t
+voidp_diff(const void *left, const void *right)
+{
+        return (size_t)((char *)left - (char *)right);
+}
+
+#define voidp_sub(p, offs) voidp_add(p, -(offs))
+
 #endif /* EGQ_HELPERS_H */

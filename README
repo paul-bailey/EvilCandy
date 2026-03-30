@@ -128,9 +128,6 @@ Here are some major differences...
 
 * There is no ``var`` keyword.  There are only ``let`` and ``global``.
 
-* There (so far) is no ``yield`` statement or any generators or
-  comprehensions.  This may change in the future.
-
 * The ``for`` loop resembles Python's for loop rather than JavaScript's
   C-like for loop.  This also means that where speed is a concern, you
   can avoid the frame-swapping overhead that comes with an array's or
@@ -172,12 +169,11 @@ Here are some major differences...
 How Fast Is EvilCandy?
 ----------------------
 
-As of April 2025 the project is in early development and hasn't been
-tested much for speed.  The only testing I've done thus far is in
-``demos/sqrt.egq``, a brute-force square root algorithm that iterates over
-input values 1.0 to 1000000.0.  An equivalent algorithm in Python takes
-about 4-5s to complete.  Ever since I got the VM (src/vm.c) working, my
-own interpreter is roughly the same, 4-5s.
+As of 2026 the only benchmarking I've done on EvilCandy is the hillbilly
+kind: I run a brute-force square root algorithm that iterates over input
+values from one to a million, and time it.  An equivalent algorithm in
+Python takes about 4-5s to complete on my computer.  Ever since I got
+the VM (src/vm.c) working, my own interpreter is roughly the same, 4-5s.
 
 But one, that only speed-tests basic execution of assembled instructions.
 It doesn't stress test any worst-case scenarios, like abusively long

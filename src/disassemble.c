@@ -124,7 +124,7 @@ print_rodata_str(FILE *fp, struct xptrvar_t *ex,
                         fprintf(fp, "%s", string_cstring(x->funcname));
                         return;
                 }
-                fprintf(fp, "<%p>", v);
+                fprintf(fp, "<%p>", (void *)v);
                 if (!in_comment && x->funcname) {
                         fprintf(fp, "\t# %s", string_cstring(x->funcname));
                 }
@@ -305,7 +305,7 @@ disassemble_recursive(FILE *fp, struct xptrvar_t *ex, unsigned int flags)
         size_t nlabel;
         short *labels = NULL;
 
-        fprintf(fp, ".start <%p>\n", ex);
+        fprintf(fp, ".start <%p>\n", (void *)ex);
         if (!!(flags & DF_VERBOSE)) {
                 if (ex->funcname) {
                         fprintf(fp, "# function %s\n",

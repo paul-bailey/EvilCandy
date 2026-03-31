@@ -80,7 +80,12 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
 {
         size_t i;
         if (!args) {
-                fr->ap = 0;
+                if (fh->f_optind == 0) {
+                        fr->stack[0] = arrayvar_new(0);
+                        fr->ap = 1;
+                } else {
+                        fr->ap = 0;
+                }
         } else if (fh->f_optind >= 0) {
                 Object **data;
 

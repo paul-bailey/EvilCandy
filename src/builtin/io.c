@@ -131,19 +131,6 @@ struct rawfile_t {
         Object *(*fr_read)(struct rawfile_t *self, ssize_t size);
 };
 
-/* return RES_ERROR if close, RES_OK if open */
-static enum result_t
-rawfile_err_if_closed(Object *raw_fo, const char *fname)
-{
-        struct rawfile_t *ret = instance_get_priv(raw_fo);
-        if (ret->fr_fd < 0) {
-                if (fname)
-                        filerr(fname, "file closed");
-                return RES_ERROR;
-        }
-        return RES_OK;
-}
-
 static struct rawfile_t *
 rawfile_get_priv(Object *fo, const char *fname, bool check_open)
 {
@@ -398,10 +385,9 @@ binfile_fget_priv(Frame *fr, const char *fname, bool check_open)
 {
         Object *fo = vm_get_this(fr);
         struct binfile_t *bin = instance_get_priv(fo);
-        if (check_open) {
-                /* TODO: just check fb_fd */
-                if (rawfile_err_if_closed(bin->fb_raw, fname) == RES_ERROR)
-                        return NULL;
+        if (check_open && bin->fb_fd < 0) {
+                filerr(fname, "file closed");
+                return NULL;
         }
         return bin;
 }
@@ -676,9 +662,9 @@ txtfile_fget_priv(Frame *fr, const char *fname, bool check_open)
 {
         Object *fo = vm_get_this(fr);
         struct textfile_t *txt = instance_get_priv(fo);
-        if (check_open) {
-                if (rawfile_err_if_closed(txt->ft_raw, fname) == RES_ERROR)
-                        return NULL;
+        if (check_open && txt->ft_fd < 0) {
+                filerr(fname, "file closed");
+                return NULL;
         }
         return txt;
 }
@@ -1093,33 +1079,14 @@ open_text(int fd, struct fileconfig_t *cfg, Object *raw, int codec)
 Object *
 evc_file_read(Object *fo, ssize_t size)
 {
-        struct rawfile_t *f;
-
-        if (!isvar_instance(fo)) {
-                err_setstr(TypeError, "object is not a file");
+        Object *res;
+        res = instance_call(fo, STRCONST_ID(read), NULL, NULL);
+        if (!res) {
+                filerr("internal_read",
+                       "object is not a file or has no 'read' method");
                 return ErrorVar;
         }
-        f = instance_get_priv(fo);
-        if (!f || f->fr_magic != DICT_MAGIC_FILE) {
-                Object *res;
-                res = instance_call(fo, STRCONST_ID(read), NULL, NULL);
-                if (!res) {
-                        filerr("internal_read",
-                               "object is not a file and has no 'read' method");
-                        return ErrorVar;
-                }
-                return res;
-        }
-        if (f->fr_fd < 0) {
-                filerr("internal_read", "closed");
-                return ErrorVar;
-        }
-
-        if (!f->fr_read) {
-                filerr_permit("internal_read", 0);
-                return ErrorVar;
-        }
-        return f->fr_read(f, size);
+        return res;
 }
 
 /**
@@ -1138,50 +1105,30 @@ evc_file_read(Object *fo, ssize_t size)
 ssize_t
 evc_file_write(Object *fo, Object *data)
 {
-        struct rawfile_t *f;
+        Object *res, *args, *stack[1];
+        ssize_t ret;
 
-        if (!isvar_instance(fo)) {
-                err_setstr(TypeError, "object is not a file");
+        stack[0] = data;
+        args = arrayvar_from_stack(&data, 1, false);
+        res = instance_call(fo, STRCONST_ID(write), args, NULL);
+        VAR_DECR_REF(args);
+        if (!res) {
+                filerr("internal_write",
+                       "object is not a file or has no 'write' method");
                 return -1;
         }
-        f = instance_get_priv(fo);
-        if (!f || f->fr_magic != DICT_MAGIC_FILE) {
-                Object *res, *args, *stack[1];
-                ssize_t ret;
-
-                stack[0] = data;
-                args = arrayvar_from_stack(&data, 1, false);
-                res = instance_call(fo, STRCONST_ID(write), args, NULL);
-                VAR_DECR_REF(args);
-                if (!res) {
-                        filerr("internal_write",
-                               "object is not a file and has no 'write' method");
-                        return -1;
-                }
-                if (res == ErrorVar)
-                        return -1;
-                if (!isvar_int(res)) {
-                        err_setstr(RuntimeError,
-                                "'%N' returned %s but an integer was expected",
-                                STRCONST_ID(write), typestr(res));
-                        VAR_DECR_REF(res);
-                        return -1;
-                }
-                ret = (ssize_t)intvar_toll(res);
+        if (res == ErrorVar)
+                return -1;
+        if (!isvar_int(res)) {
+                err_setstr(RuntimeError,
+                        "'%N' returned %s but an integer was expected",
+                        STRCONST_ID(write), typestr(res));
                 VAR_DECR_REF(res);
-                return ret;
-        }
-
-        if (f->fr_fd < 0) {
-                filerr("internal_write", "closed");
                 return -1;
         }
-
-        if (!f->fr_write) {
-                filerr_permit("internal_write", 1);
-                return -1;
-        }
-        return f->fr_write(f, data);
+        ret = (ssize_t)intvar_toll(res);
+        VAR_DECR_REF(res);
+        return ret;
 }
 
 /**
@@ -1498,6 +1445,16 @@ iobase_placeholder(Frame *fr)
         return ErrorVar;
 }
 
+static Object *
+initialize_one_file_class(Object *base, const struct type_inittbl_t *tbl)
+{
+        Object *class, *methods;
+        methods = dictvar_from_methods(NULL, tbl);
+        class = classvar_new(base, methods, NULL);
+        VAR_DECR_REF(methods);
+        return class;
+}
+
 static void
 initialize_file_classes(void)
 {
@@ -1529,27 +1486,20 @@ initialize_file_classes(void)
                 V_INITTBL("__str__",    raw_str),
                 TBLEND,
         };
-        Object *class, *methods;
+        Object *base;
 
-        methods = dictvar_from_methods(NULL, iobase_methods);
-        class = classvar_new(NULL, methods, NULL);
-        VAR_DECR_REF(methods);
-        gbl.classes[GBL_CLASS_IOBASE] = class;
+        base = initialize_one_file_class(NULL, iobase_methods);
+        gbl.classes[GBL_CLASS_IOBASE] = base;
 
-        methods = dictvar_from_methods(NULL, textfile_methods);
-        class = classvar_new(gbl.classes[GBL_CLASS_IOBASE], methods, NULL);
-        VAR_DECR_REF(methods);
-        gbl.classes[GBL_CLASS_TXTFILE] = class;
-
-        methods = dictvar_from_methods(NULL, binfile_methods);
-        class = classvar_new(gbl.classes[GBL_CLASS_IOBASE], methods, NULL);
-        VAR_DECR_REF(methods);
-        gbl.classes[GBL_CLASS_BINFILE] = class;
-
-        methods = dictvar_from_methods(NULL, rawfile_methods);
-        class = classvar_new(gbl.classes[GBL_CLASS_IOBASE], methods, NULL);
-        VAR_DECR_REF(methods);
-        gbl.classes[GBL_CLASS_RAWFILE] = class;
+        gbl.classes[GBL_CLASS_TXTFILE] = initialize_one_file_class(
+                                                base,
+                                                textfile_methods);
+        gbl.classes[GBL_CLASS_BINFILE] = initialize_one_file_class(
+                                                base,
+                                                binfile_methods);
+        gbl.classes[GBL_CLASS_RAWFILE] = initialize_one_file_class(
+                                                base,
+                                                rawfile_methods);
 }
 
 void

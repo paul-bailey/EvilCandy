@@ -393,6 +393,30 @@ instance_dir(Object *instance)
         return ret;
 }
 
+/**
+ * instance_instanceof - Return true if @class is a class or base class
+ *                       of @instance.
+ */
+bool
+instance_instanceof(Object *instance, Object *class)
+{
+        Object *sub, *bases;
+        size_t i, n;
+
+        bug_on(!isvar_instance(instance) || !isvar_class(class));
+        sub = V2INST(instance)->inst_class;
+        if (sub == class)
+                return true;
+        if ((bases = V2CL(sub)->c_bases) == NULL)
+                return false;
+        n = seqvar_size(bases);
+        for (i = 0; i < n; i++) {
+                if (tuple_borrowitem_(bases, i) == class)
+                        return true;
+        }
+        return false;
+}
+
 struct type_t ClassType = {
         .flags          = 0,
         .name           = "class",

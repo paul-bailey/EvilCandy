@@ -1079,3 +1079,10 @@ var_logical_and(Object *a, Object *b)
         return intvar_new((int)res);
 }
 
+/* return true if @class is a class or base class of @instance */
+bool
+var_instanceof(Object *instance, Object *class)
+{
+        return isvar_instance(instance) &&
+               instance_instanceof(instance, class);
+}

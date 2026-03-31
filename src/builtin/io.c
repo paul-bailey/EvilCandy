@@ -16,77 +16,6 @@ enum {
         IO_BUFFER_SIZE = 8 * 1024, /* yeahsurewhynot */
 };
 
-/**
- * struct rawfile_t - Raw unbuffered file
- * @fr_fd:       File descriptor, or -1 if an in-memory file only
- * @fr_writable: True if file is writable
- * @fr_readable: True if file is readable
- * @fr_eof:      True if file is at end-of-file
- * @fr_closefd:  True to close file descriptor during garbage collection
- * @fr_pos:      Position in the file
- * @fr_write:    Function for internal C code to call to write
- * @fr_read:     Function for internal C code to call to read
- */
-struct rawfile_t {
-        int fr_magic;
-        enum file_type_t fr_type;
-        int fr_fd;
-        char *fr_mode;
-        char *fr_name;
-        bool fr_writable;
-        bool fr_readable;
-        bool fr_eof;
-        bool fr_closefd;
-        off_t fr_pos;
-        ssize_t (*fr_write)(struct rawfile_t *self, Object *data);
-        Object *(*fr_read)(struct rawfile_t *self, ssize_t size);
-};
-
-struct textfile_t {
-        struct rawfile_t ft_raw;
-#define ft_magic        ft_raw.fr_magic
-#define ft_type         ft_raw.fr_type
-#define ft_fd           ft_raw.fr_fd
-#define ft_mode         ft_raw.fr_mode
-#define ft_name         ft_raw.fr_name
-#define ft_writable     ft_raw.fr_writable
-#define ft_readable     ft_raw.fr_readable
-#define ft_eof          ft_raw.fr_eof
-#define ft_closefd      ft_raw.fr_closefd
-#define ft_fdpos        ft_raw.fr_pos
-#define ft_read         ft_raw.fr_read
-#define ft_write        ft_raw.fr_write
-        int ft_codec;
-        Object *ft_eol;
-        Object *ft_buf;
-        size_t ft_bufpos;
-        struct utf8_state_t ft_utf8_state;
-};
-
-struct binfile_t {
-        struct rawfile_t fb_raw;
-#define fb_magic        fb_raw.fr_magic
-#define fb_type         fb_raw.fr_type
-#define fb_fd           fb_raw.fr_fd
-#define fb_mode         fb_raw.fr_mode
-#define fb_name         fb_raw.fr_name
-#define fb_writable     fb_raw.fr_writable
-#define fb_readable     fb_raw.fr_readable
-#define fb_eof          fb_raw.fr_eof
-#define fb_closefd      fb_raw.fr_closefd
-#define fb_fdpos        fb_raw.fr_pos
-#define fb_read         fb_raw.fr_read
-#define fb_write        fb_raw.fr_write
-        Object *fb_outbuf;
-        size_t fb_outbuf_size;
-        Object *fb_inbuf;
-        size_t fb_inbuf_pos;
-};
-
-#define CAST_RAW(f_)    ((struct rawfile_t *)(f_))
-#define CAST_TXT(f_)    ((struct textfile_t *)(f_))
-#define CAST_BIN(f_)    ((struct binfile_t *)(f_))
-
 struct fileconfig_t {
         bool readable;
         bool writable;
@@ -96,24 +25,20 @@ struct fileconfig_t {
         char *mode;
 };
 
-static void *
-file_new(int fd, size_t size, struct fileconfig_t *cfg)
+static void initialize_file_classes(void);
+
+static bool
+io_classes_initialized(void)
 {
-        struct rawfile_t *raw = (struct rawfile_t *)emalloc(size);
+        return gbl.classes[GBL_CLASS_IOBASE] != NULL;
+}
 
-        bug_on(size < sizeof(struct rawfile_t));
-        /* XXX: permit this? It doesn't make sense */
-
-        memset(raw, 0, size);
-        raw->fr_magic    = DICT_MAGIC_FILE;
-        raw->fr_type     = cfg->type;
-        raw->fr_fd       = fd;
-        raw->fr_mode     = cfg->mode;
-        raw->fr_name     = cfg->name;
-        raw->fr_closefd  = cfg->closefd;
-        raw->fr_writable = cfg->writable;
-        raw->fr_readable = cfg->readable;
-        return (void *)raw;
+static Object *
+io_class(int classid)
+{
+        if (!io_classes_initialized())
+                initialize_file_classes();
+        return gbl.classes[classid];
 }
 
 static void
@@ -138,18 +63,89 @@ filerr_permit(const char *fname, bool iswrite)
         filerr(fname, iswrite ? unwrite : unread);
 }
 
-/*
- * TYPE##file_get_priv - functions that get private data out of dict.
- * @fo:    Dictionary
- * @fname: Name of function (as user would see it), for error reporting
- *         If NULL, do not throw exception.
- * @type:  FILE_BINARY, FILE_TEXT, FILE_RAW, or -1 to not check type, ie.
- *         calling code doesn't know what type it is yet.
- * @check_open: if true, throw an exception if the file is not open.
+static Object *
+file_call(Object *instance, Object *method_name, Object *args)
+{
+        Object *result = instance_call(instance, method_name, args, NULL);
+        if (!result) {
+                err_setstr(NotImplementedError,
+                           "%N not implemented for this file",
+                           method_name);
+                result = ErrorVar;
+        }
+        return result;
+}
+
+static Object *
+file_call_1arg(Object *instance, Object *method_name, Object *arg)
+{
+        Object *stack[1] = { arg };
+        Object *args = arrayvar_from_stack(stack, 1, false);
+        Object *result = file_call(instance, method_name, args);
+        VAR_DECR_REF(args);
+        return result;
+}
+
+static Object *
+file_call_1arg_int(Object *instance, Object *method_name, long arg)
+{
+        Object *stack[1] = { intvar_new(arg) };
+        Object *args = arrayvar_from_stack(stack, 1, true);
+        Object *result = file_call(instance, method_name, args);
+        VAR_DECR_REF(args);
+        return result;
+}
+
+static Object *
+file_call_noarg(Object *instance, Object *method_name)
+{
+        return file_call(instance, method_name, NULL);
+}
+
+
+/* **********************************************************************
+ *              Raw (unbuffered binary) files
+ ***********************************************************************/
+
+/**
+ * struct rawfile_t - Raw unbuffered file
+ * @fr_fd:       File descriptor, or -1 if an in-memory file only
+ * @fr_writable: True if file is writable
+ * @fr_readable: True if file is readable
+ * @fr_closefd:  True to close file descriptor during garbage collection
+ * @fr_pos:      Position in the file
+ * @fr_write:    Function for internal C code to call to write
+ * @fr_read:     Function for internal C code to call to read
  */
+struct rawfile_t {
+        int fr_magic;
+        enum file_type_t fr_type;
+        int fr_fd;
+        char *fr_mode;
+        char *fr_name;
+        bool fr_writable;
+        bool fr_readable;
+        bool fr_closefd;
+        off_t fr_pos;
+        ssize_t (*fr_write)(struct rawfile_t *self, Object *data);
+        Object *(*fr_read)(struct rawfile_t *self, ssize_t size);
+};
+
+/* return RES_ERROR if close, RES_OK if open */
+static enum result_t
+rawfile_err_if_closed(Object *raw_fo, const char *fname)
+{
+        struct rawfile_t *ret = instance_get_priv(raw_fo);
+        if (ret->fr_fd < 0) {
+                if (fname)
+                        filerr(fname, "file closed");
+                return RES_ERROR;
+        }
+        return RES_OK;
+}
 
 static struct rawfile_t *
-file_get_priv(Object *fo, const char *fname, bool check_open)
+rawfile_get_priv(Object *fo, const char *fname, bool check_open)
 {
         struct rawfile_t *ret;
 
@@ -164,84 +160,12 @@ file_get_priv(Object *fo, const char *fname, bool check_open)
 }
 
 static inline struct rawfile_t *
-file_fget_priv(Frame *fr, const char *fname, bool check_open)
+rawfile_fget_priv(Frame *fr, const char *fname, bool check_open)
 {
         Object *fo = vm_get_this(fr);
         bug_on(!isvar_instance(fo));
-        return file_get_priv(fo, fname, check_open);
+        return rawfile_get_priv(fo, fname, check_open);
 }
-
-static inline struct rawfile_t *
-file_get_silent(Object *fo, int type)
-{
-        return file_get_priv(fo, NULL, 0);
-}
-
-/* **********************************************************************
- *                  Any-file callbacks et al.
- ***********************************************************************/
-
-static Object *
-do_iseof(Frame *fr)
-{
-        struct rawfile_t *raw = file_fget_priv(fr, "iseof", 1);
-        if (!raw)
-                return ErrorVar;
-        return raw->fr_eof ? VAR_NEW_REF(gbl.one) : VAR_NEW_REF(gbl.zero);
-}
-
-/*
- * common to XXX_destructor().
- * If return value is NULL, destructor should bail early
- */
-static struct rawfile_t *
-destroy_common(void *priv)
-{
-        struct rawfile_t *raw;
-        int fd;
-        char *s;
-
-        raw = (struct rawfile_t *)priv;
-        if (!raw)
-                return NULL;
-        fd = raw->fr_fd;
-        raw->fr_fd = -1;
-        if (raw->fr_closefd && fd >= 0)
-                close(fd);
-
-        s = raw->fr_name;
-        raw->fr_name = NULL;
-        if (s)
-                efree(s);
-
-        s = raw->fr_mode;
-        raw->fr_mode = NULL;
-        if (s)
-                efree(s);
-
-        return raw;
-}
-
-/*
- * Common code to get file private from Frame during str method,
- * since it's error-prone, being a rare case where 'this' is arg 0
- * instead of vm_get_this().
- *
- * If NULL, bail early and return NullVar without producing a ref.
- */
-static struct rawfile_t *
-file_str_get_priv(Frame *fr, int type)
-{
-        Object *fo = vm_get_this(fr);
-        if (!fo || !isvar_instance(fo))
-                return NULL;
-        return file_get_silent(fo, type);
-}
-
-
-/* **********************************************************************
- *              Raw (unbuffered binary) files
- ***********************************************************************/
 
 static ssize_t
 raw_read_wrapper(int fd, void *buf, size_t size)
@@ -339,7 +263,7 @@ static Object *
 do_raw_read(Frame *fr)
 {
         long long size = -1LL;
-        struct rawfile_t *raw = file_fget_priv(fr, "read", 1);
+        struct rawfile_t *raw = rawfile_fget_priv(fr, "read", 1);
         if (!raw)
                 return ErrorVar;
         if (vm_getargs(fr, "[|l!]{!}:read", &size) == RES_ERROR)
@@ -358,7 +282,7 @@ do_raw_write(Frame *fr)
 {
         ssize_t ret;
         Object *bo;
-        struct rawfile_t *raw = file_fget_priv(fr, "write", 1);
+        struct rawfile_t *raw = rawfile_fget_priv(fr, "write", 1);
         if (!raw)
                 return ErrorVar;
         if (vm_getargs(fr, "[<b>!]{!}:write", &bo) == RES_ERROR)
@@ -377,7 +301,7 @@ static Object *
 do_raw_close(Frame *fr)
 {
         int fd;
-        struct rawfile_t *raw = file_fget_priv(fr, "close", 0);
+        struct rawfile_t *raw = rawfile_fget_priv(fr, "close", 0);
         if (!raw)
                 return ErrorVar;
 
@@ -391,15 +315,32 @@ do_raw_close(Frame *fr)
 static void
 raw_destructor(void *priv)
 {
-        struct rawfile_t *raw = destroy_common(priv);
-        if (raw)
-                efree(raw);
+        struct rawfile_t *raw;
+        int fd;
+        char *s;
+
+        raw = (struct rawfile_t *)priv;
+        fd = raw->fr_fd;
+        raw->fr_fd = -1;
+        if (raw->fr_closefd && fd >= 0)
+                close(fd);
+
+        s = raw->fr_name;
+        raw->fr_name = NULL;
+        if (s)
+                efree(s);
+
+        s = raw->fr_mode;
+        raw->fr_mode = NULL;
+        if (s)
+                efree(s);
+        efree(raw);
 }
 
 static Object *
 raw_str(Frame *fr)
 {
-        struct rawfile_t *raw = file_str_get_priv(fr, FILE_RAW);
+        struct rawfile_t *raw = rawfile_fget_priv(fr, NULL, 0);
         if (!raw)
                 return VAR_NEW_REF(NullVar);
 
@@ -413,23 +354,19 @@ open_raw(int fd, struct fileconfig_t *cfg)
         struct rawfile_t *raw;
         Object *instance, *class;
 
-        class = gbl.classes[GBL_CLASS_RAWFILE];
-        if (!class) {
-                static const struct type_inittbl_t rawfile_cb_methods[] = {
-                        V_INITTBL("read",       do_raw_read),
-                        V_INITTBL("write",      do_raw_write),
-                        V_INITTBL("close",      do_raw_close),
-                        V_INITTBL("iseof",      do_iseof),
-                        V_INITTBL("__str__",    raw_str),
-                        TBLEND,
-                };
-                Object *methods;
-                methods = dictvar_from_methods(NULL, rawfile_cb_methods);
-                class = classvar_new(NULL, methods, NULL);
-                VAR_DECR_REF(methods);
-                gbl.classes[GBL_CLASS_RAWFILE] = class;
-        }
-        raw = file_new(fd, sizeof(*raw), cfg);
+        class = io_class(GBL_CLASS_RAWFILE);
+        bug_on(!class);
+
+        raw = emalloc(sizeof(*raw));
+        memset(raw, 0, sizeof(*raw));
+        raw->fr_magic    = DICT_MAGIC_FILE;
+        raw->fr_type     = cfg->type;
+        raw->fr_fd       = fd;
+        raw->fr_mode     = cfg->mode;
+        raw->fr_name     = cfg->name;
+        raw->fr_closefd  = cfg->closefd;
+        raw->fr_writable = cfg->writable;
+        raw->fr_readable = cfg->readable;
         if (cfg->readable)
                 raw->fr_read = raw_read;
         if (cfg->writable)
@@ -443,6 +380,31 @@ open_raw(int fd, struct fileconfig_t *cfg)
 /* **********************************************************************
  *              (Buffered) binary files
  ***********************************************************************/
+
+struct binfile_t {
+        Object *fb_raw;
+        Object *fb_outbuf;
+        size_t fb_outbuf_size;
+        Object *fb_inbuf;
+        size_t fb_inbuf_pos;
+        size_t fb_readable;
+        size_t fb_writable;
+        /* for bookkeeping only */
+        int fb_fd;
+};
+
+static struct binfile_t *
+binfile_fget_priv(Frame *fr, const char *fname, bool check_open)
+{
+        Object *fo = vm_get_this(fr);
+        struct binfile_t *bin = instance_get_priv(fo);
+        if (check_open) {
+                /* TODO: just check fb_fd */
+                if (rawfile_err_if_closed(bin->fb_raw, fname) == RES_ERROR)
+                        return NULL;
+        }
+        return bin;
+}
 
 static int
 bin_flush(struct binfile_t *bin)
@@ -465,9 +427,19 @@ bin_flush(struct binfile_t *bin)
         res = 0;
         for (i = 0; i < n; i++) {
                 ssize_t nwritten;
+                Object *result;
                 size_t tlen = seqvar_size(bufs[i]);
-                nwritten = raw_write_wrapper(bin->fb_fd, bufs[i], tlen);
+
+                result = file_call_1arg(bin->fb_raw,
+                                        STRCONST_ID(write), bufs[i]);
+                if (result == ErrorVar)
+                        goto err;
+                bug_on(!result || !isvar_int(result));
+                nwritten = intvar_toll(result);
                 if (nwritten != tlen) {
+        err:
+                        if (result)
+                                VAR_DECR_REF(result);
                         res = -1;
                         break;
                 }
@@ -479,13 +451,11 @@ bin_flush(struct binfile_t *bin)
 }
 
 static Object *
-bin_read(struct rawfile_t *raw, ssize_t size)
+bin_read(struct binfile_t *bin, ssize_t size)
 {
-        struct binfile_t *bin;
         Object *inbuf, *inbuf2, *ret;
         size_t buf2size, needsize;
 
-        bin = CAST_BIN(raw);
         inbuf = bin->fb_inbuf;
         buf2size = size;
         if (inbuf) {
@@ -518,7 +488,7 @@ bin_read(struct rawfile_t *raw, ssize_t size)
         if (needsize < IO_BUFFER_SIZE)
                 needsize = IO_BUFFER_SIZE;
 
-        inbuf2 = raw_read(raw, needsize);
+        inbuf2 = file_call_1arg_int(bin->fb_raw, STRCONST_ID(read), needsize);
         if (inbuf2 == ErrorVar)
                 return ErrorVar;
 
@@ -550,9 +520,8 @@ bin_read(struct rawfile_t *raw, ssize_t size)
 }
 
 static ssize_t
-bin_write(struct rawfile_t *raw, Object *bo)
+bin_write(struct binfile_t *bin, Object *bo)
 {
-        struct binfile_t *bin = CAST_BIN(raw);
         bug_on(!isvar_bytes(bo));
 
         if (!bin->fb_outbuf) {
@@ -573,17 +542,17 @@ static Object *
 do_bin_read(Frame *fr)
 {
         long long size = -1LL;
-        struct rawfile_t *raw = file_fget_priv(fr, "read", 1);
-        if (!raw)
+        struct binfile_t *bin = binfile_fget_priv(fr, "read", 1);
+        if (!bin)
                 return ErrorVar;
         if (vm_getargs(fr, "[|l!]{!}:read", &size) == RES_ERROR)
                 return ErrorVar;
 
-        if (!raw->fr_readable) {
+        if (!bin->fb_readable) {
                 filerr_permit("read", 0);
                 return ErrorVar;
         }
-        return bin_read(raw, (ssize_t)size);
+        return bin_read(bin, (ssize_t)size);
 }
 
 static Object *
@@ -591,16 +560,16 @@ do_bin_write(Frame *fr)
 {
         ssize_t ret;
         Object *bo;
-        struct rawfile_t *raw = file_fget_priv(fr, "write", 1);
-        if (!raw)
+        struct binfile_t *bin = binfile_fget_priv(fr, "write", 1);
+        if (!bin)
                 return ErrorVar;
         if (vm_getargs(fr, "[<b>!]{!}:write", &bo) == RES_ERROR)
                 return ErrorVar;
-        if (!raw->fr_writable) {
+        if (!bin->fb_writable) {
                 filerr_permit("write", 1);
                 return ErrorVar;
         }
-        ret = bin_write(raw, bo);
+        ret = bin_write(bin, bo);
         if (ret < 0)
                 return ErrorVar;
         return intvar_new(ret);
@@ -613,7 +582,7 @@ do_bin_close(Frame *fr)
          * TODO: Flush write buffer, delete read buffer,
          * then call system close().
          */
-        struct binfile_t *bin = CAST_BIN(file_fget_priv(fr, "close", 0));
+        struct binfile_t *bin = binfile_fget_priv(fr, "close", 0);
         if (!bin)
                 return ErrorVar;
 
@@ -631,19 +600,17 @@ do_bin_close(Frame *fr)
         }
         bin->fb_outbuf_size = 0;
         bin->fb_inbuf_pos = 0;
-
-        close(bin->fb_fd);
         bin->fb_fd = -1;
-        return NULL;
+
+        return file_call_noarg(bin->fb_raw, STRCONST_ID(close));
 }
 
 static void
 bin_destructor(void *priv)
 {
-        struct binfile_t *bin = CAST_BIN(destroy_common(priv));
-        if (!bin)
-                return;
-
+        struct binfile_t *bin = priv;
+        if (bin->fb_raw)
+                VAR_DECR_REF(bin->fb_raw);
         if (bin->fb_inbuf)
                 VAR_DECR_REF(bin->fb_inbuf);
         if (bin->fb_outbuf)
@@ -654,7 +621,10 @@ bin_destructor(void *priv)
 static Object *
 bin_str(Frame *fr)
 {
-        struct rawfile_t *raw = file_str_get_priv(fr, FILE_BINARY);
+        struct binfile_t *bin = binfile_fget_priv(fr, NULL, 0);
+        if (!bin)
+                return VAR_NEW_REF(NullVar);
+        struct rawfile_t *raw = rawfile_get_priv(bin->fb_raw, NULL, 0);
         if (!raw)
                 return VAR_NEW_REF(NullVar);
 
@@ -663,32 +633,20 @@ bin_str(Frame *fr)
 }
 
 static Object *
-open_binary(int fd, struct fileconfig_t *cfg)
+open_binary(int fd, struct fileconfig_t *cfg, Object *raw)
 {
         struct binfile_t *bin;
         Object *instance, *class;
 
-        class = gbl.classes[GBL_CLASS_BINFILE];
-        if (!class) {
-                static const struct type_inittbl_t binfile_cb_methods[] = {
-                        V_INITTBL("read",       do_bin_read),
-                        V_INITTBL("write",      do_bin_write),
-                        V_INITTBL("close",      do_bin_close),
-                        V_INITTBL("iseof",      do_iseof),
-                        V_INITTBL("__str__",    bin_str),
-                        TBLEND,
-                };
-                Object *methods;
-                methods = dictvar_from_methods(NULL, binfile_cb_methods);
-                class = classvar_new(NULL, methods, NULL);
-                VAR_DECR_REF(methods);
-                gbl.classes[GBL_CLASS_BINFILE] = class;
-        }
-        bin = file_new(fd, sizeof(*bin), cfg);
-        if (cfg->readable)
-                bin->fb_read = bin_read;
-        if (cfg->writable)
-                bin->fb_write = bin_write;
+        class = io_class(GBL_CLASS_BINFILE);
+        bug_on(!class);
+
+        bin = emalloc(sizeof(*bin));
+        memset(bin, 0, sizeof(*bin));
+        bin->fb_raw = raw;
+        bin->fb_readable = cfg->readable;
+        bin->fb_writable = cfg->writable;
+        bin->fb_fd = fd;
 
         instance = instancevar_new(class, NULL, NULL, false);
         instance_set_priv(instance, bin_destructor, bin);
@@ -698,6 +656,32 @@ open_binary(int fd, struct fileconfig_t *cfg)
 /* **********************************************************************
  *              (Buffered) text files
  ***********************************************************************/
+
+struct textfile_t {
+        Object *ft_raw;
+        int ft_codec;
+        Object *ft_eol;
+        Object *ft_buf;
+        size_t ft_bufpos;
+        struct utf8_state_t ft_utf8_state;
+        bool ft_eof;
+        bool ft_readable;
+        bool ft_writable;
+        off_t ft_fdpos;
+        int ft_fd; /*< only used for bookkeepping */
+};
+
+static struct textfile_t *
+txtfile_fget_priv(Frame *fr, const char *fname, bool check_open)
+{
+        Object *fo = vm_get_this(fr);
+        struct textfile_t *txt = instance_get_priv(fo);
+        if (check_open) {
+                if (rawfile_err_if_closed(txt->ft_raw, fname) == RES_ERROR)
+                        return NULL;
+        }
+        return txt;
+}
 
 static inline void
 reset_decode_state(struct textfile_t *txt)
@@ -724,23 +708,25 @@ static ssize_t
 text_readbuf(struct textfile_t *txt, const char *fname)
 {
         struct string_writer_t wr;
-        char *buf;
+        Object *buf;
         ssize_t nread, res;
 
         if (txt->ft_eof)
                 return 0;
-        buf = emalloc(IO_BUFFER_SIZE);
-        nread = raw_read_wrapper(txt->ft_fd, buf, IO_BUFFER_SIZE);
-        if (nread < 0) {
-                efree(buf);
+        buf = file_call_1arg_int(txt->ft_raw, STRCONST_ID(read), IO_BUFFER_SIZE);
+        if (buf == ErrorVar) {
                 reset_decode_state(txt);
-                filerr_sys(fname);
                 return -1;
-        } else if (!nread) {
-                efree(buf);
-                buf = NULL;
-                txt->ft_eof = true;
         }
+
+        bug_on(!isvar_bytes(buf));
+        nread = seqvar_size(buf);
+        if (nread == 0) {
+                VAR_DECR_REF(buf);
+                txt->ft_eof = true;
+                buf = NULL;
+        }
+
         txt->ft_fdpos += nread;
         string_writer_init(&wr, 1);
         if (txt->ft_buf) {
@@ -749,8 +735,8 @@ text_readbuf(struct textfile_t *txt, const char *fname)
                 txt->ft_buf = NULL;
         }
         if (buf) {
-                res = text_decode(txt, &wr, buf, nread);
-                efree(buf);
+                res = text_decode(txt, &wr, bytes_get_data(buf), nread);
+                VAR_DECR_REF(buf);
                 if (res < 0)
                         goto decode_err;
         }
@@ -776,9 +762,8 @@ decode_err:
 
 /* size is number of Unicode points, not bytes */
 static Object *
-text_read(struct rawfile_t *raw, ssize_t size)
+text_read(struct textfile_t *txt, ssize_t size)
 {
-        struct textfile_t *txt = CAST_TXT(raw);
         ssize_t nread;
         Object *ret;
 
@@ -821,7 +806,7 @@ do_text_read(Frame *fr)
         long long size = -1LL;
         struct textfile_t *txt;
 
-        txt = CAST_TXT(file_fget_priv(fr, "read", 1));
+        txt = txtfile_fget_priv(fr, "read", 1);
         if (!txt)
                 return ErrorVar;
         if (vm_getargs(fr, "[|l!]{!}:read", &size) == RES_ERROR)
@@ -830,7 +815,7 @@ do_text_read(Frame *fr)
                 filerr_permit("read", 0);
                 return ErrorVar;
         }
-        return text_read(CAST_RAW(txt), (ssize_t)size);
+        return text_read(txt, (ssize_t)size);
 }
 
 static Object *
@@ -841,7 +826,7 @@ do_text_readline(Frame *fr)
         size_t seekpos;
         struct textfile_t *txt;
 
-        txt = CAST_TXT(file_fget_priv(fr, "readline", 1));
+        txt = txtfile_fget_priv(fr, "readline", 1);
         if (!txt)
                 return ErrorVar;
 
@@ -912,16 +897,17 @@ do_text_readline(Frame *fr)
 }
 
 static ssize_t
-text_write(struct rawfile_t *raw, Object *so)
+text_write(struct textfile_t *txt, Object *so)
 {
         /*
          * FIXME: The whole point is to use a buffer to reduce
          * the system write() calls.
          */
         const void *data;
-        size_t size;
+        ssize_t size, nwritten;
+        Object *arg, *result;
 
-        switch (CAST_TXT(raw)->ft_codec) {
+        switch (txt->ft_codec) {
         case CODEC_ASCII:
                 if (!string_isascii(so)) {
                         err_setstr(ValueError,
@@ -951,7 +937,14 @@ text_write(struct rawfile_t *raw, Object *so)
                 bug();
                 return -1;
         }
-        return raw_write_wrapper(raw->fr_fd, data, size);
+        arg = bytesvar_new(data, size);
+        result = file_call_1arg(txt->ft_raw, STRCONST_ID(write), arg);
+        VAR_DECR_REF(arg);
+        if (result == ErrorVar)
+                return -1;
+        nwritten = intvar_toll(result);
+        VAR_DECR_REF(result);
+        return nwritten;
 }
 
 static Object *
@@ -961,7 +954,7 @@ do_text_write(Frame *fr)
         Object *so;
         struct textfile_t *txt;
 
-        txt = CAST_TXT(file_fget_priv(fr, "write", 1));
+        txt = txtfile_fget_priv(fr, "write", 1);
         if (!txt)
                 return ErrorVar;
         if (vm_getargs(fr, "[<s>!]{!}:write", &so) == RES_ERROR)
@@ -970,7 +963,7 @@ do_text_write(Frame *fr)
                 filerr_permit("write", 1);
                 return ErrorVar;
         }
-        ret = text_write(CAST_RAW(txt), so);
+        ret = text_write(txt, so);
         if (ret < 0)
                 return ErrorVar;
         return intvar_new(ret);
@@ -982,7 +975,7 @@ do_text_close(Frame *fr)
         int fd;
         struct textfile_t *txt;
 
-        txt = CAST_TXT(file_fget_priv(fr, "close", 0));
+        txt = txtfile_fget_priv(fr, "close", 0);
         if (!txt)
                 return ErrorVar;
 
@@ -999,25 +992,32 @@ text_str(Frame *fr)
 {
         Object *ret;
         struct textfile_t *txt;
+        struct rawfile_t *raw;
         char codecbuf[16];
 
-        txt = (struct textfile_t *)file_str_get_priv(fr, FILE_TEXT);
+        txt = txtfile_fget_priv(fr, NULL, 0);
         if (!txt)
+                return VAR_NEW_REF(NullVar);
+        raw = rawfile_get_priv(txt->ft_raw, NULL, 0);
+        if (!raw)
                 return VAR_NEW_REF(NullVar);
 
         codec_str(txt->ft_codec, codecbuf, sizeof(codecbuf));
         ret = stringvar_from_format("<file name='%s' mode='%s' enc='%s'>",
-                      txt->ft_name ? txt->ft_name : "!",
-                      txt->ft_mode, codecbuf);
+                      raw->fr_name ? raw->fr_name : "!",
+                      raw->fr_mode, codecbuf);
         return ret;
 }
 
 static void
 text_destructor(void *priv)
 {
-        struct textfile_t *txt = CAST_TXT(destroy_common(priv));
+        struct textfile_t *txt = priv;
         if (txt) {
                 Object *o;
+
+                if (txt->ft_raw)
+                        VAR_DECR_REF(txt->ft_raw);
 
                 o = txt->ft_buf;
                 txt->ft_buf = NULL;
@@ -1046,36 +1046,26 @@ text_destructor(void *priv)
  *      used for print() and other operations.
  */
 static Object *
-open_text(int fd, struct fileconfig_t *cfg, int codec)
+open_text(int fd, struct fileconfig_t *cfg, Object *raw, int codec)
 {
         struct textfile_t *txt;
         Object *instance, *class;
 
-        class = gbl.classes[GBL_CLASS_TXTFILE];
-        if (!class) {
-                static const struct type_inittbl_t textfile_cb_methods[] = {
-                        V_INITTBL("read",       do_text_read),
-                        V_INITTBL("readline",   do_text_readline),
-                        V_INITTBL("write",      do_text_write),
-                        V_INITTBL("close",      do_text_close),
-                        V_INITTBL("iseof",      do_iseof),
-                        V_INITTBL("__str__",    text_str),
-                        TBLEND,
-                };
-                Object *methods;
-                methods = dictvar_from_methods(NULL, textfile_cb_methods);
-                class = classvar_new(NULL, methods, NULL);
-                VAR_DECR_REF(methods);
-                gbl.classes[GBL_CLASS_TXTFILE] = class;
-        }
-        txt = file_new(fd, sizeof(*txt), cfg);
+        class = io_class(GBL_CLASS_TXTFILE);
+        bug_on(!class);
+
+        txt = emalloc(sizeof(*txt));
+        memset(txt, 0, sizeof(*txt));
+
         txt->ft_codec = codec;
         /* FIXME: this should be an argument */
         txt->ft_eol = stringvar_from_ascii("\n");
-        if (cfg->readable)
-                txt->ft_read = text_read;
-        if (cfg->writable)
-                txt->ft_write = text_write;
+        txt->ft_raw = raw;
+        txt->ft_fd = fd;
+        txt->ft_eof = false;
+        txt->ft_fdpos = 0;
+        txt->ft_readable = cfg->readable;
+        txt->ft_writable = cfg->writable;
 
         instance = instancevar_new(class, NULL, NULL, false);
         instance_set_priv(instance, text_destructor, txt);
@@ -1200,13 +1190,7 @@ evc_file_write(Object *fo, Object *data)
 bool
 isvar_file(Object *o)
 {
-        if (isvar_instance(o)) {
-                struct rawfile_t *raw;
-                raw = (struct rawfile_t *)instance_get_priv(o);
-                if (raw)
-                        return raw->fr_magic == DICT_MAGIC_FILE;
-        }
-        return false;
+        return var_instanceof(o, gbl.classes[GBL_CLASS_IOBASE]);
 }
 
 /*
@@ -1215,13 +1199,14 @@ isvar_file(Object *o)
 Object *
 finish_open(int fd, struct fileconfig_t *cfg, int codec)
 {
+        Object *raw = open_raw(fd, cfg);
         switch (cfg->type) {
         case FILE_TEXT:
-                return open_text(fd, cfg, codec);
+                return open_text(fd, cfg, raw, codec);
         case FILE_BINARY:
-                return open_binary(fd, cfg);
+                return open_binary(fd, cfg, raw);
         case FILE_RAW:
-                return open_raw(fd, cfg);
+                return raw;
         default:
                 bug();
                 return ErrorVar;
@@ -1506,11 +1491,74 @@ create_io_instance(Frame *fr)
         return dictvar_from_methods(NULL, io_inittbl);
 }
 
+static Object *
+iobase_placeholder(Frame *fr)
+{
+        err_setstr(NotImplementedError, "method not implemented for this file");
+        return ErrorVar;
+}
+
+static void
+initialize_file_classes(void)
+{
+        static const struct type_inittbl_t iobase_methods[] = {
+                V_INITTBL("read", iobase_placeholder),
+                V_INITTBL("write", iobase_placeholder),
+                V_INITTBL("close", iobase_placeholder),
+                TBLEND,
+        };
+        static const struct type_inittbl_t textfile_methods[] = {
+                V_INITTBL("read",       do_text_read),
+                V_INITTBL("readline",   do_text_readline),
+                V_INITTBL("write",      do_text_write),
+                V_INITTBL("close",      do_text_close),
+                V_INITTBL("__str__",    text_str),
+                TBLEND,
+        };
+        static const struct type_inittbl_t binfile_methods[] = {
+                V_INITTBL("read",       do_bin_read),
+                V_INITTBL("write",      do_bin_write),
+                V_INITTBL("close",      do_bin_close),
+                V_INITTBL("__str__",    bin_str),
+                TBLEND,
+        };
+        static const struct type_inittbl_t rawfile_methods[] = {
+                V_INITTBL("read",       do_raw_read),
+                V_INITTBL("write",      do_raw_write),
+                V_INITTBL("close",      do_raw_close),
+                V_INITTBL("__str__",    raw_str),
+                TBLEND,
+        };
+        Object *class, *methods;
+
+        methods = dictvar_from_methods(NULL, iobase_methods);
+        class = classvar_new(NULL, methods, NULL);
+        VAR_DECR_REF(methods);
+        gbl.classes[GBL_CLASS_IOBASE] = class;
+
+        methods = dictvar_from_methods(NULL, textfile_methods);
+        class = classvar_new(gbl.classes[GBL_CLASS_IOBASE], methods, NULL);
+        VAR_DECR_REF(methods);
+        gbl.classes[GBL_CLASS_TXTFILE] = class;
+
+        methods = dictvar_from_methods(NULL, binfile_methods);
+        class = classvar_new(gbl.classes[GBL_CLASS_IOBASE], methods, NULL);
+        VAR_DECR_REF(methods);
+        gbl.classes[GBL_CLASS_BINFILE] = class;
+
+        methods = dictvar_from_methods(NULL, rawfile_methods);
+        class = classvar_new(gbl.classes[GBL_CLASS_IOBASE], methods, NULL);
+        VAR_DECR_REF(methods);
+        gbl.classes[GBL_CLASS_RAWFILE] = class;
+}
+
 void
 moduleinit_io(void)
 {
-        Object *k = stringvar_from_ascii("_io");
-        Object *o = var_from_format("<xmM>",
+        Object *k, *o;
+
+        k = stringvar_from_ascii("_io");
+        o = var_from_format("<xmM>",
                                     create_io_instance, 0, 0);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
@@ -1521,6 +1569,9 @@ moduleinit_io(void)
         vm_add_global(k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
+
+        if (!io_classes_initialized())
+                initialize_file_classes();
 }
 
 

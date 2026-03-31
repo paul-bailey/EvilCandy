@@ -231,6 +231,7 @@ extern Object *instance_getattr(Object *instance, Object *key);
 extern enum result_t instance_setattr(Object *instance,
                                 Object *key, Object *value);
 extern Object *instance_dir(Object *instance);
+extern bool instance_instanceof(Object *instance, Object *class);
 
 /* types/comlex.c */
 extern Object *complexvar_new(double real, double imag);

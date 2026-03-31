@@ -108,6 +108,7 @@ enum {
         STRCONST_IDX_read,
         STRCONST_IDX_write,
         STRCONST_IDX_socket,
+        STRCONST_IDX_close,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,
@@ -135,7 +136,8 @@ enum {
 
 /* indices into gbl.classes */
 enum {
-        GBL_CLASS_RAWFILE = 0,
+        GBL_CLASS_IOBASE,
+        GBL_CLASS_RAWFILE,
         GBL_CLASS_BINFILE,
         GBL_CLASS_TXTFILE,
         N_GBL_CLASSES,

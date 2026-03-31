@@ -287,6 +287,7 @@ static inline bool isvar_map(Object *v)
 static inline bool hasvar_len(Object *v)
         { return v->v_type->get_iter != NULL; }
 
+
 /*
  * Some objects made public so some functions can be inline.
  * These are otherwise used privately in integer.c and float.c

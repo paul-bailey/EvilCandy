@@ -620,8 +620,13 @@ array_cmp(Object *a, Object *b)
         int i, res, n;
         Object **aitems, **bitems;
 
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
+        bug_on(!isvar_array(a));
+        if (!isvar_array(b)) {
+                if (hasvar_len(b))
+                        return (int)(seqvar_size(a) - seqvar_size(b));
+                else
+                        return 1;
+        }
 
         aitems = V2ARR(a)->items;
         bitems = V2ARR(b)->items;
@@ -629,21 +634,21 @@ array_cmp(Object *a, Object *b)
         if (n > seqvar_size(b))
                 n = seqvar_size(b);
 
-        /*
-         * XXX: slow policy here: We don't bail early if sizes don't
-         * match, because we want to check if internals have any
-         * mismatch and return that instead of length(a)-length(b).
-         */
+        bug_on(!aitems || !bitems);
+
+        RECURSION_DECLARE_FUNC();
+        RECURSION_START_FUNC(RECURSION_MAX);
+
         for (i = 0; i < n; i++) {
                 res = var_compare(aitems[i], bitems[i]);
                 if (res)
                         break;
         }
 
+        RECURSION_END_FUNC();
+
         if (i == n)
                 res = seqvar_size(a) - seqvar_size(b);
-
-        RECURSION_END_FUNC();
 
         return res;
 }

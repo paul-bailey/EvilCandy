@@ -366,7 +366,7 @@ cfile_deinit_var(void)
 }
 
 /*
- * Helper to var_setattr/var_getattr
+ * Helper to var_setitem/var_getitem
  *
  * Convert @idx, where something like '[-3]' means '[size-3]',
  * and make sure the result is within range for @v.

@@ -203,9 +203,22 @@ found:
 enum result_t
 instance_setattr(Object *instance, Object *key, Object *value)
 {
-        /* FIXME: what if we're setting a property? */
+        /*
+         * XXX: This is SLOW!
+         *      Am I really so dedicated to supporting properties?
+         */
+        Object *prop;
+
         bug_on(!isvar_instance(instance));
-        return dict_setitem(V2INST(instance)->inst_attr, key, value);
+        prop = class_getitem(V2INST(instance)->inst_class, key);
+        if (prop && isvar_property(prop)) {
+                enum result_t ret = property_set(prop, instance, value, key);
+                VAR_DECR_REF(prop);
+                return ret;
+        } else {
+                Object *dict = V2INST(instance)->inst_attr;
+                return dict_setitem(dict, key, value);
+        }
 }
 
 Object *

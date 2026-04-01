@@ -1019,18 +1019,6 @@ text_destructor(void *priv)
         }
 }
 
-/**
- * open_text - Create a file object in text mode from an open file
- * @name: Name of file, for information purposes.
- * @mode: Mode of file, for information purposes.
- * @oflags: Flags used to open the file
- * @fd:   File descriptor of the open file.
- * @closefd: True to close the file when the object is destroyed
- * @codec:   A CODEC_xxx enumeration.
- *
- * Return: A file object (technically a dictionary), which can be
- *      used for print() and other operations.
- */
 static Object *
 open_text(int fd, struct fileconfig_t *cfg, Object *raw, int codec)
 {

@@ -983,21 +983,15 @@ var_all_or_any(Object *v, enum result_t *status, int which)
         return res;
 }
 
-#define FAST_ITER(v_) ((v_)->v_type->sqm->fast_iter)
-#define MAY_FAST_ITER(v_) (isvar_seq(v_) && FAST_ITER(v_) != NULL)
 bool
 var_all(Object *v, enum result_t *status)
 {
-        if (MAY_FAST_ITER(v))
-                return FAST_ITER(v)->all(v);
         return var_all_or_any(v, status, V_ALL);
 }
 
 bool
 var_any(Object *v, enum result_t *status)
 {
-        if (MAY_FAST_ITER(v))
-                return FAST_ITER(v)->any(v);
         return var_all_or_any(v, status, V_ANY);
 }
 
@@ -1043,16 +1037,12 @@ var_min_or_max(Object *v, int minmax)
 Object *
 var_min(Object *v)
 {
-        if (MAY_FAST_ITER(v))
-                return FAST_ITER(v)->min(v);
         return var_min_or_max(v, V_MIN);
 }
 
 Object *
 var_max(Object *v)
 {
-        if (MAY_FAST_ITER(v))
-                return FAST_ITER(v)->max(v);
         return var_min_or_max(v, V_MAX);
 }
 

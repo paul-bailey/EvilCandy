@@ -1,5 +1,6 @@
 ACLOCAL_AMFLAGS = -I build/m4
-AM_CFLAGS = -Wall -pedantic
+AM_CFLAGS = \
+ -Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -pedantic
 
 bin_PROGRAMS = evilcandy
 check_PROGRAMS = tools/tokgen tools/gen

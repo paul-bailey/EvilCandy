@@ -1890,7 +1890,7 @@ assemble_expr2_binary(struct assemble_t *a)
                 { ADDSUB_TOK2OP,    true,  -1 },
                 { MULDIVMOD_TOK2OP, true,  -1 },
                 { POW_TOK2OP,       true,  -1 },
-                { NULL },
+                { NULL, 0, 0 },
         };
         return assemble_binary_operators_r(a, BINARY_OPERATORS);
 }

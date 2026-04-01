@@ -3,11 +3,15 @@
 struct propertyvar_t {
         Object base;
         enum {
+                /* if this property uses built-in callbacks */
                 PR_INTL = 1,
+                /* if this property uses script callbacks */
                 PR_USER,
         } pr_kind;
         union {
+                /* if pr_kind == PR_INTL */
                 struct type_prop_t pr_props;
+                /* if pr_kind == PR_USER */
                 struct {
                         Object *pr_set;
                         Object *pr_get;

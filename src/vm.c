@@ -1270,7 +1270,7 @@ do_cmp(Frame *fr, instruction_t ii)
         push(fr, res);
         VAR_DECR_REF(rval);
         VAR_DECR_REF(lval);
-        return res ? 0 : -1;
+        return RES_OK;
 }
 
 static int

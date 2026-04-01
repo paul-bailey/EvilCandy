@@ -1,0 +1,14 @@
+// A generator that does basically nothing.
+// Like sqrt.evc, it's my hillbilly duct-table n' WD-40 way to
+// benchmark EvilCandy right now, by comparing below with
+// an equivalent algorithm in Python.  In two phrases,
+// Python is faster but this is still pretty fast.
+((generator_call) => {
+    for x in generator_call(100 * 1000* 1000)
+        ;
+})((x) => {
+    for i in range(x)
+        yield i;
+});
+
+// : vim: set syntax=javascript :

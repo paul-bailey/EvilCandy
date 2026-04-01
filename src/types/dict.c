@@ -491,10 +491,83 @@ dict_copyto_with_flags(Object *to, Object *from,
 static int
 dict_cmp(Object *a, Object *b)
 {
-        if (isvar_dict(b))
+        int i, ret;
+        struct dictvar_t *da = V2D(a);
+        struct dictvar_t *db = V2D(b);
+        ssize_t size_diff;
+
+        bug_on(!isvar_dict(a));
+        if (a == b)
                 return 0;
-        /* FIXME: need to recurse here */
-        return 1;
+
+        if (!isvar_dict(b)) {
+                /*
+                 * Treat nonmatching objects as 'less' than dict, except
+                 * for classes and instances, which is 'greater' than dict.
+                 */
+                if (isvar_class(b) || isvar_instance(b))
+                        return -1;
+                return 1;
+        }
+
+        /*
+         * XXX: Throw exception? Assume cyclic-referenced dictionary can
+         * never match another dictionary.
+         */
+        if (dict_lock(da) == RES_ERROR)
+                return 1;
+
+        size_diff = seqvar_size(a) - seqvar_size(b);
+        if (size_diff) {
+                ret = size_diff > 0 ? 1 : -1;
+                goto unlock;
+        }
+
+        /*
+         * Note our algorithm: d_size should be the same for a and b if
+         * length(a) == length(b), because the resizing algorithm is the
+         * same for both, regardless where their hash indices place their
+         * contents.
+         */
+        bug_on(da->d_size != db->d_size);
+
+        /*
+         * DO NOT go through d_map, because we want to return zero (match)
+         * for dictionaries whose key-value pairs match REGARDLESS of
+         * insertion order.
+         *
+         * Also do not assume da->d_keys[i] matches db->d_keys[i] for
+         * matching dictionaries, because, regardless whether a resize
+         * took place, different collisions could occur which still places
+         * keys in the same place.  So instead traverse one array, then
+         * use dict_getitem() for the second dict.
+         */
+        for (i = 0; i < da->d_size; i++) {
+                Object *k, *vb;
+
+                k = da->d_keys[i];
+                if (k == NULL || k == BUCKET_DEAD)
+                        continue;
+
+                vb = dict_getitem(b, k);
+                if (!vb) {
+                        ret = 1;
+                        goto unlock;
+                }
+                ret = var_compare(da->d_vals[i], vb);
+                VAR_DECR_REF(vb);
+                if (ret)
+                        goto unlock;
+        }
+        /*
+         * We already confirmed the sizes match, so @b has nothing that
+         * @a doesn't also have.
+         */
+        ret = 0;
+
+unlock:
+        dict_unlock(da);
+        return ret;
 }
 
 static bool

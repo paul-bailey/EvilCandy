@@ -2,7 +2,6 @@
 
 struct propertyvar_t {
         Object base;
-        Object *pr_owner;
         enum {
                 PR_INTL = 1,
                 PR_USER,
@@ -91,8 +90,6 @@ property_set(Object *prop, Object *owner, Object *value, Object *name)
 {
         struct propertyvar_t *pr = V2P(prop);
         bug_on(!isvar_property(prop));
-        if (pr->pr_owner)
-                owner = pr->pr_owner;
         if (pr->pr_kind == PR_INTL) {
                 if (pr->pr_props.setprop)
                         return pr->pr_props.setprop(owner, value);
@@ -136,8 +133,6 @@ property_get(Object *prop, Object *owner, Object *name)
 {
         struct propertyvar_t *pr = V2P(prop);
         bug_on(!isvar_property(prop));
-        if (pr->pr_owner)
-                owner = pr->pr_owner;
         if (pr->pr_kind == PR_INTL) {
                 if (pr->pr_props.getprop)
                         return pr->pr_props.getprop(owner);

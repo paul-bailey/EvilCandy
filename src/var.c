@@ -602,8 +602,14 @@ Object *
 var_getattr(Object *v, Object *key)
 {
         Object *ret;
-        if (isvar_instance(v))
-                return instance_getattr(v, key);
+        if (isvar_instance(v)) {
+                ret = instance_getattr(v, key);
+                if (!ret) {
+                        err_attribute("get", key, v);
+                        return ErrorVar;
+                }
+                return ret;
+        }
         ret = dict_getitem(v->v_type->methods, key);
         if (!ret) {
                 if (isvar_dict(v)) {

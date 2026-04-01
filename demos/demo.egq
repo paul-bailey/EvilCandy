@@ -78,7 +78,7 @@ print(f"~0 is {~0}");
 
 print("");
 print("Now here's a demo of foreach:");
-((strs) => {
+((*strs) => {
     for str in strs {
         let i = 0;
 
@@ -91,7 +91,7 @@ print("Now here's a demo of foreach:");
         }
         print('');
     }
-})(["__gbl__", "__gbl__._builtins"]);
+})("__gbl__", "__gbl__._builtins");
 
 ((ahasb) => {
     ahasb('__gbl__', 'MarioBros');

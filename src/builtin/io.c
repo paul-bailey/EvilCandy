@@ -856,7 +856,7 @@ do_text_readline(Frame *fr)
 
         /* Return the buffer */
         bug_on(!txt->ft_buf);
-        bug_on(haveidx <= txt->ft_bufpos);
+        bug_on(haveidx != 0 && haveidx <= txt->ft_bufpos);
         if (txt->ft_bufpos == 0 && haveidx == seqvar_size(txt->ft_buf)) {
                 /*
                  * Special rare case: we have exactly a line.  No need to

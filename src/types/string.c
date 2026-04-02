@@ -475,6 +475,19 @@ widen_buffer(Object *str, size_t width)
         return tbuf;
 }
 
+static bool
+match_here(Object *haystack, Object *needle, size_t idx)
+{
+        size_t i;
+        for (i = 0; i < seqvar_size(needle); i++) {
+                if (string_getidx(haystack, idx + i)
+                    != string_getidx(needle, i)) {
+                        return false;
+                }
+        }
+        return true;
+}
+
 static ssize_t
 find_idx_substr(Object *haystack, Object *needle,
                 unsigned int flags, size_t startpos, size_t endpos)
@@ -490,27 +503,25 @@ find_idx_substr(Object *haystack, Object *needle,
         hwid = string_width(haystack);
         nwid = string_width(needle);
 
+        bug_on(!nlen);
+
         if (hwid < nwid || hlen < nlen) {
                 idx = -1;
         } else {
-                unsigned char *found, *hsrc, *nsrc;
-                hsrc = voidp_add(string_data(haystack), startpos * hwid);
-                nsrc = string_data(needle);
-                if (hwid != nwid)
-                        nsrc = widen_buffer(needle, hwid);
-                if (!!(flags & SF_RIGHT))
-                        found = memrmem(hsrc, hlen * hwid, nsrc, nlen * hwid);
-                else
-                        found = memmem(hsrc, hlen * hwid, nsrc, nlen * hwid);
-                if (!found)
-                        idx = -1;
-                else
-                        idx = (ssize_t)(found - hsrc) / hwid;
-                if (startpos && idx >= 0)
-                        idx += startpos + hwid;
-                if (nsrc != string_data(needle))
-                        efree(nsrc);
+                if (!!(flags & SF_RIGHT)) {
+                        for (idx = endpos - nlen; idx >= startpos; idx--) {
+                                if (match_here(haystack, needle, idx))
+                                        goto found;
+                        }
+                } else {
+                        for (idx = startpos; idx < endpos - (nlen - 1); idx++) {
+                                if (match_here(haystack, needle, idx))
+                                        goto found;
+                        }
+                }
+                idx = -1;
         }
+found:
         bug_on(idx >= (ssize_t)seqvar_size(haystack));
         return idx;
 }
@@ -1369,37 +1380,23 @@ string_replace(Frame *fr)
                 wr_wid = hwid;
         string_writer_init(&wr, wr_wid);
 
+        hlen *= hwid;
+        nlen *= hwid;
+
         start = 0;
         while (start < hlen) {
-                size_t idx;
-                unsigned char *found, *th;
-
-                th = hsrc + start * hwid;
-                found = memmem(th, hlen - start, nsrc, nlen);
-                if (!found) {
-                        if (start == 0)
-                                goto return_self;
-                        string_writer_appendb(&wr, th, hwid, hlen - start);
-                        break;
+                if (hlen - start >= nlen &&
+                    memcmp(hsrc + start, nsrc, nlen) == 0) {
+                        string_writer_append_strobj(&wr, repl);
+                        start += nlen;
+                } else {
+                        string_writer_appendb(&wr, hsrc + start, hwid, 1);
+                        start += hwid;
                 }
-
-                idx = (size_t)(found - hsrc) / hwid;
-                bug_on(idx >= hlen);
-                if (idx != start)
-                        string_writer_appendb(&wr, th, hwid, idx - start);
-                string_writer_append_strobj(&wr, repl);
-                start = idx + nlen;
         }
         if (nsrc != string_data(needle))
                 efree(nsrc);
-
         return stringvar_from_writer(&wr);
-
-return_self:
-        string_writer_destroy(&wr);
-        if (nsrc != string_data(needle))
-                efree(nsrc);
-        return VAR_NEW_REF(haystack);
 }
 
 static Object *
@@ -1914,12 +1911,12 @@ static Object *
 string_lrsplit(Frame *fr, unsigned int flags)
 {
         enum { LRSPLIT_STACK_SIZE = 64, };
-        Object *self, *separg, *ret;
+        Object *self, *separg, *array;
         const char *fmt;
         int maxsplit;
-        size_t hwid, hlen, nwid, nlen;
-        unsigned char *hsrc, *nsrc;
         bool combine;
+        size_t startpos, seplen, endpos;
+        bool right;
 
         self = vm_get_this(fr);
         bug_on(!self || !isvar_string(self));
@@ -1944,94 +1941,50 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 return ErrorVar;
         }
 
-        hwid = string_width(self);
-        hlen = seqvar_size(self);
-        nwid = string_width(separg);
-        nlen = seqvar_size(separg);
+        array = arrayvar_new(0);
+        startpos = 0;
+        seplen = seqvar_size(separg);
+        endpos = seqvar_size(self);
+        right = !!(flags & SF_RIGHT);
+        while (maxsplit-- != 0) {
+                ssize_t idx = find_idx_substr(self, separg, flags,
+                                              startpos, endpos);
+                ssize_t substr_start, substr_end;
+                if (idx < 0)
+                        break;
+                if (right) {
+                        substr_start = idx + seplen;
+                        substr_end = endpos;
 
-        ret = arrayvar_new(0);
-        if (hlen < nlen || hwid < nwid) {
-                array_append(ret, self);
-                return ret;
-        }
-
-        hsrc = string_data(self);
-        if (nwid != hwid)
-                nsrc = widen_buffer(separg, hwid);
-        else
-                nsrc = string_data(separg);
-
-        if (!!(flags & SF_RIGHT)) {
-                Object *substr;
-                while (hlen > nlen && maxsplit-- != 0) {
-                        ssize_t idx;
-                        unsigned char *found;
-                        found = memrmem(hsrc, hlen, nsrc, nlen);
-                        if (!found)
-                                break;
-                        idx = (found - hsrc) / hwid;
-                        bug_on(idx > seqvar_size(self));
-                        if (idx + nlen == hlen) {
-                                if (!combine)
-                                        array_append(ret, STRCONST_ID(mpty));
-                        } else {
-                                substr = stringvar_from_substr(self, idx + nlen, hlen);
-                                array_append(ret, substr);
-                                VAR_DECR_REF(substr);
-                        }
-                        if (!combine && idx + nlen != hlen &&
-                            idx == 0 && maxsplit-- != 0) {
-                                /* last sep */
-                                array_append(ret, STRCONST_ID(mpty));
-                        }
-                        hlen = idx;
+                } else {
+                        substr_start = startpos;
+                        substr_end = idx;
                 }
-                if (hlen) {
-                        substr = stringvar_from_substr(self, 0, hlen);
-                        array_append(ret, substr);
+                if (substr_start != substr_end) {
+                        Object *substr = stringvar_from_substr(
+                                                        self,
+                                                        substr_start,
+                                                        substr_end);
+                        array_append(array, substr);
                         VAR_DECR_REF(substr);
                 }
-                array_reverse(ret);
-        } else {
-                Object *substr;
-                size_t start = 0;
-                while (start < hlen && maxsplit-- != 0) {
-                        ssize_t idx;
-                        unsigned char *found;
-                        unsigned char *th = hsrc + start * hwid;
 
-                        found = memmem(th, hlen - start, nsrc, nlen);
-                        if (!found)
-                                break;
+                if (!combine)
+                        array_append(array, STRCONST_ID(mpty));
 
-                        idx = (found - hsrc) / hwid;
-                        bug_on(idx > seqvar_size(self));
-                        if (idx == start) {
-                                if (!combine)
-                                        array_append(ret, STRCONST_ID(mpty));
-                        } else {
-                                substr = stringvar_from_substr(self, start, idx);
-                                array_append(ret, substr);
-                                VAR_DECR_REF(substr);
-                        }
-                        if (!combine && idx + nlen == hlen &&
-                            idx != start && maxsplit-- != 0) {
-                                /* last sep */
-                                array_append(ret, STRCONST_ID(mpty));
-                        }
-                        start = idx + nlen;
-                }
-                if (start < hlen) {
-                        substr = stringvar_from_substr(self, start, hlen);
-                        array_append(ret, substr);
-                        VAR_DECR_REF(substr);
-                }
+                if (right)
+                        endpos = idx;
+                else
+                        startpos = idx + seplen;
         }
-
-        if (nsrc != string_data(separg))
-                efree(nsrc);
-
-        return ret;
+        if (startpos != endpos) {
+                Object *substr = stringvar_from_substr(self, startpos, endpos);
+                array_append(array, substr);
+                VAR_DECR_REF(substr);
+        }
+        if (!!(flags & SF_RIGHT))
+                array_reverse(array);
+        return array;
 }
 
 static Object *
@@ -3064,6 +3017,12 @@ stringvar_from_substr(Object *old, size_t start, size_t stop)
         bug_on(start >= seqvar_size(old));
         bug_on(stop > seqvar_size(old));
         bug_on(stop < start);
+
+        if (stop == start) {
+                if (STRCONST_ID(mpty))
+                        return VAR_NEW_REF(STRCONST_ID(mpty));
+                return stringvar_from_ascii("");
+        }
 
         width = string_width(old);
         len  = stop - start;

@@ -35,6 +35,15 @@ function test_string() {
         test.assert_true('a b c'.split() == ['a', 'b', 'c']);
         test.assert_true(' abc'.split() == ['abc']);
         test.assert_true('abc '.split() == ['abc']);
+        test.assert_true('a b c'.split(sep=' ') == ['a', 'b', 'c']);
+        test.assert_true('a//b///c/d'.split(sep='/')
+                         == ['a', '', 'b', '', '', 'c', 'd']);
+        test.assert_true('a//b///c/d'.rsplit(sep='/')
+                         == ['a', '', 'b', '', '', 'c', 'd']);
+        test.assert_true('a//b///c/d'.split(sep='/', maxsplit=1)
+                         == ['a', '', 'b///c/d']);
+        test.assert_true('a//b///c/d'.rsplit(sep='/', maxsplit=1)
+                         == ['a//b///c', 'd']);
     }
     test_replace();
     test_partition();

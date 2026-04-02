@@ -90,11 +90,6 @@ enum errhandler_t {
         ERRH_EXCEPTION,
 };
 
-#define as_badeof(a) do { \
-        DBUG("Bad EOF, trapped in assembly.c line %d", __LINE__); \
-        err_setstr(SyntaxError, "Unexpected termination"); \
-} while (0)
-
 enum {
         AE_GEN = 1,
         AE_BADTOK,
@@ -2766,10 +2761,7 @@ assemble_foreach1(struct assemble_t *a, int breakto)
                 goto err_cleanup;
         if (as_lex(a) < 0)
                 goto err_cleanup;
-        if (a->oc->t == OC_EOF) {
-                as_badeof(a);
-                goto err_cleanup;
-        } else if (a->oc->t == OC_ELSE) {
+        if (a->oc->t == OC_ELSE) {
                 if (assemble_stmt(a, 0, 0) < 0)
                         goto err_cleanup;
         } else {

@@ -4,6 +4,28 @@
 #include <errno.h>  /* strtol errno check */
 
 static Object *
+do_setattr(Frame *fr)
+{
+        Object *instance, *key, *value, *ret;
+
+        instance = NULL;
+        key = NULL;
+        value = NULL;
+        if (vm_getargs(fr, "[<*><*><*>!]{!}:setattr",
+                       &instance, &key, &value) == RES_ERROR) {
+                return ErrorVar;
+        }
+        if (!isvar_instance(instance)) {
+                err_argtype("instance");
+                return ErrorVar;
+        }
+        ret = NULL;
+        if (var_setattr(instance, key, value) == RES_ERROR)
+                ret = ErrorVar;
+        return ret;
+}
+
+static Object *
 do_dir(Frame *fr)
 {
         Object *arg, *arr;
@@ -446,6 +468,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("max",    do_max),
         V_INITTBL("ord",    do_ord),
         V_INITTBL("print",  do_print),
+        V_INITTBL("setattr", do_setattr),
         V_INITTBL("setnl",  do_setnl),
         V_INITTBL("typeof", do_typeof),
         /* XXX: maybe exit should be a method of __gbl__._sys */

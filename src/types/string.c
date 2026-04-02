@@ -480,7 +480,8 @@ static bool
 match_here(Object *haystack, Object *needle, size_t idx)
 {
         size_t i, n = seqvar_size(needle);
-        bug_on(idx + n >= seqvar_size(haystack));
+        bug_on(!n);
+        bug_on(idx + n > seqvar_size(haystack));
         for (i = 0; i < n; i++) {
                 if (string_getidx(haystack, idx + i)
                     != string_getidx(needle, i)) {
@@ -512,7 +513,8 @@ find_idx_substr(Object *haystack, Object *needle,
         } else {
                 if (!!(flags & SF_RIGHT)) {
                         bug_on(endpos < nlen);
-                        for (idx = endpos - nlen; idx >= startpos; idx--) {
+                        for (idx = endpos - nlen;
+                             idx >= (ssize_t)startpos; idx--) {
                                 if (match_here(haystack, needle, idx))
                                         goto found;
                         }
@@ -1972,8 +1974,26 @@ string_lrsplit(Frame *fr, unsigned int flags)
                         VAR_DECR_REF(substr);
                 }
 
-                if (!combine)
-                        array_append(array, STRCONST_ID(mpty));
+                if (!combine) {
+                        if (right) while (idx - seplen >= 0) {
+                                idx -= seplen;
+                                if (match_here(self, separg, idx)) {
+                                        array_append(array, STRCONST_ID(mpty));
+                                } else {
+                                        idx += seplen;
+                                        break;
+                                }
+
+                        } else while (idx + seplen < endpos) {
+                                idx += seplen;
+                                if (match_here(self, separg, idx)) {
+                                        array_append(array, STRCONST_ID(mpty));
+                                } else {
+                                        idx -= seplen;
+                                        break;
+                                }
+                        }
+                }
 
                 if (right)
                         endpos = idx;

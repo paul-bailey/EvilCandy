@@ -282,7 +282,7 @@ obj2addr_(struct evc_sockaddr_t *sa, Object *arg, int domain,
  * @fname must be a literal, not a variable.
  */
 #define obj2addr(sa, arg, dom, fname_) \
-        obj2addr_(sa, arg, dom, "[(sh)!]{!}:" fname_, fname_)
+        obj2addr_(sa, arg, dom, "(sh):" fname_, fname_)
 
 /*
  * validate_int - Check that @ival is positive and matches one of the

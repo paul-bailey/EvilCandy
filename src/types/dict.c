@@ -849,13 +849,13 @@ dict_create(Frame *fr)
 }
 
 static const struct type_inittbl_t dict_cb_methods[] = {
-        V_INITTBL("clear",     do_dict_clear),
-        V_INITTBL("copy",      do_dict_copy),
-        V_INITTBL("delitem",   do_dict_delitem),
-        V_INITTBL("items",     do_dict_items),
-        V_INITTBL("keys",      do_dict_keys),
-        V_INITTBL("values",    do_dict_values),
-        TBLEND,
+        {"clear",     do_dict_clear},
+        {"copy",      do_dict_copy},
+        {"delitem",   do_dict_delitem},
+        {"items",     do_dict_items},
+        {"keys",      do_dict_keys},
+        {"values",    do_dict_values},
+        {NULL, NULL},
 };
 
 static const struct type_prop_t dict_prop_getsets[] = {

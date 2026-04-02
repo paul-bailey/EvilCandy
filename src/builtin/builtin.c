@@ -474,28 +474,27 @@ do_eval(Frame *fr)
 }
 
 static const struct type_inittbl_t builtin_inittbl[] = {
-        /*         name     callback  min max opt kw */
-        V_INITTBL("abs",    do_abs),
-        V_INITTBL("all",    do_all),
-        V_INITTBL("any",    do_any),
-        V_INITTBL("dir",    do_dir),
-        V_INITTBL("disassemble", do_disassemble),
-        V_INITTBL("eval",   do_eval),
-        V_INITTBL("getattr", do_getattr),
-        V_INITTBL("hash",   do_hash),
-        V_INITTBL("length", do_length),
-        V_INITTBL("min",    do_min),
-        V_INITTBL("max",    do_max),
-        V_INITTBL("ord",    do_ord),
-        V_INITTBL("print",  do_print),
-        V_INITTBL("setattr", do_setattr),
-        V_INITTBL("setnl",  do_setnl),
-        V_INITTBL("typeof", do_typeof),
+        {"abs",    do_abs},
+        {"all",    do_all},
+        {"any",    do_any},
+        {"dir",    do_dir},
+        {"disassemble", do_disassemble},
+        {"eval",   do_eval},
+        {"getattr", do_getattr},
+        {"hash",   do_hash},
+        {"length", do_length},
+        {"min",    do_min},
+        {"max",    do_max},
+        {"ord",    do_ord},
+        {"print",  do_print},
+        {"setattr", do_setattr},
+        {"setnl",  do_setnl},
+        {"typeof", do_typeof},
         /* XXX: maybe exit should be a method of __gbl__._sys */
-        V_INITTBL("exit",   do_exit),
-        V_INITTBL("exists", do_exists),
-        V_INITTBL("import", do_import),
-        { .name = NULL },
+        {"exit",   do_exit},
+        {"exists", do_exists},
+        {"import", do_import},
+        { NULL, NULL },
 };
 
 void

@@ -251,8 +251,8 @@ static const struct type_prop_t complex_prop_getsets[] = {
 };
 
 static const struct type_inittbl_t complex_methods[] = {
-        V_INITTBL("conjugate", do_complex_conjugate),
-        TBLEND,
+        {"conjugate", do_complex_conjugate},
+        {NULL, NULL},
 };
 
 static const struct operator_methods_t complex_primitives = {

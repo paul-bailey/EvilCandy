@@ -261,8 +261,8 @@ badstring:
 }
 
 static const struct type_inittbl_t float_methods[] = {
-        V_INITTBL("conjugate", float_conjugate),
-        TBLEND,
+        {"conjugate", float_conjugate},
+        {NULL, NULL},
 };
 
 static const struct operator_methods_t float_primitives = {

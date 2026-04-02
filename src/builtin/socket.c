@@ -840,19 +840,19 @@ static Object *
 create_socket_class(void)
 {
         static const struct type_inittbl_t sockmethods_inittbl[] = {
-                V_INITTBL("accept",   do_accept),
-                V_INITTBL("bind",     do_bind),
-                V_INITTBL("connect",  do_connect),
-                V_INITTBL("listen",   do_listen),
-                V_INITTBL("recv",     do_recv),
-                V_INITTBL("recvfrom", do_recvfrom),
-                V_INITTBL("send",     do_send),
-                V_INITTBL("sendto",   do_sendto),
-                V_INITTBL("close",    do_close),
-                V_INITTBL("__str__",  socket_str),
-                V_INITTBL("__init__", socket_init),
+                {"accept",   do_accept},
+                {"bind",     do_bind},
+                {"connect",  do_connect},
+                {"listen",   do_listen},
+                {"recv",     do_recv},
+                {"recvfrom", do_recvfrom},
+                {"send",     do_send},
+                {"sendto",   do_sendto},
+                {"close",    do_close},
+                {"__str__",  socket_str},
+                {"__init__", socket_init},
                 /* TODO: [gs]etsockopt and common ioctl wrappers */
-                TBLEND,
+                {NULL, NULL},
         };
         Object *methods = dictvar_from_methods(NULL, sockmethods_inittbl);
         Object *ret = classvar_new(NULL, methods, NULL);

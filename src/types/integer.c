@@ -421,10 +421,10 @@ intvar_toi(Object *v)
 }
 
 static const struct type_inittbl_t int_methods[] = {
-        V_INITTBL("bit_length", int_bit_length),
-        V_INITTBL("bit_count",  int_bit_count),
-        V_INITTBL("conjugate",  int_conjugate),
-        TBLEND,
+        {"bit_length", int_bit_length},
+        {"bit_count",  int_bit_count},
+        {"conjugate",  int_conjugate},
+        {NULL, NULL},
 };
 
 static const struct operator_methods_t int_primitives = {

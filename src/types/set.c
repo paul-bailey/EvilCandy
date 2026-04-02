@@ -478,7 +478,7 @@ static const struct map_methods_t set_map_methods = {
 };
 
 static const struct type_inittbl_t set_cb_methods[] = {
-        TBLEND,
+        {NULL, NULL},
 };
 
 struct type_t SetType = {

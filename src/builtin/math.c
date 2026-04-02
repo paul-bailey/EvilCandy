@@ -71,7 +71,7 @@ MATHMETHOD(tanh,  1)
 
 
 #define MATHTBL(func_) \
-        V_INITTBL(#func_, do_##func_)
+        {#func_, do_##func_}
 
 static const struct type_inittbl_t math_inittbl[] = {
         MATHTBL(acos),
@@ -142,7 +142,7 @@ static const struct type_inittbl_t math_inittbl[] = {
          * erfc
          */
 
-        TBLEND,
+        {NULL, NULL},
 };
 
 static Object *

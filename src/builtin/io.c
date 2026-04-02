@@ -1416,8 +1416,8 @@ err:
 }
 
 static const struct type_inittbl_t io_inittbl[] = {
-        V_INITTBL("open", do_open),
-        TBLEND,
+        {"open", do_open},
+        {NULL, NULL},
 };
 
 static Object *
@@ -1447,32 +1447,32 @@ static void
 initialize_file_classes(void)
 {
         static const struct type_inittbl_t iobase_methods[] = {
-                V_INITTBL("read", iobase_placeholder),
-                V_INITTBL("write", iobase_placeholder),
-                V_INITTBL("close", iobase_placeholder),
-                TBLEND,
+                {"read", iobase_placeholder},
+                {"write", iobase_placeholder},
+                {"close", iobase_placeholder},
+                {NULL, NULL},
         };
         static const struct type_inittbl_t textfile_methods[] = {
-                V_INITTBL("read",       do_text_read),
-                V_INITTBL("readline",   do_text_readline),
-                V_INITTBL("write",      do_text_write),
-                V_INITTBL("close",      do_text_close),
-                V_INITTBL("__str__",    text_str),
-                TBLEND,
+                {"read",       do_text_read},
+                {"readline",   do_text_readline},
+                {"write",      do_text_write},
+                {"close",      do_text_close},
+                {"__str__",    text_str},
+                {NULL, NULL},
         };
         static const struct type_inittbl_t binfile_methods[] = {
-                V_INITTBL("read",       do_bin_read),
-                V_INITTBL("write",      do_bin_write),
-                V_INITTBL("close",      do_bin_close),
-                V_INITTBL("__str__",    bin_str),
-                TBLEND,
+                {"read",       do_bin_read},
+                {"write",      do_bin_write},
+                {"close",      do_bin_close},
+                {"__str__",    bin_str},
+                {NULL, NULL},
         };
         static const struct type_inittbl_t rawfile_methods[] = {
-                V_INITTBL("read",       do_raw_read),
-                V_INITTBL("write",      do_raw_write),
-                V_INITTBL("close",      do_raw_close),
-                V_INITTBL("__str__",    raw_str),
-                TBLEND,
+                {"read",       do_raw_read},
+                {"write",      do_raw_write},
+                {"close",      do_raw_close},
+                {"__str__",    raw_str},
+                {NULL, NULL},
         };
         Object *base;
 

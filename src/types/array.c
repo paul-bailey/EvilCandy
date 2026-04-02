@@ -1035,19 +1035,19 @@ array_get_iter(Object *arr)
 }
 
 static const struct type_inittbl_t array_cb_methods[] = {
-        V_INITTBL("allocated",  do_array_allocated),
-        V_INITTBL("append",     do_array_append),
-        V_INITTBL("clear",      do_array_clear),
-        V_INITTBL("copy",       do_array_copy),
-        V_INITTBL("count",      do_array_count),
-        V_INITTBL("extend",     do_array_extend),
-        V_INITTBL("index",      do_array_index),
-        V_INITTBL("insert",     do_array_insert),
-        V_INITTBL("pop",        do_array_pop),
-        V_INITTBL("remove",     do_array_remove),
-        V_INITTBL("reverse",    do_array_reverse),
+        {"allocated",  do_array_allocated},
+        {"append",     do_array_append},
+        {"clear",      do_array_clear},
+        {"copy",       do_array_copy},
+        {"count",      do_array_count},
+        {"extend",     do_array_extend},
+        {"index",      do_array_index},
+        {"insert",     do_array_insert},
+        {"pop",        do_array_pop},
+        {"remove",     do_array_remove},
+        {"reverse",    do_array_reverse},
         /* TODO: sort */
-        TBLEND,
+        {NULL, NULL},
 };
 
 static const struct operator_methods_t array_op_methods = {

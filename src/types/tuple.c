@@ -560,9 +560,9 @@ tuple_get_iter(Object *tup)
 
 
 static const struct type_inittbl_t tuple_cb_methods[] = {
-        V_INITTBL("count",   do_tuple_count),
-        V_INITTBL("index",   do_tuple_index),
-        TBLEND,
+        {"count",   do_tuple_count},
+        {"index",   do_tuple_index},
+        {NULL, NULL},
 };
 
 static const struct seq_methods_t tuple_seq_methods = {

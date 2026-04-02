@@ -168,10 +168,6 @@ extern Object *qop_xor(Object *a, Object *b);
 extern Object *qop_bit_not(Object *v);
 extern Object *qop_negate(Object *v);
 
-/* find_import.c */
-extern FILE *find_import(const char *cur_path, const char *file_name,
-                         char *pathfill, size_t size);
-
 /* path.c */
 extern void pop_path(FILE *fp);
 extern FILE *push_path(const char *filename);

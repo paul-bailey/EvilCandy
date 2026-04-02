@@ -475,7 +475,6 @@ static const struct map_methods_t set_map_methods = {
         .getitem = NULL,
         .setitem = NULL,
         .hasitem = do_set_hasitem,
-        .mpunion = set_union_op,
 };
 
 static const struct type_inittbl_t set_cb_methods[] = {

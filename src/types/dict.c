@@ -871,7 +871,6 @@ static const struct map_methods_t dict_map_methods = {
         .getitem = dict_getitem,
         .setitem = dict_setitem,
         .hasitem = dict_hasitem,
-        .mpunion = NULL,
 };
 
 

@@ -42,11 +42,6 @@ struct map_methods_t {
                        Object *key, Object *item);
         /* @d is this type; @key must be type-checked */
         int (*hasitem)(Object *d, Object *key);
-        /*
-         * Not an in-place operation.  Make shallow copy of lval
-         * and fill it--possibly overriding it--with rval.
-         */
-        binary_operator_t mpunion;
 };
 
 struct seq_methods_t {

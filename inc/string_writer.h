@@ -4,7 +4,20 @@
 #include <stdint.h>
 #include <evcenums.h>
 
-struct utf8_state_t;
+struct utf8_state_t {
+        enum {
+                /* Keep this order. Implementation depends on it */
+                UTF8_STATE_ASCII = 0,
+                UTF8_STATE_GET1,
+                UTF8_STATE_GET2,
+                UTF8_STATE_GET3,
+                UTF8_STATE_ERR,
+                UTF8_STATE_ERR_ORD,
+        } state;
+        char buf[5];
+        unsigned long point;
+        size_t idx;
+};
 
 /*
  * struct string_writer_t - Because wrappers for struct buffer_t would be

@@ -392,19 +392,29 @@ array_setslice(Object *obj, ssize_t start,
 static int
 array_sort_cmp(const void *a, const void *b)
 {
-        return var_compare(*(Object **)a, *(Object **)b);
+        int cmpres;
+        enum result_t status;
+
+        if (err_occurred())
+                return 0;
+
+        status = var_compare(*(Object **)a, *(Object **)b, &cmpres);
+        if (status == RES_ERROR)
+                return 0;
+        return cmpres;
 }
 
 /* seq_methods_t .sort callback */
-static void
+static enum result_t
 array_sort(Object *array)
 {
         struct arrayvar_t *a = V2ARR(array);
         if (seqvar_size(array) < 2)
-                return;
+                return RES_OK;
         bug_on(!a->items);
         qsort(a->items, seqvar_size(array),
               sizeof(Object *), array_sort_cmp);
+        return err_occurred() ? RES_ERROR : RES_OK;
 }
 
 /**
@@ -446,7 +456,7 @@ array_hasitem(Object *array, Object *item)
         data = array_get_data(array);
 
         for (i = 0; i < n; i++) {
-                if (var_compare(data[i], item) == 0)
+                if (var_matches(data[i], item))
                         return true;
         }
         return false;
@@ -538,7 +548,7 @@ array_indexof_(Object *arr, Object *item,
                 for (i = start; i < stop; i++) {
                         if (strict && item->v_type != data[i]->v_type)
                                 continue;
-                        if (var_compare(item, data[i]) == 0)
+                        if (var_matches(item, data[i]))
                                 return i;
                 }
                 return (ssize_t)-1;
@@ -550,7 +560,7 @@ array_indexof_(Object *arr, Object *item,
                 for (i = start; i > stop; i--) {
                         if (strict && item->v_type != data[i]->v_type)
                                 continue;
-                        if (var_compare(item, data[i]) == 0)
+                        if (var_matches(item, data[i]))
                                 return i;
                 }
                 return (ssize_t)-1;
@@ -614,18 +624,20 @@ array_reset(Object *a)
 }
 
 /* type_t .cmp callback */
-static int
-array_cmp(Object *a, Object *b)
+static enum result_t
+array_cmp(Object *a, Object *b, int *res)
 {
-        int i, res, n;
+        int i, n;
+        enum result_t status;
         Object **aitems, **bitems;
 
         bug_on(!isvar_array(a));
         if (!isvar_array(b)) {
                 if (hasvar_len(b))
-                        return (int)(seqvar_size(a) - seqvar_size(b));
+                        *res = (int)(seqvar_size(a) - seqvar_size(b));
                 else
-                        return 1;
+                        *res = 1;
+                return RES_OK;
         }
 
         aitems = V2ARR(a)->items;
@@ -639,18 +651,19 @@ array_cmp(Object *a, Object *b)
         RECURSION_DECLARE_FUNC();
         RECURSION_START_FUNC(RECURSION_MAX);
 
+        status = RES_OK;
         for (i = 0; i < n; i++) {
-                res = var_compare(aitems[i], bitems[i]);
-                if (res)
+                status = var_compare(aitems[i], bitems[i], res);
+                if (status == RES_ERROR || *res != 0)
                         break;
         }
 
         RECURSION_END_FUNC();
 
-        if (i == n)
-                res = seqvar_size(a) - seqvar_size(b);
+        if (status == RES_OK && i == n)
+                *res = seqvar_size(a) - seqvar_size(b);
 
-        return res;
+        return status;
 }
 
 static bool
@@ -857,7 +870,7 @@ do_array_remove(Frame *fr)
         data = array_get_data(self);
         n = seqvar_size(self);
         for (i = 0; i < n; i++) {
-                if (var_compare(data[i], arg) == 0) {
+                if (var_matches(data[i], arg)) {
                         if (array_delete_chunk(self, i, 1) != RES_OK) {
                                 bug_on(!err_occurred());
                                 return ErrorVar;
@@ -970,7 +983,7 @@ do_array_count(Frame *fr)
         data = array_get_data(self);
         count = 0;
         for (i = 0; i < n; i++) {
-                if (var_compare(xarg, data[i]) == 0)
+                if (var_matches(xarg, data[i]))
                         count++;
         }
         return intvar_new(count);

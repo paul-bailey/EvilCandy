@@ -156,14 +156,15 @@ int_sub(Object *a, Object *b)
  * var_compare made sure not to call us for non-real numbers,
  * so assume @b is either float or int.
  */
-static int
-int_cmp(Object *a, Object *b)
+static enum result_t
+int_cmp(Object *a, Object *b, int *result)
 {
         bug_on(!isvar_int(a) || !isvar_int(b));
 
         long long la = intvar_toll(a);
         long long lb = intvar_toll(b);
-        return OP_CMP(la, lb);
+        *result = OP_CMP(la, lb);
+        return RES_OK;
 }
 
 static bool

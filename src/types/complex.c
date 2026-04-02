@@ -129,31 +129,21 @@ complex_str(Object *self)
         return stringvar_from_format("(%.17g%c%.17gj)", re, sign, im);
 }
 
-/**
- * FIXME: This is a problem: we need cmp for case of '==', but we should
- * not be doing '<' and '>' operations.  There's no way to return an
- * error, short of making callers of var_compare() also call
- * err_occurred(), but that would just be a hack.
- */
-static int
-complex_cmp(Object *a, Object *b)
+static enum result_t
+complex_cmp(Object *a, Object *b, int *result)
 {
         complex double ca, cb;
-        complex double cc;
         COMPLEX(a, ca);
         COMPLEX(b, cb);
 
-        if (cimag(ca) == 0.0 && cimag(cb) == 0.0)
-                return OP_CMP(creal(ca), creal(cb));
-
-        cc = ca - cb;
-        if (creal(cc) == 0.0) {
-                double i = cimag(cc);
-                return i < 0.0 ? -1 : 1;
-        } else {
-                double r = creal(cc);
-                return r < 0.0 ? -1 : 1;
+        if (ca == cb) {
+                *result = 0;
+                return RES_OK;
         }
+
+        err_setstr(TypeError,
+                   "comparison between complex numbers not permitted");
+        return RES_ERROR;
 }
 
 static bool

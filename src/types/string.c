@@ -2495,8 +2495,8 @@ string_cmpeq(Object *a, Object *b)
         return string_eq(a, b);
 }
 
-static int
-string_cmp(Object *a, Object *b)
+static enum result_t
+string_cmp(Object *a, Object *b, int *result)
 {
         const char *sa, *sb;
         size_t na, nb;
@@ -2509,25 +2509,34 @@ string_cmp(Object *a, Object *b)
         bug_on(!isvar_string(a) || !isvar_string(b));
         sa = string_cstring(a);
         sb = string_cstring(b);
-        if (sa == sb)
-                return 0;
+        if (sa == sb) {
+                *result = 0;
+                return RES_OK;
+        }
 
         na = string_nbytes(a);
         nb = string_nbytes(b);
         if (na != nb) {
                 int ret;
                 size_t cmpsize = na > nb ? nb : na;
-                if (!cmpsize)
-                        return na ? 1 : -1;
+                if (!cmpsize) {
+                        *result = na ? 1 : -1;
+                        return RES_OK;
+                }
                 ret = memcmp(sa, sb, cmpsize);
-                if (!ret)
-                        return na > nb ? 1 : -1;
-                return ret;
+                if (!ret) {
+                        *result = na > nb ? 1 : -1;
+                        return RES_OK;
+                }
+                *result = ret;
+                return RES_OK;
         }
 
         if (!na)
-                return nb ? -1 : 0;
-        return memcmp(sa, sb, na);
+                *result = nb ? -1 : 0;
+        else
+                *result = memcmp(sa, sb, na);
+        return RES_OK;
 }
 
 static bool

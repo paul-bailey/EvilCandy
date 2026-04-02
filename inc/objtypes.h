@@ -55,7 +55,7 @@ struct seq_methods_t {
                                   ssize_t stop, ssize_t step, Object *);
         /* new = a + b; if b is NULL, return new empty var */
         binary_operator_t cat;
-        void (*sort)(Object *);
+        enum result_t (*sort)(Object *);
 };
 
 /**
@@ -111,11 +111,14 @@ enum {
  *              in a way that (for most data types) can be re-interpreted
  *              back.  Exceptions are things like functions, where angle
  *              brackets bookend the expression.
- * @cmp:        Returns -1 if a<b, 0 if a==b, >0 if a>b.  For non-
+ * @cmp:        Returns RES_ERROR and throws/propogates exception if error;
+ *              otherwise, stores in result arg: negative number if a < b,
+ *              0 if a==b, positive nonzero number if a > b.  For non-
  *              numerical types, a and b are already checked to be the
- *              correct type.  For numbers, a is the correct type, b is
- *              a number which may be either int or float; @cmp will have
- *              to check and make a conversion.
+ *              correct type.  If NULL, it means "</>/<=/>= not permitted
+ *              for this type".  If these comparisons are not permitted
+ *              but '==' is permitted, leave this NULL and fill .cmpeq
+ *              instead.
  * @cmpz:       Returns 1 if some kind of zero.
  * @cmpeq:      Return true if a and b match, false otherwise.  Do not
  *              raise an exception.  If this is NULL, match results will
@@ -151,7 +154,7 @@ struct type_t {
         const struct seq_methods_t *sqm;
         size_t size;
         Object *(*str)(Object *);
-        int (*cmp)(Object *, Object *);
+        enum result_t (*cmp)(Object *, Object *, int *result);
         bool (*cmpz)(Object *);    /* a == 0 ? */
         bool (*cmpeq)(Object *, Object *);
         void (*reset)(Object *);

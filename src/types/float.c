@@ -112,8 +112,8 @@ float_sub(Object *a, Object *b)
         return floatvar_new(fa - fb);
 }
 
-static int
-float_cmp(Object *a, Object *b)
+static enum result_t
+float_cmp(Object *a, Object *b, int *result)
 {
         double fa, fb;
         DOUBLE(a, fa);
@@ -123,7 +123,8 @@ float_cmp(Object *a, Object *b)
          * so when comparing a double with any integer <= (1ull << 53),
          * we could get a false match.
          */
-        return OP_CMP(fa, fb);
+        *result = OP_CMP(fa, fb);
+        return RES_OK;
 }
 
 static bool

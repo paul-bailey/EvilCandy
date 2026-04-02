@@ -803,13 +803,19 @@ var_number_must_swap(Object *a, Object *b)
         return false;
 }
 
-static int
-var_compare_numbers(Object *alice, Object *bob)
+static enum result_t
+var_compare_numbers(Object *alice, Object *bob, int *result)
 {
-        if (var_number_must_swap(alice, bob))
-                return -(bob->v_type->cmp(bob, alice));
-        else
-                return alice->v_type->cmp(alice, bob);
+        enum result_t ret;
+        bug_on(!result);
+        if (var_number_must_swap(alice, bob)) {
+                ret = bob->v_type->cmp(bob, alice, result);
+                if (ret == RES_OK)
+                        *result = -(*result);
+        } else {
+                ret = alice->v_type->cmp(alice, bob, result);
+        }
+        return ret;
 }
 
 static bool
@@ -842,27 +848,36 @@ var_number_matches(Object *alice, Object *bob)
  * Note: this is not strict w/r/t ints and floats.  1.0 == 1 in this
  * function.
  */
-int
-var_compare(Object *a, Object *b)
+enum result_t
+var_compare(Object *a, Object *b, int *result)
 {
         bug_on(!a || !b);
 
-        if (a == b)
-                return 0;
+        if (a == b) {
+                *result = 0;
+                return RES_OK;
+        }
         if (a->v_type != b->v_type) {
                 if (isvar_number(a) && isvar_number(b))
-                        return var_compare_numbers(a, b);
-                return strcmp(typestr(a), typestr(b));
+                        return var_compare_numbers(a, b, result);
+                err_setstr(TypeError,
+                           "Comparison not permitted between %s and %s",
+                           typestr(a), typestr(b));
+                return RES_ERROR;
         }
-        if (!a->v_type->cmp)
-                return a < b ? -1 : 1;
-        return a->v_type->cmp(a, b);
+        if (!a->v_type->cmp) {
+                err_setstr(TypeError,
+                           "Comparison operation not permitted for type '%s'",
+                           typestr(a));
+                return RES_ERROR;
+        }
+        return a->v_type->cmp(a, b, result);
 }
 
 /*
  * var_eq - Return true if alice and bob match, false if not.
  *
- * This is not a strict '===' comparison.
+ * This falls back on '===' if no .cmpeq method exists for type.
  */
 bool
 var_matches(Object *alice, Object *bob)
@@ -874,10 +889,7 @@ var_matches(Object *alice, Object *bob)
         if (alice->v_type != bob->v_type)
                 return false;
         if (!alice->v_type->cmpeq) {
-                /*
-                 * no .cmpeq() means "=== is the only match" for this
-                 * type.
-                 */
+                /* no .cmpeq() method means "!== implies !=" */
                 return false;
         }
         return alice->v_type->cmpeq(alice, bob);
@@ -887,39 +899,43 @@ var_matches(Object *alice, Object *bob)
  * var_compare_iarg - compare two variables, taking an instruction arg
  * @a:          Left operand
  * @b:          Right operand
- * @iarg:       One of the IARG_xxx enums
+ * @iarg:       One of the IARG_xxx enums defined in instruction.h
  *
  * Return: True if "@a @iarg @b" is true, false otherwise.
  */
-bool
-var_compare_iarg(Object *a, Object *b, int iarg)
+enum result_t
+var_compare_iarg(Object *a, Object *b, int iarg, bool *result)
 {
         int cmp;
-        if (iarg == IARG_EQ3 || iarg == IARG_NEQ3) {
-                /* strict compare */
+        switch (iarg) {
+        case IARG_EQ3:
                 cmp = (b == a);
-                if (iarg == IARG_NEQ3)
-                        cmp = !cmp;
-        } else if (iarg == IARG_EQ) {
+                break;
+        case IARG_NEQ3:
+                cmp = (b != a);
+                break;
+        case IARG_EQ:
                 cmp = var_matches(a, b);
-        } else if (iarg == IARG_HAS) {
+                break;
+        case IARG_NEQ:
+                cmp = !var_matches(a, b);
+                break;
+        case IARG_HAS:
                 cmp = var_hasitem(a, b);
-        } else if (iarg == IARG_IN) {
+                break;
+        case IARG_IN:
                 cmp = var_hasitem(b, a);
-        } else {
-                cmp = var_compare(a, b);
+                break;
+        default:
+                if (var_compare(a, b, &cmp) == RES_ERROR)
+                        return RES_ERROR;
+
                 switch (iarg) {
-                case IARG_EQ:
-                        cmp = cmp == 0;
-                        break;
                 case IARG_LEQ:
                         cmp = cmp <= 0;
                         break;
                 case IARG_GEQ:
                         cmp = cmp >= 0;
-                        break;
-                case IARG_NEQ:
-                        cmp = cmp != 0;
                         break;
                 case IARG_LT:
                         cmp = cmp < 0;
@@ -929,9 +945,11 @@ var_compare_iarg(Object *a, Object *b, int iarg)
                         break;
                 default:
                         bug();
+                        return RES_ERROR;
                 }
         }
-        return !!cmp;
+        *result = !!cmp;
+        return RES_OK;
 }
 
 int
@@ -1067,7 +1085,12 @@ var_min_or_max(Object *v, int minmax)
                         res = child;
                         continue;
                 }
-                cmp = var_compare(child, res);
+                if (var_compare(child, res, &cmp) == RES_ERROR) {
+                        VAR_DECR_REF(child);
+                        VAR_DECR_REF(res);
+                        res = ErrorVar;
+                        break;
+                }
                 if ((minmax == V_MIN && cmp < 0)
                     || (minmax == V_MAX && cmp > 0)) {
                         VAR_DECR_REF(res);

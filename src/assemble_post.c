@@ -144,7 +144,12 @@ try_binop(Object *left, Object *right, instruction_t *ii)
                 break;
         case INSTR_CMP:
             {
-                bool cmp = var_compare_iarg(left, right, ii->arg1);
+                bool cmp;
+                if (var_compare_iarg(left, right, ii->arg1, &cmp)
+                    == RES_ERROR) {
+                        err_clear();
+                        return NULL;
+                }
                 return intvar_new((int)cmp);
             }
         default:

@@ -218,24 +218,28 @@ bytes_str(Object *v)
         return ret;
 }
 
-static int
-bytes_cmp(Object *a, Object *b)
+static enum result_t
+bytes_cmp(Object *a, Object *b, int *result)
 {
         bug_on(a->v_type != b->v_type);
-        int ret;
+        int cmp;
         size_t len_a, len_b, minlen;
         unsigned char *ba = V2B(a)->b_buf;
         unsigned char *bb = V2B(b)->b_buf;
 
-        if (ba == bb)
-                return 0;
+        if (ba == bb) {
+                *result = 0;
+                return RES_OK;
+        }
         len_a = seqvar_size(a);
         len_b = seqvar_size(b);
         minlen = len_a > len_b ? len_b : len_a;
-        ret = memcmp(ba, bb, minlen);
-        if (!ret && len_a != len_b)
-                return len_a > len_b ? 1 : -1;
-        return ret > 0 ? 1 : (ret < 0 ? -1 : 0);
+        cmp = memcmp(ba, bb, minlen);
+        if (!cmp && len_a != len_b)
+                *result = len_a > len_b ? 1 : -1;
+        else
+                *result = cmp > 0 ? 1 : (cmp < 0 ? -1 : 0);
+        return RES_OK;
 }
 
 static bool

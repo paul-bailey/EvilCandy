@@ -77,10 +77,11 @@ tuple_cmpeq(Object *a, Object *b)
         return res;
 }
 
-static int
-tuple_cmp(Object *a, Object *b)
+static enum result_t
+tuple_cmp(Object *a, Object *b, int *result)
 {
-        ssize_t i, res, n;
+        ssize_t i, n;
+        enum result_t status;
         Object **aitems, **bitems;
 
         RECURSION_DECLARE_FUNC();
@@ -97,18 +98,19 @@ tuple_cmp(Object *a, Object *b)
          * match, because we want to check if internals have any
          * mismatch and return that instead of length(a)-length(b).
          */
+        status = RES_OK;
         for (i = 0; i < n; i++) {
-                res = var_compare(aitems[i], bitems[i]);
-                if (res)
+                status = var_compare(aitems[i], bitems[i], result);
+                if (*result != 0 || status == RES_ERROR)
                         break;
         }
 
-        if (i == n)
-                res = seqvar_size(a) - seqvar_size(b);
+        if (i == n && status == RES_OK)
+                *result = seqvar_size(a) - seqvar_size(b);
 
         RECURSION_END_FUNC();
 
-        return res;
+        return status;
 }
 
 static void
@@ -207,7 +209,7 @@ tuple_hasitem(Object *tup, Object *item)
         n = seqvar_size(tup);
         data = tuple_get_data(tup);
         for (i = 0; i < n; i++) {
-                if (var_compare(data[i], item) == 0)
+                if (var_matches(data[i], item))
                         return true;
         }
         return false;
@@ -263,7 +265,7 @@ do_tuple_index(Frame *fr)
 
         data = tuple_get_data(self);
         for (i = start; i < stop; i++) {
-                if (var_compare(xarg, data[i]) == 0)
+                if (var_matches(xarg, data[i]))
                         return intvar_new(i);
         }
 
@@ -288,7 +290,7 @@ do_tuple_count(Frame *fr)
         data = tuple_get_data(self);
         count = 0;
         for (i = 0; i < n; i++) {
-                if (var_compare(xarg, data[i]) == 0)
+                if (var_matches(xarg, data[i]))
                         count++;
         }
         return intvar_new(count);

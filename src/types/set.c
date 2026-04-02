@@ -65,7 +65,7 @@ key_match(Object *key1, Object *key2, hash_t key2_hash)
                 }
                 return false;
         }
-        return var_compare(key1, key2) == 0;
+        return var_matches(key1, key2);
 }
 
 static int

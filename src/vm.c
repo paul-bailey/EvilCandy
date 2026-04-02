@@ -1259,17 +1259,24 @@ do_rshift(Frame *fr, instruction_t ii)
 static int
 do_cmp(Frame *fr, instruction_t ii)
 {
-        Object *rval, *lval, *res;
-        int cmp;
+        Object *rval, *lval;
+        enum result_t retval;
+        bool cmp;
 
         rval = pop(fr);
         lval = pop(fr);
-        cmp = var_compare_iarg(lval, rval, ii.arg1);
-        res = cmp ? VAR_NEW_REF(gbl.one) : VAR_NEW_REF(gbl.zero);
-        push(fr, res);
+        retval = var_compare_iarg(lval, rval, ii.arg1, &cmp);
         VAR_DECR_REF(rval);
         VAR_DECR_REF(lval);
-        return RES_OK;
+        if (retval == RES_OK) {
+                Object *res;
+                if (cmp)
+                        res = VAR_NEW_REF(gbl.one);
+                else
+                        res = VAR_NEW_REF(gbl.zero);
+                push(fr, res);
+        }
+        return retval;
 }
 
 static int

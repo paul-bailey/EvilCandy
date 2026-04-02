@@ -353,15 +353,6 @@ funcvar_new_user(Object *ex)
         return func;
 }
 
-static int
-func_cmp(Object *a, Object *b)
-{
-        if (!isvar_function(b))
-                return -1;
-        /* wrapper function already checked b == a */
-        return 1;
-}
-
 static Object *
 func_str(Object *a)
 {
@@ -445,7 +436,7 @@ struct type_t FunctionType = {
         .sqm    = NULL,
         .size   = sizeof(struct funcvar_t),
         .str    = func_str,
-        .cmp    = func_cmp,
+        .cmp    = NULL,
         .cmpz   = func_cmpz,
         .cmpeq  = NULL,
         .reset  = func_reset,

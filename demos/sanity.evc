@@ -1,0 +1,106 @@
+// sanity test.  run when making changes to code
+// to make sure I didn't break anything.
+
+// FIXME: no way to determine line failure!
+
+
+let Test = import('../lib/test.evc', 'x');
+
+// TODO: replace with sys.argv[1]
+let test = Test(name='Sanity');
+
+// test generator/iterator behavior
+{
+    function get_iterator(stop) {
+        return (start) => {
+            for i in range(start, stop)
+                yield i;
+        };
+    }
+
+    let toten = get_iterator(10);
+
+    test.reset(name='GneratorTest');
+    test.assert_true(list(toten(4))
+                     == [4, 5, 6, 7, 8, 9]);
+    test.assert_true(list(toten(10)) == []);
+}
+
+// test string behavior
+{
+    test.reset(name='StringTest');
+    test.assert_true('this'.replace('is', 'at') == 'that');
+    test.assert_true('this'.partition('i') == ('th', 'i', 's'));
+    test.assert_true('this'.partition('s') == ('thi', 's', ''));
+    test.assert_true('a b c'.split() == ['a', 'b', 'c']);
+    test.assert_true(' abc'.split() == ['abc']);
+    test.assert_true('abc '.split() == ['abc']);
+}
+
+// test dictionary behavior
+{
+    test.reset(name='DictTest');
+    let d = {};
+    test.assert_true(length(d) == 0);
+    d['a'] = 1;
+    d['b'] = 2;
+    test.assert_true(length(d) == 2);
+    test.assert_true(d == { 'a': 1, 'b': 2 });
+    test.assert_true(d !== { 'a': 1, 'b': 2 });
+    delete d.a;
+    test.assert_true(length(d) == 1);
+    test.assert_true(d == { 'b': 2 });
+    let e = d.copy();
+    test.assert_true(d == e);
+    test.assert_true(d !== e);
+    test.assert_true('b' in d);
+    d.clear();
+    // shallow copy means change d does not affect e
+    test.assert_true(d != e);
+    test.assert_true(d == {});
+    // order-of-operations gotcha: '==' takes precedence
+    // over bitwise '|', so the parentheses are needed.
+    test.assert_true((d | e) == {'b': 2});
+    test.assert_true(list(d) == []);
+    test.assert_true(list(e) == ['b']);
+}
+
+// test array behavior
+{
+    test.reset(name='ListTest');
+    let a = list(range(5));
+    test.assert_true(a == [0, 1, 2, 3, 4]);
+    test.assert_true(a[:] !== a);
+    test.assert_true(a[-1:0] == []);
+    test.assert_true(a[0:10] == a);
+    test.assert_true(a[10:20] == []);
+    test.assert_true(3*[] == []);
+    test.assert_true(3*[1] == [1, 1, 1]);
+}
+
+// test set behavior
+{
+    test.reset(name='SetTest');
+    let a = { 0, 1, 2, 3, };
+    let b = { 3, 4, 5 };
+    test.assert_true((a | b) == set(range(6)));
+    test.assert_true((a ^ b) == { 0, 1, 2, 4, 5 });
+    test.assert_true((a - b) == { 0, 1, 2 });
+    test.assert_true((a & b) == { 3 });
+}
+
+// eval
+{
+    test.reset(name='evalTest');
+    test.assert_true(eval('__gbl__') == __gbl__);
+    test.assert_true(eval('__gbl__') === __gbl__);
+    test.assert_true(eval('1 + 2') == 3);
+    test.assert_exception('a + b');
+    test.assert_exception('1 + ,');
+}
+
+// some random tests
+test.reset(name='randos');
+test.assert_true('_builtins' in __gbl__);
+
+

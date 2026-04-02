@@ -447,6 +447,7 @@ struct type_t FunctionType = {
         .str    = func_str,
         .cmp    = func_cmp,
         .cmpz   = func_cmpz,
+        .cmpeq  = NULL,
         .reset  = func_reset,
         .prop_getsets = func_prop_getsets,
         .hash   = NULL,

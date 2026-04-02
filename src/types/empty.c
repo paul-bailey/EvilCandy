@@ -6,12 +6,6 @@ empty_cmpz(Object *v)
         return true;
 }
 
-static int
-empty_cmp(Object *a, Object *b)
-{
-        return isvar_empty(b) ? 0 : -1;
-}
-
 Object *
 emptyvar_new(void)
 {
@@ -41,7 +35,8 @@ struct type_t EmptyType = {
         .sqm    = NULL,
         .size   = sizeof(Object),
         .str    = empty_str,
-        .cmp    = empty_cmp,
+        .cmp    = NULL,
+        .cmpeq  = NULL,
         .cmpz   = empty_cmpz,
         /* there should only be one instance of this */
         .hash   = empty_hash,

@@ -654,6 +654,40 @@ array_cmp(Object *a, Object *b)
 }
 
 static bool
+array_cmpeq(Object *a, Object *b)
+{
+        size_t i, n;
+        bool res;
+        Object **aitems, **bitems;
+
+        bug_on(!isvar_array(a));
+        bug_on(!isvar_array(b));
+
+        n = seqvar_size(a);
+        if (n != seqvar_size(b))
+                return false;
+
+        aitems = array_get_data(a);
+        bitems = array_get_data(b);
+        bug_on(!aitems || !bitems);
+
+        res = true;
+        RECURSION_DECLARE_FUNC();
+        RECURSION_START_FUNC(RECURSION_MAX);
+
+        for (i = 0; i < n; i++) {
+                if (!var_matches(aitems[i], bitems[i])) {
+                        res = false;
+                        break;
+                }
+        }
+
+        RECURSION_END_FUNC();
+
+        return res;
+}
+
+static bool
 array_cmpz(Object *arr)
 {
         return seqvar_size(arr) == 0;
@@ -1080,6 +1114,7 @@ struct type_t ArrayType = {
         .str = array_str,
         .cmp = array_cmp,
         .cmpz = array_cmpz,
+        .cmpeq = array_cmpeq,
         .reset = array_reset,
         .prop_getsets = array_prop_getsets,
         .create = array_create,

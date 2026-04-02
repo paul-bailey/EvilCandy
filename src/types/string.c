@@ -81,6 +81,7 @@ string_getidx_raw(size_t width, const void *unicode, size_t idx)
 static long
 string_getidx(Object *str, size_t idx)
 {
+        bug_on((int)idx < 0);
         bug_on(idx >= seqvar_size(str));
         return string_getidx_raw(string_width(str), string_data(str), idx);
 }
@@ -478,8 +479,9 @@ widen_buffer(Object *str, size_t width)
 static bool
 match_here(Object *haystack, Object *needle, size_t idx)
 {
-        size_t i;
-        for (i = 0; i < seqvar_size(needle); i++) {
+        size_t i, n = seqvar_size(needle);
+        bug_on(idx + n >= seqvar_size(haystack));
+        for (i = 0; i < n; i++) {
                 if (string_getidx(haystack, idx + i)
                     != string_getidx(needle, i)) {
                         return false;
@@ -509,6 +511,7 @@ find_idx_substr(Object *haystack, Object *needle,
                 idx = -1;
         } else {
                 if (!!(flags & SF_RIGHT)) {
+                        bug_on(endpos < nlen);
                         for (idx = endpos - nlen; idx >= startpos; idx--) {
                                 if (match_here(haystack, needle, idx))
                                         goto found;
@@ -2465,6 +2468,13 @@ string_cat(Object *a, Object *b)
         return stringvar_from_writer(&wr);
 }
 
+static bool
+string_cmpeq(Object *a, Object *b)
+{
+        bug_on(!isvar_string(a) || !isvar_string(b));
+        return string_eq(a, b);
+}
+
 static int
 string_cmp(Object *a, Object *b)
 {
@@ -3394,6 +3404,7 @@ struct type_t StringType = {
         .str    = string_str,
         .cmp    = string_cmp,
         .cmpz   = string_cmpz,
+        .cmpeq  = string_cmpeq,
         .reset  = string_reset,
         .prop_getsets = string_prop_getsets,
         .create = string_create,

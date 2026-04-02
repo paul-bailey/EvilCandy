@@ -102,12 +102,9 @@ range_hasitem(Object *rng, Object *item)
         return true;
 }
 
-static int
-range_cmp(Object *a, Object *b)
+static bool
+range_cmpeq(Object *a, Object *b)
 {
-        /* calling code already took care of the obvious
-         * a==b or typeof(a) != typeof(b)
-         */
         struct rangevar_t *ra = V2R(a), *rb = V2R(b);
         return ra->start == rb->start
                 && ra->stop == rb->stop
@@ -279,7 +276,8 @@ struct type_t RangeType = {
         .sqm    = &range_seq_methods,
         .size   = sizeof(struct rangevar_t),
         .str    = range_str,
-        .cmp    = range_cmp,
+        .cmp    = NULL,
+        .cmpeq  = range_cmpeq,
         .reset  = NULL,
         .prop_getsets = range_prop_getsets,
         .create = range_create,

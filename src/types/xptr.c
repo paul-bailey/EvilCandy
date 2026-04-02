@@ -19,16 +19,6 @@ xptr_reset(Object *v)
                 VAR_DECR_REF(ex->funcname);
 }
 
-static int
-xptr_cmp(Object *a, Object *b)
-{
-        bug_on(!isvar_xptr(a));
-        bug_on(!isvar_xptr(b));
-
-        /* there should be no other way */
-        return a == b ? 0 : (a > b ? 1 : -1);
-}
-
 static Object *
 xptr_str(Object *v)
 {
@@ -54,7 +44,8 @@ struct type_t XptrType = {
         .sqm    = NULL,
         .size   = sizeof(struct xptrvar_t),
         .str    = xptr_str,
-        .cmp    = xptr_cmp,
+        .cmp    = NULL,
+        .cmpeq  = NULL,
         .cmpz   = NULL,
         .reset  = xptr_reset,
         .hash   = xptr_hash,

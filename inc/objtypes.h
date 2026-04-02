@@ -117,6 +117,9 @@ enum {
  *              a number which may be either int or float; @cmp will have
  *              to check and make a conversion.
  * @cmpz:       Returns 1 if some kind of zero.
+ * @cmpeq:      Return true if a and b match, false otherwise.  Do not
+ *              raise an exception.  If this is NULL, match results will
+ *              be reduced to a simple pointer match.
  * @reset:      May be NULL.  Destructor for a variable's private data.
  * @prop_getsets: Array of property getters/setters.  Its .setprop or
  *              .getprop fields may be NULL in the case of read-only or
@@ -150,6 +153,7 @@ struct type_t {
         Object *(*str)(Object *);
         int (*cmp)(Object *, Object *);
         bool (*cmpz)(Object *);    /* a == 0 ? */
+        bool (*cmpeq)(Object *, Object *);
         void (*reset)(Object *);
         const struct type_prop_t *prop_getsets;
         Object *(*create)(Frame *fr);

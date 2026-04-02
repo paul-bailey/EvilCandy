@@ -364,8 +364,8 @@ set_str(Object *set)
         return stringvar_from_writer(&wr);
 }
 
-static int
-set_cmp(Object *a, Object *b)
+static bool
+set_cmpeq(Object *a, Object *b)
 {
         struct setvar_t *sv;
         size_t i;
@@ -380,15 +380,9 @@ set_cmp(Object *a, Object *b)
                 if (!k || k == BUCKET_DEAD)
                         continue;
                 if (!set_hasitem(b, k))
-                        return 1;
+                        return false;
         }
-        return 0;
-}
-
-static bool
-set_cmpz(Object *set)
-{
-        return seqvar_size(set) == 0;
+        return true;
 }
 
 static void
@@ -490,8 +484,9 @@ struct type_t SetType = {
         .sqm            = NULL,
         .size           = sizeof(struct setvar_t),
         .str            = set_str,
-        .cmp            = set_cmp,
-        .cmpz           = set_cmpz,
+        .cmp            = NULL,
+        .cmpz           = NULL,
+        .cmpeq          = set_cmpeq,
         .reset          = set_reset,
         .prop_getsets   = NULL,
         .create         = set_create,

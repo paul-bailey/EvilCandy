@@ -119,6 +119,7 @@ static inline enum result_t var_delattr(Object *v, Object *deref)
 static inline enum result_t var_delitem(Object *v, Object *deref)
         { return var_setitem(v, deref, NULL); }
 extern int var_compare(Object *a, Object *b);
+extern bool var_matches(Object *a, Object *b);
 extern bool var_compare_iarg(Object *a, Object *b, int iarg);
 extern int var_sort(Object *v);
 extern Object *var_str(Object *v);

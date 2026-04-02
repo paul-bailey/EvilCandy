@@ -71,6 +71,7 @@ struct type_t PropertyType = {
         .str    = NULL,
         .cmp    = NULL,
         .cmpz   = NULL,
+        .cmpeq  = NULL,
         .reset  = NULL,
         .prop_getsets = NULL,
         .create = property_create,

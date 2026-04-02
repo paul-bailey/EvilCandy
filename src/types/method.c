@@ -85,16 +85,10 @@ method_str(Object *meth)
         return stringvar_new(buf);
 }
 
-static int
-method_cmp(Object *a, Object *b)
-{
-        return OP_CMP((uintptr_t)a, (uintptr_t)b);
-}
-
 static bool
 method_cmpz(Object *meth)
 {
-        return meth == NULL;
+        return false;
 }
 
 static void
@@ -115,8 +109,9 @@ struct type_t MethodType = {
         .sqm    = NULL,
         .size   = sizeof(struct methodvar_t),
         .str    = method_str,
-        .cmp    = method_cmp,
+        .cmp    = NULL,
         .cmpz   = method_cmpz,
+        .cmpeq  = NULL,
         .reset  = method_reset,
         /* XXX: python hashes functions, why not us? */
         .hash   = NULL,

@@ -103,8 +103,8 @@ Must Do
   - **done** Add support for deleting elements and global variables
   - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
 
-* compiler makes about a bajillion warnings when '-pedantic' flag is used.
-  Almost all of them have to do with void pointer arithmetic, a Gnu extension.
+* Add var_eq(), so var.c has a function to call dedicated for '==' and not worry
+  about errors due to things like '<' not being supported for type.
 
 * array pop() method should return item popped.
 
@@ -136,6 +136,8 @@ Must Do
 * Add input() built-in function
 
 
+* **done** compiler makes about a bajillion warnings when '-pedantic' flag is used.
+  Almost all of them have to do with void pointer arithmetic, a Gnu extension.
 * **done** Add eval() built-in function
 * **no** Now that variadic functions are internally made into fixed-size
   functions, at least for user-defined functions, we can now get rid of

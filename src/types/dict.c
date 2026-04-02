@@ -488,10 +488,52 @@ dict_copyto_with_flags(Object *to, Object *from,
  *              Built-in Operator Callbacks
  ***********************************************************************/
 
+static bool
+dict_cmpeq(Object *a, Object *b)
+{
+        struct dictvar_t *da;
+        size_t i;
+        bool ret;
+
+        bug_on(!isvar_dict(a) && !isvar_dict(b));
+        if (a == b)
+                return true;
+        if (!isvar_dict(b))
+                return false;
+        if (seqvar_size(a) != seqvar_size(b))
+                return false;
+
+        da = V2D(a);
+        if (dict_lock(da) == RES_ERROR)
+                return false;
+
+        ret = true;
+        for (i = 0; i < da->d_size; i++) {
+                Object *k, *vb;
+                k = da->d_keys[i];
+                if (k == NULL || k == BUCKET_DEAD)
+                        continue;
+
+                vb = dict_getitem(b, k);
+                if (!vb) {
+                        ret = false;
+                        goto unlock;
+                }
+                ret = var_matches(da->d_vals[i], vb);
+                VAR_DECR_REF(vb);
+                if (!ret)
+                        break;
+        }
+
+unlock:
+        dict_unlock(da);
+        return ret;
+}
+
 static int
 dict_cmp(Object *a, Object *b)
 {
-        int i, ret;
+        ssize_t i, ret;
         struct dictvar_t *da = V2D(a);
         struct dictvar_t *db = V2D(b);
         ssize_t size_diff;
@@ -1234,6 +1276,7 @@ struct type_t DictItemsIterType = {
         .str            = NULL,
         .cmp            = NULL,
         .cmpz           = NULL,
+        .cmpeq          = NULL,
         .reset          = dict_items_iterator_reset,
         .prop_getsets   = NULL,
         .create         = NULL,
@@ -1253,6 +1296,7 @@ struct type_t DictItemsType = {
         .str            = NULL,
         .cmp            = NULL,
         .cmpz           = NULL,
+        .cmpeq          = NULL,
         .reset          = dict_items_reset,
         .prop_getsets   = NULL,
         .create         = NULL,
@@ -1272,6 +1316,7 @@ struct type_t DictIterType = {
         .str            = NULL,
         .cmp            = NULL,
         .cmpz           = NULL,
+        .cmpeq          = NULL,
         .reset          = dict_iter_reset,
         .prop_getsets   = NULL,
         .create         = NULL,
@@ -1290,6 +1335,7 @@ struct type_t DictType = {
         .size           = sizeof(struct dictvar_t),
         .str            = dict_str,
         .cmp            = dict_cmp,
+        .cmpeq          = dict_cmpeq,
         .cmpz           = dict_cmpz,
         .reset          = dict_reset,
         .prop_getsets   = dict_prop_getsets,

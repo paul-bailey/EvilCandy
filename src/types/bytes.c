@@ -239,6 +239,17 @@ bytes_cmp(Object *a, Object *b)
 }
 
 static bool
+bytes_cmpeq(Object *a, Object *b)
+{
+        bug_on(a->v_type != b->v_type);
+        size_t len = seqvar_size(a);
+        if (len != seqvar_size(b))
+                return false;
+
+        return !memcmp(bytes_get_data(a), bytes_get_data(b), len);
+}
+
+static bool
 bytes_cmpz(Object *v)
 {
         return seqvar_size(v) == 0;
@@ -1694,6 +1705,7 @@ struct type_t BytesType = {
         .str    = bytes_str,
         .cmp    = bytes_cmp,
         .cmpz   = bytes_cmpz,
+        .cmpeq  = bytes_cmpeq,
         .reset  = bytes_reset,
         .prop_getsets = bytes_prop_getsets,
         .create = bytes_create,

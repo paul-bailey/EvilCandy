@@ -157,6 +157,16 @@ complex_cmp(Object *a, Object *b)
 }
 
 static bool
+complex_cmpeq(Object *a, Object *b)
+{
+        complex double ca, cb;
+        COMPLEX(a, ca);
+        COMPLEX(b, cb);
+
+        return ca == cb;
+}
+
+static bool
 complex_cmpz(Object *x)
 {
         /* XXX: more appropriate to use hypot? */
@@ -274,6 +284,7 @@ struct type_t ComplexType = {
         .str    = complex_str,
         .cmp    = complex_cmp,
         .cmpz   = complex_cmpz,
+        .cmpeq  = complex_cmpeq,
         .prop_getsets = complex_prop_getsets,
         .create = complex_create,
         .hash   = calc_complex_hash,

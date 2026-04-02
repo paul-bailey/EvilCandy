@@ -66,6 +66,7 @@ struct type_t GeneratorType = {
         .str            = NULL,
         .cmp            = NULL,
         .cmpz           = NULL,
+        .cmpeq          = NULL,
         .reset          = NULL, /*< frame cleanup done by vm.c */
         .prop_getsets   = NULL,
         .create         = NULL,

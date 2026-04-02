@@ -159,21 +159,20 @@ int_sub(Object *a, Object *b)
 static int
 int_cmp(Object *a, Object *b)
 {
-        bug_on(!isvar_int(a) || !isvar_real(b));
+        bug_on(!isvar_int(a) || !isvar_int(b));
 
         long long la = intvar_toll(a);
-        if (isvar_int(b)) {
-                long long lb = intvar_toll(b);
-                return OP_CMP(la, lb);
-        } else {
-                /*
-                 * b is float.  Don't convert b into int, or else
-                 * we'd return zero for things like a=1 and b=1.1
-                 */
-                double fa = (double)la;
-                double fb = floatvar_tod(b);
-                return OP_CMP(fa, fb);
-        }
+        long long lb = intvar_toll(b);
+        return OP_CMP(la, lb);
+}
+
+static bool
+int_cmpeq(Object *a, Object *b)
+{
+        bug_on(!isvar_int(a) || !isvar_int(b));
+        long long la = intvar_toll(a);
+        long long lb = intvar_toll(b);
+        return la == lb;
 }
 
 static Object *
@@ -455,6 +454,7 @@ struct type_t IntType = {
         .str    = int_str,
         .cmpz   = int_cmpz,
         .cmp    = int_cmp,
+        .cmpeq  = int_cmpeq,
         .create = int_create,
         .hash   = int_hash,
 };

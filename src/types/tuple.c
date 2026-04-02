@@ -46,10 +46,41 @@ tuple_str(Object *t)
         return ret;
 }
 
+static bool
+tuple_cmpeq(Object *a, Object *b)
+{
+        bool res;
+        Object **aitems, **bitems;
+        size_t i, n;
+
+        bug_on(!isvar_tuple(a) || !isvar_tuple(b));
+
+        n = seqvar_size(a);
+        if (n != seqvar_size(b))
+                return false;
+
+        aitems = tuple_get_data(a);
+        bitems = tuple_get_data(b);
+
+        RECURSION_DECLARE_FUNC();
+        RECURSION_START_FUNC(RECURSION_MAX);
+
+        res = true;
+        for (i = 0; i < n; i++) {
+                res = var_matches(aitems[i], bitems[i]);
+                if (!res)
+                        break;
+        }
+
+        RECURSION_END_FUNC();
+
+        return res;
+}
+
 static int
 tuple_cmp(Object *a, Object *b)
 {
-        int i, res, n;
+        ssize_t i, res, n;
         Object **aitems, **bitems;
 
         RECURSION_DECLARE_FUNC();
@@ -594,6 +625,7 @@ struct type_t TupleType = {
         .size = sizeof(struct tuplevar_t),
         .str = tuple_str,
         .cmp = tuple_cmp,
+        .cmpeq = tuple_cmpeq,
         .reset = tuple_reset,
         .prop_getsets = tuple_prop_getsets,
         .create = tuple_create,

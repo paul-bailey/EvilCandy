@@ -789,27 +789,46 @@ err_delete:
         return RES_ERROR;
 }
 
-static int
-var_compare_numbers(Object *a, Object *b)
+static bool
+var_number_must_swap(Object *a, Object *b)
 {
         if (isvar_complex(a))
-                goto noswap;
+                return false;
         if (isvar_complex(b))
-                goto swap;
+                return true;
         if (isvar_float(a))
-                goto noswap;
+                return false;
         if (isvar_float(b))
-                goto swap;
-        /*
-         * Otherwise both are ints, but var_compare() only calls this
-         * if types don't match, so it's a bug.
-         */
-        bug();
-noswap:
-        return a->v_type->cmp(a, b);
-swap:
-        return -(b->v_type->cmp(b, a));
+                return true;
+        return false;
 }
+
+static int
+var_compare_numbers(Object *alice, Object *bob)
+{
+        if (var_number_must_swap(alice, bob))
+                return -(bob->v_type->cmp(bob, alice));
+        else
+                return alice->v_type->cmp(alice, bob);
+}
+
+static bool
+var_number_matches(Object *alice, Object *bob)
+{
+        if (var_number_must_swap(alice, bob))
+                return bob->v_type->cmpeq(bob, alice);
+        else
+                return alice->v_type->cmpeq(alice, bob);
+}
+
+/*
+ * XXX REVISIT: Cf. cpython's .tp_richcompare methods, in which
+ * var_compare_iarg() is effectively done at the class-specific
+ * object level.  There's more points of code that way, but at
+ * least it means there are fewer weird corner cases where, for
+ * example, a class has .cmp but not .cmpz or vice-versa, so some
+ * "match" tests pass and others fail for the same instances.
+ */
 
 /**
  * var_compare - Compare two variables, used for sorting et al.
@@ -840,6 +859,30 @@ var_compare(Object *a, Object *b)
         return a->v_type->cmp(a, b);
 }
 
+/*
+ * var_eq - Return true if alice and bob match, false if not.
+ *
+ * This is not a strict '===' comparison.
+ */
+bool
+var_matches(Object *alice, Object *bob)
+{
+        if (alice == bob)
+                return true;
+        if (isvar_number(alice) && isvar_number(bob))
+                return var_number_matches(alice, bob);
+        if (alice->v_type != bob->v_type)
+                return false;
+        if (!alice->v_type->cmpeq) {
+                /*
+                 * no .cmpeq() means "=== is the only match" for this
+                 * type.
+                 */
+                return false;
+        }
+        return alice->v_type->cmpeq(alice, bob);
+}
+
 /**
  * var_compare_iarg - compare two variables, taking an instruction arg
  * @a:          Left operand
@@ -857,6 +900,8 @@ var_compare_iarg(Object *a, Object *b, int iarg)
                 cmp = (b == a);
                 if (iarg == IARG_NEQ3)
                         cmp = !cmp;
+        } else if (iarg == IARG_EQ) {
+                cmp = var_matches(a, b);
         } else if (iarg == IARG_HAS) {
                 cmp = var_hasitem(a, b);
         } else if (iarg == IARG_IN) {

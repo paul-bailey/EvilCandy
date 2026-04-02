@@ -127,6 +127,15 @@ float_cmp(Object *a, Object *b)
 }
 
 static bool
+float_cmpeq(Object *a, Object *b)
+{
+        double fa, fb;
+        DOUBLE(a, fa);
+        DOUBLE(b, fb);
+        return fa == fb;
+}
+
+static bool
 float_cmpz(Object *a)
 {
         return fpclassify(V2F(a)->f) == FP_ZERO;
@@ -285,6 +294,7 @@ struct type_t FloatType = {
         .str    = float_str,
         .cmp    = float_cmp,
         .cmpz   = float_cmpz,
+        .cmpeq  = float_cmpeq,
         .create = float_create,
         .hash   = calc_float_hash,
 };

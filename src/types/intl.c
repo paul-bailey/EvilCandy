@@ -84,6 +84,7 @@ struct type_t IdType = {
         .str    = id_str,
         .cmp    = NULL,
         .cmpz   = NULL,
+        .cmpeq  = NULL, /*< XXX REVISIT: id's match, is that '=='? */
         .reset  = NULL,
         .hash   = NULL,
 };
@@ -99,6 +100,7 @@ struct type_t UuidptrType = {
         .str    = uuidptr_str,
         .cmp    = NULL,
         .cmpz   = NULL,
+        .cmpeq  = NULL,
         .reset = uuidptr_reset,
         .hash   = NULL,
 };

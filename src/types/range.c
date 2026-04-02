@@ -266,7 +266,7 @@ static const struct seq_methods_t range_seq_methods = {
         .sort           = NULL,
 };
 
-static const struct type_inittbl_t range_cb_methods[] = {
+static const struct type_method_t range_cb_methods[] = {
         {NULL, NULL},
 };
 

@@ -1628,7 +1628,7 @@ static const struct type_prop_t bytes_prop_getsets[] = {
         { .name = NULL },
 };
 
-static const struct type_inittbl_t bytes_cb_methods[] = {
+static const struct type_method_t bytes_cb_methods[] = {
         {"capitalize",   do_bytes_capitalize},
         {"center",       do_bytes_center},
         {"count",        do_bytes_count},

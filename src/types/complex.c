@@ -250,7 +250,7 @@ static const struct type_prop_t complex_prop_getsets[] = {
         { .name = NULL },
 };
 
-static const struct type_inittbl_t complex_methods[] = {
+static const struct type_method_t complex_methods[] = {
         {"conjugate", do_complex_conjugate},
         {NULL, NULL},
 };

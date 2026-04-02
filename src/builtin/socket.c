@@ -839,7 +839,7 @@ socket_init(Frame *fr)
 static Object *
 create_socket_class(void)
 {
-        static const struct type_inittbl_t sockmethods_inittbl[] = {
+        static const struct type_method_t sockmethods_inittbl[] = {
                 {"accept",   do_accept},
                 {"bind",     do_bind},
                 {"connect",  do_connect},

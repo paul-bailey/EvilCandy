@@ -848,7 +848,7 @@ dict_create(Frame *fr)
         return dict;
 }
 
-static const struct type_inittbl_t dict_cb_methods[] = {
+static const struct type_method_t dict_cb_methods[] = {
         {"clear",     do_dict_clear},
         {"copy",      do_dict_copy},
         {"delitem",   do_dict_delitem},
@@ -1082,9 +1082,9 @@ dictvar_new(void)
  * Used for early-initialization stuff and module initialization.
  */
 Object *
-dictvar_from_methods(Object *parent, const struct type_inittbl_t *tbl)
+dictvar_from_methods(Object *parent, const struct type_method_t *tbl)
 {
-        const struct type_inittbl_t *t;
+        const struct type_method_t *t;
         Object *ret;
         if (parent)
                 ret = parent;

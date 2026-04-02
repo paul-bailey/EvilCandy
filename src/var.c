@@ -223,7 +223,7 @@ var_initialize_type(struct type_t *tp)
 #endif
 
         Object *dict = tp->methods;
-        const struct type_inittbl_t *t = tp->cbm;
+        const struct type_method_t *t = tp->cbm;
         if (t) while (t->name != NULL) {
                 Object *v, *k;
                 enum result_t res;

@@ -1415,7 +1415,7 @@ err:
         return ErrorVar;
 }
 
-static const struct type_inittbl_t io_inittbl[] = {
+static const struct type_method_t io_inittbl[] = {
         {"open", do_open},
         {NULL, NULL},
 };
@@ -1434,7 +1434,7 @@ iobase_placeholder(Frame *fr)
 }
 
 static Object *
-initialize_one_file_class(Object *base, const struct type_inittbl_t *tbl)
+initialize_one_file_class(Object *base, const struct type_method_t *tbl)
 {
         Object *class, *methods;
         methods = dictvar_from_methods(NULL, tbl);
@@ -1446,13 +1446,13 @@ initialize_one_file_class(Object *base, const struct type_inittbl_t *tbl)
 static void
 initialize_file_classes(void)
 {
-        static const struct type_inittbl_t iobase_methods[] = {
+        static const struct type_method_t iobase_methods[] = {
                 {"read", iobase_placeholder},
                 {"write", iobase_placeholder},
                 {"close", iobase_placeholder},
                 {NULL, NULL},
         };
-        static const struct type_inittbl_t textfile_methods[] = {
+        static const struct type_method_t textfile_methods[] = {
                 {"read",       do_text_read},
                 {"readline",   do_text_readline},
                 {"write",      do_text_write},
@@ -1460,14 +1460,14 @@ initialize_file_classes(void)
                 {"__str__",    text_str},
                 {NULL, NULL},
         };
-        static const struct type_inittbl_t binfile_methods[] = {
+        static const struct type_method_t binfile_methods[] = {
                 {"read",       do_bin_read},
                 {"write",      do_bin_write},
                 {"close",      do_bin_close},
                 {"__str__",    bin_str},
                 {NULL, NULL},
         };
-        static const struct type_inittbl_t rawfile_methods[] = {
+        static const struct type_method_t rawfile_methods[] = {
                 {"read",       do_raw_read},
                 {"write",      do_raw_write},
                 {"close",      do_raw_close},

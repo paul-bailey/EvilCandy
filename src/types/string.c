@@ -2301,7 +2301,7 @@ string_upper(Frame *fr)
         return string_to(fr, evc_toupper);
 }
 
-static struct type_inittbl_t string_methods[] = {
+static struct type_method_t string_methods[] = {
         {"capitalize",   string_capitalize},
         {"center",       string_center},
         {"count",        string_count},

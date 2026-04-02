@@ -1034,7 +1034,7 @@ array_get_iter(Object *arr)
         return ret;
 }
 
-static const struct type_inittbl_t array_cb_methods[] = {
+static const struct type_method_t array_cb_methods[] = {
         {"allocated",  do_array_allocated},
         {"append",     do_array_append},
         {"clear",      do_array_clear},

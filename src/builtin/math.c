@@ -73,7 +73,7 @@ MATHMETHOD(tanh,  1)
 #define MATHTBL(func_) \
         {#func_, do_##func_}
 
-static const struct type_inittbl_t math_inittbl[] = {
+static const struct type_method_t math_inittbl[] = {
         MATHTBL(acos),
         MATHTBL(asin),
         MATHTBL(atan),

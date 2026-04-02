@@ -292,7 +292,7 @@ funcvar_new_intl(Object *(*cb)(Frame *))
  *                    table
  */
 Object *
-funcvar_from_lut(const struct type_inittbl_t *tbl)
+funcvar_from_lut(const struct type_method_t *tbl)
 {
         return funcvar_new_intl(tbl->fn);
 }

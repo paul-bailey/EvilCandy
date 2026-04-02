@@ -477,7 +477,7 @@ static const struct map_methods_t set_map_methods = {
         .hasitem = do_set_hasitem,
 };
 
-static const struct type_inittbl_t set_cb_methods[] = {
+static const struct type_method_t set_cb_methods[] = {
         {NULL, NULL},
 };
 

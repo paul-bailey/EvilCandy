@@ -58,12 +58,14 @@ struct seq_methods_t {
         void (*sort)(Object *);
 };
 
-/*
- * struct type_inittbl_t - Used for initializing a built-in function.
- *      TBLEND declares an end to the table.
+/**
+ * struct type_method_t - Used for initializing a function meant to be
+ *                        visible to the UAPI, usu. as an attribute to
+ *                        a built-in type.
+ * @name:  Name of the function as user will see it.
+ * @fn:    Function to call and pass the frame to.
  */
-/* XXX: should be called builtin_func_tbl_t or something */
-struct type_inittbl_t {
+struct type_method_t {
         const char *name;
         Object *(*fn)(Frame *);
 };
@@ -141,7 +143,7 @@ struct type_t {
         size_t n_freelist;
         Object *methods;
         const struct operator_methods_t *opm;
-        const struct type_inittbl_t *cbm;
+        const struct type_method_t *cbm;
         const struct map_methods_t *mpm;
         const struct seq_methods_t *sqm;
         size_t size;

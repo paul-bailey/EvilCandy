@@ -260,7 +260,7 @@ badstring:
         return ErrorVar;
 }
 
-static const struct type_inittbl_t float_methods[] = {
+static const struct type_method_t float_methods[] = {
         {"conjugate", float_conjugate},
         {NULL, NULL},
 };

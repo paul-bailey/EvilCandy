@@ -473,7 +473,7 @@ do_eval(Frame *fr)
         return ret;
 }
 
-static const struct type_inittbl_t builtin_inittbl[] = {
+static const struct type_method_t builtin_inittbl[] = {
         {"abs",    do_abs},
         {"all",    do_all},
         {"any",    do_any},

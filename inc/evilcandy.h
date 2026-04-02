@@ -246,7 +246,7 @@ extern Object *floatvar_new(double value);
 /* types/function.c */
 extern Object *funcvar_new_user(Object *ex);
 extern Object *funcvar_new_intl(Object *(*cb)(Frame *));
-extern Object *funcvar_from_lut(const struct type_inittbl_t *tbl);
+extern Object *funcvar_from_lut(const struct type_method_t *tbl);
 extern int function_setattr(Object *func, int attr, int value);
 extern Object *function_call(Frame *fr, Object *args, Object *kwargs);
 extern void function_add_closure(Object *func, Object *clo);
@@ -269,7 +269,7 @@ extern Object *idvar_new(long long id);
 /* types/dict.c */
 extern Object *dictvar_new(void);
 extern Object *dictvar_from_methods(Object *parent,
-                        const struct type_inittbl_t *tbl);
+                        const struct type_method_t *tbl);
 extern Object *dict_keys(Object *obj, bool sorted);
 extern Object *dict_getitem(Object *o, Object *key);
 extern Object *dict_getitem_cstr(Object *o, const char *cstr_key);

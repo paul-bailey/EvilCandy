@@ -420,7 +420,7 @@ intvar_toi(Object *v)
         return (int)lli;
 }
 
-static const struct type_inittbl_t int_methods[] = {
+static const struct type_method_t int_methods[] = {
         {"bit_length", int_bit_length},
         {"bit_count",  int_bit_count},
         {"conjugate",  int_conjugate},

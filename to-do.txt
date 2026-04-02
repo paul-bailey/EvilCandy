@@ -1,6 +1,10 @@
 Bugs
 ----
 
+* BUGs 4/2026:
+
+        * argument VM passes to catch statement is 'null', not the exception.
+
 * BUGs 3/2026:
 
         * **fixed** Hazard which requires policy change, see FIXME in struct class_t,

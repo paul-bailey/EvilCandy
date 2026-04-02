@@ -4,4 +4,4 @@ class Enum () {
             setattr(this, k, v);
     }
 }
-
+return Enum;

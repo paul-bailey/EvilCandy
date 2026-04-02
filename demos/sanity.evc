@@ -1,16 +1,9 @@
 // sanity test.  run when making changes to code
 // to make sure I didn't break anything.
 
-// FIXME: no way to determine line failure!
-
-
 let Test = import('../lib/test.evc', 'x');
 
-// TODO: replace with sys.argv[1]
-let test = Test(name='Sanity');
-
-// test generator/iterator behavior
-{
+function test_generator() {
     function get_iterator(stop) {
         return (start) => {
             for i in range(start, stop)
@@ -20,26 +13,36 @@ let test = Test(name='Sanity');
 
     let toten = get_iterator(10);
 
-    test.reset(name='GneratorTest');
+    let test = Test(name='GneratorTest');
     test.assert_true(list(toten(4))
                      == [4, 5, 6, 7, 8, 9]);
     test.assert_true(list(toten(10)) == []);
 }
 
-// test string behavior
-{
-    test.reset(name='StringTest');
-    test.assert_true('this'.replace('is', 'at') == 'that');
-    test.assert_true('this'.partition('i') == ('th', 'i', 's'));
-    test.assert_true('this'.partition('s') == ('thi', 's', ''));
-    test.assert_true('a b c'.split() == ['a', 'b', 'c']);
-    test.assert_true(' abc'.split() == ['abc']);
-    test.assert_true('abc '.split() == ['abc']);
+function test_string() {
+    let test = Test(name='StringTest');
+    function test_replace() {
+        test.reset(name='string.replace()');
+        test.assert_true('this'.replace('is', 'at') == 'that');
+    }
+    function test_partition() {
+        test.reset(name='string.partition()');
+        test.assert_true('this'.partition('i') == ('th', 'i', 's'));
+        test.assert_true('this'.partition('s') == ('thi', 's', ''));
+    }
+    function test_split() {
+        test.reset(name='string.split()');
+        test.assert_true('a b c'.split() == ['a', 'b', 'c']);
+        test.assert_true(' abc'.split() == ['abc']);
+        test.assert_true('abc '.split() == ['abc']);
+    }
+    test_replace();
+    test_partition();
+    test_split();
 }
 
-// test dictionary behavior
-{
-    test.reset(name='DictTest');
+function test_dict() {
+    let test = Test(name='DictTest');
     let d = {};
     test.assert_true(length(d) == 0);
     d['a'] = 1;
@@ -63,11 +66,12 @@ let test = Test(name='Sanity');
     test.assert_true((d | e) == {'b': 2});
     test.assert_true(list(d) == []);
     test.assert_true(list(e) == ['b']);
+    // insertion order should not matter
+    test.assert_true({'a': 1, 'b': 2} == {'b': 2, 'a': 1});
 }
 
-// test array behavior
-{
-    test.reset(name='ListTest');
+function test_list() {
+    let test = Test(name='ListTest');
     let a = list(range(5));
     test.assert_true(a == [0, 1, 2, 3, 4]);
     test.assert_true(a[:] !== a);
@@ -78,29 +82,64 @@ let test = Test(name='Sanity');
     test.assert_true(3*[1] == [1, 1, 1]);
 }
 
-// test set behavior
-{
-    test.reset(name='SetTest');
+function test_set() {
+    let test = Test(name='SetTest');
     let a = { 0, 1, 2, 3, };
     let b = { 3, 4, 5 };
     test.assert_true((a | b) == set(range(6)));
     test.assert_true((a ^ b) == { 0, 1, 2, 4, 5 });
     test.assert_true((a - b) == { 0, 1, 2 });
     test.assert_true((a & b) == { 3 });
+    // insertion order should not matter
+    test.assert_true({1, 2} == {2, 1});
+    test.assert_true(set('abbadabba') == {'a', 'b', 'd'});
 }
 
-// eval
-{
-    test.reset(name='evalTest');
+function test_eval() {
+    let test = Test(name='eval()');
     test.assert_true(eval('__gbl__') == __gbl__);
     test.assert_true(eval('__gbl__') === __gbl__);
     test.assert_true(eval('1 + 2') == 3);
     test.assert_exception('a + b');
     test.assert_exception('1 + ,');
+    // namespace should not be passed to eval
+    test.assert_exception('test;');
 }
 
-// some random tests
-test.reset(name='randos');
-test.assert_true('_builtins' in __gbl__);
+function test_randos() {
+    let test = Test(name='randos');
+    test.assert_true('_builtins' in __gbl__);
+}
 
+function test_class() {
+    let test = Test(name='class');
+    {
+        class MyClass() { }
+        let x = MyClass();
+        test.assert_exception_inscope(x, 'anything', []);
+    }
+    {
+        class MyClass() { 'hello': () => 'world' }
+        let x = MyClass();
+        test.assert_no_exception_inscope(x, 'hello', []);
+        test.assert_true(x.hello() == 'world');
+    }
+}
+
+let tests = [
+    ('test_generator',   test_generator),
+    ('test_string',      test_string),
+    ('test_dict',        test_dict),
+    ('test_list',        test_list),
+    ('test_set',         test_set),
+    ('test_eval',        test_eval),
+    ('test_class',       test_class),
+    ('test_randos',      test_randos),
+];
+
+for name, test in tests {
+    print(f'{name:-16}: ', end='');
+    test();
+    print('success');
+}
 

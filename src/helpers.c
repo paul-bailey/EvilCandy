@@ -20,21 +20,6 @@ x2bin(int c)
         return -1;
 }
 
-/**
- * notdir - Return pointer into @path of a file
- *              without the directory.
- * @path: A directory path, where separator is '/'
- */
-const char *
-notdir(const char *path)
-{
-        /* FIXME: Not portable! We need a per-platform separator */
-        const char *ret = strrchrnul(path, '/');
-        if (ret[0] == '\0')
-                return path;
-        return ret + 1;
-}
-
 #ifndef HAVE_STRRSTR
 char *
 strrstr(const char *haystack, const char *needle)

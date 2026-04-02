@@ -230,7 +230,7 @@ dict_from_json(const char *filename)
                            "Could not open JSON file '%s'\n", filename);
                 return ErrorVar;
         }
-        jstate.tok_state = token_state_new(fp, filename);
+        jstate.tok_state = token_state_new(fp);
         if (!jstate.tok_state) {
                 /* Empty file: treat as error or OK? */
                 fclose(fp);

@@ -3058,7 +3058,7 @@ new_assembler(const char *source_file_name, FILE *fp,
         bug_on(!!localdict && !!src_str);
 
         if (fp) {
-                prog = token_state_new(fp, notdir(source_file_name));
+                prog = token_state_new(fp);
                 if (!prog) /* no tokens, just eof */
                         return NULL;
         } else {

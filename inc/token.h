@@ -29,8 +29,7 @@ typedef int token_pos_t;
 /* token.c */
 extern void token_state_trim(struct token_state_t *state);
 extern void token_state_free(struct token_state_t *state);
-extern struct token_state_t *token_state_new(FILE *fp,
-                                        const char *filename);
+extern struct token_state_t *token_state_new(FILE *fp);
 extern int get_tok(struct token_state_t *state, struct token_t **tok);
 extern void unget_tok(struct token_state_t *state, struct token_t **tok);
 extern token_pos_t token_get_pos(struct token_state_t *state);

@@ -30,7 +30,6 @@ enum {
  * @_slen:      Length of line buffer, for egetline calls
  * @line:       line buffer, for egetline calls
  * @fp:         File we're getting input from
- * @filename:   name of @fp
  * @pgm:        Buffer struct containing array of parsed tokens
  * @ntok:       Number of tokens in @pgm
  * @nexttok:    Next token in @pgm to get with get_tok()
@@ -53,7 +52,6 @@ struct token_state_t {
         size_t _slen;
         char *line;
         FILE *fp;
-        char *filename;
         struct buffer_t pgm;
         int ntok;
         int nexttok;
@@ -785,14 +783,13 @@ tokenize(struct token_state_t *state)
 }
 
 static void
-token_init_state(struct token_state_t *state, FILE *fp, const char *filename)
+token_init_state(struct token_state_t *state, FILE *fp)
 {
         buffer_init(&state->tok);
         buffer_init(&state->fstring_tok);
         state->line     = NULL;
         state->_slen    = 0;
         state->s        = NULL;
-        state->filename = filename ? estrdup(filename) : NULL;
         state->fp       = fp;
         state->lineno   = 0;
 
@@ -1006,8 +1003,6 @@ token_state_free_(struct token_state_t *state, bool free_self)
 
         if (state->dedup)
                 VAR_DECR_REF(state->dedup);
-        if (state->filename)
-                efree(state->filename);
         if (free_self)
                 efree(state);
 }
@@ -1021,18 +1016,15 @@ token_state_free(struct token_state_t *state)
 /**
  * token_state_new - Get a new token state machine
  * @fp: Open file to parse
- * @filename: Name of @fp, used for printing syntax errors
- *      This may not be NULL.  Name it something like
- *      "(stdin)" or "(pipe)" if not a regular script file.
  *
  * Return: New token state machine.
  */
 struct token_state_t *
-token_state_new(FILE *fp, const char *filename)
+token_state_new(FILE *fp)
 {
         struct token_state_t *state = emalloc(sizeof(*state));
 
-        token_init_state(state, fp, filename);
+        token_init_state(state, fp);
 
         /*
          * Get first line, so that the
@@ -1059,7 +1051,7 @@ struct token_state_t *
 token_state_from_string(const char *cstring)
 {
         struct token_state_t *state = emalloc(sizeof(*state));
-        token_init_state(state, NULL, NULL);
+        token_init_state(state, NULL);
         /*
          * TODO: More formal to have something like:
          *

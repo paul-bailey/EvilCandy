@@ -6,14 +6,7 @@
  * add it to main() below.
  */
 
-#ifdef TEST_RPIP
-# include <assert.h>
-# include <string.h>
-# include <stdio.h>
-# define bug_on(cond) assert(!(cond))
-#else
-# include <evilcandy.h>
-#endif
+#include <evilcandy.h>
 
 #define SEP '/'
 #define DOT '.'
@@ -21,11 +14,6 @@
 #define BACKDIR_LEN 3
 #define THISDIR "./"
 #define THISDIR_LEN 2
-
-/*
- * TODO: Move reduce_pathname_in_place and TEST_RPIP stuff to
- * separate file.
- */
 
 /*
  * Find the non-directory file name in path name.
@@ -66,7 +54,7 @@ find_notdir(const char *path)
  * executed.  Recursion is still possible without the breadcrumbs check,
  * but a larger amount of it can be tolerated.
  */
-static void
+void
 reduce_pathname_in_place(char *path)
 {
         char *head, *tail;
@@ -117,8 +105,6 @@ reduce_pathname_in_place(char *path)
                 *tail = '\0';
         }
 }
-
-#ifndef TEST_RPIP
 
 /*
  * If @refpath is NULL, use absolute path
@@ -280,33 +266,3 @@ pop_path(FILE *fp)
         VAR_DECR_REF(bc);
 }
 
-#else /* TEST_RPIP vvv defined vvv ... ^^^ !defined ^^^ */
-
-static int fail = 0;
-
-static void
-test_rpip(const char *trypath, const char *expect)
-{
-        char path[1000];
-        bug_on(strlen(trypath) > sizeof(path)-1);
-        strcpy(path, trypath);
-        reduce_pathname_in_place(path);
-        if (strcmp(path, expect)) {
-                fail++;
-                fprintf(stderr, "Expect '%s' but got '%s'\n", expect, path);
-        }
-}
-
-int
-main(void)
-{
-        /* TODO: a bunch more */
-        test_rpip("/../a", "/a");
-        test_rpip("////a/././b", "/a/b");
-        test_rpip("/a/b/c", "/a/b/c");
-        test_rpip("/a/../../../b/./.c/..c", "/b/.c/..c");
-
-        fprintf(stderr, "#failures: %d\n", fail);
-}
-
-#endif /* TEST_RPIP */

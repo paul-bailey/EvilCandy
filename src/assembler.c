@@ -2498,6 +2498,7 @@ assemble_try(struct assemble_t *a)
         struct token_t *exctok;
         int finally = as_next_label(a);
         int catch = as_next_label(a);
+        token_pos_t excpos;
 
         if (ainstr_push_block(a, IARG_TRY, catch) < 0)
                 return -1;
@@ -2519,10 +2520,12 @@ assemble_try(struct assemble_t *a)
                 return -1;
         if (as_errlex(a, OC_IDENTIFIER) < 0)
                 return -1;
-        as_savetok(a, &exctok);
+        excpos = as_savetok(a, &exctok);
         if (as_errlex(a, OC_RPAR) < 0)
                 return -1;
         if (as_add_local(a, exctok->v) < 0)
+                return -1;
+        if (ainstr_assign_symbol(a, excpos) < 0)
                 return -1;
         if (assemble_stmt(a, 0, 0) < 0)
                 return -1;

@@ -1,7 +1,10 @@
 /*
  * helpers.c - Stuff that ought to be in the C standard library but isn't
  */
-#include <evilcandy.h>
+#include "config.h"
+#include <lib/helpers.h>
+#include <ctype.h>
+#include <string.h>
 
 /**
  * x2bin - interpret a hex char

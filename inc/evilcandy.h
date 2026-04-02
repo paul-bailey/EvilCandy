@@ -13,6 +13,7 @@
 #include <lib/helpers.h>
 #include <lib/buffer.h>
 #include <lib/list.h>
+#include <lib/utf8.h>
 
 /* Standard C headers */
 #include <stdbool.h>
@@ -323,18 +324,6 @@ extern Object *tuplevar_from_stack(Object **items, int n_items, bool consume);
 extern Object *tuplevar_new(int n_items);
 extern Object *tuple_getitem(Object *tup, size_t idx);
 extern Object *tuple_borrowitem(Object *tup, size_t idx);
-
-/* utf8.c */
-extern void utf8_encode(unsigned long point, struct buffer_t *buf);
-extern long utf8_decode_one(const unsigned char *src,
-                            unsigned char **endptr);
-static inline bool
-utf8_valid_unicode(unsigned long point)
-{
-        /* Check out of range or invalid surrogate pairs */
-        return point < 0x10fffful &&
-               !(point >= 0xd800ul && point <= 0xdffful);
-}
 
 /* uuid.c */
 extern char *uuidstr(void);

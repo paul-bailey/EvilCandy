@@ -1,5 +1,5 @@
 /* utf8.c - Helpers for UTF-8 C-string encoding/decoding */
-#include <evilcandy.h>
+#include <lib/utf8.h>
 
 static long
 decode_one_point(const unsigned char *s, unsigned char **endptr,

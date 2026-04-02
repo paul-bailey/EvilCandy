@@ -4,7 +4,7 @@
  */
 #include <evilcandy.h>
 #include <vm.h>
-#include <xptr.h>
+#include <types/xptr.h>
 
 struct generator_t {
         struct seqvar_t base;

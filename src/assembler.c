@@ -36,9 +36,8 @@
  */
 #include <evilcandy.h>
 #include <token.h>
-#include <xptr.h>
-#include <setjmp.h>
-#include "assemble_priv.h"
+#include <types/xptr.h>
+#include <priv/assemble.h>
 
 #if DBUG_PROFILE_LOAD_TIME
 # include <time.h>

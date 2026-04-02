@@ -1,5 +1,5 @@
 #include <evilcandy.h>
-#include <xptr.h>
+#include <types/xptr.h>
 
 #define V2XP(v_)        ((struct xptrvar_t *)(v_))
 

@@ -1,8 +1,7 @@
-#ifndef ASSEMBLE_PRIV_H
-#define ASSEMBLE_PRIV_H
+#ifndef PRIV_ASSEMBLE_H
+#define PRIV_ASSEMBLE_H
 
 #include <evilcandy.h>
-#include <setjmp.h>
 
 /**
  * struct as_frame_t - Temporary frame during assembly
@@ -129,4 +128,4 @@ extern struct xptrvar_t *assemble_frame_to_xptr(struct assemble_t *a,
 /* reassemble.c */
 extern struct xptrvar_t *reassemble(struct assemble_t *a);
 
-#endif /* ASSEMBLE_PRIV_H */
+#endif /* PRIV_ASSEMBLE_H */

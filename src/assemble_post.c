@@ -19,8 +19,8 @@
  * exception table like Python uses, to forgo PUSH_BLOCK for exceptions.
  */
 #include <evilcandy.h>
-#include <xptr.h>
-#include "assemble_priv.h"
+#include <types/xptr.h>
+#include <priv/assemble.h>
 
 /*
  * Simplification of labels and removal of detected unreachable code is

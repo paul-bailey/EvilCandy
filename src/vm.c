@@ -12,8 +12,7 @@
  * below.
  */
 #include <evilcandy.h>
-#include <token.h>
-#include <xptr.h>
+#include <types/xptr.h>
 
 /* XXX: Need to be made per-thread */
 static struct vm_t {

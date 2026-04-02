@@ -12,7 +12,7 @@
  * variables for built-in functions.
  */
 #include <evilcandy.h>
-#include <xptr.h>
+#include <types/xptr.h>
 
 /**
  * struct funcvar_t - Handle to a callable function

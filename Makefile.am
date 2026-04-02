@@ -64,7 +64,6 @@ evilcandy_SOURCES = \
         src/types/xptr.c
 
 noinst_HEADERS = \
-        src/assemble_priv.h \
         inc/debug.h \
         inc/evcenums.h \
         inc/evilcandy.h \
@@ -80,10 +79,12 @@ noinst_HEADERS = \
         inc/uarg.h \
         inc/var.h \
         inc/vm.h \
-        inc/xptr.h \
+        inc/priv/assemble.h \
+        inc/types/xptr.h \
         inc/lib/buffer.h \
         inc/lib/helpers.h \
         inc/lib/list.h \
+        inc/lib/utf8.h \
         tools/gen.h
 
 if WANT_READLINE

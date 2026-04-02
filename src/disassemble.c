@@ -4,7 +4,7 @@
  */
 #include <token.h>
 #include <evilcandy.h>
-#include <xptr.h>
+#include <types/xptr.h>
 
 #define IARG(x)   [IARG_##x]  = #x
 #define IARGP(x)  [IARG_PTR_##x]  = #x

@@ -1,60 +1,70 @@
 // class Test -
 
+function assertion_exception(self, message) {
+    let msgstr = '';
+    if (self.name)
+        msgstr += f'{this.name} ';
+    msgstr += f'in file{this.file}: ';
+    msgstr += f'test #{this.test_number}: ';
+    return 'AssertionException', msgstr + message;
+}
+
+function assert_bool(self, condition, expect) {
+    if (condition != expect) {
+        let type = expect ? 'true' : 'false';
+        throw assertion_exception(self, f'assertion {type} failed');
+    }
+    self.test_number++;
+}
+
+function code_throws_exception(code) {
+    let threw_exception = false;
+    try {
+        eval(code);
+    } catch(e) {
+        threw_exception = true;
+    }
+    return threw_exception;
+}
+
 class Test() {
     '__init__': function(**kwargs) {
         let opts = {
-            // TODO: isn't this what breadcrumbs are for?
             'file': sys.breadcrumbs[-1],
             'name': null,
         } | kwargs;
         this.file = opts.file.split(sep='/')[-1];
         this.name = opts.name;
         this.test_number = 1;
-        // TODO: if TTY, add some pretty-output attributes
     },
-    'AssertionError': function(message) {
-        let msgstr = '';
-        if (this.name)
-            msgstr += f'{this.name} ';
-        msgstr += f'in file{this.file}: ';
-        msgstr += f'test #{this.test_number}: ';
-        return 'AssertionError', msgstr + message;
+
+    'assert_true': function(condition) {
+        assert_bool(this, condition, true);
     },
-    'assert_bool': function(condition, expect) {
-        if (condition != expect) {
-            let type = expect ? 'true' : 'false';
-            throw this.AssertionError(f'assertion {type} failed');
-        }
-        this.test_number++;
+
+    'assert_false': function(condition) {
+        assert_bool(this, condition, false);
     },
-    'assert_true': ((condition) => this.assert_bool(condition, true)),
-    'assert_false': ((condition) => this.assert_bool(condition, false)),
-    'code_throws_exception': function(code) {
-        let threw_exception = false;
-        try {
-            eval(code);
-        } catch(e) {
-            // TODO: exceptions need to be a class, so we could
-            // use instanceof to confirm which exception 'e' is.
-            threw_exception = true;
-        }
-        return threw_exception;
-    },
+
     'assert_exception': function(code) {
-        if (!this.code_throws_exception(code))
-            throw this.AssertionError(f'failed to throw exception');
+        if (!code_throws_exception(code))
+            throw assertion_exception(this, f'failed to throw exception');
         this.test_number++;
     },
+
     'assert_no_exception': function(code) {
-        if (this.code_throws_exception(code))
-            throw this.AssertionError(f'threw exception when it shouldn\'t');
+        if (code_throws_exception(code))
+            throw assertion_exception(
+                            this, f'threw exception when it shouldn\'t');
         this.test_number++;
     },
+
     'assert_equal': function(a, b) {
         if (a != b)
-            throw this.AssertionError(f'{a} not equal to {b}');
+            throw assertion_exception(this, f'{a} not equal to {b}');
         this.test_number++;
     },
+
     'reset': function(**kwargs) {
         if 'name' in kwargs
             this.name = kwargs.name;

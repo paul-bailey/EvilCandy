@@ -97,6 +97,7 @@ evilcandy_CPPFLAGS=\
  -Wall
 
 dist_evilcandy_DATA= \
+        lib/enum.evc \
         lib/io.evc \
         lib/math.evc \
         lib/socket.evc \

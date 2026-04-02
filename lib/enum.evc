@@ -1,0 +1,7 @@
+class Enum () {
+    '__init__': function(dict) {
+        for k, v in dict.items()
+            setattr(this, k, v);
+    }
+}
+

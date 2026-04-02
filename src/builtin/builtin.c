@@ -26,6 +26,25 @@ do_setattr(Frame *fr)
 }
 
 static Object *
+do_getattr(Frame *fr)
+{
+        Object *instance, *key, *value;
+
+        instance = NULL;
+        key = NULL;
+        if (vm_getargs(fr, "[<*><*>!]{!}:getattr", &instance, &key)
+            == RES_ERROR) {
+                return ErrorVar;
+        }
+        value = var_getattr(instance, key);
+        if (value == ErrorVar) {
+                err_clear();
+                value = VAR_NEW_REF(NullVar);
+        }
+        return value;
+}
+
+static Object *
 do_dir(Frame *fr)
 {
         Object *arg, *arr;
@@ -462,6 +481,7 @@ static const struct type_inittbl_t builtin_inittbl[] = {
         V_INITTBL("dir",    do_dir),
         V_INITTBL("disassemble", do_disassemble),
         V_INITTBL("eval",   do_eval),
+        V_INITTBL("getattr", do_getattr),
         V_INITTBL("hash",   do_hash),
         V_INITTBL("length", do_length),
         V_INITTBL("min",    do_min),

@@ -85,7 +85,8 @@ If your program for some reason needs a true statement
 to be exactly one and a false statement to be exactly zero,
 you could convert it with the logical-not ``!`` operator.
 Two in a row will convert a true value into the integer 1
-and a false value into the integer 0.::
+and a false value into the integer 0.  This is known
+as "type coercion"::
 
    evc> !!'A';  // string length is one, so it's true
    1

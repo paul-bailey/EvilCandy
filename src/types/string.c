@@ -478,7 +478,7 @@ widen_buffer(Object *str, size_t width)
 }
 
 static bool
-match_here(Object *haystack, Object *needle, size_t idx)
+match_here_anywidth(Object *haystack, Object *needle, size_t idx)
 {
         size_t i, n = seqvar_size(needle);
         bug_on(!n);
@@ -492,101 +492,35 @@ match_here(Object *haystack, Object *needle, size_t idx)
         return true;
 }
 
-#define FIND_IDX(BITS, TYPE) \
-static bool \
-STRING_HELPER(match_here, BITS)(const TYPE *a, const TYPE *b, size_t size) \
-{ \
-        size_t i; \
-        /*  \
-         * only for 'find' functions: we already confirmed \
-         * index zero matches, so only check from index 1. \
-         */ \
-        for (i = 1; i < size; i++) { \
-                if (a[i] != b[i]) \
-                        return false; \
-        } \
-        return true; \
-} \
- \
-/* \
- * For scenarios where @nsrc is really long, I could speed this up  \
- * dramatically using the Boyer-Moore Horspool algorithm.  The problem  \
- * is, since we're dealing with Unicode instead of ASCII, I cannot  \
- * naively use a 256-byte table.  I would have to build up a hash table  \
- * or array-mapped trie.  99% of the time, any speed advantage I could  \
- * get from that would be completely lost due to overhead.  So I'm  \
- * keeping the algorithm basic. \
- */ \
-static ssize_t \
-STRING_HELPER(lfind_idx, BITS)(const TYPE *hsrc, const TYPE *nsrc, size_t start, \
-                 size_t stop, size_t nlen, unsigned int flags) \
-{ \
-        size_t i; \
-        ssize_t count = 0; \
-        bool counting = !!(flags & SF_COUNT); \
-        for (i = start; i < stop + 1 - nlen; i++) { \
-                if (hsrc[i] == nsrc[0]) { \
-                        if (nlen == 1 \
-                            || match_here_##BITS(&hsrc[i+1], \
-                                                 &nsrc[1], nlen - 1)) { \
-                                if (!counting) \
-                                        return i; \
-                                i += nlen - 1; \
-                                count++; \
-                                continue; \
-                        } \
-                } \
-        } \
-        return counting ? count : -1; \
-} \
- \
-static ssize_t \
-STRING_HELPER(rfind_idx, BITS)(const TYPE *hsrc, const TYPE *nsrc, \
-                 size_t start, size_t stop, size_t nlen) \
-{ \
-        ssize_t i; \
-        for (i = stop - nlen; i >= (ssize_t)start; i--) { \
-                if (hsrc[i] == nsrc[0]) { \
-                        if (nlen == 1) \
-                                return i; \
-                        if (match_here_##BITS(&hsrc[i+1], \
-                                              &nsrc[1], nlen - 1)) \
-                                return i; \
-                } \
-        } \
-        return -1; \
-} \
- \
-static ssize_t \
-STRING_HELPER(find_idx, BITS)(const void *hsrc_, const void *nsrc_, \
-                size_t start, size_t stop, size_t nlen, \
-                unsigned int flags) \
-{ \
-        const TYPE *hsrc = (TYPE *)hsrc_; \
-        const TYPE *nsrc = (TYPE *)nsrc_; \
-        bug_on(stop < start); \
-        if (!!(flags & SF_RIGHT)) \
-                return rfind_idx_##BITS(hsrc, nsrc, start, stop, nlen); \
-        else \
-                return lfind_idx_##BITS(hsrc, nsrc, start, \
-                                        stop, nlen, flags); \
-}
 
-#define STRING_HELPER(name_, bits_)       name_##_##bits_
-FIND_IDX(32, uint32_t)
-FIND_IDX(16, uint16_t)
-FIND_IDX(8, uint8_t)
+#define STRING_HELPER(name_) name_##_8
+#define TYPE uint8_t
+#include "string_include.c.h"
+#undef STRING_HELPER
+#undef TYPE
+
+#define STRING_HELPER(name_) name_##_16
+#define TYPE uint16_t
+#include "string_include.c.h"
+#undef STRING_HELPER
+#undef TYPE
+
+#define STRING_HELPER(name_) name_##_32
+#define TYPE uint16_t
+#include "string_include.c.h"
+#undef STRING_HELPER
+#undef TYPE
+
 
 /* only call this if needle has made the necessary resize */
 static ssize_t
-find_or_count_substring_by_width(
-                        const void *haystack,
-                        const void *needle,
-                        size_t start,
-                        size_t stop,
-                        size_t needle_len,
-                        unsigned int flags,
-                        size_t width)
+find_or_count_by_width(const void *haystack,
+                       const void *needle,
+                       size_t start,
+                       size_t stop,
+                       size_t needle_len,
+                       unsigned int flags,
+                       size_t width)
 {
         ssize_t (*func)(const void *, const void *,
                         size_t, size_t, size_t, unsigned int);
@@ -619,9 +553,8 @@ find_or_count_substring_by_width(
  * but does not throw exception.
  */
 static ssize_t
-find_or_count_substring(Object *haystack, Object *needle,
-                        unsigned int flags, size_t startpos,
-                        size_t endpos)
+find_or_count_within(Object *haystack, Object *needle,
+                     unsigned int flags, size_t startpos, size_t endpos)
 {
         ssize_t hwid, nwid, hlen, nlen, idx;
 
@@ -645,7 +578,7 @@ find_or_count_substring(Object *haystack, Object *needle,
                 nsrc = string_data(needle);
         hsrc = string_data(haystack);
 
-        idx = find_or_count_substring_by_width(
+        idx = find_or_count_by_width(
                                 hsrc, nsrc, startpos, endpos,
                                 nlen, flags, hwid);
 
@@ -657,10 +590,10 @@ find_or_count_substring(Object *haystack, Object *needle,
 }
 
 static inline ssize_t
-find_idx(Object *haystack, Object *needle, unsigned int flags)
+find_or_count(Object *haystack, Object *needle, unsigned int flags)
 {
-        return find_or_count_substring(haystack, needle,
-                                       flags, 0, seqvar_size(haystack));
+        return find_or_count_within(haystack, needle,
+                                    flags, 0, seqvar_size(haystack));
 }
 
 /*
@@ -1327,45 +1260,6 @@ string_format_mthd(Frame *fr)
         return string_format(self, list);
 }
 
-#define STRIP_HELPER(X_, Type) \
-static size_t \
-strip_##X_(Type *src, size_t srclen, Type *skip,  \
-           size_t skiplen, size_t width, unsigned int flags, \
-           size_t *new_end) \
-{ \
-        size_t new_start = 0; \
-        if (!(flags & SF_RIGHT)) { \
-                size_t i, j; \
-                for (i = 0; i < srclen; i++) { \
-                        for (j = 0; j < skiplen; j++) { \
-                                if (src[i] == skip[j]) \
-                                        break; \
-                        } \
-                        if (j == skiplen) \
-                                break; \
-                } \
-                new_start = i; \
-        } \
-        *new_end = srclen; \
-        if (!!(flags & (SF_CENTER|SF_RIGHT))) { \
-                size_t i, j; \
-                for (i = srclen - 1; (ssize_t)i >= new_start; i--) { \
-                        for (j = 0; j < skiplen; j++) { \
-                                if (src[i] == skip[j]) \
-                                        break; \
-                        } \
-                        if (j == skiplen) \
-                                break; \
-                } \
-                *new_end = i + 1; \
-        } \
-        return new_start; \
-}
-
-STRIP_HELPER(8, uint8_t)
-STRIP_HELPER(16, uint16_t)
-STRIP_HELPER(32, uint32_t)
-
 static Object *
 string_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
 {
@@ -1511,7 +1405,7 @@ string_replace(Frame *fr)
         string_writer_init(&wr, wr_wid);
 
         start = 0;
-        idx = find_or_count_substring_by_width(
+        idx = find_or_count_by_width(
                         hsrc, nsrc, start, hlen, nlen, 0, wr_wid);
         while (idx >= 0) {
                 if (idx > start) {
@@ -1522,7 +1416,7 @@ string_replace(Frame *fr)
                 start = idx + nlen;
                 if (start + nlen > hlen)
                         break;
-                idx = find_or_count_substring_by_width(
+                idx = find_or_count_by_width(
                                 hsrc, nsrc, start, hlen, nlen, 0, wr_wid);
         }
         if (start < hlen)
@@ -1727,7 +1621,7 @@ string_count(Frame *fr)
         if (vm_getargs(fr, "[<s>!]{!}:count", &needle) == RES_ERROR)
                 return ErrorVar;
 
-        count = find_idx(haystack, needle, SF_COUNT);
+        count = find_or_count(haystack, needle, SF_COUNT);
         return count ? intvar_new(count) : VAR_NEW_REF(gbl.zero);
 }
 
@@ -1850,7 +1744,7 @@ string_index_or_find_(Frame *fr, unsigned int flags, const char *fmt)
                 return ErrorVar;
         if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
                 return ErrorVar;
-        res = find_idx(self, arg, flags);
+        res = find_or_count(self, arg, flags);
         if (res < 0) {
                 if (!(flags & SF_SUPPRESS)) {
                         err_setstr(ValueError, "substring not found");
@@ -1906,7 +1800,7 @@ string_lrpartition_(Frame *fr, unsigned int flags, const char *fmt)
                 return ErrorVar;
         }
 
-        idx = find_idx(self, arg, flags);
+        idx = find_or_count(self, arg, flags);
 
         tup = tuplevar_new(3);
         td = tuple_get_data(tup);
@@ -1977,8 +1871,8 @@ string_removelr_(Frame *fr, unsigned int flags, const char *fmt)
         pos = !!(flags & SF_RIGHT)
                 ? seqvar_size(self) - seqvar_size(arg) : 0;
 
-        idx = find_or_count_substring(self, arg, flags, 0,
-                                      seqvar_size(self));
+        idx = find_or_count_within(self, arg, flags, 0,
+                                   seqvar_size(self));
         if (idx != pos)
                 goto return_self;
 
@@ -2019,7 +1913,7 @@ split_combine_right(Object *self, Object *sep, Object *array, ssize_t idx)
         ssize_t seplen = seqvar_size(sep);
         while (idx - seplen >= 0) {
                 idx -= seplen;
-                if (match_here(self, sep, idx)) {
+                if (match_here_anywidth(self, sep, idx)) {
                         array_append(array, STRCONST_ID(mpty));
                 } else {
                         idx += seplen;
@@ -2036,7 +1930,7 @@ split_combine_left(Object *self, Object *sep, Object *array,
         ssize_t seplen = seqvar_size(sep);
         while (idx + seplen < endpos) {
                 idx += seplen;
-                if (match_here(self, sep, idx)) {
+                if (match_here_anywidth(self, sep, idx)) {
                         array_append(array, STRCONST_ID(mpty));
                 } else {
                         idx -= seplen;
@@ -2088,8 +1982,8 @@ string_lrsplit(Frame *fr, unsigned int flags)
         while (maxsplit-- != 0) {
                 ssize_t substr_start, substr_end, idx;
 
-                idx = find_or_count_substring(self, separg, flags,
-                                              startpos, endpos);
+                idx = find_or_count_within(self, separg, flags,
+                                           startpos, endpos);
                 if (idx < 0)
                         break;
 
@@ -2759,7 +2653,7 @@ string_hasitem(Object *str, Object *substr)
         if (!isvar_string(substr))
                 return false;
 
-        idx = find_idx(str, substr, SF_SUPPRESS);
+        idx = find_or_count(str, substr, SF_SUPPRESS);
         return idx >= 0;
 }
 
@@ -3523,8 +3417,8 @@ string_hash_cb(Object *v)
 ssize_t
 string_search(Object *haystack, Object *needle, size_t startpos)
 {
-        return find_or_count_substring(haystack, needle, 0,
-                                       startpos, seqvar_size(haystack));
+        return find_or_count_within(haystack, needle, 0,
+                                    startpos, seqvar_size(haystack));
 }
 
 static const struct type_prop_t string_prop_getsets[] = {

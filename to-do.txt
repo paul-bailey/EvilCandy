@@ -3,7 +3,10 @@ Bugs
 
 * BUGs 4/2026:
 
-        * argument VM passes to catch statement is 'null', not the exception.
+        * When 'throw' is used in a generator, it cannot be captured with
+          try-catch.  Instead it behaves as if there had been no try-catch loop.
+
+        * **fixed** argument VM passes to catch statement is 'null', not the exception.
 
 * BUGs 3/2026:
 
@@ -59,7 +62,7 @@ Must Do
 
   - Resolve behavior of dir(class) vs. dir(instance)
   - Replace 'int' with 'size_t' where appropriate in dict.c
-  - Resolve issue wrt setting instance properties.
+  - Resolve issue wrt setting instance properties (as opposed to setter methods)
   - Make it possible to handle/report errors in iterators.
   - At minimum complete a walkthrough tutorial in Documentation.
   - Add appropriate interrupt handlers for things like EINTR.
@@ -105,9 +108,6 @@ Must Do
 
 * Add globals/locals args to eval()
 
-* Add var_eq(), so var.c has a function to call dedicated for '==' and not worry
-  about errors due to things like '<' not being supported for type.
-
 * array pop() method should return item popped.
 
 * range slice should return another range, not a list
@@ -116,10 +116,6 @@ Must Do
 
 * If recursion error occurs during runtime (not load time), then unwind as
   if it was a normal exception; do not just panic and quit.
-
-* Make sure all .cmpz methods match documentation.
-
-* Make sure all .cmp methods behave correctly: <0 if a<b, 0 if a==b, ...
 
 * ``demos`` folder is a joke.  Write a real suite of demos, split into
   two groups: demos that are indeed demos and present meaningful examples
@@ -138,6 +134,10 @@ Must Do
 * Add input() built-in function
 
 
+* **done** Make sure all .cmpz methods match documentation.
+* **done** Make sure all .cmp methods behave correctly: <0 if a<b, 0 if a==b, ...
+* **done** Add var_eq(), so var.c has a function to call dedicated for '==' and
+  not worry about errors due to things like '<' not being supported for type.
 * **done** compiler makes about a bajillion warnings when '-pedantic' flag is used.
   Almost all of them have to do with void pointer arithmetic, a Gnu extension.
 * **done** Add eval() built-in function

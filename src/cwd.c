@@ -14,21 +14,17 @@
 Object *
 evc_getcwd(void)
 {
-        size_t size = 64;
-        char *buf = emalloc(size);
+        size_t size = 0;
+        char *buf = NULL;
         char *wd;
         Object *ret;
 
-        size = 64;
-        buf = erealloc(NULL, size);
-retry:
-        errno = 0;
-        wd = getcwd(buf, size);
-        if (!wd && errno == ERANGE) {
-                size += 64;
+        do {
+                size += 32;
                 buf = erealloc(buf, size);
-                goto retry;
-        }
+                errno = 0;
+                wd = getcwd(buf, size);
+        } while (!wd && errno == ERANGE);
 
         if (!wd) {
                 efree(buf);

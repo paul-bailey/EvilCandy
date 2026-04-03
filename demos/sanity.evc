@@ -45,9 +45,21 @@ function test_string() {
         test.assert_true('a//b///c/d'.rsplit(sep='/', maxsplit=1)
                          == ['a//b///c', 'd']);
     }
+    function test_count() {
+        let uni, str, abc;
+        test.reset(name='string.count()');
+        test.assert_true('a b c'.count(' ') == 2);
+        uni = '\u1234';
+        str = 'a' + uni + 'b' + 2 * uni + 'c' + uni;
+        test.assert_true(str.count(uni) == 4);
+        abc = 'abc';
+        str = uni.join(list(abc));
+        test.assert_true(str.count(uni) == length(abc)-1);
+    }
     test_replace();
     test_partition();
     test_split();
+    test_count();
 }
 
 function test_dict() {

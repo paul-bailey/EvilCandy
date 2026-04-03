@@ -53,6 +53,7 @@ enum {
         SF_RIGHT        = 0x0010,       /* from the right (not left) */
         SF_CENTER       = 0x0020,       /* both left and right */
         SF_SUPPRESS     = 0x0040,       /* suppress errors */
+        SF_COUNT        = 0x0080,       /* count rather than find */
 };
 
 #define V2STR(v)                ((struct stringvar_t *)(v))
@@ -491,6 +492,131 @@ match_here(Object *haystack, Object *needle, size_t idx)
         return true;
 }
 
+#define FIND_IDX(BITS, TYPE) \
+static bool \
+STRING_HELPER(match_here, BITS)(const TYPE *a, const TYPE *b, size_t size) \
+{ \
+        size_t i; \
+        /*  \
+         * only for 'find' functions: we already confirmed \
+         * index zero matches, so only check from index 1. \
+         */ \
+        for (i = 1; i < size; i++) { \
+                if (a[i] != b[i]) \
+                        return false; \
+        } \
+        return true; \
+} \
+ \
+/* \
+ * For scenarios where @nsrc is really long, I could speed this up  \
+ * dramatically using the Boyer-Moore Horspool algorithm.  The problem  \
+ * is, since we're dealing with Unicode instead of ASCII, I cannot  \
+ * naively use a 256-byte table.  I would have to build up a hash table  \
+ * or array-mapped trie.  99% of the time, any speed advantage I could  \
+ * get from that would be completely lost due to overhead.  So I'm  \
+ * keeping the algorithm basic. \
+ */ \
+static ssize_t \
+STRING_HELPER(lfind_idx, BITS)(const TYPE *hsrc, const TYPE *nsrc, size_t start, \
+                 size_t stop, size_t nlen, unsigned int flags) \
+{ \
+        size_t i; \
+        ssize_t count = 0; \
+        bool counting = !!(flags & SF_COUNT); \
+        for (i = start; i < stop + 1 - nlen; i++) { \
+                if (hsrc[i] == nsrc[0]) { \
+                        if (nlen == 1 \
+                            || match_here_##BITS(&hsrc[i+1], \
+                                                 &nsrc[1], nlen - 1)) { \
+                                if (!counting) \
+                                        return i; \
+                                i += nlen - 1; \
+                                count++; \
+                                continue; \
+                        } \
+                } \
+        } \
+        return counting ? count : -1; \
+} \
+ \
+static ssize_t \
+STRING_HELPER(rfind_idx, BITS)(const TYPE *hsrc, const TYPE *nsrc, \
+                 size_t start, size_t stop, size_t nlen) \
+{ \
+        ssize_t i; \
+        for (i = stop - nlen; i >= (ssize_t)start; i--) { \
+                if (hsrc[i] == nsrc[0]) { \
+                        if (nlen == 1) \
+                                return i; \
+                        if (match_here_##BITS(&hsrc[i+1], \
+                                              &nsrc[1], nlen - 1)) \
+                                return i; \
+                } \
+        } \
+        return -1; \
+} \
+ \
+static ssize_t \
+STRING_HELPER(find_idx, BITS)(const void *hsrc_, const void *nsrc_, \
+                size_t start, size_t stop, size_t nlen, \
+                unsigned int flags) \
+{ \
+        const TYPE *hsrc = (TYPE *)hsrc_; \
+        const TYPE *nsrc = (TYPE *)nsrc_; \
+        bug_on(stop < start); \
+        if (!!(flags & SF_RIGHT)) \
+                return rfind_idx_##BITS(hsrc, nsrc, start, stop, nlen); \
+        else \
+                return lfind_idx_##BITS(hsrc, nsrc, start, \
+                                        stop, nlen, flags); \
+}
+
+#define STRING_HELPER(name_, bits_)       name_##_##bits_
+FIND_IDX(32, uint32_t)
+FIND_IDX(16, uint16_t)
+FIND_IDX(8, uint8_t)
+
+/* only call this if needle has made the necessary resize */
+static ssize_t
+find_or_count_idx_by_width(
+                        const void *haystack,
+                        const void *needle,
+                        size_t start,
+                        size_t stop,
+                        size_t needle_len,
+                        unsigned int flags,
+                        size_t width)
+{
+        ssize_t (*func)(const void *, const void *,
+                        size_t, size_t, size_t, unsigned int);
+        switch (width) {
+        case 1:
+                func = find_idx_8;
+                break;
+        case 2:
+                func = find_idx_16;
+                break;
+        case 4:
+                func = find_idx_32;
+                break;
+        default:
+                bug();
+                return -1;
+        }
+        return func(haystack, needle, start, stop, needle_len, flags);
+}
+
+/* Return value depends on flags:
+ * If SF_COUNT set, returns #of needle in haystack, 0...5 zillion
+ * Otherwise,
+ *      IF SF_RIGHT set, returns first instance of needle in haystack
+ *      from the right.
+ *      Otherwise returns first instance of needle in haystack from
+ *      the left.
+ * If needle not found in haystack and we're not counting, returns -1
+ * but does not throw exception.
+ */
 static ssize_t
 find_idx_substr(Object *haystack, Object *needle,
                 unsigned int flags, size_t startpos, size_t endpos)
@@ -508,25 +634,22 @@ find_idx_substr(Object *haystack, Object *needle,
 
         bug_on(!nlen);
 
-        if (hwid < nwid || hlen < nlen) {
-                idx = -1;
-        } else {
-                if (!!(flags & SF_RIGHT)) {
-                        bug_on(endpos < nlen);
-                        for (idx = endpos - nlen;
-                             idx >= (ssize_t)startpos; idx--) {
-                                if (match_here(haystack, needle, idx))
-                                        goto found;
-                        }
-                } else {
-                        for (idx = startpos; idx < endpos - (nlen - 1); idx++) {
-                                if (match_here(haystack, needle, idx))
-                                        goto found;
-                        }
-                }
-                idx = -1;
-        }
-found:
+        if (hwid < nwid || hlen < nlen)
+                return !!(flags & SF_COUNT) ? 0 : -1;
+        const unsigned char *nsrc, *hsrc;
+        if (hwid != nwid)
+                nsrc = widen_buffer(needle, hwid);
+        else
+                nsrc = string_data(needle);
+        hsrc = string_data(haystack);
+
+        idx = find_or_count_idx_by_width(
+                                hsrc, nsrc, startpos, endpos,
+                                nlen, flags, hwid);
+
+        if (nsrc != string_data(needle))
+                efree((void *)nsrc);
+
         bug_on(idx >= (ssize_t)seqvar_size(haystack));
         return idx;
 }
@@ -1348,9 +1471,9 @@ string_replace(Frame *fr)
 {
         struct string_writer_t wr;
         Object *haystack, *needle, *repl;
-        size_t hlen, nlen, hwid, nwid, start;
+        ssize_t hlen, nlen, hwid, nwid, start;
         unsigned char *hsrc, *nsrc;
-        size_t wr_wid;
+        ssize_t wr_wid, idx;
 
         haystack = vm_get_this(fr);
         if (arg_type_check(haystack, &StringType) == RES_ERROR)
@@ -1385,20 +1508,21 @@ string_replace(Frame *fr)
                 wr_wid = hwid;
         string_writer_init(&wr, wr_wid);
 
-        hlen *= hwid;
-        nlen *= hwid;
-
         start = 0;
-        while (start < hlen) {
-                if (hlen - start >= nlen &&
-                    memcmp(hsrc + start, nsrc, nlen) == 0) {
-                        string_writer_append_strobj(&wr, repl);
-                        start += nlen;
-                } else {
-                        string_writer_appendb(&wr, hsrc + start, hwid, 1);
-                        start += hwid;
-                }
+        idx = find_or_count_idx_by_width(
+                hsrc, nsrc, start, hlen, nlen, 0, wr_wid);
+        while (idx >= 0) {
+                if (idx > start)
+                        string_writer_appendb(&wr, hsrc + start, hwid, idx - start);
+                string_writer_append_strobj(&wr, repl);
+                start = idx + nlen;
+                if (start + nlen > hlen)
+                        break;
+                idx = find_or_count_idx_by_width(
+                                hsrc, nsrc, start, hlen, nlen, 0, wr_wid);
         }
+        if (start < hlen)
+                string_writer_appendb(&wr, hsrc + start, hwid, hlen - start);
         if (nsrc != string_data(needle))
                 efree(nsrc);
         return stringvar_from_writer(&wr);
@@ -1592,8 +1716,6 @@ string_count(Frame *fr)
 {
         int count;
         Object *haystack, *needle;
-        size_t i, hlen, nlen, hwid, nwid;
-        unsigned char *hsrc, *nsrc;
 
         haystack = vm_get_this(fr);
         if (arg_type_check(haystack, &StringType) == RES_ERROR)
@@ -1601,33 +1723,7 @@ string_count(Frame *fr)
         if (vm_getargs(fr, "[<s>!]{!}:count", &needle) == RES_ERROR)
                 return ErrorVar;
 
-        hlen = seqvar_size(haystack);
-        nlen = seqvar_size(needle);
-        hwid = string_width(haystack);
-        nwid = string_width(needle);
-        if (hlen < nlen || hwid < nwid || hlen == 0 || nlen == 0) {
-                count = 0;
-                goto done;
-        }
-        hsrc = string_data(haystack);
-        if (nwid != hwid)
-                nsrc = widen_buffer(needle, hwid);
-        else
-                nsrc = string_data(needle);
-
-        i = count = 0;
-        while (i + nlen <= hlen) {
-                if (!memcmp(hsrc + i * hwid, nsrc, nlen * hwid)) {
-                        count++;
-                        i += nlen;
-                } else {
-                        i++;
-                }
-        }
-        if (nsrc != string_data(needle))
-                efree(nsrc);
-
-done:
+        count = find_idx(haystack, needle, SF_COUNT);
         return count ? intvar_new(count) : VAR_NEW_REF(gbl.zero);
 }
 

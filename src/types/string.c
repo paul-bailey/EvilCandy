@@ -579,7 +579,7 @@ FIND_IDX(8, uint8_t)
 
 /* only call this if needle has made the necessary resize */
 static ssize_t
-find_or_count_idx_by_width(
+find_or_count_substring_by_width(
                         const void *haystack,
                         const void *needle,
                         size_t start,
@@ -607,7 +607,8 @@ find_or_count_idx_by_width(
         return func(haystack, needle, start, stop, needle_len, flags);
 }
 
-/* Return value depends on flags:
+/*
+ * Return value depends on flags:
  * If SF_COUNT set, returns #of needle in haystack, 0...5 zillion
  * Otherwise,
  *      IF SF_RIGHT set, returns first instance of needle in haystack
@@ -618,8 +619,9 @@ find_or_count_idx_by_width(
  * but does not throw exception.
  */
 static ssize_t
-find_idx_substr(Object *haystack, Object *needle,
-                unsigned int flags, size_t startpos, size_t endpos)
+find_or_count_substring(Object *haystack, Object *needle,
+                        unsigned int flags, size_t startpos,
+                        size_t endpos)
 {
         ssize_t hwid, nwid, hlen, nlen, idx;
 
@@ -643,7 +645,7 @@ find_idx_substr(Object *haystack, Object *needle,
                 nsrc = string_data(needle);
         hsrc = string_data(haystack);
 
-        idx = find_or_count_idx_by_width(
+        idx = find_or_count_substring_by_width(
                                 hsrc, nsrc, startpos, endpos,
                                 nlen, flags, hwid);
 
@@ -657,8 +659,8 @@ find_idx_substr(Object *haystack, Object *needle,
 static inline ssize_t
 find_idx(Object *haystack, Object *needle, unsigned int flags)
 {
-        return find_idx_substr(haystack, needle,
-                               flags, 0, seqvar_size(haystack));
+        return find_or_count_substring(haystack, needle,
+                                       flags, 0, seqvar_size(haystack));
 }
 
 /*
@@ -1509,16 +1511,18 @@ string_replace(Frame *fr)
         string_writer_init(&wr, wr_wid);
 
         start = 0;
-        idx = find_or_count_idx_by_width(
-                hsrc, nsrc, start, hlen, nlen, 0, wr_wid);
+        idx = find_or_count_substring_by_width(
+                        hsrc, nsrc, start, hlen, nlen, 0, wr_wid);
         while (idx >= 0) {
-                if (idx > start)
-                        string_writer_appendb(&wr, hsrc + start, hwid, idx - start);
+                if (idx > start) {
+                        string_writer_appendb(&wr, hsrc + start,
+                                              hwid, idx - start);
+                }
                 string_writer_append_strobj(&wr, repl);
                 start = idx + nlen;
                 if (start + nlen > hlen)
                         break;
-                idx = find_or_count_idx_by_width(
+                idx = find_or_count_substring_by_width(
                                 hsrc, nsrc, start, hlen, nlen, 0, wr_wid);
         }
         if (start < hlen)
@@ -1973,7 +1977,8 @@ string_removelr_(Frame *fr, unsigned int flags, const char *fmt)
         pos = !!(flags & SF_RIGHT)
                 ? seqvar_size(self) - seqvar_size(arg) : 0;
 
-        idx = find_idx_substr(self, arg, flags, 0, seqvar_size(self));
+        idx = find_or_count_substring(self, arg, flags, 0,
+                                      seqvar_size(self));
         if (idx != pos)
                 goto return_self;
 
@@ -2083,7 +2088,8 @@ string_lrsplit(Frame *fr, unsigned int flags)
         while (maxsplit-- != 0) {
                 ssize_t substr_start, substr_end, idx;
 
-                idx = find_idx_substr(self, separg, flags, startpos, endpos);
+                idx = find_or_count_substring(self, separg, flags,
+                                              startpos, endpos);
                 if (idx < 0)
                         break;
 
@@ -3517,8 +3523,8 @@ string_hash_cb(Object *v)
 ssize_t
 string_search(Object *haystack, Object *needle, size_t startpos)
 {
-        return find_idx_substr(haystack, needle, 0,
-                               startpos, seqvar_size(haystack));
+        return find_or_count_substring(haystack, needle, 0,
+                                       startpos, seqvar_size(haystack));
 }
 
 static const struct type_prop_t string_prop_getsets[] = {

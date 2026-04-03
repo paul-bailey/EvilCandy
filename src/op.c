@@ -46,18 +46,14 @@ get_binop_method(Object *a, Object *b)
 Object *                                                \
 qop_##Field (Object *a, Object *b)                      \
 {                                                       \
-        Object *ret;                                    \
         const struct operator_methods_t *opm;           \
         if ((opm = get_binop_method(a, b)) == NULL      \
             || opm->Field == NULL) {                    \
                 err_permit2(What, a, b);                \
-                return NULL;                            \
+                return ErrorVar;                        \
         }                                               \
         bug_on(!opm->Field);                            \
-        ret = opm->Field(a, b);                         \
-        if (ret == ErrorVar)                            \
-                ret = NULL;                             \
-        return ret;                                     \
+        return opm->Field(a, b);                        \
 }
 
 BINARY_OP_BASIC_FUNC(pow, "**")
@@ -87,7 +83,7 @@ qop_mod(Object *a, Object *b)
         /* else, not '%'-ible */
 
         err_permit2("%", a, b);
-        return NULL;
+        return ErrorVar;
 }
 
 #define MAY_CAT(v_)     ((v_)->v_type->sqm && (v_)->v_type->sqm->cat)
@@ -139,7 +135,7 @@ qop_mul(Object *a, Object *b)
 
 cant:
         err_permit2("*", a, b);
-        return NULL;
+        return ErrorVar;
 }
 #undef MAY_CAT
 
@@ -150,7 +146,7 @@ qop_bit_not(Object *v)
         const struct operator_methods_t *p = v->v_type->opm;
         if (!p || !p->bit_not) {
                 err_permit("~", v);
-                return NULL;
+                return ErrorVar;
         }
         return p->bit_not(v);
 }
@@ -162,7 +158,7 @@ qop_negate(Object *v)
         const struct operator_methods_t *p = v->v_type->opm;
         if (!p || !p->negate) {
                 err_permit("-", v);
-                return NULL;
+                return ErrorVar;
         }
         return p->negate(v);
 }

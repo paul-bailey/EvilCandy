@@ -34,7 +34,7 @@ float_pow(Object *a, Object *b)
         DOUBLE(b, fb);
 
         /*
-         * Try to preven any 'nan' answers.
+         * Try to prevent any 'nan' answers.
          *
          * Cody & Waite, _Software Manual for the Elementary Functions_
          * was shockingly unhelpful here.

@@ -275,10 +275,11 @@ binary_op_common(Frame *fr, Object *(*op)(Object *, Object *))
         rval = pop(fr);
         lval = pop(fr);
         opres = op(lval, rval);
-        if (opres)
-                push(fr, opres);
-        else
+        bug_on(!opres);
+        if (opres == ErrorVar)
                 ret = -1;
+        else
+                push(fr, opres);
         VAR_DECR_REF(rval);
         VAR_DECR_REF(lval);
         return ret;
@@ -290,7 +291,8 @@ unary_op_common(Frame *fr,
 {
         Object *v = pop(fr);
         Object *opres = op(v);
-        if (!opres)
+        bug_on(!opres);
+        if (opres == ErrorVar)
                 return -1;
         VAR_DECR_REF(v);
         push(fr, opres);

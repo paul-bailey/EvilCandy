@@ -147,8 +147,7 @@ try_binop(Object *left, Object *right, instruction_t *ii)
                 bool cmp;
                 if (var_compare_iarg(left, right, ii->arg1, &cmp)
                     == RES_ERROR) {
-                        err_clear();
-                        return NULL;
+                        return ErrorVar;
                 }
                 return intvar_new((int)cmp);
             }
@@ -517,15 +516,15 @@ simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr)
                 }
 
                 /*
-                 * NULL means either ip3 wasn't a bin-op or an error
-                 * occurred.  Suppress errors for now, this could be in a
-                 * try/catch statement.
+                 * NULL means 'not an op instruction', ErrorVar means
+                 * 'error'.  Suppress errors for now. We don't know if
+                 * this is in a try/catch statement.
                  *
                  * XXX if error, need to mark instruction positions as
                  * unreduceable so I'm not repeating at these points for
                  * every scan.
                  */
-                if (result == NULL) {
+                if (!result || result == ErrorVar) {
                         err_clear();
                         ip = ip3;
                         continue;

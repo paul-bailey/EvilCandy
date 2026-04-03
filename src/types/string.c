@@ -1912,6 +1912,39 @@ string_removesuffix(Frame *fr)
 
 #undef string_removelr
 
+static ssize_t
+split_combine_right(Object *self, Object *sep, Object *array, ssize_t idx)
+{
+        ssize_t seplen = seqvar_size(sep);
+        while (idx - seplen >= 0) {
+                idx -= seplen;
+                if (match_here(self, sep, idx)) {
+                        array_append(array, STRCONST_ID(mpty));
+                } else {
+                        idx += seplen;
+                        break;
+                }
+        }
+        return idx;
+}
+
+static ssize_t
+split_combine_left(Object *self, Object *sep, Object *array,
+                   ssize_t idx, ssize_t endpos)
+{
+        ssize_t seplen = seqvar_size(sep);
+        while (idx + seplen < endpos) {
+                idx += seplen;
+                if (match_here(self, sep, idx)) {
+                        array_append(array, STRCONST_ID(mpty));
+                } else {
+                        idx -= seplen;
+                        break;
+                }
+        }
+        return idx;
+}
+
 static Object *
 string_lrsplit(Frame *fr, unsigned int flags)
 {
@@ -1952,19 +1985,20 @@ string_lrsplit(Frame *fr, unsigned int flags)
         endpos = seqvar_size(self);
         right = !!(flags & SF_RIGHT);
         while (maxsplit-- != 0) {
-                ssize_t idx = find_idx_substr(self, separg, flags,
-                                              startpos, endpos);
-                ssize_t substr_start, substr_end;
+                ssize_t substr_start, substr_end, idx;
+
+                idx = find_idx_substr(self, separg, flags, startpos, endpos);
                 if (idx < 0)
                         break;
+
                 if (right) {
                         substr_start = idx + seplen;
                         substr_end = endpos;
-
                 } else {
                         substr_start = startpos;
                         substr_end = idx;
                 }
+
                 if (substr_start != substr_end) {
                         Object *substr = stringvar_from_substr(
                                                         self,
@@ -1975,23 +2009,13 @@ string_lrsplit(Frame *fr, unsigned int flags)
                 }
 
                 if (!combine) {
-                        if (right) while (idx - seplen >= 0) {
-                                idx -= seplen;
-                                if (match_here(self, separg, idx)) {
-                                        array_append(array, STRCONST_ID(mpty));
-                                } else {
-                                        idx += seplen;
-                                        break;
-                                }
-
-                        } else while (idx + seplen < endpos) {
-                                idx += seplen;
-                                if (match_here(self, separg, idx)) {
-                                        array_append(array, STRCONST_ID(mpty));
-                                } else {
-                                        idx -= seplen;
-                                        break;
-                                }
+                        if (right) {
+                                idx = split_combine_right(self, separg,
+                                                          array, idx);
+                        } else {
+                                idx = split_combine_left(self, separg,
+                                                         array, idx,
+                                                         endpos);
                         }
                 }
 

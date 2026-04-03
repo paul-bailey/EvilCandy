@@ -4,6 +4,9 @@
  * JavaScript calls these "objects".  Python calls them "dictionaries".
  * Calling one kind of an object an 'object' to distinguish it from another
  * kind of object is kind of janky, so I'm going with Python on this one.
+ *
+ * TODO: For the sake of non-string keys, store the hash number with
+ * d_keys, d_vals.
  */
 #include <evilcandy.h>
 

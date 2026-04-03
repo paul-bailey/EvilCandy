@@ -48,7 +48,7 @@ The version is currently 0.0.1, and I will not bother keeping that
 up-to-date until the source tree has stabilized to a point where versions
 are meaningful.
 
-As of April 2025, the following can (roughly) be said about EvilCandy:
+As of April 2026, the following can (roughly) be said about EvilCandy:
 
 * It "works," but it still has elementary bugs that I keep logging
   and tracking down in to-do.txt.  (Just having a to-do.txt instead
@@ -94,12 +94,15 @@ As of April 2025, the following can (roughly) be said about EvilCandy:
 
 * I have not finished making all my final decisions about syntax.
   Currently it supports ``this``, but I may remove that in favor of
-  Python's first-argument-is-self approach.
+  Python's first-argument-is-self approach.  I am also considering
+  adding static typing, which will gut out a lot of the language's
+  existing syntax.
 
 * It has all the characteristics of a source tree that has been maintained
   by just one person without someone else stress-testing it.  It is loaded
   with thrown-together code that needs refactoring and make-professional-ing.
-  There is not a lot of portability checking.
+  There is not a lot of portability checking.  Currently the test code
+  consists of a single script, ``demos/sanity.evc``.
 
 So no, EvilCandy is not a ship-able release candidate.
 
@@ -137,7 +140,9 @@ Here are some major differences...
   the Python-like for-loop for general-purpose do-this-a-million-times
   iterating.
 
-* EvilCandy is very dynamically typed.
+* EvilCandy is very dynamically typed.  However, a recent nighttime visit
+  by three ghosts showed me the true spirit of safe programming, so a
+  future version will be more hybrid in this respect.
 
 * Most of EvilCandy's built-in methods were modeled after Python rather
   than JavaScript.  While writing this interpreter I was thinking about

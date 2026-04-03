@@ -167,6 +167,9 @@ Must Do
 Library/Language Features
 -------------------------
 
+* Make static typing be a compile-time or maybe even a command-line
+  option.
+
 * Create a base class for exceptions and use that.
 
 * Support things like "(a(b,c)) = x", ie. recursive unpacking.
@@ -178,7 +181,7 @@ Library/Language Features
 
 * Support labelled statements
 
-* Support switch statements.
+* Support switch or match statements.
 
 * Parse UnicodeData.txt to make a Unicode version of ctype.h
   This might also allow utf8-encoded symbol names.

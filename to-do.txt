@@ -1,58 +1,17 @@
-Bugs
-----
+Standing Bugs
+-------------
 
-* BUGs 4/2026:
+4/2026
+~~~~~~
 
-        * **fixed** When 'throw' is used in a generator, it cannot be captured with
-          try-catch.  Instead it behaves as if there had been no try-catch loop.
+* Memory leak: Some variables not getting cleared when there's
+  an exception, whether it's caught in a try-catch loop or not.
 
-        * **fixed** argument VM passes to catch statement is 'null', not the exception.
+6/2025
+~~~~~~
 
-* BUGs 3/2026:
-
-        * **fixed** Hazard which requires policy change, see FIXME in struct class_t,
-          src/types/dict.c.  Related to inheritance problem.
-
-        * **fixed** In interactive mode, a syntax error sometimes lets the
-          remainder of the line be parsed from where the error occurred.
-
-        * **fixed** In interactive mode, cannot assign a name when in a program flow
-          statement.
-
-        * **I'll tolerate it** (pseudo-bug) illusion of memory leaks when exiting
-          via UAPI exit().  Not all of the breadcrumbs are accounted for.  See
-          where suspected, vm.c do_call_func().
-
-        * **fixed** segfault when f-string with conversion is the only part of a
-          statement, eg.
-                f'something {x}';
-          but not if surrounded with parentheses:
-                (f'something {x}');
-
-* BUGs 2/2026:
-
-        * **fixed** User cannot set a dictionary's property, because the var.c
-          algo will think it's trying to set a dictionary field.
-
-        * **fixed** When using readline, ^D is not interpreted as EOF during the
-          first prompt.
-
-        * **worked around** assert fails in var_sanity_check_types_tbl() when exiting with
-          the exit() function instead of normal end of script.
-
-* BUGs 6/2025:
-
-        * "global x = ...something which causes error" is unpredictable
-          whether x is declared or not after the exception is thrown.
-
-* BUGs 5/2025:
-
-        * Object mem leak, four not garbage-collected whenever there's a
-          SyntaxError exception.  Other exceptions are fine.
-
-* BUGs 4/2025:
-
-        * **worked around** All user-visible data types need a .cpmz method.
+* "global x = ...something which causes error" is unpredictable
+  whether x is declared or not after the exception is thrown.
 
 Must Do
 -------
@@ -61,9 +20,8 @@ Must Do
   When this is complete I could start thinking about version numbers.
 
   - Resolve behavior of dir(class) vs. dir(instance)
-  - Replace 'int' with 'size_t' where appropriate in dict.c
+  - Replace ``int`` with ``size_t`` where appropriate in dict.c
   - Resolve issue wrt setting instance properties (as opposed to setter methods)
-  - Make it possible to handle/report errors in iterators.
   - At minimum complete a walkthrough tutorial in Documentation.
   - Add appropriate interrupt handlers for things like EINTR.
   - Fill in set library.
@@ -76,43 +34,13 @@ Must Do
   - Finish path resolution
   - Make consistent and accurate error reporting
 
-  - **done** Implement set xor operator.
-  - **done** Handle no-args to dir() function.
-  - **no** Use double-underscores for dict builtins to give users more name options.
-  - **done** Separate attribute and item, settle dot-notation rules for dict
-  - **circumvented** Solve the inheritance problem with dictionaries
-  - **fine with as-is** Finalize closure behavior, be more like theoretical closures.
-  - **done** Add user-defined properties to dictionaries
-  - **done** Pass arguments to script.
-  - **done** Add dir() function
-  - **done** Untangle comparisons and matches, esp. wrt sets and dicts.
-  - **done** Robustulate the widths of indices.  They should all be size_t or
-    ssize_t, not int.
-  - **done** Fill in .create methods for remaining data types that need it.
-  - **done** Ensure complex numbers whose imaginary component is zero return
-    0 when comparing with a "matching" float, int.  Make sure hash is
-    correct in this case, too.
-  - **done** more robustly test stack behavior in 'continue', 'break'
-  - **done** Fix parsing issue wrt identifier as first token of statement.
-  - **done** Support unpacking in 'for' statement headers.
-  - **done** Support starred unpacking, eg. "a, *b, c = seqvar;"
-  - **done** Add iterator objects, or at least C-API versions of them.
-  - **done** Fix "no top-level stack in interactive mode" awkwardness
-  - **done** Allow string objects to contain nulchars in the middle.
-  - **done** Add an editline-like UI for interactive mode.
-  - **done** Add ``===`` or ``is`` or both
-  - **done** Add slice assignment
-  - **done** Get prompt working
-  - **done** Add support for deleting elements and global variables
-  - **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
+* Get rid of .ap in vmframe
 
 * Add globals/locals args to eval()
 
 * array pop() method should return item popped.
 
 * range slice should return another range, not a list
-
-* intern string literals and identifiers.
 
 * If recursion error occurs during runtime (not load time), then unwind as
   if it was a normal exception; do not just panic and quit.
@@ -133,36 +61,6 @@ Must Do
 
 * Add input() built-in function
 
-
-* **done** Make sure all .cmpz methods match documentation.
-* **done** Make sure all .cmp methods behave correctly: <0 if a<b, 0 if a==b, ...
-* **done** Add var_eq(), so var.c has a function to call dedicated for '==' and
-  not worry about errors due to things like '<' not being supported for type.
-* **done** compiler makes about a bajillion warnings when '-pedantic' flag is used.
-  Almost all of them have to do with void pointer arithmetic, a Gnu extension.
-* **done** Add eval() built-in function
-* **no** Now that variadic functions are internally made into fixed-size
-  functions, at least for user-defined functions, we can now get rid of
-  the AP/FP distinction.
-* **fixed** Interactive mode problem: token state machine is created and destroyed
-  by a wrapping call from assemble().  So if it's interactive mode and
-  someone types "a = 1; b = 2;" all on the same line, the first part
-  ("a = 1;") will be executed and the second part ("b = 2;") will be
-  discarded and never parsed.
-* **done** Replace ``has`` with ``in``
-* **not needed** Make sure all built-in types have a .cmpz method.
-* **done** If first token of a statement is an identifier, there are two very
-  different paths the parser should take, depending whether it is an
-  assignment statement or an evaluation statement.  Figure out a way
-  to resolve this.
-* **done** Make dictionary iterable without requiring the creation of a new list.
-* **done** Autoconfify readline
-* **done** Fix cyclic GC hazard in var_str() for lists and dictionaries, there's no
-  reason why it should have to cause a fatal recursion error.
-* **done** Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
-* **done** Make sure operator order follows either JavaScript or Python.
-* **done** Add way to call user-code destructor from VAR_DECR_REF without
-  having to pass frame to macro.
 
 Library/Language Features
 -------------------------
@@ -204,17 +102,6 @@ Library/Language Features
 
 * Add shell environment to sys module
 
-
-* **done** support generators
-* **done** make frames/code objects visible to user
-* **done** Add way to pass arguments to imported scripts, and a way for the
-  script to access them.
-* **done** Add hash to bytes, let it be a valid dictionary key.
-* **done** Add sets
-* **done** Support tuple unpacking assignment, eg. "(x, y) = (1, 2);"
-* **done** Support f-strings
-* **done** Have dictionaries support keys other than strings
-
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
@@ -237,6 +124,135 @@ Mebbe/Wishlist/Low-prio bugs
   fast-path method.
 
 
+Checked Off the List
+--------------------
+
+Bugs
+~~~~
+
+* 4/2026:
+
+        * **fixed** When 'throw' is used in a generator, it cannot be captured with
+          try-catch.  Instead it behaves as if there had been no try-catch loop.
+
+        * **fixed** argument VM passes to catch statement is 'null', not the exception.
+
+* 3/2026:
+
+        * **fixed** Hazard which requires policy change, see FIXME in struct class_t,
+          src/types/dict.c.  Related to inheritance problem.
+
+        * **fixed** In interactive mode, a syntax error sometimes lets the
+          remainder of the line be parsed from where the error occurred.
+
+        * **fixed** In interactive mode, cannot assign a name when in a program flow
+          statement.
+
+        * **I'll tolerate it** (pseudo-bug) illusion of memory leaks when exiting
+          via UAPI exit().  Not all of the breadcrumbs are accounted for.  See
+          where suspected, vm.c do_call_func().
+
+        * **fixed** segfault when f-string with conversion is the only part of a
+          statement, eg.::
+
+                f'something {x}';
+
+          but not if surrounded with parentheses::
+
+                (f'something {x}');
+
+* 2/2026:
+
+        * **fixed** User cannot set a dictionary's property, because the var.c
+          algo will think it's trying to set a dictionary field.
+
+        * **fixed** When using readline, ^D is not interpreted as EOF during the
+          first prompt.
+
+        * **worked around** assert fails in var_sanity_check_types_tbl() when exiting with
+          the exit() function instead of normal end of script.
+
+* 5/2025:
+
+        * **restated above** Object mem leak, four not garbage-collected whenever there's a
+          SyntaxError exception.  Other exceptions are fine.
+
+* 4/2025:
+
+        * **worked around** All user-visible data types need a .cpmz method.
+
+Normal To-Do Stuff
+~~~~~~~~~~~~~~~~~~
+
+* **done** Make it possible to handle/report errors in iterators.
+* **done** intern string literals and identifiers.
+* **done** Implement set xor operator.
+* **done** Handle no-args to dir() function.
+* **no** Use double-underscores for dict builtins to give users more name options.
+* **done** Separate attribute and item, settle dot-notation rules for dict
+* **circumvented** Solve the inheritance problem with dictionaries
+* **fine with as-is** Finalize closure behavior, be more like theoretical closures.
+* **done** Add user-defined properties to dictionaries
+* **done** Pass arguments to script.
+* **done** Add dir() function
+* **done** Untangle comparisons and matches, esp. wrt sets and dicts.
+* **done** Robustulate the widths of indices.  They should all be size_t or
+    ssize_t, not int.
+* **done** Fill in .create methods for remaining data types that need it.
+* **done** Ensure complex numbers whose imaginary component is zero return
+    0 when comparing with a "matching" float, int.  Make sure hash is
+    correct in this case, too.
+* **done** more robustly test stack behavior in 'continue', 'break'
+* **done** Fix parsing issue wrt identifier as first token of statement.
+* **done** Support unpacking in 'for' statement headers.
+* **done** Support starred unpacking, eg. "a, *b, c = seqvar;"
+* **done** Add iterator objects, or at least C-API versions of them.
+* **done** Fix "no top-level stack in interactive mode" awkwardness
+* **done** Allow string objects to contain nulchars in the middle.
+* **done** Add an editline-like UI for interactive mode.
+* **done** Add ``===`` or ``is`` or both
+* **done** Add slice assignment
+* **done** Get prompt working
+* **done** Add support for deleting elements and global variables
+* **done** Add ^^ to global vars as ``sys``, since it's already built up anyway
+* **done** Make sure all .cmpz methods match documentation.
+* **done** Make sure all .cmp methods behave correctly: <0 if a<b, 0 if a==b, ...
+* **done** Add var_eq(), so var.c has a function to call dedicated for '==' and
+  not worry about errors due to things like '<' not being supported for type.
+* **done** compiler makes about a bajillion warnings when '-pedantic' flag is used.
+  Almost all of them have to do with void pointer arithmetic, a Gnu extension.
+* **done** Add eval() built-in function
+* **no** Now that variadic functions are internally made into fixed-size
+  functions, at least for user-defined functions, we can now get rid of
+  the AP/FP distinction.
+* **fixed** Interactive mode problem: token state machine is created and destroyed
+  by a wrapping call from assemble().  So if it's interactive mode and
+  someone types "a = 1; b = 2;" all on the same line, the first part
+  ("a = 1;") will be executed and the second part ("b = 2;") will be
+  discarded and never parsed.
+* **done** Replace ``has`` with ``in``
+* **not needed** Make sure all built-in types have a .cmpz method.
+* **done** If first token of a statement is an identifier, there are two very
+  different paths the parser should take, depending whether it is an
+  assignment statement or an evaluation statement.  Figure out a way
+  to resolve this.
+* **done** Make dictionary iterable without requiring the creation of a new list.
+* **done** Autoconfify readline
+* **done** Fix cyclic GC hazard in var_str() for lists and dictionaries, there's no
+  reason why it should have to cause a fatal recursion error.
+* **done** Make any/all/max/min be consistent with ``has`` w/r/t dictionaries.
+* **done** Make sure operator order follows either JavaScript or Python.
+* **done** Add way to call user-code destructor from VAR_DECR_REF without
+  having to pass frame to macro.
+* **done** support generators
+* **done** make frames/code objects visible to user
+* **done** Add way to pass arguments to imported scripts, and a way for the
+  script to access them.
+* **done** Add hash to bytes, let it be a valid dictionary key.
+* **done** Add sets
+* **done** Support tuple unpacking assignment, eg. "(x, y) = (1, 2);"
+* **done** Support f-strings
+* **done** Have dictionaries support keys other than strings
 * **done** Change all built-in functions so they are required to have the proto
   "function(*args, **kwargs)".  This way, the minargs, maxargs limitation
   is always the same, and the *actual* specification of a UAPI built-in

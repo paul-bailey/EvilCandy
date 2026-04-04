@@ -1,3 +1,5 @@
+::
+
      Top level
         |
         +------src/             Core C sources
@@ -31,3 +33,4 @@
         |
         +-------etc/            Miscellaneous files and programs.
 
+.. : vim: set syntax=rst :

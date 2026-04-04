@@ -28,14 +28,17 @@ class_reset(Object *class)
 {
         Object *x;
         x = V2CL(class)->c_bases;
+        V2CL(class)->c_bases = NULL;
         if (x)
                 VAR_DECR_REF(x);
 
         x = V2CL(class)->c_dict;
+        V2CL(class)->c_dict = NULL;
         if (x)
                 VAR_DECR_REF(x);
 
         x = V2CL(class)->c_name;
+        V2CL(class)->c_name = NULL;
         if (x)
                 VAR_DECR_REF(x);
 }

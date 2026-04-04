@@ -8,8 +8,7 @@
 
 /* PUSH_PTR/PUSH_COPY arg1 enumerations */
 enum {
-        IARG_PTR_AP = 0,
-        IARG_PTR_FP,
+        IARG_PTR_FP = 0,
         IARG_PTR_CP,
         IARG_PTR_THIS   /* ""   "" */
 };

@@ -362,10 +362,6 @@ as_symbol_seek(struct assemble_t *a, Object *name, int *arg)
          */
         if ((i = array_rindexof(fr->af_locals, name)) >= 0) {
                 i = localmap_idx(a, i);
-                targ = IARG_PTR_AP;
-                goto found;
-        }
-        if ((i = array_indexof(fr->af_args, name)) >= 0) {
                 targ = IARG_PTR_FP;
                 goto found;
         }
@@ -866,7 +862,8 @@ assemble_function_body(struct assemble_t *a,
                 list_foreach(p, &alist->names) {
                         struct names_t *n = AS_LIST2NAMES(p);
                         struct token_t *tok = AS_NAME2TOK(a, n);
-                        array_append(a->fr->af_args, tok->v);
+                        if (as_add_local(a, tok->v) < 0)
+                                return -1;
                 }
 
                 if (as_lex(a) < 0)
@@ -1425,7 +1422,7 @@ ainstr_assign_initializer(struct assemble_t *a, unsigned int flags,
                 instr = INSTR_ASSIGN_NAME;
         } else {
                 instr = INSTR_ASSIGN_LOCAL;
-                arg1 = IARG_PTR_AP;
+                arg1 = IARG_PTR_FP;
         }
         add_instr(a, instr, arg1, namei);
         return 0;
@@ -2387,7 +2384,7 @@ assemble_declare(struct assemble_t *a, struct token_t *name,
                         return -1;
                 if (!(flags & FE_SKIPNULLASSIGN)) {
                         ainstr_load_null(a);
-                        add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, namei);
+                        add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_FP, namei);
                 }
         }
         return namei;
@@ -2667,7 +2664,7 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                 n->namei = as_add_local(a, tok->v);
                 if (n->namei < 0)
                         return -1;
-                add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
+                add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_FP, n->namei);
         } else {
                 /*
                  * needle is itself a sequence, the unnamed container
@@ -2694,7 +2691,7 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                 }
                 list_foreach(p, names) {
                         struct names_t *n = AS_LIST2NAMES(p);
-                        add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_AP, n->namei);
+                        add_instr(a, INSTR_ASSIGN_LOCAL, IARG_PTR_FP, n->namei);
                 }
         }
         if (assemble_stmt(a, FE_CONTINUE, iternext) < 0)
@@ -3106,7 +3103,6 @@ as_delete_frame_list(struct list_t *parent_list)
                 list_remove(&fr->list);
 
                 VAR_DECR_REF(fr->af_locals);
-                VAR_DECR_REF(fr->af_args);
                 VAR_DECR_REF(fr->af_closures);
                 VAR_DECR_REF(fr->af_rodata);
                 VAR_DECR_REF(fr->af_names);
@@ -3236,7 +3232,6 @@ assemble_frame_push(struct assemble_t *a, long long funcno, Object *name)
         memset(fr, 0, sizeof(*fr));
 
         fr->af_locals   = arrayvar_new(0);
-        fr->af_args     = arrayvar_new(0);
         fr->af_closures = arrayvar_new(0);
         fr->af_rodata   = arrayvar_new(0);
         fr->af_names    = arrayvar_new(0);

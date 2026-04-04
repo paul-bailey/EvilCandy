@@ -193,9 +193,9 @@ function_call(Frame *fr, Object *args, Object *kwargs)
                 bug_on(!fh->f_ex);
 
                 /* Finished setting up args, fr->ap */
-                for (i = 0; i < fr->ex->n_locals; i++)
-                        fr->stack[fr->ap + i] = VAR_NEW_REF(NullVar);
-                fr->stackptr = fr->stack + fr->ap + fr->ex->n_locals;
+                for (i = fr->ap; i < fr->ex->n_locals; i++)
+                        fr->stack[i] = VAR_NEW_REF(NullVar);
+                fr->stackptr = fr->stack + fr->ex->n_locals;
                 fr->ppii = fr->ex->instr;
                 return execute_loop(fr);
         }

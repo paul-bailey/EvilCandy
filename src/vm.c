@@ -305,11 +305,8 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
 {
         Object **ppto;
         switch (ii.arg1) {
-        case IARG_PTR_AP:
-                bug_on((unsigned)ii.arg2 >= fr->n_locals);
-                ppto = fr->stack + fr->ap + ii.arg2;
-                break;
         case IARG_PTR_FP:
+                bug_on((unsigned)ii.arg2 >= fr->n_locals);
                 ppto = fr->stack + ii.arg2;
                 break;
         case IARG_PTR_CP:
@@ -386,11 +383,8 @@ do_load_local(Frame *fr, instruction_t ii)
 {
         Object *p;
         switch (ii.arg1) {
-        case IARG_PTR_AP:
-                bug_on((unsigned)ii.arg2 >= fr->n_locals);
-                p = fr->stack[fr->ap + ii.arg2];
-                break;
         case IARG_PTR_FP:
+                bug_on((unsigned)ii.arg2 >= fr->n_locals);
                 p = fr->stack[ii.arg2];
                 break;
         case IARG_PTR_CP:

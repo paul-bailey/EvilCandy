@@ -22,7 +22,6 @@ static const char *ATTR_NAMES[] = {
 };
 
 static const char *PTR_NAMES[] = {
-        IARGP(AP),
         IARGP(FP),
         IARGP(CP),
         IARGP(THIS)
@@ -245,7 +244,7 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i,
                                 spaces(fp, COMNTPOS - len);
                         fprintf(fp, "# ");
                         print_rodata_str(fp, ex, ii->arg2, true);
-                } else if (ex->names && ii->arg1 == IARG_PTR_AP &&
+                } else if (ex->names && ii->arg1 == IARG_PTR_FP &&
                            (ii->code == INSTR_LOAD_LOCAL ||
                             ii->code == INSTR_ASSIGN_LOCAL)) {
                         Object *name = tuple_borrowitem_(ex->names, ii->arg2);

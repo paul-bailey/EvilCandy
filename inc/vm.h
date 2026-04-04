@@ -19,10 +19,8 @@ struct block_t {
  *              shared global stack.
  * @stack_end:  Stack limit.  @stackptr may not exceed this position.
  * @ex:         Executable code being run by this frame
- * @ap:         Array offset from @stack where arguments end.  This is
- *              the start of the evaluation stack, where local variables
- *              are stored and temporary variables are manipulated for
- *              evalutation.
+ * @ap:         Number of locals which are the function's arguments.
+ *              Used as a safeguard when executing LOADARG opcode.
  * @n_blocks:   Number of blocks currently being used by this frame
  * @blocks:     Blocks used by this frame.  One is taken (and @n_blocks
  *              increases by one) every time we descend into a block-type

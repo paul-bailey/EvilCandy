@@ -78,9 +78,9 @@ Awkward Things I'd Like to Improve
 * Dot-naming duality for dictionaries is awkward.  I don't want to
   lose it, but I also don't like the inelegant work-around regarding
   namespace collision between a dictionary's items and its attributes,
-  ie. mydict['key'] only retrieves an item whose key is 'copy' while
-  mydict.key first tries to retrieve attribute 'key' and falls back
-  on an entry if no such attribute exists.
+  ie.: ``mydict['key']`` only retrieves an item whose ``key`` matches,
+  while ``mydict.key`` first tries to retrieve attribute ``key`` and
+  falls back on an entry if no such attribute exists.
 
 Library/Language Features
 -------------------------

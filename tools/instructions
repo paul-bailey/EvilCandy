@@ -75,7 +75,7 @@ YIELD_VALUE
 CALL_FUNC
 
 # create a user-function variable and push it on the stack.
-# Stack top is the struct executable_t to use for the new function.
+# stack[-1] = XptrType object, stack[-2] = (nr_args, optind, kwind)
 DEFFUNC
 
 # usually exists shortly after DEFFUNC.  Some evaluation has
@@ -86,11 +86,6 @@ DEFFUNC
 # order to place such instructions as well as how the function
 # when called can de-reference them
 ADD_CLOSURE
-
-# arg1 is IARG_FUNC_xxx, arg2 is a count, such as minimum
-# number of args for function.  Function is on the top of the
-# stack.
-FUNC_SETATTR
 
 # These occur if a literal contains a starred item
 LIST_APPEND

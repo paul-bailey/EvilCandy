@@ -40,12 +40,6 @@ static const char *BLOCK_NAMES[] = {
         IARG(TRY),
 };
 
-static const char *FUNC_ATTRARG_NAMES[] = {
-        IARG(FUNC_NARGS),
-        IARG(FUNC_OPTIND),
-        IARG(FUNC_KWIND),
-};
-
 static const char *CMP_NAMES[] = {
         IARG(EQ),
         IARG(LEQ),
@@ -170,8 +164,6 @@ add_defines(FILE *fp, unsigned int flags)
 
         ADD_DEFINES(fp, ATTR_NAMES, verbose,
                 "enuerations for GETATTR/SETATTR arg1");
-        ADD_DEFINES(fp, FUNC_ATTRARG_NAMES, verbose,
-                "enumerations for FUNC_SETATTR arg1");
         ADD_DEFINES(fp, CMP_NAMES, verbose,
                 "enumerations for CMP arg1");
         ADD_DEFINES(fp, BLOCK_NAMES, verbose,
@@ -219,9 +211,6 @@ disinstr(FILE *fp, struct xptrvar_t *ex, unsigned int i,
         case INSTR_ASSIGN_LOCAL:
         case INSTR_LOAD_LOCAL:
                 argname = SAFE_NAME(PTR, ii->arg1);
-                break;
-        case INSTR_FUNC_SETATTR:
-                argname = SAFE_NAME(FUNC_ATTRARG, ii->arg1);
                 break;
         case INSTR_CMP:
                 argname = SAFE_NAME(CMP, ii->arg1);

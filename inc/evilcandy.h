@@ -244,7 +244,7 @@ extern enum result_t file_write(Object *file, Object *data);
 extern Object *floatvar_new(double value);
 
 /* types/function.c */
-extern Object *funcvar_new_user(Object *ex);
+extern Object *funcvar_new_user(Object *ex, Object *argspec);
 extern Object *funcvar_new_intl(Object *(*cb)(Frame *));
 extern Object *funcvar_from_lut(const struct type_method_t *tbl);
 extern int function_setattr(Object *func, int attr, int value);

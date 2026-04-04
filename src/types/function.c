@@ -289,52 +289,34 @@ funcvar_from_lut(const struct type_method_t *tbl)
 }
 
 /**
- * function_setattr - Set a function attribute
- * @attr: An IARG_FUNC_xxx enum
- * @value: The value to set the attribute to
- */
-int
-function_setattr(Object *func, int attr, int value)
-{
-        struct funcvar_t *fh = V2FUNC(func);
-
-        if (!isvar_function(func)) {
-                err_setstr(TypeError,
-                           "Cannot set function attribute for type %s",
-                           typestr(func));
-                return RES_ERROR;
-        }
-        bug_on(fh->f_magic == FUNC_INTERNAL);
-
-        switch (attr) {
-        case IARG_FUNC_NARGS:
-                fh->f_nargs = value;
-                break;
-        case IARG_FUNC_OPTIND:
-                fh->f_optind = value;
-                break;
-        case IARG_FUNC_KWIND:
-                fh->f_kwind = value;
-                break;
-        default:
-                err_setstr(TypeError,
-                           "Type function does not have enumerated attribute %d",
-                           attr);
-                return RES_ERROR;
-        }
-        return RES_OK;
-}
-
-/**
  * funcvar_new_user - create a user function var
  * @ex:         Executable code to assign to function
+ * @argspec:    3-sized tuple containing argument specifications, in order of
+ *              (nr_args, var_args_index, kwargs_index), or NULL to use the
+ *              default for scripts and built-ins: (2, 0, 1)
  */
 Object *
-funcvar_new_user(Object *ex)
+funcvar_new_user(Object *ex, Object *argspec)
 {
         Object *func = funcvar_alloc(FUNC_USER);
         struct funcvar_t *fh = V2FUNC(func);
         bug_on(!isvar_xptr(ex));
+        if (argspec) {
+                enum result_t res;
+                bug_on(seqvar_size(argspec) != 3);
+                bug_on(!isvar_tuple(argspec));
+                res = vm_getargs_sv(argspec, "(hhh)",
+                                    &fh->f_nargs,
+                                    &fh->f_optind,
+                                    &fh->f_kwind);
+                bug_on(res == RES_ERROR);
+                (void)res;
+        } else {
+                /* default argspec */
+                fh->f_nargs = 2;
+                fh->f_optind = 0;
+                fh->f_kwind = 1;
+        }
         fh->f_ex = (struct xptrvar_t *)ex;
         fh->f_closures = NULL;
         VAR_INCR_REF((Object *)ex);
@@ -412,6 +394,7 @@ func_getrodata(Object *self)
 static const struct type_prop_t func_prop_getsets[] = {
         { .name = "__code__",   .getprop = func_getcode,   .setprop = NULL },
         { .name = "__rodata__", .getprop = func_getrodata, .setprop = NULL },
+        /* TODO: Add #args read-only property */
         { .name = NULL },
 };
 

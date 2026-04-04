@@ -830,6 +830,17 @@ assemble_slice(struct assemble_t *a)
         return 0;
 }
 
+static Object *
+as_make_argspec(int nargs, int optind, int kwind)
+{
+        Object *stack[3];
+
+        stack[0] = intvar_new(nargs);
+        stack[1] = intvar_new(optind);
+        stack[2] = intvar_new(kwind);
+        return tuplevar_from_stack(stack, 3, true);
+}
+
 /*
  * Helper to assemble_arrow_lambda() and assmeble_funcdef().
  * @alist is cleaned up in this function, don't use afterwards.
@@ -841,18 +852,12 @@ assemble_function_body(struct assemble_t *a,
                        bool lambda, struct arglist_t *alist, Object *name)
 {
         int funcno = as_next_funcno(a);
+        Object *tuple = as_make_argspec(alist->n,
+                                        alist->star, alist->starstar);
 
         ainstr_load_const_obj(a, idvar_new(funcno));
+        ainstr_load_const_obj(a, tuple);
         add_instr(a, INSTR_DEFFUNC, 0, 0);
-        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_NARGS, alist->n);
-        if (alist->star >= 0) {
-                add_instr(a, INSTR_FUNC_SETATTR,
-                          IARG_FUNC_OPTIND, alist->star);
-        }
-        if (alist->starstar >= 0) {
-                add_instr(a, INSTR_FUNC_SETATTR,
-                          IARG_FUNC_KWIND, alist->starstar);
-        }
 
         assemble_frame_push(a, funcno, name);
         {

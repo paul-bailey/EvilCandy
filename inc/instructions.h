@@ -36,13 +36,6 @@ enum {
         IARG_TRY,
 };
 
-/* FUNC_SETATTR args */
-enum {
-        IARG_FUNC_NARGS,
-        IARG_FUNC_OPTIND,
-        IARG_FUNC_KWIND,
-};
-
 enum {
         IARG_POP_NORMAL,
         IARG_POP_PRINT, /* print me if in interactive */

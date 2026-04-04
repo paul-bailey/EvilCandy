@@ -670,11 +670,18 @@ do_call_func(Frame *fr, instruction_t ii)
 static int
 do_deffunc(Frame *fr, instruction_t ii)
 {
-        Object *func;
-        Object *x = pop(fr);
-        bug_on(!isvar_xptr(x));
-        func = funcvar_new_user(x);
-        VAR_DECR_REF(x);
+        Object *func, *argspec, *xptr;
+
+        argspec = pop(fr);
+        xptr = pop(fr);
+
+        bug_on(!isvar_xptr(xptr));
+        bug_on(!isvar_tuple(argspec) || seqvar_size(argspec) != 3);
+
+        func = funcvar_new_user(xptr, argspec);
+        VAR_DECR_REF(xptr);
+        VAR_DECR_REF(argspec);
+
         push(fr, func);
         return 0;
 }
@@ -705,15 +712,6 @@ do_add_closure(Frame *fr, instruction_t ii)
 
         function_add_closure(func, clo);
         VAR_DECR_REF(clo);
-        push(fr, func);
-        return 0;
-}
-
-static int
-do_func_setattr(Frame *fr, instruction_t ii)
-{
-        Object *func = pop(fr);
-        function_setattr(func, ii.arg1, ii.arg2);
         push(fr, func);
         return 0;
 }
@@ -1453,13 +1451,8 @@ vm_exec_script(Object *top_level, Frame *fr_old)
         Object *func, *ret, *args;
 
         bug_on(!isvar_xptr(top_level));
-        func = funcvar_new_user(top_level);
+        func = funcvar_new_user(top_level, NULL);
         args = arrayvar_new(0);
-
-        /* XXX: DRY violation with do_import */
-        function_setattr(func, IARG_FUNC_NARGS, 2);
-        function_setattr(func, IARG_FUNC_OPTIND, 0);
-        function_setattr(func, IARG_FUNC_KWIND, 1);
 
         ret = vm_exec_func(fr_old, func, args, NULL);
         VAR_DECR_REF(func);

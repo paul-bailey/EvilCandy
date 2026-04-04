@@ -17,8 +17,6 @@
  */
 #define COLOR(what, str)      COLOR_##what str COLOR_DEF
 
-static Object *exception_last = NULL;
-
 #define exception_validate(X) tuple_validate(X, "*s", 0)
 
 /* this consume references for args if they are Objects */
@@ -32,13 +30,8 @@ mkexception(Object *exc_arg, Object *msg_arg)
 static void
 replace_exception(Object *newexc)
 {
-        if (exception_last)
-                VAR_DECR_REF(exception_last);
-
-        if (newexc)
-                VAR_INCR_REF(newexc);
-
-        exception_last = newexc;
+        err_clear();
+        gbl.exception_last = VAR_NEW_REF(newexc);
 }
 
 /* helper to bug__ and breakpoint__ */
@@ -266,19 +259,19 @@ err_vsetstr(Object *exc, const char *msg, va_list ap)
 
         msgstr = errmsg_from_format(msg, ap);
 
-        /*
-         * @exc is not from the user stack.  It's a meant-to-be-immortal
-         * 'XxxxError' exception value, provided by internal code.  For
-         * convenience, the caller did not produce a reference.  So we
-         * produce a reference here to keep it from getting destroyed when
-         * err_get consumes it next.
-         */
-        VAR_INCR_REF(exc);
-
         new_exc = mkexception(exc, msgstr);
         replace_exception(new_exc);
         VAR_DECR_REF(msgstr);
         VAR_DECR_REF(new_exc);
+        /*
+         * Do not consume @exc.  It does not come from the user stack.
+         * It's a meant-to-be-immortal 'XxxxError' exception value,
+         * provided by internal code.  For convenience, the caller did
+         * not produce a reference.  So we produce a reference here to
+         * keep it from getting destroyed when err_get consumes it next.
+         *
+         * (Compare w/ err_set_from_user, which does consume @exc).
+         */
 }
 
 /**
@@ -320,24 +313,16 @@ void
 err_set_from_user(Object *exc)
 {
         if (!isvar_tuple(exc)) {
-                Object *tmp;
-                tmp = mkexception(exc, STRCONST_ID(nomsg));
-                /*
-                 * Do not consume @exc's reference here.
-                 * The mkexception calls above did that for us.
-                 */
+                Object *tmp = mkexception(exc, STRCONST_ID(nomsg));
+                VAR_DECR_REF(exc);
                 exc = tmp;
         } else if (exception_validate(exc) != RES_OK) {
-                goto invalid;
+                err_setstr(TypeError, "Throwing invalid exception");
+                VAR_DECR_REF(exc);
+                return;
         }
 
         replace_exception(exc);
-        VAR_DECR_REF(exc);
-        return;
-
-invalid:
-        err_setstr(TypeError, "Throwing invalid exception");
-        VAR_DECR_REF(exc);
 }
 
 /*
@@ -347,16 +332,15 @@ invalid:
 Object *
 err_get(void)
 {
-        Object *ret = exception_last;
-        VAR_INCR_REF(exception_last);
-        replace_exception(NULL);
+        Object *ret = gbl.exception_last;
+        VAR_INCR_REF(gbl.exception_last);
+        err_clear();
         return ret;
 }
 
 void
 err_print(FILE *fp, Object *exc)
 {
-        const char *errval, *errmsg;
         bool tty;
         Object *v, *msg;
 
@@ -365,17 +349,25 @@ err_print(FILE *fp, Object *exc)
 
         bug_on(exception_validate(exc) != RES_OK);
 
-        v = var_str_swap(tuple_getitem(exc, 0));
-        errval = string_cstring(v);
+        v = tuple_getitem(exc, 0);
+        if (!isvar_string(v)) {
+                Object *x = var_str(v);
+                VAR_DECR_REF(v);
+                v = x;
+        }
 
-        msg = var_str_swap(tuple_getitem(exc, 1));
-        errmsg = string_cstring(msg);
+        msg = tuple_getitem(exc, 1);
+        if (!isvar_string(msg)) {
+                Object *x = var_str(msg);
+                VAR_DECR_REF(msg);
+                msg = x;
+        }
 
         tty = !!isatty(fileno(fp));
 
         fprintf(fp, "[EvilCandy] %s%s%s %s\n",
-                tty ? COLOR_RED : "", errval,
-                tty ? COLOR_DEF : "", errmsg);
+                tty ? COLOR_RED : "", string_cstring(v),
+                tty ? COLOR_DEF : "", string_cstring(msg));
 
         VAR_DECR_REF(v);
         VAR_DECR_REF(msg);
@@ -398,12 +390,14 @@ err_print_last(FILE *fp)
 bool
 err_occurred(void)
 {
-        return exception_last != NULL;
+        return gbl.exception_last != NULL;
 }
 
 void
 err_clear(void)
 {
-        replace_exception(NULL);
+        if (gbl.exception_last)
+                VAR_DECR_REF(gbl.exception_last);
+        gbl.exception_last = NULL;
 }
 

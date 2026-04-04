@@ -39,6 +39,9 @@ struct global_t {
                 int lineno;
                 size_t _slen;
         } iatok;
+
+        /* err.c manages this */
+        Object *exception_last;
 };
 
 #define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])

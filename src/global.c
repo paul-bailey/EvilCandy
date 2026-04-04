@@ -204,6 +204,9 @@ cfile_deinit_global(void)
                 efree(gbl.iatok.line);
         memset(&gbl.iatok, 0, sizeof(gbl.iatok));
 
+        if (gbl.exception_last)
+                VAR_DECR_REF(gbl.exception_last);
+
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);
         VAR_DECR_REF(IndexError);

@@ -1097,6 +1097,7 @@ do_throw(Frame *fr, instruction_t ii)
 {
         Object *exc = pop(fr);
         err_set_from_user(exc);
+        VAR_DECR_REF(exc);
         return RES_EXCEPTION;
 }
 

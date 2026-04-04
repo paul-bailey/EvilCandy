@@ -844,8 +844,7 @@ assemble_function_body(struct assemble_t *a,
 
         ainstr_load_const_obj(a, idvar_new(funcno));
         add_instr(a, INSTR_DEFFUNC, 0, 0);
-        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MINARGS, alist->n);
-        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_MAXARGS, alist->n);
+        add_instr(a, INSTR_FUNC_SETATTR, IARG_FUNC_NARGS, alist->n);
         if (alist->star >= 0) {
                 add_instr(a, INSTR_FUNC_SETATTR,
                           IARG_FUNC_OPTIND, alist->star);

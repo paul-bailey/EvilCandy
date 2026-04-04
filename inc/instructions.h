@@ -38,8 +38,7 @@ enum {
 
 /* FUNC_SETATTR args */
 enum {
-        IARG_FUNC_MINARGS,
-        IARG_FUNC_MAXARGS,
+        IARG_FUNC_NARGS,
         IARG_FUNC_OPTIND,
         IARG_FUNC_KWIND,
 };

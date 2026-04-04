@@ -1457,8 +1457,7 @@ vm_exec_script(Object *top_level, Frame *fr_old)
         args = arrayvar_new(0);
 
         /* XXX: DRY violation with do_import */
-        function_setattr(func, IARG_FUNC_MINARGS, 2);
-        function_setattr(func, IARG_FUNC_MAXARGS, 2);
+        function_setattr(func, IARG_FUNC_NARGS, 2);
         function_setattr(func, IARG_FUNC_OPTIND, 0);
         function_setattr(func, IARG_FUNC_KWIND, 1);
 

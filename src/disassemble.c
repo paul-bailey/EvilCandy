@@ -41,8 +41,7 @@ static const char *BLOCK_NAMES[] = {
 };
 
 static const char *FUNC_ATTRARG_NAMES[] = {
-        IARG(FUNC_MINARGS),
-        IARG(FUNC_MAXARGS),
+        IARG(FUNC_NARGS),
         IARG(FUNC_OPTIND),
         IARG(FUNC_KWIND),
 };

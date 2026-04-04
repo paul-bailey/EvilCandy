@@ -211,8 +211,7 @@ do_import(Frame *fr)
 
         /* arg settings for script top-level: function(*args, **kwargs) */
         res = funcvar_new_user(ex);
-        function_setattr(res, IARG_FUNC_MINARGS, 2);
-        function_setattr(res, IARG_FUNC_MAXARGS, 2);
+        function_setattr(res, IARG_FUNC_NARGS, 2);
         function_setattr(res, IARG_FUNC_OPTIND, 0);
         function_setattr(res, IARG_FUNC_KWIND, 1);
         if (how == X) {

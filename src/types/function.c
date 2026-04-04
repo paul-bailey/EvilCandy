@@ -18,10 +18,7 @@
  * struct funcvar_t - Handle to a callable function
  * @f_magic:    If FUNC_INTERNAL, function is an internal function
  *              If FUNC_USER, function is in the user's script
- * @f_minargs:  Minimum number of args that may be passed to the
- *              function
- * @f_maxargs:  Maximum number of args that may be passed to the
- *              function, or -1 if no maximum
+ * @f_nargs:    Number of args that may be passed to the function
  * @f_optind:   If >0, argument index of optional args.
  * @f_kwind:    If >0, argument index of keyword args.
  * @f_cb:       If @magic is FUNC_INTERNAL, pointer to the builtin
@@ -40,8 +37,7 @@ struct funcvar_t {
          * I'd make these char to save space, but <0 means something,
          * and signed-char is not 100% portable.
          */
-        short f_minargs;
-        short f_maxargs;
+        short f_nargs;
         short f_optind;
         short f_kwind;
         union {
@@ -61,14 +57,11 @@ struct funcvar_t {
 static int
 function_argc_check(struct funcvar_t *fh, int argc)
 {
-        int min = fh->f_minargs;
-        int max = fh->f_maxargs;
-        if (argc < min) {
-                err_minargs(argc, min);
-                return RES_ERROR;
-        }
-        if (max >= 0 && argc > max) {
-                err_maxargs(argc, max);
+        if (argc != fh->f_nargs) {
+                if (argc < fh->f_nargs)
+                        err_minargs(argc, fh->f_nargs);
+                else
+                        err_maxargs(argc, fh->f_nargs);
                 return RES_ERROR;
         }
         return RES_OK;
@@ -234,8 +227,7 @@ funcvar_alloc(int magic)
 {
         Object *func = var_new(&FunctionType);
         struct funcvar_t *fh = V2FUNC(func);
-        fh->f_minargs = 0;
-        fh->f_maxargs = -1;
+        fh->f_nargs = 0;
         fh->f_optind = -1;
         fh->f_kwind = -1;
         fh->f_magic = magic;
@@ -280,8 +272,7 @@ funcvar_new_intl(Object *(*cb)(Frame *))
         Object *func = funcvar_alloc(FUNC_INTERNAL);
         struct funcvar_t *fh = V2FUNC(func);
         fh->f_cb = cb;
-        fh->f_minargs = 2;
-        fh->f_maxargs = 2;
+        fh->f_nargs = 2;
         fh->f_optind  = 0;
         fh->f_kwind   = 1;
         return func;
@@ -316,11 +307,8 @@ function_setattr(Object *func, int attr, int value)
         bug_on(fh->f_magic == FUNC_INTERNAL);
 
         switch (attr) {
-        case IARG_FUNC_MINARGS:
-                fh->f_minargs = value;
-                break;
-        case IARG_FUNC_MAXARGS:
-                fh->f_maxargs = value;
+        case IARG_FUNC_NARGS:
+                fh->f_nargs = value;
                 break;
         case IARG_FUNC_OPTIND:
                 fh->f_optind = value;

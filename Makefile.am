@@ -74,12 +74,12 @@ noinst_HEADERS = \
         inc/recursion.h \
         inc/string_reader.h \
         inc/string_writer.h \
-        inc/token.h \
         inc/typedefs.h \
         inc/uarg.h \
         inc/var.h \
         inc/vm.h \
-        inc/priv/assemble.h \
+        inc/evilcandy/token.h \
+        inc/evilcandy/assemble.h \
         inc/types/xptr.h \
         inc/lib/buffer.h \
         inc/lib/helpers.h \

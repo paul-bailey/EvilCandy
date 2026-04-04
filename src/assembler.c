@@ -35,7 +35,7 @@
  *              Poorly chosen function name :)
  */
 #include <evilcandy.h>
-#include <token.h>
+#include <evilcandy/token.h>
 #include <types/xptr.h>
 #include <evilcandy/assemble.h>
 

@@ -2,7 +2,7 @@
  * disassemble.c - Code that handles the -d or -D option, disassemble
  *                 bytecode back into text a user could read.
  */
-#include <token.h>
+#include <evilcandy/token.h>
 #include <evilcandy.h>
 #include <types/xptr.h>
 

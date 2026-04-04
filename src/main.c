@@ -1,5 +1,5 @@
 #include <evilcandy.h>
-#include <token.h>
+#include <evilcandy/token.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>

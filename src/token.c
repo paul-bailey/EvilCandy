@@ -1,6 +1,6 @@
 /* token.c - Tokenizer code */
 #include <evilcandy.h>
-#include "token.h"
+#include <evilcandy/token.h>
 #include <setjmp.h>
 #include <unistd.h> /* isatty */
 

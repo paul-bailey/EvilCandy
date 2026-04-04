@@ -583,6 +583,29 @@ set_extend(Object *set, Object *seq)
 }
 
 /**
+ * set_intern - Intern an item into a set.
+ * @set: Set to intern item into
+ * @item: Item to intern
+ *
+ * Return:      ErrorVar if there was an error (item was unhashable)
+ *              @item if it's the first of its match being interned
+ *              A matching de-duplicated version of @item if not.
+ *
+ * This is a syntactically-less-confusing convenience wrapper to
+ * set_additem.  It's specifically a backdoor for interning strings
+ * at script-compile time.  After this call, use the return value, not
+ * @item.
+ */
+Object *
+set_intern(Object *set, Object *item)
+{
+        Object *interned = item;
+        if (set_additem(set, item, &interned) == RES_ERROR)
+                return ErrorVar;
+        return interned;
+}
+
+/**
  * setvar_new - Create a new set
  * @seq: List to create set out of
  */

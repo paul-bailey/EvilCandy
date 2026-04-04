@@ -25,6 +25,7 @@ struct global_t {
         Object *codecs[N_CODEC];
         /* c-api handles to some built-in classes */
         Object *classes[N_GBL_CLASSES];
+        Object *interned_strings; /*< a set */
 
         /*
          * private fields, put in global struct just so cleanup

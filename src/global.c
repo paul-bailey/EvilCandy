@@ -32,7 +32,7 @@ static void
 initialize_string_consts(void)
 {
         /* Keep sync'd with evcenums.h */
-        static const char *STRCONST_CSTR[N_STRCONST] = {
+        static const char *STRCONST_CSTRS[N_STRCONST] = {
                 STRCONST_CSTR(byteorder),
                 STRCONST_CSTR(encoding),
                 STRCONST_CSTR(end),
@@ -72,8 +72,11 @@ initialize_string_consts(void)
         };
 
         int i;
-        for (i = 0; i < N_STRCONST; i++)
-                gbl.strconsts[i] = stringvar_new(STRCONST_CSTR[i]);
+        for (i = 0; i < N_STRCONST; i++) {
+                gbl.strconsts[i] = set_intern(
+                                        gbl.interned_strings,
+                                        stringvar_new(STRCONST_CSTRS[i]));
+        }
 }
 #undef STRCONST_CSTR
 
@@ -133,6 +136,7 @@ initialize_global_object(void)
 void
 cfile_init_global(void)
 {
+        gbl.interned_strings = setvar_new(NULL);
         initialize_string_consts();
         /*
          * Keep this before initialize_global_object - We need it for
@@ -193,6 +197,8 @@ cfile_deinit_global(void)
                 if (gbl.classes[i])
                         VAR_DECR_REF(gbl.classes[i]);
         }
+
+        VAR_DECR_REF(gbl.interned_strings);
 
         if (gbl.iatok.line)
                 efree(gbl.iatok.line);

@@ -299,6 +299,7 @@ extern Object *setvar_new(Object *seq);
 extern enum result_t set_extend(Object *set, Object *seq);
 extern enum result_t set_additem(Object *set, Object *child, Object **unique);
 extern Object *set_unique(Object *set, Object *item);
+extern Object *set_intern(Object *set, Object *item);
 
 /* types/string.c */
 extern Object *stringvar_new(const char *cstr);

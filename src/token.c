@@ -754,8 +754,8 @@ tokenize(struct token_state_t *state)
                         break;
                     }
                 case OC_IDENTIFIER:
-                        /* FIXME: will need to de-dup this */
-                        oc->v = stringvar_new(state->tok.s);
+                        oc->v = set_intern(gbl.interned_strings,
+                                           stringvar_new(state->tok.s));
                         break;
                 case OC_STRING:
                 case OC_FSTRING_END:
@@ -763,6 +763,9 @@ tokenize(struct token_state_t *state)
                         if (oc->v == ErrorVar) {
                                 ret = bad_literal(state, "string");
                                 oc->v = NULL;
+                        } else {
+                                oc->v = set_intern(gbl.interned_strings,
+                                                   oc->v);
                         }
                         break;
                 default:

@@ -21,6 +21,22 @@ struct propertyvar_t {
 
 #define V2P(v_) ((struct propertyvar_t *)(v_))
 
+static void
+property_reset(Object *prop)
+{
+        struct propertyvar_t *pv = V2P(prop);
+        if (pv->pr_kind == PR_USER) {
+                if (pv->pr_set) {
+                        VAR_DECR_REF(pv->pr_set);
+                        pv->pr_set = NULL;
+                }
+                if (pv->pr_get) {
+                        VAR_DECR_REF(pv->pr_get);
+                        pv->pr_get = NULL;
+                }
+        }
+}
+
 static Object *
 property_create(Frame *fr)
 {
@@ -72,7 +88,7 @@ struct type_t PropertyType = {
         .cmp    = NULL,
         .cmpz   = NULL,
         .cmpeq  = NULL,
-        .reset  = NULL,
+        .reset  = property_reset,
         .prop_getsets = NULL,
         .create = property_create,
         .hash   = NULL,

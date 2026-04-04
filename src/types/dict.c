@@ -738,6 +738,7 @@ static enum result_t
 dict_append_one_iterable(Object *dict, Object *items)
 {
         Object *it, *k, *v;
+        enum result_t res = RES_ERROR;
 
         it = iterator_get(items);
         if (!it) {
@@ -746,19 +747,28 @@ dict_append_one_iterable(Object *dict, Object *items)
         } else if (seqvar_size(items) != 2) {
                 err_setstr(TypeError,
                         "expected sequence size of two for key-value pair");
-                VAR_DECR_REF(it);
-                return RES_ERROR;
+                goto err_free_it;
         }
 
         k = iterator_next(it);
+        if (k == ErrorVar)
+                goto err_free_it;
+        bug_on(!k);
+
         v = iterator_next(it);
-        bug_on(!k || !v);
+        if (v == ErrorVar)
+                goto err_free_k;
+        bug_on(!v);
 
         dict_setitem(dict, k, v);
-        VAR_DECR_REF(k);
         VAR_DECR_REF(v);
+        res = RES_OK;
+
+err_free_k:
+        VAR_DECR_REF(k);
+err_free_it:
         VAR_DECR_REF(it);
-        return RES_OK;
+        return res;
 }
 
 static enum result_t
@@ -773,17 +783,21 @@ dict_append_iterable(Object *dict, Object *arg)
                 return RES_ERROR;
         }
 
-        for (child = iterator_next(it); child; child = iterator_next(it)) {
+        res = RES_ERROR;
+        ITERATOR_FOREACH(child, it) {
                 res = dict_append_one_iterable(dict, child);
                 VAR_DECR_REF(child);
-                if (res == RES_ERROR) {
-                        VAR_DECR_REF(it);
-                        return RES_ERROR;
-                }
+                if (res == RES_ERROR)
+                        goto err_free_it;
         }
 
+        /* NULL child is normal end condition */
+        if (!child)
+                res = RES_OK;
+
+err_free_it:
         VAR_DECR_REF(it);
-        return RES_OK;
+        return res;
 }
 
 static Object *

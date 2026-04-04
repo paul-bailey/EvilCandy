@@ -1038,8 +1038,7 @@ var_all_or_any(Object *v, enum result_t *status, int which)
                 return false;
         }
         res = false;
-        for (child = iterator_next(it);
-             child != NULL; child = iterator_next(it)) {
+        ITERATOR_FOREACH(child, it) {
                 res = !var_cmpz(child);
                 VAR_DECR_REF(child);
                 if (res && which == V_ANY)
@@ -1048,7 +1047,7 @@ var_all_or_any(Object *v, enum result_t *status, int which)
                         break;
         }
         VAR_DECR_REF(it);
-        *status = RES_OK;
+        *status = child == ErrorVar ? RES_ERROR : RES_OK;
         return res;
 }
 
@@ -1078,8 +1077,7 @@ var_min_or_max(Object *v, int minmax)
         }
 
         res = NULL;
-        for (child = iterator_next(it);
-             child != NULL; child = iterator_next(it)) {
+        ITERATOR_FOREACH(child, it) {
                 int cmp;
                 if (!res) {
                         res = child;
@@ -1100,6 +1098,8 @@ var_min_or_max(Object *v, int minmax)
                 VAR_DECR_REF(child);
         }
         VAR_DECR_REF(it);
+        if (child == ErrorVar)
+                return ErrorVar;
         if (!res) {
                 err_setstr(ValueError, "%s(): object is empty",
                            minmax == V_MIN ? "min" : "max");

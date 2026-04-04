@@ -569,7 +569,7 @@ set_extend(Object *set, Object *seq)
                 err_iterable(seq, "set");
                 return RES_ERROR;
         }
-        for (item = iterator_next(it); item != NULL; item = iterator_next(it)) {
+        ITERATOR_FOREACH(item, it) {
                 if (set_additem(set, item, NULL) == RES_ERROR) {
                         err_hashable(item, NULL);
                         VAR_DECR_REF(item);
@@ -579,7 +579,7 @@ set_extend(Object *set, Object *seq)
                 VAR_DECR_REF(item);
         }
         VAR_DECR_REF(it);
-        return RES_OK;
+        return item == ErrorVar ? RES_ERROR : RES_OK;
 }
 
 /**

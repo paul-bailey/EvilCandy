@@ -1061,6 +1061,10 @@ do_foreach_iter(Frame *fr, instruction_t ii)
 
         iter = pop(fr);
         needle = iterator_next(iter);
+        if (needle == ErrorVar) {
+                VAR_DECR_REF(iter);
+                return RES_ERROR;
+        }
         if (needle) {
                 push(fr, iter);
                 push(fr, needle);
@@ -1127,14 +1131,14 @@ do_unpack(Frame *fr, instruction_t ii)
 
         VAR_DECR_REF(sq);
 
-        for (x = iterator_next(it); x; x = iterator_next(it)) {
+        ITERATOR_FOREACH(x, it) {
                 /* keep reference pass it on to stack */
                 push(fr, x);
                 count--;
         }
-        bug_on(count != 0);
+        bug_on(!x && count != 0);
         VAR_DECR_REF(it);
-        return 0;
+        return x == ErrorVar ? RES_ERROR : RES_OK;
 
 cant:
         VAR_DECR_REF(sq);
@@ -1161,32 +1165,37 @@ do_unpack_special(Frame *fr, instruction_t ii)
                 err_setstr(ValueError,
                         "expected at least %d items to unpack but got %d",
                         (int)count, (int)seqvar_size(sq)-1);
-                VAR_DECR_REF(it);
-                goto cant;
+                goto err_free_it;
         }
         VAR_DECR_REF(sq);
 
         for (i = 0; i < stari; i++) {
-                x = iterator_next(it);
+                if ((x = iterator_next(it)) == ErrorVar)
+                        goto err_free_it;
                 bug_on(!x);
                 push(fr, x);
         }
         staro = arrayvar_new(nstar);
         for (i = 0; i < nstar; i++) {
-                x = iterator_next(it);
+                if ((x = iterator_next(it)) == ErrorVar)
+                        goto err_free_it;
                 bug_on(!x);
                 array_setitem(staro, i, x);
                 VAR_DECR_REF(x);
         }
         push(fr, staro);
         for (i = stari + 1; i < count; i++) {
-                x = iterator_next(it);
+                if ((x = iterator_next(it)) == ErrorVar)
+                        goto err_free_it;
                 bug_on(!x);
                 push(fr, x);
         }
 
         VAR_DECR_REF(it);
         return 0;
+
+err_free_it:
+        VAR_DECR_REF(it);
 cant:
         VAR_DECR_REF(sq);
         return RES_ERROR;
@@ -1397,8 +1406,6 @@ execute_loop(Frame *fr)
 
                         if (!bl || bl->type != IARG_TRY) {
                                 retval = ErrorVar;
-                                if (fr->kind == FRAME_GENERATOR)
-                                        retval = NULL;
                                 goto out;
                         }
 

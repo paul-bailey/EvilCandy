@@ -3,7 +3,7 @@ Bugs
 
 * BUGs 4/2026:
 
-        * When 'throw' is used in a generator, it cannot be captured with
+        * **fixed** When 'throw' is used in a generator, it cannot be captured with
           try-catch.  Instead it behaves as if there had been no try-catch loop.
 
         * **fixed** argument VM passes to catch statement is 'null', not the exception.

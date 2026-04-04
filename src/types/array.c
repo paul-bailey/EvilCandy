@@ -131,12 +131,12 @@ array_extend(Object *array, Object *seq)
                         err_iterable(seq, NULL);
                         return RES_ERROR;
                 }
-                for (x = iterator_next(it); x; x = iterator_next(it)) {
+                ITERATOR_FOREACH(x, it) {
                         array_append(array, x);
                         VAR_DECR_REF(x);
                 }
                 VAR_DECR_REF(it);
-                ret = RES_OK;
+                ret = x == ErrorVar ? RES_ERROR : RES_OK;
         }
 
         return ret;
@@ -1019,11 +1019,15 @@ array_create(Frame *fr)
         }
 
         ret = arrayvar_new(0);
-        for (item = iterator_next(it); item; item = iterator_next(it)) {
+        ITERATOR_FOREACH(item, it) {
                 array_append(ret, item);
                 VAR_DECR_REF(item);
         }
         VAR_DECR_REF(it);
+        if (item == ErrorVar) {
+                VAR_DECR_REF(ret);
+                ret = ErrorVar;
+        }
         return ret;
 }
 

@@ -507,11 +507,14 @@ tuple_create(Frame *fr)
         data = emalloc(sizeof(Object *) * n);
 
         i = 0;
-        for (item = iterator_next(it); item; item = iterator_next(it)) {
+        ITERATOR_FOREACH(item, it) {
                 bug_on(i >= n);
                 data[i++] = item;
         }
         VAR_DECR_REF(it);
+        if (item == ErrorVar)
+                return ErrorVar;
+
         bug_on(i != n);
         return tuplevar_new_common(n, data, true, false);
 }

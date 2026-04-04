@@ -2,15 +2,21 @@
         |
         +------src/             Core C sources
         |       |
-        |       +---builtin/    C accelerators for library modues
+        |       +---builtin/    C accelerators for library modules
         |       |
         |       +---types/      Callbacks and methods for built-in types
         |
-        +------inc/             Main API headers
+        +------inc/             Main API headers, included by evilcandy.h
         |       |
         |       +---lib/        Headers for code that is semi-independent,
-        |                       and which can with relative ease be
-        |                       ported to a different project.
+        |       |               and which can with relative ease be
+        |       |               ported to a different project.
+        |       |
+        |       +---evilcandy/  Limited-API headers; not every source
+        |       |               should need this.
+        |       |
+        |       +---types/      Headers code in src/types, but
+        |                       specifically the limited-API definitions.
         |
         +-------lib/            The main library of scripts that user
         |                       sources can load by default.  These ought

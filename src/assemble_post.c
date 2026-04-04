@@ -20,7 +20,7 @@
  */
 #include <evilcandy.h>
 #include <types/xptr.h>
-#include <priv/assemble.h>
+#include <evilcandy/assemble.h>
 
 /*
  * Simplification of labels and removal of detected unreachable code is

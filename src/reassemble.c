@@ -11,7 +11,7 @@
  */
 #include <evilcandy.h>
 #include <token.h>
-#include <priv/assemble.h>
+#include <evilcandy/assemble.h>
 #include <errno.h>
 #include <stdlib.h>
 

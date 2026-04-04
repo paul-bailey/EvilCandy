@@ -37,7 +37,7 @@
 #include <evilcandy.h>
 #include <token.h>
 #include <types/xptr.h>
-#include <priv/assemble.h>
+#include <evilcandy/assemble.h>
 
 #if DBUG_PROFILE_LOAD_TIME
 # include <time.h>

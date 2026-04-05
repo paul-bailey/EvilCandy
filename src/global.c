@@ -123,14 +123,65 @@ initialize_global_object(void)
         VAR_DECR_REF(o);
 }
 
-#define MAKE_EXCEPTION(X) do {                  \
-        /*                                      \
-         * Do not consume reference.            \
-         * There's one in global vars for user  \
-         * and one in C for us.                 \
-         */                                     \
-        X = stringvar_new(#X);                  \
-        vm_add_global(X, X);                    \
+static Object *
+exception_initcall(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        Object *msgname = stringvar_new("message");
+        Object *message;
+        enum result_t res;
+
+        if (vm_getargs(fr, "[<s>!]{!}:__exception_init__", &message)
+                       == RES_ERROR) {
+                return ErrorVar;
+        }
+        res = var_setattr(self, msgname, message);
+        VAR_DECR_REF(msgname);
+        return res == RES_OK ? NULL : ErrorVar;
+}
+
+static Object *
+make_base_exception(const char *name)
+{
+        Object *method_name, *method_func, *class_name, *dict, *exception;
+
+        class_name = stringvar_new(name);
+        /* FIXME: I want to intern this, but we're too early. */
+        method_name = stringvar_new("__init__");
+        method_func = funcvar_new_intl(exception_initcall);
+
+        dict = dictvar_new();
+        dict_setitem(dict, method_name, method_func);
+        VAR_DECR_REF(method_name);
+        VAR_DECR_REF(method_func);
+
+        exception = classvar_new(NULL, dict, class_name);
+
+        VAR_DECR_REF(class_name);
+        VAR_DECR_REF(dict);
+
+        return exception;
+}
+
+static Object *
+make_exception(const char *name, Object *from, Object **nameobj)
+{
+        Object *dict, *subclass;
+        bug_on(!from);
+
+        *nameobj = stringvar_new(name);
+        dict = dictvar_new();
+        subclass = classvar_new(from, dict, *nameobj);
+
+        VAR_DECR_REF(dict);
+        return subclass;
+}
+
+#define MAKE_EXCEPTION(X) do {                          \
+        Object *name__;                                 \
+        X = make_exception(#X, ErrorVar, &name__);      \
+        vm_add_global(name__, X);                       \
+        VAR_DECR_REF(name__);                           \
 } while (0)
 
 void
@@ -146,6 +197,8 @@ cfile_init_global(void)
 
         initialize_global_object();
 
+        ErrorVar = make_base_exception("ErrorVar");
+
         MAKE_EXCEPTION(ArgumentError);
         MAKE_EXCEPTION(KeyError);
         MAKE_EXCEPTION(IndexError);
@@ -159,8 +212,6 @@ cfile_init_global(void)
         MAKE_EXCEPTION(SystemError);
         MAKE_EXCEPTION(TypeError);
         MAKE_EXCEPTION(ValueError);
-
-        ErrorVar = stringvar_from_ascii("If you can see this from the console, this is a BUG!!!\n");
 }
 
 void

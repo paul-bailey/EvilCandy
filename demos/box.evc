@@ -4,8 +4,6 @@
 // half-demonstrate the features of the language.  All kinds of bad
 // input are possible, especially abusively long words.
 function Box(**kwargs) {
-    let err_border = 100;
-
     let priv = {
         'padleft':    4,
         'maxwidth':   73,
@@ -16,9 +14,9 @@ function Box(**kwargs) {
 
     let test_borderchar = (c) => {
         if (typeof(c) != 'string')
-            throw (err_border, 'borderchar not a string');
+            throw ArgumentError('borderchar not a string');
         if (length(c) != 1)
-            throw (err_border, 'borderchar must be 1 char');
+            throw ArgumentError('borderchar must be 1 char');
         return c;
     };
 
@@ -49,7 +47,7 @@ function Box(**kwargs) {
         'borderchar': function(*c) {
             let n = length(c);
             if (n > 1)
-                throw err_border, "expected at most one arg to borderchar";
+                throw ArgumentError("expected at most one arg to borderchar");
             else if (n == 1)
                 priv.borderchar = test_borderchar(c[0]);
             else
@@ -133,7 +131,7 @@ box2.print('...And I am box2!  Is my box bigger than box1?');
 box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
 
 if (box1.count() != 2 || box2.count() != 1)
-    throw "something suspicious with the box counts";
+    throw RuntimeError("something suspicious with the box counts");
 
 box2.print('NO YOU DON\'T! LOOK AT MEEEEE!!!', borderchar='!');
 

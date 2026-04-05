@@ -46,7 +46,7 @@
         print(f"\tMy Pow: 4^4 = {mypow(4, 4)}");
     })(function(x, y) {
         if (typeof(x) != "integer" or typeof(y) != "integer")
-            throw "wrong type!";
+            throw TypeError("wrong type!");
 
         // these are ints, so negative powers always
         // evaluate to zero.

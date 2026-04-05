@@ -68,6 +68,13 @@ class_getitem(Object *class, Object *key)
         return NULL;
 }
 
+/* This produces a reference */
+Object *
+class_get_name(Object *class)
+{
+        return VAR_NEW_REF(V2CL(class)->c_name);
+}
+
 static void
 instance_reset(Object *instance)
 {
@@ -416,18 +423,28 @@ instance_dir(Object *instance)
 bool
 instance_instanceof(Object *instance, Object *class)
 {
-        Object *sub, *bases;
-        size_t i, n;
-
         bug_on(!isvar_instance(instance) || !isvar_class(class));
-        sub = V2INST(instance)->inst_class;
-        if (sub == class)
+        return class_issubclass(V2INST(instance)->inst_class, class);
+}
+
+/**
+ * class_issubclass - Return true if @class is @base or a subclass of
+ *                    @base
+ */
+bool
+class_issubclass(Object *class, Object *base)
+{
+        size_t i;
+        Object *bases;
+
+        if (class == base)
                 return true;
-        if ((bases = V2CL(sub)->c_bases) == NULL)
+
+        bases = V2CL(class)->c_bases;
+        if (!bases)
                 return false;
-        n = seqvar_size(bases);
-        for (i = 0; i < n; i++) {
-                if (tuple_borrowitem_(bases, i) == class)
+        for (i = 0; i < seqvar_size(bases); i++) {
+                if (class_issubclass(tuple_borrowitem_(bases, i), base))
                         return true;
         }
         return false;

@@ -214,6 +214,8 @@ extern Object *bytesvar_new_sg(size_t size, ...);
 
 /* types/class.c */
 extern Object *classvar_new(Object *bases, Object *dict, Object *name);
+extern bool class_issubclass(Object *class, Object *base);
+extern Object *class_get_name(Object *class);
 extern Object *instance_super_getattr(Object *instance,
                                       Object *attribute_name);
 extern Object *instancevar_new(Object *class, Object *args,

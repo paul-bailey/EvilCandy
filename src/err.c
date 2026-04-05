@@ -17,14 +17,20 @@
  */
 #define COLOR(what, str)      COLOR_##what str COLOR_DEF
 
-#define exception_validate(X) tuple_validate(X, "*s", 0)
+#define exception_instance_validate(exc) \
+        (isvar_instance(exc) && instance_instanceof(exc, ErrorVar))
+#define exception_class_validate(exc) \
+        (isvar_class(exc) && class_issubclass(exc, ErrorVar))
 
 /* this consume references for args if they are Objects */
 static Object *
-mkexception(Object *exc_arg, Object *msg_arg)
+mkexception(Object *exc_class, Object *msg)
 {
-        Object *args[2] = { exc_arg, msg_arg };
-        return tuplevar_from_stack(args, 2, false);
+        Object *stack[1] = { msg };
+        Object *args = arrayvar_from_stack(stack, 1, false);
+        Object *exc_instance = vm_exec_func(NULL, exc_class, args, NULL);
+        VAR_DECR_REF(args);
+        return exc_instance;
 }
 
 static void
@@ -293,32 +299,24 @@ err_setstr(Object *exc, const char *msg, ...)
          * encounters an error during early initialization, before the
          * XxxError pointers have been set.  But fatal system errors do
          * not call err_setstr, and users can't cause an error so early,
-         * only bad C code can.  So it's a bug, right?
+         * only bad C code can.
          */
         bug_on(exc == NULL);
+        bug_on(!exception_class_validate(exc));
         va_start(ap, msg);
         err_vsetstr(exc, msg, ap);
         va_end(ap);
 }
 
 /*
- * err_set_from_user - Like err_setstr, except pass a tuple
- * @exc: Exception to set.  (The reference for this will be consumed.)
- *       This must be either a tuple containing two printable objects
- *       ('value' and 'message', in that order), an integer (which will
- *       be regarded as the value), or a string (the message, in which
- *       RuntimeError is assumed to be the value).
+ * err_set_from_user - Like err_setstr, but from user.
+ * @exc: Exception to set.
  */
 void
 err_set_from_user(Object *exc)
 {
-        if (!isvar_tuple(exc)) {
-                Object *tmp = mkexception(exc, STRCONST_ID(nomsg));
-                VAR_DECR_REF(exc);
-                exc = tmp;
-        } else if (exception_validate(exc) != RES_OK) {
+        if (!exception_instance_validate(exc)) {
                 err_setstr(TypeError, "Throwing invalid exception");
-                VAR_DECR_REF(exc);
                 return;
         }
 
@@ -342,35 +340,39 @@ void
 err_print(FILE *fp, Object *exc)
 {
         bool tty;
-        Object *v, *msg;
+        Object *exception_name, *exception_class, *message;
+        Object *message_key;
+        const char *msg;
 
         if (!exc)
                 return;
 
-        bug_on(exception_validate(exc) != RES_OK);
+        bug_on(!exception_instance_validate(exc));
 
-        v = tuple_getitem(exc, 0);
-        if (!isvar_string(v)) {
-                Object *x = var_str(v);
-                VAR_DECR_REF(v);
-                v = x;
-        }
+        exception_class = instance_get_class(exc);
+        bug_on(!exception_class || !isvar_class(exception_class));
 
-        msg = tuple_getitem(exc, 1);
-        if (!isvar_string(msg)) {
-                Object *x = var_str(msg);
-                VAR_DECR_REF(msg);
-                msg = x;
-        }
+        exception_name = class_get_name(exception_class);
+        bug_on(!isvar_string(exception_name));
+
+        message_key = stringvar_new("message");
+        message = instance_getattr(exc, message_key);
+        if (!message || !isvar_string(message))
+                msg = "malformed exception";
+        else
+                msg = string_cstring(message);
 
         tty = !!isatty(fileno(fp));
 
         fprintf(fp, "[EvilCandy] %s%s%s %s\n",
-                tty ? COLOR_RED : "", string_cstring(v),
-                tty ? COLOR_DEF : "", string_cstring(msg));
+                tty ? COLOR_RED : "", string_cstring(exception_name),
+                tty ? COLOR_DEF : "", msg);
 
-        VAR_DECR_REF(v);
-        VAR_DECR_REF(msg);
+        VAR_DECR_REF(exception_class);
+        VAR_DECR_REF(exception_name);
+        VAR_DECR_REF(message_key);
+        if (message)
+                VAR_DECR_REF(message);
 }
 
 /* get last error, print it, then clear it */

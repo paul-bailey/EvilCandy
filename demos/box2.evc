@@ -4,8 +4,6 @@
 //      box.evc: Use a dictionary to behave like a class instantiation
 //      box2.evc: Use an actual class instantiation.
 
-let err_border = 100;
-
 class Box() {
     '__init__': (**kwargs) => {
         let priv = {
@@ -41,9 +39,9 @@ class Box() {
     'count': property(() => this._priv.count),
     '_test_borderchar': function(c) {
         if (typeof(c) != 'string')
-            throw (err_border, 'borderchar not a string');
+            throw ArgumentError('borderchar not a string');
         if (length(c) != 1)
-            throw (err_border, 'borderchar must be 1 char');
+            throw ArgumentError('borderchar must be 1 char');
         return c;
     },
     'print': function(longstr, **kw) {
@@ -125,7 +123,7 @@ box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
 
 if (box1.count != 2 || box2.count != 1) {
     print(f'box1.count={box1.count}, box2.count={box2.count}');
-    throw "something suspicious with the box counts";
+    throw RuntimeError("something suspicious with the box counts");
 }
 
 box2.print('NO YOU DON\'T! LOOK AT MEEEEE!!!', borderchar='!');

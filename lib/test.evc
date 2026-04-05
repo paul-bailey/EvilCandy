@@ -1,12 +1,14 @@
 // class Test -
 
+class TestException(RuntimeError) {}
+
 function assertion_exception(self, message) {
     let msgstr = '';
     if (self.name)
         msgstr += f'{this.name} ';
     msgstr += f'in file{this.file}: ';
     msgstr += f'test #{this.test_number}: ';
-    return 'AssertionException', msgstr + message;
+    return AssertionException(msgstr + message);
 }
 
 function assert_bool(self, condition, expect) {

@@ -917,7 +917,7 @@ unget_tok(struct token_state_t *state, struct token_t **tok)
         struct token_t **tokbuf = TOKBUF(state);
         bug_on(state->nexttok <= 0);
         state->nexttok--;
-        *tok = tokbuf[state->nexttok - 1];
+        *tok = tokbuf[state->nexttok];
 }
 
 token_pos_t

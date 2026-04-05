@@ -1381,7 +1381,7 @@ execute_loop(Frame *fr)
                         goto out;
                 } else {
                         /* res should be either RES_ERROR or RES_EXCEPTION */
-                        Object *tup;
+                        Object *exception;
                         struct block_t *bl;
 
                         if (!err_occurred()) {
@@ -1408,9 +1408,9 @@ execute_loop(Frame *fr)
                          * to handler.
                          */
                         vmframe_unwind_block(fr, bl);
-                        tup = err_get();
-                        bug_on(!tup);
-                        push(fr, tup);
+                        exception = err_get();
+                        bug_on(!exception);
+                        push(fr, exception);
                         fr->ppii = bl->jmpto;
                 }
         }
@@ -1650,6 +1650,32 @@ vm_globaldict(void)
 {
         bug_on(!vm.globals);
         return vm.globals;
+}
+
+/*
+ * Return a borrowed list of local variables in the *parent*
+ * frame (not this one), or NULL if we currently don't have
+ * a parent frame (!?).
+ *
+ * Used by dir().
+ */
+Object *
+vm_borrow_locals(void)
+{
+        /*
+         * XXX REVISIT: This does not work for interactive
+         * mode, top level, since locals are stored in a
+         * dictionary.
+         */
+        Frame *fr;
+        struct list_t *li = vm.active_frames.prev;
+        if (li == &vm.active_frames)
+                return NULL;
+        li = li->prev;
+        if (li == &vm.active_frames)
+                return NULL;
+        fr = container_of(li, Frame, alloc_list);
+        return fr->ex->names;
 }
 
 void

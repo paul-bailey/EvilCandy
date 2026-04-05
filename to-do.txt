@@ -34,6 +34,8 @@ Must Do
   - Finish path resolution
   - Make consistent and accurate error reporting
 
+* Print interactive-mode locals with dir().
+
 * Get rid of .ap in vmframe
 
 * Add globals/locals args to eval()
@@ -89,8 +91,6 @@ Library/Language Features
 
 * Make static typing be a compile-time or maybe even a command-line
   option.
-
-* Create a base class for exceptions and use that.
 
 * Support things like "(a(b,c)) = x", ie. recursive unpacking.
 
@@ -206,6 +206,7 @@ Bugs
 Normal To-Do Stuff
 ~~~~~~~~~~~~~~~~~~
 
+* **done** Create a base class for exceptions and use that.
 * **done** Make it possible to handle/report errors in iterators.
 * **done** intern string literals and identifiers.
 * **done** Implement set xor operator.

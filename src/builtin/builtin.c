@@ -53,9 +53,13 @@ do_dir(Frame *fr)
         if (vm_getargs(fr, "[|<*>!]{!}:dir", &arg) == RES_ERROR)
                 return ErrorVar;
         if (!arg) {
+                Object *locals;
+
                 arr = arrayvar_new(0);
-                array_extend(arr, vm_globaldict());
-                var_sort(arr);
+                if ((locals = vm_borrow_locals()) != NULL) {
+                        array_extend(arr, locals);
+                        var_sort(arr);
+                }
         } else if (isvar_instance(arg)) {
                 arr = instance_dir(arg);
         } else {

@@ -36,8 +36,6 @@ Must Do
 
 * Print interactive-mode locals with dir().
 
-* Get rid of .ap in vmframe
-
 * Add globals/locals args to eval()
 
 * array pop() method should return item popped.
@@ -206,6 +204,7 @@ Bugs
 Normal To-Do Stuff
 ~~~~~~~~~~~~~~~~~~
 
+* **GEFGW** Get rid of .ap in vmframe
 * **done** Create a base class for exceptions and use that.
 * **done** Make it possible to handle/report errors in iterators.
 * **done** intern string literals and identifiers.

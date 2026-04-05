@@ -164,25 +164,24 @@ make_base_exception(const char *name)
 }
 
 static Object *
-make_exception(const char *name, Object *from, Object **nameobj)
+make_exception(const char *name, Object *from)
 {
-        Object *dict, *subclass;
+        Object *dict, *subclass, *nameobj;
         bug_on(!from);
 
-        *nameobj = stringvar_new(name);
+        nameobj = stringvar_new(name);
         dict = dictvar_new();
-        subclass = classvar_new(from, dict, *nameobj);
+        subclass = classvar_new(from, dict, nameobj);
 
+        vm_add_global(nameobj, subclass);
+
+        VAR_DECR_REF(nameobj);
         VAR_DECR_REF(dict);
         return subclass;
 }
 
-#define MAKE_EXCEPTION(X) do {                          \
-        Object *name__;                                 \
-        X = make_exception(#X, ErrorVar, &name__);      \
-        vm_add_global(name__, X);                       \
-        VAR_DECR_REF(name__);                           \
-} while (0)
+#define MAKE_EXCEPTION(X) \
+        do { X = make_exception(#X, ErrorVar); } while (0)
 
 void
 cfile_init_global(void)

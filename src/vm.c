@@ -1327,7 +1327,6 @@ static const callfunc_t JUMP_TABLE[N_INSTR] = {
 #include "vm_gen.c.h"
 };
 
-#if DBUG_CHECK_GHOST_ERRORS
 static void
 check_ghost_errors(int res)
 {
@@ -1338,9 +1337,6 @@ check_ghost_errors(int res)
         if (!e && res != RES_OK && res != RES_RETURN && res != RES_YIELD)
                 DBUG1("Error return but none reported");
 }
-#else
-# define check_ghost_errors(x_) do { (void)0; } while (0)
-#endif
 
 /*
  * If return value is NULL, it means @fr was a generator which has
@@ -1362,7 +1358,8 @@ execute_loop(Frame *fr)
                 bug_on((unsigned int)ii.code >= N_INSTR);
                 res = JUMP_TABLE[ii.code](fr, ii);
 
-                check_ghost_errors(res);
+                if (DBUG_CHECK_GHOST_ERRORS)
+                        check_ghost_errors(res);
 
                 if (res == RES_OK)
                         continue; /* fast path */

@@ -1657,7 +1657,7 @@ vm_get_locals(void)
                 if (vm.locals)
                         return dict_keys(vm.locals, false);
                 else
-                        return arrayvar_new(0);
+                        return NULL;
         } else {
                 Frame *fr = container_of(li, Frame, alloc_list);
                 return VAR_NEW_REF(fr->ex->names);

@@ -302,6 +302,9 @@ as_closure_seek(struct assemble_t *a, Object *name)
  * This way, any newly declared variable will be assigned a new index
  * without clobbering an old variable.
  *
+ * XXX: More memory-efficient to break .af_names into an array of 'short'
+ * indices into a list of non-duplicate names.
+ *
  * XXX: Non-clobbering is easy, but is it necessary?  The only bad effect
  * of clobbering is we'd have to give up the debug-usefulness of
  * .af_names, not that it's really that useful. On the other hand,
@@ -2047,26 +2050,26 @@ maybe_modattr(struct assemble_t *a, unsigned int flags, bool attr)
                 int t = as_lex(a);
                 if (t < 0)
                         return -1;
-                if (istok_assign(t)) {
-                        if (t == OC_EQ) {
-                                if (assemble_expr(a, FE_CHECKTUPLE) < 0)
-                                        return -1;
-                        } else {
-                                instr = attr
-                                        ? INSTR_GETATTR
-                                        : INSTR_GETITEM;
-                                add_instr(a, INSTR_COPY, 0, 2);
-                                add_instr(a, INSTR_COPY, 0, 2);
-                                add_instr(a, instr, 0, 0);
-                                if (assemble_preassign(a, t) < 0)
-                                        return -1;
-                        }
-                        instr = attr ? INSTR_SETATTR : INSTR_SETITEM;
-                        add_instr(a, instr, 0, 0);
-                        return 1;
+
+                if (!istok_assign(t)) {
+                        as_unlex(a);
+                        return 0;
                 }
-                as_unlex(a);
-                return 0;
+
+                if (t == OC_EQ) {
+                        if (assemble_expr(a, FE_CHECKTUPLE) < 0)
+                                return -1;
+                } else {
+                        instr = attr ? INSTR_GETATTR : INSTR_GETITEM;
+                        add_instr(a, INSTR_COPY, 0, 2);
+                        add_instr(a, INSTR_COPY, 0, 2);
+                        add_instr(a, instr, 0, 0);
+                        if (assemble_preassign(a, t) < 0)
+                                return -1;
+                }
+                instr = attr ? INSTR_SETATTR : INSTR_SETITEM;
+                add_instr(a, instr, 0, 0);
+                return 1;
         } else {
                 bug_on(flags != FEE_EVAL);
                 return 0;

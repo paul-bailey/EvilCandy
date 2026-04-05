@@ -56,9 +56,10 @@ do_dir(Frame *fr)
                 Object *locals;
 
                 arr = arrayvar_new(0);
-                if ((locals = vm_borrow_locals()) != NULL) {
+                if ((locals = vm_get_locals()) != NULL) {
                         array_extend(arr, locals);
                         var_sort(arr);
+                        VAR_DECR_REF(locals);
                 }
         } else if (isvar_instance(arg)) {
                 arr = instance_dir(arg);

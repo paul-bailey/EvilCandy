@@ -9,6 +9,7 @@ struct global_t {
                 char *disassemble_outfile;
                 char *infile;
         } opt;
+        bool interactive;
         Object *nl;
         Object *stdout_file;
         Object *strconsts[N_STRCONST];

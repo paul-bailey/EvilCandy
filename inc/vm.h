@@ -68,7 +68,7 @@ static inline int vm_get_argc(Frame *fr)
         { return fr->ap; }
 extern Object *vm_localdict(void);
 extern Object *vm_globaldict(void);
-extern Object *vm_borrow_locals(void);
+extern Object *vm_get_locals(void);
 
 /* execute_loop shared between vm.c and function.c, else private */
 extern Object *execute_loop(Frame *fr);

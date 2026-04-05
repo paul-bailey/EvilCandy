@@ -1624,11 +1624,6 @@ vm_clear_frames_for_exit(void)
 }
 
 /*
- * XXX: vm namespace is clean enough.  Any reason we can't put
- * vm in gbl and avoid having functions like this?
- */
-
-/*
  * Return dict of interactive-mode top-level variables.
  * This does not produce a new reference for the return value.
  */
@@ -1642,40 +1637,31 @@ vm_localdict(void)
 }
 
 /*
- * Return dict of global variables.
- * This does not produce a new reference for the return value.
- */
-Object *
-vm_globaldict(void)
-{
-        bug_on(!vm.globals);
-        return vm.globals;
-}
-
-/*
- * Return a borrowed list of local variables in the *parent*
- * frame (not this one), or NULL if we currently don't have
- * a parent frame (!?).
+ * Return the list of local variables in the *parent* frame (not
+ * this one), or NULL if we currently don't have a parent frame.
+ * Do not edit this list, but do consume the reference when finished
+ * using it.
  *
  * Used by dir().
  */
 Object *
-vm_borrow_locals(void)
+vm_get_locals(void)
 {
-        /*
-         * XXX REVISIT: This does not work for interactive
-         * mode, top level, since locals are stored in a
-         * dictionary.
-         */
-        Frame *fr;
         struct list_t *li = vm.active_frames.prev;
         if (li == &vm.active_frames)
                 return NULL;
         li = li->prev;
         if (li == &vm.active_frames)
                 return NULL;
-        fr = container_of(li, Frame, alloc_list);
-        return fr->ex->names;
+        if (li == vm.active_frames.next && gbl.interactive) {
+                if (vm.locals)
+                        return dict_keys(vm.locals, false);
+                else
+                        return arrayvar_new(0);
+        } else {
+                Frame *fr = container_of(li, Frame, alloc_list);
+                return VAR_NEW_REF(fr->ex->names);
+        }
 }
 
 void

@@ -190,6 +190,7 @@ main(int argc, char **argv)
                 pop_path(fp);
         } else {
                 if (isatty(fileno(stdin))) {
+                        gbl.interactive = true;
                         run_tty();
                 } else {
                         /*

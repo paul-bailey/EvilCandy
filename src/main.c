@@ -188,17 +188,15 @@ main(int argc, char **argv)
                         fail("Could not open '%s'", gbl.opt.infile);
                 run_script(gbl.opt.infile, fp, NULL);
                 pop_path(fp);
+        } else if (isatty(fileno(stdin))) {
+                gbl.interactive = true;
+                run_tty();
         } else {
-                if (isatty(fileno(stdin))) {
-                        gbl.interactive = true;
-                        run_tty();
-                } else {
-                        /*
-                         * in a pipe; parse entire file
-                         * but don't push file path.
-                         */
-                        run_script("<stdin>", stdin, NULL);
-                }
+                /*
+                 * in a pipe; parse entire file
+                 * but don't push file path.
+                 */
+                run_script("<stdin>", stdin, NULL);
         }
 
         end_program();

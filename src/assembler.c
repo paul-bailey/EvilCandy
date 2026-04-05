@@ -609,7 +609,7 @@ gather_names(struct assemble_t *a, struct list_t *names,
         struct names_t *name;
         int needsize = 0;
         int star = -1;
-        const char *emsg;
+        const char *emsg = "";
 
         list_init(names);
         bug_on(a->oc->t != OC_IDENTIFIER && a->oc->t != OC_MUL);
@@ -2892,6 +2892,7 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
 
         need_pop = 0;
         need_semi = 1;
+        pop_arg = IARG_POP_NORMAL;
         if (!!(flags & FE_TOP)) {
                 if (a->inp_type == AS_STRING &&
                     !!(flags & FE_EVALONLY)) {
@@ -2909,8 +2910,6 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                         bug_on(a->inp_type != AS_TTY);
                         pop_arg = IARG_POP_PRINT;
                 }
-        } else {
-                pop_arg = IARG_POP_NORMAL;
         }
 
         if (as_lex(a) < 0)

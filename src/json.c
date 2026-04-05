@@ -60,6 +60,7 @@ parseatomic(struct json_state_t *j)
         case OC_FALSE:
                 bug_on(j->tok->v == NULL);
                 child = j->tok->v;
+                break;
         case OC_NULL:
                 VAR_INCR_REF(NullVar);
                 child = NullVar;

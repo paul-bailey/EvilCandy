@@ -334,8 +334,7 @@ func_str(Object *a)
                 snprintf(buf, sizeof(buf)-1,
                          "<function (user) at %p>", (void *)f->f_ex);
         } else {
-                snprintf(buf, sizeof(buf)-1,
-                         "<function (intl) at %p>", (void *)f->f_cb);
+                snprintf(buf, sizeof(buf)-1, "<function (intl)>");
         }
         return stringvar_new(buf);
 }

@@ -131,6 +131,7 @@ errmsg_format_arg(struct string_writer_t *wr, const char *msg, va_list ap)
         switch (*msg) {
         default:
                 bug();
+                return NULL;
         case 'd': case 'i': case 'u':
         case 'o': case 'x': case 'X':
         case 'p':

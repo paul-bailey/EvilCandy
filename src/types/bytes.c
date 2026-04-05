@@ -1494,6 +1494,7 @@ bytes_create_with_encoding(Object *val, int encoding)
         switch (encoding) {
         default:
                 bug();
+                return ErrorVar;
         case CODEC_UTF8:
                 return bytes_from_string_arg_utf8(val);
         case CODEC_ASCII:

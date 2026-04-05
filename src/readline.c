@@ -1,7 +1,6 @@
 #include <evilcandy.h>
 #include <stdlib.h>
 
-/* FIXME: Add editline alternative; FSF have their heads up ykw. */
 #ifdef HAVE_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -101,3 +100,4 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
 }
 
 #endif /* !HAVE_READLINE */
+

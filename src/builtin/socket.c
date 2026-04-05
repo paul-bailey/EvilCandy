@@ -454,7 +454,7 @@ do_bind(Frame *fr)
         if (obj2addr(&sa, addrarg, skv->domain, "bind") == RES_ERROR)
                 return ErrorVar;
 
-        bug_on(skv->addrlen < 0);
+        bug_on((ssize_t)skv->addrlen < 0);
 
         if (bind(skv->fd, &sa.sa, skv->addrlen) < 0) {
                 skerr_syscall("bind");
@@ -496,7 +496,7 @@ do_connect(Frame *fr)
         if (obj2addr(&sa, addrarg, skv->domain, "connect") == RES_ERROR)
                 return ErrorVar;
 
-        bug_on(skv->addrlen < 0);
+        bug_on((ssize_t)skv->addrlen < 0);
 
         if (connect(skv->fd, &sa.sa, skv->addrlen) < 0) {
                 skerr_syscall("connect");

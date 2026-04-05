@@ -21,7 +21,7 @@ AS_VAR_IF([have_uuid], [no],
                                 [have_uuid=yes])
         ])
 ])
-AS_VAR_IF([have_uuid], [yes], ,[AC_MSG_ERROR([uuid header missing])])
+# AS_VAR_IF([have_uuid], [yes], ,[AC_MSG_ERROR([uuid header missing])])
 
 AC_CHECK_TYPES([ssize_t], ,[AC_MSG_ERROR([signed ssize_t not available])])
 AC_CHECK_FUNCS([strchrnul strrchrnul strrspn strrstr])
@@ -44,9 +44,6 @@ AC_CHECK_LIB([readline], [readline],
 AS_VAR_IF([have_readline], [yes],
         [AC_CHECK_HEADERS([readline/readline.h readline/history.h],
                           , [have_readline=no])
-])
-AS_VAR_IF([have_readline], [yes], ,
-          [AC_MSG_ERROR([readline headers missing])
 ])
 AM_CONDITIONAL([WANT_READLINE], [test x$have_readline = "xyes"])
 

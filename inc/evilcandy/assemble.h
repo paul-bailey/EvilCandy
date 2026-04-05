@@ -2,6 +2,7 @@
 #define PRIV_ASSEMBLE_H
 
 #include <evilcandy.h>
+#include <evilcandy/token.h>
 
 /**
  * struct as_frame_t - Temporary frame during assembly

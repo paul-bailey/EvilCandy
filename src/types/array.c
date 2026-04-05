@@ -10,6 +10,7 @@
  * file before I thought things through.
  */
 #include <evilcandy.h>
+#include <stdlib.h> /*< XXX for qsort only, will be made manua later */
 
 #define V2ARR(v_)       ((struct arrayvar_t *)(v_))
 #define V2SQ(v_)        ((struct seqvar_t *)(v_))

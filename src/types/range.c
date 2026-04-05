@@ -145,6 +145,7 @@ range_create(Frame *fr)
                 return ErrorVar;
         }
         /* defaults */
+        stop = -1LL;
         start = 0LL;
         step  = 1LL;
         switch (argc) {

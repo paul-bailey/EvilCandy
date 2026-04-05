@@ -87,8 +87,9 @@ noinst_HEADERS = \
         inc/lib/utf8.h \
         tools/gen.h
 
+evilcandy_LDADD=-lm
 if WANT_READLINE
-evilcandy_LDADD=-lreadline
+evilcandy_LDADD+=-lreadline
 endif
 
 evilcandydir=${datadir}/evilcandy

@@ -1097,7 +1097,7 @@ evc_file_write(Object *fo, Object *data)
         ssize_t ret;
 
         stack[0] = data;
-        args = arrayvar_from_stack(&data, 1, false);
+        args = arrayvar_from_stack(stack, 1, false);
         res = instance_call(fo, STRCONST_ID(write), args, NULL);
         VAR_DECR_REF(args);
         if (!res) {

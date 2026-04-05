@@ -1180,7 +1180,7 @@ string_printf(Object *self, Object *args, Object *kwargs)
                                 start = i++;
                                 while (i < n) {
                                         point = string_getidx(self, i++);
-                                        bug_on(point < 0);
+                                        bug_on((long)point < 0);
                                         if (point == ')')
                                                 break;
                                 }
@@ -3256,6 +3256,7 @@ string_writer_decode(struct string_writer_t *wr, const void *data,
                 return string_writer_decode_latin1(wr, data, n);
         default:
                 bug();
+                return -1;
         case CODEC_UTF8:
                 return string_writer_decode_utf8(wr, data, n, state);
         }
@@ -3354,7 +3355,7 @@ string_format(Object *str, Object *tup)
                                 if (i == n)
                                         goto bad_format;
                                 newpos = parse_fmt_args(str, &fa, i, '}');
-                                if (newpos < 0)
+                                if ((ssize_t)newpos < 0)
                                         goto bad_format;
                                 i = newpos;
                         } else {

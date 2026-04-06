@@ -3368,17 +3368,15 @@ assemble_string(const char *str, bool eval_only)
 
         /* Make sure it was one expression */
         if (eval_only && ret != NULL && ret != ErrorVar) {
-                if (as_lex(a) < 0) {
+                int t;
+                if ((t = as_lex(a)) < 0 || t != OC_EOF) {
+                        if (t >= 0) {
+                                err_setstr(SyntaxError,
+                                        "Excess tokens in eval() string");
+                        }
                         VAR_DECR_REF(ret);
-                        return ErrorVar;
+                        ret = ErrorVar;
                 }
-                if (a->oc->t != OC_EOF) {
-                        err_setstr(SyntaxError,
-                                "Excess tokens in eval() string");
-                        VAR_DECR_REF(ret);
-                        return ErrorVar;
-                }
-
         }
         free_assembler(a);
         return ret;

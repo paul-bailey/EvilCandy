@@ -511,8 +511,13 @@ tuple_create(Frame *fr)
                 data[i++] = item;
         }
         VAR_DECR_REF(it);
-        if (item == ErrorVar)
+        if (item == ErrorVar) {
+                int j;
+                for (j = 0; j < i; j++)
+                        VAR_DECR_REF(data[i]);
+                efree(data);
                 return ErrorVar;
+        }
 
         bug_on(i != n);
         return tuplevar_new_common(n, data, true, false);

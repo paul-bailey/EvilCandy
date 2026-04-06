@@ -51,7 +51,7 @@ let sqrt = function(x) {
     if (x <= 0.0)
         return 0.0;
 
-    for (i in range(0, 20)) {
+    for i in range(0, 20) {
         let result = y * y;
         if (result > x) {
             max = y;
@@ -72,7 +72,7 @@ if (false) {
     // used to get a vague idea of program speed
     (function(sqrt) {
         let x = 0.;
-        for(i in range(1000000))
+        for i in range(1000000)
             x = sqrt(i);
     })(sqrt);
 } else {
@@ -81,7 +81,7 @@ if (false) {
     // should be accurate to four or five decimal places, so
     // if we're way off, something is amiss in the interpreter.
     (function(sqrt) {
-        for (i in range(50)) {
+        for i in range(50) {
             print("%.4f vs %.4f" % (sqrt(i), Math.sqrt(i)));
         }
     })(sqrt);

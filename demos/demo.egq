@@ -54,7 +54,7 @@
             return 0;
 
         let res = x;
-        while (y > 1) {
+        while y > 1 {
             res *= x;
             y--;
         }

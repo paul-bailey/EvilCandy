@@ -5,7 +5,7 @@
     try {
         let f = open(name, "r");
         let s;
-        while (true) {
+        while true {
             s = f.readline();
             if (s == null || s == "")
                 break;

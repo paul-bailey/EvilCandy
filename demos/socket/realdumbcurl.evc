@@ -47,7 +47,7 @@ let curl = (class () {
             do {
                 b = sk.recv(BUFSIZE);
                 buf += b;
-            } while (b.length > 0);
+            } while b.length > 0;
         } catch (e) {
             cleanup(sk);
             throw e;

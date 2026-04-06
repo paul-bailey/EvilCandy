@@ -121,6 +121,8 @@ run_script(const char *filename, FILE *fp, Frame *fr)
                         /* semi bug */
                         if (!err_occurred())
                                 err_setstr(RuntimeError, "Unreported Error");
+                        if (retval != ErrorVar)
+                                VAR_DECR_REF(retval);
                         retval = ErrorVar;
                 }
         }

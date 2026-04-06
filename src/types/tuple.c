@@ -494,15 +494,14 @@ tuple_create(Frame *fr)
         if (!arg)
                 return tuplevar_new(0);
 
-        it = iterator_get(arg);
-        if (!it) {
-                err_iterable(arg, "tuple");
+        if ((it = iterator_errget(arg, "tuple")) == ErrorVar)
                 return ErrorVar;
-        }
 
         n = seqvar_size(arg);
-        if (n == 0)
+        if (n == 0) {
+                VAR_DECR_REF(it);
                 return tuplevar_new(0);
+        }
 
         data = emalloc(sizeof(Object *) * n);
 

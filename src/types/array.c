@@ -110,37 +110,31 @@ array_reverse(Object *array)
 static enum result_t array_insert_chunk(Object *array, int at,
                                       Object **children, size_t n_items);
 
+static enum result_t
+array_extend_one_item(Object *item, void *data)
+{
+        Object *array = (Object *)data;
+        array_append(array, item);
+        return RES_OK;
+}
+
 /**
  * array_extend - CAPI version of "array.extend(seq);"
  */
 enum result_t
 array_extend(Object *array, Object *seq)
 {
-        enum result_t ret;
-
         bug_on(!array || !seq);
         bug_on(!isvar_array(array));
         if (isvar_array(seq)) {
                 /* good, we can try to be fast */
-                ret = array_insert_chunk(array, seqvar_size(array),
+                return array_insert_chunk(
+                                array, seqvar_size(array),
                                 array_get_data(seq), seqvar_size(seq));
-        } else {
-                Object *it, *x;
-
-                it = iterator_get(seq);
-                if (!it) {
-                        err_iterable(seq, NULL);
-                        return RES_ERROR;
-                }
-                ITERATOR_FOREACH(x, it) {
-                        array_append(array, x);
-                        VAR_DECR_REF(x);
-                }
-                VAR_DECR_REF(it);
-                ret = x == ErrorVar ? RES_ERROR : RES_OK;
         }
 
-        return ret;
+        return var_traverse(seq, array_extend_one_item,
+                            (void *)array, "extend");
 }
 
 static enum result_t
@@ -1003,32 +997,32 @@ do_array_reverse(Frame *fr)
         return NULL;
 }
 
+static enum result_t
+array_create_append_one(Object *item, void *data)
+{
+        array_append((Object *)data, item);
+        return RES_OK;
+}
+
 static Object *
 array_create(Frame *fr)
 {
-        Object *arg, *item, *ret, *it;
+        Object *arg, *ret;
 
         arg = NULL;
         if (vm_getargs(fr, "[|<*>!]:list", &arg) == RES_ERROR)
                 return ErrorVar;
-        if (!arg)
-                return arrayvar_new(0);
-        it = iterator_get(arg);
-        if (!it) {
-                err_iterable(arg, "list");
-                return ErrorVar;
-        }
 
         ret = arrayvar_new(0);
-        ITERATOR_FOREACH(item, it) {
-                array_append(ret, item);
-                VAR_DECR_REF(item);
-        }
-        VAR_DECR_REF(it);
-        if (item == ErrorVar) {
+        if (!arg)
+                return ret;
+
+        if (var_traverse(arg, array_create_append_one,
+                         (void *)ret, "list") == RES_ERROR) {
                 VAR_DECR_REF(ret);
                 ret = ErrorVar;
         }
+
         return ret;
 }
 

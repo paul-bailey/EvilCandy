@@ -139,6 +139,10 @@ extern bool var_instanceof(Object *instance, Object *class);
 
 extern void var_lock(void);
 extern void var_unlock(void);
+extern enum result_t var_traverse(
+                        Object *sequential,
+                        enum result_t (*action)(Object *, void *),
+                        void *data, const char *fname);
 
 /* var_from_format.c */
 extern Object *var_from_format(const char *fmt, ...);

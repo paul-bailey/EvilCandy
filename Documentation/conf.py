@@ -33,12 +33,8 @@ root_doc = 'contents'
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-# not really js, but I have no desire to create a whole damn
-# syntax-highlighting scheme of my own.
-# highlight_language = 'js'
 highlight_language = 'evilcandy'
 suppress_warnings = ['misc.highlighting_failure']
-
 
 html_theme = 'alabaster'
 html_sidebars = {

@@ -549,6 +549,12 @@ set_additem(Object *set, Object *child, Object **unique)
         return RES_OK;
 }
 
+static enum result_t
+set_extend_one(Object *item, void *data)
+{
+        return set_additem((Object *)data, item, NULL);
+}
+
 /**
  * set_extend - Append all of an iterable object's items into a set
  * @set: Set to extend
@@ -559,27 +565,9 @@ set_additem(Object *set, Object *child, Object **unique)
 enum result_t
 set_extend(Object *set, Object *seq)
 {
-        Object *it, *item;
-
         if (!seq)
                 return RES_OK;
-
-        it = iterator_get(seq);
-        if (!it) {
-                err_iterable(seq, "set");
-                return RES_ERROR;
-        }
-        ITERATOR_FOREACH(item, it) {
-                if (set_additem(set, item, NULL) == RES_ERROR) {
-                        err_hashable(item, NULL);
-                        VAR_DECR_REF(item);
-                        VAR_DECR_REF(it);
-                        return RES_ERROR;
-                }
-                VAR_DECR_REF(item);
-        }
-        VAR_DECR_REF(it);
-        return item == ErrorVar ? RES_ERROR : RES_OK;
+        return var_traverse(seq, set_extend_one, (void *)set, "extend");
 }
 
 /**

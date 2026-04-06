@@ -1140,3 +1140,30 @@ var_instanceof(Object *instance, Object *class)
         return isvar_instance(instance) &&
                instance_instanceof(instance, class);
 }
+
+/**
+ * var_traverse - Common wrapper to iterator functions
+ * @sequential: An iterable object to traverse
+ * @action:     Action to perform for each item in @sequential
+ * @data:       Local data to pass as argument to @action
+ * @fname:      UAPI function name, if applicable.  Used for
+ *              reporting error on iterator_errget()
+ *
+ * Return: RES_OK or RES_ERROR.  If @action returns RES_ERROR, then the
+ *      traversal will quit early and return RES_ERROR back to the caller.
+ */
+enum result_t
+var_traverse(Object *sequential,
+             enum result_t (*action)(Object *, void *),
+             void *data,
+             const char *fname)
+{
+        Object *it;
+        enum result_t ret;
+        if ((it = iterator_errget(sequential, fname)) == ErrorVar)
+                return RES_ERROR;
+        ret = iterator_foreach(it, action, data);
+        VAR_DECR_REF(it);
+        return ret;
+}
+

@@ -23,6 +23,8 @@ err_hashable(Object *obj, const char *fname)
 void
 err_iterable(Object *obj, const char *fname)
 {
+        if (fname && fname[0] == '\0')
+                fname = NULL;
         err_setstr(TypeError, "%s%s'%s' is not iterable",
                 fname ? fname : "", fname ? "(): " : "", typestr(obj));
 }

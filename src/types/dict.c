@@ -735,16 +735,17 @@ dict_getprop_length(Object *self)
 }
 
 static enum result_t
-dict_append_one_iterable(Object *dict, Object *items)
+dict_append_one_iterable(Object *items, void *data)
 {
-        Object *it, *k, *v;
+        Object *it, *k, *v, *dict;
         enum result_t res = RES_ERROR;
 
-        it = iterator_get(items);
-        if (!it) {
-                err_iterable(items, "dict");
+        dict = (Object *)data;
+
+        if ((it = iterator_errget(items, "dict")) == ErrorVar)
                 return RES_ERROR;
-        } else if (seqvar_size(items) != 2) {
+
+        if (seqvar_size(items) != 2) {
                 err_setstr(TypeError,
                         "expected sequence size of two for key-value pair");
                 goto err_free_it;
@@ -774,30 +775,8 @@ err_free_it:
 static enum result_t
 dict_append_iterable(Object *dict, Object *arg)
 {
-        Object *it, *child;
-        enum result_t res;
-
-        it = iterator_get(arg);
-        if (!it) {
-                err_iterable(arg, "dict");
-                return RES_ERROR;
-        }
-
-        res = RES_ERROR;
-        ITERATOR_FOREACH(child, it) {
-                res = dict_append_one_iterable(dict, child);
-                VAR_DECR_REF(child);
-                if (res == RES_ERROR)
-                        goto err_free_it;
-        }
-
-        /* NULL child is normal end condition */
-        if (!child)
-                res = RES_OK;
-
-err_free_it:
-        VAR_DECR_REF(it);
-        return res;
+        return var_traverse(arg, dict_append_one_iterable,
+                            (void *)dict, "dict");
 }
 
 static Object *

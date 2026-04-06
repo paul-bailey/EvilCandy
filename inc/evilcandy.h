@@ -37,6 +37,7 @@
 #include "vm.h"
 #include "string_writer.h"
 #include "string_reader.h"
+#include "iterator.h"
 
 /* constructors/destructors for certain C file */
 /* global.c */

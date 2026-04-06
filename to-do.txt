@@ -83,6 +83,12 @@ Awkward Things I'd Like to Improve
   while ``mydict.key`` first tries to retrieve attribute ``key`` and
   falls back on an entry if no such attribute exists.
 
+* for-else loops are error-prone, since an if-for-else and for-if-else
+  sequence without braces can be misleading; user will indent according
+  to intention but not according to how the program will actually
+  interpret it.  Consider a different keyword than 'else' in the for
+  loop, maybe 'except'.
+
 Library/Language Features
 -------------------------
 

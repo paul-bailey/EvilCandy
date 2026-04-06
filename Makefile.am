@@ -23,6 +23,7 @@ evilcandy_SOURCES = \
         src/hash.c \
         src/helpers.c \
         src/instruction_name.c \
+        src/iterator.c \
         src/json.c \
         src/list.c \
         src/main.c \
@@ -70,6 +71,7 @@ noinst_HEADERS = \
         inc/global.h \
         inc/hash.h \
         inc/instructions.h \
+        inc/iterator.h \
         inc/objtypes.h \
         inc/recursion.h \
         inc/string_reader.h \

@@ -1,6 +1,8 @@
 More EvilCandy Data Types
 =========================
 
+.. highlight:: evc-console
+
 Tuples
 ------
 
@@ -16,12 +18,25 @@ Tuples are expressed as a comma-delimited sequence of expressions,
 encased in parentheses, such as ``(1, 2)``.
 In most cases, the parentheses are optional::
 
-  evc> 1, 2;
-  (1, 2)
+   evc> 1, 2;
+   (1, 2)
 
 However, the parentheses are needed anywhere the tuple is embedded
 within another comma-separated sequence, for example a function argument,
-a list, or another tuple.
+a list, or another tuple.  It is also recommended anywhere it would
+look confusing otherwise.
+
+.. code-block:: evilcandy
+   :class: example-bad
+
+   // easy for the eye to miss
+   let x = 1,;
+
+.. code-block:: evilcandy
+   :class: example-good
+
+   // more obviously a tuple expression
+   let x = (1,);
 
 A tuple containing only one item must have a comma at the end of the
 expression, or it will not be regarded as a tuple::
@@ -30,17 +45,6 @@ expression, or it will not be regarded as a tuple::
   (1,)
   evc> (1);
   1
-
-Single-item tuple literals must also be wrapped by parentheses::
-
-  evc> (1,);
-  (1,)
-  evc> 1,;
-  [EvilCandy] SyntaxError Invalid token
-  in file '<stdin>' near line '1'
-  Suspected error location:
-          1,;
-           ^
 
 An empty tuple is expressed as just ``()``.
 
@@ -53,15 +57,18 @@ Otherwise the argument should be a sequential object::
 
 Tuples can be nested or concatenated to make new tuples::
 
-  evc> (1, 2), (3, 4);
-  ((1, 2), (3, 4))
-  evc> (1, 2) + (3, 4);
-  (1, 2, 3, 4)
+   evc> (1, 2), (3, 4);
+   ((1, 2), (3, 4))
+   evc> (1, 2) + (3, 4);
+   (1, 2, 3, 4)
 
-This is another bad place to be careless with parentheses::
+This is another bad place to be careless with parentheses:
 
-  evc> 1, 2 + 3, 4;  // won't be what you think
-  (1, 5, 4)
+.. code-block::
+   :class: example-bad
+
+   evc> 1, 2 + 3, 4;  // won't be what you think
+   (1, 5, 4)
 
 Tuples have the following built-in methods:
 
@@ -116,10 +123,13 @@ are not considered unique from each other::
   evc> x;
   {1.0, 2, 3, 4}
 
-Sets may not contain unhashable (in other words, mutable) objects::
+Sets may not contain unhashable (in other words, mutable) objects:
 
-  evc> x = {[1, 2], 3};
-  [EvilCandy] KeyError 'list'is unhashable
+.. code-block::
+   :class: example-bad
+
+   evc> x = {[1, 2], 3};
+   [EvilCandy] KeyError 'list'is unhashable
 
 Sets may not be accessed by index number::
 
@@ -166,17 +176,25 @@ Dictionaries
 
 What eggheads call *associative arrays*
 and JavaScript calls *objects*,
-I call *dictionaries*, like Python does.
+Python calls *dictionaries*.
 I have chosen to use Python's term
-since (1) in EvilCandy they are pure dictionaries,
-requiring some special tricks to behave like class instances,
-and (2) calling one kind of object an "object" to distinguish
-it from other kinds of objects is practically trolling.
+since
+(1) calling one kind of object an "object" to distinguish
+it from other kinds of objects is practically trolling,
+and
+(2) in EvilCandy they are pure dictionaries,
+requiring some special tricks to behave like class instances.
+The latter point bears emphasis.
+**Functions stored in a dictionary are not made into
+that dictionary's class methods.**
+They should not use the keyword ``this``!
 
 A dictionary's literal expression is a comma-delimited sequence
-of key:value pairs, surrounded by curly braces, for example::
+of key:value pairs, surrounded by curly braces, for example:
 
-  { 'name': 'Paul', 'height': 10, 'status': 'bald' }
+.. code-block:: evilcandy
+
+   { 'name': 'Paul', 'height': 10, 'status': 'bald' }
 
 The key may be any hashable object::
 
@@ -206,6 +224,9 @@ dot notation::
   evc> x.a;
   1
 
+Bear in mind, however, that just because dot notation works here,
+the item in the dictionary is still an item, not a class attribute.
+
 If a key does not exist, then that member of the dictionary
 cannot be read.  It *can* be written, however.
 Writing to a non-existent entry in a dictionary will
@@ -234,7 +255,9 @@ using keyword arguments::
   evc> dict(name='paul', status='bald');
   {'name': 'paul', 'status': 'bald'}
 
-Dictionaries can be combined with the union ``|`` operator::
+Dictionaries can be combined with the union ``|`` operator:
+
+.. code-block:: evilcandy
 
         let box = function(**kwargs) {
                 let options = {
@@ -245,7 +268,9 @@ Dictionaries can be combined with the union ``|`` operator::
 In this example, ``options`` is the union of ``kwargs`` and a
 dictionary of default items.  For any key collision, the right-hand
 side of the ``|`` operator takes precedence.  The result will be a
-third dictionary, making it safe to do something like::
+third dictionary, making it safe to do something like:
+
+.. code-block:: evilcandy
 
         let box = function(base1, base2, base3) {
                 /* ... code that builds up result ... */
@@ -281,7 +306,7 @@ Dictionaries have the following built-in methods:
         of a key-value pair.  This is useful in ``for`` loops::
 
           evc> let x = { 'subject': 'speling', 'grade': 'F' };
-          evc> for (key, value in x.items()) {
+          evc> for key, value in x.items() {
            ...    print(f'{key:-8s}: {value}');
            ... };
           subject : speling
@@ -303,7 +328,7 @@ Dictionaries have the following built-in methods:
 
 .. method:: values
 
-        Similar to ``keys()``, but for values, and with no sorted operator.
+        Similar to ``keys()``, but for values, and with no ``sorted`` argument.
 
 .. note::
 
@@ -324,12 +349,16 @@ People familiar with JavaScript may run into a pitfall when declaring
 keys in dictionary literals.  If the key expression is just an
 identifier, EvilCandy will evaluate the identifier to create the key.
 It will *not* convert the identifier into a string the way many
-JavaScript implementations will do.  Given the following::
+JavaScript implementations will do.  Given the following:
+
+.. code-block:: evilcandy
 
       let a = 'not_a';
       let x = { a: 1 };
 
-The resultant dictionary would be::
+The resultant dictionary would be:
+
+.. code-block:: javascript
 
       // JavaScript result:
       { 'a': 1 }
@@ -355,6 +384,22 @@ Just remember these two points:
 #. Square-bracket notation *only* gets items
 #. Dot notation gets attributes; for dictionaries it returns
    items only as a fallback if the attribute does not exist.
+
+::
+
+   evc> let x = { 'copy': 1 };
+   evc> x['copy'];
+   1
+   evc> x.copy;
+   <method owned by 105553160477152>
+   evc> delete x.copy;
+   evc> x.copy;
+   <method owned by 105553160477152>
+   evc> x['copy'];
+   [EvilCandy] TypeError Cannot get item 'copy' of type dict
+   evc> delete x.copy;
+   [EvilCandy] TypeError Cannot delete attribute 'copy' of type dict
+
 
 Dictionaries Are Not Class Instances
 ````````````````````````````````````

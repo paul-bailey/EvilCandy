@@ -5,6 +5,15 @@
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+import sys
+import os
+
+sys.path.insert(0, os.path.abspath('.'))
+
+def setup(app):
+    from evc_lexer import EvilCandyLexer, EvilCandyPromptLexer
+    app.add_lexer('evilcandy', EvilCandyLexer)
+    app.add_lexer('evc-console', EvilCandyPromptLexer)
 
 project = 'EvilCandy'
 copyright = '2025, Paul Bailey'
@@ -26,7 +35,8 @@ root_doc = 'contents'
 
 # not really js, but I have no desire to create a whole damn
 # syntax-highlighting scheme of my own.
-highlight_language = 'js'
+# highlight_language = 'js'
+highlight_language = 'evilcandy'
 suppress_warnings = ['misc.highlighting_failure']
 
 

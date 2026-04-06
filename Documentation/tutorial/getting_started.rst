@@ -1,6 +1,8 @@
 Getting Started
 ===============
 
+.. highlight:: evc-console
+
 Running EvilCandy
 -----------------
 
@@ -55,7 +57,9 @@ To print the value of ``null``, use the ``print`` function.::
 Hello World
 -----------
 
-In EvilCandy, a "hello world" program is the following line::
+In EvilCandy, a "hello world" program is the following line:
+
+.. code-block:: evilcandy
 
    print("Hello world");
 
@@ -109,22 +113,20 @@ with one of two keywords:
 
 * Global variables:
 
-  .. code-block::
+.. code-block:: evilcandy
 
      global x;
      global y = 1;
 
 * Local variables:
 
-  .. code-block::
+.. code-block:: evilcandy
 
      let x;
      let y = 1;
 
 If a variable is declared without an initializer,
-it will be initialized to the ``null`` object.
-
-.. code-block::
+it will be initialized to the ``null`` object::
 
    evc> let x;
    evc> print(x);
@@ -132,9 +134,7 @@ it will be initialized to the ``null`` object.
 
 EvilCandy is very weakly typed.
 If you assign a variable to one type,
-it can be re-assigned to a different type later.
-
-.. code-block::
+it can be re-assigned to a different type later::
 
    evc> let x = 1;
    evc> typeof(x);
@@ -149,9 +149,7 @@ exists in the global namespace at startup.
 Converting variables
 ~~~~~~~~~~~~~~~~~~~~
 
-To convert a number into a string, use the ``string()`` function.
-
-.. code-block::
+To convert a number into a string, use the ``string()`` function::
 
    evc> 123;
    123
@@ -159,9 +157,7 @@ To convert a number into a string, use the ``string()`` function.
    '123'
 
 To convert a number from a float to an integer, use ``integer()``.
-This will floor the result.
-
-.. code-block::
+This will floor the result::
 
    evc> 12.2;
    12.2
@@ -170,9 +166,7 @@ This will floor the result.
 
 To convert a number from an integer to a float, you *could* use ``float()``,
 but it's actually faster to multiply the integer by 1.0.
-Arithmetic between a float and an integer will have a float for an answer.
-
-.. code-block::
+Arithmetic between a float and an integer will have a float for an answer::
 
    evc> float(12);
    12.0
@@ -180,9 +174,7 @@ Arithmetic between a float and an integer will have a float for an answer.
    12.0
 
 To convert an integer or a float to a complex number, use ``complex()`` or,
-more quickly, add 0j to the number.
-
-.. code-block::
+more quickly, add 0j to the number::
 
    evc> complex(12);
    (12+0j)
@@ -190,26 +182,20 @@ more quickly, add 0j to the number.
    (12+0j)
 
 You cannot directly convert a complex number to a float or integer.
-However you can convert its modulus using ``abs()``.
-
-.. code-block::
+However you can convert its modulus using ``abs()``::
 
    evc> integer(abs(12.0+0j));
    12
 
 Conversion from a string to an integer depends on the nature of the text.
 If it contains a leading '0x', '0b', or '0o',
-then the correct base must be specified.
-
-.. code-block::
+then the correct base must be specified::
 
    evc> integer('0o777', 8);
    511
 
 If there is no such header, the base may be any value greater than one;
-if no base is provided, base 10 will be assumed.
-
-.. code-block::
+if no base is provided, base 10 will be assumed::
 
    evc> integer('777', 8);
    511
@@ -232,9 +218,7 @@ Variable Unpack Assigning
 If the right-hand expression is a sequential or iterable object
 containing the same number of items to be assigned on the
 left hand side of assignment, then a limited version of
-unpack-assignment is possible.
-
-.. code-block::
+unpack-assignment is possible::
 
    evc> let x, y = [1, 2];
    evc> print(x);
@@ -242,9 +226,7 @@ unpack-assignment is possible.
    evc> print(y);
    2
 
-An asterisk can be used to fill in an object with excess items.
-
-.. code-block::
+An asterisk can be used to fill in an object with excess items::
 
    evc> let a, *b, c = [0, 1, 2, 3];
    evc> print(a);
@@ -263,17 +245,13 @@ An asterisk can be used to fill in an object with excess items.
 More on ``print``
 -----------------
 
-``print`` can take multiple arguments.
-
-.. code-block::
+``print`` can take multiple arguments::
 
    evc> print('earth', 'wind', 'fire');
    earth wind fire
 
 Note how spaces delimit the arguments in the output.
-This can be changed with the special keyword argument ``sep``.
-
-.. code-block::
+This can be changed with the special keyword argument ``sep``::
 
    evc> print('earth', 'wind', 'fire', sep=', ');
    earth, wind, fire
@@ -289,9 +267,7 @@ They take the form of *key* ``=`` *value*.
    the number of arguments passed to functions.
 
 To keep the output of ``print`` on the same line across
-multiple calls, use the ``end`` keyword argument:
-
-.. code-block::
+multiple calls, use the ``end`` keyword argument::
 
    evc> {
     ...    print('earth, ', end='');
@@ -307,9 +283,7 @@ Print Objects Other Than Strings
 The ``print`` function has a way to print any kind of object.
 In the case of strings, a string is directly printed to the output.
 In other cases, the object is converted to a string representation
-before printing to the output.
-
-.. code-block::
+before printing to the output::
 
    evc> print('The number', 23);
    The number 23
@@ -322,9 +296,7 @@ reading the text back would be able to recreate
 an exact copy of the object.
 In other cases,
 an abstract expression of the object will be printed,
-usually within angle brackets:
-
-.. code-block::
+usually within angle brackets::
 
    evc> print(print);
    <function (intl) at 0x10c7c9360>
@@ -389,9 +361,7 @@ so parenthesize any time you are unsure.
 All division between integers is floored.
 Any arithmetic between numbers of different types
 will have an answer of a type with higher class priority.
-These priorities are: complex > float > integer.
-
-.. code::
+These priorities are: complex > float > integer::
 
    evc> 1 / 2.0;        // answer will be float
    0.5
@@ -400,9 +370,7 @@ These priorities are: complex > float > integer.
 
 Integers are limited to values that can be stored in
 a signed 64-bit value.  Operations which take an integer
-out of those boundaries will result in an exception.
-
-.. code::
+out of those boundaries will result in an exception::
 
    evc> 200**200;
    [EvilCandy] NumberError boundary error for ** operator
@@ -418,7 +386,7 @@ If quotes exist within the text, they must be escaped by a backslash \\.
 Alternatively, if only one kind of quote exists in the text,
 you could wrap it with the other kind.
 
-.. code-block::
+.. code-block:: evilcandy
 
    // Escaped quote
    let y = 'Grabthar\'s hammer';
@@ -432,7 +400,7 @@ or the interpreter will think they are escaping the next character.
 
 Correct example. The interpreter will complete the statement:
 
-.. code-block:: none
+.. code-block::
    :class: example-good
 
    evc> '\\';
@@ -453,24 +421,18 @@ Strings may be concatenated.
 If two strings are *literals*, that is,
 they are typed out literally rather than
 assigned to a variable,
-they may exist side by side.
-
-.. code-block::
+they may exist side by side::
 
    evc> 'hello ' 'world';
    'hello world'
 
-Otherwise they may be concatenated with the ``+`` operator.
-
-.. code-block::
+Otherwise they may be concatenated with the ``+`` operator::
 
    evc> let s = 'hello ';
    evc> s + 'world';
    'hello world'
 
-String literals may wrap multiple lines.
-
-.. code-block:: none
+String literals may wrap multiple lines::
 
    evc> 'This is a line.
     ... This is another line.';
@@ -495,18 +457,14 @@ String literals may wrap multiple lines.
 
    This will be explained in more detail later.
 
-Strings can be repeated if multiplied by an integer.
-
-.. code-block::
+Strings can be repeated if multiplied by an integer::
 
    evc> 3 * 'well'; // my favorite story
    'wellwellwell'
 
 Strings can be indexed according to character, starting from index zero.
 Slicing is also possible with strings.
-As with Python, a negative number indexes from the end.
-
-.. code-block::
+As with Python, a negative number indexes from the end::
 
    evc> 'hello world!'[-1];
    '!'
@@ -516,29 +474,18 @@ As with Python, a negative number indexes from the end.
    'b'
 
 Also like Python, out-of-range indices will result in an exception,
-but an out-of-range slice will be handled (kind of) gracefully.
-
-.. code-block::
+but an out-of-range slice will be handled (kind of) gracefully::
 
    evc> 'abc'[10];
    [EvilCandy] IndexError Subscript '10' out of range
    evc> 'abc'[10:];
-   'c'
+   ''
 
-String lengths can be determined either by the global ``length()``
-function or by the string-object's ``length`` attribute.
+String lengths can be determined by the global ``length()``
+function::
 
-.. code-block::
-
-   evc> 'abc'.length;
-   3
    evc> length('abc');
    3
-
-.. note::
-
-   The ``length`` atribute is not used with every sequential object class.
-   The ``length()`` function is better supported.
 
 Lists
 ~~~~~
@@ -552,9 +499,7 @@ A list is a sequence of objects,
 expressed literally between square brackets ``[`` and ``]``,
 and delimited by commas.
 Their contents may be of any type,
-and may contain mixed types.
-
-.. code-block::
+and may contain mixed types::
 
    evc> let x = ['a', 'b', 'c'];
    evc> x;
@@ -565,9 +510,7 @@ and may contain mixed types.
 
 Lists may be concatenated with the ``+`` operator,
 or repeated by multiplying by an integer.
-This will always result in the creation of a new list.
-
-.. code-block::
+This will always result in the creation of a new list::
 
    evc> let x = ['a', 'b', 'c'];
    evc> x + [1, 2, 3];
@@ -575,9 +518,7 @@ This will always result in the creation of a new list.
    evc> x * 3;
    ['a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c']
 
-You may append an item to a list using the class's built-in ``.append()`` method.
-
-.. code-block::
+You may append an item to a list using the class's built-in ``append()`` method::
 
    evc> let x = ['Peter', 'Paul'];
    evc> x.append('Mary');
@@ -587,9 +528,7 @@ You may append an item to a list using the class's built-in ``.append()`` method
 You may delete an item in a list using either the ``.remove()`` method
 or the ``.pop()`` method.  ``remove`` removes the first item matching
 the argument, and ``pop`` removes the item at the index specified by the
-argument.  You may also delete a list item with the ``delete`` keyword.
-
-.. code-block::
+argument.  You may also delete a list item with the ``delete`` keyword::
 
    evc> let x = [1, 2, 3, 4, 5];
    evc> x.pop(1);
@@ -603,9 +542,7 @@ argument.  You may also delete a list item with the ``delete`` keyword.
    [1, 5]
 
 Indexing and slicing are the same for strings as for arrays,
-except that unlike with strings, arrays can be assigned by slices.
-
-.. code-block::
+except that unlike with strings, arrays can be assigned by slices::
 
    evc> let x = [1, 'two', 3, 'four', 5];
    evc> x[0:5:2] = ['one', 'three', 'five'];

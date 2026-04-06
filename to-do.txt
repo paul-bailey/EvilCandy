@@ -19,6 +19,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - getattr() should not get regular dictionary items (need arg to var_getattr)
   - Resolve behavior of dir(class) vs. dir(instance)
   - support "myclass.func(myinst)" as doing the same thing as "myinst.func()"
   - Replace ``int`` with ``size_t`` where appropriate in dict.c

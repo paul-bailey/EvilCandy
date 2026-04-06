@@ -4,13 +4,21 @@ Program Flow
 Of course programming is more than crunching numbers in sequence.
 There are also decision points, branching, and looping.
 Take for instance this code to calculate π using the Leibniz
-algorithm (albeit inaccurately due to the low number of iterations)::
+algorithm
+
+.. math::
+
+        \pi = 4 \cdot \sum_{k=0}^{\infty} \frac{(-1)^k}{2k + 1}
+
+(albeit done inaccurately here due to the low number of iterations):
+
+.. code-block:: evc-console
 
    evc> let result = 0;
    evc> let num = 4.0;
    evc> let den = 1;
    evc> let i = 0;
-   evc> while (i < 200) {
+   evc> while i < 200 {
     ...    result += num / den;
     ...    den += 2;
     ...    result -= num / den;
@@ -86,7 +94,9 @@ to be exactly one and a false statement to be exactly zero,
 you could convert it with the logical-not ``!`` operator.
 Two in a row will convert a true value into the integer 1
 and a false value into the integer 0.  This is known
-as "type coercion"::
+as "type coercion":
+
+.. code-block:: evc-console
 
    evc> !!'A';  // string length is one, so it's true
    1
@@ -100,7 +110,9 @@ as "type coercion"::
 .. note::
 
    A string is *true* if its length is greater than zero,
-   even if it contains only embedded nulchars::
+   even if it contains only embedded nulchars:
+
+   .. code-block:: evc-console
 
       evc> !!'\0\0\0';
       1
@@ -110,11 +122,11 @@ as "type coercion"::
 
 A ``do`` statement takes the form
 
-        | ``do`` *stmt* ``while (`` *expr* ``)``
+        | ``do`` *stmt* ``while`` *expr*
 
 *stmt* is always executed the first time.
 It is then repeated so long as *expr* remains true.
-``do {`` *stmt;* ``} while (false)`` is equivalent
+``do {`` *stmt;* ``} while false`` is equivalent
 to ``{`` *stmt* ``}``.
 Both cases enable local variables to be declared within the braces
 without cluttering up the outer namespace.
@@ -130,7 +142,7 @@ and moves on to the next iteration::
   // determine if 127 is a prime number
   let n = 127;
   let i = 2;
-  while (i < n) {
+  while i < n {
         // percent operated on integers means "modulo"
         if ((n % i) == 0)
                 break;
@@ -147,7 +159,7 @@ such that n / i will leave no remainder (n modulo i).
 Here is a (rather weird) alternative to the ``while`` loop,
 using ``continue``::
 
-   while (i < n) {
+   while i < n {
         if ((n % i) != 0) {
                 i++;
                 continue;
@@ -190,7 +202,7 @@ is functionally equivalent to
 
 In EvilCandy, the ``for`` statement takes the form:
 
-        | ``for`` (*identifier* ``in`` *sequence*)
+        | ``for`` *identifier* ``in`` *sequence*
         |         *stmt*
 
 *sequence* may be any iterable object, like a list, or even
@@ -210,12 +222,14 @@ The defaults for ``start_value`` and ``step_size`` are zero and one,
 respectively.
 
 So to repeat the Leibniz example above using a for loop,
-it may look like this::
+it may look like this:
+
+.. code-block:: evc-console
 
    evc> let result = 0;
    evc> let num = 4.0;
    evc> let den = 1;
-   evc> for (i in range(200)) {
+   evc> for i in range(200) {
     ...     result += num / den;
     ...     den += 2;
     ...     result -= num / den;
@@ -244,12 +258,14 @@ the semicolon is not needed.
 
 The following example is a little trivial (why calculate it if you
 already know the answer?),
-but it demonstrates the usefulness of ``else`` in the ``for`` loop::
+but it demonstrates the usefulness of ``else`` in the ``for`` loop:
+
+.. code-block:: evc-console
 
    evc> let result = 0;
    evc> let num = 4.0;
    evc> let den = 1;
-   evc> for (i in range(200)) {
+   evc> for i in range(200) {
     ...     result += num / den;
     ...     den += 2;
     ...     result -= num / den;
@@ -280,7 +296,7 @@ Otherwise indentation can be misleading.  Consider the following:
    :class: example-bad
 
    // THIS IS BAD!
-   for (x in y)
+   for x in y
        if (x)
            do_this();
    else
@@ -304,13 +320,15 @@ which can then be used without worrying about its implementation" [#]_ [#]_.
 
 To begin with, we don't want to repeat typing the Leibniz algorithm
 every time we want to execute it.
-So we put it into a function as follows::
+So we put it into a function as follows:
+
+.. code-block:: evc-console
 
    evc> leibniz = function(n) {
     ...    let result = 0;
     ...    let num = 4.0;
     ...    let den = 1;
-    ...    for (i in range(n)) {
+    ...    for i in range(n) {
     ...            result += num / den;
     ...            den += 2;
     ...            result -= num / den;
@@ -339,7 +357,7 @@ a function in this way, the symbol name is *always* a local variable.
 To make a function name be global, you have one of two choices::
 
    // choice 1: anonymous function assigned to global variable
-   global leibniz = fnction(n) {
+   global leibniz = function(n) {
         ...
    };
 
@@ -351,7 +369,9 @@ To make a function name be global, you have one of two choices::
 
 For this example, I've chosen an argument ``n`` to determine
 how many iterations of the algorithm to use.  Clearly the
-more iterations the more accurate the result::
+more iterations the more accurate the result:
+
+.. code-block:: evc-console
 
    evc> leibniz(10);
    3.0916238066678399
@@ -361,7 +381,9 @@ more iterations the more accurate the result::
    3.1415921535897242
 
 Unlike JavaScript, the number of arguments to a function
-is strictly enforced::
+is strictly enforced:
+
+.. code-block:: evc-console
 
    evc> leibniz(100, 1);
    [EvilCandy] ArgumentError Expected at most 1 args but got 2
@@ -369,7 +391,9 @@ is strictly enforced::
    [EvilCandy] ArgumentError Expected at least 1 args but got 0
 
 Variadic functions—functions with a variable number of arguments—can
-use a star notation::
+use a star notation:
+
+.. code-block:: evc-console
 
    evc> function foo(arg1, arg2, *var_args) {
 
@@ -382,7 +406,9 @@ starred argument.
 
 Functions can accept keyword arguments with double-star notation.  When
 used, it must always be the last argument in the header.  (We will dicuss
-keyword arguments in greater detail later.)::
+keyword arguments in greater detail later.):
+
+.. code-block:: evc-console
 
    evc> function foo(*args, **kwargs) {
     ...    print('Your positional args are:', args);
@@ -391,14 +417,18 @@ keyword arguments in greater detail later.)::
 
 When invoking a function using keyword arguments, place the
 keyword arguments at the end of the argument list, and use
-the format *keyword=value*::
+the format *keyword=value*:
+
+.. code-block:: evc-console
 
    evc> foo('line', 1, kw_a='a', kw_b='b');
    Your positional args are: ['line', 1]
    Your keyword args are: {'kw_a': 'a', 'kw_b': 'b'}
 
 When invoking a function, a sequential object can be unpacked into the
-argument list using the star operator::
+argument list using the star operator:
+
+.. code-block:: evc-console
 
    evc> let x = [1,2,3];
    evc> foo(*x);
@@ -436,7 +466,9 @@ while in the second case, there is one argument, a list containing
 All functions return a result.
 If program flow reaches an end
 without encountering the ``return`` statement,
-the function will return ``null``::
+the function will return ``null``:
+
+.. code-block:: evc-console
 
    evc> let do_nothing = function() {;};
    evc> do_nothing();
@@ -468,7 +500,9 @@ information outside of its scope and remembers it each time it is called.
    is initialized during runtime, each time the function is instantiated.
 
 A function which returns a closure, then, is very powerful.
-Take, for instance, the following example::
+Take, for instance, the following example:
+
+.. code-block:: evc-console
 
    evc> function multer(n) {
     ...    return function(x) {
@@ -490,7 +524,9 @@ a variable in a higher-up scope.
 
 ``doubler`` and ``tripler`` have been
 assigned different instantiations of the lambda returned by ``multer``.
-Now let's see what they do::
+Now let's see what they do:
+
+.. code-block:: evc-console
 
    evc> doubler(3);
    6
@@ -520,7 +556,9 @@ A few things to also note about closures:
    calls "global".
 
    The above ``multer`` example could also be expressed in this way,
-   and ``n`` will still be a closure::
+   and ``n`` will still be a closure:
+
+   .. code-block:: evc-console
 
       evc> let n = 2;
       evc> let doubler = function(x) {
@@ -549,7 +587,9 @@ A few things to also note about closures:
    with ``global`` instead of ``let``.
 
 3. A closure is technically writable, but it will only take effect in the
-   enclosed function, not the original scope::
+   enclosed function, not the original scope:
+
+   .. code-block:: evc-console
 
       evc> let n = 1;
       evc> let x = function() { n++; };
@@ -565,7 +605,9 @@ A few things to also note about closures:
    object whose value is one greater."
 
 4. If closure data is mutable, such as a list, then modifying (rather than
-   reassigning) the closure data *will* effect the data in the outer scope::
+   reassigning) the closure data *will* effect the data in the outer scope:
+
+   .. code-block:: evc-console
 
       evc> let x = [];
       evc> let f = function(val) {
@@ -584,13 +626,17 @@ IIFEs
 Because all functions are anonymous, and because EvilCandy treats a
 function's definition like any other literal expression,
 immediately-invoked function expressions (IIFEs, pronounced "iffies")
-are possible.  A trivial example of an IFFE is::
+are possible.  A trivial example of an IFFE is:
+
+.. code-block:: evc-console
 
    evc> function(x) { return x + 1; }(5);
    6
 
 Common practice is to wrap the function expression in parentheses, as a
-conventional way to say "this is an evaluation statement"::
+conventional way to say "this is an evaluation statement":
+
+.. code-block:: evc-console
 
    evc> (function(x) { return x + 1; })(5);
    6
@@ -609,9 +655,11 @@ conventional way to say "this is an evaluation statement"::
    are non-trivial.  They aren't like C, where the stack overhead of a
    call is negligible [#]_
    and the only performance hit is due to a reduced locality of reference.
-   IIFEs were more useful in JavaScript thirty years ago,
-   back when computers were made of wood and sails and TCP was transported
-   by carrier pigeons, so it mattered how big a JavaScript file got.
+   IIFEs—as well as (while I'm ranting) the other hated JavaScript practice
+   of method-chaining—were more useful back in the day, when computers were
+   made of wood and sails and TCP was transported by carrier pigeons, so it
+   mattered how big a JavaScript file got.
+   But even though neither are needed anymore, they just won't die out.
 
    Given the two choices::
 
@@ -659,7 +707,9 @@ Lambda Notation
 ~~~~~~~~~~~~~~~
 
 The lambda returned by ``multer`` in the above example is trivially small.
-An alternative way to express it is as follows::
+An alternative way to express it is as follows:
+
+.. code-block:: evc-console
 
    evc> let multer = function(n) {
     ...      return (x) => x * n;
@@ -682,6 +732,7 @@ In the second example,
 the benefit of lambda notation—brevity—is lost,
 so it's best to use normal function notation.
 
+Unlike in JavaScript, the parentheses around the arguments are mandatory.
 You have the same range of choices for arguments in a lambda expression
 (keyword arguments, variadic arguments, etc.),
 but if you need anything more than
@@ -694,12 +745,14 @@ so it is only useful for already-short functions.
 Lambda notation is most useful in an IIFE (but see above rant),
 where a simple transformation is being performed.  Due to the nature
 of the notation, lambda IIFEs need to be wrapped in parentheses before
-passing arguments::
+passing arguments:
 
-  evc> let hi = 'hello';
-  evc> hi = ((x) => x + '\n')(hi);
-  evc> hi;
-  'hello\n'
+.. code-block:: evc-console
+
+   evc> let hi = 'hello';
+   evc> hi = ((x) => x + '\n')(hi);
+   evc> hi;
+   'hello\n'
 
 .. note::
 
@@ -742,7 +795,8 @@ Notes
    in Python's interactive mode are more or less the same as what
    EvilCandy calls "global".  Where Python does not allow it are
    instances like the ``multer`` example; if the lambda modifies ``n``
-   in some way, Python would throw an exception.
+   in some way, Python would throw an exception.  Worse still, it would
+   wait until runtime to do so.
 
 .. [#]
 

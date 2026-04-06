@@ -2609,11 +2609,7 @@ assemble_while(struct assemble_t *a)
         if (as_set_label(a, start) < 0)
                 return -1;
 
-        if (as_errlex(a, OC_LPAR) < 0)
-                return -1;
         if (assemble_expr(a, FE_CHECKTUPLE) < 0)
-                return -1;
-        if (as_errlex(a, OC_RPAR) < 0)
                 return -1;
 
         add_instr(a, INSTR_B_IF, 0, breakto);
@@ -2716,13 +2712,14 @@ assemble_foreach1(struct assemble_t *a, int breakto)
 
         if (as_lex(a) < 0)
                 return -1;
+
         if (a->oc->t == OC_LPAR) {
                 have_par = true;
                 if (as_lex(a) < 0)
                         return -1;
         }
 
-        /* save names of the 'needles' in 'for (needles in haystack)' */
+        /* save names of the 'needles' in 'for needles in haystack' */
         if (a->oc->t != OC_MUL && a->oc->t != OC_IDENTIFIER) {
                 err_ae_expect(a, OC_IDENTIFIER);
                 return -1;
@@ -2741,12 +2738,8 @@ assemble_foreach1(struct assemble_t *a, int breakto)
                 goto err_cleanup;
 
         if (have_par) {
-                if (as_lex(a) < 0)
+                if (as_errlex(a, OC_RPAR) < 0)
                         goto err_cleanup;
-                if (a->oc->t != OC_RPAR) {
-                        err_ae_expect(a, OC_RPAR);
-                        goto err_cleanup;
-                }
         }
 
         /* maybe replace 'haystack' with its keys */

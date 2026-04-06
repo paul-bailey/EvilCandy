@@ -20,6 +20,7 @@ Must Do
   When this is complete I could start thinking about version numbers.
 
   - Resolve behavior of dir(class) vs. dir(instance)
+  - support "myclass.func(myinst)" as doing the same thing as "myinst.func()"
   - Replace ``int`` with ``size_t`` where appropriate in dict.c
   - Resolve issue wrt setting instance properties (as opposed to setter methods)
   - At minimum complete a walkthrough tutorial in Documentation.
@@ -34,13 +35,12 @@ Must Do
   - Finish path resolution
   - Make consistent and accurate error reporting
 
-* Print interactive-mode locals with dir().
+* Replace super() as a soft keyword with a function that returns an instance
+  which points to the owning instance, and gets its base's attributes.
 
 * Add globals/locals args to eval()
 
 * array pop() method should return item popped.
-
-* range slice should return another range, not a list
 
 * If recursion error occurs during runtime (not load time), then unwind as
   if it was a normal exception; do not just panic and quit.
@@ -204,6 +204,8 @@ Bugs
 Normal To-Do Stuff
 ~~~~~~~~~~~~~~~~~~
 
+* **no it shouldn't** range slice should return another range, not a list
+* **done** Print interactive-mode locals with dir().
 * **GEFGW** Get rid of .ap in vmframe
 * **done** Create a base class for exceptions and use that.
 * **done** Make it possible to handle/report errors in iterators.

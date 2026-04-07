@@ -1421,8 +1421,8 @@ execute_loop(Frame *fr)
                 retval = VAR_NEW_REF(NullVar);
 
 out:
-        if (!retval) {
-                bug_on(fr->kind != FRAME_GENERATOR);
+        if (fr->kind == FRAME_GENERATOR &&
+            (retval == NULL || retval == ErrorVar)) {
                 vmframe_free(fr);
         }
         RECURSION_END_FUNC();

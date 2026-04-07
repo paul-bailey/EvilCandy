@@ -3144,11 +3144,9 @@ assemble_next(struct assemble_t *a, bool toeof, unsigned int flags)
         if (a->oc && a->oc->t == OC_EOF)
                 return NULL;
 
-        if (a->inp_type == AS_SCRIPT || a->inp_type == AS_STRING) {
-                /* need to reserve space for top-level args */
-                as_add_local(a, STRCONST_ID(__optarg__));
-                as_add_local(a, STRCONST_ID(__kwarg__));
-        }
+        /* need to reserve space for top-level args */
+        as_add_local(a, STRCONST_ID(__optarg__));
+        as_add_local(a, STRCONST_ID(__kwarg__));
         do {
                 if (assemble_stmt(a, flags, -1) < 0) {
                         bug_on(!err_occurred());

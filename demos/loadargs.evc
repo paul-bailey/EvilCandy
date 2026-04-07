@@ -10,7 +10,7 @@
  *      x(...bunch of args...);
  *      # expect to see a printout of args
  */
-let args = __funcarg__(0);
-let kwargs = __funcarg__(1);
+let args = __optarg__;
+let kwargs = __kwarg__;
 print("positional args:", *args);
 print("keyword args:", kwargs);

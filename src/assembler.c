@@ -1612,28 +1612,6 @@ assemble_expr5_atomic(struct assemble_t *a)
                 break;
         }
 
-        case OC_FUNCARG: {
-                long long offs;
-                if (as_errlex(a, OC_LPAR) < 0)
-                        return -1;
-                if (as_errlex(a, OC_INTEGER) < 0)
-                        return -1;
-                offs = intvar_toll(a->oc->v);
-                if (offs > 32767 || offs < 0) {
-                        err_setstr(SyntaxError,
-                                   "__funcargs__ must take arg in range of 0...32767");
-                        return -1;
-                }
-                if (as_lex(a) < 0)
-                        return -1;
-                if (a->oc->t != OC_RPAR) {
-                        err_setstr(SyntaxError, "Unbalanced parenthesis");
-                        return -1;
-                }
-                add_instr(a, INSTR_LOAD_ARG, 0, offs);
-                break;
-        }
-
         case OC_CLASS:
                 if (assemble_classdef(a, NULL) < 0)
                         return -1;

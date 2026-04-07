@@ -16,6 +16,7 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
+  - make cells out of closures, to make classes/function recursion work
   - getattr() should not get regular dictionary items (need arg to var_getattr)
   - Resolve behavior of dir(class) vs. dir(instance)
   - support "myclass.func(myinst)" as doing the same thing as "myinst.func()"
@@ -32,6 +33,26 @@ Must Do
   - Fill in __gbl__._sys
   - Finish path resolution
   - Make consistent and accurate error reporting
+
+* Semi-bug, urgent: class cannot refer to itself
+
+  ::
+
+        class X() { 'y': function() { return X; } }
+        let b = X();
+        let x = b.y();
+
+  b.y will return null, not X. If it's 'return X();' instead, an 'object
+  not callable' exception will be thrown.  The only way for this to work
+  is like so::
+
+        global X; // cannot be 'let'
+        X = class() { 'y': function() { return X; } };
+        let b = X();
+        let x = b.y();
+
+  Here X cannot be local (``let``), because ``y``'s reference to it will
+  create a closure while it's still ``null``.
 
 * Replace super() as a soft keyword with a function that returns an instance
   which points to the owning instance, and gets its base's attributes.

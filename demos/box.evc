@@ -4,7 +4,7 @@
 // half-demonstrate the features of the language.  All kinds of bad
 // input are possible, especially abusively long words.
 function Box(**kwargs) {
-    let priv = {
+    let opt = {
         'padleft':    4,
         'maxwidth':   73,
         'padtop':     1,
@@ -20,28 +20,36 @@ function Box(**kwargs) {
         return c;
     };
 
-    if (priv has 'pad') {
+    if (opt has 'pad') {
         // padright is meaningless, we'll use width
-        priv.padleft    = priv.pad;
-        priv.padtop     = priv.pad;
-        priv.padbottom  = priv.pad;
+        opt.padleft    = opt.pad;
+        opt.padtop     = opt.pad;
+        opt.padbottom  = opt.pad;
     } else {
-        if (priv has 'hpad') {
-            priv.padleft  = priv.hpad;
-            priv.padright = priv.hpad;
+        if (opt has 'hpad') {
+            opt.padleft  = opt.hpad;
+            opt.padright = opt.hpad;
         }
-        if (priv has 'vpad') {
-            priv.padtop    = priv.vpad;
-            priv.padbottom = priv.vpad;
+        if (opt has 'vpad') {
+            opt.padtop    = opt.vpad;
+            opt.padbottom = opt.vpad;
         }
     }
 
-    // Just to sanity check that priv will be unique between instances
-    // but shared between methods of the same instance.  It's a
-    // dictionary, so using it as a closure should not prevent printme
-    // and showcount from having access to the same 'count'.
-    priv.count = 0;
-    test_borderchar(priv.borderchar);
+    test_borderchar(opt.borderchar);
+
+    // Don't let 'opt' be the closure data.  Instead use individual
+    // cells.  In byte-code, these will be accessed as array offsets
+    // rather than dictionary keys.
+    let inst_borderchar = opt.borderchar;
+    let inst_maxwidth = opt.maxwidth;
+    let inst_padleft = opt.padleft;
+    let inst_padtop = opt.padtop;
+    let inst_padbottom = opt.padbottom;
+
+    // Just to sanity check that closure data will be different from one
+    // instance to another but shared between methods of the same instance.
+    let inst_count = 0;
 
     return {
         'borderchar': function(*c) {
@@ -49,20 +57,20 @@ function Box(**kwargs) {
             if (n > 1)
                 throw ArgumentError("expected at most one arg to borderchar");
             else if (n == 1)
-                priv.borderchar = test_borderchar(c[0]);
+                inst_borderchar = test_borderchar(c[0]);
             else
-                return priv.borderchar;
+                return inst_borderchar;
         },
-        'count': function() { return priv.count; },
+        'count': function() { return inst_count; },
         'print': function(longstr, **kw) {
-            let maxwidth = priv.maxwidth;
+            let maxwidth = inst_maxwidth;
             let borderchar;
             let a;
             let topbottom;
 
             borderchar = kw has 'borderchar'
                          ? test_borderchar(kw.borderchar)
-                         : priv.borderchar;
+                         : inst_borderchar;
             if (kw has 'width')
                 maxwidth = kw.width;
 
@@ -91,19 +99,19 @@ function Box(**kwargs) {
                     na.append(str.strip());
                 }
                 return na;
-            })(longstr.split(), maxwidth - priv.padleft - 1);
+            })(longstr.split(), maxwidth - inst_padleft - 1);
 
             // Now print it all.
             topbottom = ''.join([borderchar,
                                  (maxwidth-2) * ' ',
                                  borderchar]);
             print(maxwidth * borderchar);
-            for i in range(priv.padtop)
+            for i in range(inst_padtop)
                 print(topbottom);
             for line in a {
                 let padright;
                 line = ''.join([borderchar,
-                               priv.padleft * ' ',
+                               inst_padleft * ' ',
                                line]);
                 padright = maxwidth - length(line) - 1;
                 if (padright < 0)
@@ -111,10 +119,10 @@ function Box(**kwargs) {
 
                 print(line + padright * ' ' + borderchar);
             }
-            for i in range(priv.padbottom)
+            for i in range(inst_padbottom)
                 print(topbottom);
             print(maxwidth * borderchar);
-            priv.count++;
+            inst_count++;
         }
     };
 };

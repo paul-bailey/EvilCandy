@@ -213,6 +213,11 @@ extern Object *bytes_getslice(Object *bytes, ssize_t start,
                               ssize_t stop, ssize_t step);
 extern Object *bytesvar_new_sg(size_t size, ...);
 
+/* types/cell.c */
+extern Object *cellvar_new(Object *value);
+extern Object *cell_get_value(Object *cell);
+extern void cell_replace_value(Object *cell, Object *new_value);
+
 /* types/class.c */
 extern Object *classvar_new(Object *bases, Object *dict, Object *name);
 extern bool class_issubclass(Object *class, Object *base);

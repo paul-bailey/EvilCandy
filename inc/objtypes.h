@@ -196,6 +196,7 @@ extern struct type_t IdType;
 extern struct type_t SetType;
 extern struct type_t InstanceType;
 extern struct type_t ClassType;
+extern struct type_t CellType;
 
 /* iterators */
 extern struct type_t ArrayIterType;
@@ -250,6 +251,8 @@ static inline bool isvar_instance(Object *o)
         { return o->v_type == &InstanceType; }
 static inline bool isvar_generator(Object *obj)
         { return obj->v_type == &GeneratorType; }
+static inline bool isvar_cell(Object *obj)
+        { return obj->v_type == &CellType; }
 
 static inline bool isvar_number(Object *v)
         { return !!(v->v_type->flags & OBF_NUMBER); }

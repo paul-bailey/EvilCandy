@@ -327,8 +327,13 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
         }
 
         bug_on(!ppto || !(*ppto));
-        VAR_DECR_REF(*ppto);
-        *ppto = from;
+        if (isvar_cell(*ppto)) {
+                cell_replace_value(*ppto, from);
+                VAR_DECR_REF(from);
+        } else {
+                VAR_DECR_REF(*ppto);
+                *ppto = from;
+        }
         return RES_OK;
 }
 
@@ -399,7 +404,12 @@ do_load_local(Frame *fr, instruction_t ii)
                 bug();
                 return RES_ERROR;
         }
-        VAR_INCR_REF(p);
+
+        if (isvar_cell(p)) {
+                p = cell_get_value(p);
+        } else {
+                VAR_INCR_REF(p);
+        }
         push(fr, p);
         return RES_OK;
 }

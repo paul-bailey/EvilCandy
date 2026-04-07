@@ -3,6 +3,8 @@ Standing Bugs
 
 4/2026
 ~~~~~~
+* Memory leak: when an exception is thrown from within a generator,
+  nothing-NOTHING-seems to get cleared once it leaves scope.
 
 6/2025
 ~~~~~~

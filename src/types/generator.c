@@ -20,12 +20,13 @@ struct generator_t {
 static Object *
 generator_iter_next(Object *generator)
 {
+        Object *ret;
         struct xptrvar_t *ex;
         struct generator_t *gv = (struct generator_t *)generator;
         bug_on(!isvar_generator(generator));
 
         if (gv->state != GENERATOR_STOPPED)
-                return NULL;
+                return gv->state == GENERATOR_ERROR ? ErrorVar : NULL;
 
         /* XXX: Do we know this is isn't an internal function? */
         ex = gv->frame->ex;
@@ -33,7 +34,13 @@ generator_iter_next(Object *generator)
                 gv->state = GENERATOR_DONE;
                 return NULL;
         }
-        return execute_loop(gv->frame);
+        ret = execute_loop(gv->frame);
+        if (ret == NULL) {
+                gv->state = GENERATOR_DONE;
+        } else if (ret == ErrorVar) {
+                gv->state = GENERATOR_ERROR;
+        }
+        return ret;
 }
 
 static Object *

@@ -109,6 +109,8 @@ enum {
         STRCONST_IDX_write,
         STRCONST_IDX_socket,
         STRCONST_IDX_close,
+        STRCONST_IDX___optarg__,
+        STRCONST_IDX___kwarg__,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,

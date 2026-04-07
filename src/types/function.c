@@ -80,8 +80,6 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
                         fr->ap = 0;
                 }
         } else if (fh->f_optind >= 0) {
-                Object **data;
-
                 bug_on(!isvar_array(args));
                 if (fh->f_optind > seqvar_size(args)) {
                         err_setstr(ArgumentError,
@@ -91,11 +89,13 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
                         return RES_ERROR;;
                 }
 
-                data = array_get_data(args);
-                memcpy(fr->stack, data, fh->f_optind * sizeof(Object *));
-                for (i = 0; i < fh->f_optind; i++)
-                        VAR_INCR_REF(fr->stack[i]);
-                array_delete_chunk(args, 0, fh->f_optind);
+                if (fh->f_optind > 0) {
+                        Object **data = array_get_data(args);
+                        memcpy(fr->stack, data, fh->f_optind * sizeof(Object *));
+                        for (i = 0; i < fh->f_optind; i++)
+                                VAR_INCR_REF(fr->stack[i]);
+                        array_delete_chunk(args, 0, fh->f_optind);
+                }
 
                 fr->stack[fh->f_optind] = VAR_NEW_REF(args);
                 fr->ap = fh->f_optind + 1;
@@ -105,6 +105,7 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
                 if (!vm_pointers_in_stack(fr->stack, fr->stack + fr->ap)) {
                         err_setstr(ArgumentError,
                                 "Cannot uppack args: stack would overflow");
+                        fr->ap = 0;
                         return RES_ERROR;
                 }
                 for (i = 0; i < fr->ap; i++) {
@@ -188,6 +189,7 @@ function_call(Frame *fr, Object *args, Object *kwargs)
                 /* FUNC_USER */
                 int i;
 
+                bug_on(fh->f_ex->n_locals < fh->f_nargs);
                 fr->n_locals = fh->f_ex->n_locals;
                 fr->ex = fh->f_ex;
                 bug_on(!fh->f_ex);
@@ -309,6 +311,8 @@ funcvar_new_user(Object *ex, Object *argspec)
                                     &fh->f_nargs,
                                     &fh->f_optind,
                                     &fh->f_kwind);
+                bug_on(fh->f_nargs < fh->f_optind);
+                bug_on(fh->f_nargs < fh->f_kwind);
                 bug_on(res == RES_ERROR);
                 (void)res;
         } else {
@@ -319,7 +323,7 @@ funcvar_new_user(Object *ex, Object *argspec)
         }
         fh->f_ex = (struct xptrvar_t *)ex;
         fh->f_closures = NULL;
-        VAR_INCR_REF((Object *)ex);
+        VAR_INCR_REF(ex);
         return func;
 }
 

@@ -62,6 +62,8 @@ initialize_string_consts(void)
                 STRCONST_CSTR(write),
                 STRCONST_CSTR(socket),
                 STRCONST_CSTR(close),
+                STRCONST_CSTR(__optarg__),
+                STRCONST_CSTR(__kwarg__),
                 [STRCONST_IDX_spc] = " ",
                 [STRCONST_IDX_mpty] = "",
                 [STRCONST_IDX_wtspc] = " \r\n\t\v\f",

@@ -4,9 +4,6 @@ Standing Bugs
 4/2026
 ~~~~~~
 
-* Memory leak: Some variables not getting cleared when there's
-  an exception, whether it's caught in a try-catch loop or not.
-
 6/2025
 ~~~~~~
 
@@ -157,7 +154,10 @@ Checked Off the List
 Bugs
 ~~~~
 
-* 4/2026:
+* 4/2026
+
+        * **fixed** Memory leak: Some variables not getting cleared when there's
+          an exception, whether it's caught in a try-catch loop or not.
 
         * **fixed** When 'throw' is used in a generator, it cannot be captured with
           try-catch.  Instead it behaves as if there had been no try-catch loop.
@@ -227,10 +227,12 @@ Normal To-Do Stuff
 * **done** Pass arguments to script.
 * **done** Add dir() function
 * **done** Untangle comparisons and matches, esp. wrt sets and dicts.
-* **done** Robustulate the widths of indices.  They should all be size_t or
+* **done**
+    Robustulate the widths of indices.  They should all be size_t or
     ssize_t, not int.
 * **done** Fill in .create methods for remaining data types that need it.
-* **done** Ensure complex numbers whose imaginary component is zero return
+* **done**
+    Ensure complex numbers whose imaginary component is zero return
     0 when comparing with a "matching" float, int.  Make sure hash is
     correct in this case, too.
 * **done** more robustly test stack behavior in 'continue', 'break'

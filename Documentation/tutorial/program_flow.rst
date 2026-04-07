@@ -490,16 +490,7 @@ synonymous with "function handle"; a function can return a handle to
 another function.  A closure is a function which encapsulates
 information outside of its scope and remembers it each time it is called.
 
-.. note::
-
-   For C programmers, think of a closure as a function with a local static
-   variable. But there are two differences. One, in C, a function has only
-   a single instantiation, while in EvilCandy, a function can have many
-   instantiations.  Two, in C, the static variable is initialized when
-   the program is compiled and linked, while in EvilCandy, the variable
-   is initialized during runtime, each time the function is instantiated.
-
-A function which returns a closure, then, is very powerful.
+A function which returns a closure as a lambda, then, is very powerful.
 Take, for instance, the following example:
 
 .. code-block:: evc-console
@@ -550,80 +541,46 @@ A few things to also note about closures:
 
 1. In EvilCandy, every script is thought of as a function at the top
    level, so any function within it that accesses script-scope variables
-   will create a closure.  The same is true in interactive mode.
-   This is different from, for example, Python, which treats variables
-   declared at the top level as something very similar to what EvilCandy
-   calls "global".
-
-   The above ``multer`` example could also be expressed in this way,
-   and ``n`` will still be a closure:
-
-   .. code-block:: evc-console
-
-      evc> let n = 2;
-      evc> let doubler = function(x) {
-       ...    return x * n;
-       ... };
-      evc> n = 3;
-      evc> let tripler = function(x) {
-       ...    return x * n;
-       ... };
-      evc> doubler(3);
-      6
-      evc> tripler(3);
-      9
-
-   Note also that changing ``n`` in its normal scope
-   (setting it to 3 on the fifth line)
-   did not affect the ``n`` value of ``doubler``.  This is because
-   ``n`` wasn't really "changed" at the top level.  It was reassigned [#]_.
-   The closure received its own handle to the earlier ``n``,
-   so reassigning the "outer" ``n`` has no effect on ``doubler``.
-   This has implications for mutable objects, which I'll get to in a minute.
+   will create a closure.
 
 2. Accessing global variables will not result in the creation of a
    closure, since every scope has access to every global variable.
-   The example in note 1 above will not work if ``n`` was declared
-   with ``global`` instead of ``let``.
 
-3. A closure is technically writable, but it will only take effect in the
-   enclosed function, not the original scope:
+3. In interactive mode, local variables whose scope is at the top
+   level (IE not declared inside a program flow statement, a block
+   statement, or a function) can be accessed from anywhere in the
+   interactive namespace (that is, anywhere you type, but not
+   by any script you import), so closures are not created out of
+   these variables.
 
-   .. code-block:: evc-console
-
-      evc> let n = 1;
-      evc> let x = function() { n++; };
-      evc> x(); // increment "enclosed" n
-      evc> n;   // see no change to "outer" n
-      1
-
-   I say "technically," because there are so few cases where reassigning
-   a closure like this is useful that some programming languages like
-   Python do not even allow it [#]_.  Note that ``++`` is not an in-place
-   operator; integers are mutable.  So in this example, ``n++`` is just
-   syntactic sugar for ``n = n + 1;``.  That is, "n is reassigned to an
-   object whose value is one greater."
-
-4. If closure data is mutable, such as a list, then modifying (rather than
-   reassigning) the closure data *will* effect the data in the outer scope:
+4. It's generally bad practice for a wrapper function to modify a
+   variable after passing it as a closure.  Consider the following:
 
    .. code-block:: evc-console
+      :class: example-bad
 
-      evc> let x = [];
-      evc> let f = function(val) {
-       ...    x.append(val);
-       ... };
-      evc> f(1);
-      evc> x;
-      [1]
+      evc> function multer(n) {
+       ...    let ret = function(x) {
+       ...            return x * n;
+       ...    };
+       ...    n++;      // don't do this!
+       ...    return ret;
+       ... }
+      evc> let doubler = multer(2);
+      evc> doubler(1);  // yowza!
+      3
 
-   This has useful implications for creating private data when building
-   user-defined classes.
+   One eccentric exception to this rule: If you don't like class
+   notation, closures are an excellent way to make dictionaries
+   behave like class instantiations; a set of functions could
+   manipulate common data as if it were private instantiation data.
+   More on classes, as well as these kinds of pseudo-classes, in
+   another part of this tutorial.
 
 IIFEs
 ~~~~~
 
-Because all functions are anonymous, and because EvilCandy treats a
+Because functions may be anonymous, and because EvilCandy treats a
 function's definition like any other literal expression,
 immediately-invoked function expressions (IIFEs, pronounced "iffies")
 are possible.  A trivial example of an IFFE is:
@@ -779,24 +736,6 @@ Notes
 
    I would replace "computation" with "computation OR execution",
    since the word "function" has also become interchangeable with "subroutine".
-
-.. [#]
-
-   In the example, it woud also be reassigned instead of modified
-   if the increment ``++`` operator was used.
-   ``x++;`` is equivalent to ``x=x+1;``
-   That is, x is *assigned* a new integer object equal
-   to one greater than its old self.
-
-.. [#]
-
-   Except that in this *particular* case, Python would not turn ``n``
-   into a closure anyway, since variables declared at the top-level scope
-   in Python's interactive mode are more or less the same as what
-   EvilCandy calls "global".  Where Python does not allow it are
-   instances like the ``multer`` example; if the lambda modifies ``n``
-   in some way, Python would throw an exception.  Worse still, it would
-   wait until runtime to do so.
 
 .. [#]
 

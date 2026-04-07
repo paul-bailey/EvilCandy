@@ -125,6 +125,17 @@ with one of two keywords:
      let x;
      let y = 1;
 
+.. note::
+
+   EvilCandy has a special third kind of variable: In interactive mode,
+   variables declared with ``let`` at top-level scope (ie. not in a function
+   or a program-flow statement) have visibility at every scope of the
+   interactive namespace.  They are local in that scripts being imported
+   cannot "see" them, but they can otherwise be thought of as global.
+   This has implications later when we discuss closures.
+
+   This third kind of variable does not occur in script mode.
+
 If a variable is declared without an initializer,
 it will be initialized to the ``null`` object::
 

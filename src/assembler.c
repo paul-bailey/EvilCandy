@@ -233,18 +233,13 @@ as_swap_pos(struct assemble_t *a, token_pos_t pos)
         return ret;
 }
 
+/* return true if variable is in our locals dict */
 static bool
 as_is_ialocal(struct assemble_t *a, Object *name)
 {
         if (!a->localdict)
                 return false;
         bug_on(!isvar_string(name));
-        /*
-         * Only true if we're in the top-level function;
-         * We'll need to convert it into a closure otherwise.
-         */
-        if (a->fr->list.prev != &a->active_frames)
-                return false;
         return var_hasitem(a->localdict, name);
 }
 
@@ -461,6 +456,11 @@ ainstr_load_const(struct assemble_t *a, struct token_t *oc)
         add_instr(a, INSTR_LOAD_CONST, 0, idx);
 }
 
+/*
+ * Do not use for objects taken from tokens, unless you deliberately
+ * produce a reference first.  This is meant for objects generated
+ * here in this assembler.
+ */
 static void
 ainstr_load_const_obj(struct assemble_t *a, Object *obj)
 {
@@ -1308,6 +1308,7 @@ maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos, int *idx)
          */
         struct as_frame_t *this_frame;
         bool success = false;
+        int namei, target;
 
         this_frame = as_frame_take(a);
         if (!this_frame) {
@@ -1315,28 +1316,10 @@ maybe_closure(struct assemble_t *a, Object *name, token_pos_t pos, int *idx)
                 return RES_OK;
         }
 
-        if (as_symbol_seek(a, name, NULL) >= 0 ||
-            as_is_ialocal(a, name)) {
-                int status;
-                /*
-                 * 'atomic' instead of assemble_expr(), because if we see
-                 * 'x.y', the closure should be x, not its descendant y.
-                 * This way user-defined classes can use mutable closures
-                 * like dictionaries to pass the same private data to
-                 * multiple methods of the same instantiation.
-                 */
-                pos = as_swap_pos(a, pos);
-                status = assemble_expr5_atomic(a);
-                as_swap_pos(a, pos);
-
-                if (status < 0)
-                        return RES_ERROR;
-
-                /* back to identifier */
-                add_instr(a, INSTR_ADD_CLOSURE, 0, 0);
+        if ((namei = as_symbol_seek(a, name, &target)) >= 0) {
+                add_instr(a, INSTR_ADD_CLOSURE, target, namei);
                 success = true;
         }
-
         as_frame_restore(a, this_frame);
 
         if (success)

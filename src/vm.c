@@ -460,14 +460,15 @@ do_load_name(Frame *fr, instruction_t ii)
         name = RODATA(fr, ii);
         bug_on(!isvar_string(name));
 
-        if (vm.locals) {
-                p = dict_getitem(vm.locals, name);
-                if (p) {
-                        push(fr, p);
-                        return RES_OK;
-                }
-        }
+        if (!vm.locals)
+                goto notfound;
+        p = dict_getitem(vm.locals, name);
+        if (!p)
+                goto notfound;
+        push(fr, p);
+        return RES_OK;
 
+notfound:
         err_setstr(NameError, "Symbol %N not found", name);
         return RES_ERROR;
 }
@@ -711,13 +712,76 @@ do_defclass(Frame *fr, instruction_t ii)
 static int
 do_add_closure(Frame *fr, instruction_t ii)
 {
-        Object *clo = pop(fr);
+        Object *func = pop(fr);
+        Object **ppto, *cell;
+        switch (ii.arg1) {
+        case IARG_PTR_FP:
+                bug_on((unsigned)ii.arg2 >= fr->n_locals);
+                ppto = fr->stack + ii.arg2;
+                break;
+        case IARG_PTR_CP:
+                bug_on(!fr->clo);
+                ppto = fr->clo + ii.arg2;
+                break;
+        default:
+                bug();
+                return RES_ERROR;
+        }
+
+        bug_on(!ppto || !(*ppto));
+        cell = *ppto;
+        if (!isvar_cell(cell)) {
+                Object *value = cell;
+                cell = cellvar_new(value);
+                VAR_DECR_REF(value);
+                *ppto = cell;
+        }
+
+        function_add_closure(func, cell);
+        push(fr, func);
+        return RES_OK;
+}
+
+static int
+do_ia_closure(Frame *fr, instruction_t ii)
+{
+        Object *cell;
+        Object *name = pop(fr);
         Object *func = pop(fr);
 
-        function_add_closure(func, clo);
-        VAR_DECR_REF(clo);
+        if (!isvar_string(name))
+                goto badname;
+        if (!vm.locals)
+                goto notfound;
+
+        cell = dict_getitem(vm.locals, name);
+        if (!cell)
+                goto notfound;
+
+        if (!isvar_cell(cell)) {
+                Object *tmp = cell;
+                cell = cellvar_new(tmp);
+                VAR_DECR_REF(tmp);
+                dict_setitem(vm.locals, name, cell);
+        }
+        function_add_closure(func, cell);
+        VAR_DECR_REF(cell);
+        VAR_DECR_REF(name);
         push(fr, func);
-        return 0;
+        return RES_OK;
+
+badname:
+        err_setstr(TypeError, "Symbol type %s not an identifier",
+                   typestr(name));
+        goto err;
+notfound:
+        err_setstr(NameError, "Symbol %N not found", name);
+        /* fall through */
+err:
+        VAR_DECR_REF(func);
+        VAR_DECR_REF(name);
+        return RES_ERROR;
+
 }
 
 static int

@@ -29,7 +29,7 @@ Object *
 cell_get_value(Object *cell)
 {
         bug_on(!isvar_cell(cell));
-        return V2C(cell)->cell_value;
+        return VAR_NEW_REF(V2C(cell)->cell_value);
 }
 
 void

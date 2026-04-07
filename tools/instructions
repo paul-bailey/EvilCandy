@@ -78,14 +78,15 @@ CALL_FUNC
 # stack[-1] = XptrType object, stack[-2] = (nr_args, optind, kwind)
 DEFFUNC
 
-# usually exists shortly after DEFFUNC.  Some evaluation has
-# occured and placed an item on the stack, and now this
-# instruction follows, meaning 'pop item off the stack,
-# pop function off the stack', and add this closure to
-# the function.  The assembler has sorted out the proper
-# order to place such instructions as well as how the function
-# when called can de-reference them
+# functions to turn items into cells and add them to function
+
+# stack[-1] is the function
+# arg1 is IARG_PTR_xxx and arg2 is offset
 ADD_CLOSURE
+
+# stack[-1] is the name of the variable in locals dictionary
+# stack[-2] is the function
+IA_CLOSURE
 
 # These occur if a literal contains a starred item
 LIST_APPEND

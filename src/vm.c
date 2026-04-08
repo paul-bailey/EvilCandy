@@ -1496,7 +1496,7 @@ execute_loop(Frame *fr)
 
 out:
         if (retval == ErrorVar)
-                debug_push_location(fr, fr->ppii - fr->ex->instr - 1);
+                debug_mark_error(fr, fr->ppii - fr->ex->instr - 1);
         if (fr->kind == FRAME_GENERATOR &&
             (retval == NULL || retval == ErrorVar)) {
                 vmframe_free(fr);

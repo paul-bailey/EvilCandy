@@ -10,6 +10,22 @@ struct debug_locations_t {
 static struct debug_locations_t *debug_locations = NULL;
 static ssize_t debug_locations_alloc = 0;
 static ssize_t debug_nlocations = 0;
+static bool debug_error = false;
+
+/*
+ * Push once more, then freeze state.  Future calls to debug_mark_error
+ * will have no effect until error is cleared. This is because multiple
+ * calls to debug_mark_error will occur while unwinding the stack to the
+ * top level.
+ */
+void
+debug_mark_error(Frame *fr, size_t instr_offset)
+{
+        if (debug_error)
+                return;
+        debug_error = true;
+        debug_push_location(fr, instr_offset);
+}
 
 void
 debug_push_location(Frame *fr, size_t instr_offset)
@@ -56,6 +72,7 @@ debug_clear_locations(void)
                 efree(debug_locations);
                 debug_locations = NULL;
         }
+        debug_error = false;
 }
 
 static void

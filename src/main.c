@@ -133,10 +133,7 @@ done:
 done_skip_ex:
         if (retval == ErrorVar) {
                 err_print_last(stderr);
-#warning "debug and put back"
-#if 0
                 debug_print_trace(stderr, true);
-#endif
         }
         else if (retval)
                 VAR_DECR_REF(retval);

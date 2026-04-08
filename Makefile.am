@@ -1,6 +1,7 @@
 ACLOCAL_AMFLAGS = -I build/m4
 AM_CFLAGS = \
  -Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -pedantic
+AM_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 
 bin_PROGRAMS = evilcandy
 check_PROGRAMS = tools/tokgen tools/gen

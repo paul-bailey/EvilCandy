@@ -6,6 +6,12 @@
 
 #include "config.h"
 
+#ifdef GIT_VERSION
+# define EVILCANDY_VERSION PACKAGE_STRING "-" GIT_VERSION
+#else
+# define EVILCANDY_VERSION PACKAGE_STRING
+#endif
+
 /*
  * headers for stuff I wish was standard
  * so I wouldn't have to write them myself.

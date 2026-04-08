@@ -57,7 +57,7 @@ parse_args(int argc, char **argv)
                                 }
                                 break;
                         case 'V':
-                                printf("%s\n", PACKAGE_STRING);
+                                printf("%s\n", EVILCANDY_VERSION);
                                 end_program();
                                 exit(EXIT_SUCCESS);
                                 break;

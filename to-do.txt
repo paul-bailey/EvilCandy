@@ -4,6 +4,8 @@ Standing Bugs
 4/2026
 ~~~~~~
 
+* when printing error, line number sometimes off by one.
+
 6/2025
 ~~~~~~
 

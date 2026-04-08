@@ -134,9 +134,9 @@ done_skip_ex:
         if (retval == ErrorVar) {
                 err_print_last(stderr);
                 debug_print_trace(stderr, true);
-        }
-        else if (retval)
+        } else if (retval) {
                 VAR_DECR_REF(retval);
+        }
 }
 
 static void

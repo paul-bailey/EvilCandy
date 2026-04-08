@@ -1495,6 +1495,8 @@ execute_loop(Frame *fr)
                 retval = VAR_NEW_REF(NullVar);
 
 out:
+        if (retval == ErrorVar)
+                debug_push_location(fr, fr->ppii - fr->ex->instr - 1);
         if (fr->kind == FRAME_GENERATOR &&
             (retval == NULL || retval == ErrorVar)) {
                 vmframe_free(fr);
@@ -1564,9 +1566,16 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
                 VAR_INCR_REF(func);
         }
 
+        Frame *tfr = fr_old ? fr_old : vm_current_frame();
+        if (tfr && tfr->ex)
+                debug_push_location(tfr, tfr->ppii - 1 - tfr->ex->instr);
+
         fr = vmframe_alloc(func, owner, fr_old);
         res = function_call(fr, args, kwargs);
         vmframe_free(fr);
+
+        if (tfr && tfr->ex && res != ErrorVar)
+                debug_pop_location();
 
         if (!res)
                 res = VAR_NEW_REF(NullVar);

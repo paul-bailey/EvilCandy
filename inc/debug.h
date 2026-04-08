@@ -86,4 +86,10 @@
 extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
 
+/* debug.c */
+extern void debug_print_trace(FILE *fp, bool print_lines);
+extern void debug_clear_locations(void);
+extern void debug_pop_location(void);
+extern void debug_push_location(Frame *fr, size_t instr_offset);
+
 #endif /* EVILCANDY_DEBUG_H */

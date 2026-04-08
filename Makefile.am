@@ -15,6 +15,7 @@ evilcandy_SOURCES = \
         src/buffer.c \
         src/ctype.c \
         src/cwd.c \
+        src/debug.c \
         src/disassemble.c \
         src/err.c \
         src/errmsg.c \
@@ -26,6 +27,7 @@ evilcandy_SOURCES = \
         src/iterator.c \
         src/json.c \
         src/list.c \
+        src/locations.c \
         src/main.c \
         src/op.c \
         src/path.c \
@@ -83,6 +85,7 @@ noinst_HEADERS = \
         inc/vm.h \
         inc/evilcandy/token.h \
         inc/evilcandy/assemble.h \
+        inc/evilcandy/locations.h \
         inc/types/xptr.h \
         inc/lib/buffer.h \
         inc/lib/helpers.h \

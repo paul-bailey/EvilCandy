@@ -21,6 +21,7 @@
 #include <evilcandy.h>
 #include <types/xptr.h>
 #include <evilcandy/assemble.h>
+#include <evilcandy/locations.h>
 
 /*
  * Simplification of labels and removal of detected unreachable code is
@@ -838,12 +839,71 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
                 cfg.n_locals    = fr->af_nlocals;
                 cfg.names       = fr->af_names;
                 cfg.funcname    = fr->af_funcname;
+                cfg.locations   = fr->af_locations_packed;
+                cfg.locations_size = fr->af_locations_packed_size;
                 x = (struct xptrvar_t *)xptrvar_new(&cfg);
         } while (0);
 
         RECURSION_END_FUNC();
 
         return x;
+}
+
+/*
+ * Instruction set is now frozen, so labels won't shift around anymore.
+ * This means we can now set our labels in place properly.
+ */
+static void
+resolve_locations(struct assemble_t *a, struct as_frame_t *fr)
+{
+        struct token_t **loc_tokens;
+        size_t nr_loc_tokens;
+        short *labels;
+        int line;
+        unsigned char *buf;
+        size_t i, bufsize, bufidx;
+
+        labels = (short *)fr->af_labels.s;
+        loc_tokens = (struct token_t **)(fr->af_locations.s);
+        nr_loc_tokens = buffer_size(&fr->af_locations) / sizeof(void *);
+
+        /*
+         * #labels could only be greater than nr_loc_tokens (due to a
+         * label being produced in remove_save_flags()) or equal to it,
+         * but never less than it.
+         */
+        bug_on(as_frame_nlabel(fr) < nr_loc_tokens);
+
+        line = -1;
+        bufsize = 16;
+        bufidx = 0;
+        buf = erealloc(NULL, bufsize);
+        for (i = 0; i < nr_loc_tokens; i++) {
+                struct location_t loc;
+                ssize_t packed;
+                int line2;
+
+                if (loc_tokens[i] == NULL)
+                        continue;
+                if ((line2 = loc_tokens[i]->start_line) == line)
+                        continue;
+
+                loc.loc_startline = line2;
+                loc.loc_instruction = labels[i];
+
+                while ((packed = location_pack(&buf[bufidx],
+                                               bufsize - bufidx,
+                                               &loc)) < 0) {
+                        bufsize += 16;
+                        buf = erealloc(buf, bufsize);
+                }
+                bufidx += packed;
+
+                line = line2;
+        }
+
+        fr->af_locations_packed = buf;
+        fr->af_locations_packed_size = bufidx;
 }
 
 /**
@@ -873,6 +933,7 @@ assemble_post(struct assemble_t *a)
                  * within.
                  */
                 replace_fake_instructions(a, fr);
+                resolve_locations(a, fr);
                 resolve_jump_labels(a, fr);
         }
 

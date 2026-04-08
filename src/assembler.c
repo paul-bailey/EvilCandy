@@ -434,12 +434,25 @@ as_set_label(struct assemble_t *a, int jmp)
                 return -1;
         }
         assemble_frame_set_label(a->fr, jmp, val);
+
+        if (a->oc) {
+                struct buffer_t *b = &a->fr->af_locations;
+                struct token_t **locations = (struct token_t **)(b->s);
+                bug_on(jmp >= buffer_size(b) / sizeof(void *));
+                bug_on(locations[jmp] != NULL);
+                locations[jmp] = a->oc;
+        }
+
         return 0;
 }
 
 static int
 as_next_label(struct assemble_t *a)
 {
+        /* Ensure location is available when calling as_set_label() */
+        void *tmp_loc = NULL;
+        buffer_putd(&a->fr->af_locations, &tmp_loc, sizeof(tmp_loc));
+
         return assemble_frame_next_label(a->fr);
 }
 
@@ -2869,6 +2882,9 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         if (as_lex(a) < 0)
                 return -1;
 
+        /* just needed for locations */
+        assemble_label_here(a);
+
         /* cases return early if semicolon not expected at the end */
         switch (a->oc->t) {
         case OC_DELETE:
@@ -3068,6 +3084,13 @@ as_delete_frame_list(struct list_t *parent_list)
                 buffer_free(&fr->af_localmap);
                 buffer_free(&fr->af_labels);
                 buffer_free(&fr->af_instr);
+                buffer_free(&fr->af_locations);
+
+                /*
+                 * Do not free af_locations_packed.
+                 * If that was ever set, then ownership has already
+                 * passed to xptr.c code.
+                 */
 
                 efree(fr);
         }
@@ -3199,6 +3222,7 @@ assemble_frame_push(struct assemble_t *a, long long funcno, Object *name)
         buffer_init(&fr->af_localmap);
         buffer_init(&fr->af_labels);
         buffer_init(&fr->af_instr);
+        buffer_init(&fr->af_locations);
 
         fr->funcno = funcno;
         fr->line = a->oc ? a->oc->start_line : 1;

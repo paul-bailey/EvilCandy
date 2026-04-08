@@ -17,6 +17,7 @@ initialize_program(void)
 void
 end_program(void)
 {
+        debug_clear_locations();
         cfile_deinit_global();
         cfile_deinit_vm();
         /* must be last */
@@ -130,8 +131,13 @@ run_script(const char *filename, FILE *fp, Frame *fr)
 done:
         VAR_DECR_REF(ex);
 done_skip_ex:
-        if (retval == ErrorVar)
+        if (retval == ErrorVar) {
                 err_print_last(stderr);
+#warning "debug and put back"
+#if 0
+                debug_print_trace(stderr, true);
+#endif
+        }
         else if (retval)
                 VAR_DECR_REF(retval);
 }

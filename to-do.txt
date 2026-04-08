@@ -16,7 +16,15 @@ Must Do
 * Capabilities checklist before calling this a "feature complete" alpha.
   When this is complete I could start thinking about version numbers.
 
-  - make cells out of closures, to make classes/function recursion work
+  - tested JSON module
+  - binary serializer
+  - regular expressions module
+  - time/datetime module
+  - system environment variables and command-line arguments
+  - a way to spawn child processes
+  - pipe/socketpair/dup/redirection capability
+  - cwd
+  - path parsing
   - getattr() should not get regular dictionary items (need arg to var_getattr)
   - Resolve behavior of dir(class) vs. dir(instance)
   - support "myclass.func(myinst)" as doing the same thing as "myinst.func()"
@@ -34,25 +42,9 @@ Must Do
   - Finish path resolution
   - Make consistent and accurate error reporting
 
-* Semi-bug, urgent: class cannot refer to itself
+* Add r-strings
 
-  ::
-
-        class X() { 'y': function() { return X; } }
-        let b = X();
-        let x = b.y();
-
-  b.y will return null, not X. If it's 'return X();' instead, an 'object
-  not callable' exception will be thrown.  The only way for this to work
-  is like so::
-
-        global X; // cannot be 'let'
-        X = class() { 'y': function() { return X; } };
-        let b = X();
-        let x = b.y();
-
-  Here X cannot be local (``let``), because ``y``'s reference to it will
-  create a closure while it's still ``null``.
+* Add number methods for UAPI objects
 
 * Replace super() as a soft keyword with a function that returns an instance
   which points to the owning instance, and gets its base's attributes.
@@ -147,6 +139,10 @@ Library/Language Features
 
 * Add shell environment to sys module
 
+* (Down the road) replace stack machine with register machine
+
+* (Down the road) make types static
+
 Mebbe/Wishlist/Low-prio bugs
 ----------------------------
 
@@ -176,6 +172,26 @@ Bugs
 ~~~~
 
 * 4/2026
+
+        * **fixed** Semi-bug, urgent: class cannot refer to itself
+
+          ::
+
+                class X() { 'y': function() { return X; } }
+                let b = X();
+                let x = b.y();
+
+          b.y will return null, not X. If it's 'return X();' instead, an 'object
+          not callable' exception will be thrown.  The only way for this to work
+          is like so::
+
+                global X; // cannot be 'let'
+                X = class() { 'y': function() { return X; } };
+                let b = X();
+                let x = b.y();
+
+          Here X cannot be local (``let``), because ``y``'s reference to it will
+          create a closure while it's still ``null``.
 
         * **fixed** Memory leak: when an exception is thrown from within a generator,
           nothing-NOTHING-seems to get cleared once it leaves scope.
@@ -235,6 +251,7 @@ Bugs
 Normal To-Do Stuff
 ~~~~~~~~~~~~~~~~~~
 
+* **done** make cells out of closures, to make classes/function recursion work
 * **no it shouldn't** range slice should return another range, not a list
 * **done** Print interactive-mode locals with dir().
 * **GEFGW** Get rid of .ap in vmframe

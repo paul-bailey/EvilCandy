@@ -22,6 +22,9 @@
  * @names:      Names of local variables in their order on the stack, for
  *              disassembly and other debug purposes.
  * @funcname:   Name of function, if non-anonymous, but usually NULL.
+ * @locations:  Packed locations buffer, for tracing where an exception
+ *              occurred.
+ * @locations_size: Size of @locations, in bytes, not #locations.
  *
  * A XptrType var is created for every script and every function
  * definition or lambda within the script.  During assembly, if the
@@ -80,6 +83,8 @@ struct xptrvar_t {
         int file_line;
         Object *names;
         Object *funcname;
+        unsigned char *locations;
+        size_t locations_size;
 };
 
 /* only serializer.c and assembler.c code should need to use these */
@@ -92,6 +97,8 @@ struct xptr_cfg_t {
         Object *funcname;
         int file_line;
         const char *file_name;
+        unsigned char *locations;
+        size_t locations_size;
 };
 
 extern Object *xptrvar_new(const struct xptr_cfg_t *cfg);

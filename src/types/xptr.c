@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <evilcandy/locations.h>
 #include <types/xptr.h>
 
 #define V2XP(v_)        ((struct xptrvar_t *)(v_))
@@ -9,6 +10,8 @@ xptr_reset(Object *v)
         struct xptrvar_t *ex = V2XP(v);
         if (ex->instr)
                 efree(ex->instr);
+        if (ex->locations)
+                efree(ex->locations);
         if (ex->rodata)
                 VAR_DECR_REF(ex->rodata);
         if (ex->file_name)
@@ -86,6 +89,8 @@ xptrvar_new(const struct xptr_cfg_t *cfg)
         x->file_line    = cfg->file_line;
         x->n_locals     = cfg->n_locals;
         x->funcname     = cfg->funcname;
+        x->locations    = cfg->locations;
+        x->locations_size = cfg->locations_size;
         if (x->funcname)
                 VAR_INCR_REF(x->funcname);
         return v;

@@ -30,6 +30,10 @@
  * @af_nlocals:  Number of local variables in this function.
  * @list:        Link to sibling frames
  *
+ * @af_locations_packed and @af_locations_packed_size are managed
+ * only in assemble_post, when it transforms location data into some-
+ * thing meaningful to use during runtime.
+ *
  * This wraps @x (the true intended result of this assembly, and will
  * be thrown away when we're done, leaving only @x remaining.
  *
@@ -49,11 +53,14 @@ struct as_frame_t {
         struct buffer_t af_localmap;
         struct buffer_t af_labels;
         struct buffer_t af_instr;
+        struct buffer_t af_locations;
         int scope[FRAME_NEST_MAX];
         int nest;
         int line;
         int af_nlocals;
         struct list_t list;
+        unsigned char *af_locations_packed;
+        size_t af_locations_packed_size;
 };
 
 /**

@@ -1,7 +1,7 @@
 # Do this instead of check_PROGRAMS, since I do not necessarily
 # want to run this during 'make check'
 .PHONY: tests
-tests: tests/c/test_path
+tests: programs/unit_tests
 
 ACLOCAL_AMFLAGS = -I build/m4
 AM_CFLAGS = \
@@ -9,7 +9,7 @@ AM_CFLAGS = \
 AM_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 
 bin_PROGRAMS = evilcandy
-EXTRA_PROGRAMS = tests/c/test_path
+EXTRA_PROGRAMS = programs/unit_tests
 check_PROGRAMS = tools/tokgen tools/gen
 
 tools_tokgen_SOURCES = tools/tokgen.c tools/genutil.c
@@ -74,13 +74,13 @@ COMMON_SOURCES = \
         src/types/tuple.c \
         src/types/xptr.c
 
-tests_c_test_path_SOURCES = \
+programs_unit_tests_SOURCES = \
         $(COMMON_SOURCES) \
-        tests/c/test_path.c
+        programs/unit_tests.c
 
 evilcandy_SOURCES = \
         $(COMMON_SOURCES) \
-        src/main.c
+        programs/evilcandy.c
 
 noinst_HEADERS = \
         inc/debug.h \
@@ -114,7 +114,7 @@ if WANT_READLINE
 COMMON_LDADD+=-lreadline
 endif
 evilcandy_LDADD=$(COMMON_LDADD)
-tests_c_test_path_LDADD=$(COMMON_LDADD)
+programs_unit_tests_LDADD=$(COMMON_LDADD)
 
 evilcandydir=${datadir}/evilcandy
 # well, common except to source code generators
@@ -124,7 +124,7 @@ COMMON_CPPFLAGS=\
  -Wall
 
 evilcandy_CPPFLAGS=$(COMMON_CPPFLAGS)
-tests_c_test_path_CPPFLAGS=$(COMMON_CPPFLAGS)
+programs_unit_tests_CPPFLAGS=$(COMMON_CPPFLAGS)
 
 dist_evilcandy_DATA= \
         lib/enum.evc \
@@ -140,7 +140,7 @@ nodist_COMMON_SOURCES = \
         src/tokutils_gen.c \
         src/vm_gen.c.h
 nodist_evilcandy_SOURCES = $(nodist_COMMON_SOURCES)
-nodist_tests_c_test_path_SOURCES = $(nodist_COMMON_SOURCES)
+nodist_programs_unit_tests_SOURCES = $(nodist_COMMON_SOURCES)
 
 BUILT_SOURCES= \
         inc/instruction_defs.h \

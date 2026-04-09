@@ -3,14 +3,14 @@ AM_CFLAGS = \
  -Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -pedantic
 AM_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 
-bin_PROGRAMS = evilcandy
+bin_PROGRAMS = evilcandy tests/c/test_path
 check_PROGRAMS = tools/tokgen tools/gen
 
 tools_tokgen_SOURCES = tools/tokgen.c tools/genutil.c
 tools_gen_SOURCES = tools/gen.c
 tools_gen_CPPFLAGS = -I$(top_srcdir)/inc
 
-evilcandy_SOURCES = \
+COMMON_SOURCES = \
         src/assembler.c \
         src/assemble_post.c \
         src/buffer.c \
@@ -25,11 +25,11 @@ evilcandy_SOURCES = \
         src/hash.c \
         src/helpers.c \
         src/instruction_name.c \
+        src/init.c \
         src/iterator.c \
         src/json.c \
         src/list.c \
         src/locations.c \
-        src/main.c \
         src/op.c \
         src/path.c \
         src/readline.c \
@@ -68,6 +68,14 @@ evilcandy_SOURCES = \
         src/types/tuple.c \
         src/types/xptr.c
 
+tests_c_test_path_SOURCES = \
+        $(COMMON_SOURCES) \
+        tests/c/test_path.c
+
+evilcandy_SOURCES = \
+        $(COMMON_SOURCES) \
+        src/main.c
+
 noinst_HEADERS = \
         inc/debug.h \
         inc/evcenums.h \
@@ -84,6 +92,7 @@ noinst_HEADERS = \
         inc/uarg.h \
         inc/var.h \
         inc/vm.h \
+        inc/evilcandy/init.h \
         inc/evilcandy/token.h \
         inc/evilcandy/assemble.h \
         inc/evilcandy/locations.h \
@@ -94,16 +103,22 @@ noinst_HEADERS = \
         inc/lib/utf8.h \
         tools/gen.h
 
-evilcandy_LDADD=-lm
+COMMON_LDADD=-lm
 if WANT_READLINE
-evilcandy_LDADD+=-lreadline
+COMMON_LDADD+=-lreadline
 endif
+evilcandy_LDADD=$(COMMON_LDADD)
+tests_c_test_path_LDADD=$(COMMON_LDADD)
 
 evilcandydir=${datadir}/evilcandy
-evilcandy_CPPFLAGS=\
+# well, common except to source code generators
+COMMON_CPPFLAGS=\
  -I$(top_srcdir)/inc \
  -DRCDATADIR=\"$(evilcandydir)\" \
  -Wall
+
+evilcandy_CPPFLAGS=$(COMMON_CPPFLAGS)
+tests_c_test_path_CPPFLAGS=$(COMMON_CPPFLAGS)
 
 dist_evilcandy_DATA= \
         lib/enum.evc \
@@ -112,12 +127,14 @@ dist_evilcandy_DATA= \
         lib/socket.evc \
         lib/test.evc
 
-nodist_evilcandy_SOURCES = \
+nodist_COMMON_SOURCES = \
         inc/instruction_defs.h \
         inc/token_gen.h \
         src/disassemble_gen.c.h \
         src/tokutils_gen.c \
         src/vm_gen.c.h
+nodist_evilcandy_SOURCES = $(nodist_COMMON_SOURCES)
+nodist_tests_c_test_path_SOURCES = $(nodist_COMMON_SOURCES)
 
 BUILT_SOURCES= \
         inc/instruction_defs.h \
@@ -152,7 +169,7 @@ EXTRA_DIST = \
         tools/instructions \
         tools/tokens \
         source_tree_layout.txt \
-        to-do.txt \
+        ROADMAP.md \
         AUTHORS \
         COPYING \
         README \

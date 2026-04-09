@@ -154,7 +154,8 @@ CLEANFILES = \
         inc/token_gen.h \
         src/disassemble_gen.c.h \
         src/tokutils_gen.c \
-        src/vm_gen.c.h
+        src/vm_gen.c.h \
+        $(EXTRA_PROGRAMS)
 
 src/disassemble_gen.c.h: tools/instructions tools/gen
 	cat tools/instructions | tools/gen dis > $@

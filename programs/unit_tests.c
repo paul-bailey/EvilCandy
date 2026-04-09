@@ -1,5 +1,6 @@
 #include <evilcandy.h>
 #include <assert.h>
+#include <evilcandy/init.h>
 
 extern void reduce_pathname_in_place(char *path);
 
@@ -26,7 +27,9 @@ test_path(void)
 int
 main(int argc, char **argv)
 {
+        initialize_program();
         test_path();
+        end_program();
         return 0;
 }
 

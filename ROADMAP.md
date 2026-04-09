@@ -9,10 +9,10 @@
 - [ ] `sys.argv`
 - [ ] `sys.env` (`.path`, etc)
 - [ ] os/posix
-  -[ ] a way to spawn child processes
-  -[ ] pipe/socketpair/dup/redirection
-  -[ ] chdir/cwd
-  -[ ] path parsing
+  - [ ] a way to spawn child processes
+  - [ ] pipe/socketpair/dup/redirection
+  - [ ] chdir/cwd
+  - [ ] path parsing
 - [ ] finish math, io, socket libraries with minimum features
 - [ ] `input()` function
 

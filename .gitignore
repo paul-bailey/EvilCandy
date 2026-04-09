@@ -24,6 +24,7 @@ src/builtin/.*.swp
 /evilcandy
 /tools/gen
 /tools/tokgen
+/tests/c/test_path
 
 # files created by tools/gen
 /*/*_gen.c.h

@@ -19,12 +19,13 @@ src/builtin/.*.swp
 .DS_Store
 
 /Documentation/_build
+/Documentation/__pycache__
 
 # generated programs
 /evilcandy
 /tools/gen
 /tools/tokgen
-/tests/c/test_path
+/programs/unit_tests
 
 # files created by tools/gen
 /*/*_gen.c.h

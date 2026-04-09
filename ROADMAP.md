@@ -47,6 +47,7 @@
 
 ### Modules/features
 
+- make integers have arbitrary width
 - cmath library
 - fill in all the built-in class methods
 - support double-star in function call

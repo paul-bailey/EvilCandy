@@ -433,7 +433,7 @@ convert_object(int typec, Object *uarg, const char **fmt, va_list ap,
                 char argnobuf[100];
 
                 bug_on(!uarg);
-                sprintf(argnobuf, " %d", argno + 1);
+                evc_sprintf(argnobuf, sizeof(argnobuf), " %d", argno + 1);
                 err_setstr(TypeError, "%s%sargument%s invalid type '%s'",
                            fname ? fname : "", fname ? "() " : "",
                            argno >= 0 ? argnobuf : "",

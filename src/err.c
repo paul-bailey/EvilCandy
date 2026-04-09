@@ -147,36 +147,36 @@ errmsg_format_arg(struct string_writer_t *wr, const char *msg, va_list ap)
                 case 'i':
                 case 'd':
                         if (intsize == 'L')
-                                sprintf(buf, "%lld", va_arg(ap, long long));
+                                evc_sprintf(buf, sizeof(buf), "%lld", va_arg(ap, long long));
                         else if (intsize == 'l')
-                                sprintf(buf, "%ld", va_arg(ap, long));
+                                evc_sprintf(buf, sizeof(buf), "%ld", va_arg(ap, long));
                         else
-                                sprintf(buf, "%d", va_arg(ap, int));
+                                evc_sprintf(buf, sizeof(buf), "%d", va_arg(ap, int));
                         break;
                 case 'o':
                         if (intsize == 'L')
-                                sprintf(buf, "%llo", va_arg(ap, long long));
+                                evc_sprintf(buf, sizeof(buf), "%llo", va_arg(ap, long long));
                         else if (intsize == 'l')
-                                sprintf(buf, "%lo", va_arg(ap, long));
+                                evc_sprintf(buf, sizeof(buf), "%lo", va_arg(ap, long));
                         else
-                                sprintf(buf, "%o", va_arg(ap, int));
+                                evc_sprintf(buf, sizeof(buf), "%o", va_arg(ap, int));
                         break;
                 case 'u':
                         if (intsize == 'L')
-                                sprintf(buf, "%llu", va_arg(ap, unsigned long long));
+                                evc_sprintf(buf, sizeof(buf), "%llu", va_arg(ap, unsigned long long));
                         else if (intsize == 'l')
-                                sprintf(buf, "%lu", va_arg(ap, unsigned long));
+                                evc_sprintf(buf, sizeof(buf), "%lu", va_arg(ap, unsigned long));
                         else
-                                sprintf(buf, "%u", va_arg(ap, unsigned int));
+                                evc_sprintf(buf, sizeof(buf), "%u", va_arg(ap, unsigned int));
                         break;
                 case 'x':
                 case 'X':
                         if (intsize == 'L')
-                                sprintf(buf, "%llx", va_arg(ap, unsigned long long));
+                                evc_sprintf(buf, sizeof(buf), "%llx", va_arg(ap, unsigned long long));
                         else if (intsize == 'l')
-                                sprintf(buf, "%lx", va_arg(ap, unsigned long));
+                                evc_sprintf(buf, sizeof(buf), "%lx", va_arg(ap, unsigned long));
                         else
-                                sprintf(buf, "%x", va_arg(ap, unsigned int));
+                                evc_sprintf(buf, sizeof(buf), "%x", va_arg(ap, unsigned int));
                         if (*msg == 'X') {
                                 char *ts = buf;
                                 while (*ts) {
@@ -186,7 +186,7 @@ errmsg_format_arg(struct string_writer_t *wr, const char *msg, va_list ap)
                         }
                         break;
                 case 'p':
-                        sprintf(buf, "%p", va_arg(ap, void *));
+                        evc_sprintf(buf, sizeof(buf), "%p", va_arg(ap, void *));
                         break;
                 }
                 string_writer_appends(wr, buf);

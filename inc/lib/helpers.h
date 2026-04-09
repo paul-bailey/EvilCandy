@@ -33,6 +33,7 @@ extern void *memrmem(const void *haystack, size_t hlen,
 #define ASCII_NWS_CHARS 6
 
 /* helpers.c */
+extern ssize_t evc_sprintf(char *buf, size_t bufsize, const char *fmt, ...);
 extern char *strchr_nonnull(const char *charset, int c);
 extern int memcount(const void *haystack, size_t hlen,
                     const void *needle, size_t nlen);

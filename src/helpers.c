@@ -5,6 +5,7 @@
 #include <lib/helpers.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdarg.h>
 
 /**
  * x2bin - interpret a hex char
@@ -21,6 +22,31 @@ x2bin(int c)
         else if (isxdigit(c))
                 return toupper(c) - ('A' - 10);
         return -1;
+}
+
+/**
+ * evc_sprintf - Similar to snprintf, but make sure there's a nullchar
+ *               termination, so long as @bufsize >= 1;
+ */
+ssize_t
+evc_sprintf(char *buf, size_t bufsize, const char *fmt, ...)
+{
+        va_list ap;
+        ssize_t ret;
+
+        if (bufsize <= 1) {
+                if (bufsize == 1)
+                        buf[0] = '\0';
+                return 0;
+        }
+        memset(buf, 0, bufsize);
+
+        va_start(ap, fmt);
+        ret = vsnprintf(buf, bufsize, fmt, ap);
+        va_end(ap);
+        if (buf[bufsize-1] != '\0')
+                buf[bufsize-1] = '\0';
+        return ret;
 }
 
 #ifndef HAVE_STRRSTR

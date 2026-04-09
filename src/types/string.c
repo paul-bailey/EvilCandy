@@ -2454,11 +2454,11 @@ string_str(Object *v)
                         if (c > 0xffffu) {
                                 bug_on(!utf8_valid_unicode(c));
                                 buffer_putc(&b, 'U');
-                                sprintf(buf, "%08x", (int)c);
+                                evc_sprintf(buf, sizeof(buf), "%08x", (int)c);
                                 buffer_puts(&b, buf);
                         } else if (c > 0xffu) {
                                 buffer_putc(&b, 'u');
-                                sprintf(buf, "%04x", (int)c);
+                                evc_sprintf(buf, sizeof(buf), "%04x", (int)c);
                                 buffer_puts(&b, buf);
                         } else {
                                 /* XXX Hex is more compact than octal */

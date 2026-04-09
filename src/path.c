@@ -118,13 +118,15 @@ push_path_from(const char *requested_file, const char *refpath, bool script)
          */
         char *newpath;
         FILE *fp;
+        size_t pathlen;
 
         bug_on(!refpath && requested_file[0] != SEP);
 
         if (!refpath)
                 refpath = "";
-        newpath = emalloc(strlen(requested_file) + strlen(refpath) + 2);
-        sprintf(newpath, "%s/%s", refpath, requested_file);
+        pathlen = strlen(requested_file) + strlen(refpath) + 2;
+        newpath = emalloc(pathlen);
+        evc_sprintf(newpath, pathlen, "%s/%s", refpath, requested_file);
         bug_on(newpath[0] != SEP);
 
         fp = fopen(newpath, "r");

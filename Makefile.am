@@ -1,9 +1,15 @@
+# Do this instead of check_PROGRAMS, since I do not necessarily
+# want to run this during 'make check'
+.PHONY: tests
+tests: tests/c/test_path
+
 ACLOCAL_AMFLAGS = -I build/m4
 AM_CFLAGS = \
  -Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -pedantic
 AM_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 
-bin_PROGRAMS = evilcandy tests/c/test_path
+bin_PROGRAMS = evilcandy
+EXTRA_PROGRAMS = tests/c/test_path
 check_PROGRAMS = tools/tokgen tools/gen
 
 tools_tokgen_SOURCES = tools/tokgen.c tools/genutil.c

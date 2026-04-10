@@ -2836,11 +2836,16 @@ assemble_block_stmt(struct assemble_t *a, unsigned int flags,
         flags &= ~FE_CONTINUE;
 
         for (;;) {
+                int t;
+
                 /* peek for end of compound statement */
-                if (as_lex(a) < 0)
+                if ((t = as_lex(a)) < 0 || t == OC_EOF) {
+                        if (t == OC_EOF)
+                                err_ae_brace();
                         return -1;
-                if (a->oc->t == OC_RBRACE)
+                } else if (t == OC_RBRACE) {
                         break;
+                }
                 as_unlex(a);
 
                 if (assemble_stmt(a, flags, -1) < 0)

@@ -89,7 +89,7 @@ int_pow(Object *a, Object *b)
         err_clear();
         res = ipow(la, lb);
         if (err_occurred())
-                return NULL;
+                return ErrorVar;
         return intvar_new__(res);
 }
 
@@ -112,7 +112,7 @@ int_div(Object *a, Object *b)
         lb = intvar_toll(b);
         if (lb == 0LL) {
                 err_setstr(NumberError, "Divide by zero");
-                return NULL;
+                return ErrorVar;
         }
         return intvar_new__(la / lb);
 }
@@ -126,7 +126,7 @@ int_mod(Object *a, Object *b)
         lb = intvar_toll(b);
         if (lb == 0LL) {
                 err_setstr(NumberError, "Modulo zero");
-                return NULL;
+                return ErrorVar;
         }
         return intvar_new__(la % lb);
 }

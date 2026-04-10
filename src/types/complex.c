@@ -66,7 +66,7 @@ complex_div(Object *a, Object *b)
         COMPLEX(b, cb);
         if (creal(cb) == 0.0 && cimag(cb) == 0.0) {
                 err_setstr(NumberError, "Divide by zero");
-                return NULL;
+                return ErrorVar;
         }
         return ccomplexvar_new(ca / cb);
 }

@@ -2497,7 +2497,7 @@ string_cat(Object *a, Object *b)
         if (!isvar_string(b)) {
                 err_setstr(TypeError,
                            "Mismatched types for + operation");
-                return NULL;
+                return ErrorVar;
         }
         /* The concatenation width will be wider of the two */
         wa = string_width(a);
@@ -2580,7 +2580,7 @@ string_modulo(Object *str, Object *arg)
         } else {
                 err_setstr(TypeError,
                            "'x' in str %% x must be a list, tuple, or dictionary");
-                return NULL;
+                return ErrorVar;
         }
 }
 

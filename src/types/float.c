@@ -48,7 +48,7 @@ float_pow(Object *a, Object *b)
                 if (fb < 0.0) {
                         err_setstr(NumberError,
                                 "0 ** Negative number would divide by zero");
-                        return NULL;
+                        return ErrorVar;
                 }
         }
 
@@ -73,7 +73,7 @@ float_div(Object *a, Object *b)
 
         if (fb == 0.0) {
                 err_setstr(NumberError, "Divide by zero");
-                return NULL;
+                return ErrorVar;
         }
 
         return floatvar_new(fa / fb);
@@ -88,7 +88,7 @@ float_mod(Object *a, Object *b)
 
         if (fb == 0.0) {
                 err_setstr(NumberError, "Modulo by zero");
-                return NULL;
+                return ErrorVar;
         }
 
         return floatvar_new(fmod(fa, fb));

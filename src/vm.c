@@ -1483,6 +1483,13 @@ execute_loop(Frame *fr)
                         bug_on(!exception);
                         push(fr, exception);
                         fr->ppii = bl->jmpto;
+
+                        /*
+                         * Would be false if the error occurred in this
+                         * function call, true if not.
+                         */
+                        if (debug_has_error())
+                                debug_free_error();
                 }
         }
         /*
@@ -1574,7 +1581,7 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
         res = function_call(fr, args, kwargs);
         vmframe_free(fr);
 
-        if (tfr && tfr->ex && res != ErrorVar)
+        if (tfr && tfr->ex)
                 debug_pop_location();
 
         if (!res)

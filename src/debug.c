@@ -1,3 +1,12 @@
+/*
+ * debug.c - A stack of function-enter-and-exit points, to save location
+ *           info in case of an error.
+ *
+ * When entering a UAPI function: call debug_push_location().
+ * When exiting a UAPI function: call debug_pop_location().
+ * When reporting a location where an exception was raised: use
+ *      debug_mark_error()
+ */
 #include <evilcandy.h>
 #include <evilcandy/locations.h>
 #include <types/xptr.h>
@@ -7,9 +16,17 @@ struct debug_locations_t {
         Object *xptr;
 };
 
-static struct debug_locations_t *debug_locations = NULL;
-static ssize_t debug_locations_alloc = 0;
-static ssize_t debug_nlocations = 0;
+struct debug_stack_t {
+        struct debug_locations_t *locations;
+        ssize_t locations_alloc;
+        ssize_t nlocations;
+} debug = {
+        .locations = NULL,
+        .locations_alloc = 0,
+        .nlocations = 0,
+};
+
+static struct debug_stack_t debug_saved_error;
 static bool debug_error = false;
 
 /*
@@ -17,32 +34,85 @@ static bool debug_error = false;
  * will have no effect until error is cleared. This is because multiple
  * calls to debug_mark_error will occur while unwinding the stack to the
  * top level.
+ *
+ * @instr_offset: - If error occured in a user function, this is the
+ *                  index from the base of the instructions array.
+ *                - If error occured in a built-in function, this is -1.
+ *                  For built-in functions, we'll have to live with a
+ *                  traceback which stops at the built-in function call.
  */
 void
-debug_mark_error(Frame *fr, size_t instr_offset)
+debug_mark_error(Frame *fr, ssize_t instr_offset)
 {
+        struct debug_locations_t *saved_locations;
+        ssize_t i, locations_nbytes;
+
         if (debug_error)
                 return;
+
         debug_error = true;
-        debug_push_location(fr, instr_offset);
+
+        if (instr_offset >= 0)
+                debug_push_location(fr, instr_offset);
+
+        locations_nbytes = debug.nlocations * sizeof(*saved_locations);
+        saved_locations = emalloc(locations_nbytes);
+        memcpy(saved_locations, debug.locations, locations_nbytes);
+        for (i = 0; i < debug.nlocations; i++)
+                VAR_INCR_REF(saved_locations[i].xptr);
+
+        debug_saved_error.locations       = saved_locations;
+        debug_saved_error.locations_alloc = locations_nbytes;
+        debug_saved_error.nlocations      = debug.nlocations;
+
+        /*
+         * Don't save the error location with the normal debug stack,
+         * only keep it with debug_saved_error
+         */
+        debug_pop_location();
+}
+
+bool
+debug_has_error(void)
+{
+        return debug_error;
+}
+
+void
+debug_free_error(void)
+{
+        ssize_t i;
+
+        bug_on(!debug_error);
+        for (i = 0; i < debug_saved_error.nlocations; i++) {
+                struct debug_locations_t *loc;
+
+                loc = &debug_saved_error.locations[i];
+                bug_on(!loc->xptr);
+                VAR_DECR_REF(loc->xptr);
+                loc->xptr = NULL;
+        }
+        efree(debug_saved_error.locations);
+        memset(&debug_saved_error, 0, sizeof(debug_saved_error));
+        debug_error = false;
 }
 
 void
 debug_push_location(Frame *fr, size_t instr_offset)
 {
         struct debug_locations_t *loc;
-        if (debug_nlocations >= debug_locations_alloc) {
-                debug_locations_alloc += 16;
-                debug_locations = erealloc(
-                        debug_locations,
-                        debug_locations_alloc
+        if (debug.nlocations >= debug.locations_alloc) {
+                debug.locations_alloc += 16;
+                debug.locations = erealloc(
+                        debug.locations,
+                        debug.locations_alloc
                          * sizeof(struct debug_locations_t));
-                memset(&debug_locations[debug_nlocations], 0,
-                       (debug_locations_alloc - debug_nlocations)
+                memset(&debug.locations[debug.nlocations], 0,
+                       (debug.locations_alloc - debug.nlocations)
                         * sizeof(struct debug_locations_t));
         }
-        loc = &debug_locations[debug_nlocations];
-        debug_nlocations++;
+        loc = &debug.locations[debug.nlocations];
+        debug.nlocations++;
 
         loc->instr_offset = instr_offset;
         loc->xptr = (Object *)fr->ex;
@@ -55,24 +125,30 @@ debug_pop_location(void)
 {
         struct debug_locations_t *loc;
 
-        bug_on(debug_nlocations <= 0 || !debug_locations);
-        --debug_nlocations;
-        loc = &debug_locations[debug_nlocations];
+        bug_on(debug.nlocations <= 0 || !debug.locations);
+        --debug.nlocations;
+        loc = &debug.locations[debug.nlocations];
         if (loc->xptr)
                 VAR_DECR_REF(loc->xptr);
         memset(loc, 0, sizeof(*loc));
 }
 
+/*
+ * Only call this during de-init at the end of the program.
+ * For normal runtime operation just call debug_push/pop_location().
+ */
 void
 debug_clear_locations(void)
 {
-        if (debug_locations) {
-                while (debug_nlocations)
+        if (debug.locations) {
+                while (debug.nlocations)
                         debug_pop_location();
-                efree(debug_locations);
-                debug_locations = NULL;
+                efree(debug.locations);
+                debug.locations = NULL;
+                debug.locations_alloc = 0;
         }
-        debug_error = false;
+        if (debug_error)
+                debug_free_error();
 }
 
 static void
@@ -128,17 +204,25 @@ close:
  *      suspected error occurred, as well as calling function.  This will
  *      skip pipes and TTYs.
  *
- * Do not call this if there wasn't an untrapped exception; it will
- * be very misleading otherwise.
+ * This clears the error traceback.
  */
 void
 debug_print_trace(FILE *fp, bool print_lines)
 {
+        /*
+         * TODO: Move all this to a helper function so we can give a choice
+         * between printing an error traceback or a normal traceback.
+         */
+        struct debug_stack_t *dbg = &debug_saved_error;
         struct debug_locations_t *dbgloc;
         ssize_t i;
 
-        dbgloc = &debug_locations[debug_nlocations - 1];
-        for (i = 0; i < debug_nlocations; i++, dbgloc--) {
+        /* print nothing */
+        if (!debug_error)
+                return;
+
+        dbgloc = &dbg->locations[dbg->nlocations - 1];
+        for (i = 0; i < dbg->nlocations; i++, dbgloc--) {
                 const char *filename;
                 const char *funcname;
                 Object *fname_obj;
@@ -179,6 +263,6 @@ debug_print_trace(FILE *fp, bool print_lines)
                 }
         }
 
-        debug_clear_locations();
+        debug_free_error();
 }
 

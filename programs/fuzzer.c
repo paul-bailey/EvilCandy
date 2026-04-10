@@ -6,6 +6,8 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
+#include <errno.h>
 
 /*
  * Set to 1 to see occasional "test #nnn" progress.
@@ -309,13 +311,24 @@ fuzz_loop(unsigned int n_tests, unsigned int seed)
 int
 main(int argc, char **argv)
 {
-        const unsigned int seed = 12345;
         int opt;
+        unsigned int seed = clock();
 
         for (opt = 1; opt < argc; opt++) {
                 if (!strcmp(argv[opt], "--nofork")) {
                         opt_nofork = true;
                         opt_ntests = 1000 * 1000;
+                } else if (!strcmp(argv[opt], "--seed")) {
+                        char *endptr;
+                        opt++;
+                        if (opt >= argc)
+                                goto err_parse_seed;
+                        seed = strtoul(argv[opt], &endptr, 0);
+                        if (endptr == argv[opt] || errno) {
+err_parse_seed:
+                                fprintf(stderr, "Expected: --seed <n>\n");
+                                return 1;
+                        }
                 } else {
                         fprintf(stderr, "invalid option\n");
                         return 1;
@@ -333,6 +346,6 @@ main(int argc, char **argv)
         if (opt_nofork)
                 end_program();
 
-        printf("[Evilcandy Fuzzer]: ...Test complete\n");
+       printf("[Evilcandy Fuzzer]: ...Test complete\n");
 }
 

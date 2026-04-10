@@ -3358,7 +3358,7 @@ assemble_string(const char *str, bool eval_only)
                 flags = FE_TOP | FE_EVALONLY;
         else
                 flags = 0;
-        ret = assemble_next(a, false, flags);
+        ret = assemble_next(a, !eval_only, flags);
 
         /* Make sure it was one expression */
         if (eval_only && ret != NULL && ret != ErrorVar) {

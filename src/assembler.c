@@ -2167,11 +2167,13 @@ assemble_identifier(struct assemble_t *a, unsigned int flags)
         struct names_t *n;
         int ret;
 
-        ret = assemble_super_expr(a);
-        if (ret) {
-                if (ret < 0)
-                        return -1;
-                return assemble_primary_elements__(a);
+        if (a->oc->t == OC_IDENTIFIER) {
+                ret = assemble_super_expr(a);
+                if (ret) {
+                        if (ret < 0)
+                                return -1;
+                        return assemble_primary_elements__(a);
+                }
         }
 
         needsize = gather_names(a, &names, &star, ERRH_EXCEPTION);

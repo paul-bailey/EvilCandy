@@ -12,11 +12,13 @@ bin_PROGRAMS = evilcandy
 EXTRA_PROGRAMS = programs/unit_tests programs/fuzzer
 check_PROGRAMS = tools/tokgen tools/gen
 
+noinst_LIBRARIES = src/libevilcandy.a
+
 tools_tokgen_SOURCES = tools/tokgen.c tools/genutil.c
 tools_gen_SOURCES = tools/gen.c
 tools_gen_CPPFLAGS = -I$(top_srcdir)/inc
 
-COMMON_SOURCES = \
+src_libevilcandy_a_SOURCES = \
         src/assembler.c \
         src/assemble_post.c \
         src/buffer.c \
@@ -74,16 +76,9 @@ COMMON_SOURCES = \
         src/types/tuple.c \
         src/types/xptr.c
 
-programs_unit_tests_SOURCES = \
-        $(COMMON_SOURCES) \
-        programs/unit_tests.c
-programs_fuzzer_SOURCES = \
-        $(COMMON_SOURCES) \
-        programs/fuzzer.c
-
-evilcandy_SOURCES = \
-        $(COMMON_SOURCES) \
-        programs/evilcandy.c
+programs_unit_tests_SOURCES = programs/unit_tests.c
+programs_fuzzer_SOURCES = programs/fuzzer.c
+evilcandy_SOURCES = programs/evilcandy.c
 
 noinst_HEADERS = \
         inc/debug.h \
@@ -112,7 +107,7 @@ noinst_HEADERS = \
         inc/lib/utf8.h \
         tools/gen.h
 
-COMMON_LDADD=-lm
+COMMON_LDADD=-lm src/libevilcandy.a
 if WANT_READLINE
 COMMON_LDADD+=-lreadline
 endif
@@ -127,6 +122,7 @@ COMMON_CPPFLAGS=\
  -DRCDATADIR=\"$(evilcandydir)\" \
  -Wall
 
+src_libevilcandy_a_CPPFLAGS=$(COMMON_CPPFLAGS)
 evilcandy_CPPFLAGS=$(COMMON_CPPFLAGS)
 programs_unit_tests_CPPFLAGS=$(COMMON_CPPFLAGS)
 programs_fuzzer_CPPFLAGS=$(COMMON_CPPFLAGS)

@@ -143,7 +143,7 @@ addr2obj(struct socketvar_t *skv, struct evc_sockaddr_t *sa,
 {
         if (addrlen != skv->addrlen) {
                 skerr_length(fname);
-                return NULL;
+                return ErrorVar;
         }
 
         switch (skv->domain) {
@@ -169,7 +169,7 @@ addr2obj(struct socketvar_t *skv, struct evc_sockaddr_t *sa,
             }
         default:
                 skerr_notimpl("unsupported address family", fname);
-                return NULL;
+                return ErrorVar;
         }
 }
 
@@ -408,7 +408,7 @@ do_accept(Frame *fr)
         }
 
         ao = addr2obj(skv, &sa, addrlen, "accept");
-        if (!ao)
+        if (!ao || ao == ErrorVar)
                 goto err_closefd;
 
         sknew = socket_create_from(skobj, newfd, skv->domain,
@@ -641,7 +641,7 @@ do_recvfrom(Frame *fr)
                 return ErrorVar;
 
         ao = addr2obj(rdat.skv, &rdat.sa, rdat.addrlen, "recvfrom");
-        if (!ao) {
+        if (!ao || ao == ErrorVar) {
                 VAR_DECR_REF(msg);
                 return ErrorVar;
         }
@@ -932,4 +932,3 @@ moduleinit_socket(void)
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
 }
-

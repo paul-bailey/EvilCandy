@@ -203,7 +203,7 @@ run_evilcandy(const char *program)
                 run_evilcandy_(program);
                 end_program();
 
-                exit(EXIT_SUCCESS);
+                _exit(EXIT_SUCCESS);
                 return 0;
         }
 

@@ -1,10 +1,6 @@
 /*
  * op.c - built-in methods for operators like + and -
  * FIXME: Half of this should be in var.c and half should be in vm.c
- *
- * FIXME: Lots of return-NULLs in places where an exception was thrown!
- *        If an Object* is the return value and there was an exception,
- *        the return value should always be ErrorVar.
  */
 #include <evilcandy.h>
 

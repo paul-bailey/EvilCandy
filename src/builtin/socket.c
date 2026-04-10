@@ -183,7 +183,6 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa,
 {
         /* TODO: Manage 'broadcast' (=255.255.255.255). */
         /* TODO: Use @domain arg, currently only allowing IPv4 */
-        /* TODO: Does one of the below methods support "localhost"? */
         memset(sa, 0, sizeof(*sa));
 #ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
         sa->in.sin_len = sizeof(sa->in);
@@ -208,10 +207,10 @@ parse_ip_addr(const char *name, struct evc_sockaddr_t *sa,
                         return RES_ERROR;
                 }
                 /*
-                 * FIXME: Cycle through list, find info which has
-                 * matching domain.  I don't think hints.ai_family
-                 * guarantees only results with matching domain will
-                 * be returned.
+                 * TODO: Not cycling through list, because we're only
+                 * using AF_INET for hints.ai_family.  If we change this
+                 * to use @domain arg, cycle through list, find info which
+                 * has a matching domain.
                  */
                 if (info->ai_addrlen != addrlen) {
                         skerr_length(fname);
@@ -431,8 +430,7 @@ err_closefd:
  * address is a string.  It must make sense for the family used.
  * AF_INET:
  *      address may be 'localhost', 'INADDR_ANY', or an address of the
- *      form '#.#.#.#', ie. '192.168.0.1'.  It may not be a domain name
- *      like 'mycomputer@mycompany.net'.
+ *      form '#.#.#.#', ie. '192.168.0.1'.
  * AF_UNIX:
  *      address will look like a file name
  */
@@ -468,8 +466,7 @@ do_bind(Frame *fr)
  * address is a string.  It must make sens for the family used.
  * AF_INET:
  *      address may be of the form '#.#.#.#', ie. '192.168.0.1'.
- *      It may not be a domain name like 'www.google.com'.  It may also
- *      be 'localhost' or 'INADDR_ANY'.
+ *      It may also be 'localhost' or 'INADDR_ANY'.
  * AF_UNIX:
  *      address will look like a file name
  */

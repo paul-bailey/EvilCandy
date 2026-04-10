@@ -21,7 +21,8 @@ src/builtin/.*.swp
 /Documentation/_build
 /Documentation/__pycache__
 
-# generated programs
+# generated programs and libraries
+/src/libevilcandy.a
 /evilcandy
 /tools/gen
 /tools/tokgen

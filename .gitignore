@@ -26,6 +26,7 @@ src/builtin/.*.swp
 /tools/gen
 /tools/tokgen
 /programs/unit_tests
+/programs/fuzzer
 
 # files created by tools/gen
 /*/*_gen.c.h

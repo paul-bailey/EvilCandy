@@ -116,6 +116,8 @@ qop_mul(Object *a, Object *b)
         } else if (MAY_CAT(b)) {
                 if (!isvar_int(a))
                         goto cant;
+        } else {
+                goto cant;
         }
 
         adder = b->v_type->sqm->cat;

@@ -1,7 +1,11 @@
 #include <evilcandy.h>
 #include <evilcandy/init.h>
-#include <stdlib.h>
+
 #include <assert.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 /*
  * Set to 1 to see occasional "test #nnn" progress.
@@ -9,13 +13,16 @@
  *      which the assembler is trying to parse, before each test
  *      is run.  (Extremely verbose, will drag progress to a crawl).
  */
-#define FUZZER_VERBOSE 0
+#define FUZZER_VERBOSE 1
 
 struct strbuf_t {
         char *buf;
         size_t len;
         size_t cap;
 };
+
+static bool opt_nofork = false;
+static long opt_ntests = 50 * 1000;
 
 static void
 sb_init(struct strbuf_t *sb, char *buffer, size_t cap)
@@ -145,13 +152,9 @@ gen_program(char *buffer, size_t size)
                 gen_stmt(&sb, 3);
 }
 
-/*
- * TODO: move this to a child process, so recovery can occur in case
- * of a spinlock or a crash.
- */
 /* return true if this got as far as execution */
 static bool
-run_evilcandy(const char *program, int test_no)
+run_evilcandy_(const char *program)
 {
         Object *result, *xptr;
 
@@ -168,7 +171,6 @@ run_evilcandy(const char *program, int test_no)
         if (!xptr)
                 return false;
 
-
         result = vm_exec_script(xptr, NULL);
         if (result == ErrorVar) {
                 assert(err_occurred());
@@ -179,6 +181,61 @@ run_evilcandy(const char *program, int test_no)
                 VAR_DECR_REF(result);
         }
         return true;
+}
+
+static int
+run_evilcandy(const char *program)
+{
+        int status = 0;
+        int waited = 0;
+        pid_t pid;
+
+        if (opt_nofork) {
+                run_evilcandy_(program);
+                return 0;
+        }
+
+        pid = fork();
+        if (pid == 0) {
+                initialize_program();
+                run_evilcandy_(program);
+                end_program();
+
+                exit(EXIT_SUCCESS);
+                return 0;
+        }
+
+        while (waited < 100) {
+                if (waitpid(pid, &status, WNOHANG) != 0)
+                        break;
+                usleep(1000);
+                waited++;
+        }
+
+        if (waited == 100) {
+                kill(pid, SIGKILL);
+                fprintf(stderr, "Program timed out\n");
+                return -1;
+        }
+
+        if (WIFSIGNALED(status)) {
+                fprintf(stderr, "Program crashed! signal %d\n",
+                        WTERMSIG(status));
+                if (WCOREDUMP(status))
+                        fprintf(stderr, "core dump generated\n");
+                return -1;
+        }
+
+        if (WIFEXITED(status)) {
+                if (status != EXIT_SUCCESS) {
+                        fprintf(stderr,
+                                "Program exited with status %d\n",
+                                WEXITSTATUS(status));
+                        return -1;
+                }
+        }
+
+        return 0;
 }
 
 static void
@@ -218,11 +275,11 @@ mutate(char *buf, size_t len, size_t cap)
         }
 }
 
-static int
-fuzz_loop(unsigned int n_tests)
+static void
+fuzz_loop(unsigned int n_tests, unsigned int seed)
 {
         static char program[8096];
-        int i, count = 0;
+        int i;
         for (i = 0; i < n_tests; i++) {
                 int m, j;
 
@@ -240,28 +297,41 @@ fuzz_loop(unsigned int n_tests)
                                 fprintf(stderr, "test %d\n", i);
                 }
 
-                count += run_evilcandy(program, i);
+                if (run_evilcandy(program) < 0) {
+                        fprintf(stderr, "[Evilcandy Fuzzer]: Test #%d failed\n", i);
+                        fprintf(stderr, "[Evilcandy Fuzzer]: Seed:    %u\n", seed);
+                        fprintf(stderr, "[Evilcandy Fuzzer]: Program: %s\n", program);
+                        return;
+                }
         }
-        return count;
 }
 
 int
 main(int argc, char **argv)
 {
-        enum { N_TESTS = 1000 * 1000 };
         const unsigned int seed = 12345;
-        int count;
+        int opt;
 
-        /* TODO: Let seed, verbose levels be command-line options */
+        for (opt = 1; opt < argc; opt++) {
+                if (!strcmp(argv[opt], "--nofork")) {
+                        opt_nofork = true;
+                        opt_ntests = 1000 * 1000;
+                } else {
+                        fprintf(stderr, "invalid option\n");
+                        return 1;
+                }
+        }
 
         /* deterministic seed, so we can repeat this test */
         srand(seed);
 
         printf("[EvilCandy Fuzzer]: Testing with seed %u...\n", seed);
 
-        initialize_program();
-        fuzz_loop(N_TESTS);
-        end_program();
+        if (opt_nofork)
+                initialize_program();
+        fuzz_loop(opt_ntests, seed);
+        if (opt_nofork)
+                end_program();
 
         printf("[Evilcandy Fuzzer]: ...Test complete\n");
 }

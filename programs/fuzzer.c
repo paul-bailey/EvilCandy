@@ -172,7 +172,7 @@ run_evilcandy(const char *program, int test_no)
 }
 
 static void
-mutate(char *buf, size_t len)
+mutate(char *buf, size_t len, size_t cap)
 {
         int i, j, choice = rnd(4);
 
@@ -187,9 +187,10 @@ mutate(char *buf, size_t len)
         case 1: /* duplicate chunk */
                 i = rnd(len);
                 j = rnd(len);
-                if (i < j) {
+                if (i < j && (cap - len) > (j - i)) {
                         memmove(&buf[j + (j - i)], &buf[j], len - j);
                         memcpy(&buf[j], &buf[i], j - i);
+                        buf[j + len - i] = '\0';
                 }
                 break;
         case 2: /* flip random char */
@@ -197,9 +198,12 @@ mutate(char *buf, size_t len)
                 buf[i] = (char)(32 + rnd(95));
                 break;
         case 3: /* insert random char */
-                i = rnd(len);
-                memmove(&buf[i+1], &buf[i], len - i);
-                buf[i] = (char)(32 + rnd(95));
+                if (cap - len > 2) {
+                        i = rnd(len);
+                        memmove(&buf[i+1], &buf[i], len - i);
+                        buf[i] = (char)(32 + rnd(95));
+                        buf[len+1] = '\0';
+                }
                 break;
         }
 }
@@ -216,7 +220,7 @@ fuzz_loop(unsigned int n_tests)
                 m = rnd(5);
 
                 for (j = 0; j < m; j++) {
-                        mutate(program, strlen(program));
+                        mutate(program, strlen(program), sizeof(program));
                 }
 
                 fprintf(stderr, "Program: %s\n", program);

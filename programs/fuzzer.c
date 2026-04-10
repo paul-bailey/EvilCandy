@@ -141,12 +141,9 @@ gen_program(char *buffer, size_t size)
 static bool
 run_evilcandy(const char *program, int test_no)
 {
-#warning "remove when issue #8 is solved"
-        if (strchr(program, '#'))
-                return false;
+        Object *result, *xptr;
 
-        Object *result;
-        Object *xptr = assemble_string(program, false);
+        xptr = assemble_string(program, false);
         if (xptr == ErrorVar) {
                 assert(err_occurred());
                 err_clear();
@@ -222,7 +219,7 @@ fuzz_loop(unsigned int n_tests)
                         mutate(program, strlen(program));
                 }
 
-fprintf(stderr, "Program: %s\n", program);
+                fprintf(stderr, "Program: %s\n", program);
 
                 count += run_evilcandy(program, i);
         }

@@ -151,7 +151,7 @@ tok_next_line(struct token_state_t *state)
 
 static int
 str_slide(struct token_state_t *state, struct buffer_t *tok,
-          char *pc, const char *charset)
+          char *pc, const char *charset, bool rstring)
 {
         int c, clast = 0;
         bool fstring = tok == &state->fstring_tok;
@@ -167,6 +167,9 @@ again:
                     strchr_nonnull(charset, *pc)) {
                         buffer_putc(tok, *pc);
                         c = *pc++;
+                } else if (rstring && c == '\\') {
+                        /* rstrings, fake-escape these */
+                        buffer_putc(tok, c);
                 }
                 clast = c;
         }
@@ -202,7 +205,7 @@ str_or_bytes_finish(struct token_state_t *state, char *pc, int q)
         charset[0] = q;
         charset[1] = '\0';
 
-        str_slide(state, &state->tok, pc, charset);
+        str_slide(state, &state->tok, pc, charset, false);
         return true;
 }
 
@@ -222,7 +225,18 @@ fstring_continue(struct token_state_t *state)
                 }
         }
 
-        return str_slide(state, &state->fstring_tok, state->s, charset);
+        return str_slide(state, &state->fstring_tok,
+                         state->s, charset, false);
+}
+
+static bool
+rstring_finish(struct token_state_t *state, char *pc, int q)
+{
+        char charset[2];
+        charset[0] = q;
+        charset[1] = '\0';
+        str_slide(state, &state->tok, pc, charset, true);
+        return true;
 }
 
 /*
@@ -234,8 +248,16 @@ get_tok_string(struct token_state_t *state)
 {
         struct buffer_t *tok = &state->tok;
         int q = *state->s;
-        if (!isquote(q))
+        if (q == 'r' || q == 'R') {
+                q = state->s[1];
+                if (!isquote(q))
+                        return false;
+
+                buffer_putc(tok, q);
+                return rstring_finish(state, state->s + 2, q);
+        } else if (!isquote(q)) {
                 return false;
+        }
 
         buffer_putc(tok, q);
         return str_or_bytes_finish(state, state->s + 1, q);

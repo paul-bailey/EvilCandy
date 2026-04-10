@@ -3,6 +3,14 @@
 #include <stdlib.h>
 #include <assert.h>
 
+/*
+ * Set to 1 to see occasional "test #nnn" progress.
+ * Set to 2 when debugging, to see "Program: bigLiStOfGiBberIsh",
+ *      which the assembler is trying to parse, before each test
+ *      is run.  (Extremely verbose, will drag progress to a crawl).
+ */
+#define FUZZER_VERBOSE 0
+
 struct strbuf_t {
         char *buf;
         size_t len;
@@ -137,6 +145,10 @@ gen_program(char *buffer, size_t size)
                 gen_stmt(&sb, 3);
 }
 
+/*
+ * TODO: move this to a child process, so recovery can occur in case
+ * of a spinlock or a crash.
+ */
 /* return true if this got as far as execution */
 static bool
 run_evilcandy(const char *program, int test_no)
@@ -156,8 +168,6 @@ run_evilcandy(const char *program, int test_no)
         if (!xptr)
                 return false;
 
-        if (test_no % 1000 == 0)
-                fprintf(stderr, "Test %d: %s\n", test_no, program);
 
         result = vm_exec_script(xptr, NULL);
         if (result == ErrorVar) {
@@ -223,7 +233,12 @@ fuzz_loop(unsigned int n_tests)
                         mutate(program, strlen(program), sizeof(program));
                 }
 
-                fprintf(stderr, "Program: %s\n", program);
+                if (FUZZER_VERBOSE) {
+                        if (i % (10 * 1000) == 0)
+                                fprintf(stderr, "%d\n", i);
+                        if (FUZZER_VERBOSE > 1)
+                                fprintf(stderr, "test %d\n", i);
+                }
 
                 count += run_evilcandy(program, i);
         }
@@ -234,18 +249,20 @@ int
 main(int argc, char **argv)
 {
         enum { N_TESTS = 1000 * 1000 };
+        const unsigned int seed = 12345;
         int count;
-        /*
-         * TODO: Prevent infinite loops.
-         */
+
+        /* TODO: Let seed, verbose levels be command-line options */
 
         /* deterministic seed, so we can repeat this test */
-        srand(12345);
+        srand(seed);
+
+        printf("[EvilCandy Fuzzer]: Testing with seed %u...\n", seed);
 
         initialize_program();
-        count = fuzz_loop(N_TESTS);
+        fuzz_loop(N_TESTS);
         end_program();
 
-        fprintf(stdout, "%d programs made it to execution", count);
+        printf("[Evilcandy Fuzzer]: ...Test complete\n");
 }
 

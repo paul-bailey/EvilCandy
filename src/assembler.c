@@ -1673,7 +1673,8 @@ assemble_expr4_elems(struct assemble_t *a)
 {
         if (assemble_expr5_atomic(a) < 0)
                 return -1;
-        assemble_primary_elements(a, FEE_EVAL);
+        if (assemble_primary_elements(a, FEE_EVAL) < 0)
+                return -1;
         return 0;
 }
 
@@ -3371,6 +3372,7 @@ assemble_string(const char *str, bool eval_only)
                         ret = ErrorVar;
                 }
         }
+        bug_on(ret != ErrorVar && err_occurred());
         free_assembler(a);
         return ret;
 }

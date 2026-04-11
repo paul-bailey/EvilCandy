@@ -74,7 +74,7 @@ enum {
         FE_EVALONLY     = 0x20,
 
         /*
-         * bits 4-5, three mutually-exclusive arguments to
+         * bits 8-9, three mutually-exclusive arguments to
          * assemble_primary_elements.
          */
         FEE_EVAL        = 0x000, /* use with FEE_MASK */

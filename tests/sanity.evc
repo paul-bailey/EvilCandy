@@ -56,10 +56,16 @@ function test_string() {
         str = uni.join(list(abc));
         test.assert_true(str.count(uni) == length(abc)-1);
     }
+    function test_rstring() {
+        test.assert_true(r'\\' == '\\\\');
+        test.assert_true(r'\n' == '\\n');
+        test.assert_true(r'\'' == '\'');
+    }
     test_replace();
     test_partition();
     test_split();
     test_count();
+    test_rstring();
 }
 
 function test_dict() {
@@ -147,6 +153,15 @@ function test_class() {
         let x = MyClass();
         test.assert_no_exception_inscope(x, 'hello', []);
         test.assert_true(x.hello() == 'world');
+    }
+    {
+        class MyClass() {
+            '__init__': function (x) {
+                this.x = x;
+            }
+        }
+        let x = MyClass(12);
+        test.assert_true(x.x == 12);
     }
 }
 

@@ -728,6 +728,17 @@ do_dict_clear(Frame *fr)
 }
 
 static Object *
+do_dict_tonamespace(Frame *fr)
+{
+        Object *self = vm_get_this(fr);
+        bug_on(!isvar_dict(self));
+        /* TODO: allow optional kwarg 'name=NAME' */
+        if (VM_REFUSE_ARGS(fr, "tonamespace") == RES_ERROR)
+                return ErrorVar;
+        return namespacevar_new(self, NULL);
+}
+
+static Object *
 dict_getprop_length(Object *self)
 {
         bug_on(!isvar_dict(self));
@@ -811,6 +822,7 @@ static const struct type_method_t dict_cb_methods[] = {
         {"items",     do_dict_items},
         {"keys",      do_dict_keys},
         {"values",    do_dict_values},
+        {"tonamespace", do_dict_tonamespace},
         {NULL, NULL},
 };
 

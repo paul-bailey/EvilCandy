@@ -881,6 +881,7 @@ static Object *
 do_array_pop(Frame *fr)
 {
         Object *self;
+        Object *ret;
         ssize_t at;
 
         self = vm_get_this(fr);
@@ -893,10 +894,16 @@ do_array_pop(Frame *fr)
 
         var_index_capi(seqvar_size(self), &at, NULL);
 
+        if (at < 0 || at >= seqvar_size(self)) {
+                err_setstr(RangeError, "index out of bounds");
+                return ErrorVar;
+        }
+        if ((ret = array_getitem(self, at)) == ErrorVar)
+                return ErrorVar;
         if (array_delete_chunk(self, at, 1) == RES_ERROR)
                 return ErrorVar;
 
-        return NULL;
+        return ret;
 }
 
 static Object *

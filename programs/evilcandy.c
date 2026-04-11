@@ -21,6 +21,12 @@ parse_args(int argc, char **argv)
                                 if (*s != '\0')
                                         goto er;
                                 break;
+                        case 'c':
+                                argi++;
+                                if (argi == argc)
+                                        goto er;
+                                gbl.opt.program_text = argv[argi];
+                                break;
                         case 'D':
                                 gbl.opt.disassemble = true;
                                 gbl.opt.disassemble_minimum = true;
@@ -52,6 +58,10 @@ parse_args(int argc, char **argv)
                         gbl.opt.infile = s;
                 }
                 argi++;
+        }
+        if (gbl.opt.infile != NULL && gbl.opt.program_text != NULL) {
+                fprintf(stderr, "You may not specify both infile and -c <string>\n");
+                goto er;
         }
         if (gbl.opt.disassemble)
                 gbl.opt.disassemble_only = true;
@@ -159,6 +169,36 @@ run_tty(void)
         fflush(stderr);
 }
 
+static void
+run_text(const char *text)
+{
+        Object *result, *ex;
+
+        /*
+         * TODO: support this instead of fail.
+         */
+        if (gbl.opt.disassemble) {
+                fprintf(stderr,
+                        "Disassembly not supported for -c <text> option\n");
+                return;
+        }
+
+        ex = assemble_string(text, false);
+        if (ex == ErrorVar) {
+                err_print_last(stderr);
+                return;
+        } else if (!ex) {
+                return;
+        }
+        result = vm_exec_script(ex, NULL);
+        if (result == ErrorVar) {
+                err_print_last(stderr);
+        } else {
+                VAR_DECR_REF(result);
+        }
+        VAR_DECR_REF(ex);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -167,7 +207,9 @@ main(int argc, char **argv)
         if (parse_args(argc, argv) < 0)
                 return -1;
 
-        if (gbl.opt.infile) {
+        if (gbl.opt.program_text) {
+                run_text(gbl.opt.program_text);
+        } else if (gbl.opt.infile) {
                 FILE *fp = push_path(gbl.opt.infile);
                 if (!fp)
                         fail("Could not open '%s'", gbl.opt.infile);

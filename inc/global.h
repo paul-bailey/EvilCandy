@@ -8,6 +8,7 @@ struct global_t {
                 bool disassemble_minimum;
                 char *disassemble_outfile;
                 char *infile;
+                char *program_text;
         } opt;
         bool interactive;
         Object *nl;

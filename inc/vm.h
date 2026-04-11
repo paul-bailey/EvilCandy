@@ -63,7 +63,7 @@ extern bool vm_pointers_in_stack(Object **start, Object **end);
 static inline Object *vm_get_this(Frame *fr)
         { return fr->owner; }
 static inline Object *vm_get_arg(Frame *fr, unsigned int idx)
-        { return idx >= fr->ap ? NULL : fr->stack[idx]; }
+        { return idx >= (unsigned)fr->ap ? NULL : fr->stack[idx]; }
 static inline int vm_get_argc(Frame *fr)
         { return fr->ap; }
 extern Object *vm_localdict(void);

@@ -133,7 +133,8 @@ extern Object *var_max(Object *v);
 extern Object *var_lnot(Object *v);
 extern Object *var_logical_or(Object *a, Object *b);
 extern Object *var_logical_and(Object *a, Object *b);
-extern void var_index_capi(size_t size, ssize_t *a, ssize_t *b);
+extern enum result_t var_index_capi(size_t size, ssize_t *a, ssize_t *b,
+                                    enum errhandler_t errhandler);
 extern size_t var_slice_size(ssize_t start, ssize_t stop, ssize_t step);
 extern bool var_instanceof(Object *instance, Object *class);
 

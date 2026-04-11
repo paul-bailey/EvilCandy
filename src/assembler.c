@@ -83,12 +83,6 @@ enum {
         FEE_MASK        = 0x300,
 };
 
-/* TODO: This should be in evcenums, it could be used in many places */
-enum errhandler_t {
-        ERRH_RETURN = 1,
-        ERRH_EXCEPTION,
-};
-
 enum {
         AE_GEN = 1,
         AE_BADTOK,
@@ -1544,6 +1538,10 @@ assemble_call_func(struct assemble_t *a)
  * Return: 1 if we processed "super().IDENTIFIER", 0 if not, -1 if error.
  * If returning zero, the token position will be at the same position
  * as before the call.
+ *
+ * TODO: Get rid of this low-level hack!  Make a UAPI function super(),
+ * which returns an object which, when var_getattr() is called on it,
+ * gets the attribute from a base class of "this".
  */
 static int
 assemble_super_expr(struct assemble_t *a)

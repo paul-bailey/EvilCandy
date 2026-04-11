@@ -261,7 +261,17 @@ do_tuple_index(Frame *fr)
                 return ErrorVar;
         }
 
-        var_index_capi(n, &start, &stop);
+        if (!n)
+                goto notfound_err;
+
+        if (start < 0)
+                start += n;
+        if (start < 0)
+                start = 0;
+        if (stop < 0)
+                stop += n;
+        if (start < 0)
+                goto notfound_err;
 
         data = tuple_get_data(self);
         for (i = start; i < stop; i++) {
@@ -269,6 +279,7 @@ do_tuple_index(Frame *fr)
                         return intvar_new(i);
         }
 
+notfound_err:
         err_setstr(ValueError, "item not in list");
         return ErrorVar;
 }

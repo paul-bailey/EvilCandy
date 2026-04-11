@@ -43,6 +43,12 @@ class_reset(Object *class)
                 VAR_DECR_REF(x);
 }
 
+/*
+ * FIXME: This has a multiple-inheritance diamond problem.  Change this
+ * so that cls->c_dict is filled in with methods at classvar_new() time,
+ * and use a better method to resolve which methods are used from its
+ * base classes.
+ */
 static Object *
 class_getitem(Object *class, Object *key)
 {

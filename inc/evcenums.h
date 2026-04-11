@@ -66,6 +66,22 @@ enum result_t {
         RES_ERROR = -1,
 };
 
+/**
+ * enum errhandler_t - What to do if there's an error?
+ * @ERRH_RETURN:    Return an error value but do not throw an exception
+ * @ERRH_EXCEPTION: Return an error value AND throw an exception
+ *
+ * This is an argument to some functions.  Use it sparingly.  It so
+ * happens that in some small instances, it's just easier to let the
+ * caller tell us whether we should suppress errors or not.  But more
+ * commonly, the called function should just raise an exception and not
+ * use this enum.
+ */
+enum errhandler_t {
+        ERRH_RETURN = 1,
+        ERRH_EXCEPTION,
+};
+
 /*
  * Enumeration of indices into gbl.strconsts.
  *

@@ -892,7 +892,10 @@ do_array_pop(Frame *fr)
         if (vm_getargs(fr, "[|z!]{!}:pop", &at) == RES_ERROR)
                 return ErrorVar;
 
-        var_index_capi(seqvar_size(self), &at, NULL);
+        if (var_index_capi(seqvar_size(self), &at, NULL, ERRH_EXCEPTION)
+            == RES_ERROR) {
+                return ErrorVar;
+        }
 
         if (at < 0 || at >= seqvar_size(self)) {
                 err_setstr(RangeError, "index out of bounds");
@@ -952,7 +955,15 @@ do_array_index(Frame *fr)
                 return ErrorVar;
         }
 
-        var_index_capi(n, &start, &stop);
+        if (n == 0)
+                goto notfound;
+
+        if (start < 0)
+                start += n;
+        if (start < 0)
+                start = 0;
+        if (stop < 0)
+                stop += n;
 
         if (stop < start)
                 goto notfound;

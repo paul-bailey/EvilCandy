@@ -466,38 +466,47 @@ var_slice_size(ssize_t start, ssize_t stop, ssize_t step)
  * @size:       Size of indexable item
  * @a:          Pointer to one size to fix
  * @b:          Pointer to another size to fix
+ * @errhandler: ERRH_EXCEPTION to raise an exception if out of bounds, or
+ *              ERRH_RETURN to quietly return an error if out of bounds.
  *
- * This turns something like x[-1] to x[length(x)-1].  This truncates @a
- * @b if they are negative and are a greater distance from zero than @size.
- * It does NOT truncate if they are positive and greater than @size.
+ * This turns something like x[-1] to x[length(x)-1].
+ * One of @a an @b may be NULL.
+ * @a and @b are assumed to be "start" and "stop", eg. for search limits.
+ * @a (@b=NULL) is assumed to "at this index", eg. for getitem
  *
- * @a and @b are typically "start" and "stop".  Calling functions that
- * need only one index corrected may set one of these arguments to NULL.
+ * Final @a and @b may not be < 0.  Final @b is assumed to be a "stop"
+ * index, so it may be == size, but not > size.  Final @a must be < size.
  *
- * FIXME: need option to throw range error if @a or @b are out of range.
+ * Return: RES_OK or RES_ERROR, depending whether @a and @b fit within
+ * range according to above description.
  */
-void
-var_index_capi(size_t size, ssize_t *a, ssize_t *b)
+enum result_t
+var_index_capi(size_t size, ssize_t *a, ssize_t *b,
+               enum errhandler_t errhandler)
 {
         ssize_t x;
         if (a) {
                 x = *a;
-                if (x < 0) {
+                if (x < 0)
                         x += size;
-                        if (x < 0)
-                                x = 0;
-                }
+                if (x < 0 || x >= size)
+                        goto err;
                 *a = x;
         }
         if (b) {
                 x = *b;
-                if (x < 0) {
+                if (x < 0)
                         x += size;
-                        if (x < 0)
-                                x = 0;
-                }
+                if (x < 0 || x > size)
+                        goto err;
                 *b = x;
         }
+        return RES_OK;
+
+err:
+        if (errhandler == ERRH_EXCEPTION)
+                err_setstr(RangeError, "index out of bounds");
+        return RES_ERROR;
 }
 
 static Object *

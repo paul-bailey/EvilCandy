@@ -174,6 +174,10 @@ considered an empty dictionary::
 Dictionaries
 ------------
 
+.. admonition:: FIXME
+
+   Deprecated: dot notation for dictionaries is being removed.
+
 What eggheads call *associative arrays*
 and JavaScript calls *objects*,
 Python calls *dictionaries*.

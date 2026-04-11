@@ -82,7 +82,7 @@ if (false) {
     // if we're way off, something is amiss in the interpreter.
     (function(sqrt) {
         for i in range(50) {
-            print("%.4f vs %.4f" % (sqrt(i), Math['sqrt'](i)));
+            print("%.4f vs %.4f" % (sqrt(i), Math.sqrt(i)));
         }
     })(sqrt);
 }

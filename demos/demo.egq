@@ -40,8 +40,8 @@
 
 (function(Math) {
     print("Some mathy stuff:");
-    print("\tpi is: %13.10f" % [Math['pi']]);
-    print("\te is:  %13.10f" % [Math['e']]);
+    print("\tpi is: %13.10f" % [Math.pi]);
+    print("\te is:  %13.10f" % [Math.e]);
     (function(mypow) {
         print(f"\tMy Pow: 4^4 = {mypow(4, 4)}");
     })(function(x, y) {
@@ -61,7 +61,7 @@
         return res;
     });
 
-    print("\tLib Pow: 4^4 =", Math['pow'](4, 4));
+    print("\tLib Pow: 4^4 =", Math.pow(4, 4));
     print("\tBuiltin Pow: 4^4 =", 4**4);
 })(import("math.evc", "x"));
 

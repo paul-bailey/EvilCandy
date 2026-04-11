@@ -1,1 +1,1 @@
-return __gbl__['_socket']();
+return (__gbl__['_socket']()).tonamespace();

@@ -27,8 +27,8 @@ print("\t{}\n\t{}".format(helloworld, helloagain));
         };
         let b = old_or_new(a);
 
-        b.a = 'a';
-        b.b = 'b';
+        b['a'] = 'a';
+        b['b'] = 'b';
         return b;
     };
 
@@ -39,7 +39,7 @@ print("\t{}\n\t{}".format(helloworld, helloagain));
     };
 
     let a = o();
-    a.a = 'x';
+    a['a'] = 'x';
     let b = o();
     let c =  { 'd': 1 };
     let d = o(c);
@@ -55,7 +55,7 @@ print("\t{}\n\t{}".format(helloworld, helloagain));
 
 let g = function(**args) {
     let a = { 'name': 'billy', 'age': 12 } | args;
-    print(a.name, 'age', a.age);
+    print(a['name'], 'age', a['age']);
 };
 
 print("Expect: billy age 12:");

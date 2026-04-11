@@ -14,29 +14,29 @@ class Box() {
             'borderchar':   '*'
         } | kwargs;
         if ('pad' in priv) {
-            priv.padleft    = priv.pad;
-            priv.padtop     = priv.pad;
-            priv.padbottom  = priv.pad;
+            priv['padleft']    = priv['pad'];
+            priv['padtop']     = priv['pad'];
+            priv['padbottom']  = priv['pad'];
         } else {
             if ('hpad' in priv) {
-                priv.padleft  = priv.hpad;
-                priv.padright = priv.hpad;
+                priv['padleft']  = priv['hpad'];
+                priv['padright'] = priv['hpad'];
             }
             if ('vpad' in priv) {
-                priv.padtop     = priv.vpad;
-                priv.padbottom  = priv.vpad;
+                priv['padtop']     = priv['vpad'];
+                priv['padbottom']  = priv['vpad'];
             }
         }
-        priv.count = 0;
-        this._test_borderchar(priv.borderchar);
+        priv['count'] = 0;
+        this._test_borderchar(priv['borderchar']);
         this._priv = priv;
     },
     'borderchar': property(get=function(){
-                      return this._priv.borderchar;
+                      return this._priv['borderchar'];
                   }, set=function(v) {
-                      this._priv.borderchar = this._test_borderchar(v);
+                      this._priv['borderchar'] = this._test_borderchar(v);
                   }),
-    'count': property(() => this._priv.count),
+    'count': property(() => this._priv['count']),
     '_test_borderchar': function(c) {
         if (typeof(c) != 'string')
             throw ArgumentError('borderchar not a string');
@@ -47,16 +47,16 @@ class Box() {
     'print': function(longstr, **kw) {
         let priv = this._priv;
         let test_borderchar = this._test_borderchar;
-        let maxwidth = priv.maxwidth;
+        let maxwidth = priv['maxwidth'];
         let borderchar;
         let topbottom;
         let a;
 
         borderchar = 'borderchar' in kw
-                     ? test_borderchar(kw.borderchar)
+                     ? test_borderchar(kw['borderchar'])
                      : this.borderchar;
         if (kw has 'width')
-            maxwidth = kw.width;
+            maxwidth = kw['width'];
 
         // break longstr into word sequence, put back together
         // in lines.
@@ -83,19 +83,19 @@ class Box() {
                 na.append(str.strip());
             }
             return na;
-        })(longstr.split(), maxwidth - priv.padleft - 1);
+        })(longstr.split(), maxwidth - priv['padleft'] - 1);
 
         // Now print it all.
         topbottom = ''.join([borderchar,
                              (maxwidth-2) * ' ',
                              borderchar]);
         print(maxwidth * borderchar);
-        for i in range(priv.padtop)
+        for i in range(priv['padtop'])
             print(topbottom);
         for line in a {
             let padright;
             line = ''.join([borderchar,
-                           priv.padleft * ' ',
+                           priv['padleft'] * ' ',
                            line]);
             padright = maxwidth - length(line) - 1;
             if (padright < 0)
@@ -103,10 +103,10 @@ class Box() {
 
             print(line + padright * ' ' + borderchar);
         }
-        for i in range(priv.padbottom)
+        for i in range(priv['padbottom'])
             print(topbottom);
         print(maxwidth * borderchar);
-        priv.count++;
+        priv['count']++;
    }
 };
 

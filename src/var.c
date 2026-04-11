@@ -612,16 +612,6 @@ var_getattr(Object *v, Object *key)
         }
         ret = dict_getitem(v->v_type->methods, key);
         if (!ret) {
-                if (isvar_dict(v)) {
-                        /*
-                         * special case: dictionaries use dot notation
-                         * Treat like 'getitem', do not transform
-                         * functions or properties.
-                         */
-                        ret = dict_getitem(v, key);
-                        if (ret)
-                                return ret;
-                }
                 err_attribute("get", key, v);
                 return ErrorVar;
         }
@@ -761,12 +751,7 @@ var_setitem(Object *v, Object *key, Object *value)
 enum result_t
 var_setattr(Object *v, Object *key, Object *attr)
 {
-        if (isvar_dict(v)) {
-                /* special case, dictionaries use dot notation */
-                if (dict_setitem(v, key, attr) < 0)
-                        goto err_delete;
-                return RES_OK;
-        } else if (isvar_instance(v)) {
+        if (isvar_instance(v)) {
                 if (instance_setattr(v, key, attr) < 0)
                         goto err_delete;
                 return RES_OK;

@@ -14,11 +14,11 @@
         print("me, of course!");
     };
     print('Expect: 4 to 9:');
-    iterator.tonine(4);
+    iterator['tonine'](4);
     print('Expect: 2 to 10:');
-    iterator.toten(2);
+    iterator['toten'](2);
     print("Who am I?");
-    iterator.whoami();
+    iterator['whoami']();
     print("length(iterator) is", length(iterator));
     print("iterator['✓'] is", iterator['✓']);
 })((function (){
@@ -40,8 +40,8 @@
 
 (function(Math) {
     print("Some mathy stuff:");
-    print("\tpi is: %13.10f" % [Math.pi]);
-    print("\te is:  %13.10f" % [Math.e]);
+    print("\tpi is: %13.10f" % [Math['pi']]);
+    print("\te is:  %13.10f" % [Math['e']]);
     (function(mypow) {
         print(f"\tMy Pow: 4^4 = {mypow(4, 4)}");
     })(function(x, y) {
@@ -61,7 +61,7 @@
         return res;
     });
 
-    print("\tLib Pow: 4^4 =", Math.pow(4, 4));
+    print("\tLib Pow: 4^4 =", Math['pow'](4, 4));
     print("\tBuiltin Pow: 4^4 =", 4**4);
 })(import("math.evc", "x"));
 
@@ -91,7 +91,7 @@ print("Now here's a demo of foreach:");
         }
         print('');
     }
-})("__gbl__", "__gbl__._builtins");
+})("__gbl__", "__gbl__['_builtins']");
 
 ((ahasb) => {
     ahasb('__gbl__', 'MarioBros');
@@ -103,10 +103,10 @@ print("Now here's a demo of foreach:");
 
 ((**kw) => {
     print("UTF-8/ANSI escape test");
-    print("\tValues of", kw.beeta, "will give rise to dom!");
+    print("\tValues of", kw['beeta'], "will give rise to dom!");
     let s = "Be \U0001f600!";
     print(f"\tLength of '{s}' is {length(s)}, idx#3='{s[3]}', idx#4='{s[4]}'");
-    print("\tAm I ", kw.COLOR_BLUE, 'BLUE', kw.COLOR_DEF, "???", sep="");
+    print("\tAm I ", kw['COLOR_BLUE'], 'BLUE', kw['COLOR_DEF'], "???", sep="");
 })(beeta='\u03b2', COLOR_BLUE='\e[36m', COLOR_DEF='\e[39m');
 
 {

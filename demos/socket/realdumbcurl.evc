@@ -11,7 +11,7 @@ let curl = (class () {
     '__init__': function() {
         this.sk = (() => {
             let sock = import('socket.evc', 'x');
-            return sock.socket(sock.AF_INET, sock.SOCK_STREAM, 0);
+            return sock['socket'](sock['AF_INET'], sock['SOCK_STREAM'], 0);
         })();
     },
     'get': function(url, *port) {

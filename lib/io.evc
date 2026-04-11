@@ -1,5 +1,5 @@
 // Io - hook to __gbl__._io
 
-return __gbl__._io();
+return __gbl__['_io']();
 
 

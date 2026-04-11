@@ -174,15 +174,10 @@ considered an empty dictionary::
 Dictionaries
 ------------
 
-.. admonition:: FIXME
-
-   Deprecated: dot notation for dictionaries is being removed.
-
 What eggheads call *associative arrays*
 and JavaScript calls *objects*,
 Python calls *dictionaries*.
-I have chosen to use Python's term
-since
+I have chosen to use Python's term, since
 (1) calling one kind of object an "object" to distinguish
 it from other kinds of objects is practically trolling,
 and
@@ -218,28 +213,15 @@ Dictionaries are accessed by key, not index number::
   evc> x[0];    // 0 is not a key to x
   [EvilCandy] TypeError Cannot get attribute '0' of type dict
 
-If a key is a string, and it happens to follow the same rules
-as an identifier, then it can be accessed using JavaScript-like
-dot notation::
-
-  evc> let x = {'a': 1, 'b': 2};
-  evc> x['a'];
-  1
-  evc> x.a;
-  1
-
-Bear in mind, however, that just because dot notation works here,
-the item in the dictionary is still an item, not a class attribute.
-
 If a key does not exist, then that member of the dictionary
 cannot be read.  It *can* be written, however.
 Writing to a non-existent entry in a dictionary will
 silently create the entry::
 
   evc> let x = {};
-  evc> x.a;
-  [EvilCandy] TypeError Cannot get attribute 'a' of type dict
-  evc> x.a = 1;
+  evc> x['a'];
+  [EvilCandy] TypeError Cannot get item 'a' of type dict
+  evc> x['a'] = 1;
   evc> x;
   {'a': 1}
 
@@ -247,8 +229,8 @@ A dictionary entry can be reassigned.
 Using the ``delete`` keyword, it can also be deleted::
 
   evc> let x = {'a': 1, 'b': 2, 'c': 3};
-  evc> x.b = 'two';
-  evc> delete x.c;
+  evc> x['b'] = 'two';
+  evc> delete x['c'];
   evc> x;
   {'b': 'two', 'a': 1}
 
@@ -375,35 +357,6 @@ to be evaluated rather than converted into a string.  EvilCandy *always*
 evaluates the key expression.  In EvilCandy, square brackets in the key
 will just cause an exception to be thrown, since lists are unhashable.
 
-Item-Attribute Collision
-````````````````````````
-
-Since dictionaries can use both dot notation and square-bracket notation
-to get an item, this raises a question:
-What if the dictionary's contents contain keys matching its
-built-in attributes? [#]_
-
-Just remember these two points:
-
-#. Square-bracket notation *only* gets items
-#. Dot notation gets attributes; for dictionaries it returns
-   items only as a fallback if the attribute does not exist.
-
-::
-
-   evc> let x = { 'copy': 1 };
-   evc> x['copy'];
-   1
-   evc> x.copy;
-   <method owned by 105553160477152>
-   evc> delete x.copy;
-   evc> x.copy;
-   <method owned by 105553160477152>
-   evc> x['copy'];
-   [EvilCandy] TypeError Cannot get item 'copy' of type dict
-   evc> delete x.copy;
-   [EvilCandy] TypeError Cannot delete attribute 'copy' of type dict
-
 
 Dictionaries Are Not Class Instances
 ````````````````````````````````````
@@ -448,14 +401,4 @@ Accessing with a slice will return another bytes object::
   evc> x[1:];
   b'abc\n'
 
-Notes
------
 
-.. [#]
-
-   I was tempted to use double-underscores for the dictionary's
-   attributes, but one, that enforces ugly-looking code; and
-   two, it reduces the likelihood of the problem without eliminating it.
-   The other solution was to enforce
-   that dictionary items be accessed only with square-bracket
-   notation, but I would go mad writing code like that.

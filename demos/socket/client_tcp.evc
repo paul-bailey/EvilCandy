@@ -1,6 +1,6 @@
 let sock = import('socket.evc', 'x');
 
-let sk = sock.socket(sock.AF_INET, sock.SOCK_STREAM, 0);
+let sk = sock['socket'](sock['AF_INET'], sock['SOCK_STREAM'], 0);
 try {
     /* TODO: support 'localhost'? */
     let ipaddr = '192.168.1.5';

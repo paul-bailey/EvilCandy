@@ -1,6 +1,6 @@
 let sock = import('socket.evc', 'x');
 
-let sk = sock.socket(sock.AF_INET, sock.SOCK_DGRAM, 0);
+let sk = sock['socket'](sock['AF_INET'], sock['SOCK_DGRAM'], 0);
 try {
     let data, addr, port;
     sk.bind(('127.0.0.1', 8192));

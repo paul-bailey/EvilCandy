@@ -43,11 +43,11 @@ function methodcall_throws_exception(obj, method_name, args) {
 class Test() {
     '__init__': function(**kwargs) {
         let opts = {
-            'file': sys.breadcrumbs[-1],
+            'file': sys['breadcrumbs'][-1],
             'name': null,
         } | kwargs;
-        this.file = opts.file.split(sep='/')[-1];
-        this.name = opts.name;
+        this.file = opts['file'].split(sep='/')[-1];
+        this.name = opts['name'];
         this.test_number = 1;
     },
 
@@ -80,7 +80,7 @@ class Test() {
 
     'reset': function(**kwargs) {
         if 'name' in kwargs
-            this.name = kwargs.name;
+            this.name = kwargs['name'];
         this.test_number = 1;
     },
 

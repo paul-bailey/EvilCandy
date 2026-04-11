@@ -692,6 +692,22 @@ do_deffunc(Frame *fr, instruction_t ii)
 }
 
 static int
+do_defns(Frame *fr, instruction_t ii)
+{
+        Object *dict, *name, *ns;
+
+        name = pop(fr);
+        dict = pop(fr);
+        ns = namespacevar_new(dict, name);
+        VAR_DECR_REF(dict);
+        VAR_DECR_REF(name);
+        if (ns == ErrorVar)
+                return RES_ERROR;
+        push(fr, ns);
+        return RES_OK;
+}
+
+static int
 do_defclass(Frame *fr, instruction_t ii)
 {
         Object *dict, *bases, *name, *class;

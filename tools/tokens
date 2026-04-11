@@ -92,6 +92,7 @@ ORSTR           "or"            logical
 NOTSTR          "not"           unarypre
 CLASS           "class"
 YIELD           "yield"
+NAMESPACE       "namespace"
 EOF
 STRING                          atomic_key
 FSTRING_START

@@ -31,6 +31,10 @@ find_notdir(const char *path)
 }
 
 /*
+ * TODO: Replace reduce_pathname_in_place() with the library call
+ *       realpath().
+ */
+/*
  * Reduce an absolute path name to its smallest representation, ie get
  * rid of all the superfluous "./" and "../"
  *

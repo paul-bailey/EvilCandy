@@ -161,6 +161,9 @@ extern int instruction_from_key(Object *key);
 /* json.c */
 Object *dict_from_json(const char *filename);
 
+/* namespace.c */
+Object *namespacevar_new(Object *dict, Object *name);
+
 /* op.c */
 extern Object *qop_mul(Object *a, Object *b);
 extern Object *qop_pow(Object *a, Object *b);

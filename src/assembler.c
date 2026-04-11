@@ -1269,6 +1269,49 @@ assemble_classdef(struct assemble_t *a, struct token_t *name)
 }
 
 static int
+assemble_namespace(struct assemble_t *a, struct token_t *name)
+{
+        int count;
+
+        if (as_errlex(a, OC_LBRACE) < 0)
+                return -1;
+
+        count = 0;
+        do {
+                if (as_lex(a) < 0)
+                        return -1;
+                if (a->oc->t == OC_RBRACE) {
+                        /* comma after last elem */
+                        break;
+                } else if (a->oc->t != OC_PER) {
+                        err_ae_expect(a, OC_PER);
+                        return -1;
+                }
+                if (as_errlex(a, OC_IDENTIFIER) < 0)
+                        return -1;
+                ainstr_load_const(a, a->oc);
+                if (as_errlex(a, OC_EQ) < 0)
+                        return -1;
+                if (assemble_expr(a, 0) < 0)
+                        return -1;
+                if (as_lex(a) < 0)
+                        return -1;
+                count++;
+        } while (a->oc->t == OC_COMMA);
+        if (a->oc->t != OC_RBRACE) {
+                err_ae_brace();
+                return -1;
+        }
+        add_instr(a, INSTR_DEFDICT, 0, count);
+        if (name)
+                ainstr_load_const(a, name);
+        else
+                ainstr_load_null(a);
+        add_instr(a, INSTR_DEFNS, 0, 0);
+        return 0;
+}
+
+static int
 assemble_fstring(struct assemble_t *a)
 {
         int count = 0;
@@ -1599,7 +1642,7 @@ assemble_expr5_atomic(struct assemble_t *a)
                 /* special case: treat "super" like a soft keyword */
                 ret = assemble_super_expr(a);
                 if (ret)
-                       return ret;
+                        return ret;
                 pos = as_savetok(a, NULL);
                 if (ainstr_load_symbol(a, pos) < 0)
                         return -1;
@@ -1611,6 +1654,10 @@ assemble_expr5_atomic(struct assemble_t *a)
                         return -1;
                 break;
 
+        case OC_NAMESPACE:
+                if (assemble_namespace(a, NULL) < 0)
+                        return -1;
+                break;
         case OC_INTEGER:
         case OC_BYTES:
         case OC_FLOAT:
@@ -2813,6 +2860,26 @@ assemble_named_callable(struct assemble_t *a, int parsed_token,
         return 0;
 }
 
+static int
+assemble_namespace_stmt(struct assemble_t *a, unsigned int flags)
+{
+        int namei;
+        struct token_t *name_token;
+
+        if (as_errlex(a, OC_IDENTIFIER) < 0)
+                return -1;
+        name_token = a->oc;
+        namei = assemble_declare(a, name_token, false,
+                                 flags | FE_SKIPNULLASSIGN);
+        if (namei < 0)
+                return -1;
+        if (assemble_namespace(a, name_token) < 0)
+                return -1;
+        if (ainstr_assign_initializer(a, flags, false, namei) < 0)
+                return -1;
+        return 0;
+}
+
 /*
  * parse '{' stmt; stmt;... '}'
  * The first '{' has already been read.
@@ -2932,6 +2999,8 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 }
                 return assemble_named_callable(a, tk, a->oc, flags);
         }
+        case OC_NAMESPACE:
+                return assemble_namespace_stmt(a, flags);
         case OC_RETURN:
         case OC_YIELD:
                 if (!!(flags & FE_TOP)) {

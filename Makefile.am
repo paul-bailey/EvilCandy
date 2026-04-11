@@ -38,6 +38,7 @@ src_libevilcandy_a_SOURCES = \
         src/json.c \
         src/list.c \
         src/locations.c \
+        src/namespace.c \
         src/op.c \
         src/path.c \
         src/readline.c \

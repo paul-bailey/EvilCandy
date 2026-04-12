@@ -149,14 +149,14 @@ function test_class() {
         test.assert_exception_inscope(x, 'anything', []);
     }
     {
-        class MyClass() { 'hello': () => 'world' }
+        class MyClass() { .hello = () => 'world' }
         let x = MyClass();
         test.assert_no_exception_inscope(x, 'hello', []);
         test.assert_true(x.hello() == 'world');
     }
     {
         class MyClass() {
-            '__init__': function (x) {
+            .__init__ = function (x) {
                 this.x = x;
             }
         }

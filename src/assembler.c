@@ -1181,6 +1181,43 @@ start:
 }
 
 /*
+ * for class() {... and namespace {..., the opening brace has already
+ * been collected.
+ * Return: -1 if error, count >= 0 for arg2 to INSTR_DEFDICT
+ */
+static int
+assemble_object_literal(struct assemble_t *a)
+{
+        int count = 0;
+        do {
+                if (as_lex(a) < 0)
+                        return -1;
+                if (a->oc->t == OC_RBRACE) {
+                        /* comma after last elem */
+                        break;
+                } else if (a->oc->t != OC_PER) {
+                        err_ae_expect(a, OC_PER);
+                        return -1;
+                }
+                if (as_errlex(a, OC_IDENTIFIER) < 0)
+                        return -1;
+                ainstr_load_const(a, a->oc);
+                if (as_errlex(a, OC_EQ) < 0)
+                        return -1;
+                if (assemble_expr(a, 0) < 0)
+                        return -1;
+                if (as_lex(a) < 0)
+                        return -1;
+                count++;
+        } while (a->oc->t == OC_COMMA);
+        if (a->oc->t != OC_RBRACE) {
+                err_ae_brace();
+                return -1;
+        }
+        return count;
+}
+
+/*
  * Try parsing a set.  If it turns out this is a dict, call
  * assemble_dictdef() instead.
  */
@@ -1245,7 +1282,7 @@ assemble_setdef(struct assemble_t *a)
 static int
 assemble_classdef(struct assemble_t *a, struct token_t *name)
 {
-        int res;
+        int res, count;
         /*
          * Do not just call assemble_expr() twice; enforce 'class'
          * to be followed by at least literal expressions.
@@ -1256,8 +1293,10 @@ assemble_classdef(struct assemble_t *a, struct token_t *name)
                 return -1;
         if (as_errlex(a, OC_LBRACE) < 0)
                 return -1;
-        if (assemble_dictdef(a, 0, false))
+
+        if ((count = assemble_object_literal(a)) < 0)
                 return -1;
+        add_instr(a, INSTR_DEFDICT, 0, count);
 
         if (name)
                 ainstr_load_const(a, name);
@@ -1276,33 +1315,10 @@ assemble_namespace(struct assemble_t *a, struct token_t *name)
         if (as_errlex(a, OC_LBRACE) < 0)
                 return -1;
 
-        count = 0;
-        do {
-                if (as_lex(a) < 0)
-                        return -1;
-                if (a->oc->t == OC_RBRACE) {
-                        /* comma after last elem */
-                        break;
-                } else if (a->oc->t != OC_PER) {
-                        err_ae_expect(a, OC_PER);
-                        return -1;
-                }
-                if (as_errlex(a, OC_IDENTIFIER) < 0)
-                        return -1;
-                ainstr_load_const(a, a->oc);
-                if (as_errlex(a, OC_EQ) < 0)
-                        return -1;
-                if (assemble_expr(a, 0) < 0)
-                        return -1;
-                if (as_lex(a) < 0)
-                        return -1;
-                count++;
-        } while (a->oc->t == OC_COMMA);
-        if (a->oc->t != OC_RBRACE) {
-                err_ae_brace();
+        if ((count = assemble_object_literal(a)) < 0)
                 return -1;
-        }
         add_instr(a, INSTR_DEFDICT, 0, count);
+
         if (name)
                 ainstr_load_const(a, name);
         else

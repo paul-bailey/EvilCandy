@@ -5,7 +5,7 @@
 //      box2.evc: Use an actual class instantiation.
 
 class Box() {
-    '__init__': (**kwargs) => {
+    .__init__ = (**kwargs) => {
         let priv = {
             'padleft':      4,
             'maxwidth':     73,
@@ -31,20 +31,20 @@ class Box() {
         this._test_borderchar(priv['borderchar']);
         this._priv = priv;
     },
-    'borderchar': property(get=function(){
+    .borderchar = property(get=function(){
                       return this._priv['borderchar'];
                   }, set=function(v) {
                       this._priv['borderchar'] = this._test_borderchar(v);
                   }),
-    'count': property(() => this._priv['count']),
-    '_test_borderchar': function(c) {
+    .count = property(() => this._priv['count']),
+    ._test_borderchar = function(c) {
         if (typeof(c) != 'string')
             throw ArgumentError('borderchar not a string');
         if (length(c) != 1)
             throw ArgumentError('borderchar must be 1 char');
         return c;
     },
-    'print': function(longstr, **kw) {
+    .print = function(longstr, **kw) {
         let priv = this._priv;
         let test_borderchar = this._test_borderchar;
         let maxwidth = priv['maxwidth'];

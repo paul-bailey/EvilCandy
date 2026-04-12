@@ -1,4 +1,4 @@
-let sock = import('socket.evc', 'x');
+let sock = importfile('socket.evc');
 
 let errprint = function(e) {
     print(f'interpreter encountered an error: {e}');

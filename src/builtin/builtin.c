@@ -164,30 +164,13 @@ done:
         return res;
 }
 
-/*
- * TODO: Get rid of 'x'/'r' arg, take optional/keyword args, and
- * pass them to script by appending them to an array in global variables,
- * perhaps something like sys.scriptargs[-1].  Then pop them off when
- * script returns.  It won't be thread-safe, but I won't be multi-threaded
- * for some time.
- */
 static Object *
-do_import(Frame *fr)
+do_importfile(Frame *fr)
 {
         const char *file_name;
-        long mode;
 
-        if (vm_getargs(fr, "[sc!]{!}:import", &file_name, &mode)
+        if (vm_getargs(fr, "[s!]{!}:importfile", &file_name)
             == RES_ERROR) {
-                return ErrorVar;
-        }
-
-        if (mode == 'r') {
-                err_setstr(NotImplementedError,
-                        "import: 'r' option no longer supported");
-                return ErrorVar;
-        } else if (mode != 'x') {
-                err_setstr(ValueError, "import: incorrect mode argument");
                 return ErrorVar;
         }
 
@@ -451,7 +434,7 @@ static const struct type_method_t builtin_inittbl[] = {
         /* XXX: maybe exit should be a method of __gbl__._sys */
         {"exit",   do_exit},
         {"exists", do_exists},
-        {"import", do_import},
+        {"importfile", do_importfile},
         { NULL, NULL },
 };
 

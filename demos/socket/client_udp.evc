@@ -1,4 +1,4 @@
-let sock = import('socket.evc', 'x');
+let sock = importfile('socket.evc');
 
 let sk = sock.socket(sock.AF_INET, sock.SOCK_DGRAM, 0);
 try {

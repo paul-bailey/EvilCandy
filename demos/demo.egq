@@ -63,7 +63,7 @@
 
     print("\tLib Pow: 4^4 =", Math.pow(4, 4));
     print("\tBuiltin Pow: 4^4 =", 4**4);
-})(import("math.evc", "x"));
+})(importfile("math.evc"));
 
 ((s) => {
     print(f"length '{length(s)}' for '{s}'");

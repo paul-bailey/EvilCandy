@@ -1,7 +1,7 @@
 // sanity test.  run when making changes to code
 // to make sure I didn't break anything.
 
-let Test = import('../lib/test.evc', 'x');
+let Test = importfile('../lib/test.evc');
 
 function test_generator() {
     function get_iterator(stop) {

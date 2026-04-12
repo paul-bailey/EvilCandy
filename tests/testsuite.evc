@@ -2,7 +2,7 @@
 //
 //     ./evilcandy tests/testsuite.evc
 
-let Test = import('../lib/test.evc', 'x');
+let Test = importfile('../lib/test.evc');
 
 function test_arithmetic() {
     let test = Test(name='arithmetic');
@@ -181,11 +181,11 @@ function test_exceptions_and_eval() {
 function test_imports() {
     let test = Test(name='imports');
 
-    let Math = import('../lib/math.evc', 'x');
+    let Math = importfile('../lib/math.evc');
     test.assert_equal(Math.pow(2, 5), 32);
     test.assert_true(Math.pi > 3);
 
-    let Enum = import('../lib/enum.evc', 'x');
+    let Enum = importfile('../lib/enum.evc');
     let Status = Enum({'ok': 1, 'failed': 0});
     test.assert_equal(Status.ok, 1);
     test.assert_equal(Status.failed, 0);

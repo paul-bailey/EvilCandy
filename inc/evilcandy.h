@@ -228,7 +228,8 @@ extern Object *cell_get_value(Object *cell);
 extern void cell_replace_value(Object *cell, Object *new_value);
 
 /* types/class.c */
-extern Object *classvar_new(Object *bases, Object *dict, Object *name);
+extern Object *classvar_new(Object *bases, Object *dict,
+                            Object *name, Object *priv);
 extern bool class_issubclass(Object *class, Object *base);
 extern Object *class_get_name(Object *class);
 extern Object *instance_super_getattr(Object *instance,
@@ -241,9 +242,9 @@ extern void instance_set_priv(Object *instance,
                               void (*cleanup)(void *), void *priv);
 extern Object *instance_call(Object *instance, Object *method_name,
                              Object *args, Object *kwargs);
-extern Object *instance_getattr(Object *instance, Object *key);
-extern enum result_t instance_setattr(Object *instance,
-                                Object *key, Object *value);
+extern Object *instance_getattr(Frame *fr, Object *instance, Object *key);
+extern enum result_t instance_setattr(Frame *fr, Object *instance,
+                                      Object *key, Object *value);
 extern Object *instance_dir(Object *instance);
 extern bool instance_instanceof(Object *instance, Object *class);
 
@@ -317,6 +318,7 @@ extern enum result_t set_extend(Object *set, Object *seq);
 extern enum result_t set_additem(Object *set, Object *child, Object **unique);
 extern Object *set_unique(Object *set, Object *item);
 extern Object *set_intern(Object *set, Object *item);
+extern bool set_hasitem(Object *set, Object *item);
 
 /* types/string.c */
 extern Object *stringvar_new(const char *cstr);

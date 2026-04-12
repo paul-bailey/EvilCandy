@@ -9,6 +9,7 @@ struct class_t {
         struct seqvar_t obj_head;
         Object *c_bases;
         Object *c_dict;
+        Object *c_priv;
         Object *c_name;
 };
 
@@ -41,6 +42,28 @@ class_reset(Object *class)
         V2CL(class)->c_name = NULL;
         if (x)
                 VAR_DECR_REF(x);
+
+        x = V2CL(class)->c_priv;
+        V2CL(class)->c_priv = NULL;
+        if (x)
+                VAR_DECR_REF(x);
+}
+
+static bool
+item_access_permitted(Frame *fr, Object *class, Object *key)
+{
+        if (!V2CL(class)->c_priv)
+                return true;
+        if (set_hasitem(V2CL(class)->c_priv, key)) {
+                Object *inst;
+                if (!fr)
+                        return false;
+                inst = vm_get_this(fr);
+                if (!isvar_instance(inst)) /*< XXX bug? */
+                        return false;
+                return V2INST(inst)->inst_class == class;
+        }
+        return true;
 }
 
 /*
@@ -48,9 +71,11 @@ class_reset(Object *class)
  * so that cls->c_dict is filled in with methods at classvar_new() time,
  * and use a better method to resolve which methods are used from its
  * base classes.
+ *
+ * fr == NULL means "we definitely do not have private access"
  */
 static Object *
-class_getitem(Object *class, Object *key)
+class_getitem(Frame *fr, Object *class, Object *key)
 {
         struct class_t *cls;
         size_t i, n;
@@ -58,16 +83,25 @@ class_getitem(Object *class, Object *key)
 
         cls = V2CL(class);
         bug_on(!cls->c_dict);
+
+        /*
+         * TODO: replace c_priv and c_dict with a single map,
+         * so we don't have to do a double lookup.
+         */
+        if (!item_access_permitted(fr, class, key))
+                return NULL;
+
         ret = dict_getitem(cls->c_dict, key);
         if (ret)
                 return ret;
+
         if (!cls->c_bases)
                 return NULL;
 
         n = seqvar_size(cls->c_bases);
         for (i = 0; i < n; i++) {
                 Object *item = tuple_borrowitem_(cls->c_bases, i);
-                ret = class_getitem(item, key);
+                ret = class_getitem(fr, item, key);
                 if (ret)
                         return ret;
         }
@@ -184,8 +218,18 @@ instance_str(Object *instance)
                                      name, instance);
 }
 
+/**
+ * instance_getattr - Get an instance attribute
+ * @fr: Frame, so we can tell if we have permission, should @key be for
+ *      a private attribute.  If @fr is NULL, then only try to access
+ *      public attributes.
+ * @instance: Instance to get attribute from
+ * @key: Key to the attribute
+ *
+ * Return: attribute if found, or NULL.
+ */
 Object *
-instance_getattr(Object *instance, Object *key)
+instance_getattr(Frame *fr, Object *instance, Object *key)
 {
         Object *ret;
         struct instance_t *inst;
@@ -195,19 +239,18 @@ instance_getattr(Object *instance, Object *key)
         bug_on(!inst->inst_attr);
         bug_on(!inst->inst_class);
 
+        if (!item_access_permitted(fr, inst->inst_class, key))
+                return NULL;
+
         ret = dict_getitem(inst->inst_attr, key);
         if (ret)
                 goto found;
-        ret = class_getitem(inst->inst_class, key);
+        ret = class_getitem(fr, inst->inst_class, key);
         if (ret)
                 goto found;
         return NULL;
 
 found:
-        /*
-         * GitHub issue #26: Do not intercept properties for user-defined
-         * object classes.
-         */
         if (isvar_function(ret)) {
                 Object *tmp = ret;
                 ret = methodvar_new(tmp, instance);
@@ -216,9 +259,22 @@ found:
         return ret;
 }
 
+/**
+ * instance_setattr - Set an instance attribute
+ * @fr: Frame, with same purpose and meaning as @fr arg to instance_getattr()
+ * @instance: Instance to set attribute in
+ * @key: Key to the attribute
+ * @value: Value to set attribute to.
+ *
+ * Return: RES_OK if success, RES_ERROR if failure.  This does not raise an
+ * exception.
+ */
 enum result_t
-instance_setattr(Object *instance, Object *key, Object *value)
+instance_setattr(Frame *fr, Object *instance, Object *key, Object *value)
 {
+        if (!item_access_permitted(fr, V2INST(instance)->inst_class, key))
+                return RES_ERROR;
+
         Object *dict = V2INST(instance)->inst_attr;
         return dict_setitem(dict, key, value);
 }
@@ -246,8 +302,12 @@ Object *
 instance_call(Object *instance, Object *method_name,
               Object *args, Object *kwargs)
 {
+        /*
+         * FIXME: Need a Frame arg; as-is, this will fail if method_name
+         * is private, even if we technically have permission.
+         */
         Object *ret;
-        Object *method = instance_getattr(instance, method_name);
+        Object *method = instance_getattr(NULL, instance, method_name);
         if (!method)
                 return NULL;
         if (!isvar_method(method)) {
@@ -285,7 +345,7 @@ instance_super_getattr(Object *instance, Object *attribute_name)
         n = seqvar_size(bases);
         for (i = 0; i < n; i++) {
                 Object *super = tuple_borrowitem_(bases, i);
-                Object *attr = class_getitem(super, attribute_name);
+                Object *attr = class_getitem(NULL, super, attribute_name);
                 if (attr)
                         return attr;
         }
@@ -298,15 +358,17 @@ instance_super_getattr(Object *instance, Object *attribute_name)
  * @bases: A tuple containing inherited base classes
  * @dict: Dictionary of methods, properties, and data
  * @name: NULL, NullVar, or a string object that names the class.
+ * @priv: NULL or a tuple of names of private attributes.
  */
 Object *
-classvar_new(Object *bases, Object *dict, Object *name)
+classvar_new(Object *bases, Object *dict, Object *name, Object *priv)
 {
         Object *ret;
         struct class_t *class;
         size_t size;
 
         bug_on(!dict || !isvar_dict(dict));
+        bug_on(priv && !isvar_tuple(priv));
         bug_on(name && name != NullVar && !isvar_string(name));
 
         size = seqvar_size(dict);
@@ -316,11 +378,15 @@ classvar_new(Object *bases, Object *dict, Object *name)
                         return bases;
         }
 
+        if (priv)
+                priv = setvar_new(priv);
+
         if (name == NullVar)
                 name = NULL;
 
         ret = var_new(&ClassType);
         class = V2CL(ret);
+        class->c_priv = priv;
         class->c_bases = bases;
         class->c_dict = VAR_NEW_REF(dict);
         class->c_name = name ? VAR_NEW_REF(name) : NULL;
@@ -352,6 +418,15 @@ instancevar_new(Object *class, Object *args,
 
         V2INST(ret)->inst_class = VAR_NEW_REF(class);
         V2INST(ret)->inst_attr = dictvar_new();
+
+        /*
+         * TODO: instance_setattr() never writes to the class dict, so
+         * there's no worry about different instances mangling each
+         * other's data as expressed in the class literal.  But the
+         * bigger problem is, we need to resolve methods, and here is
+         * the place to do it.
+         */
+
         if (!call_init)
                 return ret;
 

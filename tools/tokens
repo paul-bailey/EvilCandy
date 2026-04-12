@@ -93,6 +93,7 @@ NOTSTR          "not"           unarypre
 CLASS           "class"
 YIELD           "yield"
 NAMESPACE       "namespace"
+PRIVATE         "private"
 EOF
 STRING                          atomic_key
 FSTRING_START

@@ -710,15 +710,21 @@ do_defns(Frame *fr, instruction_t ii)
 static int
 do_defclass(Frame *fr, instruction_t ii)
 {
-        Object *dict, *bases, *name, *class;
+        Object *dict, *bases, *name, *class, *priv;
 
+        if (ii.arg1 == IARG_HAVE_PRIVTUPLE)
+                priv = pop(fr);
+        else
+                priv = NULL;
         name = pop(fr);
         dict = pop(fr);
         bases = pop(fr);
-        class = classvar_new(bases, dict, name);
+        class = classvar_new(bases, dict, name, priv);
         VAR_DECR_REF(bases);
         VAR_DECR_REF(dict);
         VAR_DECR_REF(name);
+        if (priv)
+                VAR_DECR_REF(priv);
         if (class == ErrorVar)
                 return RES_ERROR;
         push(fr, class);
@@ -993,7 +999,7 @@ do_setattr(Frame *fr, instruction_t ii)
                 val = tfunc;
         }
 
-        if ((ret = var_setattr(obj, key, val)) != 0) {
+        if ((ret = var_setattr(fr, obj, key, val)) != 0) {
                 if (!err_occurred())
                         err_attribute("set", key, obj);
         }
@@ -1033,7 +1039,7 @@ do_getattr(Frame *fr, instruction_t ii)
         key = pop(fr);
         obj = pop(fr);
 
-        attr = var_getattr(obj, key);
+        attr = var_getattr(fr, obj, key);
         if (attr == ErrorVar) {
                 if (!err_occurred())
                         err_attribute("get", key, obj);
@@ -1090,7 +1096,7 @@ do_delattr(Frame *fr, instruction_t ii)
 
         key = pop(fr);
         obj = pop(fr);
-        res = var_delattr(obj, key);
+        res = var_delattr(fr, obj, key);
         VAR_DECR_REF(key);
         VAR_DECR_REF(obj);
         return res;

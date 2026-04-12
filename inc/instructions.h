@@ -57,6 +57,12 @@ enum {
         IARG_COND_SAVEF = 2,
 };
 
+/* DEFCLASS arg1. */
+enum {
+        IARG_NO_PRIVTUPLE = 0,
+        IARG_HAVE_PRIVTUPLE = 1,
+};
+
 /**
  * DOC: Instructions
  *

@@ -185,17 +185,6 @@ set_clear_noresize(struct setvar_t *sv)
         seqvar_set_size((Object *)sv, sv->s_used);
 }
 
-static bool
-set_hasitem(Object *set, Object *item)
-{
-        int i;
-        if (!item)
-                return 0;
-        bug_on(!isvar_set(set));
-        i = seek_helper((struct setvar_t *)set, item);
-        return i >= 0 && ((struct setvar_t *)set)->s_keys[i] != NULL;
-}
-
 static Object *
 set_shallowcopy(Object *set)
 {
@@ -606,6 +595,20 @@ setvar_new(Object *seq)
                 return ErrorVar;
         }
         return ret;
+}
+
+/**
+ * set_hasitem - Return true if @set has item matching @item.
+ */
+bool
+set_hasitem(Object *set, Object *item)
+{
+        int i;
+        if (!item)
+                return 0;
+        bug_on(!isvar_set(set));
+        i = seek_helper((struct setvar_t *)set, item);
+        return i >= 0 && ((struct setvar_t *)set)->s_keys[i] != NULL;
 }
 
 

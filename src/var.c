@@ -591,6 +591,7 @@ var_getitem(Object *v, Object *key)
 
 /**
  * var_getattr - Generalized get-attribute
+ * @fr: Current frame
  * @v:  Variable whose attribute we're seeking
  * @key: Variable storing the key, either the name or an index number
  *
@@ -599,11 +600,11 @@ var_getitem(Object *v, Object *key)
  * This implements the EvilCandy expression: v.key
  */
 Object *
-var_getattr(Object *v, Object *key)
+var_getattr(Frame *fr, Object *v, Object *key)
 {
         Object *ret;
         if (isvar_instance(v)) {
-                ret = instance_getattr(v, key);
+                ret = instance_getattr(fr, v, key);
                 if (!ret) {
                         err_attribute("get", key, v);
                         return ErrorVar;
@@ -739,6 +740,7 @@ var_setitem(Object *v, Object *key, Object *value)
 
 /**
  * var_setattr - Generalized set-attribute
+ * @fr:         Current frame
  * @v:          Variable whose attribute we're setting
  * @key:        Variable storing the index number or name
  * @attr:       Variable storing the attribute to set.
@@ -749,10 +751,10 @@ var_setitem(Object *v, Object *key, Object *value)
  *              delete v.key;   # attr == NULL
  */
 enum result_t
-var_setattr(Object *v, Object *key, Object *attr)
+var_setattr(Frame *fr, Object *v, Object *key, Object *attr)
 {
         if (isvar_instance(v)) {
-                if (instance_setattr(v, key, attr) == RES_OK)
+                if (instance_setattr(fr, v, key, attr) == RES_OK)
                         return RES_OK;
         }
 

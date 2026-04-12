@@ -357,7 +357,7 @@ err_print(FILE *fp, Object *exc)
         bug_on(!isvar_string(exception_name));
 
         message_key = stringvar_new("message");
-        message = instance_getattr(exc, message_key);
+        message = instance_getattr(NULL, exc, message_key);
         if (!message || !isvar_string(message))
                 msg = "malformed exception";
         else

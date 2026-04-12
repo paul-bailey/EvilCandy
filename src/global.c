@@ -137,7 +137,7 @@ exception_initcall(Frame *fr)
                        == RES_ERROR) {
                 return ErrorVar;
         }
-        res = var_setattr(self, msgname, message);
+        res = var_setattr(fr, self, msgname, message);
         VAR_DECR_REF(msgname);
         return res == RES_OK ? NULL : ErrorVar;
 }
@@ -157,7 +157,7 @@ make_base_exception(const char *name)
         VAR_DECR_REF(method_name);
         VAR_DECR_REF(method_func);
 
-        exception = classvar_new(NULL, dict, class_name);
+        exception = classvar_new(NULL, dict, class_name, NULL);
 
         VAR_DECR_REF(class_name);
         VAR_DECR_REF(dict);
@@ -173,7 +173,7 @@ make_exception(const char *name, Object *from)
 
         nameobj = stringvar_new(name);
         dict = dictvar_new();
-        subclass = classvar_new(from, dict, nameobj);
+        subclass = classvar_new(from, dict, nameobj, NULL);
 
         vm_add_global(nameobj, subclass);
 

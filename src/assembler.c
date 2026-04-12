@@ -1180,41 +1180,99 @@ start:
         return 0;
 }
 
+struct object_literal_private_t {
+        struct list_t list;
+        struct token_t *tok;
+};
+
+#define LIST2PRIV(p) \
+        (container_of(p, struct object_literal_private_t, list))
+
+static void
+add_private_datum(struct list_t *private_data_list, struct token_t *tok)
+{
+        struct object_literal_private_t *p = emalloc(sizeof(*p));
+        p->tok = tok;
+        list_init(&p->list);
+        list_add_tail(&p->list, private_data_list);
+}
+
+static void
+clean_private_data(struct list_t *private_data_list)
+{
+        struct list_t *p, *q;
+        list_foreach_safe(p, q, private_data_list) {
+                list_remove(p);
+                efree(LIST2PRIV(p));
+        }
+}
+
 /*
  * for class() {... and namespace {..., the opening brace has already
  * been collected.
+ *
+ * @private_data_list:
+ *      If NULL, do not permit things like
+ *              private .name = ...
+ *      If not NULL, then it must have already been initialized with
+ *      list_init(); this function will fill it in with any attribute
+ *      names which were declared with the keyword 'private'; upon
+ *      successful return, calling code must clean it up with
+ *      clean_private_data().
+ *
  * Return: -1 if error, count >= 0 for arg2 to INSTR_DEFDICT
  */
 static int
-assemble_object_literal(struct assemble_t *a)
+assemble_object_literal(struct assemble_t *a,
+                        struct list_t *private_data_list)
 {
         int count = 0;
+
         do {
+                bool collect_private = false;
                 if (as_lex(a) < 0)
-                        return -1;
+                        goto err_cleanup;
                 if (a->oc->t == OC_RBRACE) {
                         /* comma after last elem */
                         break;
-                } else if (a->oc->t != OC_PER) {
+                }
+                if (a->oc->t == OC_PRIVATE) {
+                        if (!private_data_list) {
+                                err_setstr(SyntaxError,
+                                           "private not allowed here");
+                                goto err_cleanup;
+                        }
+                        collect_private = true;
+                        if (as_lex(a) < 0)
+                                goto err_cleanup;
+                }
+                if (a->oc->t != OC_PER) {
                         err_ae_expect(a, OC_PER);
-                        return -1;
+                        goto err_cleanup;
                 }
                 if (as_errlex(a, OC_IDENTIFIER) < 0)
-                        return -1;
+                        goto err_cleanup;
+                if (collect_private)
+                        add_private_datum(private_data_list, a->oc);
                 ainstr_load_const(a, a->oc);
                 if (as_errlex(a, OC_EQ) < 0)
-                        return -1;
+                        goto err_cleanup;
                 if (assemble_expr(a, 0) < 0)
-                        return -1;
+                        goto err_cleanup;
                 if (as_lex(a) < 0)
-                        return -1;
+                        goto err_cleanup;
                 count++;
         } while (a->oc->t == OC_COMMA);
         if (a->oc->t != OC_RBRACE) {
                 err_ae_brace();
-                return -1;
+                goto err_cleanup;
         }
         return count;
+
+err_cleanup:
+        if (private_data_list)
+                clean_private_data(private_data_list);
+        return -1;
 }
 
 /*
@@ -1282,7 +1340,9 @@ assemble_setdef(struct assemble_t *a)
 static int
 assemble_classdef(struct assemble_t *a, struct token_t *name)
 {
-        int res, count;
+        int res, count, priv_count;
+        struct list_t priv_list, *p;
+        unsigned char arg1;
         /*
          * Do not just call assemble_expr() twice; enforce 'class'
          * to be followed by at least literal expressions.
@@ -1294,7 +1354,8 @@ assemble_classdef(struct assemble_t *a, struct token_t *name)
         if (as_errlex(a, OC_LBRACE) < 0)
                 return -1;
 
-        if ((count = assemble_object_literal(a)) < 0)
+        list_init(&priv_list);
+        if ((count = assemble_object_literal(a, &priv_list)) < 0)
                 return -1;
         add_instr(a, INSTR_DEFDICT, 0, count);
 
@@ -1303,7 +1364,26 @@ assemble_classdef(struct assemble_t *a, struct token_t *name)
         else
                 ainstr_load_null(a);
 
-        add_instr(a, INSTR_DEFCLASS, 0, 0);
+        /*
+         * After optimization this will all reduce to a single
+         * instruction INSTR_LOAD_CONST (names tuple)
+         */
+        priv_count = 0;
+        list_foreach(p, &priv_list) {
+                struct object_literal_private_t *name;
+                name = LIST2PRIV(p);
+                ainstr_load_const(a, name->tok);
+                priv_count++;
+        }
+        if (priv_count > 0) {
+                add_instr(a, INSTR_DEFTUPLE, 0, priv_count);
+                arg1 = IARG_HAVE_PRIVTUPLE;
+        } else {
+                arg1 = IARG_NO_PRIVTUPLE;
+        }
+
+        add_instr(a, INSTR_DEFCLASS, arg1, 0);
+        clean_private_data(&priv_list);
         return 0;
 }
 
@@ -1315,7 +1395,7 @@ assemble_namespace(struct assemble_t *a, struct token_t *name)
         if (as_errlex(a, OC_LBRACE) < 0)
                 return -1;
 
-        if ((count = assemble_object_literal(a)) < 0)
+        if ((count = assemble_object_literal(a, NULL)) < 0)
                 return -1;
         add_instr(a, INSTR_DEFDICT, 0, count);
 

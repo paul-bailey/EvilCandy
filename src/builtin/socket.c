@@ -852,7 +852,7 @@ create_socket_class(void)
                 {NULL, NULL},
         };
         Object *methods = dictvar_from_methods(NULL, sockmethods_inittbl);
-        Object *ret = classvar_new(NULL, methods, NULL);
+        Object *ret = classvar_new(NULL, methods, NULL, NULL);
         VAR_DECR_REF(methods);
         return ret;
 }

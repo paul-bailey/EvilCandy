@@ -20,7 +20,7 @@ do_setattr(Frame *fr)
                 return ErrorVar;
         }
         ret = NULL;
-        if (var_setattr(instance, key, value) == RES_ERROR)
+        if (var_setattr(fr, instance, key, value) == RES_ERROR)
                 ret = ErrorVar;
         return ret;
 }
@@ -36,7 +36,7 @@ do_getattr(Frame *fr)
             == RES_ERROR) {
                 return ErrorVar;
         }
-        value = var_getattr(instance, key);
+        value = var_getattr(fr, instance, key);
         if (value == ErrorVar) {
                 err_clear();
                 value = VAR_NEW_REF(NullVar);

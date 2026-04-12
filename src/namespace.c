@@ -19,7 +19,7 @@ namespacevar_new(Object *dict, Object *name)
         if (name == NullVar)
                 name = NULL;
 
-        class = classvar_new(NULL, dict, name);
+        class = classvar_new(NULL, dict, name, NULL);
         ns = instancevar_new(class, NULL, NULL, false);
         VAR_DECR_REF(class);
         return ns;

@@ -28,32 +28,38 @@ class Box() {
             }
         }
         priv['count'] = 0;
-        this._test_borderchar(priv['borderchar']);
-        this._priv = priv;
+        this.test_borderchar(priv['borderchar']);
+        this.priv = priv;
     },
+
     .borderchar = function(*bc) {
         if (length(bc) == 0)
-            return this._priv['borderchar'];
+            return this.priv['borderchar'];
         else if (length(bc) == 1)
-            this._priv['borderchar'] = this._test_borderchar(bc[0]);
+            this.priv['borderchar'] = this.test_borderchar(bc[0]);
         else
             throw ArgumentError("Expected: borderchar() or borderchar(bc)");
     },
-    .count = (() => this._priv['count']),
-    ._test_borderchar = function(c) {
+
+    .count = (() => this.priv['count']),
+
+    private .test_borderchar = function(c) {
         if (typeof(c) != 'string')
             throw ArgumentError('borderchar not a string');
         if (length(c) != 1)
             throw ArgumentError('borderchar must be 1 char');
         return c;
     },
+
+    private .priv = null,
+
     .print = function(longstr, **kw) {
-        let priv = this._priv;
-        let test_borderchar = this._test_borderchar;
+        let priv = this.priv;
+        let test_borderchar = this.test_borderchar;
         let maxwidth = priv['maxwidth'];
         let borderchar;
         let topbottom;
-        let a;
+        let lines;
 
         borderchar = 'borderchar' in kw
                      ? test_borderchar(kw['borderchar'])
@@ -63,7 +69,7 @@ class Box() {
 
         // break longstr into word sequence, put back together
         // in lines.
-        a = ((old_arr, maxwidth) => {
+        lines = ((old_arr, maxwidth) => {
             let na = [];
             let str = '';
             let curlen = 0;
@@ -95,7 +101,7 @@ class Box() {
         print(maxwidth * borderchar);
         for i in range(priv['padtop'])
             print(topbottom);
-        for line in a {
+        for line in lines {
             let padright;
             line = ''.join([borderchar,
                            priv['padleft'] * ' ',

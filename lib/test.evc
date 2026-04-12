@@ -8,7 +8,7 @@ function assertion_exception(self, message) {
         msgstr += f'{this.name} ';
     msgstr += f'in file{this.file}: ';
     msgstr += f'test #{this.test_number}: ';
-    return AssertionException(msgstr + message);
+    return TestException(msgstr + message);
 }
 
 function assert_bool(self, condition, expect) {

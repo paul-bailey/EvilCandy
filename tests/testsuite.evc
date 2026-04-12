@@ -1,0 +1,210 @@
+// A broader EvilCandy test script.  Run from the source root with:
+//
+//     ./evilcandy tests/testsuite.evc
+
+let Test = import('../lib/test.evc', 'x');
+
+function test_arithmetic() {
+    let test = Test(name='arithmetic');
+
+    test.assert_equal(1 + 2 * 3, 7);
+    test.assert_equal((1 + 2) * 3, 9);
+    test.assert_equal(10 / 2, 5);
+    test.assert_equal(10 % 3, 1);
+    test.assert_equal(2**8, 256);
+    test.assert_equal(5 > 3, true);
+    test.assert_equal(5 < 3, false);
+    test.assert_equal(!!'nonempty', true);
+    test.assert_equal(!!'', false);
+    test.assert_equal(!!null, false);
+}
+
+function test_strings() {
+    let test = Test(name='strings');
+
+    test.assert_equal('evil' + 'candy', 'evilcandy');
+    test.assert_equal('na' * 3, 'nanana');
+    test.assert_equal('evilcandy'[0], 'e');
+    test.assert_equal('evilcandy'[-1], 'y');
+    test.assert_equal('evilcandy'[0:4], 'evil');
+    test.assert_equal('evil,candy'.split(sep=','), ['evil', 'candy']);
+    test.assert_equal('-'.join(['evil', 'candy']), 'evil-candy');
+    test.assert_equal('mississippi'.count('ss'), 2);
+    test.assert_equal('abc'.partition('b'), ('a', 'b', 'c'));
+    test.assert_equal(r'\n', '\\n');
+}
+
+function test_lists_and_tuples() {
+    let test = Test(name='lists and tuples');
+
+    let values = [0, 1, 2];
+    test.assert_equal(values + [3, 4], [0, 1, 2, 3, 4]);
+    test.assert_equal(2 * values, [0, 1, 2, 0, 1, 2]);
+    test.assert_equal(values[1:], [1, 2]);
+    test.assert_equal(values[:-1], [0, 1]);
+
+    values[1] = 'one';
+    test.assert_equal(values, [0, 'one', 2]);
+
+    let tup = tuple('abba');
+    test.assert_equal(tup, ('a', 'b', 'b', 'a'));
+    test.assert_equal(tup.count('b'), 2);
+    test.assert_equal(tup.index('a'), 0);
+    test.assert_equal((1, 2) + (3, 4), (1, 2, 3, 4));
+    test.assert_exception('(1, 2)[0] = 7');
+}
+
+function test_dicts_and_sets() {
+    let test = Test(name='dicts and sets');
+
+    let d = {'a': 1};
+    d['b'] = 2;
+    test.assert_equal(length(d), 2);
+    test.assert_true('a' in d);
+    test.assert_equal(d['b'], 2);
+    test.assert_equal((d | {'c': 3}), {'a': 1, 'b': 2, 'c': 3});
+
+    let copy = d.copy();
+    test.assert_equal(copy, d);
+    test.assert_true(copy !== d);
+    delete d['a'];
+    test.assert_equal(d, {'b': 2});
+
+    let a = {1, 2, 3};
+    let b = {3, 4};
+    test.assert_equal(a | b, {1, 2, 3, 4});
+    test.assert_equal(a & b, {3});
+    test.assert_equal(a - b, {1, 2});
+    test.assert_equal(a ^ b, {1, 2, 4});
+    test.assert_equal(set('banana'), {'b', 'a', 'n'});
+}
+
+function test_range_and_loops() {
+    let test = Test(name='range and loops');
+
+    let total = 0;
+    for i in range(1, 5)
+        total += i;
+    test.assert_equal(total, 10);
+
+    let evens = [];
+    for i in range(8) {
+        if i & 1
+            continue;
+        evens.append(i);
+    }
+    test.assert_equal(evens, [0, 2, 4, 6]);
+
+    let i = 0;
+    let countdown = [];
+    while i < 3 {
+        countdown.append(i);
+        i++;
+    }
+    test.assert_equal(countdown, [0, 1, 2]);
+
+    let once = 0;
+    do {
+        once++;
+    } while false;
+    test.assert_equal(once, 1);
+}
+
+function test_functions_and_generators() {
+    let test = Test(name='functions and generators');
+
+    function add(a, b) {
+        return a + b;
+    }
+    function add_one(a) {
+        return add(a, 1);
+    }
+    test.assert_equal(add(2, 3), 5);
+    test.assert_equal(add_one(2), 3);
+
+    function collect(*args) {
+        return args;
+    }
+    test.assert_equal(collect(1, 2, 3), [1, 2, 3]);
+
+    function use_kwargs(**kwargs) {
+        return kwargs['name'];
+    }
+    test.assert_equal(use_kwargs(name='evilcandy'), 'evilcandy');
+
+    function make_adder(n) {
+        return (value) => value + n;
+    }
+    let add_five = make_adder(5);
+    test.assert_equal(add_five(7), 12);
+
+    function odds_under(stop) {
+        for i in range(stop)
+            if i & 1
+                yield i;
+    }
+    test.assert_equal(list(odds_under(8)), [1, 3, 5, 7]);
+}
+
+function test_classes() {
+    let test = Test(name='classes');
+
+    class Counter() {
+        .__init__ = function(start) {
+            this.value = start;
+        },
+
+        .increment = function(amount) {
+            this.value += amount;
+            return this.value;
+        },
+    }
+
+    let counter = Counter(10);
+    test.assert_equal(counter.value, 10);
+    test.assert_equal(counter.increment(1), 11);
+    test.assert_equal(counter.increment(4), 15);
+    test.assert_no_exception_inscope(counter, 'increment', [1]);
+    test.assert_exception_inscope(counter, 'missing_method', []);
+}
+
+function test_exceptions_and_eval() {
+    let test = Test(name='exceptions and eval');
+
+    test.assert_no_exception('1 + 2');
+    test.assert_exception('1 + ,');
+    test.assert_exception('unknown_name');
+    test.assert_equal(eval('2 + 3 * 4'), 14);
+    test.assert_true(eval('__gbl__') === __gbl__);
+}
+
+function test_imports() {
+    let test = Test(name='imports');
+
+    let Math = import('../lib/math.evc', 'x');
+    test.assert_equal(Math.pow(2, 5), 32);
+    test.assert_true(Math.pi > 3);
+
+    let Enum = import('../lib/enum.evc', 'x');
+    let Status = Enum({'ok': 1, 'failed': 0});
+    test.assert_equal(Status.ok, 1);
+    test.assert_equal(Status.failed, 0);
+}
+
+let tests = [
+    ('arithmetic',               test_arithmetic),
+    ('strings',                  test_strings),
+    ('lists and tuples',         test_lists_and_tuples),
+    ('dicts and sets',           test_dicts_and_sets),
+    ('range and loops',          test_range_and_loops),
+    ('functions and generators', test_functions_and_generators),
+    ('classes',                  test_classes),
+    ('exceptions and eval',      test_exceptions_and_eval),
+    ('imports',                  test_imports),
+];
+
+for name, test in tests {
+    print(f'{name:-25}: ', end='');
+    test();
+    print('success');
+}

@@ -2977,6 +2977,47 @@ assemble_namespace_stmt(struct assemble_t *a, unsigned int flags)
 }
 
 /*
+ * Note: 'import' as a keyword is statement-only.
+ * Expression form should use the importfile() built-in function.
+ */
+static int
+assemble_import_stmt(struct assemble_t *a, unsigned int flags)
+{
+        int namei;
+        struct token_t *from_token, *to_token;
+
+        if (as_errlex(a, OC_IDENTIFIER) < 0)
+                return -1;
+        from_token = a->oc;
+        if (as_lex(a) < 0)
+                return -1;
+
+        /*
+         * I don't like soft keywords, but if I made a hard keyword out
+         * of "as", programmers will hate me.
+         */
+        if (a->oc->t == OC_IDENTIFIER &&
+            !strcmp(string_cstring(a->oc->v), "as")) {
+                /* import FROM_NAME as TO_NAME */
+                if (as_errlex(a, OC_IDENTIFIER) < 0)
+                        return -1;
+                to_token = a->oc;
+        } else {
+                /* "import NAME", treat like "import NAME as NAME" */
+                as_unlex(a);
+                to_token = from_token;
+        }
+        namei = assemble_declare(a, to_token, false,
+                                 flags | FE_SKIPNULLASSIGN);
+        if (namei < 0)
+                return -1;
+        ainstr_load_const(a, from_token);
+        add_instr(a, INSTR_IMPORT, 0, 0);
+        ainstr_assign_initializer(a, flags, false, namei);
+        return 0;
+}
+
+/*
  * parse '{' stmt; stmt;... '}'
  * The first '{' has already been read.
  */
@@ -3058,6 +3099,11 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         switch (a->oc->t) {
         case OC_DELETE:
                 return assemble_delete(a, flags);
+        case OC_IMPORT:
+                if (assemble_import_stmt(a, flags) < 0)
+                        return -1;
+                need_pop = 0;
+                break;
         case OC_EOF:
                 return 0;
         case OC_MUL:

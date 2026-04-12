@@ -136,6 +136,7 @@ enum {
         STRCONST_IDX_locked_dict_str,
         STRCONST_IDX_nomsg,
         STRCONST_IDX_emptyset,
+        STRCONST_IDX_dot_evc,
         N_STRCONST,
 };
 

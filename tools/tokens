@@ -94,6 +94,7 @@ CLASS           "class"
 YIELD           "yield"
 NAMESPACE       "namespace"
 PRIVATE         "private"
+IMPORT          "import"
 EOF
 STRING                          atomic_key
 FSTRING_START

@@ -165,6 +165,9 @@ FORMAT
 # Stack top should have either a tuple, integer, or string.
 THROW
 
+# stack[-1] is name of module
+IMPORT
+
 # splatter sequential object's items onto the stack
 UNPACK
 # ^^^ but high byte of arg2 is index of starred variable

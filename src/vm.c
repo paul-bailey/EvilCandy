@@ -586,6 +586,30 @@ do_assign_global(Frame *fr, instruction_t ii)
 }
 
 static int
+do_import(Frame *fr, instruction_t ii)
+{
+        Object *name, *file_name, *imported;
+        enum result_t ret;
+
+        /* Append extension: import math; <-> importfile("math.evc"); */
+        name = pop(fr);
+        file_name = string_cat(name, STRCONST_ID(dot_evc));
+        bug_on(file_name == ErrorVar);
+
+        imported = evc_import(fr, string_cstring(file_name));
+        VAR_DECR_REF(file_name);
+        VAR_DECR_REF(name);
+
+        if (imported == ErrorVar) {
+                ret = RES_ERROR;
+        } else {
+                push(fr, imported);
+                ret = RES_OK;
+        }
+        return ret;
+}
+
+static int
 new_global_or_name(Frame *fr, instruction_t ii, Object *dict)
 {
         int res;

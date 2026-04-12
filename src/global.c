@@ -71,6 +71,7 @@ initialize_string_consts(void)
                 [STRCONST_IDX_locked_dict_str] = "{...}",
                 [STRCONST_IDX_nomsg] = "(no message provided)",
                 [STRCONST_IDX_emptyset] = "set()",
+                [STRCONST_IDX_dot_evc] = ".evc",
         };
 
         int i;

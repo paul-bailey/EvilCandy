@@ -2484,7 +2484,7 @@ string_reset(Object *str)
                 efree(vs->s);
 }
 
-static Object *
+Object *
 string_cat(Object *a, Object *b)
 {
         struct string_writer_t wr;

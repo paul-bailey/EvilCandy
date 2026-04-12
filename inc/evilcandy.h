@@ -334,6 +334,7 @@ extern Object *stringvar_from_ascii(const char *cstr);
 extern Object *stringvar_from_substr(Object *old, size_t start, size_t stop);
 extern long string_ord(Object *str, size_t idx);
 extern Object *string_format(Object *str, Object *tup);
+extern Object *string_cat(Object *romeo, Object *juliet);
 extern size_t string_slide(Object *str, Object *sep, size_t startpos);
 extern bool string_chr(Object *str, long pt);
 extern ssize_t string_search(Object *haystack, Object *needle, size_t startpos);

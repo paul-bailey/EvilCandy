@@ -22,6 +22,7 @@ print_help_and_quit(FILE *fp)
                 "Options:\n"
                 "        -d              Disassembly mode\n"
                 "        -c STRING       Interpret STRING instead of a file\n"
+                "        -e STRING       same as -c\n"
                 "        -V              Print version and quit\n"
                 "        -h              Print this help and quit\n"
                 "        --version       Same as -V\n"
@@ -54,6 +55,7 @@ parse_args(int argc, char **argv)
                                         goto er;
                                 break;
                         case 'c':
+                        case 'e':
                                 argi++;
                                 if (argi == argc)
                                         goto er;

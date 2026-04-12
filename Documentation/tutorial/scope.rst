@@ -83,8 +83,8 @@ A local variable overrides variables declared in a parent or global scope::
    This is an "alpha" limitation, which a future version of EvilCandy
    may fix later.
 
-Resetting a Variable
---------------------
+Leaving Scope
+-------------
 
 .. admonition:: TODO
 
@@ -93,9 +93,17 @@ Resetting a Variable
    it?  Am I not being technical enough by saying "variable" instead of
    "name" and "object"?
 
-Except for global variables and some additional special cases, variables
-are destroyed when the program leaves the scope they were declared in.
-The keyword ``delete`` cannot delete them the way it can delete a
+Global variables never leave scope.
+
+When local variables leave scope, they are typically garbage-collected.
+An exception is any datum which a function's return value still
+references, for example a closure item.  This data will remain in
+memory until that return value is also destroyed.
+
+Resetting a Variable
+--------------------
+
+The keyword ``delete`` cannot delete variables the way it can delete a
 dictionary or list item.  It can, however, "reset" the variable by
 replacing it with ``null``.  This may be useful if you are to remain in
 scope for a while but no longer need a certain variable, whose data could
@@ -105,4 +113,5 @@ be quite large at times::
   evc> delete x;
   evc> print(x);
   null
+
 

@@ -31,12 +31,15 @@ class Box() {
         this._test_borderchar(priv['borderchar']);
         this._priv = priv;
     },
-    .borderchar = property(get=function(){
-                      return this._priv['borderchar'];
-                  }, set=function(v) {
-                      this._priv['borderchar'] = this._test_borderchar(v);
-                  }),
-    .count = property(() => this._priv['count']),
+    .borderchar = function(*bc) {
+        if (length(bc) == 0)
+            return this._priv['borderchar'];
+        else if (length(bc) == 1)
+            this._priv['borderchar'] = this._test_borderchar(bc[0]);
+        else
+            throw ArgumentError("Expected: borderchar() or borderchar(bc)");
+    },
+    .count = (() => this._priv['count']),
     ._test_borderchar = function(c) {
         if (typeof(c) != 'string')
             throw ArgumentError('borderchar not a string');
@@ -54,7 +57,7 @@ class Box() {
 
         borderchar = 'borderchar' in kw
                      ? test_borderchar(kw['borderchar'])
-                     : this.borderchar;
+                     : this.borderchar();
         if (kw has 'width')
             maxwidth = kw['width'];
 
@@ -121,14 +124,14 @@ box2.print('...And I am box2!  Is my box bigger than box1?');
 
 box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
 
-if (box1.count != 2 || box2.count != 1) {
+if (box1.count() != 2 || box2.count() != 1) {
     print(f'box1.count={box1.count}, box2.count={box2.count}');
     throw RuntimeError("something suspicious with the box counts");
 }
 
 box2.print('NO YOU DON\'T! LOOK AT MEEEEE!!!', borderchar='!');
 
-box1.borderchar = '.';
+box1.borderchar('.');
 
 box1.print('bruh', width=20);
 

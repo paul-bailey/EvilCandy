@@ -752,25 +752,12 @@ enum result_t
 var_setattr(Object *v, Object *key, Object *attr)
 {
         if (isvar_instance(v)) {
-                if (instance_setattr(v, key, attr) < 0)
-                        goto err_delete;
-                return RES_OK;
-        } else if (!attr) {
-                goto err_delete;
-        } else {
-                enum result_t ret;
-                Object *prop = dict_getitem(v->v_type->methods, key);
-                if (prop && isvar_property(prop)) {
-                        ret = property_set(prop, v, attr, key);
-                        VAR_DECR_REF(prop);
-                        return ret;
-                }
-                err_attribute("set", key, v);
-                return RES_ERROR;
+                if (instance_setattr(v, key, attr) == RES_OK)
+                        return RES_OK;
         }
 
-err_delete:
-        err_attribute("delete", key, v);
+        /* GitHub issue #26: All properties are read-only now */
+        err_attribute(attr ? "set" : "delete", key, v);
         return RES_ERROR;
 }
 

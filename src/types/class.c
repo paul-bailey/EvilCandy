@@ -204,13 +204,13 @@ instance_getattr(Object *instance, Object *key)
         return NULL;
 
 found:
+        /*
+         * GitHub issue #26: Do not intercept properties for user-defined
+         * object classes.
+         */
         if (isvar_function(ret)) {
                 Object *tmp = ret;
                 ret = methodvar_new(tmp, instance);
-                VAR_DECR_REF(tmp);
-        } else if (isvar_property(ret)) {
-                Object *tmp = ret;
-                ret = property_get(ret, instance, key);
                 VAR_DECR_REF(tmp);
         }
         return ret;
@@ -219,22 +219,8 @@ found:
 enum result_t
 instance_setattr(Object *instance, Object *key, Object *value)
 {
-        /*
-         * XXX: This is SLOW!
-         *      Am I really so dedicated to supporting properties?
-         */
-        Object *prop;
-
-        bug_on(!isvar_instance(instance));
-        prop = class_getitem(V2INST(instance)->inst_class, key);
-        if (prop && isvar_property(prop)) {
-                enum result_t ret = property_set(prop, instance, value, key);
-                VAR_DECR_REF(prop);
-                return ret;
-        } else {
-                Object *dict = V2INST(instance)->inst_attr;
-                return dict_setitem(dict, key, value);
-        }
+        Object *dict = V2INST(instance)->inst_attr;
+        return dict_setitem(dict, key, value);
 }
 
 Object *

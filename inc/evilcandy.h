@@ -31,6 +31,7 @@
 #include <sys/types.h>
 /* REVISIT: include unistd and stdlib at this level? math.h? */
 
+#include "compiler.h"
 #include "evcenums.h"
 #include "typedefs.h"
 #include "uarg.h"

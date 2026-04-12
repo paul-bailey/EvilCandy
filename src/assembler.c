@@ -171,7 +171,7 @@ as_unlex(struct assemble_t *a)
         unget_tok(a->prog, &a->oc);
 }
 
-static int
+WARN_UNUSED_RESULT static int
 as_lex(struct assemble_t *a)
 {
         /* if err, get_tok should have set exception */
@@ -203,7 +203,7 @@ err_ae_brace(void)
         err_setstr(SyntaxError, "unbalanced brace");
 }
 
-static int
+WARN_UNUSED_RESULT static int
 as_errlex(struct assemble_t *a, int exp)
 {
         if (as_lex(a) < 0)

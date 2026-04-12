@@ -83,6 +83,7 @@ programs_fuzzer_SOURCES = programs/fuzzer.c
 evilcandy_SOURCES = programs/evilcandy.c
 
 noinst_HEADERS = \
+        inc/compiler.h \
         inc/debug.h \
         inc/evcenums.h \
         inc/evilcandy.h \

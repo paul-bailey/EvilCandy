@@ -5,6 +5,38 @@
 #include <unistd.h>
 #include <errno.h>
 
+static void
+print_version_and_quit(void)
+{
+        printf("%s\n", EVILCANDY_VERSION);
+        end_program();
+        exit(EXIT_SUCCESS);
+}
+
+static void
+print_help_and_quit(FILE *fp)
+{
+        static const char *EVILCANDY_HELP_MSG =
+                "evilcandy [OPTIONS] [INFILE]\n"
+                "\n"
+                "Options:\n"
+                "        -d              Disassembly mode\n"
+                "        -c STRING       Interpret STRING instead of a file\n"
+                "        -V              Print version and quit\n"
+                "        -h              Print this help and quit\n"
+                "        --version       Same as -V\n"
+                "        --help          Same as -h\n"
+                "\n"
+                "Common usage:\n"
+                "        REPL mode:      evilcandy\n"
+                "        pipe mode:      cat FILE | evilcandy\n"
+                "        script mode     evilcandy FILE\n";
+
+        fprintf(fp, "%s\n", EVILCANDY_HELP_MSG);
+        end_program();
+        exit(EXIT_SUCCESS);
+}
+
 static int
 parse_args(int argc, char **argv)
 {
@@ -38,14 +70,19 @@ parse_args(int argc, char **argv)
                                         if (argi == argc)
                                                 goto er;
                                         gbl.opt.disassemble_outfile = argv[argi];
+                                } else if (!strcmp(s, "version")) {
+                                        print_version_and_quit();
+                                } else if (!strcmp(s, "help")) {
+                                        print_help_and_quit(stdout);
                                 } else {
                                         goto er;
                                 }
                                 break;
+                        case 'h':
+                                print_help_and_quit(stdout);
+                                break;
                         case 'V':
-                                printf("%s\n", EVILCANDY_VERSION);
-                                end_program();
-                                exit(EXIT_SUCCESS);
+                                print_version_and_quit();
                                 break;
                         default:
                                 goto er;
@@ -68,7 +105,8 @@ parse_args(int argc, char **argv)
         return 0;
 
 er:
-        fprintf(stderr, "Expected: '%s [OPTIONS] INFILE'\n", argv[0]);
+        fprintf(stderr, "Invalid Option\n");
+        print_help_and_quit(stderr);
         return -1;
 }
 

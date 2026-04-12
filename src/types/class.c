@@ -353,6 +353,15 @@ instance_super_getattr(Object *instance, Object *attribute_name)
         return NULL;
 }
 
+/*
+ * FIXME: This is naive.  I want the resolved method and its
+ * public/private status to match.  So if a higher-precedence method
+ * is public and a lower-precedence method with the same name is private,
+ * the resolved public/private status should be public, not private.  But
+ * this algorithm below will make it private for all methods of a certain
+ * name.  The solution should be to resolve c_priv and c_dict together
+ * in the same algorithm.
+ */
 static Object *
 inherit_private_names(Object *bases)
 {

@@ -32,6 +32,7 @@ src_libevilcandy_a_SOURCES = \
         src/global.c \
         src/hash.c \
         src/helpers.c \
+        src/import.c \
         src/instruction_name.c \
         src/init.c \
         src/iterator.c \

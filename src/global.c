@@ -258,6 +258,8 @@ cfile_deinit_global(void)
 
         if (gbl.exception_last)
                 VAR_DECR_REF(gbl.exception_last);
+        if (gbl.import_dict)
+                VAR_DECR_REF(gbl.import_dict);
 
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);

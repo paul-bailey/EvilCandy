@@ -44,6 +44,9 @@ struct global_t {
 
         /* err.c manages this */
         Object *exception_last;
+
+        /* import.c */
+        Object *import_dict;
 };
 
 #define STRCONST_ID(X)    (gbl.strconsts[STRCONST_IDX_##X])

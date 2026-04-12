@@ -176,65 +176,22 @@ do_import(Frame *fr)
 {
         const char *file_name;
         long mode;
-        Object *res, *ex, *kwargs, *arg_wrapper;
-        enum { R, X } how;
-        FILE *fp;
 
-        if (vm_getargs(fr, "<[]><{}>:import", &arg_wrapper, &kwargs)
-            == RES_ERROR) {
-                return ErrorVar;
-        }
-        if (vm_getargs_sv(arg_wrapper, "[sc]:import", &file_name, &mode)
+        if (vm_getargs(fr, "[sc!]{!}:import", &file_name, &mode)
             == RES_ERROR) {
                 return ErrorVar;
         }
 
         if (mode == 'r') {
-                how = R; /* read script and return it as a function */
-        } else if (mode == 'x') {
-                how = X; /* execute script and return its results */
-        } else {
-                err_setstr(ValueError, "import: incorrect MODE argument");
+                err_setstr(NotImplementedError,
+                        "import: 'r' option no longer supported");
+                return ErrorVar;
+        } else if (mode != 'x') {
+                err_setstr(ValueError, "import: incorrect mode argument");
                 return ErrorVar;
         }
 
-        fp = push_path(file_name);
-        if (!fp) {
-                err_errno("Cannot access '%s' properly", file_name);
-                return ErrorVar;
-        }
-        ex = assemble(file_name, fp, NULL);
-        pop_path(fp);
-
-        if (!ex || ex == ErrorVar) {
-                if (!err_occurred()) {
-                        err_setstr(RuntimeError,
-                                   "Failed to import module '%s'", file_name);
-                }
-                return ErrorVar;
-        }
-
-        /* arg settings for script top-level: function(*args, **kwargs) */
-        res = funcvar_new_user(ex, NULL);
-        if (how == X) {
-                Object *args, *func;
-                args = array_getslice(arg_wrapper, 2,
-                                      seqvar_size(arg_wrapper), 1);
-                func = res;
-                res = vm_exec_func(fr, func, args, kwargs);
-                VAR_DECR_REF(func);
-                VAR_DECR_REF(args);
-        }
-        /* else, how == R */
-
-        /*
-         * @res may or may not keep a reference to 'ex' alive depending
-         * on the 'mode' arg and on how the imported file implements
-         * things, but we still have our own separate reference that we
-         * need to consume.
-         */
-        VAR_DECR_REF(ex);
-        return res;
+        return evc_import(fr, file_name);
 }
 
 static Object *

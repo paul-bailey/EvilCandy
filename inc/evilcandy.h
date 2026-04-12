@@ -153,6 +153,9 @@ extern void efree(void *ptr);
 extern char *codec_str(int codec, char *buf, size_t size);
 extern Object *codec_strobj(int codec);
 
+/* import.c */
+extern Object *evc_import(Frame *fr, const char *file_name);
+
 /* instruction_name.c */
 extern const char *instruction_name(int opcode);
 extern int instruction_from_name(const char *name);

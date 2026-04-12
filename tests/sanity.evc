@@ -163,6 +163,18 @@ function test_class() {
         let x = MyClass(12);
         test.assert_true(x.x == 12);
     }
+
+    /* make sure instance B does not change instance A data */
+    {
+        class MyClass() {
+            .x = 12,
+        }
+        let a = MyClass();
+        let b = MyClass();
+        a.x++;
+        test.assert_true(b.x == 12);
+        test.assert_true(a.x == 13);
+    }
 }
 
 let tests = [

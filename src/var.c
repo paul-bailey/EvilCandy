@@ -510,27 +510,27 @@ err:
 }
 
 static Object *
-var_getitem_map(Object *v, Object *key)
+var_getitem_map(Object *obj, Object *key)
 {
         /*
-         * first check if v maps it. If failed, check the
+         * first check if obj maps it. If failed, check the
          * built-in methods.
          */
         Object *ret;
-        const struct map_methods_t *mpm = v->v_type->mpm;
+        const struct map_methods_t *mpm = obj->v_type->mpm;
         if (mpm && mpm->getitem) {
-                ret = mpm->getitem(v, key);
+                ret = mpm->getitem(obj, key);
                 if (ret)
                         return ret;
         }
-        err_subscript("get", key, v);
+        err_subscript("get", key, obj);
         return ErrorVar;
 }
 
 static Object *
-var_getitem_seq(Object *v, Object *key)
+var_getitem_seq(Object *obj, Object *key)
 {
-        const struct seq_methods_t *sqm = v->v_type->sqm;
+        const struct seq_methods_t *sqm = obj->v_type->sqm;
         bug_on(!sqm);
         if (isvar_int(key)) {
                 Object *ret;
@@ -538,12 +538,12 @@ var_getitem_seq(Object *v, Object *key)
                 if (!sqm->getitem)
                         goto badtype;
 
-                i = var_realindex(v, intvar_toll(key));
+                i = var_realindex(obj, intvar_toll(key));
                 if (i < 0) {
                         err_index(key);
                         return ErrorVar;
                 }
-                ret = sqm->getitem(v, i);
+                ret = sqm->getitem(obj, i);
                 bug_on(!ret);
                 return ret;
         } else if (isvar_tuple(key)) {
@@ -551,117 +551,117 @@ var_getitem_seq(Object *v, Object *key)
                 ssize_t start, stop, step;
                 if (!sqm->getslice)
                         goto badtype;
-                if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {
+                if (tup2slice(obj, key, &start, &stop, &step) == RES_ERROR) {
                         bug_on(!err_occurred());
                         return ErrorVar;
                 }
 
                 /* Cannot slice an empty sequence */
-                if ((seqsize = seqvar_size(v)) == 0)
-                        return VAR_NEW_REF(v);
+                if ((seqsize = seqvar_size(obj)) == 0)
+                        return VAR_NEW_REF(obj);
 
-                return sqm->getslice(v, start, stop, step);
+                return sqm->getslice(obj, start, stop, step);
         } else {
                 goto badkey;
         }
 
 badtype:
-        err_subscript("get", key, v);
+        err_subscript("get", key, obj);
         return ErrorVar;
 
 badkey:
         err_setstr(TypeError,
                    "Invalid key type '%s' type for sequence type '%s'",
-                   typestr(key), typestr(v));
+                   typestr(key), typestr(obj));
         return ErrorVar;
 }
 
 Object *
-var_getitem(Object *v, Object *key)
+var_getitem(Object *obj, Object *key)
 {
-        if (isvar_map(v) || isvar_string(key)) {
-                return var_getitem_map(v, key);
-        } else if (isvar_seq(v)) {
-                return var_getitem_seq(v, key);
+        if (isvar_map(obj) || isvar_string(key)) {
+                return var_getitem_map(obj, key);
+        } else if (isvar_seq(obj)) {
+                return var_getitem_seq(obj, key);
         } else {
-                err_subscript("get", key, v);
+                err_subscript("get", key, obj);
                 return ErrorVar;
         }
 }
 
 /**
  * var_getattr - Generalized get-attribute
- * @fr: Current frame
- * @v:  Variable whose attribute we're seeking
- * @key: Variable storing the key, either the name or an index number
+ * @frame: Current frame
+ * @obj:   Variable whose attribute we're seeking
+ * @key:   Variable storing the key, either the name or an index number
  *
- * Return: Attribute of @v, or ErrorVar if not found.
+ * Return: Attribute of @obj, or ErrorVar if not found.
  *
  * This implements the EvilCandy expression: v.key
  */
 Object *
-var_getattr(Frame *fr, Object *v, Object *key)
+var_getattr(Frame *frame, Object *obj, Object *key)
 {
         Object *ret;
-        if (isvar_instance(v)) {
-                ret = instance_getattr(fr, v, key);
+        if (isvar_instance(obj)) {
+                ret = instance_getattr(frame, obj, key);
                 if (!ret) {
-                        err_attribute("get", key, v);
+                        err_attribute("get", key, obj);
                         return ErrorVar;
                 }
                 return ret;
         }
-        ret = dict_getitem(v->v_type->methods, key);
+        ret = dict_getitem(obj->v_type->methods, key);
         if (!ret) {
-                err_attribute("get", key, v);
+                err_attribute("get", key, obj);
                 return ErrorVar;
         }
         if (isvar_property(ret)) {
                 Object *tmp = ret;
-                ret = property_get(ret, v, key);
+                ret = property_get(ret, obj, key);
                 VAR_DECR_REF(tmp);
         } else if (isvar_function(ret)) {
                 Object *tmp = ret;
-                ret = methodvar_new(tmp, v);
+                ret = methodvar_new(tmp, obj);
                 VAR_DECR_REF(tmp);
         }
         return ret;
 }
 
 /**
- * var_hasattr - Implement the has keyword
- * @haystack: the lval 'a' of 'a has b'
- * @needle:   the rval 'b' of 'a has b'
+ * var_hasitem - Implement the has keyword
+ * @container: the lval 'a' of 'a has b'
+ * @item:      the rval 'b' of 'a has b'
  *
- * Return: true if @needle is an item stored by @haystack, false if not.
+ * Return: true if @item is stored by @container, false if not.
  *      Unlike with var_get, built-in attributes and properties are not
  *      a consideration.
  */
 bool
-var_hasitem(Object *haystack, Object *needle)
+var_hasitem(Object *container, Object *item)
 {
-        const struct seq_methods_t *sqm = haystack->v_type->sqm;
-        const struct map_methods_t *mpm = haystack->v_type->mpm;
+        const struct seq_methods_t *sqm = container->v_type->sqm;
+        const struct map_methods_t *mpm = container->v_type->mpm;
         if (sqm && sqm->hasitem)
-                return sqm->hasitem(haystack, needle);
+                return sqm->hasitem(container, item);
         if (mpm && mpm->hasitem) {
-                if (!isvar_string(needle))
+                if (!isvar_string(item))
                         return false;
-                return mpm->hasitem(haystack, needle);
+                return mpm->hasitem(container, item);
         }
         return false;
 }
 
 /*
- * Either @v is a dictionary or @key is a string, which could mean to
- * set a property in @v, regardless of @v's type.
+ * Either @obj is a dictionary or @key is a string, which could mean to
+ * set a property in @obj, regardless of @obj's type.
  */
 static enum result_t
-var_setitem_map(Object *v, Object *key, Object *attr)
+var_setitem_map(Object *obj, Object *key, Object *value)
 {
-        const struct map_methods_t *map = v->v_type->mpm;
+        const struct map_methods_t *map = obj->v_type->mpm;
         if (!map || !map->setitem) {
-                err_subscript("set", key, v);
+                err_subscript("set", key, obj);
                 return RES_ERROR;
         }
 
@@ -669,53 +669,53 @@ var_setitem_map(Object *v, Object *key, Object *attr)
                 err_setstr(KeyError, "key may not be empty");
                 return RES_ERROR;
         }
-        return map->setitem(v, key, attr);
+        return map->setitem(obj, key, value);
 }
 
 static enum result_t
-var_setitem_seq(Object *v, Object *key, Object *attr)
+var_setitem_seq(Object *obj, Object *key, Object *value)
 {
-        const struct seq_methods_t *seq = v->v_type->sqm;
+        const struct seq_methods_t *seq = obj->v_type->sqm;
         bug_on(!seq);
         if (isvar_tuple(key)) {
                 ssize_t start, stop, step;
                 if (!seq->setslice)
                         goto badtype;
-                if (tup2slice(v, key, &start, &stop, &step) == RES_ERROR) {
+                if (tup2slice(obj, key, &start, &stop, &step) == RES_ERROR) {
                         bug_on(!err_occurred());
                         return RES_ERROR;
                 }
-                return seq->setslice(v, start, stop, step, attr);
+                return seq->setslice(obj, start, stop, step, value);
         } else if (isvar_int(key)) {
                 int i;
                 if (!seq->setitem)
                         goto badtype;
 
-                i = var_realindex(v, intvar_toll(key));
+                i = var_realindex(obj, intvar_toll(key));
                 if (i < 0) {
                         err_index(key);
                         return RES_ERROR;
                 }
 
-                return seq->setitem(v, i, attr);
+                return seq->setitem(obj, i, value);
         } else {
                 goto badkey;
         }
 
 badtype:
-        err_attribute("set", key, v);
+        err_attribute("set", key, obj);
         return RES_ERROR;
 
 badkey:
         err_setstr(TypeError,
                    "Invalid key type '%s' type for sequence type '%s'",
-                   typestr(key), typestr(v));
+                   typestr(key), typestr(obj));
         return RES_ERROR;
 }
 
 /**
  * var_setitem - Generalized set-item
- * @v:          Variable whose item we're setting
+ * @obj:        Variable whose item we're setting
  * @key:        index number, slice, name, etc.
  * @value:      Value to set item to
  *
@@ -726,40 +726,40 @@ badkey:
  *              delete v[key];        # value == NULL
  */
 enum result_t
-var_setitem(Object *v, Object *key, Object *value)
+var_setitem(Object *obj, Object *key, Object *value)
 {
-        if (isvar_map(v) || isvar_string(key)) {
-                return var_setitem_map(v, key, value);
-        } else if (isvar_seq(v)) {
-                return var_setitem_seq(v, key, value);
+        if (isvar_map(obj) || isvar_string(key)) {
+                return var_setitem_map(obj, key, value);
+        } else if (isvar_seq(obj)) {
+                return var_setitem_seq(obj, key, value);
         } else {
-                err_subscript("set", key, v);
+                err_subscript("set", key, obj);
                 return RES_ERROR;
         }
 }
 
 /**
  * var_setattr - Generalized set-attribute
- * @fr:         Current frame
- * @v:          Variable whose attribute we're setting
+ * @frame:      Current frame
+ * @obj:        Variable whose attribute we're setting
  * @key:        Variable storing the index number or name
- * @attr:       Variable storing the attribute to set.
+ * @value:      Variable storing the attribute to set.
  * Return:      RES_OK if success, RES_ERROR if failure does not exist.
  *
  * This implements
- *              v.key = attr;   # attr != NULL
- *              delete v.key;   # attr == NULL
+ *              v.key = value;  # value != NULL
+ *              delete v.key;   # value == NULL
  */
 enum result_t
-var_setattr(Frame *fr, Object *v, Object *key, Object *attr)
+var_setattr(Frame *frame, Object *obj, Object *key, Object *value)
 {
-        if (isvar_instance(v)) {
-                if (instance_setattr(fr, v, key, attr) == RES_OK)
+        if (isvar_instance(obj)) {
+                if (instance_setattr(frame, obj, key, value) == RES_OK)
                         return RES_OK;
         }
 
         /* GitHub issue #26: All properties are read-only now */
-        err_attribute(attr ? "set" : "delete", key, v);
+        err_attribute(value ? "set" : "delete", key, obj);
         return RES_ERROR;
 }
 

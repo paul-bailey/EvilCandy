@@ -334,10 +334,8 @@ socket_str(Frame *fr)
         if (!skv)
                 return VAR_NEW_REF(NullVar);
 
-        memset(buf, 0, sizeof(buf));
-
         /* TODO: Something fancier than this */
-        snprintf(buf, sizeof(buf)-1, "<socket @%p>", (void *)skobj);
+        evc_sprintf(buf, sizeof(buf), "<socket @%p>", (void *)skobj);
         return stringvar_new(buf);
 }
 

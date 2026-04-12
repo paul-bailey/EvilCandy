@@ -61,7 +61,7 @@ static void
 gen_number(struct strbuf_t *out)
 {
         char buf[64];
-        snprintf(buf, sizeof(buf), "%d", rnd(100));
+        evc_sprintf(buf, sizeof(buf), "%d", rnd(100));
         sb_append(out, buf);
 }
 

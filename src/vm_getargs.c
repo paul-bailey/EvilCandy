@@ -149,11 +149,11 @@ vmerr_type_mismatch(int argno, const char *fname, Object *arg, struct type_t *ty
         char *p = buf;
         char *end = &buf[sizeof(buf)];
         if (fname)
-                p += snprintf(p, end - p, "%s() ", fname);
+                p += evc_sprintf(p, end - p, "%s() ", fname);
         if (argno >= 0)
-                p += snprintf(p, end - p, "argument %d ", argno + 1);
-        p += snprintf(p, end - p, "expected %s but got %s",
-                      type->name, typestr(arg));
+                p += evc_sprintf(p, end - p, "argument %d ", argno + 1);
+        p += evc_sprintf(p, end - p, "expected %s but got %s",
+                         type->name, typestr(arg));
         if (p == end)
                 p--;
         *p = '\0';
@@ -173,11 +173,11 @@ vmerr_generic(const char *msg, int argno, const char *fname)
          */
 
         if (fname)
-                p += snprintf(p, end-p, "%s() ", fname);
+                p += evc_sprintf(p, end-p, "%s() ", fname);
         if (argno >= 0)
-                p += snprintf(p, end-p, "argument %d ", argno + 1);
+                p += evc_sprintf(p, end-p, "argument %d ", argno + 1);
         if (msg)
-                p += snprintf(p, end-p, "%s", msg);
+                p += evc_sprintf(p, end-p, "%s", msg);
         if (p == end)
                 p--;
         *p = '\0';

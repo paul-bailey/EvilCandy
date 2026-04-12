@@ -26,8 +26,7 @@ static Object *
 xptr_str(Object *v)
 {
         char buf[64];
-        memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf) - 1, "<code-block at %p>", (void *)v);
+        evc_sprintf(buf, sizeof(buf), "<code-block at %p>", (void *)v);
         return stringvar_new(buf);
 }
 

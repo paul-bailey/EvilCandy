@@ -257,8 +257,7 @@ static Object *
 int_str(Object *v)
 {
         char buf[64];
-        memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf)-1, "%lld", V2I(v)->i);
+        evc_sprintf(buf, sizeof(buf), "%lld", V2I(v)->i);
         return stringvar_new(buf);
 }
 

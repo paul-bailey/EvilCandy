@@ -58,9 +58,8 @@ static Object *
 uuidptr_str(Object *v)
 {
         char buf[64];
-        memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf) - 1, "<uuid '%s'>",
-                 (((struct uuidptrvar_t *)v)->uuid));
+        evc_sprintf(buf, sizeof(buf), "<uuid '%s'>",
+                    (((struct uuidptrvar_t *)v)->uuid));
         return stringvar_new(buf);
 }
 
@@ -68,7 +67,7 @@ static Object *
 id_str(Object *v)
 {
         char buf[32];
-        snprintf(buf, sizeof(buf) - 1, "<id %llx>",
+        evc_sprintf(buf, sizeof(buf), "<id %llx>",
                  (((struct idvar_t *)v)->id));
         return stringvar_new(buf);
 }

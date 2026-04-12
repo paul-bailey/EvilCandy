@@ -917,11 +917,10 @@ format2_g(struct string_writer_t *wr, Object *arg, struct fmt_args_t *fa)
         char fmtbuf[64];
 
         /* '%g' hurts my brain, so I'll just call the library function */
-        memset(fmtbuf, 0, sizeof(fmtbuf));
-        snprintf(fmtbuf, sizeof(fmtbuf)-1, "%%%s%s%d.%d%c",
-                 fa->rjust ? "" : "-",
-                 fa->padc == '0' ? "0" : "",
-                 (int)fa->padlen, (int)fa->precision, fa->conv);
+        evc_sprintf(fmtbuf, sizeof(fmtbuf), "%%%s%s%d.%d%c",
+                    fa->rjust ? "" : "-",
+                    fa->padc == '0' ? "0" : "",
+                    (int)fa->padlen, (int)fa->precision, fa->conv);
 
         buf = emalloc(32 + fa->precision);
         format2_g__(buf, sizeof(buf), fmtbuf, v);

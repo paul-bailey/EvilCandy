@@ -176,7 +176,7 @@ float_str(Object *a)
                 goto done;
         }
 
-        len = snprintf(buf, sizeof(buf)-1, "%.17g", d);
+        len = evc_sprintf(buf, sizeof(buf), "%.17g", d);
         bug_on(len >= sizeof(buf));
 
         /*

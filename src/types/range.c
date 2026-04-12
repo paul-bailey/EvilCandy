@@ -116,9 +116,8 @@ range_str(Object *v)
 {
         char buf[128];
         struct rangevar_t *r = V2R(v);
-        memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf)-1, "range(%lld, %lld, %lld)",
-                 r->start, r->stop, r->step);
+        evc_sprintf(buf, sizeof(buf), "range(%lld, %lld, %lld)",
+                    r->start, r->stop, r->step);
         return stringvar_new(buf);
 }
 

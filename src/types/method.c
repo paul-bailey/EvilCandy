@@ -78,10 +78,9 @@ method_str(Object *meth)
         struct methodvar_t *m = V2M(meth);
         bug_on(!isvar_method(meth));
 
-        memset(buf, 0, sizeof(buf));
-        snprintf(buf, sizeof(buf)-1,
-                 "<method owned by %llu>",
-                 (unsigned long long)m->owner);
+        evc_sprintf(buf, sizeof(buf),
+                    "<method owned by %llu>",
+                    (unsigned long long)m->owner);
         return stringvar_new(buf);
 }
 

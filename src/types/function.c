@@ -335,10 +335,10 @@ func_str(Object *a)
 
         memset(buf, 0, sizeof(buf));
         if (f->f_magic == FUNC_USER) {
-                snprintf(buf, sizeof(buf)-1,
-                         "<function (user) at %p>", (void *)f->f_ex);
+                evc_sprintf(buf, sizeof(buf),
+                            "<function (user) at %p>", (void *)f->f_ex);
         } else {
-                snprintf(buf, sizeof(buf)-1, "<function (intl)>");
+                evc_sprintf(buf, sizeof(buf), "<function (intl)>");
         }
         return stringvar_new(buf);
 }

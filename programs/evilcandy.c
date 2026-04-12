@@ -90,6 +90,7 @@ parse_args(int argc, char **argv)
                                 goto er;
                         }
                 } else {
+                        /* TODO: support multiple files */
                         if (gbl.opt.infile != NULL) {
                                 fprintf(stderr, "You may only specify one input file\n");
                                 goto er;

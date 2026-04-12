@@ -353,40 +353,72 @@ instance_super_getattr(Object *instance, Object *attribute_name)
         return NULL;
 }
 
+static Object *
+inherit_private_names(Object *bases)
+{
+        Object *priv_set = NULL;
+        size_t i, n = seqvar_size(bases);
+
+        for (i = 0; i < n; i++) {
+                Object *base = tuple_borrowitem_(bases, i);
+                Object *base_priv = V2CL(base)->c_priv;
+                if (!base_priv)
+                        continue;
+
+                if (!priv_set)
+                        priv_set = setvar_new(NULL);
+                /*
+                 * FIXME: Clobbering an error! Change policy on
+                 * classvar_new() such that its return value could be
+                 * ErrorVar.
+                 */
+                if (set_extend(priv_set, base_priv) == RES_ERROR)
+                        err_clear();
+        }
+        return priv_set;
+}
+
 /**
  * classvar_new - Create a class
  * @bases: A tuple containing inherited base classes
  * @dict: Dictionary of methods, properties, and data
  * @name: NULL, NullVar, or a string object that names the class.
- * @priv: NULL or a tuple of names of private attributes.
+ * @priv_tup: NULL or a tuple of names of private attributes.
  */
 Object *
-classvar_new(Object *bases, Object *dict, Object *name, Object *priv)
+classvar_new(Object *bases, Object *dict, Object *name, Object *priv_tup)
 {
         Object *ret;
         struct class_t *class;
         size_t size;
+        Object *priv_set;
 
         bug_on(!dict || !isvar_dict(dict));
-        bug_on(priv && !isvar_tuple(priv));
+        bug_on(priv_tup && !isvar_tuple(priv_tup));
         bug_on(name && name != NullVar && !isvar_string(name));
 
         size = seqvar_size(dict);
+        priv_set = NULL;
         if (bases) {
                 bases = verify_base_classes(bases, &size);
                 if (bases == ErrorVar)
                         return bases;
+                priv_set = inherit_private_names(bases);
         }
 
-        if (priv)
-                priv = setvar_new(priv);
+        if (priv_tup) {
+                if (!priv_set)
+                        priv_set = setvar_new(priv_tup);
+                else
+                        set_extend(priv_set, priv_tup);
+        }
 
         if (name == NullVar)
                 name = NULL;
 
         ret = var_new(&ClassType);
         class = V2CL(ret);
-        class->c_priv = priv;
+        class->c_priv = priv_set;
         class->c_bases = bases;
         class->c_dict = VAR_NEW_REF(dict);
         class->c_name = name ? VAR_NEW_REF(name) : NULL;

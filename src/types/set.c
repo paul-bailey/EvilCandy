@@ -584,7 +584,7 @@ set_intern(Object *set, Object *item)
 
 /**
  * setvar_new - Create a new set
- * @seq: List to create set out of
+ * @seq: List to create set out of, or NULL to create an empty set
  */
 Object *
 setvar_new(Object *seq)

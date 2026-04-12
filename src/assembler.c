@@ -3174,7 +3174,10 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         case OC_LBRACE:
                 return assemble_block_stmt(a, flags & ~FE_TOP, continueto);
         case OC_DO:
-                return assemble_do(a);
+                if (assemble_do(a) < 0)
+                        return -1;
+                need_pop = 0;
+                break;
         default:
 eval_only:
                 /* value expression */

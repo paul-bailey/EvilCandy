@@ -1461,6 +1461,105 @@ check_ghost_errors(int res)
 }
 
 /*
+ * Helper called back from function_call().
+ * Stack is set up with arguments, but some more user-function-specific
+ * things remain to do.  Reserve stack space for remaining named variables
+ * in the function, set up program counter "ppii", etc.
+ */
+enum result_t
+vmframe_finish_stack_setup(Frame *fr, struct xptrvar_t *xptr,
+                           Object **closures)
+{
+        size_t i;
+
+        bug_on(!xptr);
+        fr->clo = closures;
+        fr->n_locals = xptr->n_locals;
+        fr->ex = xptr;
+        if (!vm_pointers_in_stack(fr->stack, fr->stack + fr->n_locals)) {
+                /* XXX: Correct exception to raise? */
+                err_setstr(ArgumentError,
+                           "Cannot execute: stack overflow would occur");
+                return RES_ERROR;
+        }
+        for (i = fr->ap; i < fr->n_locals; i++)
+                fr->stack[i] = VAR_NEW_REF(NullVar);
+        fr->stackptr = fr->stack + fr->ex->n_locals;
+        fr->ppii = fr->ex->instr;
+        return RES_OK;
+}
+
+/*
+ * Helper called back from function_call().
+ * Put function call's arguments out of @args and onto @fr's stack
+ * @fr:         Frame to operate on.
+ * @optind:     Optional-argument index, or -1 if no such index for this
+ *              function.
+ * @args:       Arguments, an array or NULL.
+ * @kwargs:     Keyword argumnts, a dictionary or NULL.
+ * @nr_args:    variable to store number of arguments as they appear on
+ *              the stack.  (ie. all the optional arguments would appear
+ *              as a single argument.)
+ *
+ * Return: RES_OK or RES_ERROR
+ */
+enum result_t
+vmframe_unpack_args(Frame *fr, int optind, Object *args,
+                    Object *kwargs, size_t *nr_args)
+{
+        size_t i;
+        if (!args) {
+                if (optind == 0) {
+                        fr->stack[0] = arrayvar_new(0);
+                        fr->ap = 1;
+                } else {
+                        fr->ap = 0;
+                }
+        } else if (optind >= 0) {
+                bug_on(!isvar_array(args));
+                if (optind > seqvar_size(args)) {
+                        err_setstr(ArgumentError,
+                                "expected %ld args but got %ld",
+                                (long)optind, (long)seqvar_size(args));
+                        fr->ap = 0;
+                        return RES_ERROR;;
+                }
+
+                if (optind > 0) {
+                        Object **data = array_get_data(args);
+                        memcpy(fr->stack, data, optind * sizeof(Object *));
+                        for (i = 0; i < optind; i++)
+                                VAR_INCR_REF(fr->stack[i]);
+                        array_delete_chunk(args, 0, optind);
+                }
+
+                fr->stack[optind] = VAR_NEW_REF(args);
+                fr->ap = optind + 1;
+        } else {
+                bug_on(!isvar_array(args));
+                fr->ap = seqvar_size(args);
+                if (!vm_pointers_in_stack(fr->stack, fr->stack + fr->ap)) {
+                        err_setstr(ArgumentError,
+                                "Cannot uppack args: stack would overflow");
+                        fr->ap = 0;
+                        return RES_ERROR;
+                }
+                for (i = 0; i < fr->ap; i++) {
+                        fr->stack[i] = array_getitem(args, i);
+                        bug_on(!fr->stack[i]);
+                }
+        }
+
+        /* Put dict onto the stack at the correct spot */
+        if (kwargs)
+                fr->stack[fr->ap++] = kwargs;
+
+        fr->stackptr = fr->stack + fr->ap;
+        *nr_args = fr->ap;
+        return RES_OK;
+}
+
+/*
  * If return value is NULL, it means @fr was a generator which has
  * completed.  Do not access @fr in this case, because it will have
  * been freed.
@@ -1626,7 +1725,7 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
                 debug_push_location(tfr, tfr->ppii - 1 - tfr->ex->instr);
 
         fr = vmframe_alloc(func, owner, fr_old);
-        res = function_call(fr, args, kwargs);
+        res = function_call(fr, fr->func, args, kwargs);
         vmframe_free(fr);
 
         if (tfr && tfr->ex)

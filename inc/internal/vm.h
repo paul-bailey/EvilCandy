@@ -64,6 +64,12 @@ extern bool vm_pointers_in_stack(Object **start, Object **end);
 
 extern Object *execute_loop(Frame *fr);
 
+extern enum result_t vmframe_unpack_args(Frame *fr, int optind,
+                                         Object *args, Object *kwargs,
+                                         size_t *nr_args);
+extern enum result_t vmframe_finish_stack_setup(
+                        Frame *fr, struct xptrvar_t *xptr,
+                        Object **closures);
 extern void vm_clear_frames_for_exit(void);
 
 #endif /* EVC_INC_INTERNAL_VM_H */

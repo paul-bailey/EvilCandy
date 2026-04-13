@@ -70,56 +70,6 @@ function_argc_check(struct funcvar_t *fh, int argc)
         return RES_OK;
 }
 
-/* Put function call's arguments out of @args and onto @fr's stack */
-static enum result_t
-function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
-{
-        size_t i;
-        if (!args) {
-                if (fh->f_optind == 0) {
-                        fr->stack[0] = arrayvar_new(0);
-                        fr->ap = 1;
-                } else {
-                        fr->ap = 0;
-                }
-        } else if (fh->f_optind >= 0) {
-                bug_on(!isvar_array(args));
-                if (fh->f_optind > seqvar_size(args)) {
-                        err_setstr(ArgumentError,
-                                "expected %ld args but got %ld",
-                                (long)fh->f_optind, (long)seqvar_size(args));
-                        fr->ap = 0;
-                        return RES_ERROR;;
-                }
-
-                if (fh->f_optind > 0) {
-                        Object **data = array_get_data(args);
-                        memcpy(fr->stack, data, fh->f_optind * sizeof(Object *));
-                        for (i = 0; i < fh->f_optind; i++)
-                                VAR_INCR_REF(fr->stack[i]);
-                        array_delete_chunk(args, 0, fh->f_optind);
-                }
-
-                fr->stack[fh->f_optind] = VAR_NEW_REF(args);
-                fr->ap = fh->f_optind + 1;
-        } else {
-                bug_on(!isvar_array(args));
-                fr->ap = seqvar_size(args);
-                if (!vm_pointers_in_stack(fr->stack, fr->stack + fr->ap)) {
-                        err_setstr(ArgumentError,
-                                "Cannot uppack args: stack would overflow");
-                        fr->ap = 0;
-                        return RES_ERROR;
-                }
-                for (i = 0; i < fr->ap; i++) {
-                        fr->stack[i] = array_getitem(args, i);
-                        bug_on(!fr->stack[i]);
-                }
-        }
-        fr->stackptr = fr->stack + fr->ap;
-        return RES_OK;
-}
-
 /**
  * function_call - prep VM frame and call function
  * @fr: Frame used for this function.  Its stack base and AP have already
@@ -132,16 +82,17 @@ function_unpack_args(Frame *fr, struct funcvar_t *fh, Object *args)
  *      in the function called.
  */
 Object *
-function_call(Frame *fr, Object *args, Object *kwargs)
+function_call(Frame *fr, Object *func, Object *args, Object *kwargs)
 {
         struct funcvar_t *fh;
+        size_t nr_args;
 
-        if (!isvar_function(fr->func)) {
+        if (!isvar_function(func)) {
                 err_setstr(ValueError, "Object is not callable");
                 goto err_consume_kwargs;
         }
 
-        fh = V2FUNC(fr->func);
+        fh = V2FUNC(func);
         bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
 
         if (kwargs){
@@ -169,39 +120,30 @@ function_call(Frame *fr, Object *args, Object *kwargs)
         }
         /* else, leave kwargs NULL */
 
-        if (function_unpack_args(fr, fh, args) == RES_ERROR)
+        if (vmframe_unpack_args(fr, fh->f_optind, args,
+                                kwargs, &nr_args) == RES_ERROR) {
                 goto err_consume_kwargs;
+        }
 
-        /* Put dict onto the stack at the correct spot */
-        if (kwargs)
-                fr->stack[fr->ap++] = kwargs;
-
-        if (function_argc_check(fh, fr->ap) != RES_OK)
+        /*
+         * kwargs is either NULL or on stack now, so no need to
+         * consume them directly anymore.
+         */
+        if (function_argc_check(fh, nr_args) != RES_OK)
                 goto err;
-
-        if (fh->f_magic == FUNC_USER && fh->f_closures)
-                fr->clo = array_get_data(fh->f_closures);
-        else
-                fr->clo = NULL;
 
         if (fh->f_magic == FUNC_INTERNAL) {
                 bug_on(!fh->f_cb);
-                fr->stackptr = fr->stack + fr->ap;
                 return fh->f_cb(fr);
         } else {
                 /* FUNC_USER */
-                int i;
-
-                bug_on(fh->f_ex->n_locals < fh->f_nargs);
-                fr->n_locals = fh->f_ex->n_locals;
-                fr->ex = fh->f_ex;
-                bug_on(!fh->f_ex);
-
-                /* Finished setting up args, fr->ap */
-                for (i = fr->ap; i < fr->ex->n_locals; i++)
-                        fr->stack[i] = VAR_NEW_REF(NullVar);
-                fr->stackptr = fr->stack + fr->ex->n_locals;
-                fr->ppii = fr->ex->instr;
+                Object **closures = fh->f_closures
+                                    ? array_get_data(fh->f_closures)
+                                    : NULL;
+                if (vmframe_finish_stack_setup(fr, fh->f_ex, closures)
+                    == RES_ERROR) {
+                        goto err;
+                }
                 return execute_loop(fr);
         }
 

@@ -780,8 +780,7 @@ tokenize(struct token_state_t *state)
                         break;
                     }
                 case OC_IDENTIFIER:
-                        oc->v = set_intern(gbl.interned_strings,
-                                           stringvar_new(state->tok.s));
+                        oc->v = gbl_intern_string(stringvar_new(state->tok.s));
                         break;
                 case OC_STRING:
                 case OC_FSTRING_END:
@@ -790,8 +789,7 @@ tokenize(struct token_state_t *state)
                                 ret = bad_literal(state, "string");
                                 oc->v = NULL;
                         } else {
-                                oc->v = set_intern(gbl.interned_strings,
-                                                   oc->v);
+                                oc->v = gbl_intern_string(oc->v);
                         }
                         break;
                 default:
@@ -1132,7 +1130,6 @@ token_flush_tty(struct token_state_t *state)
                 efree(gbl.iatok.line);
                 memset(&gbl.iatok, 0, sizeof(gbl.iatok));
         }
-
         if (state && state->line) {
                 /* Not an issue in script mode */
                 if (state->inp != TKINP_TTY)
@@ -1140,4 +1137,12 @@ token_flush_tty(struct token_state_t *state)
                 state->line[0] = 0;
                 state->s = state->line;
         }
+}
+
+void
+token_clean_iatok(void)
+{
+        if (gbl.iatok.line)
+                efree(gbl.iatok.line);
+        memset(&gbl.iatok, 0, sizeof(gbl.iatok));
 }

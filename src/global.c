@@ -4,11 +4,14 @@
  *    - GlobalObject will appear to user as __gbl__.
  *    - gbl is for the C code, containing things like string consts
  *      and such.
+ *
+ * TODO: Separate the exception stuff and put in in another C file.
  */
 #include <evilcandy.h>
 #include <internal/init.h>
 #include <internal/cwd.h>
 #include <internal/global.h>
+#include <internal/token.h>
 #include <internal/types/string.h>
 
 struct global_t gbl;
@@ -249,14 +252,14 @@ cfile_deinit_global(void)
 
         VAR_DECR_REF(gbl.interned_strings);
 
-        if (gbl.iatok.line)
-                efree(gbl.iatok.line);
-        memset(&gbl.iatok, 0, sizeof(gbl.iatok));
+        token_clean_iatok();
+        /*
+         * XXX: should be called "err_deinit()", but it would do
+         * exactly the same thing.
+         */
+        err_clear();
 
-        if (gbl.exception_last)
-                VAR_DECR_REF(gbl.exception_last);
-        if (gbl.import_dict)
-                VAR_DECR_REF(gbl.import_dict);
+        import_deinit();
 
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);
@@ -345,6 +348,12 @@ gbl_set_mns_dict(enum gbl_mns_t mns, Object *dict)
 {
         bug_on((unsigned)mns >= N_MNS);
         gbl.mns[mns] = dict;
+}
+
+Object *
+gbl_intern_string(Object *str)
+{
+        return set_intern(gbl.interned_strings, str);
 }
 
 /* FIXME: Why is this here? */

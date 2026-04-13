@@ -191,3 +191,12 @@ out_pop_path:
         return ret;
 }
 
+void
+import_deinit(void)
+{
+        if (gbl.import_dict) {
+                VAR_DECR_REF(gbl.import_dict);
+                gbl.import_dict = NULL;
+        }
+}
+

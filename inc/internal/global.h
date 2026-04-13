@@ -1,3 +1,7 @@
+/*
+ * XXX: This file and its contents should eventually be renamed
+ * something like "runtime" instead of "global".
+ */
 #ifndef EVC_INC_INTERNAL_GLOBAL_H
 #define EVC_INC_INTERNAL_GLOBAL_H
 
@@ -22,11 +26,7 @@ struct global_t {
         Object *classes[N_GBL_CLASSES];
         Object *interned_strings; /*< a set */
 
-        /*
-         * private fields, put in global struct just so cleanup
-         * can be done without having to call a ton of little
-         * cleanup functions throughout the source tree.
-         */
+        /* remaining fields private to subsystems */
         struct {
                 /* token.c, interactive-mode saved line */
                 char *line;

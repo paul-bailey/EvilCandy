@@ -120,6 +120,7 @@ extern Object *codec_strobj(int codec);
 
 /* import.c */
 extern Object *evc_import(Frame *fr, const char *file_name);
+extern void import_deinit(void);
 
 /* instruction_name.c */
 extern const char *instruction_name(int opcode);

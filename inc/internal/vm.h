@@ -63,6 +63,7 @@ extern Object *vm_get_locals(void);
 
 extern Object *execute_loop(Frame *fr);
 
+extern bool vm_program_counter_ended(Frame *fr);
 extern enum result_t vmframe_unpack_args(Frame *fr, int optind,
                                          Object *args, Object *kwargs,
                                          size_t *nr_args);

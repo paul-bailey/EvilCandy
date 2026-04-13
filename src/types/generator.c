@@ -23,16 +23,13 @@ static Object *
 generator_iter_next(Object *generator)
 {
         Object *ret;
-        struct xptrvar_t *ex;
         struct generator_t *gv = (struct generator_t *)generator;
         bug_on(!isvar_generator(generator));
 
         if (gv->state != GENERATOR_STOPPED)
                 return gv->state == GENERATOR_ERROR ? ErrorVar : NULL;
 
-        /* XXX: Do we know this is isn't an internal function? */
-        ex = gv->frame->ex;
-        if (gv->frame->ppii >= ex->instr + ex->n_instr) {
+        if (vm_program_counter_ended(gv->frame)) {
                 gv->state = GENERATOR_DONE;
                 return NULL;
         }

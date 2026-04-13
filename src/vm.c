@@ -1903,6 +1903,20 @@ vm_get_this(Frame *fr)
         return fr->owner;
 }
 
+bool
+vm_program_counter_ended(Frame *fr)
+{
+        /*
+         * This is a bug, not an error.
+         * @fr can't be for a built-in function, because those always
+         * use iterators, and this function should only be called from
+         * generator code.
+         */
+        bug_on(!fr->ex);
+
+        return fr->ppii >= &fr->ex->instr[fr->ex->n_instr];
+}
+
 void
 cfile_init_vm(void)
 {

@@ -25,6 +25,8 @@ do
 done
 
 headers="
+path.h
+cwd.h
 token.h
 assemble.h
 init.h

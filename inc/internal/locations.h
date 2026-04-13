@@ -1,7 +1,9 @@
 #ifndef EVC_EVILCANDY_LOCATIONS_H
 #define EVC_EVILCANDY_LOCATIONS_H
 
-#include <evilcandy.h>
+#include <stddef.h>
+#include <evcenums.h>
+#include <sys/types.h>
 
 struct location_t {
         unsigned int loc_startline;

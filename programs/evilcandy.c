@@ -1,5 +1,6 @@
 #include <evilcandy.h>
 #include <internal/init.h>
+#include <internal/path.h>
 #include <internal/token.h>
 #include <internal/vm.h>
 #include <stdlib.h>

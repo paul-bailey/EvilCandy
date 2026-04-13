@@ -53,9 +53,6 @@ extern Object *assemble(const char *filename,
                         FILE *fp, Object *localdict);
 extern Object *assemble_string(const char *str, bool eval_only);
 
-/* cwd.c */
-extern Object *evc_getcwd(void);
-
 /* ctype.c */
 extern bool evc_isalnum(unsigned long c);
 extern bool evc_isalpha(unsigned long c);
@@ -134,12 +131,6 @@ Object *dict_from_json(const char *filename);
 
 /* namespace.c */
 Object *namespacevar_new(Object *dict, Object *name);
-
-/* path.c */
-extern void pop_path(FILE *fp);
-extern FILE *push_path(const char *filename);
-/* TODO: This to private header */
-extern void reduce_pathname_in_place(char *path);
 
 /* readline.c */
 extern ssize_t myreadline(char **linep, size_t *size,

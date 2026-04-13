@@ -100,6 +100,8 @@ noinst_HEADERS = \
         inc/uarg.h \
         inc/var.h \
         inc/vm.h \
+        inc/internal/cwd.h \
+        inc/internal/path.h \
         inc/internal/token.h \
         inc/internal/assemble.h \
         inc/internal/init.h \

@@ -1,5 +1,6 @@
 #include <sys/stat.h>
 #include <evilcandy.h>
+#include <internal/path.h>
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>
 

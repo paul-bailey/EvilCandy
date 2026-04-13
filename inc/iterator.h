@@ -16,34 +16,15 @@
 #ifndef EVC_ITERATOR_H
 #define EVC_ITERATOR_H
 
-#include <objtypes.h>
-
-/* This produces a reference for the return value */
-static inline Object *
-iterator_get(Object *obj)
-{
-        if (!obj->v_type->get_iter)
-                return NULL;
-        return obj->v_type->get_iter(obj);
-}
-
-/*
- * Get next iter.  Returns NULL if no more items, or ErrorVar if there
- * was an error (if, say, a generator threw an exception).  Since there
- * are TWO special return values to watch out for, it's best to use
- * ITERATOR_FOREACH() and check for the return value after the loop.
- */
-static inline Object *
-iterator_next(Object *iter)
-{
-        bug_on(!iter->v_type->iter_next);
-        return iter->v_type->iter_next(iter);
-}
+#include <typedefs.h>
 
 #define ITERATOR_FOREACH(p, it) \
         for (p = iterator_next(it);  \
              p != NULL && p != ErrorVar; \
              p = iterator_next(it))
+
+extern Object *iterator_next(Object *iter);
+extern Object *iterator_get(Object *obj);
 
 extern enum result_t iterator_foreach(
                 Object *it,

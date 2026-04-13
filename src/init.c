@@ -1,5 +1,5 @@
 #include <evilcandy.h>
-#include <evilcandy/init.h>
+#include <internal/init.h>
 
 void
 initialize_program(void)

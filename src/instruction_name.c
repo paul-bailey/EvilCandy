@@ -2,6 +2,8 @@
  * instruction_name.c - Get an instruction name from an enum or vice-versa
  */
 #include <evilcandy.h>
+#include <internal/types/number_types.h>
+#include <internal/vm.h>
 
 static const char *INSTR_NAMES[N_INSTR] = {
 #include "disassemble_gen.c.h"

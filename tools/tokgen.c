@@ -419,7 +419,7 @@ print_utils(void)
         static const char *HEADER =
                 S_AUTOGEN
                 "\n#include <evilcandy.h>\n"
-                "#include <evilcandy/token.h>\n\n";
+                "#include <internal/token.h>\n\n";
         static const char *GET_NAMES_FUNC =
                 TOKEN_NAME_PROTO "\n"
                 "{\n"

@@ -37,6 +37,10 @@
 #include <evilcandy.h>
 #include <errno.h>
 #include <math.h>
+#include <internal/type_registry.h>
+#include <internal/types/string.h>
+#include <internal/types/number_types.h>
+#include <internal/types/sequential_types.h>
 
 /* user argument limits */
 enum {

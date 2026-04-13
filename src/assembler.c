@@ -35,9 +35,11 @@
  *              Poorly chosen function name :)
  */
 #include <evilcandy.h>
-#include <evilcandy/token.h>
-#include <types/xptr.h>
-#include <evilcandy/assemble.h>
+#include <internal/type_registry.h>
+#include <internal/token.h>
+#include <internal/assemble.h>
+#include <internal/types/xptr.h>
+#include <internal/types/string.h>
 
 #if DBUG_PROFILE_LOAD_TIME
 # include <time.h>

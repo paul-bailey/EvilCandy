@@ -1,4 +1,6 @@
 #include <evilcandy.h>
+#include <internal/type_registry.h>
+#include <internal/types/number_types.h>
 #include <math.h>
 
 #define V2F(v)  ((struct floatvar_t *)(v))

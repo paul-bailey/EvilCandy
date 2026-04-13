@@ -3,6 +3,7 @@
  *            how these are used.
  */
 #include <evilcandy.h>
+#include <internal/type_registry.h>
 
 struct methodvar_t {
         Object base;

@@ -42,6 +42,9 @@
  */
 #include <evilcandy.h>
 #include <errno.h>
+#include <internal/types/string.h>
+#include <internal/types/sequential_types.h>
+#include <internal/init.h>
 
 /* TODO: Auto-conf all these things */
 #include <arpa/inet.h>

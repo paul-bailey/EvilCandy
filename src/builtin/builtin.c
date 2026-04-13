@@ -1,5 +1,9 @@
 /* q-builtin.c - Built-in callbacks for script */
 #include <evilcandy.h>
+#include <internal/type_registry.h>
+#include <internal/builtin/io.h>
+#include <internal/init.h>
+#include <internal/vm.h>
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
 

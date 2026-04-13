@@ -2,9 +2,11 @@
  * disassemble.c - Code that handles the -d or -D option, disassemble
  *                 bytecode back into text a user could read.
  */
-#include <evilcandy/token.h>
 #include <evilcandy.h>
-#include <types/xptr.h>
+#include <internal/token.h>
+#include <internal/types/xptr.h>
+#include <internal/types/string.h>
+#include <internal/types/sequential_types.h>
 
 #define IARG(x)   [IARG_##x]  = #x
 #define IARGP(x)  [IARG_PTR_##x]  = #x

@@ -6,6 +6,8 @@
  *      and such.
  */
 #include <evilcandy.h>
+#include <internal/init.h>
+#include <internal/types/string.h>
 
 struct global_t gbl;
 

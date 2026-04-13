@@ -2,6 +2,12 @@
 
      Top level
         |
+        +------programs/        C files not shared by different programs.
+        |                       programs/evilcandy.c contains the main()
+        |                       for the EvilCandy interpreter. fuzzer.c is
+        |                       for the fuzzer.  Other files are for unit
+        |                       tests.
+        |
         +------src/             Core C sources
         |       |
         |       +---builtin/    C accelerators for library modules
@@ -14,11 +20,7 @@
         |       |               and which can with relative ease be
         |       |               ported to a different project.
         |       |
-        |       +---evilcandy/  Limited-API headers; not every source
-        |       |               should need this.
-        |       |
-        |       +---types/      Headers code in src/types, but
-        |                       specifically the limited-API definitions.
+        |       +---internal/   Limited-API headers
         |
         +-------lib/            The main library of scripts that user
         |                       sources can load by default.  These ought

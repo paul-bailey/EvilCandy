@@ -1,5 +1,11 @@
 /* builtin/io.c - Implementation of the __gbl__.Io built-in object */
 #include <evilcandy.h>
+#include <internal/type_registry.h>
+#include <internal/types/string.h>
+#include <internal/types/number_types.h>
+#include <internal/types/sequential_types.h>
+#include <internal/builtin/io.h>
+#include <internal/init.h>
 #include <fcntl.h> /* open() */
 #include <errno.h>
 #include <unistd.h>
@@ -1131,7 +1137,7 @@ isvar_file(Object *o)
 /*
  * Common to user-code open() and C-code evc_file_open().
  */
-Object *
+static Object *
 finish_open(int fd, struct fileconfig_t *cfg, int codec)
 {
         Object *raw = open_raw(fd, cfg);

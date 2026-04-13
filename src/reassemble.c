@@ -10,8 +10,10 @@
  * The entry point is reassemble()
  */
 #include <evilcandy.h>
-#include <evilcandy/token.h>
-#include <evilcandy/assemble.h>
+#include <internal/token.h>
+#include <internal/assemble.h>
+#include <internal/op.h>
+#include <internal/types/number_types.h>
 #include <errno.h>
 #include <stdlib.h>
 

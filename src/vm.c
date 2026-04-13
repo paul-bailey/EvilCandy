@@ -12,7 +12,13 @@
  * below.
  */
 #include <evilcandy.h>
-#include <types/xptr.h>
+#include <internal/type_registry.h>
+#include <internal/op.h>
+#include <internal/types/string.h>
+#include <internal/types/xptr.h>
+#include <internal/types/sequential_types.h>
+#include <internal/init.h>
+#include <internal/vm.h>
 
 /* XXX: Need to be made per-thread */
 static struct vm_t {
@@ -1795,6 +1801,12 @@ vm_get_locals(void)
                 Frame *fr = container_of(li, Frame, alloc_list);
                 return VAR_NEW_REF(fr->ex->names);
         }
+}
+
+Object *
+vm_get_this(Frame *fr)
+{
+        return fr->owner;
 }
 
 void

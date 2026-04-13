@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <internal/type_registry.h>
 
 struct propertyvar_t {
         Object base;

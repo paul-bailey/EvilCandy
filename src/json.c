@@ -4,7 +4,7 @@
  *      falling into code rot.
  */
 #include <evilcandy.h>
-#include <evilcandy/token.h>
+#include <internal/token.h>
 #include <setjmp.h>
 
 struct json_state_t {

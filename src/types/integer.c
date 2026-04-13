@@ -1,4 +1,6 @@
 #include <evilcandy.h>
+#include <internal/type_registry.h>
+#include <internal/types/number_types.h>
 
 #define V2I(v)  ((struct intvar_t *)v)
 
@@ -24,7 +26,7 @@ intvar_new__(long long x)
  * with floating point, but 99% of the time float.c's version--which does
  * use math.h--will get called anyway.
  */
-long long
+static long long
 ipow(long long x, long long y)
 {
         long long a, sign;

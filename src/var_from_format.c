@@ -6,6 +6,8 @@
  *                     special license is in order.
  */
 #include <evilcandy.h>
+#include <internal/types/sequential_types.h>
+#include <internal/type_registry.h>
 
 static int
 count_items(const char *s, int endchar)

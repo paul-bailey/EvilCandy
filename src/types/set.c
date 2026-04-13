@@ -1,5 +1,6 @@
 /* set.c - Implementation of set data type */
 #include <evilcandy.h>
+#include <internal/types/string.h>
 
 struct setvar_t {
         struct seqvar_t base;

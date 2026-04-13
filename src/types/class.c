@@ -3,6 +3,9 @@
  * MethodType objects are in method.c
  */
 #include <evilcandy.h>
+#include <internal/type_registry.h>
+#include <internal/types/string.h>
+#include <internal/types/sequential_types.h>
 #include <var.h>
 
 struct class_t {

@@ -1,5 +1,7 @@
 /* tuple.c - Code for managing tuples */
 #include <evilcandy.h>
+#include <internal/types/sequential_types.h>
+#include <internal/type_registry.h>
 
 #define V2TUP(v_)               ((struct tuplevar_t *)(v_))
 

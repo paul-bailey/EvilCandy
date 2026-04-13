@@ -1,5 +1,6 @@
 /* Internal types: UuidType, IdType */
 #include <evilcandy.h>
+#include <internal/type_registry.h>
 
 struct uuidptrvar_t {
         Object base;

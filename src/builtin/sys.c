@@ -1,5 +1,8 @@
 #include <evilcandy.h>
 #include <unistd.h>
+#include <internal/builtin/io.h>
+#include <internal/builtin/sys.h>
+#include <internal/init.h>
 
 #define STDIO_FMT          "s/fnsmi/"
 #define STDIO_ARGS(X, Y)   #X, X, "<" #X ">", FMODE_##Y | FMODE_PROTECT

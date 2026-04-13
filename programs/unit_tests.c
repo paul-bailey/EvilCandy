@@ -1,6 +1,6 @@
 #include <evilcandy.h>
 #include <assert.h>
-#include <evilcandy/init.h>
+#include <internal/init.h>
 
 extern void reduce_pathname_in_place(char *path);
 
@@ -14,7 +14,7 @@ test_rpip(const char *trypath, const char *expect)
         return !strcmp(path, expect);
 }
 
-void
+static void
 test_path(void)
 {
         /* TODO: a bunch more */

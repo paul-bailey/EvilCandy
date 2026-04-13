@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <internal/type_registry.h>
 
 static bool
 empty_cmpz(Object *v)
@@ -12,7 +13,7 @@ emptyvar_new(void)
         return var_new(&EmptyType);
 }
 
-Object *
+static Object *
 empty_str(Object *v)
 {
         if (STRCONST_ID(null))

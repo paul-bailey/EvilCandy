@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <internal/type_registry.h>
 
 /* 64-bit version */
 #define FNV_PRIME      0x00000100000001B3LL

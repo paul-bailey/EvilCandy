@@ -39,47 +39,14 @@
 #include "hash.h"
 #include "recursion.h"
 #include "global.h"
-#include "objtypes.h"
 #include "var.h"
 #include "vm.h"
 #include "string_writer.h"
 #include "string_reader.h"
 #include "iterator.h"
 
-/* constructors/destructors for certain C file */
-/* global.c */
-extern void cfile_init_global(void);
-extern void cfile_deinit_global(void);
-/* ewrappers.c */
-extern void cfile_init_ewrappers(void);
-/* var.c */
-extern void cfile_init_var(void);
-extern void cfile_deinit_var(void);
-/* vm.c */
-extern void cfile_init_vm(void);
-extern void cfile_deinit_vm(void);
-
-/* constructors/destructors for built-in modules */
-/* builtin/builtin.c */
-extern void moduleinit_builtin(void);
-/* builtin/math.c */
-extern void moduleinit_math(void);
-/* builtin/io.c */
-extern void moduleinit_io(void);
-/* builtin/socket.c */
-extern void moduleinit_socket(void);
-/* builtin/sys.c */
-extern void moduleinit_sys(void);
-
-/* Other C hooks to built-in modules */
-/* builtin/sys.c */
-extern Object *sys_getitem(Object *key);
-extern Object *sys_getitem_cstr(const char *key);
-
-/* builtin/builtin.c */
-extern ssize_t evc_file_write(Object *fo, Object *data);
-extern Object *evc_file_open(int fd, const char *name, bool binary,
-                             bool closefd, int codec, size_t buffering);
+struct type_method_t;
+struct type_prop_t;
 
 /* assembler.c */
 extern Object *assemble(const char *filename,
@@ -168,24 +135,11 @@ Object *dict_from_json(const char *filename);
 /* namespace.c */
 Object *namespacevar_new(Object *dict, Object *name);
 
-/* op.c */
-extern Object *qop_mul(Object *a, Object *b);
-extern Object *qop_pow(Object *a, Object *b);
-extern Object *qop_div(Object *a, Object *b);
-extern Object *qop_mod(Object *a, Object *b);
-extern Object *qop_add(Object *a, Object *b);
-extern Object *qop_sub(Object *a, Object *b);
-extern Object *qop_lshift(Object *a, Object *b);
-extern Object *qop_rshift(Object *a, Object *b);
-extern Object *qop_bit_and(Object *a, Object *b);
-extern Object *qop_bit_or(Object *a, Object *b);
-extern Object *qop_xor(Object *a, Object *b);
-extern Object *qop_bit_not(Object *v);
-extern Object *qop_negate(Object *v);
-
 /* path.c */
 extern void pop_path(FILE *fp);
 extern FILE *push_path(const char *filename);
+/* TODO: This to private header */
+extern void reduce_pathname_in_place(char *path);
 
 /* readline.c */
 extern ssize_t myreadline(char **linep, size_t *size,
@@ -340,7 +294,6 @@ extern size_t string_slide(Object *str, Object *sep, size_t startpos);
 extern bool string_chr(Object *str, long pt);
 extern ssize_t string_search(Object *haystack, Object *needle, size_t startpos);
 extern char *string_encode_utf8(Object *str, size_t *size);
-extern hash_t string_hash(Object *str);
 
 /* types/tuple.c */
 extern enum result_t tuple_validate(Object *tup, const char *descr,

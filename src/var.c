@@ -1,4 +1,8 @@
 #include <evilcandy.h>
+#include <internal/types/number_types.h>
+#include <internal/type_registry.h>
+#include <internal/init.h>
+#include <internal/vm.h>
 #include <stdlib.h> /* for atexit */
 
 /**
@@ -1150,4 +1154,13 @@ var_traverse(Object *sequential,
         VAR_DECR_REF(it);
         return ret;
 }
+
+hash_t
+var_hash(Object *v)
+{
+        if (v->v_type->hash)
+                return v->v_type->hash(v);
+        return HASH_ERROR;
+}
+
 

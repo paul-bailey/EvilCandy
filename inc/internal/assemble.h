@@ -1,8 +1,10 @@
-#ifndef PRIV_ASSEMBLE_H
-#define PRIV_ASSEMBLE_H
+#ifndef EVC_INC_INTERNAL_ASSEMBLE_H
+#define EVC_INC_INTERNAL_ASSEMBLE_H
 
 #include <evilcandy.h>
-#include <evilcandy/token.h>
+#include <instructions.h>
+#include <internal/token.h>
+#include <internal/types/sequential_types.h>
 
 /**
  * struct as_frame_t - Temporary frame during assembly
@@ -136,4 +138,4 @@ extern struct xptrvar_t *assemble_frame_to_xptr(struct assemble_t *a,
 /* reassemble.c */
 extern struct xptrvar_t *reassemble(struct assemble_t *a);
 
-#endif /* PRIV_ASSEMBLE_H */
+#endif /* EVC_INC_INTERNAL_ASSEMBLE_H */

@@ -1,5 +1,7 @@
 #include <sys/stat.h>
 #include <evilcandy.h>
+#include <internal/types/sequential_types.h>
+#include <internal/type_registry.h>
 
 struct import_key_t {
         dev_t dev;

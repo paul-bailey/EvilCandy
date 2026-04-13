@@ -1,6 +1,7 @@
 #include <evilcandy.h>
-#include <evilcandy/init.h>
-#include <evilcandy/token.h>
+#include <internal/init.h>
+#include <internal/token.h>
+#include <internal/vm.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>

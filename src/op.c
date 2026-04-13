@@ -3,6 +3,8 @@
  * FIXME: Half of this should be in var.c and half should be in vm.c
  */
 #include <evilcandy.h>
+#include <internal/op.h>
+#include <internal/types/number_types.h>
 
 /*
  * Return proper number methods

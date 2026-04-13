@@ -309,7 +309,7 @@ nope:
         return false;
 }
 
-int
+static int
 isinbase(long c, int base)
 {
         if (c < 0 || c > 127 || !isalnum(c))

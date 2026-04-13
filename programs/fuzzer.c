@@ -1,5 +1,5 @@
 #include <evilcandy.h>
-#include <evilcandy/init.h>
+#include <internal/init.h>
 
 #include <assert.h>
 #include <sys/wait.h>

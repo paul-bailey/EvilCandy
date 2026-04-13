@@ -8,8 +8,10 @@
  *      debug_mark_error()
  */
 #include <evilcandy.h>
-#include <evilcandy/locations.h>
-#include <types/xptr.h>
+#include <internal/locations.h>
+#include <internal/types/string.h>
+#include <internal/types/xptr.h>
+#include <internal/vm.h>
 
 struct debug_locations_t {
         size_t instr_offset;

@@ -5,7 +5,9 @@ tests: programs/unit_tests programs/fuzzer
 
 ACLOCAL_AMFLAGS = -I build/m4
 AM_CFLAGS = \
- -Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -pedantic
+ -Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -pedantic \
+ -Wmissing-prototypes -Wmissing-declarations \
+ -Wredundant-decls -Wstrict-prototypes
 AM_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 
 bin_PROGRAMS = evilcandy
@@ -91,7 +93,6 @@ noinst_HEADERS = \
         inc/hash.h \
         inc/instructions.h \
         inc/iterator.h \
-        inc/objtypes.h \
         inc/recursion.h \
         inc/string_reader.h \
         inc/string_writer.h \
@@ -99,11 +100,20 @@ noinst_HEADERS = \
         inc/uarg.h \
         inc/var.h \
         inc/vm.h \
-        inc/evilcandy/init.h \
-        inc/evilcandy/token.h \
-        inc/evilcandy/assemble.h \
-        inc/evilcandy/locations.h \
-        inc/types/xptr.h \
+        inc/internal/token.h \
+        inc/internal/assemble.h \
+        inc/internal/init.h \
+        inc/internal/op.h \
+        inc/internal/type_protocol.h \
+        inc/internal/type_registry.h \
+        inc/internal/vm.h \
+        inc/internal/builtin/io.h \
+        inc/internal/builtin/sys.h \
+        inc/internal/types/number_types.h \
+        inc/internal/types/sequential_types.h \
+        inc/internal/types/string.h \
+        inc/internal/types/xptr.h \
+        inc/internal/locations.h \
         inc/lib/buffer.h \
         inc/lib/helpers.h \
         inc/lib/list.h \

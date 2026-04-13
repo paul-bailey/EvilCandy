@@ -5,6 +5,7 @@
  */
 #include <evilcandy.h>
 #include <stdlib.h>
+#include <internal/init.h>
 
 #if DBUG_PROFILE_MALLOC_USAGE
 

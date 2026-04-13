@@ -50,11 +50,8 @@ don't, then either these scripts or my C code has a bug.
 
 ## Source Tree Layout
 
-`source_tree_layout.txt` shows an ASCII diagram of the source tree layout
-as of April 2026.  However, I am in the process of migrating to a new
-layout, where `inc/` will have three subdirectories: `inc/internal`,
-`inc/evilcandy`, and `inc/types`.  This is based upon some
-recommendations made by codex found in `etc/ai_texts/MODULARITY_RECOMMENDATIONS.md`.
+I am in the process of migrating to a new layout of my `include/` directory,
+but other than that, `source_tree_layout.txt` is mostly up-to-date.
 
 ## What to do if Makefile or ./configure are not present
 

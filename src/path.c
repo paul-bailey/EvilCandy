@@ -1,4 +1,6 @@
 #include <evilcandy.h>
+#include <internal/builtin/sys.h>
+#include <internal/types/string.h>
 
 #define SEP '/'
 #define DOT '.'

@@ -148,6 +148,7 @@ extern enum result_t var_traverse(
 
 /* var_from_format.c */
 extern Object *var_from_format(const char *fmt, ...);
+extern hash_t var_hash(Object *v);
 
 
 #endif /* EVILCANDY_VAR_H */

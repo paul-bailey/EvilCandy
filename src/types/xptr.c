@@ -1,6 +1,7 @@
 #include <evilcandy.h>
-#include <evilcandy/locations.h>
-#include <types/xptr.h>
+#include <internal/locations.h>
+#include <internal/types/sequential_types.h>
+#include <internal/types/xptr.h>
 
 #define V2XP(v_)        ((struct xptrvar_t *)(v_))
 

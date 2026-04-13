@@ -9,6 +9,8 @@
  * d_keys, d_vals.
  */
 #include <evilcandy.h>
+#include <internal/type_registry.h>
+#include <internal/types/string.h>
 
 /**
  * struct dictvar_t - Descriptor for an object handle

@@ -129,6 +129,11 @@
  */
 #include <evilcandy.h>
 #include <stdarg.h>
+#include <internal/vm.h>
+#include <internal/type_registry.h>
+#include <internal/types/string.h>
+#include <internal/types/number_types.h>
+#include <internal/types/sequential_types.h>
 
 /* flags arg...there used to be more */
 enum {

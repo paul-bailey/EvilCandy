@@ -3,6 +3,7 @@
  */
 
 #include <evilcandy.h>
+#include <internal/types/number_types.h>
 
 struct rangevar_t {
         struct seqvar_t base;

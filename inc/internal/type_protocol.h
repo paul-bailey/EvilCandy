@@ -1,6 +1,14 @@
 #ifndef EVC_INC_INTERNAL_TYPE_PROTOCOL_H
 #define EVC_INC_INTERNAL_TYPE_PROTOCOL_H
 
+#include <stdbool.h>
+
+#include <typedefs.h>
+#include <evcenums.h>
+#include <var.h>
+
+struct var_mem_t;
+
 typedef Object *(*binary_operator_t)(Object *, Object *);
 typedef Object *(*unary_operator_t)(Object *);
 

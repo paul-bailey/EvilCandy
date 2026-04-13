@@ -1,7 +1,9 @@
 #ifndef EVILCANDY_XPTR_H
 #define EVILCANDY_XPTR_H
 
-#include "instructions.h"
+#include <instructions.h>
+#include <typedefs.h>
+#include <var.h>
 
 /*
  * Note: you shouldn't need to include this directly.  Either include

@@ -1,6 +1,11 @@
 #ifndef EVILCANDY_GLOBAL_H
 #define EVILCANDY_GLOBAL_H
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <typedefs.h>
+#include <evcenums.h>
+
 struct global_t {
         struct {
                 bool disassemble;

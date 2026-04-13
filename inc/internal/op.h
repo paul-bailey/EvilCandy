@@ -1,6 +1,8 @@
 #ifndef EVC_INC_INTERNAL_OP_H
 #define EVC_INC_INTERNAL_OP_H
 
+#include <typedefs.h>
+
 /* op.c */
 extern Object *qop_mul(Object *a, Object *b);
 extern Object *qop_pow(Object *a, Object *b);

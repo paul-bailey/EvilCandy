@@ -107,13 +107,13 @@ noinst_HEADERS = \
         inc/internal/type_protocol.h \
         inc/internal/type_registry.h \
         inc/internal/vm.h \
+        inc/internal/locations.h \
         inc/internal/builtin/io.h \
         inc/internal/builtin/sys.h \
         inc/internal/types/number_types.h \
         inc/internal/types/sequential_types.h \
         inc/internal/types/string.h \
         inc/internal/types/xptr.h \
-        inc/internal/locations.h \
         inc/lib/buffer.h \
         inc/lib/helpers.h \
         inc/lib/list.h \

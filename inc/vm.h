@@ -2,6 +2,10 @@
 #ifndef EVILCANDY_VM_H
 #define EVILCANDY_VM_H
 
+#include <stdbool.h>
+#include <typedefs.h>
+#include <evcenums.h>
+
 /* vm.c */
 extern Object *vm_exec_script(Object *top_level, Frame *fr);
 extern Object *vm_exec_func(Frame *fr, Object *func,

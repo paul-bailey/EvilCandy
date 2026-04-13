@@ -2,7 +2,10 @@
 #define EVC_STRING_WRITER_H
 
 #include <stdint.h>
+#include <stddef.h>
+#include <typedefs.h>
 #include <evcenums.h>
+#include <sys/types.h> /*< ssize_t */
 
 struct utf8_state_t {
         enum {

@@ -1,10 +1,11 @@
 #ifndef EVC_INC_INTERNAL_ASSEMBLE_H
 #define EVC_INC_INTERNAL_ASSEMBLE_H
 
-#include <evilcandy.h>
 #include <instructions.h>
 #include <internal/token.h>
 #include <internal/types/sequential_types.h>
+#include <lib/buffer.h>
+#include <lib/helpers.h>
 
 /**
  * struct as_frame_t - Temporary frame during assembly

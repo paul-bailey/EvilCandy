@@ -6,6 +6,13 @@
 #ifndef EVILCANDY_VAR_H
 #define EVILCANDY_VAR_H
 
+#include <stddef.h>
+#include <stdbool.h>
+#include <sys/types.h> /*< ssize_t */
+
+#include <typedefs.h>
+#include <evcenums.h>
+
 /*
  * Keep this zero unless you are trying to debug an excess VAR_DECR_REF
  * somewhere.  Twice now, seeing if any .rodata were getting freed before

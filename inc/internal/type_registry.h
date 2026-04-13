@@ -2,6 +2,7 @@
 #define EVC_INC_INTERNAL_TYPE_REGISTRY_H
 
 #include "type_protocol.h"
+#include "var.h"
 
 /*
  * Declared in type C modules in types/xxx.c

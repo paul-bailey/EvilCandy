@@ -334,3 +334,20 @@ gbl_intern_string(Object *str)
         return set_intern(gbl.interned_strings, str);
 }
 
+Object *
+gbl_borrow_builtin_class(enum gbl_class_idx_t idx)
+{
+        bug_on((unsigned)idx >= N_GBL_CLASSES);
+        return gbl.classes[idx];
+}
+
+/* This produces a reference for class */
+void
+gbl_set_builtin_class(enum gbl_class_idx_t idx, Object *class)
+{
+        bug_on((unsigned)idx >= N_GBL_CLASSES);
+        if (gbl.classes[idx])
+                VAR_DECR_REF(gbl.classes[idx]);
+        gbl.classes[idx] = VAR_NEW_REF(class);
+}
+

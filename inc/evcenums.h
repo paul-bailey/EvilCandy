@@ -154,7 +154,7 @@ enum gbl_mns_t {
 };
 
 /* indices into gbl.classes */
-enum {
+enum gbl_class_idx_t {
         GBL_CLASS_IOBASE,
         GBL_CLASS_RAWFILE,
         GBL_CLASS_BINFILE,

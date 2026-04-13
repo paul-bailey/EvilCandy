@@ -12,9 +12,6 @@
 #include <unistd.h>
 #include <sys/stat.h> /* fstat() */
 
-/* FIXME: replace with gbl accessor functions */
-#include <internal/global.h>
-
 enum file_type_t {
         FILE_TEXT,
         FILE_BINARY,
@@ -40,15 +37,15 @@ static void initialize_file_classes(void);
 static bool
 io_classes_initialized(void)
 {
-        return gbl.classes[GBL_CLASS_IOBASE] != NULL;
+        return gbl_borrow_builtin_class(GBL_CLASS_IOBASE) != NULL;
 }
 
 static Object *
-io_class(int classid)
+io_class(enum gbl_class_idx_t classid)
 {
         if (!io_classes_initialized())
                 initialize_file_classes();
-        return gbl.classes[classid];
+        return gbl_borrow_builtin_class(classid);
 }
 
 static void
@@ -1131,7 +1128,7 @@ evc_file_write(Object *fo, Object *data)
 bool
 isvar_file(Object *o)
 {
-        return var_instanceof(o, gbl.classes[GBL_CLASS_IOBASE]);
+        return var_instanceof(o, gbl_borrow_builtin_class(GBL_CLASS_IOBASE));
 }
 
 /*
@@ -1480,20 +1477,23 @@ initialize_file_classes(void)
                 {"__str__",    raw_str},
                 {NULL, NULL},
         };
-        Object *base;
+        Object *base, *class;
 
         base = initialize_one_file_class(NULL, iobase_methods);
-        gbl.classes[GBL_CLASS_IOBASE] = base;
+        gbl_set_builtin_class(GBL_CLASS_IOBASE, base);
+        VAR_DECR_REF(base);
 
-        gbl.classes[GBL_CLASS_TXTFILE] = initialize_one_file_class(
-                                                base,
-                                                textfile_methods);
-        gbl.classes[GBL_CLASS_BINFILE] = initialize_one_file_class(
-                                                base,
-                                                binfile_methods);
-        gbl.classes[GBL_CLASS_RAWFILE] = initialize_one_file_class(
-                                                base,
-                                                rawfile_methods);
+        class = initialize_one_file_class(base, textfile_methods);
+        gbl_set_builtin_class(GBL_CLASS_TXTFILE, class);
+        VAR_DECR_REF(class);
+
+        class = initialize_one_file_class(base, binfile_methods);
+        gbl_set_builtin_class(GBL_CLASS_BINFILE, class);
+        VAR_DECR_REF(class);
+
+        class = initialize_one_file_class(base, rawfile_methods);
+        gbl_set_builtin_class(GBL_CLASS_RAWFILE, class);
+        VAR_DECR_REF(class);
 }
 
 void

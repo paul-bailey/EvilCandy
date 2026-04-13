@@ -1,14 +1,21 @@
+#include "config.h"
 #include <evilcandy.h>
-/* TODO: config.h stuff, not every platform has this */
-#if defined(HAVE_UUID_H) || defined(HAVE_UUID_H)
+#include <stddef.h> /*< NULL definition */
+#include <internal/builtin/uuid.h>
+
+#if defined(HAVE_UUID_H) || defined(HAVE_UUID_UUID_H)
 # ifdef HAVE_UUID_H
 #  include <uuid.h>
 # elif defined(HAVE_UUID_UUID_H)
 #  include <uuid/uuid.h>
 # endif
 
-
 #define UUID_STR_LEN 100
+
+/*
+ * TODO: Change these CAPI functions (which none of this source tree
+ * actually uses) into more useful UAPI functions.
+ */
 
 /**
  * uuidstr - Get a UUID string.
@@ -28,7 +35,6 @@ uuidstr(void)
 char *
 uuidstr(void)
 {
-        fail("UUID not implemented");
         return NULL;
 }
 #endif

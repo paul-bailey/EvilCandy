@@ -1,3 +1,6 @@
+# Note: Some of these depend on generated headers,
+# so you should compile the program before running this test.
+
 headers="compiler.h
 debug.h
 evcenums.h
@@ -44,7 +47,9 @@ done
 
 headers="
 io.h
-sys.h"
+sys.h
+uuid.h
+json.h"
 
 for i in $headers
 do

@@ -4,7 +4,11 @@
  *      falling into code rot.
  */
 #include <evilcandy.h>
+#include <internal/builtin/json.h>
 #include <internal/token.h>
+#include <internal/types/sequential_types.h>
+#include <evcenums.h>
+
 #include <setjmp.h>
 
 struct json_state_t {

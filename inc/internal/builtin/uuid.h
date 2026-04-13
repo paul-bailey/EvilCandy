@@ -1,0 +1,6 @@
+#ifndef EVC_INC_INTERNAL_BUILTIN_UUID_H
+#define EVC_INC_INTERNAL_BUILTIN_UUID_H
+
+extern char *uuidstr(void);
+
+#endif /* EVC_INC_INTERNAL_BUILTIN_UUID_H */

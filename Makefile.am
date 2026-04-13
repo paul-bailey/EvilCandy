@@ -38,7 +38,6 @@ src_libevilcandy_a_SOURCES = \
         src/instruction_name.c \
         src/init.c \
         src/iterator.c \
-        src/json.c \
         src/list.c \
         src/locations.c \
         src/namespace.c \
@@ -50,16 +49,17 @@ src_libevilcandy_a_SOURCES = \
         src/strto.c \
         src/token.c \
         src/utf8.c \
-        src/uuid.c \
         src/var.c \
         src/var_from_format.c \
         src/vm.c \
         src/vm_getargs.c \
         src/builtin/builtin.c \
         src/builtin/io.c \
+        src/builtin/json.c \
         src/builtin/math.c \
         src/builtin/socket.c \
         src/builtin/sys.c \
+        src/builtin/uuid.c \
         src/types/array.c \
         src/types/bytes.c \
         src/types/cell.c \
@@ -111,7 +111,9 @@ noinst_HEADERS = \
         inc/internal/vm.h \
         inc/internal/locations.h \
         inc/internal/builtin/io.h \
+        inc/internal/builtin/json.h \
         inc/internal/builtin/sys.h \
+        inc/internal/builtin/uuid.h \
         inc/internal/types/number_types.h \
         inc/internal/types/sequential_types.h \
         inc/internal/types/string.h \

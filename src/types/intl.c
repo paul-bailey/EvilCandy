@@ -2,6 +2,10 @@
 #include <evilcandy.h>
 #include <internal/type_registry.h>
 
+/*
+ * TODO; Delete this object class.
+ * It isn't used anywhere.
+ */
 struct uuidptrvar_t {
         Object base;
         char *uuid;

@@ -126,9 +126,6 @@ extern const char *instruction_name(int opcode);
 extern int instruction_from_name(const char *name);
 extern int instruction_from_key(Object *key);
 
-/* json.c */
-Object *dict_from_json(const char *filename);
-
 /* namespace.c */
 Object *namespacevar_new(Object *dict, Object *name);
 
@@ -293,8 +290,5 @@ extern Object *tuplevar_from_stack(Object **items, int n_items, bool consume);
 extern Object *tuplevar_new(int n_items);
 extern Object *tuple_getitem(Object *tup, size_t idx);
 extern Object *tuple_borrowitem(Object *tup, size_t idx);
-
-/* uuid.c */
-extern char *uuidstr(void);
 
 #endif /* EVILCANDY_H */

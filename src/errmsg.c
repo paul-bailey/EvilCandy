@@ -6,8 +6,8 @@
 #include <evilcandy.h>
 #include <errno.h>
 #include <internal/type_registry.h>
-/* XXX: just for vm_get_argc(), do we really need that? */
 #include <internal/vm.h>
+#include <internal/codec.h>
 
 void
 err_hashable(Object *obj, const char *fname)

@@ -30,6 +30,7 @@ done
 headers="
 global.h
 path.h
+codec.h
 cwd.h
 token.h
 assemble.h

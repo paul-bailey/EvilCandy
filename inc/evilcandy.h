@@ -114,9 +114,6 @@ extern void *ememdup(const void *buf, size_t size);
 extern ssize_t egetline(char **line, size_t *linecap, FILE *fp);
 extern void efree(void *ptr);
 
-/* global.c */
-extern char *codec_str(int codec, char *buf, size_t size);
-extern Object *codec_strobj(int codec);
 
 /* import.c */
 extern Object *evc_import(Frame *fr, const char *file_name);

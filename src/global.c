@@ -11,6 +11,7 @@
 #include <internal/init.h>
 #include <internal/cwd.h>
 #include <internal/global.h>
+#include <internal/codec.h>
 #include <internal/token.h>
 #include <internal/types/string.h>
 
@@ -94,7 +95,6 @@ static void
 initialize_global_object(void)
 {
         Object *k, *o;
-        int i;
 
         /* gotta set this early because moduleinit_sys needs it */
         gbl.cwd = evc_getcwd();
@@ -117,8 +117,7 @@ initialize_global_object(void)
         bug_on(!gbl.nl || !gbl.stdout_file);
         VAR_DECR_REF(o);
 
-        for (i = 0; i < N_CODEC; i++)
-                gbl.codecs[i] = intvar_new(i);
+        codec_init_gbl();
 
         gbl.one         = intvar_new(1LL);
         gbl.zero        = intvar_new(0LL);
@@ -240,11 +239,6 @@ cfile_deinit_global(void)
                         VAR_DECR_REF(gbl.mns[i]);
         }
 
-        for (i = 0; i < N_CODEC; i++) {
-                if (gbl.codecs[i])
-                        VAR_DECR_REF(gbl.codecs[i]);
-        }
-
         for (i = 0; i < N_GBL_CLASSES; i++) {
                 if (gbl.classes[i])
                         VAR_DECR_REF(gbl.classes[i]);
@@ -252,13 +246,13 @@ cfile_deinit_global(void)
 
         VAR_DECR_REF(gbl.interned_strings);
 
+        codec_deinit_gbl();
         token_clean_iatok();
         /*
          * XXX: should be called "err_deinit()", but it would do
          * exactly the same thing.
          */
         err_clear();
-
         import_deinit();
 
         VAR_DECR_REF(ArgumentError);
@@ -276,22 +270,6 @@ cfile_deinit_global(void)
         VAR_DECR_REF(ValueError);
         VAR_DECR_REF(ErrorVar);
         VAR_DECR_REF(NullVar);
-}
-
-/* not really sure where's a good place to put this */
-char *
-codec_str(int codec, char *buf, size_t size)
-{
-        const char *ret = "?";
-        Object *str = codec_strobj(codec);
-        if (str) {
-                if (isvar_string(str))
-                        ret = string_cstring(str);
-                VAR_DECR_REF(str);
-        }
-        memset(buf, 0, size);
-        strncpy(buf, ret, size-1);
-        return buf;
 }
 
 Object *
@@ -356,20 +334,3 @@ gbl_intern_string(Object *str)
         return set_intern(gbl.interned_strings, str);
 }
 
-/* FIXME: Why is this here? */
-Object *
-codec_strobj(int codec)
-{
-        Object *value;
-        Object *codec_dict = gbl_borrow_mns_dict(MNS_CODEC);
-        if (codec >= N_CODEC
-            || gbl.codecs[codec] == NULL
-            || codec_dict == NULL) {
-                return NULL;
-        }
-        value = dict_getitem(codec_dict, gbl.codecs[codec]);
-        if (!value || !isvar_string(value))
-                return NULL;
-
-        return value;
-}

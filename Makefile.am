@@ -28,6 +28,7 @@ src_libevilcandy_a_SOURCES = \
         src/cwd.c \
         src/debug.c \
         src/disassemble.c \
+        src/codec.c \
         src/err.c \
         src/errmsg.c \
         src/ewrappers.c \
@@ -100,6 +101,7 @@ noinst_HEADERS = \
         inc/uarg.h \
         inc/var.h \
         inc/vm.h \
+        inc/internal/codec.h \
         inc/internal/cwd.h \
         inc/internal/global.h \
         inc/internal/path.h \

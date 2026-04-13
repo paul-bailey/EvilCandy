@@ -1,5 +1,6 @@
 /* builtin/io.c - Implementation of the __gbl__.Io built-in object */
 #include <evilcandy.h>
+#include <internal/codec.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>
 #include <internal/types/number_types.h>

@@ -7,6 +7,15 @@
 #include <unistd.h>
 #include <errno.h>
 
+struct options_t {
+        bool disassemble;
+        bool disassemble_only;
+        bool disassemble_minimum;
+        char *disassemble_outfile;
+        char *infile;
+        char *program_text;
+};
+
 static void
 print_version_and_quit(void)
 {
@@ -41,7 +50,7 @@ print_help_and_quit(FILE *fp)
 }
 
 static int
-parse_args(int argc, char **argv)
+parse_args(int argc, char **argv, struct options_t *opt)
 {
         int argi;
 
@@ -52,7 +61,7 @@ parse_args(int argc, char **argv)
                         s++;
                         switch (*s++) {
                         case 'd':
-                                gbl.opt.disassemble = true;
+                                opt->disassemble = true;
                                 if (*s != '\0')
                                         goto er;
                                 break;
@@ -61,19 +70,19 @@ parse_args(int argc, char **argv)
                                 argi++;
                                 if (argi == argc)
                                         goto er;
-                                gbl.opt.program_text = argv[argi];
+                                opt->program_text = argv[argi];
                                 break;
                         case 'D':
-                                gbl.opt.disassemble = true;
-                                gbl.opt.disassemble_minimum = true;
+                                opt->disassemble = true;
+                                opt->disassemble_minimum = true;
                                 break;
                         case '-':
                                 if (!strcmp(s, "disassemble-to")) {
-                                        gbl.opt.disassemble = true;
+                                        opt->disassemble = true;
                                         argi++;
                                         if (argi == argc)
                                                 goto er;
-                                        gbl.opt.disassemble_outfile = argv[argi];
+                                        opt->disassemble_outfile = argv[argi];
                                 } else if (!strcmp(s, "version")) {
                                         print_version_and_quit();
                                 } else if (!strcmp(s, "help")) {
@@ -93,20 +102,20 @@ parse_args(int argc, char **argv)
                         }
                 } else {
                         /* TODO: support multiple files */
-                        if (gbl.opt.infile != NULL) {
+                        if (opt->infile != NULL) {
                                 fprintf(stderr, "You may only specify one input file\n");
                                 goto er;
                         }
-                        gbl.opt.infile = s;
+                        opt->infile = s;
                 }
                 argi++;
         }
-        if (gbl.opt.infile != NULL && gbl.opt.program_text != NULL) {
+        if (opt->infile != NULL && opt->program_text != NULL) {
                 fprintf(stderr, "You may not specify both infile and -c <string>\n");
                 goto er;
         }
-        if (gbl.opt.disassemble)
-                gbl.opt.disassemble_only = true;
+        if (opt->disassemble)
+                opt->disassemble_only = true;
         return 0;
 
 er:
@@ -116,7 +125,7 @@ er:
 }
 
 static void
-run_script(const char *filename, FILE *fp, Frame *fr)
+run_script(const char *filename, FILE *fp, struct options_t *opt)
 {
         Object *ex;
         Object *retval;
@@ -127,13 +136,13 @@ run_script(const char *filename, FILE *fp, Frame *fr)
                 goto done_skip_ex;
         }
 
-        if (gbl.opt.disassemble) {
+        if (opt->disassemble) {
                 FILE *dfp;
-                if (gbl.opt.disassemble_outfile) {
-                        dfp = fopen(gbl.opt.disassemble_outfile, "w");
+                if (opt->disassemble_outfile) {
+                        dfp = fopen(opt->disassemble_outfile, "w");
                         if (!dfp) {
                                 err_errno("Cannot output to %s",
-                                          gbl.opt.disassemble_outfile);
+                                          opt->disassemble_outfile);
                                 retval = ErrorVar;
                                 goto done;
                         }
@@ -141,7 +150,7 @@ run_script(const char *filename, FILE *fp, Frame *fr)
                         dfp = stdout;
                 }
 
-                if (gbl.opt.disassemble_minimum)
+                if (opt->disassemble_minimum)
                         disassemble_minimal(dfp, ex);
                 else
                         disassemble(dfp, ex, filename);
@@ -149,8 +158,8 @@ run_script(const char *filename, FILE *fp, Frame *fr)
                         fclose(dfp);
                 retval = NULL;
         } else {
-                bug_on(gbl.opt.disassemble_only);
-                retval = vm_exec_script(ex, fr);
+                bug_on(opt->disassemble_only);
+                retval = vm_exec_script(ex, NULL);
                 if (retval == ErrorVar || err_occurred()) {
                         /* semi bug */
                         if (!err_occurred())
@@ -173,12 +182,12 @@ done_skip_ex:
 }
 
 static void
-run_tty(void)
+run_tty(struct options_t *opt)
 {
         FILE *dfp = NULL;
-        if (gbl.opt.disassemble) {
-                if (gbl.opt.disassemble_outfile) {
-                        dfp = fopen(gbl.opt.disassemble_outfile, "w");
+        if (opt->disassemble) {
+                if (opt->disassemble_outfile) {
+                        dfp = fopen(opt->disassemble_outfile, "w");
                         if (!dfp)
                                 perror("Cannot disassemble, failed to open output file");
                 } else {
@@ -195,7 +204,7 @@ run_tty(void)
                 } else {
                         if (dfp)
                                 disassemble_lite(dfp, ex);
-                        if (!gbl.opt.disassemble_only) {
+                        if (!opt->disassemble_only) {
                                 Object *res;
                                 res = vm_exec_script(ex, NULL);
                                 if (res == ErrorVar) {
@@ -213,14 +222,14 @@ run_tty(void)
 }
 
 static void
-run_text(const char *text)
+run_text(const char *text, struct options_t *opt)
 {
         Object *result, *ex;
 
         /*
          * TODO: support this instead of fail.
          */
-        if (gbl.opt.disassemble) {
+        if (opt->disassemble) {
                 fprintf(stderr,
                         "Disassembly not supported for -c <text> option\n");
                 return;
@@ -245,28 +254,29 @@ run_text(const char *text)
 int
 main(int argc, char **argv)
 {
+        static struct options_t opt;
         initialize_program();
 
-        if (parse_args(argc, argv) < 0)
+        if (parse_args(argc, argv, &opt) < 0)
                 return -1;
 
-        if (gbl.opt.program_text) {
-                run_text(gbl.opt.program_text);
-        } else if (gbl.opt.infile) {
-                FILE *fp = push_path(gbl.opt.infile);
+        if (opt.program_text) {
+                run_text(opt.program_text, &opt);
+        } else if (opt.infile) {
+                FILE *fp = push_path(opt.infile);
                 if (!fp)
-                        fail("Could not open '%s'", gbl.opt.infile);
-                run_script(gbl.opt.infile, fp, NULL);
+                        fail("Could not open '%s'", opt.infile);
+                run_script(opt.infile, fp, &opt);
                 pop_path(fp);
         } else if (isatty(fileno(stdin))) {
                 gbl.interactive = true;
-                run_tty();
+                run_tty(&opt);
         } else {
                 /*
                  * in a pipe; parse entire file
                  * but don't push file path.
                  */
-                run_script("<stdin>", stdin, NULL);
+                run_script("<stdin>", stdin, &opt);
         }
 
         end_program();

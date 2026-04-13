@@ -7,14 +7,6 @@
 #include <evcenums.h>
 
 struct global_t {
-        struct {
-                bool disassemble;
-                bool disassemble_only;
-                bool disassemble_minimum;
-                char *disassemble_outfile;
-                char *infile;
-                char *program_text;
-        } opt;
         bool interactive;
         Object *nl;
         Object *stdout_file;

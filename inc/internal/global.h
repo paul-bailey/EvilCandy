@@ -26,9 +26,18 @@ struct global_t {
         Object *classes[N_GBL_CLASSES];
         Object *interned_strings; /*< a set */
 
-        /* remaining fields private to subsystems */
-        struct {
-                /* token.c, interactive-mode saved line */
+        /*
+         * Remaining fields private to subsystems
+         * TODO: Clean up these naming conventions.
+         */
+
+        /* token.c manages this */
+        struct gbl_token_subsys_t {
+                /*
+                 * token.c, interactive-mode saved line.  Needed for
+                 * occasions where more than one statement are typed on
+                 * the same line.
+                 */
                 char *line;
                 char *s;
                 int lineno;
@@ -38,7 +47,7 @@ struct global_t {
         /* err.c manages this */
         Object *exception_last;
 
-        /* import.c */
+        /* import.c manages this */
         Object *import_dict;
 };
 

@@ -111,16 +111,19 @@ tok_next_line(struct token_state_t *state)
 
         switch (state->inp) {
         case TKINP_TTY:
+            {
+                struct gbl_token_subsys_t *iatok;
+                iatok = gbl_get_token_subsys();
                 bug_on(!state->fp);
-                if (gbl.iatok.line) {
+                if (iatok->line) {
                         /* XXX: bug if state->line != NULL here? */
                         if (state->line)
                                 efree(state->line);
-                        state->line   = gbl.iatok.line;
-                        state->s      = gbl.iatok.s;
-                        state->lineno = gbl.iatok.lineno;
-                        state->_slen  = gbl.iatok._slen;
-                        memset(&gbl.iatok, 0, sizeof(gbl.iatok));
+                        state->line   = iatok->line;
+                        state->s      = iatok->s;
+                        state->lineno = iatok->lineno;
+                        state->_slen  = iatok->_slen;
+                        memset(iatok, 0, sizeof(*iatok));
                         /*
                          * Don't fall through, we don't want to reset
                          * state->s
@@ -134,6 +137,7 @@ tok_next_line(struct token_state_t *state)
                                  state->fp, state->prompt);
                 state->prompt = EVILCANDY_PS2;
                 break;
+            }
         case TKINP_FILE:
                 res = egetline(&state->line, &state->_slen, state->fp);
                 break;
@@ -978,21 +982,22 @@ token_state_free_line(struct token_state_t *state)
                  * but not the second statement.  In interactive mode,
                  * we do not want the second statement to disappear, so
                  * while destroying this token_state_t, save the line
-                 * state to gbl.iatok, and retrieve it next
-                 * token_next_line().
+                 * state to iatok, and retrieve it next token_next_line().
                  */
                 if (state->inp == TKINP_TTY && *s != '\0') {
-                        bug_on(gbl.iatok.line != NULL);
-                        gbl.iatok.line   = state->line;
-                        gbl.iatok.s = gbl.iatok.line + (s-state->line);
-                        gbl.iatok.lineno = state->lineno;
-                        gbl.iatok._slen  = state->_slen;
+                        struct gbl_token_subsys_t *iatok;
+                        iatok = gbl_get_token_subsys();
+                        bug_on(iatok->line != NULL);
+                        iatok->line   = state->line;
+                        iatok->s = iatok->line + (s-state->line);
+                        iatok->lineno = state->lineno;
+                        iatok->_slen  = state->_slen;
                         goto skip_free;
                 }
         }
 
         /*
-         * FIXME:  If TTY but we didn't copy to gbl.iatok above,
+         * FIXME:  If TTY but we didn't copy to iatok above,
          * we are not getting line number.
          */
         efree(state->line);
@@ -1113,7 +1118,7 @@ token_get_this_line(struct token_state_t *state)
 /**
  * token_flush_tty - Flush remainder of line for interactive mode
  * @state:      Tokenizer state machine, or NULL to just flush remainder
- *              of saved TTY line "gbl.iatok"
+ *              of saved TTY line in iatok
  *
  * Used to clear the remainder of the line if an error is encountered by
  * the interpreter.  Otherwise, the remainder of this line will be
@@ -1126,9 +1131,10 @@ token_get_this_line(struct token_state_t *state)
 void
 token_flush_tty(struct token_state_t *state)
 {
-        if (gbl.iatok.line) {
-                efree(gbl.iatok.line);
-                memset(&gbl.iatok, 0, sizeof(gbl.iatok));
+        struct gbl_token_subsys_t *iatok = gbl_get_token_subsys();
+        if (iatok->line) {
+                efree(iatok->line);
+                memset(iatok, 0, sizeof(*iatok));
         }
         if (state && state->line) {
                 /* Not an issue in script mode */
@@ -1142,7 +1148,8 @@ token_flush_tty(struct token_state_t *state)
 void
 token_clean_iatok(void)
 {
-        if (gbl.iatok.line)
-                efree(gbl.iatok.line);
-        memset(&gbl.iatok, 0, sizeof(gbl.iatok));
+        struct gbl_token_subsys_t *iatok = gbl_get_token_subsys();
+        if (iatok->line)
+                efree(iatok->line);
+        memset(iatok, 0, sizeof(*iatok));
 }

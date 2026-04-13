@@ -351,3 +351,9 @@ gbl_set_builtin_class(enum gbl_class_idx_t idx, Object *class)
         gbl.classes[idx] = VAR_NEW_REF(class);
 }
 
+/* always succeeds */
+struct gbl_token_subsys_t *
+gbl_get_token_subsys(void)
+{
+        return &gbl.iatok;
+}

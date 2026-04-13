@@ -33,4 +33,7 @@ extern Object *gbl_borrow_strconst(enum evc_strconst_t id);
 extern void gbl_set_interactive(bool is_interactive);
 extern bool gbl_is_interactive(void);
 
+extern Object *gbl_borrow_mns_dict(enum gbl_mns_t mns);
+extern void gbl_set_mns_dict(enum gbl_mns_t mns, Object *dict);
+
 #endif /* EVILCANDY_GLOBAL_H */

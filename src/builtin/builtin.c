@@ -479,7 +479,7 @@ moduleinit_builtin(void)
          * Anywhere I could initialize this seems inappropriate, so I'll
          * just initialize it here.
          */
-        bug_on(!!gbl.mns[MNS_CODEC]);
+        bug_on(!!gbl_borrow_mns_dict(MNS_CODEC));
         Object *codecs = dictvar_new();
         for (t = codectbl; t->name != NULL; t++) {
                 o = intvar_new(t->e);
@@ -496,5 +496,5 @@ moduleinit_builtin(void)
                 VAR_DECR_REF(k);
                 VAR_DECR_REF(o);
         }
-        gbl.mns[MNS_CODEC] = codecs;
+        gbl_set_mns_dict(MNS_CODEC, codecs);
 }

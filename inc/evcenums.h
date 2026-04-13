@@ -146,7 +146,7 @@ enum evc_strconst_t {
  * keys could just be in gbl.strconsts[], but I don't even want to use
  * these if user code will not use them.
  */
-enum {
+enum gbl_mns_t {
         MNS_SOCKET = 0,
         MNS_INSNAME,
         MNS_CODEC,

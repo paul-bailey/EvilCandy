@@ -5,9 +5,6 @@
 #include <internal/types/number_types.h>
 #include <internal/types/sequential_types.h>
 
-/* FIXME: replace with gbl accessor functions */
-#include <internal/global.h>
-
 #define V2B(v_) ((struct bytesvar_t *)(v_))
 
 enum {
@@ -1559,11 +1556,12 @@ bytes_create(Frame *fr)
         int encoding = -1;
         int encoding2 = -1;
         Object *what = NULL;
-        bug_on(!gbl.mns[MNS_CODEC]);
+        Object *codec_dict = gbl_borrow_mns_dict(MNS_CODEC);
+        bug_on(!codec_dict);
         if (vm_getargs(fr, "[|<*>e]{|e}:bytes", &what,
-                       gbl.mns[MNS_CODEC], &encoding,
+                       codec_dict, &encoding,
                        STRCONST_ID(encoding),
-                       gbl.mns[MNS_CODEC], &encoding2) == RES_ERROR) {
+                       codec_dict, &encoding2) == RES_ERROR) {
                 return ErrorVar;
         }
         if (encoding >= 0 && encoding2 >= 0) {

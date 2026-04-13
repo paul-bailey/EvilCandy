@@ -316,9 +316,9 @@ gbl_borrow_strconst(enum evc_strconst_t id)
 Object *
 gbl_new_empty_bytes(void)
 {
-        /* bug if we are called too early */
-        bug_on(!gbl.empty_bytes);
-        return VAR_NEW_REF(gbl.empty_bytes);
+        return gbl.empty_bytes
+                ? VAR_NEW_REF(gbl.empty_bytes)
+                : bytesvar_new((unsigned char *)"", 0);
 }
 
 void
@@ -333,17 +333,32 @@ gbl_is_interactive(void)
         return gbl.interactive;
 }
 
+Object *
+gbl_borrow_mns_dict(enum gbl_mns_t mns)
+{
+        bug_on((unsigned)mns >= N_MNS);
+        return gbl.mns[mns];
+}
+
+void
+gbl_set_mns_dict(enum gbl_mns_t mns, Object *dict)
+{
+        bug_on((unsigned)mns >= N_MNS);
+        gbl.mns[mns] = dict;
+}
+
 /* FIXME: Why is this here? */
 Object *
 codec_strobj(int codec)
 {
         Object *value;
+        Object *codec_dict = gbl_borrow_mns_dict(MNS_CODEC);
         if (codec >= N_CODEC
             || gbl.codecs[codec] == NULL
-            || gbl.mns[MNS_CODEC] == NULL) {
+            || codec_dict == NULL) {
                 return NULL;
         }
-        value = dict_getitem(gbl.mns[MNS_CODEC], gbl.codecs[codec]);
+        value = dict_getitem(codec_dict, gbl.codecs[codec]);
         if (!value || !isvar_string(value))
                 return NULL;
 

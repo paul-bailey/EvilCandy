@@ -215,12 +215,8 @@ raw_read(struct rawfile_t *raw, ssize_t size)
         void *buf;
         ssize_t nread;
 
-        if (!size) {
-                /* something sus here, but roll with it */
-                return gbl.empty_bytes
-                        ? VAR_NEW_REF(gbl.empty_bytes)
-                        : bytesvar_new((unsigned char *)"", 0);
-        }
+        if (!size)
+                return gbl_new_empty_bytes();
 
         if (size < 0) {
                 struct stat st;
@@ -1273,9 +1269,9 @@ do_open(Frame *fr)
                 return ErrorVar;
 
         if (encarg) {
-                bug_on(!gbl.mns[MNS_CODEC]);
-                res = vm_getargs_sv(gbl.mns[MNS_CODEC],
-                                    "{i}", encarg, &codec);
+                Object *codec_dict = gbl_borrow_mns_dict(MNS_CODEC);
+                bug_on(!codec_dict);
+                res = vm_getargs_sv(codec_dict, "{i}", encarg, &codec);
                 if (res == RES_ERROR)
                         return ErrorVar;
         }

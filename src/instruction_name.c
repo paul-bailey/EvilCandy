@@ -5,9 +5,6 @@
 #include <internal/types/number_types.h>
 #include <internal/vm.h>
 
-/* FIXME: replace with gbl accessor functions */
-#include <internal/global.h>
-
 static const char *INSTR_NAMES[N_INSTR] = {
 #include "disassemble_gen.c.h"
 };
@@ -15,7 +12,7 @@ static const char *INSTR_NAMES[N_INSTR] = {
 static Object *
 assert_dict_init(void)
 {
-        Object *ret = gbl.mns[MNS_INSNAME];
+        Object *ret = gbl_borrow_mns_dict(MNS_INSNAME);
         if (!ret) {
                 int i;
                 ret = dictvar_new();
@@ -30,7 +27,7 @@ assert_dict_init(void)
                         VAR_DECR_REF(key);
                         VAR_DECR_REF(value);
                 }
-                gbl.mns[MNS_INSNAME] = ret;
+                gbl_set_mns_dict(MNS_INSNAME, ret);
         }
 
         return ret;

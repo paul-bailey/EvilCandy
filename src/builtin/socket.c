@@ -54,9 +54,6 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
-/* FIXME: replace with gbl accessor functions */
-#include <internal/global.h>
-
 /*
  * XXX: This for one function, maybe have an abstraction-layer file.
  * cf. Python, fileutils.c
@@ -867,7 +864,7 @@ create_socket_instance(Frame *fr)
         Object *socket_class, *skobj, *enums;
 
         skobj = dictvar_new();
-        enums = gbl.mns[MNS_SOCKET];
+        enums = gbl_borrow_mns_dict(MNS_SOCKET);
         if (!enums) {
                 /*
                  * First instance, we need to initialize dict.  Putting
@@ -914,7 +911,7 @@ create_socket_instance(Frame *fr)
                         VAR_DECR_REF(v);
                         VAR_DECR_REF(k);
                 }
-                gbl.mns[MNS_SOCKET] = enums;
+                gbl_set_mns_dict(MNS_SOCKET, enums);
         }
         dict_copyto(skobj, enums);
         socket_class = create_socket_class();

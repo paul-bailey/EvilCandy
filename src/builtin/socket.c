@@ -54,6 +54,9 @@
 #include <sys/types.h>
 #include <sys/un.h>
 
+/* FIXME: replace with gbl accessor functions */
+#include <internal/global.h>
+
 /*
  * XXX: This for one function, maybe have an abstraction-layer file.
  * cf. Python, fileutils.c

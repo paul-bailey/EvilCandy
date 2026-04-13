@@ -5,6 +5,9 @@
 #include <setjmp.h>
 #include <unistd.h> /* isatty */
 
+/* FIXME: replace with gbl accessor functions */
+#include <internal/global.h>
+
 /* Token errors, args to longjmp(state->env) */
 enum {
         TE_UNTERM_QUOTE = 1, /* may not be zero */
@@ -734,10 +737,10 @@ tokenize(struct token_state_t *state)
                         oc->v = VAR_NEW_REF(NullVar);
                         break;
                 case OC_TRUE:
-                        oc->v = VAR_NEW_REF(gbl.one);
+                        oc->v = gbl_new_bool(true);
                         break;
                 case OC_FALSE:
-                        oc->v = VAR_NEW_REF(gbl.zero);
+                        oc->v = gbl_new_bool(false);
                         break;
                 case OC_BYTES:
                         oc->v = bytesvar_from_source(state->tok.s);

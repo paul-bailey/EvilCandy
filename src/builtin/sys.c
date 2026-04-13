@@ -4,6 +4,9 @@
 #include <internal/builtin/sys.h>
 #include <internal/init.h>
 
+/* FIXME: replace with gbl accessor functions */
+#include <internal/global.h>
+
 #define STDIO_FMT          "s/fnsmi/"
 #define STDIO_ARGS(X, Y)   #X, X, "<" #X ">", FMODE_##Y | FMODE_PROTECT
 

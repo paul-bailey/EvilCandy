@@ -94,7 +94,7 @@ enum errhandler_t {
  * FIXME: Re: above warning: This needs to be auto-generated from a
  * single source to remove an oops-I-forgot-to-update-this hazard.
  */
-enum {
+enum evc_strconst_t {
         /* enum after STRCONST_IDX_ is same as string */
         STRCONST_IDX_byteorder = 0,
         STRCONST_IDX_encoding,

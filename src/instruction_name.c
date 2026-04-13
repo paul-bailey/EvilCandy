@@ -5,6 +5,9 @@
 #include <internal/types/number_types.h>
 #include <internal/vm.h>
 
+/* FIXME: replace with gbl accessor functions */
+#include <internal/global.h>
+
 static const char *INSTR_NAMES[N_INSTR] = {
 #include "disassemble_gen.c.h"
 };

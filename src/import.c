@@ -4,6 +4,9 @@
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>
 
+/* FIXME: Replace this with gbl accessor function */
+#include <internal/global.h>
+
 struct import_key_t {
         dev_t dev;
         ino_t ino;

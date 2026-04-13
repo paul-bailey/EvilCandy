@@ -7,6 +7,9 @@
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
 
+/* FIXME: replace with gbl accessor functions */
+#include <internal/global.h>
+
 static Object *
 do_setattr(Frame *fr)
 {

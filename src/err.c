@@ -6,6 +6,9 @@
 #include <errno.h>
 #include <unistd.h>
 
+/* FIXME: Replace this with gbl accessor functions */
+#include <internal/global.h>
+
 #define CSI "\033["
 #define COLOR_RED CSI "31m"
 #define COLOR_GRN CSI "32m"

@@ -5,6 +5,9 @@
 #include <internal/types/number_types.h>
 #include <internal/types/sequential_types.h>
 
+/* FIXME: replace with gbl accessor functions */
+#include <internal/global.h>
+
 #define V2B(v_) ((struct bytesvar_t *)(v_))
 
 enum {
@@ -90,7 +93,7 @@ bytes_getslice(Object *bytes, ssize_t start, ssize_t stop, ssize_t step)
 
         bug_on(!isvar_bytes(bytes));
         if (start == stop)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
 
         cmp = start < stop ? slice_cmp_lt : slice_cmp_gt;
         src = bytes_get_data(bytes);
@@ -143,7 +146,7 @@ bytes_cat(Object *a, Object *b)
         size_t a_len, b_len, c_len;
 
         if (!b)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
 
         ba = V2B(a)->b_buf;
         bb = V2B(b)->b_buf;
@@ -152,7 +155,7 @@ bytes_cat(Object *a, Object *b)
         c_len = a_len + b_len;
 
         if (!c_len)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
         bc = emalloc(c_len);
         memcpy(bc, ba, a_len);
         memcpy(bc + a_len, bb, b_len);
@@ -514,7 +517,7 @@ do_bytes_count(Frame *fr)
                 count = memcount(haystack, hlen, &v, 1);
         }
 
-        return count ? intvar_new(count) : VAR_NEW_REF(gbl.zero);
+        return intvar_new(count);
 }
 
 static Object *
@@ -553,9 +556,9 @@ bytes_index_or_find_(Frame *fr, unsigned int flags, const char *fmt)
                 return ErrorVar;
         }
         if (!found)
-                return VAR_NEW_REF(gbl.neg_one);
+                return intvar_new(-1LL);
         res = (int)(found - haystack);
-        return res ? intvar_new(res) : VAR_NEW_REF(gbl.zero);
+        return intvar_new(res);
 }
 
 #define bytes_index_or_find(fr, flg, fname) \
@@ -631,7 +634,7 @@ do_bytes_removesuffix(Frame *fr)
 static Object *
 bytes_starts_or_ends_with_(Frame *fr, unsigned int flags, const char *fmt)
 {
-        Object *ret, *arg, *self;
+        Object *arg, *self;
         const unsigned char *needle, *haystack;
         size_t nlen, hlen, idx;
 
@@ -644,11 +647,10 @@ bytes_starts_or_ends_with_(Frame *fr, unsigned int flags, const char *fmt)
         needle = bytes_get_data(arg);
         nlen = seqvar_size(arg);
         if (nlen > hlen)
-                return VAR_NEW_REF(gbl.zero);
+                return gbl_new_bool(false);
 
         idx = !!(flags & BF_RIGHT) ? hlen - nlen : 0;
-        ret = memcmp(&haystack[idx], needle, nlen) ? gbl.zero : gbl.one;
-        return VAR_NEW_REF(ret);
+        return gbl_new_bool(!memcmp(&haystack[idx], needle, nlen));
 }
 
 #define bytes_starts_or_ends_with(fr, flg, fname) \
@@ -708,7 +710,7 @@ do_bytes_join(Frame *fr)
         }
 
         if (!total_size)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
 
         newbuf = dst = emalloc(total_size);
         for (i = 0; i < arglen; i++) {
@@ -756,19 +758,19 @@ bytes_lrpartition_(Frame *fr, unsigned int flags, const char *fmt)
         VAR_DECR_REF(td[2]);
         if (!found) {
                 td[0] = VAR_NEW_REF(vm_get_this(fr));
-                td[1] = VAR_NEW_REF(gbl.empty_bytes);
-                td[2] = VAR_NEW_REF(gbl.empty_bytes);
+                td[1] = gbl_new_empty_bytes();
+                td[2] = gbl_new_empty_bytes();
         } else {
                 int idx = (int)(found - haystack);
                 if (idx == 0) {
-                        td[0] = VAR_NEW_REF(gbl.empty_bytes);
+                        td[0] = gbl_new_empty_bytes();
                 } else {
                         td[0] = bytesvar_new(haystack, idx);
                 }
                 td[1] = VAR_NEW_REF(separg);
                 idx += nlen;
                 if (idx == hlen) {
-                        td[2] = VAR_NEW_REF(gbl.empty_bytes);
+                        td[2] = gbl_new_empty_bytes();
                 } else {
                         td[2] = bytesvar_new(&haystack[idx], hlen - idx);
                 }
@@ -859,7 +861,7 @@ do_bytes_lrjust_(Frame *fr, unsigned int flags, const char *fmt)
                 padlen /= 2;
 
         if (!newlen)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
 
         newbuf = dst = emalloc(newlen);
         end = newbuf + newlen;
@@ -926,10 +928,13 @@ bytes_lrsplit(Frame *fr, unsigned int flags)
         }
         if (!separg) {
                 combine = true;
-                separg = VAR_NEW_REF(gbl.spc_bytes);
+                separg = bytesvar_new((const unsigned char *)" ", 1);
+        } else {
+                VAR_INCR_REF(separg);
         }
         if ((seplen = seqvar_size(separg)) == 0) {
                 err_setstr(ValueError, "Separator may not be empty");
+                VAR_DECR_REF(separg);
                 return ErrorVar;
         }
 
@@ -972,7 +977,7 @@ bytes_lrsplit(Frame *fr, unsigned int flags)
                                 break;
                         tlen = (ssize_t)(psep - self);
                         new = tlen ? bytesvar_new(self, tlen)
-                                   : VAR_NEW_REF(gbl.empty_bytes);
+                                   : gbl_new_empty_bytes();
                         array_append(ret, new);
                         self = psep + seplen;
                         selflen -= (tlen + seplen);
@@ -985,6 +990,7 @@ bytes_lrsplit(Frame *fr, unsigned int flags)
                 if (selflen != 0)
                         array_append(ret, bytesvar_new(self, selflen));
         }
+        VAR_DECR_REF(separg);
         return ret;
 }
 
@@ -1045,7 +1051,7 @@ bytes_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
                 return VAR_NEW_REF(vm_get_this(fr));
 
         if (!selflen)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
 
         return bytesvar_new(self, selflen);
 }
@@ -1087,7 +1093,7 @@ do_bytes_capitalize(Frame *fr)
         self = bytes_get_data(self_o);
         selflen = seqvar_size(self_o);
         if (!selflen)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
 
         newbuf = dst = emalloc(selflen);
         if (selflen)
@@ -1159,15 +1165,15 @@ bytes_is(Frame *fr, bool (*tst)(unsigned long))
                 return ErrorVar;
 
         if (seqvar_size(self) == 0)
-                return VAR_NEW_REF(gbl.zero);
+                return gbl_new_bool(false);
 
         p8 = bytes_get_data(self);
         len = seqvar_size(self);
         for (i = 0; i < len; i++) {
                 if (!tst(p8[i]))
-                        return VAR_NEW_REF(gbl.zero);
+                        return gbl_new_bool(false);
         }
-        return VAR_NEW_REF(gbl.one);
+        return gbl_new_bool(true);
 }
 
 static Object *
@@ -1240,7 +1246,7 @@ do_bytes_istitle(Frame *fr)
                 return ErrorVar;
 
         if (seqvar_size(self) == 0)
-                return VAR_NEW_REF(gbl.zero);
+                return gbl_new_bool(false);
 
         p8 = bytes_get_data(self);
         len = seqvar_size(self);
@@ -1250,11 +1256,11 @@ do_bytes_istitle(Frame *fr)
                         first = true;
                 } else if (first) {
                         if (evc_islower(c))
-                                return VAR_NEW_REF(gbl.zero);
+                                return gbl_new_bool(false);
                         first = false;
                 }
         }
-        return VAR_NEW_REF(gbl.one);
+        return gbl_new_bool(true);
 }
 
 static Object *
@@ -1273,7 +1279,7 @@ bytes_convert_case(Frame *fr, unsigned long (*convert)(unsigned long))
         src = bytes_get_data(self);
         len = seqvar_size(self);
         if (!len)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
         dst = emalloc(len);
 
         for (i = 0; i < len; i++)
@@ -1369,7 +1375,7 @@ do_bytes_title(Frame *fr)
         self = bytes_get_data(self_o);
         selflen = seqvar_size(self_o);
         if (!selflen)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
         dst = newbuf = emalloc(selflen);
         first = true;
         for (i = 0; i < selflen; i++) {
@@ -1493,7 +1499,7 @@ bytes_create_with_encoding(Object *val, int encoding)
         }
 
         if (seqvar_size(val) == 0)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
         switch (encoding) {
         default:
                 bug();
@@ -1530,7 +1536,7 @@ bytes_create_without_encoding(Object *val)
                 }
                 n = seqvar_size(val);
                 if (!n)
-                        return VAR_NEW_REF(gbl.empty_bytes);
+                        return gbl_new_empty_bytes();
                 buf = emalloc(n);
                 /* XXX REVISIT: replace with iter_xxx() API */
                 for (i = 0; i < n; i++) {
@@ -1567,7 +1573,7 @@ bytes_create(Frame *fr)
         if (encoding < 0)
                 encoding = encoding2;
         if (!what)
-                return VAR_NEW_REF(gbl.empty_bytes);
+                return gbl_new_empty_bytes();
         if (isvar_bytes(what))
                 return VAR_NEW_REF(what);
         if (encoding >= 0)

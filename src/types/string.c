@@ -42,6 +42,9 @@
 #include <internal/types/number_types.h>
 #include <internal/types/sequential_types.h>
 
+/* FIXME: replace with gbl accessor functions */
+#include <internal/global.h>
+
 /* user argument limits */
 enum {
         JUST_MAX = 10000,
@@ -1625,7 +1628,7 @@ string_count(Frame *fr)
                 return ErrorVar;
 
         count = find_or_count(haystack, needle, SF_COUNT);
-        return count ? intvar_new(count) : VAR_NEW_REF(gbl.zero);
+        return intvar_new(count);
 }
 
 static Object *
@@ -1656,10 +1659,10 @@ string_starts_or_ends_with_(Frame *fr, unsigned int flags, const char *fmt)
                 if (p1 != p2)
                         goto hasnt;
         }
-        return VAR_NEW_REF(gbl.one);
+        return gbl_new_bool(true);
 
 hasnt:
-        return VAR_NEW_REF(gbl.zero);
+        return gbl_new_bool(false);
 }
 
 #define string_starts_or_ends_with(fr, flg, fname) \
@@ -1753,9 +1756,9 @@ string_index_or_find_(Frame *fr, unsigned int flags, const char *fmt)
                         err_setstr(ValueError, "substring not found");
                         return ErrorVar;
                 }
-                return VAR_NEW_REF(gbl.neg_one);
+                return intvar_new(-1LL);
         }
-        return res ? intvar_new(res) : VAR_NEW_REF(gbl.zero);
+        return intvar_new(res);
 }
 
 #define string_index_or_find(fr, flg, fname) \
@@ -2146,38 +2149,36 @@ string_is1(Frame *fr, bool (*cb)(Object *))
                 return ErrorVar;
 
         if (seqvar_size(self) == 0) {
-                ret = gbl.zero;
+                ret = gbl_new_bool(false);
         } else {
-                ret = cb(self) ? gbl.one : gbl.zero;
+                ret = gbl_new_bool(cb(self));
         }
-        VAR_INCR_REF(ret);
         return ret;
 }
 
 static Object *
 string_is2(Frame *fr, bool (*tst)(unsigned long c))
 {
-        Object *ret;
+        bool bret;
         Object *self = vm_get_this(fr);
         if (arg_type_check(self, &StringType) == RES_ERROR)
                 return ErrorVar;
 
         /* To be overwritten if false */
-        ret = gbl.one;
+        bret = true;
         if (seqvar_size(self) == 0) {
-                ret = gbl.zero;
+                bret = false;
         } else {
                 size_t i, n = seqvar_size(self);
                 for (i = 0; i < n; i++) {
                         long point = string_getidx(self, i);
                         if (!tst(point)) {
-                                ret = gbl.zero;
+                                bret = false;
                                 break;
                         }
                 }
         }
-        VAR_INCR_REF(ret);
-        return ret;
+        return gbl_new_bool(bret);
 }
 
 static bool
@@ -2244,7 +2245,7 @@ string_isascii_mthd(Frame *fr)
                 return ErrorVar;
 
         ascii = V2STR(self)->s_ascii;
-        return ascii ? VAR_NEW_REF(gbl.one) : VAR_NEW_REF(gbl.zero);
+        return gbl_new_bool(ascii);
 }
 
 static Object *string_isdigit(Frame *fr)

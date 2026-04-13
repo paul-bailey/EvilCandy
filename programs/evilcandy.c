@@ -269,7 +269,7 @@ main(int argc, char **argv)
                 run_script(opt.infile, fp, &opt);
                 pop_path(fp);
         } else if (isatty(fileno(stdin))) {
-                gbl.interactive = true;
+                gbl_set_interactive(true);
                 run_tty(&opt);
         } else {
                 /*

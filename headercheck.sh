@@ -28,6 +28,7 @@ do
 done
 
 headers="
+global.h
 path.h
 cwd.h
 token.h

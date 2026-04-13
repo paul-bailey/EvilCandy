@@ -491,14 +491,7 @@ ainstr_load_null(struct assemble_t *a)
 static void
 ainstr_load_const_int(struct assemble_t *a, long long ival)
 {
-        Object *iobj;
-
-        if (ival == 1)
-                iobj = VAR_NEW_REF(gbl.one);
-        else if (ival == 0)
-                iobj = VAR_NEW_REF(gbl.zero);
-        else
-                iobj = intvar_new(ival);
+        Object *iobj = intvar_new(ival);
         ainstr_load_const_obj(a, iobj);
 }
 

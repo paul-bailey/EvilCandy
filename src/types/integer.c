@@ -13,12 +13,6 @@
  */
 #define LL_SQUARE_LIMIT  (1ull << 32)
 
-static Object *
-intvar_new__(long long x)
-{
-        return x ? intvar_new(x) : VAR_NEW_REF(gbl.zero);
-}
-
 /*
  * Algorithm taken straight from Wikipedia, "Exponentiation by squaring".
  * I C-ified and int-ified it and added some boundary checks.  I *assume*
@@ -92,7 +86,7 @@ int_pow(Object *a, Object *b)
         res = ipow(la, lb);
         if (err_occurred())
                 return ErrorVar;
-        return intvar_new__(res);
+        return intvar_new(res);
 }
 
 static Object *
@@ -102,7 +96,7 @@ int_mul(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new__(la * lb);
+        return intvar_new(la * lb);
 }
 
 static Object *
@@ -116,7 +110,7 @@ int_div(Object *a, Object *b)
                 err_setstr(NumberError, "Divide by zero");
                 return ErrorVar;
         }
-        return intvar_new__(la / lb);
+        return intvar_new(la / lb);
 }
 
 static Object *
@@ -130,7 +124,7 @@ int_mod(Object *a, Object *b)
                 err_setstr(NumberError, "Modulo zero");
                 return ErrorVar;
         }
-        return intvar_new__(la % lb);
+        return intvar_new(la % lb);
 }
 
 static Object *
@@ -140,7 +134,7 @@ int_add(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new__(la + lb);
+        return intvar_new(la + lb);
 }
 
 static Object *
@@ -150,7 +144,7 @@ int_sub(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new__(la - lb);
+        return intvar_new(la - lb);
 }
 
 /*
@@ -185,7 +179,7 @@ int_lshift(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new__(la << lb);
+        return intvar_new(la << lb);
 }
 
 static Object *
@@ -195,7 +189,7 @@ int_rshift(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new__(la >> lb);
+        return intvar_new(la >> lb);
 }
 
 static Object *
@@ -205,7 +199,7 @@ int_bit_and(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new__(la & lb);
+        return intvar_new(la & lb);
 }
 
 static Object *
@@ -215,7 +209,7 @@ int_bit_or(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new__(la | lb);
+        return intvar_new(la | lb);
 }
 
 static Object *
@@ -225,7 +219,7 @@ int_xor(Object *a, Object *b)
         BUGCHECK_TYPES(a, b);
         la = intvar_toll(a);
         lb = intvar_toll(b);
-        return intvar_new__(la ^ lb);
+        return intvar_new(la ^ lb);
 }
 
 static bool
@@ -237,13 +231,13 @@ int_cmpz(Object *a)
 static Object *
 int_bit_not(Object *a)
 {
-        return intvar_new__(~(V2I(a)->i));
+        return intvar_new(~(V2I(a)->i));
 }
 
 static Object *
 int_negate(Object *a)
 {
-        return intvar_new__(-(V2I(a)->i));
+        return intvar_new(-(V2I(a)->i));
 }
 
 static Object *
@@ -252,7 +246,7 @@ int_abs(Object *a)
         long long v = intvar_toll(a);
         if (v < 0)
                 v = -v;
-        return intvar_new__(v);
+        return intvar_new(v);
 }
 
 static Object *
@@ -279,7 +273,7 @@ int_bit_length(Frame *fr)
                 count++;
                 ival >>= 1;
         }
-        return intvar_new__(count);
+        return intvar_new(count);
 }
 
 static Object *
@@ -293,7 +287,7 @@ int_bit_count(Frame *fr)
 
         ival = intvar_toll(self);
         count = bit_count64(ival);
-        return intvar_new__(count);
+        return intvar_new(count);
 }
 
 static Object *
@@ -316,7 +310,7 @@ int_create(Frame *fr)
         argc = seqvar_size(arg);
         switch (argc) {
         case 0:
-                return VAR_NEW_REF(gbl.zero);
+                return intvar_new(0);
         case 1:
                 v = array_borrowitem(arg, 0);
                 b = NULL;

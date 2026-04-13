@@ -1399,11 +1399,7 @@ do_cmp(Frame *fr, instruction_t ii)
         VAR_DECR_REF(rval);
         VAR_DECR_REF(lval);
         if (retval == RES_OK) {
-                Object *res;
-                if (cmp)
-                        res = VAR_NEW_REF(gbl.one);
-                else
-                        res = VAR_NEW_REF(gbl.zero);
+                Object *res = gbl_new_bool(cmp);
                 push(fr, res);
         }
         return retval;
@@ -1792,7 +1788,7 @@ vm_get_locals(void)
         li = li->prev;
         if (li == &vm.active_frames)
                 return NULL;
-        if (li == vm.active_frames.next && gbl.interactive) {
+        if (li == vm.active_frames.next && gbl_is_interactive()) {
                 if (vm.locals)
                         return dict_keys(vm.locals, false);
                 else

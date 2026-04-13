@@ -239,7 +239,7 @@ float_create(Frame *fr)
                 err_maxargs(seqvar_size(args), 1);
                 return ErrorVar;
         } else if (argc == 0) {
-                return VAR_NEW_REF(gbl.fzero);
+                return floatvar_new(0.0);
         }
         arg = array_getitem(args, 0);
         bug_on(!arg);

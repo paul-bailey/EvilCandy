@@ -8,6 +8,7 @@
 #include <evilcandy.h>
 #include <internal/init.h>
 #include <internal/cwd.h>
+#include <internal/global.h>
 #include <internal/types/string.h>
 
 struct global_t gbl;
@@ -116,12 +117,9 @@ initialize_global_object(void)
         for (i = 0; i < N_CODEC; i++)
                 gbl.codecs[i] = intvar_new(i);
 
-        gbl.neg_one     = intvar_new(-1LL);
         gbl.one         = intvar_new(1LL);
         gbl.zero        = intvar_new(0LL);
         gbl.empty_bytes = bytesvar_new((unsigned char *)"", 0);
-        gbl.spc_bytes   = bytesvar_new((unsigned char *)" ", 1);
-        gbl.fzero       = floatvar_new(0.0);
 
         o = dict_getitem_cstr(GlobalObject, "_builtins");
         dict_add_to_globals(o);
@@ -226,12 +224,9 @@ cfile_deinit_global(void)
 
         VAR_DECR_REF(gbl.stdout_file);
         VAR_DECR_REF(gbl.nl);
-        VAR_DECR_REF(gbl.neg_one);
         VAR_DECR_REF(gbl.one);
         VAR_DECR_REF(gbl.zero);
         VAR_DECR_REF(gbl.empty_bytes);
-        VAR_DECR_REF(gbl.spc_bytes);
-        VAR_DECR_REF(gbl.fzero);
         VAR_DECR_REF(gbl.cwd);
 
         for (i = 0; i < N_STRCONST; i++)
@@ -296,6 +291,49 @@ codec_str(int codec, char *buf, size_t size)
         return buf;
 }
 
+Object *
+gbl_borrow_bool(bool cond)
+{
+        if (cond)
+                return gbl.one;
+        else
+                return gbl.zero;
+}
+
+Object *
+gbl_new_bool(bool cond)
+{
+        return VAR_NEW_REF(gbl_borrow_bool(cond));
+}
+
+Object *
+gbl_borrow_strconst(enum evc_strconst_t id)
+{
+        bug_on((unsigned)id >= N_STRCONST);
+        return gbl.strconsts[id];
+}
+
+Object *
+gbl_new_empty_bytes(void)
+{
+        /* bug if we are called too early */
+        bug_on(!gbl.empty_bytes);
+        return VAR_NEW_REF(gbl.empty_bytes);
+}
+
+void
+gbl_set_interactive(bool is_interactive)
+{
+        gbl.interactive = is_interactive;
+}
+
+bool
+gbl_is_interactive(void)
+{
+        return gbl.interactive;
+}
+
+/* FIXME: Why is this here? */
 Object *
 codec_strobj(int codec)
 {

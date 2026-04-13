@@ -11,6 +11,9 @@
 #include <unistd.h>
 #include <sys/stat.h> /* fstat() */
 
+/* FIXME: replace with gbl accessor functions */
+#include <internal/global.h>
+
 enum file_type_t {
         FILE_TEXT,
         FILE_BINARY,

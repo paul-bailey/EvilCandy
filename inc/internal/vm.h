@@ -60,7 +60,6 @@ static inline int vm_get_argc(Frame *fr)
 extern Object *vm_localdict(void);
 extern Object *vm_globaldict(void);
 extern Object *vm_get_locals(void);
-extern bool vm_pointers_in_stack(Object **start, Object **end);
 
 extern Object *execute_loop(Frame *fr);
 

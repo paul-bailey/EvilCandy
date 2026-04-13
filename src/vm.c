@@ -1460,6 +1460,12 @@ check_ghost_errors(int res)
                 DBUG1("Error return but none reported");
 }
 
+static inline bool
+vm_pointers_in_stack(Object **start, Object **end)
+{
+        return start <= end && start >= vm.stack && end < vm.stack_end;
+}
+
 /*
  * Helper called back from function_call().
  * Stack is set up with arguments, but some more user-function-specific
@@ -1779,13 +1785,6 @@ vm_symbol_exists(Object *key)
         if (val)
                 VAR_DECR_REF(val);
         return val != NULL;
-}
-
-/* used by function.c to ensure that arguments can fit on stack */
-bool
-vm_pointers_in_stack(Object **start, Object **end)
-{
-        return start <= end && start >= vm.stack && end < vm.stack_end;
 }
 
 /**

@@ -119,7 +119,6 @@ initialize_global_object(void)
         gbl.neg_one     = intvar_new(-1LL);
         gbl.one         = intvar_new(1LL);
         gbl.zero        = intvar_new(0LL);
-        gbl.eight       = intvar_new(8LL);
         gbl.empty_bytes = bytesvar_new((unsigned char *)"", 0);
         gbl.spc_bytes   = bytesvar_new((unsigned char *)" ", 1);
         gbl.fzero       = floatvar_new(0.0);
@@ -230,7 +229,6 @@ cfile_deinit_global(void)
         VAR_DECR_REF(gbl.neg_one);
         VAR_DECR_REF(gbl.one);
         VAR_DECR_REF(gbl.zero);
-        VAR_DECR_REF(gbl.eight);
         VAR_DECR_REF(gbl.empty_bytes);
         VAR_DECR_REF(gbl.spc_bytes);
         VAR_DECR_REF(gbl.fzero);

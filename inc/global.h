@@ -14,7 +14,6 @@ struct global_t {
         Object *neg_one;
         Object *one;
         Object *zero;
-        Object *eight;
         Object *empty_bytes;
         Object *spc_bytes;
         Object *fzero;

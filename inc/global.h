@@ -43,6 +43,14 @@ extern Object *gbl_intern_string(Object *str);
 extern Object *gbl_borrow_builtin_class(enum gbl_class_idx_t idx);
 extern void gbl_set_builtin_class(enum gbl_class_idx_t idx,
                                   Object *class);
+extern Object *gbl_cwd(void);
+extern Object *gbl_get_stdout(void);
+extern Object *gbl_get_nl(void);
+extern void gbl_set_nl(Object *nl);
+
 extern struct gbl_token_subsys_t *gbl_get_token_subsys(void);
+extern struct gbl_codec_subsys_t *gbl_get_codec_subsys(void);
+extern struct gbl_import_subsys_t *gbl_get_import_subsys(void);
+extern struct gbl_err_subsys_t *gbl_get_err_subsys(void);
 
 #endif /* EVILCANDY_GLOBAL_H */

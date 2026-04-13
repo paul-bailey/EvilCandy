@@ -7,7 +7,6 @@
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
 
-/* FIXME: replace with gbl accessor functions */
 #include <internal/global.h>
 
 static Object *
@@ -123,9 +122,9 @@ do_print(Frame *fr)
         if (!sep)
                 sep = STRCONST_ID(spc);
         if (!file)
-                file = gbl.stdout_file;
+                file = gbl_get_stdout();
         if (!end)
-                end = gbl.nl;
+                end = gbl_get_nl();
 
         n = seqvar_size(arg);
         if (n == 0) {
@@ -226,9 +225,7 @@ do_setnl(Frame *fr)
 
         if (vm_getargs(fr, "[<s>!]{!}:setnl", &nl) == RES_ERROR)
                 return ErrorVar;
-        if (gbl.nl)
-                VAR_DECR_REF(gbl.nl);
-        gbl.nl = VAR_NEW_REF(nl);
+        gbl_set_nl(nl);
         return NULL;
 }
 

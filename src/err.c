@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <internal/err.h>
 #include <internal/token.h>
 #include <internal/types/string.h>
 #include <stdarg.h>
@@ -38,10 +39,19 @@ mkexception(Object *exc_class, Object *msg)
 }
 
 static void
+err_clear_subsys(struct gbl_err_subsys_t *err)
+{
+        if (err->exception_last)
+                VAR_DECR_REF(err->exception_last);
+        err->exception_last = NULL;
+}
+
+static void
 replace_exception(Object *newexc)
 {
-        err_clear();
-        gbl.exception_last = VAR_NEW_REF(newexc);
+        struct gbl_err_subsys_t *err = gbl_get_err_subsys();
+        err_clear_subsys(err);
+        err->exception_last = VAR_NEW_REF(newexc);
 }
 
 /* helper to bug__ and breakpoint__ */
@@ -335,9 +345,10 @@ err_set_from_user(Object *exc)
 Object *
 err_get(void)
 {
-        Object *ret = gbl.exception_last;
-        VAR_INCR_REF(gbl.exception_last);
-        err_clear();
+        struct gbl_err_subsys_t *err = gbl_get_err_subsys();
+        Object *ret = err->exception_last;
+        VAR_INCR_REF(err->exception_last);
+        err_clear_subsys(err);
         return ret;
 }
 
@@ -397,14 +408,24 @@ err_print_last(FILE *fp)
 bool
 err_occurred(void)
 {
-        return gbl.exception_last != NULL;
+        return gbl_get_err_subsys()->exception_last != NULL;
 }
 
 void
 err_clear(void)
 {
-        if (gbl.exception_last)
-                VAR_DECR_REF(gbl.exception_last);
-        gbl.exception_last = NULL;
+        err_clear_subsys(gbl_get_err_subsys());
+}
+
+void
+err_deinit_gbl(struct gbl_err_subsys_t *err)
+{
+        err_clear_subsys(err);
+}
+
+void
+err_init_gbl(struct gbl_err_subsys_t *err)
+{
+        err->exception_last = NULL;
 }
 

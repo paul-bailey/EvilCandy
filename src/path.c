@@ -245,7 +245,7 @@ pop_path(FILE *fp)
          */
         if (seqvar_size(bc) == 0) {
                 /* TODO: bug_on(not interactive mode) */
-                array_setitem(import_path, 0, gbl.cwd);
+                array_setitem(import_path, 0, gbl_cwd());
         } else {
                 Object *prev, *new_importdir;
                 const char *prevstr;

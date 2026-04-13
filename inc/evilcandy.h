@@ -114,10 +114,8 @@ extern void *ememdup(const void *buf, size_t size);
 extern ssize_t egetline(char **line, size_t *linecap, FILE *fp);
 extern void efree(void *ptr);
 
-
 /* import.c */
 extern Object *evc_import(Frame *fr, const char *file_name);
-extern void import_deinit(void);
 
 /* instruction_name.c */
 extern const char *instruction_name(int opcode);

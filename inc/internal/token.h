@@ -38,7 +38,10 @@ extern char *token_get_this_line(struct token_state_t *state);
 extern void token_flush_tty(struct token_state_t *state);
 extern struct token_t *get_tok_at(struct token_state_t *state, token_pos_t pos);
 extern struct token_state_t *token_state_from_string(const char *cstring);
-extern void token_clean_iatok(void);
+
+struct gbl_token_subsys_t;
+extern void token_deinit_gbl(struct gbl_token_subsys_t *subsys);
+extern void token_init_gbl(struct gbl_token_subsys_t *subsys);
 
 #endif /* EGQ_OPCODES_H */
 

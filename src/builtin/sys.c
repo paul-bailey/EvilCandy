@@ -20,7 +20,7 @@ moduleinit_sys(void)
 
         o = var_from_format("{O[]O[Os]}",
                             STRCONST_ID(breadcrumbs),
-                            STRCONST_ID(import_path), gbl.cwd, RCDATADIR);
+                            STRCONST_ID(import_path), gbl_cwd(), RCDATADIR);
         dict_setitem(GlobalObject, STRCONST_ID(_sys), o);
 
         v = evc_file_open(STDIN_FILENO, "<stdin>",

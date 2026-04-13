@@ -103,7 +103,9 @@ noinst_HEADERS = \
         inc/vm.h \
         inc/internal/codec.h \
         inc/internal/cwd.h \
+        inc/internal/err.h \
         inc/internal/global.h \
+        inc/internal/import.h \
         inc/internal/path.h \
         inc/internal/token.h \
         inc/internal/assemble.h \

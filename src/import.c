@@ -1,6 +1,7 @@
 #include <sys/stat.h>
 #include <evilcandy.h>
 #include <internal/path.h>
+#include <internal/import.h>
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>
 
@@ -76,9 +77,12 @@ static void
 module_cache_insert(Object *module, Object *key)
 {
         enum result_t res;
-        if (!gbl.import_dict)
-                gbl.import_dict = dictvar_new();
-        res = dict_setitem(gbl.import_dict, key, module);
+        struct gbl_import_subsys_t *import;
+
+        import = gbl_get_import_subsys();
+        if (!import->import_dict)
+                import->import_dict = dictvar_new();
+        res = dict_setitem(import->import_dict, key, module);
         bug_on(res == RES_ERROR);
         (void)res;
 }
@@ -86,9 +90,12 @@ module_cache_insert(Object *module, Object *key)
 static Object *
 module_cache_lookup(Object *key)
 {
-        if (!gbl.import_dict)
+        struct gbl_import_subsys_t *import;
+
+        import = gbl_get_import_subsys();
+        if (!import->import_dict)
                 return NULL;
-        return dict_getitem(gbl.import_dict, key);
+        return dict_getitem(import->import_dict, key);
 }
 
 /* Done early to catch cyclic loads */
@@ -192,11 +199,17 @@ out_pop_path:
 }
 
 void
-import_deinit(void)
+import_init_gbl(struct gbl_import_subsys_t *subsys)
 {
-        if (gbl.import_dict) {
-                VAR_DECR_REF(gbl.import_dict);
-                gbl.import_dict = NULL;
+        /* nothing to do; dict will be created only if needed */
+}
+
+void
+import_deinit_gbl(struct gbl_import_subsys_t *subsys)
+{
+        if (subsys->import_dict) {
+                VAR_DECR_REF(subsys->import_dict);
+                subsys->import_dict = NULL;
         }
 }
 

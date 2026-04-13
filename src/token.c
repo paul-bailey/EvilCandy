@@ -4,9 +4,7 @@
 #include <internal/type_registry.h>
 #include <setjmp.h>
 #include <unistd.h> /* isatty */
-
-/* FIXME: replace with gbl accessor functions */
-#include <internal/global.h>
+#include <internal/global.h> /* iatok definition */
 
 /* Token errors, args to longjmp(state->env) */
 enum {
@@ -1146,9 +1144,14 @@ token_flush_tty(struct token_state_t *state)
 }
 
 void
-token_clean_iatok(void)
+token_init_gbl(struct gbl_token_subsys_t *iatok)
 {
-        struct gbl_token_subsys_t *iatok = gbl_get_token_subsys();
+        memset(iatok, 0, sizeof(*iatok));
+}
+
+void
+token_deinit_gbl(struct gbl_token_subsys_t *iatok)
+{
         if (iatok->line)
                 efree(iatok->line);
         memset(iatok, 0, sizeof(*iatok));

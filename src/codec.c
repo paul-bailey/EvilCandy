@@ -4,22 +4,22 @@
 #include <internal/types/string.h>
 #include <evilcandy.h>
 
-/* called from gbl.c */
+/* called from global.c */
 void
-codec_init_gbl(void)
+codec_init_gbl(struct gbl_codec_subsys_t *subsys)
 {
         int i;
         for (i = 0; i < N_CODEC; i++)
-                gbl.codecs[i] = intvar_new(i);
+                subsys->codecs[i] = intvar_new(i);
 }
 
 void
-codec_deinit_gbl(void)
+codec_deinit_gbl(struct gbl_codec_subsys_t *subsys)
 {
         int i;
         for (i = 0; i < N_CODEC; i++) {
-                if (gbl.codecs[i])
-                        VAR_DECR_REF(gbl.codecs[i]);
+                if (subsys->codecs[i])
+                        VAR_DECR_REF(subsys->codecs[i]);
         }
 }
 
@@ -44,12 +44,13 @@ codec_strobj(int codec)
 {
         Object *value;
         Object *codec_dict = gbl_borrow_mns_dict(MNS_CODEC);
+        struct gbl_codec_subsys_t *gcs = gbl_get_codec_subsys();
         if (codec >= N_CODEC
-            || gbl.codecs[codec] == NULL
+            || gcs->codecs[codec] == NULL
             || codec_dict == NULL) {
                 return NULL;
         }
-        value = dict_getitem(codec_dict, gbl.codecs[codec]);
+        value = dict_getitem(codec_dict, gcs->codecs[codec]);
         if (!value || !isvar_string(value))
                 return NULL;
 

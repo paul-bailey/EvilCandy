@@ -9,9 +9,11 @@
  */
 #include <evilcandy.h>
 #include <internal/init.h>
+#include <internal/err.h>
 #include <internal/cwd.h>
 #include <internal/global.h>
 #include <internal/codec.h>
+#include <internal/import.h>
 #include <internal/token.h>
 #include <internal/types/string.h>
 
@@ -117,7 +119,10 @@ initialize_global_object(void)
         bug_on(!gbl.nl || !gbl.stdout_file);
         VAR_DECR_REF(o);
 
-        codec_init_gbl();
+        codec_init_gbl(gbl_get_codec_subsys());
+        token_init_gbl(gbl_get_token_subsys());
+        import_init_gbl(gbl_get_import_subsys());
+        err_init_gbl(gbl_get_err_subsys());
 
         gbl.one         = intvar_new(1LL);
         gbl.zero        = intvar_new(0LL);
@@ -246,14 +251,10 @@ cfile_deinit_global(void)
 
         VAR_DECR_REF(gbl.interned_strings);
 
-        codec_deinit_gbl();
-        token_clean_iatok();
-        /*
-         * XXX: should be called "err_deinit()", but it would do
-         * exactly the same thing.
-         */
-        err_clear();
-        import_deinit();
+        codec_deinit_gbl(gbl_get_codec_subsys());
+        token_deinit_gbl(gbl_get_token_subsys());
+        import_deinit_gbl(gbl_get_import_subsys());
+        err_deinit_gbl(gbl_get_err_subsys());
 
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);
@@ -341,6 +342,32 @@ gbl_borrow_builtin_class(enum gbl_class_idx_t idx)
         return gbl.classes[idx];
 }
 
+Object *
+gbl_cwd(void)
+{
+        return gbl.cwd;
+}
+
+Object *
+gbl_get_nl(void)
+{
+        return gbl.nl;
+}
+
+void
+gbl_set_nl(Object *nl)
+{
+        if (gbl.nl)
+                VAR_DECR_REF(gbl.nl);
+        gbl.nl = VAR_NEW_REF(nl);
+}
+
+Object *
+gbl_get_stdout(void)
+{
+        return gbl.stdout_file;
+}
+
 /* This produces a reference for class */
 void
 gbl_set_builtin_class(enum gbl_class_idx_t idx, Object *class)
@@ -351,9 +378,27 @@ gbl_set_builtin_class(enum gbl_class_idx_t idx, Object *class)
         gbl.classes[idx] = VAR_NEW_REF(class);
 }
 
-/* always succeeds */
 struct gbl_token_subsys_t *
 gbl_get_token_subsys(void)
 {
-        return &gbl.iatok;
+        return &gbl.subsys.token;
 }
+
+struct gbl_codec_subsys_t *
+gbl_get_codec_subsys(void)
+{
+        return &gbl.subsys.codec;
+}
+
+struct gbl_import_subsys_t *
+gbl_get_import_subsys(void)
+{
+        return &gbl.subsys.import;
+}
+
+struct gbl_err_subsys_t *
+gbl_get_err_subsys(void)
+{
+        return &gbl.subsys.err;
+}
+

@@ -35,7 +35,7 @@ extern bool gbl_is_interactive(void);
 
 /*
  * XXX Clean up some of these naming conventions, make them more
- * consistent
+ * consistent.
  */
 extern Object *gbl_borrow_mns_dict(enum gbl_mns_t mns);
 extern void gbl_set_mns_dict(enum gbl_mns_t mns, Object *dict);
@@ -47,10 +47,5 @@ extern Object *gbl_cwd(void);
 extern Object *gbl_get_stdout(void);
 extern Object *gbl_get_nl(void);
 extern void gbl_set_nl(Object *nl);
-
-extern struct gbl_token_subsys_t *gbl_get_token_subsys(void);
-extern struct gbl_codec_subsys_t *gbl_get_codec_subsys(void);
-extern struct gbl_import_subsys_t *gbl_get_import_subsys(void);
-extern struct gbl_err_subsys_t *gbl_get_err_subsys(void);
 
 #endif /* EVILCANDY_GLOBAL_H */

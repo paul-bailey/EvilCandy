@@ -16,6 +16,11 @@
 #define COLOR_YEL CSI "33m"
 #define COLOR_DEF CSI "39m"
 
+/* err runtime state */
+struct gbl_err_subsys_t {
+        Object *exception_last;
+};
+
 /*
  * TODO: set some file-scope variables to COLOR(...) or "",
  * depending on whether stderr is a TTY or not.
@@ -421,11 +426,15 @@ void
 err_deinit_gbl(struct gbl_err_subsys_t *err)
 {
         err_clear_subsys(err);
+        efree(err);
 }
 
-void
-err_init_gbl(struct gbl_err_subsys_t *err)
+struct gbl_err_subsys_t *
+err_init_gbl(void)
 {
+        struct gbl_err_subsys_t *err = emalloc(sizeof(*err));
+        memset(err, 0, sizeof(*err));
         err->exception_last = NULL;
+        return err;
 }
 

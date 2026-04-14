@@ -4,13 +4,22 @@
 #include <internal/types/string.h>
 #include <evilcandy.h>
 
+/* runtime state struct */
+struct gbl_codec_subsys_t {
+        /* maps codec to int obj */
+        Object *codecs[N_CODEC];
+};
+
 /* called from global.c */
-void
-codec_init_gbl(struct gbl_codec_subsys_t *subsys)
+struct gbl_codec_subsys_t *
+codec_init_gbl(void)
 {
         int i;
+        struct gbl_codec_subsys_t *subsys = emalloc(sizeof(*subsys));
+        memset(subsys, 0, sizeof(*subsys));
         for (i = 0; i < N_CODEC; i++)
                 subsys->codecs[i] = intvar_new(i);
+        return subsys;
 }
 
 void
@@ -21,6 +30,7 @@ codec_deinit_gbl(struct gbl_codec_subsys_t *subsys)
                 if (subsys->codecs[i])
                         VAR_DECR_REF(subsys->codecs[i]);
         }
+        efree(subsys);
 }
 
 

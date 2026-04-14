@@ -3,7 +3,7 @@
 // Print myself
 (function(name) {
     try {
-        let f = open(name, "r");
+        let f = open(name, "r", encoding="utf-8");
         let s;
         while true {
             s = f.readline();

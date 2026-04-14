@@ -6,6 +6,21 @@
 #include <unistd.h> /* isatty */
 #include <internal/global.h> /* iatok definition */
 
+/*
+ * Full-runtime token state machine (as opposed to
+ * per-script/import struct token_state_t.
+ */
+struct gbl_token_subsys_t {
+        /*
+         * Interactive mode saved line, needed for occasions where
+         * more than one statement are typed on the same line.
+         */
+        char *line;
+        char *s;
+        int lineno;
+        size_t _slen;
+};
+
 /* Token errors, args to longjmp(state->env) */
 enum {
         TE_UNTERM_QUOTE = 1, /* may not be zero */
@@ -1143,10 +1158,13 @@ token_flush_tty(struct token_state_t *state)
         }
 }
 
-void
-token_init_gbl(struct gbl_token_subsys_t *iatok)
+struct gbl_token_subsys_t *
+token_init_gbl(void)
 {
+        struct gbl_token_subsys_t *iatok;
+        iatok = emalloc(sizeof(*iatok));
         memset(iatok, 0, sizeof(*iatok));
+        return iatok;
 }
 
 void
@@ -1154,5 +1172,5 @@ token_deinit_gbl(struct gbl_token_subsys_t *iatok)
 {
         if (iatok->line)
                 efree(iatok->line);
-        memset(iatok, 0, sizeof(*iatok));
+        efree(iatok);
 }

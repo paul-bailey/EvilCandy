@@ -41,7 +41,7 @@ extern struct token_state_t *token_state_from_string(const char *cstring);
 
 struct gbl_token_subsys_t;
 extern void token_deinit_gbl(struct gbl_token_subsys_t *subsys);
-extern void token_init_gbl(struct gbl_token_subsys_t *subsys);
+extern struct gbl_token_subsys_t *token_init_gbl(void);
 
 #endif /* EGQ_OPCODES_H */
 

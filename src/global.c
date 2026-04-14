@@ -6,6 +6,9 @@
  *      and such.
  *
  * TODO: Separate the exception stuff and put in in another C file.
+ *
+ * XXX REVISIT: global/gbl_xxxx is now a misleading name.
+ * Maybe runtime/rt_xxx is more appropriate?
  */
 #include <evilcandy.h>
 #include <internal/init.h>
@@ -17,7 +20,30 @@
 #include <internal/token.h>
 #include <internal/types/string.h>
 
-struct global_t gbl;
+static struct global_t {
+        bool interactive;
+        Object *nl;
+        Object *stdout_file;
+        Object *strconsts[N_STRCONST];
+        Object *one;
+        Object *zero;
+        Object *empty_bytes;
+        Object *cwd;
+        Object *mns[N_MNS];
+        /* c-api handles to some built-in classes */
+        Object *classes[N_GBL_CLASSES];
+        Object *interned_strings; /*< a set */
+
+        /*
+         * TODO: vm in vm.c belongs here.
+         */
+        struct {
+                struct gbl_token_subsys_t *token;       /*< token.c */
+                struct gbl_codec_subsys_t *codec;       /*< codec.c */
+                struct gbl_err_subsys_t *err;           /*< err.c */
+                struct gbl_import_subsys_t *import;     /*< import.c */
+        } subsys;
+} gbl;
 
 Object *ErrorVar;
 Object *NullVar;
@@ -119,10 +145,10 @@ initialize_global_object(void)
         bug_on(!gbl.nl || !gbl.stdout_file);
         VAR_DECR_REF(o);
 
-        codec_init_gbl(gbl_get_codec_subsys());
-        token_init_gbl(gbl_get_token_subsys());
-        import_init_gbl(gbl_get_import_subsys());
-        err_init_gbl(gbl_get_err_subsys());
+        gbl.subsys.codec  = codec_init_gbl();
+        gbl.subsys.token  = token_init_gbl();
+        gbl.subsys.import = import_init_gbl();
+        gbl.subsys.err    = err_init_gbl();
 
         gbl.one         = intvar_new(1LL);
         gbl.zero        = intvar_new(0LL);
@@ -251,10 +277,12 @@ cfile_deinit_global(void)
 
         VAR_DECR_REF(gbl.interned_strings);
 
-        codec_deinit_gbl(gbl_get_codec_subsys());
-        token_deinit_gbl(gbl_get_token_subsys());
-        import_deinit_gbl(gbl_get_import_subsys());
-        err_deinit_gbl(gbl_get_err_subsys());
+        codec_deinit_gbl(gbl.subsys.codec);
+        token_deinit_gbl(gbl.subsys.token);
+        import_deinit_gbl(gbl.subsys.import);
+        err_deinit_gbl(gbl.subsys.err);
+
+        memset(&gbl, 0, sizeof(gbl));
 
         VAR_DECR_REF(ArgumentError);
         VAR_DECR_REF(KeyError);
@@ -381,24 +409,27 @@ gbl_set_builtin_class(enum gbl_class_idx_t idx, Object *class)
 struct gbl_token_subsys_t *
 gbl_get_token_subsys(void)
 {
-        return &gbl.subsys.token;
+        bug_on(!gbl.subsys.token);
+        return gbl.subsys.token;
 }
 
 struct gbl_codec_subsys_t *
 gbl_get_codec_subsys(void)
 {
-        return &gbl.subsys.codec;
+        bug_on(!gbl.subsys.codec);
+        return gbl.subsys.codec;
 }
 
 struct gbl_import_subsys_t *
 gbl_get_import_subsys(void)
 {
-        return &gbl.subsys.import;
+        return gbl.subsys.import;
 }
 
 struct gbl_err_subsys_t *
 gbl_get_err_subsys(void)
 {
-        return &gbl.subsys.err;
+        bug_on(!gbl.subsys.err);
+        return gbl.subsys.err;
 }
 

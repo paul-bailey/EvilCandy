@@ -4,9 +4,12 @@
 #include <internal/import.h>
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>
-
-/* FIXME: Replace this with gbl accessor function */
 #include <internal/global.h>
+
+/* import runtime state */
+struct gbl_import_subsys_t {
+        Object *import_dict;
+};
 
 struct import_key_t {
         dev_t dev;
@@ -198,10 +201,11 @@ out_pop_path:
         return ret;
 }
 
-void
-import_init_gbl(struct gbl_import_subsys_t *subsys)
+struct gbl_import_subsys_t *
+import_init_gbl(void)
 {
         /* nothing to do; dict will be created only if needed */
+        return ecalloc(sizeof(struct gbl_import_subsys_t));
 }
 
 void
@@ -211,5 +215,6 @@ import_deinit_gbl(struct gbl_import_subsys_t *subsys)
                 VAR_DECR_REF(subsys->import_dict);
                 subsys->import_dict = NULL;
         }
+        efree(subsys);
 }
 

@@ -9,14 +9,6 @@
 #include <time.h>
 #include <errno.h>
 
-/*
- * Set to 1 to see occasional "test #nnn" progress.
- * Set to 2 when debugging, to see "Program: bigLiStOfGiBberIsh",
- *      which the assembler is trying to parse, before each test
- *      is run.  (Extremely verbose, will drag progress to a crawl).
- *
- * FIXME: This should be a command-line option
- */
 static int fuzzer_verbose = 0;
 
 struct strbuf_t {

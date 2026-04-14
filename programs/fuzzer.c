@@ -206,6 +206,10 @@ run_evilcandy(const char *program)
                 _exit(EXIT_SUCCESS);
                 return 0;
         }
+        if (pid == (pid_t)-1) {
+                perror("fork failed");
+                exit(EXIT_FAILURE);
+        }
 
         while (waited < 100) {
                 if (waitpid(pid, &status, WNOHANG) != 0)

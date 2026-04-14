@@ -3532,7 +3532,6 @@ assemble(const char *filename, FILE *fp, Object *localdict)
                 ret = (Object *)reassemble(a);
                 if (!ret) {
                         /* reassemble can only succeed or fail */
-                        err_print_last(stderr);
                         ret = ErrorVar;
                 }
         } else {

@@ -5,10 +5,10 @@
 #include <internal/errmsg.h>
 #include <internal/init.h>
 #include <internal/vm.h>
+#include <internal/global.h>
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
 
-#include <internal/global.h>
 
 static Object *
 do_setattr(Frame *fr)
@@ -205,9 +205,6 @@ do_exit(Frame *fr)
          * a generator, and therefore runs on a separate stack from the
          * mainline one?
          */
-        /* main.c */
-        extern void end_program(void);
-        extern void vm_clear_frames_for_exit(void);
         vm_clear_frames_for_exit();
         end_program();
         exit(0);

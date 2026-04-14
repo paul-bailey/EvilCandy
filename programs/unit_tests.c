@@ -162,17 +162,9 @@ static const char *RUNTIME_ERROR_SNIPPETS[] = {
         "class C() {};C().missing;",
         "class C() {};C().missing();",
 
+        /* regression checks - fuzz tests which used to crash */
+        "{let bar=bar(y=(38));}",
         NULL
-
-        /*
-         * TODO: Below would result in compile-time errors, not runtime
-         * errors.  But is our syntax fuzzer good enough, or should I
-         * make a test of these as well?
-         */
-#if 0
-        "{'a': 1}['b'];",
-        "try { missing_name; } finally { print('cleanup'); }",
-#endif
 };
 
 /*

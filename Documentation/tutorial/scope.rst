@@ -3,18 +3,42 @@ Scope of Variables
 
 .. highlight:: evc-console
 
-All variables declared with ``global`` are visible to every part of a
-the program, in every scope.  For this reason, ``global`` should be
-used sparingly.
+Global Variables
+----------------
 
-The scope of variables declared with ``let`` depends on where it is
-declared.  In interactive mode, a variable at the top-level is semi-global;
-it is visible to any code typed by the user, but it is not visible to
-scripts being loaded.  In script mode, such variables behave more like
-local variables in a wrapper function—a function which refers to them
-will result in the creation of a closure—but the effect is mostly the same.
+Global variables are declared with ``global``. They are visible to
+every part of the program, in every scope.  For this reason, ``global``
+should be used sparingly.  Global visibility was mainly intended to let
+built-in functions like ``print()`` and ``abs()`` be visible everywhere.
 
-A variable created within a function is not visible to the wrapping code::
+Session Variables
+-----------------
+
+Session variables include any variables declared with ``let`` at the top-level
+scope during an interactive session.  "Top-level" in this case means
+outside of *any* nested scope—function, flow-control, or block::
+
+  evc> let x = 1;       // Session scope
+  evc> {
+   ...     let y = 2;   // Not session scope
+   ... }
+
+Session-scope variables can be thought of as semi-global.  They are
+visible everywhere in the interactive session (and thus closures are
+not created if a nested function refers back to them), but they are
+*not* visible to an imported script.
+
+Local Variables
+---------------
+
+Local variables are all those variables declared with ``let`` which are
+not session variables.  This is different from some programming languages.
+In EvilCandy, scripts are thought of as functions, and any function in
+the script is thought of as a nested function.  So any function which
+refers to a file-scope variable will create a closure.
+
+A variable created within a function is never visible to the wrapping
+code::
 
   evc> function myfunc(x) {
    ...    return x;
@@ -29,11 +53,6 @@ The same is true for variables declared inside a program-flow statement::
    ... }
   evc> print(x);
   [EvilCandy] NameError Symbol 'x' not found
-
-A symbol declared with ``let`` in a script is invisible outside the script.
-(We'll get to scripts later, but a placeholder explanation is that scripts
-are treated like functions that return a value; the "name" of that value
-is assigned to the variable that stores the import result.)
 
 A local variable overrides variables declared in a parent or global scope::
 

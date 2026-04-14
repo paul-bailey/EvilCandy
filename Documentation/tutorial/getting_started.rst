@@ -125,16 +125,8 @@ with one of two keywords:
      let x;
      let y = 1;
 
-.. note::
-
-   EvilCandy has a special third kind of variable: In interactive mode,
-   variables declared with ``let`` at top-level scope (ie. not in a function
-   or a program-flow statement) have visibility at every scope of the
-   interactive namespace.  They are local in that scripts being imported
-   cannot "see" them, but they can otherwise be thought of as global.
-   This has implications later when we discuss closures.
-
-   This third kind of variable does not occur in script mode.
+A third kind of variable, *session variables*, will be discussed
+later.
 
 If a variable is declared without an initializer,
 it will be initialized to the ``null`` object::
@@ -156,6 +148,18 @@ it can be re-assigned to a different type later::
 
 ``typeof`` is another built-in function that automatically
 exists in the global namespace at startup.
+
+.. note::
+
+   An initializer expression can refer back to the object being
+   initialized.  The object will be set to ``null`` briefly
+   before being assigned the initializer value.  Keep this in mind
+   if you are writing tests, because it means that the following
+   quirky statement will not raise a syntax error::
+
+      evc> let x = x;
+      evc> print(x);
+      null
 
 Converting variables
 ~~~~~~~~~~~~~~~~~~~~

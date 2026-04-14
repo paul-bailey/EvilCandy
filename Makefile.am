@@ -104,6 +104,7 @@ noinst_HEADERS = \
         inc/internal/codec.h \
         inc/internal/cwd.h \
         inc/internal/err.h \
+        inc/internal/errmsg.h \
         inc/internal/global.h \
         inc/internal/import.h \
         inc/internal/path.h \

@@ -1,6 +1,7 @@
 #include <evilcandy.h>
 #include <internal/types/number_types.h>
 #include <internal/type_registry.h>
+#include <internal/errmsg.h>
 #include <internal/init.h>
 #include <internal/vm.h>
 #include <stdlib.h> /* for atexit */

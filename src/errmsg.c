@@ -8,6 +8,7 @@
 #include <internal/type_registry.h>
 #include <internal/vm.h>
 #include <internal/codec.h>
+#include <internal/errmsg.h>
 
 void
 err_hashable(Object *obj, const char *fname)
@@ -30,19 +31,6 @@ err_iterable(Object *obj, const char *fname)
                 fname = NULL;
         err_setstr(TypeError, "%s%s'%s' is not iterable",
                 fname ? fname : "", fname ? "(): " : "", typestr(obj));
-}
-
-void
-err_decode(int codec, const char *why)
-{
-        char codecbuf[16];
-        if (!why)
-                why = "invalid data"; /* why else? */
-        codec_str(codec, codecbuf, sizeof(codecbuf));
-
-        /* TODO: replace with CodecError */
-        err_setstr(ValueError, "cannot decode data as %s: %s",
-                   codecbuf, why);
 }
 
 /* codec is -1 if not decoding/encoding a string or file */
@@ -99,24 +87,6 @@ err_locked(void)
 {
         err_setstr(RuntimeError,
                    "Operation not permitted while object is locked");
-}
-
-/* @op: string expression of operation, eg "*", "+", "<<", etc. */
-void
-err_permit(const char *op, Object *var)
-{
-        err_setstr(TypeError,
-                   "%s operator not permitted for type %s",
-                   op, typestr(var));
-}
-
-/* @op same as with err_permit */
-void
-err_permit2(const char *op, Object *a, Object *b)
-{
-        err_setstr(TypeError,
-                   "%s operator not permitted between %s and %s",
-                   op, typestr(a), typestr(b));
 }
 
 void

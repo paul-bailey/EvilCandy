@@ -6,6 +6,24 @@
 #include <internal/op.h>
 #include <internal/types/number_types.h>
 
+/* @op: string expression of operation, eg "*", "+", "<<", etc. */
+static void
+err_permit(const char *op, Object *var)
+{
+        err_setstr(TypeError,
+                   "%s operator not permitted for type %s",
+                   op, typestr(var));
+}
+
+/* @op same as with err_permit */
+static void
+err_permit2(const char *op, Object *a, Object *b)
+{
+        err_setstr(TypeError,
+                   "%s operator not permitted between %s and %s",
+                   op, typestr(a), typestr(b));
+}
+
 /*
  * Return proper number methods
  * For numbers, precedence is (high to low) complex, float, integer.

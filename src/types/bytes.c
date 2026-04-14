@@ -1,6 +1,7 @@
 /* bytes.c - Built-in methods for bytes data types */
 
 #include <evilcandy.h>
+#include <internal/errmsg.h>
 #include <internal/type_registry.h>
 #include <internal/types/number_types.h>
 #include <internal/types/sequential_types.h>

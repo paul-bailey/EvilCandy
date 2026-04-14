@@ -10,6 +10,7 @@
  * file before I thought things through.
  */
 #include <evilcandy.h>
+#include <internal/errmsg.h>
 #include <internal/type_registry.h>
 #include <internal/types/sequential_types.h>
 #include <stdlib.h> /*< XXX for qsort only, will be made manua later */

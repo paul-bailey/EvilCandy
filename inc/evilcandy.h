@@ -71,7 +71,6 @@ extern void fail(const char *msg, ...);
 extern void err_setstr(Object *exc, const char *msg, ...);
 extern void err_set_from_user(Object *exc);
 extern Object *err_get(void);
-extern void err_print(FILE *fp, Object *exc);
 extern void err_print_last(FILE *fp);
 extern bool err_occurred(void);
 extern void err_clear(void);
@@ -79,24 +78,8 @@ extern void err_clear(void);
 /* errmsg.c */
 extern void err_hashable(Object *obj, const char *fname);
 extern void err_iterable(Object *obj, const char *fname);
-extern void err_decode(int codec, const char *why);
-extern void err_ord(int codec, long ord);
-extern void err_attribute(const char *getorset,
-                          Object *deref, Object *obj);
-extern void err_subscript(const char *getorset,
-                          Object *deref, Object *obj);
-extern void err_index(Object *index);
-extern void err_argtype(const char *what);
-extern void err_locked(void);
-extern void err_permit(const char *op, Object *var);
-extern void err_permit2(const char *op, Object *a, Object *b);
 extern void err_errno(const char *msg, ...);
-extern void err_notreal(const char *tpname);
 extern void err_doublearg(const char *argname);
-extern void err_exactargs(int nargs, int expect);
-extern void err_minargs(int nargs, int expect);
-extern void err_frame_minargs(Frame *fr, int expect);
-extern void err_va_minargs(Object *varargs, int expect);
 extern void err_maxargs(int nargs, int expect);
 
 /* disassemble.c */

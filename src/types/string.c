@@ -37,6 +37,8 @@
 #include <evilcandy.h>
 #include <errno.h>
 #include <math.h>
+#include <internal/codec.h>
+#include <internal/errmsg.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>
 #include <internal/types/number_types.h>
@@ -2741,6 +2743,19 @@ string_writer_decode_ascii(struct string_writer_t *wr,
                 return -1;
         }
         return n;
+}
+
+static void
+err_decode(int codec, const char *why)
+{
+        char codecbuf[16];
+        if (!why)
+                why = "invalid data"; /* why else? */
+        codec_str(codec, codecbuf, sizeof(codecbuf));
+
+        /* TODO: replace with CodecError */
+        err_setstr(ValueError, "cannot decode data as %s: %s",
+                   codecbuf, why);
 }
 
 /* ie ((c & 0xc0) == 0x80), but usu. one less instruction */

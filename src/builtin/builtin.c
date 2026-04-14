@@ -2,6 +2,7 @@
 #include <evilcandy.h>
 #include <internal/type_registry.h>
 #include <internal/builtin/io.h>
+#include <internal/errmsg.h>
 #include <internal/init.h>
 #include <internal/vm.h>
 #include <stdlib.h> /* exit */

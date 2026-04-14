@@ -352,7 +352,7 @@ err_get(void)
         return ret;
 }
 
-void
+static void
 err_print(FILE *fp, Object *exc)
 {
         bool tty;

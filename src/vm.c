@@ -17,6 +17,7 @@
 #include <internal/types/string.h>
 #include <internal/types/xptr.h>
 #include <internal/types/sequential_types.h>
+#include <internal/errmsg.h>
 #include <internal/init.h>
 #include <internal/vm.h>
 

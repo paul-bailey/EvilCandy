@@ -12,6 +12,7 @@
  * variables for built-in functions.
  */
 #include <evilcandy.h>
+#include <internal/errmsg.h>
 #include <internal/type_registry.h>
 #include <internal/types/xptr.h>
 #include <internal/types/sequential_types.h>

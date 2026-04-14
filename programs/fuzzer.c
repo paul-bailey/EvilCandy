@@ -281,7 +281,8 @@ mutate(char *buf, size_t len, size_t cap)
         }
 }
 
-static void
+/* TODO: add option to not bail on the first failure */
+static int
 fuzz_loop(unsigned int n_tests, unsigned int seed)
 {
         static char program[8096];
@@ -307,15 +308,16 @@ fuzz_loop(unsigned int n_tests, unsigned int seed)
                         fprintf(stderr, "[Evilcandy Fuzzer]: Test #%d failed\n", i);
                         fprintf(stderr, "[Evilcandy Fuzzer]: Seed:    %u\n", seed);
                         fprintf(stderr, "[Evilcandy Fuzzer]: Program: %s\n", program);
-                        return;
+                        return -1;
                 }
         }
+        return 0;
 }
 
 int
 main(int argc, char **argv)
 {
-        int opt;
+        int opt, ret;
         unsigned int seed = clock();
 
         /* TODO: "--help" option */
@@ -332,7 +334,7 @@ main(int argc, char **argv)
                         if (endptr == argv[opt] || errno) {
 err_parse_seed:
                                 fprintf(stderr, "Expected: --seed <n>\n");
-                                return 1;
+                                return EXIT_FAILURE;
                         }
                 } else if (!strcmp(argv[opt], "-n")) {
                         char *endptr;
@@ -343,11 +345,11 @@ err_parse_seed:
                         if (endptr == argv[opt] || errno) {
 err_parse_n:
                                 fprintf(stderr, "Execpted: -n <n>\n");
-                                return 1;
+                                return EXIT_FAILURE;
                         }
                 } else {
                         fprintf(stderr, "invalid option\n");
-                        return 1;
+                        return EXIT_FAILURE;
                 }
         }
 
@@ -358,10 +360,11 @@ err_parse_n:
 
         if (opt_nofork)
                 initialize_program();
-        fuzz_loop(opt_ntests, seed);
+        ret = fuzz_loop(opt_ntests, seed);
         if (opt_nofork)
                 end_program();
 
-       printf("[Evilcandy Fuzzer]: ...Test complete\n");
+        printf("[Evilcandy Fuzzer]: ...Test complete\n");
+        return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 

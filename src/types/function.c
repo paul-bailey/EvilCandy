@@ -89,48 +89,43 @@ function_call(Frame *fr, Object *func, Object *args, Object *kwargs)
 
         if (!isvar_function(func)) {
                 err_setstr(ValueError, "Object is not callable");
-                goto err_consume_kwargs;
+                return ErrorVar;
         }
 
         fh = V2FUNC(func);
         bug_on(fh->f_magic != FUNC_INTERNAL && fh->f_magic != FUNC_USER);
 
         if (kwargs){
-                /*
-                 * This looks asymmetric, but the idea is if we created
-                 * kwargs in function_call(), then we destroy it; if not,
-                 * then calling code decides whether or not to destroy it.
-                 * This produce here makes the consume below balanced.
-                 */
-                VAR_INCR_REF(kwargs);
                 if (fh->f_kwind < 0) {
                         err_setstr(ArgumentError,
                                    "Keyword arguments not supported for this function");
-                        goto err_consume_kwargs;
+                        return ErrorVar;
                 }
-        } else if (fh->f_kwind >= 0) {
+
                 /*
-                 * I would love to change this to something like
-                 * "dict = VAR_NEW_REF(gbl.empty_dict)", but it's
-                 * possible for a script function to stuff an item
-                 * into its keyword-arg dictionary.  So make them
-                 * always be unique.
+                 * Since we could be creating kwargs (the clause below),
+                 * produce a reference here to keep it balanced.
                  */
+                VAR_INCR_REF(kwargs);
+        } else if (fh->f_kwind >= 0) {
                 kwargs = dictvar_new();
         }
         /* else, leave kwargs NULL */
 
         if (vmframe_unpack_args(fr, fh->f_optind, args,
                                 kwargs, &nr_args) == RES_ERROR) {
-                goto err_consume_kwargs;
+                if (kwargs)
+                        VAR_DECR_REF(kwargs);
+                return ErrorVar;
         }
 
         /*
-         * kwargs is either NULL or on stack now, so no need to
-         * consume them directly anymore.
+         * If kwargs is non-NULL, ownership of its reference is with VM
+         * now that it's on the stack, so we no longer fuss over its
+         * reference count.
          */
         if (function_argc_check(fh, nr_args) != RES_OK)
-                goto err;
+                return ErrorVar;
 
         if (fh->f_magic == FUNC_INTERNAL) {
                 bug_on(!fh->f_cb);
@@ -142,16 +137,11 @@ function_call(Frame *fr, Object *func, Object *args, Object *kwargs)
                                     : NULL;
                 if (vmframe_finish_stack_setup(fr, fh->f_ex, closures)
                     == RES_ERROR) {
-                        goto err;
+                        return ErrorVar;
                 }
                 return execute_loop(fr);
         }
 
-err_consume_kwargs:
-        if (kwargs)
-                VAR_DECR_REF(kwargs);
-err:
-        return ErrorVar;
 }
 
 void

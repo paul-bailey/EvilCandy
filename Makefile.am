@@ -129,6 +129,24 @@ noinst_HEADERS = \
         inc/lib/utf8.h \
         tools/gen.h
 
+BUILT_SOURCES= \
+        inc/instruction_defs.h \
+        inc/token_gen.h \
+        src/disassemble_gen.c.h \
+        src/tokutils_gen.c \
+        src/vm_gen.c.h
+
+.PHONY: headercheck
+headercheck: $(noinst_HEADERS) $(BUILT_SOURCES)
+	@failed=0; \
+        for header in $(noinst_HEADERS); do \
+          echo "Checking header $$header"; \
+          if ! $(COMPILE) -I$(top_srcdir)/inc -c $$header -o /dev/null; \
+            then failed=1; \
+          fi; \
+        done; \
+        exit $$failed
+
 COMMON_LDADD=-lm src/libevilcandy.a
 if WANT_READLINE
 COMMON_LDADD+=-lreadline
@@ -165,13 +183,6 @@ nodist_COMMON_SOURCES = \
 nodist_evilcandy_SOURCES = $(nodist_COMMON_SOURCES)
 nodist_programs_unit_tests_SOURCES = $(nodist_COMMON_SOURCES)
 nodist_programs_fuzzer_SOURCES = $(nodist_COMMON_SOURCES)
-
-BUILT_SOURCES= \
-        inc/instruction_defs.h \
-        inc/token_gen.h \
-        src/disassemble_gen.c.h \
-        src/tokutils_gen.c \
-        src/vm_gen.c.h
 
 CLEANFILES = \
         inc/instruction_defs.h \

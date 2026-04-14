@@ -318,6 +318,7 @@ main(int argc, char **argv)
         int opt;
         unsigned int seed = clock();
 
+        /* TODO: "--help" option */
         for (opt = 1; opt < argc; opt++) {
                 if (!strcmp(argv[opt], "--nofork")) {
                         opt_nofork = true;
@@ -331,6 +332,17 @@ main(int argc, char **argv)
                         if (endptr == argv[opt] || errno) {
 err_parse_seed:
                                 fprintf(stderr, "Expected: --seed <n>\n");
+                                return 1;
+                        }
+                } else if (!strcmp(argv[opt], "-n")) {
+                        char *endptr;
+                        opt++;
+                        if (opt >= argc)
+                                goto err_parse_n;
+                        opt_ntests = strtoul(argv[opt], &endptr, 0);
+                        if (endptr == argv[opt] || errno) {
+err_parse_n:
+                                fprintf(stderr, "Execpted: -n <n>\n");
                                 return 1;
                         }
                 } else {

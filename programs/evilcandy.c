@@ -201,6 +201,7 @@ run_tty(struct options_t *opt)
                         break;
                 } else if (ex == ErrorVar) {
                         err_print_last(stderr);
+                        token_flush_tty(NULL);
                 } else {
                         if (dfp)
                                 disassemble_lite(dfp, ex);

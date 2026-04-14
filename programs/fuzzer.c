@@ -14,6 +14,8 @@
  * Set to 2 when debugging, to see "Program: bigLiStOfGiBberIsh",
  *      which the assembler is trying to parse, before each test
  *      is run.  (Extremely verbose, will drag progress to a crawl).
+ *
+ * FIXME: This should be a command-line option
  */
 #define FUZZER_VERBOSE 1
 
@@ -305,6 +307,7 @@ fuzz_loop(unsigned int n_tests, unsigned int seed)
                 }
 
                 if (run_evilcandy(program) < 0) {
+                        fprintf(stderr, "[Evilcandy Fuzzer]: Fuzzer for " EVILCANDY_VERSION);
                         fprintf(stderr, "[Evilcandy Fuzzer]: Test #%d failed\n", i);
                         fprintf(stderr, "[Evilcandy Fuzzer]: Seed:    %u\n", seed);
                         fprintf(stderr, "[Evilcandy Fuzzer]: Program: %s\n", program);

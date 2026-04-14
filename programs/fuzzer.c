@@ -17,7 +17,7 @@
  *
  * FIXME: This should be a command-line option
  */
-#define FUZZER_VERBOSE 1
+static int fuzzer_verbose = 0;
 
 struct strbuf_t {
         char *buf;
@@ -299,10 +299,10 @@ fuzz_loop(unsigned int n_tests, unsigned int seed)
                         mutate(program, strlen(program), sizeof(program));
                 }
 
-                if (FUZZER_VERBOSE) {
+                if (fuzzer_verbose) {
                         if (i % (10 * 1000) == 0)
                                 fprintf(stderr, "%d\n", i);
-                        if (FUZZER_VERBOSE > 1)
+                        if (fuzzer_verbose > 1)
                                 fprintf(stderr, "test %d\n", i);
                 }
 
@@ -317,6 +317,31 @@ fuzz_loop(unsigned int n_tests, unsigned int seed)
         return 0;
 }
 
+static void
+print_help(FILE *fp)
+{
+        static const char *HELPSTR =
+        "OPTIONS:\n"
+        "    --nofork        Do not fork the program.  Not recommended for automated\n"
+        "                    regression testing, but it's a lot faster for manual\n"
+        "                    testing.\n"
+        "    --seed SEED     Select seed.  If this option is not used, a random seed\n"
+        "                    will be chosen and printed to stderr.\n"
+        "    -n COUNT        Select number of tests to run.  By default, this is\n"
+        "                    50000, unless --nofork is used, in which it will be\n"
+        "                    1000000\n"
+        "    -vN             Set verbosity level.  N is single-digit, with no space\n"
+        "                    separating it from -v.  N is zero by default.  Only the\n"
+        "                    start/stop messages and any errors detected will be\n"
+        "                    printed to stderr.  If N is one, then a status update\n"
+        "                    will be printed every 10000 lines.  If N is greater than\n"
+        "                    one, then the test about to be run is printed for every\n"
+        "                    test.\n";
+
+        fprintf(fp, "fuzzer - fuzzer test for " EVILCANDY_VERSION "\n\n");
+        fprintf(fp, "%s\n", HELPSTR);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -325,6 +350,15 @@ main(int argc, char **argv)
 
         /* TODO: "--help" option */
         for (opt = 1; opt < argc; opt++) {
+                /*
+                 * --nofork: You should only use this either in conj.
+                 * with --seed or by simply monitoring the output, so
+                 * that if there's a failure, you can re-run the program.
+                 * This is because --nofork is much faster than
+                 * otherwise and failures are the exception; but failures
+                 * in an unforked program means that you will likely not
+                 * see the printout what actually failed.
+                 */
                 if (!strcmp(argv[opt], "--nofork")) {
                         opt_nofork = true;
                         opt_ntests = 1000 * 1000;
@@ -350,6 +384,16 @@ err_parse_n:
                                 fprintf(stderr, "Execpted: -n <n>\n");
                                 return EXIT_FAILURE;
                         }
+                } else if (argv[opt][0] == '-' && argv[opt][1] == 'v') {
+                        if (!isdigit(argv[opt][2])) {
+                                fprintf(stderr, "Expected -v[0-9]");
+                                return EXIT_FAILURE;
+                        }
+                        fuzzer_verbose = argv[opt][2] - '0';
+                } else if (!strcmp(argv[opt], "--help")
+                           || !strcmp(argv[opt], "-h")) {
+                        print_help(stdout);
+                        return EXIT_SUCCESS;
                 } else {
                         fprintf(stderr, "invalid option\n");
                         return EXIT_FAILURE;
@@ -359,7 +403,10 @@ err_parse_n:
         /* deterministic seed, so we can repeat this test */
         srand(seed);
 
-        printf("[EvilCandy Fuzzer]: Testing with seed %u...\n", seed);
+        /* TODO: logging mechanism, not the shell. */
+        fprintf(stderr,
+                "[EvilCandy Fuzzer]: Testing with seed %u...\n",
+                seed);
 
         if (opt_nofork)
                 initialize_program();
@@ -367,7 +414,7 @@ err_parse_n:
         if (opt_nofork)
                 end_program();
 
-        printf("[Evilcandy Fuzzer]: ...Test complete\n");
+        fprintf(stderr, "[Evilcandy Fuzzer]: ...Test complete\n");
         return ret < 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 

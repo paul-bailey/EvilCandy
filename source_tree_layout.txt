@@ -20,7 +20,9 @@
         |       |               and which can with relative ease be
         |       |               ported to a different project.
         |       |
-        |       +---internal/   Limited-API headers
+        |       +---internal/   Internal headers
+        |       |
+        |       +---evilcandy/  Public API headers
         |
         +-------lib/            The main library of scripts that user
         |                       sources can load by default.  These ought
@@ -34,5 +36,10 @@
         +-------tools/          Code generators & such.
         |
         +-------etc/            Miscellaneous files and programs.
+        |
+        +-----Documentation/    Documentation, which uses its own Makefile
+                                system (using Sphinx) separately from the
+                                auto-conf/auto-make configuration for the
+                                rest of the project.
 
 .. : vim: set syntax=rst :

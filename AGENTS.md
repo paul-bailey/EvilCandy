@@ -50,8 +50,8 @@ don't, then either these scripts or my C code has a bug.
 
 ## Source Tree Layout
 
-I am in the process of migrating to a new layout of my `include/` directory,
-but other than that, `source_tree_layout.txt` is mostly up-to-date.
+`source_tree_layout.txt` is a brief description of how I laid out
+this source tree.
 
 ## What to do if Makefile or ./configure are not present
 
@@ -63,6 +63,28 @@ prepare the source tree with:
 autoreconf -i
 ./configure --prefix=$HOME
 ```
+
+## Test programs
+
+Build tests using `make tests` for the following:
+
+* `programs/unit_tests`
+* `programs/fuzzer`
+
+Before running `programs/fuzzer`, keep in mind two things:
+
+1. If you run it without any arguments, it will be very slow, since
+   it forks to a child process for every iteration of the fuzz test.
+2. If you run it using the `--nofork` option, it will be much faster,
+   but if there was an error, you might not get a full printout of the
+   test; you would have to take note of the seed (printed on stderr
+   before the tests run) and rerun it without `--nofork` but with
+   `--seed N` (where `N` is the seed where the failure ran) in order
+   to see what the error was.
+
+Other tests include the EvilCandy scripts in `tests`.  Run those by
+building `evilcandy` the normal way (just `make`), and run, for example,
+`evilcandy tests/testsuite.evc`.
 
 ## Memory management in this source tree
 

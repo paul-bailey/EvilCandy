@@ -2,7 +2,6 @@
  * Placeholders until I can auto-generate this file from UnicodeData.txt
  * Thus far they only manage ASCII chars.
  */
-#include <evilcandy.h>
 #include <evilcandy/evc_ctype.h>
 #include <ctype.h>
 

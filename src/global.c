@@ -10,7 +10,6 @@
  * XXX REVISIT: global/gbl_xxxx is now a misleading name.
  * Maybe runtime/rt_xxx is more appropriate?
  */
-#include <evilcandy.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/types/bytes.h>

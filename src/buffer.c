@@ -46,7 +46,6 @@
 /* XXX: No longer appropriate as lib/buffer.h, should be evilcandy/buffer.h */
 #include <lib/buffer.h>
 #include <lib/helpers.h>
-#include <evilcandy.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/debug.h>
 #include <stdarg.h>

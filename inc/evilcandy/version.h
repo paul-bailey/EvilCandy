@@ -1,8 +1,8 @@
 /*
  * TODO: Move this -> evilcandy/version.h
  */
-#ifndef EVILCANDY_H
-#define EVILCANDY_H
+#ifndef EVILCANDY_VERSION_H
+#define EVILCANDY_VERSION_H
 
 #include "config.h"
 
@@ -12,4 +12,4 @@
 # define EVILCANDY_VERSION PACKAGE_STRING
 #endif
 
-#endif /* EVILCANDY_H */
+#endif /* EVILCANDY_VERSION_H */

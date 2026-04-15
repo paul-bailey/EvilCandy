@@ -11,7 +11,6 @@
  * "vm_gen.c.h" and inserted with an #include in the middle of JUMP_TABLE
  * below.
  */
-#include <evilcandy.h>
 #include <evilcandy/iterator.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>

@@ -2,7 +2,6 @@
 #include <internal/codec.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>
-#include <evilcandy.h>
 #include <evilcandy/global.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/types/dict.h>

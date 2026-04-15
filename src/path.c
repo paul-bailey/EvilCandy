@@ -1,4 +1,3 @@
-#include <evilcandy.h>
 #include <evilcandy/global.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/types/array.h>

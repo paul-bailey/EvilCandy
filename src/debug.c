@@ -7,7 +7,6 @@
  * When reporting a location where an exception was raised: use
  *      debug_mark_error()
  */
-#include <evilcandy.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/ewrappers.h>
 #include <internal/locations.h>

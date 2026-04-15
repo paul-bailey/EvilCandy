@@ -1,7 +1,6 @@
 /*
  * instruction_name.c - Get an instruction name from an enum or vice-versa
  */
-#include <evilcandy.h>
 #include <evilcandy/err.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/global.h>

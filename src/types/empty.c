@@ -1,4 +1,3 @@
-#include <evilcandy.h>
 #include <evilcandy/global.h>
 #include <evilcandy/hash.h>
 #include <evilcandy/types/string.h>

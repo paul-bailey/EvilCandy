@@ -3,7 +3,6 @@
  *
  * Most of these are syntactic-sugar wrappers to err_setstr.
  */
-#include <evilcandy.h>
 #include <evilcandy/err.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/errmsg.h>

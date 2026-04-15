@@ -2,7 +2,6 @@
  * XXX: Should be src/types/namespace.c instead of src/namespace.c, except
  * that it doesn't use its own struct type_t.
  */
-#include <evilcandy.h>
 #include <evilcandy/var.h>
 #include <evilcandy/global.h>
 #include <evilcandy/types/class.h>

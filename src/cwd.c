@@ -1,7 +1,6 @@
 /*
  * cwd.c - Hooks to things like getcwd, chdir, etc.
  */
-#include <evilcandy.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/types/string.h>
 #include <internal/cwd.h>

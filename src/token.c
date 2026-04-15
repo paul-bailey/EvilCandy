@@ -1,5 +1,4 @@
 /* token.c - Tokenizer code */
-#include <evilcandy.h>
 #include <evilcandy/myreadline.h>
 #include <evilcandy/strto.h>
 #include <evilcandy/debug.h>

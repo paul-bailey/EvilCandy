@@ -2,7 +2,6 @@
  * Implementation of ClassType and InstanceType objects.
  * MethodType objects are in method.c
  */
-#include <evilcandy.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/var.h>
 #include <evilcandy/global.h>

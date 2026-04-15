@@ -127,7 +127,6 @@
  * Please do not abuse the nesting of tuples and dictionaries.  This
  * was merely inteded for argument unpacking.
  */
-#include <evilcandy.h>
 #include <evilcandy/err.h>
 #include <evilcandy/global.h>
 #include <evilcandy/types/dict.h>
@@ -137,7 +136,10 @@
 #include <internal/types/string.h>
 #include <internal/types/number_types.h>
 #include <internal/types/sequential_types.h>
+#include <lib/helpers.h>
+
 #include <stdarg.h>
+#include <limits.h>
 
 /* flags arg...there used to be more */
 enum {

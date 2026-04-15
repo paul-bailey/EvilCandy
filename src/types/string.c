@@ -56,9 +56,14 @@
 #include <internal/types/string.h>
 #include <internal/types/number_types.h>
 #include <internal/types/sequential_types.h>
+#include <lib/helpers.h>
+#include <lib/buffer.h>
+#include <lib/utf8.h>
 
 #include <errno.h>
 #include <math.h>
+#include <ctype.h>
+#include <limits.h>
 
 /* user argument limits */
 enum {

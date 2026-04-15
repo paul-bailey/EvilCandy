@@ -18,7 +18,6 @@
  * 'break' or 'continue' in block.  For exceptions, maybe use a parallel
  * exception table like Python uses, to forgo PUSH_BLOCK for exceptions.
  */
-#include <evilcandy.h>
 #include <evilcandy/global.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/err.h>
@@ -32,6 +31,8 @@
 #include <internal/assemble.h>
 #include <internal/locations.h>
 #include <internal/op.h>
+#include <internal/types/internal_types.h>
+#include <string.h>
 
 /*
  * Simplification of labels and removal of detected unreachable code is

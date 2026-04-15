@@ -1,9 +1,11 @@
 #include <evilcandy.h>
+#include <evilcandy/assemble.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/var.h>
 #include <internal/init.h>
+#include <lib/helpers.h>
 
 #include <assert.h>
 #include <sys/wait.h>
@@ -12,6 +14,8 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
+#include <string.h>
+#include <ctype.h>
 
 static int fuzzer_verbose = 0;
 

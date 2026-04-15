@@ -1,7 +1,7 @@
 #ifndef EVC_INC_INTERNAL_ASSEMBLE_H
 #define EVC_INC_INTERNAL_ASSEMBLE_H
 
-#include <instructions.h>
+#include <internal/instructions.h>
 #include <internal/token.h>
 #include <internal/types/sequential_types.h>
 #include <lib/buffer.h>

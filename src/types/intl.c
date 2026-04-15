@@ -1,9 +1,10 @@
 /* Internal types: UuidType, IdType */
-#include <evilcandy.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/types/string.h>
 #include <internal/type_registry.h>
+#include <internal/types/internal_types.h>
+#include <lib/helpers.h>
 
 /*
  * TODO; Delete this object class.

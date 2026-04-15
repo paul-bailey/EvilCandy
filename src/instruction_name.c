@@ -10,6 +10,7 @@
 #include <evilcandy/types/number_types.h>
 #include <internal/types/number_types.h>
 #include <internal/vm.h>
+#include <internal/instruction_name.h>
 
 static const char *INSTR_NAMES[N_INSTR] = {
 #include "disassemble_gen.c.h"

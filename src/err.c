@@ -10,10 +10,13 @@
 #include <internal/err.h>
 #include <internal/token.h>
 #include <internal/types/string.h>
+#include <lib/helpers.h>
+
 #include <stdarg.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <unistd.h>
+#include <ctype.h>
 
 /* FIXME: Replace this with gbl accessor functions */
 #include <internal/global.h>

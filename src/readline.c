@@ -1,8 +1,11 @@
-#include <evilcandy.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/myreadline.h>
+#include <lib/helpers.h>
+
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #ifdef HAVE_READLINE
 #include <readline/readline.h>

@@ -10,6 +10,7 @@
 #include <internal/init.h>
 
 #include <stdlib.h>
+#include <string.h>
 
 #if DBUG_PROFILE_MALLOC_USAGE
 

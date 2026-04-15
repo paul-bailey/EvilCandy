@@ -13,7 +13,10 @@
 #include <internal/vm.h>
 #include <internal/codec.h>
 #include <internal/errmsg.h>
+
 #include <errno.h>
+#include <string.h>
+#include <stdarg.h>
 
 void
 err_hashable(Object *obj, const char *fname)

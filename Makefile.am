@@ -87,6 +87,8 @@ evilcandy_SOURCES = programs/evilcandy.c
 
 noinst_HEADERS = \
         inc/evilcandy.h \
+        inc/evilcandy/assemble.h \
+        inc/evilcandy/strto.h \
         inc/evilcandy/debug.h \
         inc/evilcandy/compiler.h \
         inc/evilcandy/disassemble.h \
@@ -97,25 +99,28 @@ noinst_HEADERS = \
         inc/evilcandy/ewrappers.h \
         inc/evilcandy/global.h \
         inc/evilcandy/hash.h \
+        inc/evilcandy/myreadline.h \
         inc/evilcandy/typedefs.h \
         inc/evilcandy/var.h \
         inc/evilcandy/vm.h \
         inc/evilcandy/string_reader.h \
         inc/evilcandy/string_writer.h \
+        inc/evilcandy/iterator.h \
         inc/evilcandy/types/array.h \
         inc/evilcandy/types/bytes.h \
         inc/evilcandy/types/cell.h \
         inc/evilcandy/types/class.h \
         inc/evilcandy/types/dict.h \
         inc/evilcandy/types/function.h \
+        inc/evilcandy/types/generator.h \
         inc/evilcandy/types/method.h \
         inc/evilcandy/types/number_types.h \
         inc/evilcandy/types/property.h \
         inc/evilcandy/types/set.h \
         inc/evilcandy/types/string.h \
         inc/evilcandy/types/tuple.h \
-        inc/instructions.h \
-        inc/iterator.h \
+        inc/internal/instructions.h \
+        inc/internal/instruction_name.h \
         inc/internal/recursion.h \
         inc/internal/codec.h \
         inc/internal/cwd.h \
@@ -138,6 +143,7 @@ noinst_HEADERS = \
         inc/internal/builtin/sys.h \
         inc/internal/builtin/uuid.h \
         inc/internal/types/number_types.h \
+        inc/internal/types/internal_types.h \
         inc/internal/types/sequential_types.h \
         inc/internal/types/string.h \
         inc/internal/types/xptr.h \

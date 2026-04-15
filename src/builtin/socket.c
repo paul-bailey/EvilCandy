@@ -54,6 +54,7 @@
 #include <internal/types/string.h>
 #include <internal/types/sequential_types.h>
 #include <internal/init.h>
+#include <lib/helpers.h>
 
 #include <errno.h>
 /* TODO: Auto-conf all these things */

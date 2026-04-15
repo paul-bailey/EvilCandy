@@ -1,7 +1,7 @@
 #ifndef EVILCANDY_XPTR_H
 #define EVILCANDY_XPTR_H
 
-#include <instructions.h>
+#include <internal/instructions.h>
 #include <evilcandy/typedefs.h>
 #include <evilcandy/var.h>
 

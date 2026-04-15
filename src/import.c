@@ -1,5 +1,4 @@
-#include <sys/stat.h>
-#include <evilcandy.h>
+#include <evilcandy/assemble.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/err.h>
@@ -16,6 +15,9 @@
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>
 #include <internal/global.h>
+
+#include <sys/stat.h>
+#include <string.h>
 
 /* import runtime state */
 struct gbl_import_subsys_t {

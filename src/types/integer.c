@@ -1,4 +1,5 @@
 #include <evilcandy/debug.h>
+#include <evilcandy/strto.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
@@ -10,6 +11,9 @@
 #include <internal/uarg.h>
 #include <internal/type_registry.h>
 #include <internal/types/number_types.h>
+#include <lib/helpers.h>
+
+#include <limits.h>
 
 #define V2I(v)  ((struct intvar_t *)v)
 

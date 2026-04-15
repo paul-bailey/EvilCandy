@@ -7,9 +7,11 @@
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/disassemble.h>
 #include <internal/token.h>
+#include <internal/instruction_name.h>
 #include <internal/types/xptr.h>
 #include <internal/types/string.h>
 #include <internal/types/sequential_types.h>
+#include <lib/helpers.h>
 
 #define IARG(x)   [IARG_##x]  = #x
 #define IARGP(x)  [IARG_PTR_##x]  = #x

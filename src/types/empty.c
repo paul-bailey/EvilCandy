@@ -3,6 +3,7 @@
 #include <evilcandy/hash.h>
 #include <evilcandy/types/string.h>
 #include <internal/type_registry.h>
+#include <internal/types/internal_types.h>
 
 static bool
 empty_cmpz(Object *v)

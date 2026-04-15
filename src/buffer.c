@@ -43,11 +43,14 @@
  * DO NOT mix/match the binary API and the C-string API on the
  * same buffer unless you call buffer_reset between them.
  */
+/* XXX: No longer appropriate as lib/buffer.h, should be evilcandy/buffer.h */
 #include <lib/buffer.h>
+#include <lib/helpers.h>
 #include <evilcandy.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/debug.h>
 #include <stdarg.h>
+#include <string.h>
 
 static void
 buffer_init_(struct buffer_t *b)

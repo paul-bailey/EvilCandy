@@ -8,6 +8,7 @@
  * TODO: For the sake of non-string keys, store the hash number with
  * d_keys, d_vals.
  */
+#include <evilcandy/iterator.h>
 #include <evilcandy/string_writer.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
@@ -24,6 +25,10 @@
 #include <internal/uarg.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>
+#include <internal/types/internal_types.h>
+#include <lib/helpers.h>
+
+#include <limits.h>
 
 /**
  * struct dictvar_t - Descriptor for an object handle

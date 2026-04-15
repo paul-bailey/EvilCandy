@@ -18,6 +18,11 @@
 #include <internal/type_registry.h>
 #include <internal/types/number_types.h>
 #include <internal/types/sequential_types.h>
+#include <lib/buffer.h>
+#include <lib/helpers.h>
+
+#include <ctype.h>
+#include <string.h>
 
 #define V2B(v_) ((struct bytesvar_t *)(v_))
 

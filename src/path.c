@@ -6,9 +6,8 @@
 #include <internal/path.h>
 #include <internal/builtin/sys.h>
 #include <internal/types/string.h>
-
-/* FIXME: replace with gbl accessor functions */
 #include <internal/global.h>
+#include <lib/helpers.h>
 
 #define SEP '/'
 #define DOT '.'

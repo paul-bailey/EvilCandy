@@ -1,3 +1,4 @@
+#include <evilcandy/iterator.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/hash.h>
 #include <evilcandy/global.h>
@@ -16,7 +17,10 @@
 #include <internal/errmsg.h>
 #include <internal/init.h>
 #include <internal/vm.h>
+
 #include <stdlib.h> /* for atexit */
+#include <string.h>
+#include <limits.h>
 
 /**
  * DOC: Variable malloc/free wrappers.

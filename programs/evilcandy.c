@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <evilcandy/assemble.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
@@ -12,6 +13,7 @@
 #include <internal/vm.h>
 
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <errno.h>
 

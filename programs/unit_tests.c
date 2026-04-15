@@ -1,4 +1,4 @@
-#include <evilcandy.h>
+#include <evilcandy/assemble.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/global.h>
 #include <evilcandy/vm.h>
@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <string.h>
 #include <errno.h>
 
 /* in child process */

@@ -12,6 +12,7 @@
  * below.
  */
 #include <evilcandy.h>
+#include <evilcandy/iterator.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/ewrappers.h>
@@ -22,19 +23,23 @@
 #include <evilcandy/types/class.h>
 #include <evilcandy/types/function.h>
 #include <evilcandy/types/dict.h>
+#include <evilcandy/types/generator.h>
 #include <evilcandy/types/string.h>
 #include <evilcandy/types/method.h>
 #include <evilcandy/types/set.h>
 #include <evilcandy/types/tuple.h>
 #include <internal/recursion.h>
+#include <internal/import.h>
 #include <internal/type_registry.h>
 #include <internal/op.h>
 #include <internal/types/string.h>
 #include <internal/types/xptr.h>
 #include <internal/types/sequential_types.h>
+#include <internal/types/internal_types.h>
 #include <internal/errmsg.h>
 #include <internal/init.h>
 #include <internal/vm.h>
+#include <lib/helpers.h>
 
 /* XXX: Need to be made per-thread */
 static struct vm_t {

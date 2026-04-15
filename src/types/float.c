@@ -1,4 +1,5 @@
 #include <evilcandy/debug.h>
+#include <evilcandy/strto.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
@@ -9,7 +10,10 @@
 #include <evilcandy/types/number_types.h>
 #include <internal/type_registry.h>
 #include <internal/types/number_types.h>
+#include <lib/helpers.h>
+
 #include <math.h>
+#include <string.h>
 
 #define V2F(v)  ((struct floatvar_t *)(v))
 

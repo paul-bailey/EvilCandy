@@ -19,6 +19,7 @@
 #include <internal/assemble.h>
 #include <internal/op.h>
 #include <internal/types/number_types.h>
+#include <internal/types/internal_types.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <ctype.h>

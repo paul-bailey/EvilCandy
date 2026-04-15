@@ -28,6 +28,7 @@
 #include <internal/import.h>
 #include <internal/token.h>
 #include <internal/types/string.h>
+#include <internal/types/internal_types.h>
 
 static struct global_t {
         bool interactive;

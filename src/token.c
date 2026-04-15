@@ -1,5 +1,7 @@
 /* token.c - Tokenizer code */
 #include <evilcandy.h>
+#include <evilcandy/myreadline.h>
+#include <evilcandy/strto.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/err.h>
 #include <evilcandy/ewrappers.h>
@@ -11,6 +13,7 @@
 #include <internal/token.h>
 #include <internal/type_registry.h>
 #include <lib/buffer.h>
+#include <lib/helpers.h>
 
 #include <setjmp.h>
 #include <ctype.h>

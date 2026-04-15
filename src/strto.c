@@ -1,15 +1,17 @@
 /*
  * str2enum.c - It would be in helpers.c, except it's more project-specific.
  */
-#include <evilcandy.h>
+#include <evilcandy/strto.h>
 #include <evilcandy/string_reader.h>
 #include <evilcandy/enums.h>
 #include <evilcandy/debug.h>
 #include <lib/buffer.h>
 #include <lib/helpers.h>
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <ctype.h>
 
 /**
  * evc_strtod - EvilCandy wrapper to stdlib's strtod

@@ -1,7 +1,7 @@
 #ifndef EVC_INC_INTERNAL_VM_H
 #define EVC_INC_INTERNAL_VM_H
 
-#include <instructions.h>
+#include <internal/instructions.h>
 #include <evilcandy/vm.h>
 
 struct block_t {

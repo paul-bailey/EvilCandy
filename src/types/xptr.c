@@ -6,6 +6,7 @@
 #include <internal/locations.h>
 #include <internal/types/sequential_types.h>
 #include <internal/types/xptr.h>
+#include <lib/helpers.h>
 
 #define V2XP(v_)        ((struct xptrvar_t *)(v_))
 

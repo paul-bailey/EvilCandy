@@ -34,7 +34,7 @@
  *      [^a].*_XXXX
  *              Poorly chosen function name :)
  */
-#include <evilcandy.h>
+#include <evilcandy/assemble.h>
 #include <evilcandy/global.h>
 #include <evilcandy/compiler.h>
 #include <evilcandy/err.h>
@@ -49,6 +49,7 @@
 #include <internal/assemble.h>
 #include <internal/types/xptr.h>
 #include <internal/types/string.h>
+#include <internal/types/internal_types.h>
 
 #if DBUG_PROFILE_LOAD_TIME
 # include <time.h>

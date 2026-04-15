@@ -1,4 +1,5 @@
 /* q-builtin.c - Built-in callbacks for script */
+#include <evilcandy/assemble.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
@@ -12,15 +13,17 @@
 #include <evilcandy/types/string.h>
 #include <evilcandy/types/method.h>
 #include <evilcandy/types/number_types.h>
+#include <internal/import.h>
 #include <internal/type_registry.h>
 #include <internal/builtin/io.h>
 #include <internal/errmsg.h>
 #include <internal/init.h>
 #include <internal/vm.h>
 #include <internal/global.h>
+
 #include <stdlib.h> /* exit */
 #include <errno.h>  /* strtol errno check */
-
+#include <string.h>
 
 static Object *
 do_setattr(Frame *fr)

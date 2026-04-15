@@ -1,7 +1,7 @@
 #include <evilcandy/debug.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/global.h>
-#include <iterator.h>
+#include <evilcandy/iterator.h>
 #include <internal/type_registry.h>
 
 /**

@@ -1,8 +1,9 @@
 #ifndef EVC_HASH_H
 #define EVC_HASH_H
 
-#include <evilcandy.h>
+#include <evilcandy/typedefs.h>
 #include <math.h>
+#include <stddef.h>
 
 #define HASH_ERROR      ((hash_t)-1)
 #define HASH_NONE       ((hash_t)0)

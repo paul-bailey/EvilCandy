@@ -40,6 +40,14 @@ debugging, and suggestions.  The following rules apply for AI agents:
    like to know, so I can either change my code back or change the
    documentation.
 
+7. The files I keep in `etc/ai_texts` are there for guidance, not for
+   strict documentation. They also serve as a reference I can cite to
+   provide context for an AI chat or review.  Therefore these files are
+   allowed to fall out of date.
+
+8. During reviews, there is no need to use `c_coding_style` to check the
+   style for any code that is already committed to version control.
+
 ## Temporary unit tests
 
 This source tree is an interpreter for a programming language called

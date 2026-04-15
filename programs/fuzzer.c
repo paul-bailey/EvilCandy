@@ -361,7 +361,6 @@ main(int argc, char **argv)
                  */
                 if (!strcmp(argv[opt], "--nofork")) {
                         opt_nofork = true;
-                        opt_ntests = 1000 * 1000;
                 } else if (!strcmp(argv[opt], "--seed")) {
                         char *endptr;
                         opt++;

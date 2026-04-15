@@ -1,11 +1,11 @@
 #ifndef EGQ_HELPERS_H
 #define EGQ_HELPERS_H
 
+#include <evilcandy/config.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <stdbool.h>
-#include "config.h"
 
 /* helpers.c */
 #ifndef HAVE_STRRSTR

@@ -1,7 +1,7 @@
 /*
  * helpers.c - Stuff that ought to be in the C standard library but isn't
  */
-#include "config.h"
+#include <evilcandy/config.h>
 #include <lib/helpers.h>
 #include <ctype.h>
 #include <string.h>

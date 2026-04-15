@@ -1,7 +1,8 @@
 #ifndef EVILCANDY_DEBUG_H
 #define EVILCANDY_DEBUG_H
 
-#include "config.h"
+#include <evilcandy/config.h>
+
 #include <stdio.h>
 #include <stdbool.h>
 

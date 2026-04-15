@@ -40,6 +40,7 @@
  * sk.sendto()             Send data over an unconnected socket
  * sk.close()              Close a socket
  */
+#include <evilcandy/config.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>

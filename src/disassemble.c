@@ -2,6 +2,7 @@
  * disassemble.c - Code that handles the -d or -D option, disassemble
  *                 bytecode back into text a user could read.
  */
+#include <evilcandy/config.h>
 #include <evilcandy/err.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/disassemble.h>

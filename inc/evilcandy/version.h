@@ -4,7 +4,7 @@
 #ifndef EVILCANDY_VERSION_H
 #define EVILCANDY_VERSION_H
 
-#include "config.h"
+#include <evilcandy/config.h>
 
 #ifdef GIT_VERSION
 # define EVILCANDY_VERSION PACKAGE_STRING "-" GIT_VERSION

@@ -127,6 +127,7 @@
  * Please do not abuse the nesting of tuples and dictionaries.  This
  * was merely inteded for argument unpacking.
  */
+#include <evilcandy/config.h>
 #include <evilcandy/err.h>
 #include <evilcandy/global.h>
 #include <evilcandy/types/dict.h>

@@ -1,3 +1,4 @@
+#include <evilcandy/config.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/myreadline.h>

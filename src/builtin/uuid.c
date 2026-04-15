@@ -1,4 +1,4 @@
-#include "config.h"
+#include <evilcandy/config.h>
 #include <evilcandy/ewrappers.h>
 #include <internal/builtin/uuid.h>
 

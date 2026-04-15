@@ -9,6 +9,7 @@
  *
  * The entry point is reassemble()
  */
+#include <evilcandy/config.h>
 #include <evilcandy/version.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/err.h>

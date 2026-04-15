@@ -3,6 +3,9 @@
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/method.h>
+#include <evilcandy/types/property.h>
 #include <internal/type_registry.h>
 
 struct propertyvar_t {

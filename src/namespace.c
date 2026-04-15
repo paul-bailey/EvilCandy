@@ -5,6 +5,7 @@
 #include <evilcandy.h>
 #include <evilcandy/var.h>
 #include <evilcandy/global.h>
+#include <evilcandy/types/class.h>
 
 /**
  * namespacevar_new - Create a new namespace object.

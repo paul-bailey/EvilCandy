@@ -1,7 +1,9 @@
 #ifndef EVC_INC_EVILCANDY_ERR_H
 #define EVC_INC_EVILCANDY_ERR_H
 
+#include <evilcandy/typedefs.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 /* err.c */
 extern void fail(const char *msg, ...);

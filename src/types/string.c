@@ -42,6 +42,11 @@
 #include <evilcandy/evc_ctype.h>
 #include <evilcandy/global.h>
 #include <evilcandy/hash.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/tuple.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/uarg.h>
 #include <internal/codec.h>
 #include <internal/errmsg.h>

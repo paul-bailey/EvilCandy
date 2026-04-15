@@ -5,6 +5,8 @@
 #include <evilcandy.h>
 #include <evilcandy/global.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/number_types.h>
 
 /* runtime state struct */
 struct gbl_codec_subsys_t {

@@ -3,6 +3,8 @@
  *            how these are used.
  */
 #include <evilcandy.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/method.h>
 #include <internal/type_registry.h>
 
 struct methodvar_t {

@@ -4,6 +4,9 @@
 #include <evilcandy.h>
 #include <evilcandy/err.h>
 #include <evilcandy/global.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/types/number_types.h>
 #include <internal/vm.h>
 

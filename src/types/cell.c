@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <evilcandy/types/cell.h>
 #include <internal/type_registry.h>
 
 struct cellvar_t {

@@ -6,6 +6,12 @@
  *                     special license is in order.
  */
 #include <evilcandy.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/function.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/number_types.h>
+#include <evilcandy/types/tuple.h>
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>
 

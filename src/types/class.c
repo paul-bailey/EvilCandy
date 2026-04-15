@@ -7,6 +7,13 @@
 #include <evilcandy/var.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/class.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/method.h>
+#include <evilcandy/types/set.h>
+#include <evilcandy/types/tuple.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>
 #include <internal/types/sequential_types.h>

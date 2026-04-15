@@ -10,6 +10,8 @@
  * file before I thought things through.
  */
 #include <evilcandy.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/number_types.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/err.h>
 #include <evilcandy/ewrappers.h>

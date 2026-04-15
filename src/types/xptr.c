@@ -1,6 +1,8 @@
 #include <evilcandy.h>
 #include <evilcandy/hash.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/tuple.h>
 #include <internal/locations.h>
 #include <internal/types/sequential_types.h>
 #include <internal/types/xptr.h>

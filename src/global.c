@@ -13,6 +13,13 @@
 #include <evilcandy.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
+#include <evilcandy/types/bytes.h>
+#include <evilcandy/types/class.h>
+#include <evilcandy/types/function.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/set.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/init.h>
 #include <internal/err.h>
 #include <internal/cwd.h>

@@ -100,6 +100,18 @@ noinst_HEADERS = \
         inc/evilcandy/typedefs.h \
         inc/evilcandy/var.h \
         inc/evilcandy/vm.h \
+        inc/evilcandy/types/array.h \
+        inc/evilcandy/types/bytes.h \
+        inc/evilcandy/types/cell.h \
+        inc/evilcandy/types/class.h \
+        inc/evilcandy/types/dict.h \
+        inc/evilcandy/types/function.h \
+        inc/evilcandy/types/method.h \
+        inc/evilcandy/types/number_types.h \
+        inc/evilcandy/types/property.h \
+        inc/evilcandy/types/set.h \
+        inc/evilcandy/types/string.h \
+        inc/evilcandy/types/tuple.h \
         inc/instructions.h \
         inc/iterator.h \
         inc/recursion.h \

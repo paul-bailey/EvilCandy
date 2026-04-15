@@ -4,6 +4,13 @@
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/types/class.h>
+#include <evilcandy/types/function.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/number_types.h>
+#include <evilcandy/types/method.h>
+#include <evilcandy/types/property.h>
 #include <internal/types/number_types.h>
 #include <internal/type_registry.h>
 #include <internal/errmsg.h>

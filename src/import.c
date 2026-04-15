@@ -5,6 +5,11 @@
 #include <evilcandy/errmsg.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/global.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/bytes.h>
+#include <evilcandy/types/function.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/path.h>
 #include <internal/import.h>
 #include <internal/types/sequential_types.h>

@@ -1,6 +1,9 @@
 #ifndef EVC_INC_DISASSEMBLE_H
 #define EVC_INC_DISASSEMBLE_H
 
+#include <evilcandy/typedefs.h>
+#include <stdio.h>
+
 /* disassemble.c */
 extern void disassemble(FILE *fp, Object *ex,
                         const char *sourcefile_name);

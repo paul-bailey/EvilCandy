@@ -22,6 +22,9 @@
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/tuple.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/type_registry.h>
 #include <internal/types/xptr.h>
 #include <internal/assemble.h>

@@ -15,6 +15,12 @@
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/bytes.h>
+#include <evilcandy/types/function.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/tuple.h>
 #include <internal/errmsg.h>
 #include <internal/type_registry.h>
 #include <internal/types/xptr.h>

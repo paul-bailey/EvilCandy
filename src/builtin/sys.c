@@ -2,6 +2,8 @@
 #include <evilcandy/vm.h>
 #include <evilcandy/var.h>
 #include <evilcandy/global.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/dict.h>
 #include <internal/builtin/io.h>
 #include <internal/builtin/sys.h>
 #include <internal/init.h>

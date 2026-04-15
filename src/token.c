@@ -3,6 +3,10 @@
 #include <evilcandy/err.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/global.h>
+#include <evilcandy/types/bytes.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/set.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/token.h>
 #include <internal/type_registry.h>
 #include <setjmp.h>

@@ -5,6 +5,8 @@
 #include <evilcandy/hash.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/err.h>
+#include <evilcandy/types/tuple.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/uarg.h>
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>

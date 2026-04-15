@@ -8,6 +8,9 @@
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/hash.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/errmsg.h>
 #include <internal/types/number_types.h>
 

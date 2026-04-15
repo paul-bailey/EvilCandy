@@ -39,6 +39,10 @@
 #include <evilcandy/compiler.h>
 #include <evilcandy/err.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/tuple.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/type_registry.h>
 #include <internal/token.h>
 #include <internal/assemble.h>

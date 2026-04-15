@@ -130,6 +130,8 @@
 #include <evilcandy.h>
 #include <evilcandy/err.h>
 #include <evilcandy/global.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/string.h>
 #include <internal/vm.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>

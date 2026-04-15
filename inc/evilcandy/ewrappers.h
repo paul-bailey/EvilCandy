@@ -5,6 +5,8 @@
 #ifndef EVC_INC_EVILCANDY_EWRAPPERS_H
 #define EVC_INC_EVILCANDY_EWRAPPERS_H
 
+#include <stdio.h>
+
 /* ewrappers.c */
 extern char *estrdup(const char *s);
 extern void *emalloc(size_t size);

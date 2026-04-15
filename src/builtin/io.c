@@ -5,6 +5,12 @@
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/bytes.h>
+#include <evilcandy/types/class.h>
+#include <evilcandy/types/dict.h>
+#include <evilcandy/types/string.h>
+#include <evilcandy/types/number_types.h>
 #include <internal/codec.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>

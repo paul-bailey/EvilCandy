@@ -3,6 +3,7 @@
  */
 #include <evilcandy.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/types/string.h>
 #include <internal/cwd.h>
 #include <unistd.h>
 #include <errno.h>

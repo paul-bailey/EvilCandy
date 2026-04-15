@@ -4,6 +4,7 @@
 #include <evilcandy/global.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/types/set.h>
 #include <internal/types/string.h>
 
 struct setvar_t {

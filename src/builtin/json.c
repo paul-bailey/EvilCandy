@@ -7,6 +7,8 @@
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
 #include <evilcandy/enums.h>
+#include <evilcandy/types/array.h>
+#include <evilcandy/types/dict.h>
 #include <internal/builtin/json.h>
 #include <internal/token.h>
 #include <internal/types/sequential_types.h>

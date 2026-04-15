@@ -11,7 +11,7 @@
  * funcvar_new_intl is called during early initialization when creating
  * variables for built-in functions.
  */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
@@ -26,6 +26,9 @@
 #include <internal/types/xptr.h>
 #include <internal/types/sequential_types.h>
 #include <internal/vm.h>
+#include <lib/helpers.h>
+
+#include <string.h>
 
 /**
  * struct funcvar_t - Handle to a callable function

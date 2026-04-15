@@ -8,7 +8,7 @@
  * TODO: For the sake of non-string keys, store the hash number with
  * d_keys, d_vals.
  */
-#include <evilcandy.h>
+#include <evilcandy/string_writer.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>

@@ -1,4 +1,4 @@
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/var.h>
 #include <evilcandy/global.h>

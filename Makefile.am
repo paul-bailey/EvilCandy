@@ -86,8 +86,8 @@ programs_fuzzer_SOURCES = programs/fuzzer.c
 evilcandy_SOURCES = programs/evilcandy.c
 
 noinst_HEADERS = \
-        inc/debug.h \
         inc/evilcandy.h \
+        inc/evilcandy/debug.h \
         inc/evilcandy/compiler.h \
         inc/evilcandy/disassemble.h \
         inc/evilcandy/enums.h \
@@ -100,6 +100,8 @@ noinst_HEADERS = \
         inc/evilcandy/typedefs.h \
         inc/evilcandy/var.h \
         inc/evilcandy/vm.h \
+        inc/evilcandy/string_reader.h \
+        inc/evilcandy/string_writer.h \
         inc/evilcandy/types/array.h \
         inc/evilcandy/types/bytes.h \
         inc/evilcandy/types/cell.h \
@@ -114,9 +116,7 @@ noinst_HEADERS = \
         inc/evilcandy/types/tuple.h \
         inc/instructions.h \
         inc/iterator.h \
-        inc/recursion.h \
-        inc/string_reader.h \
-        inc/string_writer.h \
+        inc/internal/recursion.h \
         inc/internal/codec.h \
         inc/internal/cwd.h \
         inc/internal/err.h \

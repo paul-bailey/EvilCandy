@@ -34,7 +34,9 @@
  * Other creation methods are from existing string or using the string-
  * writer API.
  */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
+#include <evilcandy/string_writer.h>
+#include <evilcandy/string_reader.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>

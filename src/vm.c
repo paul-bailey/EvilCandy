@@ -26,6 +26,7 @@
 #include <evilcandy/types/method.h>
 #include <evilcandy/types/set.h>
 #include <evilcandy/types/tuple.h>
+#include <internal/recursion.h>
 #include <internal/type_registry.h>
 #include <internal/op.h>
 #include <internal/types/string.h>

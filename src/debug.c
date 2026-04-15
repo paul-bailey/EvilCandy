@@ -8,6 +8,7 @@
  *      debug_mark_error()
  */
 #include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/ewrappers.h>
 #include <internal/locations.h>
 #include <internal/types/string.h>

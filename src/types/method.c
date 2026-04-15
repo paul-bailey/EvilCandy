@@ -2,10 +2,11 @@
  * method.c - Wrapper for a function.  See var_getattr
  *            how these are used.
  */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/types/string.h>
 #include <evilcandy/types/method.h>
 #include <internal/type_registry.h>
+#include <lib/helpers.h>
 
 struct methodvar_t {
         Object base;

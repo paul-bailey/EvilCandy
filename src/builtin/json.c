@@ -3,7 +3,7 @@
  * XXX: Either use this or lose it.  It's a lot of work keeping it from
  *      falling into code rot.
  */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
 #include <evilcandy/enums.h>

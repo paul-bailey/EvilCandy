@@ -1,7 +1,7 @@
 /*
  * builtin/math.c - Implementation of the __gbl__.Math built-in object
  */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/types/dict.h>

@@ -31,10 +31,6 @@
 #include <sys/types.h>
 /* REVISIT: include unistd and stdlib at this level? math.h? */
 
-#include "debug.h"
-#include "recursion.h"
-#include "string_writer.h"
-#include "string_reader.h"
 #include "iterator.h"
 
 struct type_method_t;

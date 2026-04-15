@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/global.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/err.h>

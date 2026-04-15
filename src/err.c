@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <evilcandy/string_writer.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/ewrappers.h>

@@ -1,4 +1,4 @@
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/types/cell.h>
 #include <internal/type_registry.h>
 

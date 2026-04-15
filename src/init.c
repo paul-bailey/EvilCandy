@@ -1,4 +1,4 @@
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <internal/init.h>
 
 void

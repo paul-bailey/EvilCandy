@@ -1,4 +1,4 @@
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
@@ -7,6 +7,7 @@
 #include <evilcandy/types/method.h>
 #include <evilcandy/types/property.h>
 #include <internal/type_registry.h>
+#include <string.h>
 
 struct propertyvar_t {
         Object base;

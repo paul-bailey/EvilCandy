@@ -43,6 +43,7 @@
 #include <evilcandy/types/dict.h>
 #include <evilcandy/types/tuple.h>
 #include <evilcandy/types/number_types.h>
+#include <internal/recursion.h>
 #include <internal/type_registry.h>
 #include <internal/token.h>
 #include <internal/assemble.h>

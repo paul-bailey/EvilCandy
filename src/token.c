@@ -1,5 +1,6 @@
 /* token.c - Tokenizer code */
 #include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/err.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/global.h>
@@ -9,7 +10,11 @@
 #include <evilcandy/types/number_types.h>
 #include <internal/token.h>
 #include <internal/type_registry.h>
+#include <lib/buffer.h>
+
 #include <setjmp.h>
+#include <ctype.h>
+#include <string.h>
 #include <unistd.h> /* isatty */
 #include <internal/global.h> /* iatok definition */
 

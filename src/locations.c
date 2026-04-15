@@ -1,5 +1,7 @@
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <internal/locations.h>
+#include <limits.h>
+#include <string.h>
 
 enum {
         NR_VALUES_PER_LOCATION = 2,

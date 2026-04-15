@@ -1,6 +1,6 @@
 /* bytes.c - Built-in methods for bytes data types */
 
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>

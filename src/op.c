@@ -2,7 +2,7 @@
  * op.c - built-in methods for operators like + and -
  * FIXME: Half of this should be in var.c and half should be in vm.c
  */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/err.h>
 #include <evilcandy/global.h>
 #include <internal/op.h>

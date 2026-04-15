@@ -4,8 +4,11 @@
  * Using buffer.c's binary API would be too verbose for writing strings,
  * so this exists independently.
  */
-#include <evilcandy.h>
+#include <evilcandy/string_writer.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/ewrappers.h>
+#include <lib/helpers.h>
+#include <string.h>
 
 static long
 width2maxchr(size_t width)

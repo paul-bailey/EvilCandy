@@ -1,4 +1,4 @@
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/global.h>
 #include <iterator.h>

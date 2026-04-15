@@ -1,11 +1,11 @@
 #ifndef EVC_INC_INTERNAL_TYPES_STRING_H
 #define EVC_INC_INTERNAL_TYPES_STRING_H
 
-#include <string.h>
 #include <lib/buffer.h>
+#include <evilcandy/debug.h>
 #include <internal/type_protocol.h>
 #include <internal/type_registry.h>
-#include <debug.h>
+#include <string.h>
 
 struct stringvar_t {
         struct seqvar_t base;

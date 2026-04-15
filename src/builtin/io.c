@@ -1,10 +1,11 @@
 /* builtin/io.c - Implementation of the __gbl__.Io built-in object */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/ewrappers.h>
+#include <evilcandy/string_writer.h>
 #include <evilcandy/types/array.h>
 #include <evilcandy/types/bytes.h>
 #include <evilcandy/types/class.h>
@@ -18,9 +19,12 @@
 #include <internal/types/sequential_types.h>
 #include <internal/builtin/io.h>
 #include <internal/init.h>
+#include <lib/utf8.h>
+#include <lib/helpers.h>
 #include <fcntl.h> /* open() */
 #include <errno.h>
 #include <unistd.h>
+#include <limits.h>
 #include <sys/stat.h> /* fstat() */
 
 enum file_type_t {

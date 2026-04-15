@@ -3,6 +3,7 @@
  * A generator is a function that uses the 'yield' statement.
  */
 #include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/global.h>
 #include <evilcandy/vm.h>
 #include <internal/type_registry.h>

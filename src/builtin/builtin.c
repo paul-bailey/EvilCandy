@@ -1,5 +1,5 @@
 /* q-builtin.c - Built-in callbacks for script */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/disassemble.h>

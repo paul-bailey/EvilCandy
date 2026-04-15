@@ -1,5 +1,6 @@
 #include <sys/stat.h>
 #include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>

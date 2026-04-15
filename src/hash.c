@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/hash.h>
 #include <internal/type_registry.h>
 

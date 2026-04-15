@@ -2,9 +2,9 @@
 #ifndef EVC_STRING_READER_H
 #define EVC_STRING_READER_H
 
+#include <evilcandy/debug.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <debug.h>
 #include <string.h>
 
 struct string_reader_t {

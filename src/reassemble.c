@@ -10,6 +10,7 @@
  * The entry point is reassemble()
  */
 #include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/err.h>
 #include <evilcandy/global.h>
 #include <evilcandy/ewrappers.h>
@@ -20,6 +21,8 @@
 #include <internal/types/number_types.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <string.h>
 
 struct reassemble_t {
         struct assemble_t *a;   /* info passed from assemble() */

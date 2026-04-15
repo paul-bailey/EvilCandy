@@ -5,7 +5,7 @@
  *                     This is my own non-derived implementation, so no
  *                     special license is in order.
  */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/types/array.h>
 #include <evilcandy/types/function.h>
 #include <evilcandy/types/dict.h>

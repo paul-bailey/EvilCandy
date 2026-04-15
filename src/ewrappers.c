@@ -4,6 +4,7 @@
  * This should make the error reporting cleaner and more uniform.
  */
 #include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/err.h>
 #include <internal/init.h>

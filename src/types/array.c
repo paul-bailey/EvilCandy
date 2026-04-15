@@ -9,18 +9,22 @@
  * But here I call them "arrays" because I started writing this
  * file before I thought things through.
  */
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
+#include <evilcandy/string_writer.h>
 #include <evilcandy/types/array.h>
 #include <evilcandy/types/number_types.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/err.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/global.h>
+#include <internal/recursion.h>
 #include <internal/uarg.h>
 #include <internal/errmsg.h>
 #include <internal/type_registry.h>
 #include <internal/types/sequential_types.h>
+
 #include <stdlib.h> /*< XXX for qsort only, will be made manua later */
+#include <string.h>
 
 #define V2ARR(v_)       ((struct arrayvar_t *)(v_))
 #define V2SQ(v_)        ((struct seqvar_t *)(v_))

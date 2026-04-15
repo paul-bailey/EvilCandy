@@ -1,4 +1,4 @@
-#include <evilcandy.h>
+#include <evilcandy/debug.h>
 #include <evilcandy/hash.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/types/string.h>

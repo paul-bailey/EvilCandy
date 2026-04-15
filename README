@@ -95,7 +95,7 @@ As of April 2026, the following can (roughly) be said about EvilCandy:
   by just one person without someone else stress-testing it.  It is loaded
   with thrown-together code that needs refactoring and make-professional-ing.
   There is not a lot of portability checking.  Currently the test code
-  consists of a single script, ``tests/sanity.evc``, some unit tests in
+  consists of a couple scripts in tests/, some unit tests in
   programs/unit_tests.c and a fuzzer test in programs/fuzzer.c.
 
 So no, EvilCandy is not a ship-able release candidate.

@@ -4,11 +4,15 @@
  * Most of these are syntactic-sugar wrappers to err_setstr.
  */
 #include <evilcandy.h>
-#include <errno.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/global.h>
+#include <internal/uarg.h>
 #include <internal/type_registry.h>
 #include <internal/vm.h>
 #include <internal/codec.h>
 #include <internal/errmsg.h>
+#include <errno.h>
 
 void
 err_hashable(Object *obj, const char *fname)

@@ -10,6 +10,11 @@
  * file before I thought things through.
  */
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/err.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/global.h>
+#include <internal/uarg.h>
 #include <internal/errmsg.h>
 #include <internal/type_registry.h>
 #include <internal/types/sequential_types.h>

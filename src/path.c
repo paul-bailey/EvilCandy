@@ -1,4 +1,6 @@
 #include <evilcandy.h>
+#include <evilcandy/global.h>
+#include <evilcandy/ewrappers.h>
 #include <internal/path.h>
 #include <internal/builtin/sys.h>
 #include <internal/types/string.h>

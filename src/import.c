@@ -1,5 +1,10 @@
 #include <sys/stat.h>
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/global.h>
 #include <internal/path.h>
 #include <internal/import.h>
 #include <internal/types/sequential_types.h>

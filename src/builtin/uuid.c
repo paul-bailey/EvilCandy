@@ -1,7 +1,9 @@
 #include "config.h"
 #include <evilcandy.h>
-#include <stddef.h> /*< NULL definition */
+#include <evilcandy/ewrappers.h>
 #include <internal/builtin/uuid.h>
+
+#include <stddef.h> /*< NULL definition */
 
 #if defined(HAVE_UUID_H) || defined(HAVE_UUID_UUID_H)
 # ifdef HAVE_UUID_H

@@ -1,5 +1,10 @@
 /* builtin/io.c - Implementation of the __gbl__.Io built-in object */
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/global.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/ewrappers.h>
 #include <internal/codec.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>

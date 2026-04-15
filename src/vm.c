@@ -12,6 +12,11 @@
  * below.
  */
 #include <evilcandy.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/global.h>
+#include <evilcandy/vm.h>
 #include <internal/type_registry.h>
 #include <internal/op.h>
 #include <internal/types/string.h>

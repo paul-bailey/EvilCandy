@@ -2,13 +2,8 @@
 #define EVILCANDY_XPTR_H
 
 #include <instructions.h>
-#include <typedefs.h>
-#include <var.h>
-
-/*
- * Note: you shouldn't need to include this directly.  Either include
- * evilcandy.h or typedefs.h
- */
+#include <evilcandy/typedefs.h>
+#include <evilcandy/var.h>
 
 /**
  * struct xptrvar_t - executable code of a function or a script body

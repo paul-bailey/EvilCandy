@@ -41,11 +41,16 @@
  * sk.close()              Close a socket
  */
 #include <evilcandy.h>
-#include <errno.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/global.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/ewrappers.h>
 #include <internal/types/string.h>
 #include <internal/types/sequential_types.h>
 #include <internal/init.h>
 
+#include <errno.h>
 /* TODO: Auto-conf all these things */
 #include <arpa/inet.h>
 #include <netdb.h>

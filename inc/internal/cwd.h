@@ -1,7 +1,7 @@
 #ifndef EVC_INC_INTERNAL_CWD_H
 #define EVC_INC_INTERNAL_CWD_H
 
-#include <typedefs.h>
+#include <evilcandy/typedefs.h>
 
 /* cwd.c */
 extern Object *evc_getcwd(void);

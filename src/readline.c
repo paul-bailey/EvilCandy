@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <evilcandy/ewrappers.h>
 #include <stdlib.h>
 
 #ifdef HAVE_READLINE

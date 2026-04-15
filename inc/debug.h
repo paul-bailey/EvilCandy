@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include <typedefs.h>
+#include <evilcandy/typedefs.h>
 
 /*
  * DBUG_xxx_xxx... debug-mode parameters: 1 enables them and 0 disables

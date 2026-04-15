@@ -2,7 +2,7 @@
 #define EVC_INC_INTERNAL_CODEC_H
 
 #include <stddef.h>
-#include <typedefs.h>
+#include <evilcandy/typedefs.h>
 
 struct gbl_codec_subsys_t;
 

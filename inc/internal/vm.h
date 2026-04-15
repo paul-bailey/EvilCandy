@@ -2,7 +2,7 @@
 #define EVC_INC_INTERNAL_VM_H
 
 #include <instructions.h>
-#include <vm.h>
+#include <evilcandy/vm.h>
 
 struct block_t {
         Object **stack_level;

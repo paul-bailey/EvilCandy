@@ -1,7 +1,7 @@
 #ifndef EVC_INC_INTERNAL_ERRMSG_H
 #define EVC_INC_INTERNAL_ERRMSG_H
 
-#include <typedefs.h>
+#include <evilcandy/typedefs.h>
 
 extern void err_subscript(const char *getorset,
                           Object *key, Object *obj);

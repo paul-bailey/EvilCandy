@@ -3,6 +3,7 @@
  * Thus far they only manage ASCII chars.
  */
 #include <evilcandy.h>
+#include <evilcandy/evc_ctype.h>
 #include <ctype.h>
 
 bool evc_isalnum(unsigned long c) { return c < 128 && isalnum(c); }

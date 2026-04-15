@@ -10,6 +10,9 @@
  * The entry point is reassemble()
  */
 #include <evilcandy.h>
+#include <evilcandy/err.h>
+#include <evilcandy/global.h>
+#include <evilcandy/ewrappers.h>
 #include <internal/token.h>
 #include <internal/assemble.h>
 #include <internal/op.h>

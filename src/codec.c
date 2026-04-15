@@ -3,6 +3,8 @@
 #include <internal/type_registry.h>
 #include <internal/types/string.h>
 #include <evilcandy.h>
+#include <evilcandy/global.h>
+#include <evilcandy/ewrappers.h>
 
 /* runtime state struct */
 struct gbl_codec_subsys_t {

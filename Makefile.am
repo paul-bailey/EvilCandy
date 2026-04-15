@@ -86,21 +86,25 @@ programs_fuzzer_SOURCES = programs/fuzzer.c
 evilcandy_SOURCES = programs/evilcandy.c
 
 noinst_HEADERS = \
-        inc/compiler.h \
         inc/debug.h \
-        inc/evcenums.h \
         inc/evilcandy.h \
-        inc/global.h \
-        inc/hash.h \
+        inc/evilcandy/compiler.h \
+        inc/evilcandy/disassemble.h \
+        inc/evilcandy/enums.h \
+        inc/evilcandy/err.h \
+        inc/evilcandy/errmsg.h \
+        inc/evilcandy/evc_ctype.h \
+        inc/evilcandy/ewrappers.h \
+        inc/evilcandy/global.h \
+        inc/evilcandy/hash.h \
+        inc/evilcandy/typedefs.h \
+        inc/evilcandy/var.h \
+        inc/evilcandy/vm.h \
         inc/instructions.h \
         inc/iterator.h \
         inc/recursion.h \
         inc/string_reader.h \
         inc/string_writer.h \
-        inc/typedefs.h \
-        inc/uarg.h \
-        inc/var.h \
-        inc/vm.h \
         inc/internal/codec.h \
         inc/internal/cwd.h \
         inc/internal/err.h \
@@ -114,6 +118,7 @@ noinst_HEADERS = \
         inc/internal/op.h \
         inc/internal/type_protocol.h \
         inc/internal/type_registry.h \
+        inc/internal/uarg.h \
         inc/internal/vm.h \
         inc/internal/locations.h \
         inc/internal/builtin/io.h \

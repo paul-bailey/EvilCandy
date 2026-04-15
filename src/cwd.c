@@ -2,6 +2,7 @@
  * cwd.c - Hooks to things like getcwd, chdir, etc.
  */
 #include <evilcandy.h>
+#include <evilcandy/ewrappers.h>
 #include <internal/cwd.h>
 #include <unistd.h>
 #include <errno.h>

@@ -1,5 +1,11 @@
 /* tuple.c - Code for managing tuples */
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/global.h>
+#include <evilcandy/hash.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/err.h>
+#include <internal/uarg.h>
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>
 

@@ -5,7 +5,7 @@
 #ifndef EVILCANDY_UARG_H
 #define EVILCANDY_UARG_H
 
-#include "var.h"
+#include <evilcandy/var.h>
 
 /* err.c */
 extern int arg_type_check_failed(Object *v,

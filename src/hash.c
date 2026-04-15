@@ -1,4 +1,5 @@
 #include <evilcandy.h>
+#include <evilcandy/hash.h>
 #include <internal/type_registry.h>
 
 /* 64-bit version */

@@ -1,7 +1,15 @@
 /* bytes.c - Built-in methods for bytes data types */
 
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/global.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/evc_ctype.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/hash.h>
 #include <internal/errmsg.h>
+#include <internal/uarg.h>
 #include <internal/type_registry.h>
 #include <internal/types/number_types.h>
 #include <internal/types/sequential_types.h>

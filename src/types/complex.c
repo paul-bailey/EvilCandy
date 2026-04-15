@@ -11,6 +11,10 @@
  * tl;dr... Replace code below so that it doesn't rely on <complex.h>
  */
 #include <evilcandy.h>
+#include <evilcandy/global.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/hash.h>
 #include <internal/types/number_types.h>
 #include <internal/vm.h>
 #include <math.h>

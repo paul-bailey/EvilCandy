@@ -3,6 +3,9 @@
  *                 bytecode back into text a user could read.
  */
 #include <evilcandy.h>
+#include <evilcandy/err.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/disassemble.h>
 #include <internal/token.h>
 #include <internal/types/xptr.h>
 #include <internal/types/string.h>

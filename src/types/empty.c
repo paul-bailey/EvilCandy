@@ -1,4 +1,6 @@
 #include <evilcandy.h>
+#include <evilcandy/global.h>
+#include <evilcandy/hash.h>
 #include <internal/type_registry.h>
 
 static bool

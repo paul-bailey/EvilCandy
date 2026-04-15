@@ -35,14 +35,23 @@
  * writer API.
  */
 #include <evilcandy.h>
-#include <errno.h>
-#include <math.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/evc_ctype.h>
+#include <evilcandy/global.h>
+#include <evilcandy/hash.h>
+#include <internal/uarg.h>
 #include <internal/codec.h>
 #include <internal/errmsg.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>
 #include <internal/types/number_types.h>
 #include <internal/types/sequential_types.h>
+
+#include <errno.h>
+#include <math.h>
 
 /* user argument limits */
 enum {

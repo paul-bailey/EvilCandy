@@ -1,8 +1,11 @@
 #include <evilcandy.h>
-#include <unistd.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/var.h>
+#include <evilcandy/global.h>
 #include <internal/builtin/io.h>
 #include <internal/builtin/sys.h>
 #include <internal/init.h>
+#include <unistd.h>
 
 /* FIXME: replace with gbl accessor functions */
 #include <internal/global.h>

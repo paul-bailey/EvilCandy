@@ -45,6 +45,7 @@
  */
 #include <lib/buffer.h>
 #include <evilcandy.h>
+#include <evilcandy/ewrappers.h>
 #include <stdarg.h>
 
 static void

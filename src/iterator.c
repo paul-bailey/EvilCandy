@@ -1,4 +1,6 @@
 #include <evilcandy.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/global.h>
 #include <iterator.h>
 #include <internal/type_registry.h>
 

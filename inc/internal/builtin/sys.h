@@ -1,7 +1,7 @@
 #ifndef EVC_INC_INTERNAL_BUILTIN_SYS_H
 #define EVC_INC_INTERNAL_BUILTIN_SYS_H
 
-#include <typedefs.h>
+#include <evilcandy/typedefs.h>
 
 /* builtin/sys.c */
 extern Object *sys_getitem(Object *key);

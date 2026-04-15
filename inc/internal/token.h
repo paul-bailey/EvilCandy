@@ -3,7 +3,7 @@
 
 #include <stdio.h> /* for FILE */
 
-#include "typedefs.h"
+#include <evilcandy/typedefs.h>
 #include "token_gen.h"
 
 /**

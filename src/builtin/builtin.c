@@ -1,5 +1,10 @@
 /* q-builtin.c - Built-in callbacks for script */
 #include <evilcandy.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/disassemble.h>
+#include <evilcandy/hash.h>
+#include <evilcandy/global.h>
 #include <internal/type_registry.h>
 #include <internal/builtin/io.h>
 #include <internal/errmsg.h>

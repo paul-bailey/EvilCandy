@@ -1,5 +1,9 @@
 /* set.c - Implementation of set data type */
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/global.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/ewrappers.h>
 #include <internal/types/string.h>
 
 struct setvar_t {

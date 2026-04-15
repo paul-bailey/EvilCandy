@@ -5,6 +5,7 @@
  * so this exists independently.
  */
 #include <evilcandy.h>
+#include <evilcandy/ewrappers.h>
 
 static long
 width2maxchr(size_t width)

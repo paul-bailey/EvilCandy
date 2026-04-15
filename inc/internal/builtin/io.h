@@ -3,7 +3,7 @@
 
 #include <sys/types.h> /*< ssize_t */
 #include <stdbool.h>
-#include <typedefs.h>
+#include <evilcandy/typedefs.h>
 
 /* builtin/builtin.c */
 extern ssize_t evc_file_write(Object *fo, Object *data);

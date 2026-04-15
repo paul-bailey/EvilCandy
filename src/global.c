@@ -11,6 +11,8 @@
  * Maybe runtime/rt_xxx is more appropriate?
  */
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/global.h>
 #include <internal/init.h>
 #include <internal/err.h>
 #include <internal/cwd.h>
@@ -406,6 +408,11 @@ gbl_set_builtin_class(enum gbl_class_idx_t idx, Object *class)
         gbl.classes[idx] = VAR_NEW_REF(class);
 }
 
+/*
+ * TODO; think up a good test of these bug traps.
+ * No one should call these functions in between
+ * xxx_init_gbl() and xxx_deinit_gbl().
+ */
 struct gbl_token_subsys_t *
 gbl_get_token_subsys(void)
 {

@@ -4,10 +4,12 @@
  *      falling into code rot.
  */
 #include <evilcandy.h>
+#include <evilcandy/global.h>
+#include <evilcandy/err.h>
+#include <evilcandy/enums.h>
 #include <internal/builtin/json.h>
 #include <internal/token.h>
 #include <internal/types/sequential_types.h>
-#include <evcenums.h>
 
 #include <setjmp.h>
 

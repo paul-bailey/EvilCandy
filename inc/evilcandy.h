@@ -31,16 +31,8 @@
 #include <sys/types.h>
 /* REVISIT: include unistd and stdlib at this level? math.h? */
 
-#include "compiler.h"
-#include "evcenums.h"
-#include "typedefs.h"
-#include "uarg.h"
 #include "debug.h"
-#include "hash.h"
 #include "recursion.h"
-#include "global.h"
-#include "var.h"
-#include "vm.h"
 #include "string_writer.h"
 #include "string_reader.h"
 #include "iterator.h"
@@ -52,50 +44,6 @@ struct type_prop_t;
 extern Object *assemble(const char *filename,
                         FILE *fp, Object *localdict);
 extern Object *assemble_string(const char *str, bool eval_only);
-
-/* ctype.c */
-extern bool evc_isalnum(unsigned long c);
-extern bool evc_isalpha(unsigned long c);
-extern bool evc_isdigit(unsigned long c);
-extern bool evc_isprint(unsigned long c);
-extern bool evc_isspace(unsigned long c);
-extern bool evc_isupper(unsigned long c);
-extern bool evc_islower(unsigned long c);
-extern bool evc_isgraph(unsigned long c);
-extern unsigned long evc_toupper(unsigned long c);
-extern unsigned long evc_tolower(unsigned long c);
-static inline bool evc_isascii(unsigned long c) { return c < 128; }
-
-/* err.c */
-extern void fail(const char *msg, ...);
-extern void err_setstr(Object *exc, const char *msg, ...);
-extern void err_set_from_user(Object *exc);
-extern Object *err_get(void);
-extern void err_print_last(FILE *fp);
-extern bool err_occurred(void);
-extern void err_clear(void);
-
-/* errmsg.c */
-extern void err_hashable(Object *obj, const char *fname);
-extern void err_iterable(Object *obj, const char *fname);
-extern void err_errno(const char *msg, ...);
-extern void err_doublearg(const char *argname);
-extern void err_maxargs(int nargs, int expect);
-
-/* disassemble.c */
-extern void disassemble(FILE *fp, Object *ex,
-                        const char *sourcefile_name);
-extern void disassemble_lite(FILE *fp, Object *ex);
-extern void disassemble_minimal(FILE *fp, Object *ex);
-
-/* ewrappers.c */
-extern char *estrdup(const char *s);
-extern void *emalloc(size_t size);
-extern void *ecalloc(size_t size);
-extern void *erealloc(void *buf, size_t size);
-extern void *ememdup(const void *buf, size_t size);
-extern ssize_t egetline(char **line, size_t *linecap, FILE *fp);
-extern void efree(void *ptr);
 
 /* import.c */
 extern Object *evc_import(Frame *fr, const char *file_name);

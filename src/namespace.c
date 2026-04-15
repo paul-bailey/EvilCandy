@@ -3,6 +3,8 @@
  * that it doesn't use its own struct type_t.
  */
 #include <evilcandy.h>
+#include <evilcandy/var.h>
+#include <evilcandy/global.h>
 
 /**
  * namespacevar_new - Create a new namespace object.

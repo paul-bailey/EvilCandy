@@ -16,8 +16,8 @@
 #ifndef EVC_ITERATOR_H
 #define EVC_ITERATOR_H
 
-#include <typedefs.h>
-#include <evcenums.h>
+#include <evilcandy/typedefs.h>
+#include <evilcandy/enums.h>
 
 #define ITERATOR_FOREACH(p, it) \
         for (p = iterator_next(it);  \

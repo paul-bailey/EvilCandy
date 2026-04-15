@@ -1,8 +1,15 @@
 #include <evilcandy.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/disassemble.h>
+#include <evilcandy/global.h>
+#include <evilcandy/var.h>
+#include <evilcandy/vm.h>
 #include <internal/init.h>
 #include <internal/path.h>
 #include <internal/token.h>
 #include <internal/vm.h>
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>

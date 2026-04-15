@@ -1,4 +1,8 @@
 #include <evilcandy.h>
+#include <evilcandy/global.h>
+#include <evilcandy/err.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/var.h>
 #include <internal/init.h>
 
 #include <assert.h>

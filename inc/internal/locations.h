@@ -2,7 +2,7 @@
 #define EVC_EVILCANDY_LOCATIONS_H
 
 #include <stddef.h>
-#include <evcenums.h>
+#include <evilcandy/enums.h>
 #include <sys/types.h>
 
 struct location_t {

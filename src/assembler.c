@@ -35,6 +35,10 @@
  *              Poorly chosen function name :)
  */
 #include <evilcandy.h>
+#include <evilcandy/global.h>
+#include <evilcandy/compiler.h>
+#include <evilcandy/err.h>
+#include <evilcandy/ewrappers.h>
 #include <internal/type_registry.h>
 #include <internal/token.h>
 #include <internal/assemble.h>

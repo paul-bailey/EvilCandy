@@ -3,9 +3,9 @@
 
 #include <stdbool.h>
 
-#include <typedefs.h>
-#include <evcenums.h>
-#include <var.h>
+#include <evilcandy/typedefs.h>
+#include <evilcandy/enums.h>
+#include <evilcandy/var.h>
 
 struct var_mem_t;
 

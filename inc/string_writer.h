@@ -3,9 +3,10 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <typedefs.h>
-#include <evcenums.h>
 #include <sys/types.h> /*< ssize_t */
+
+#include <evilcandy/typedefs.h>
+#include <evilcandy/enums.h>
 
 struct utf8_state_t {
         enum {

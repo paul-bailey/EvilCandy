@@ -1,7 +1,7 @@
 #ifndef EVC_INC_INTERNAL_OP_H
 #define EVC_INC_INTERNAL_OP_H
 
-#include <typedefs.h>
+#include <evilcandy/typedefs.h>
 
 /* op.c */
 extern Object *qop_mul(Object *a, Object *b);

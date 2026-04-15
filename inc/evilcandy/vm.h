@@ -3,8 +3,8 @@
 #define EVILCANDY_VM_H
 
 #include <stdbool.h>
-#include <typedefs.h>
-#include <evcenums.h>
+#include <evilcandy/typedefs.h>
+#include <evilcandy/enums.h>
 
 /* vm.c */
 extern Object *vm_exec_script(Object *top_level, Frame *fr);

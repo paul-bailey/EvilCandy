@@ -1,9 +1,9 @@
 #ifndef EVILCANDY_GLOBAL_H
 #define EVILCANDY_GLOBAL_H
 
-#include <typedefs.h>
+#include <evilcandy/enums.h>
+#include <evilcandy/typedefs.h>
 #include <stdbool.h>
-#include <evcenums.h>
 
 /* declared in main.c */
 extern Object *ErrorVar;

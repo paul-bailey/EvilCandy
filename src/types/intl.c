@@ -1,5 +1,6 @@
 /* Internal types: UuidType, IdType */
 #include <evilcandy.h>
+#include <evilcandy/ewrappers.h>
 #include <internal/type_registry.h>
 
 /*

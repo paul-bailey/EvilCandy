@@ -1,4 +1,8 @@
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/global.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/err.h>
 #include <internal/err.h>
 #include <internal/token.h>
 #include <internal/types/string.h>

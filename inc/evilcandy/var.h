@@ -10,8 +10,8 @@
 #include <stdbool.h>
 #include <sys/types.h> /*< ssize_t */
 
-#include <typedefs.h>
-#include <evcenums.h>
+#include <evilcandy/typedefs.h>
+#include <evilcandy/enums.h>
 
 /*
  * Keep this zero unless you are trying to debug an excess VAR_DECR_REF

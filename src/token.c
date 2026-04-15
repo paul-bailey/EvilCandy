@@ -1,5 +1,8 @@
 /* token.c - Tokenizer code */
 #include <evilcandy.h>
+#include <evilcandy/err.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/global.h>
 #include <internal/token.h>
 #include <internal/type_registry.h>
 #include <setjmp.h>

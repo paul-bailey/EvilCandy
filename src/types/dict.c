@@ -9,6 +9,13 @@
  * d_keys, d_vals.
  */
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/global.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/ewrappers.h>
+#include <evilcandy/hash.h>
+#include <internal/uarg.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>
 

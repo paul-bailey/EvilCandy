@@ -1,8 +1,8 @@
 #ifndef EVC_INC_INTERNAL_TYPE_REGISTRY_H
 #define EVC_INC_INTERNAL_TYPE_REGISTRY_H
 
-#include "type_protocol.h"
-#include "var.h"
+#include <internal/type_protocol.h>
+#include <evilcandy/var.h>
 
 /*
  * Declared in type C modules in types/xxx.c

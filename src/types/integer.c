@@ -1,4 +1,10 @@
 #include <evilcandy.h>
+#include <evilcandy/vm.h>
+#include <evilcandy/global.h>
+#include <evilcandy/err.h>
+#include <evilcandy/errmsg.h>
+#include <evilcandy/hash.h>
+#include <internal/uarg.h>
 #include <internal/type_registry.h>
 #include <internal/types/number_types.h>
 

@@ -646,6 +646,7 @@ var_getattr(Frame *frame, Object *obj, Object *key)
 {
         Object *ret;
         if (isvar_instance(obj)) {
+                /* User-defined type */
                 ret = instance_getattr(frame, obj, key);
                 if (!ret) {
                         err_attribute("get", key, obj);
@@ -653,16 +654,20 @@ var_getattr(Frame *frame, Object *obj, Object *key)
                 }
                 return ret;
         }
+
+        /* Built-in type */
         ret = dict_getitem(obj->v_type->methods, key);
         if (!ret) {
                 err_attribute("get", key, obj);
                 return ErrorVar;
         }
+
         if (isvar_property(ret)) {
                 Object *tmp = ret;
                 ret = property_get(ret, obj, key);
                 VAR_DECR_REF(tmp);
-        } else if (isvar_function(ret)) {
+        } else if (isvar_function(ret) &&
+                   !(ret->v_type->flags & OBF_NO_BIND_FUNCTION_ATTRS)) {
                 Object *tmp = ret;
                 ret = methodvar_new(tmp, obj);
                 VAR_DECR_REF(tmp);

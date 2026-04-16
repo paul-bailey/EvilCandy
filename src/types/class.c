@@ -3,6 +3,7 @@
  * MethodType objects are in method.c
  */
 #include <evilcandy/vm.h>
+#include <evilcandy/ewrappers.h>
 #include <evilcandy/var.h>
 #include <evilcandy/global.h>
 #include <evilcandy/err.h>
@@ -14,66 +15,33 @@
 #include <evilcandy/types/set.h>
 #include <evilcandy/types/tuple.h>
 #include <internal/type_registry.h>
+#include <internal/type_registry.h>
 #include <internal/types/string.h>
 #include <internal/types/sequential_types.h>
 
-struct class_t {
-        struct seqvar_t obj_head;
-        Object *c_bases;
-        Object *c_dict;
-        Object *c_priv;
-        Object *c_name;
-};
-
 struct instance_t {
         Object obj_head;
-        Object *inst_class;
         Object *inst_attr;
         void *inst_priv;
         void (*inst_cleanup)(void *);
 };
 
-#define V2CL(obj_)        ((struct class_t *)(obj_))
+#define V2TP(obj_)        ((struct type_t *)(obj_))
 #define V2INST(obj_)      ((struct instance_t *)(obj_))
 
-static void
-class_reset(Object *class)
-{
-        Object *x;
-        x = V2CL(class)->c_bases;
-        V2CL(class)->c_bases = NULL;
-        if (x)
-                VAR_DECR_REF(x);
-
-        x = V2CL(class)->c_dict;
-        V2CL(class)->c_dict = NULL;
-        if (x)
-                VAR_DECR_REF(x);
-
-        x = V2CL(class)->c_name;
-        V2CL(class)->c_name = NULL;
-        if (x)
-                VAR_DECR_REF(x);
-
-        x = V2CL(class)->c_priv;
-        V2CL(class)->c_priv = NULL;
-        if (x)
-                VAR_DECR_REF(x);
-}
-
 static bool
-item_access_permitted(Frame *fr, Object *class, Object *key)
+item_access_permitted(Frame *fr, struct type_t *class, Object *key)
 {
-        if (!V2CL(class)->c_priv)
+        if (!V2TP(class)->priv)
                 return true;
-        if (set_hasitem(V2CL(class)->c_priv, key)) {
+        if (set_hasitem(V2TP(class)->priv, key)) {
                 Object *inst;
                 if (!fr)
                         return false;
                 inst = vm_get_this(fr);
                 if (!isvar_instance(inst)) /*< XXX bug? */
                         return false;
-                return V2INST(inst)->inst_class == class;
+                return inst->v_type == class;
         }
         return true;
 }
@@ -87,45 +55,39 @@ item_access_permitted(Frame *fr, Object *class, Object *key)
  * fr == NULL means "we definitely do not have private access"
  */
 static Object *
-class_getitem(Frame *fr, Object *class, Object *key)
+type_getitem(Frame *fr, Object *type, Object *key)
 {
-        struct class_t *cls;
+        struct type_t *tp;
         size_t i, n;
         Object *ret;
 
-        cls = V2CL(class);
-        bug_on(!cls->c_dict);
+        tp = V2TP(type);
+        bug_on(!tp->methods);
 
         /*
-         * TODO: replace c_priv and c_dict with a single map,
+         * TODO: replace .priv and .methods with a single map,
          * so we don't have to do a double lookup.
          */
-        if (!item_access_permitted(fr, class, key))
+        if (!item_access_permitted(fr, V2TP(type), key))
                 return NULL;
 
-        ret = dict_getitem(cls->c_dict, key);
+        ret = dict_getitem(tp->methods, key);
         if (ret)
                 return ret;
 
-        if (!cls->c_bases)
+        if (!tp->bases)
                 return NULL;
 
-        n = seqvar_size(cls->c_bases);
+        n = seqvar_size(tp->bases);
         for (i = 0; i < n; i++) {
-                Object *item = tuple_borrowitem_(cls->c_bases, i);
-                ret = class_getitem(fr, item, key);
+                Object *item = tuple_borrowitem_(tp->bases, i);
+                ret = type_getitem(fr, item, key);
                 if (ret)
                         return ret;
         }
         return NULL;
 }
 
-/* This produces a reference */
-Object *
-class_get_name(Object *class)
-{
-        return VAR_NEW_REF(V2CL(class)->c_name);
-}
 
 static void
 instance_reset(Object *instance)
@@ -141,11 +103,6 @@ instance_reset(Object *instance)
 
         x = inst->inst_attr;
         inst->inst_attr = NULL;
-        if (x)
-                VAR_DECR_REF(x);
-
-        x = inst->inst_class;
-        inst->inst_class = NULL;
         if (x)
                 VAR_DECR_REF(x);
 }
@@ -183,7 +140,28 @@ instance_get_priv(Object *instance)
 }
 
 static Object *
-verify_base_classes(Object *bases, size_t *size)
+instance_str(Object *instance)
+{
+        Object *ret;
+        const char *name;
+
+        ret = instance_call(instance, STRCONST_ID(__str__), NULL, NULL);
+        if (ret && ret != ErrorVar)
+                return ret;
+
+        err_clear();
+        name = instance->v_type->name;
+        return stringvar_from_format("<instance of %s at %p>",
+                                     name, instance);
+}
+
+/*
+ * NOTE: These look like egregious DRY violations (because they are),
+ * but the struct class_t and class_xxx methods above are being phased
+ * out.
+ */
+static Object *
+type_verify_base_classes(Object *bases)
 {
         size_t i, n;
         if (isvar_tuple(bases)) {
@@ -196,38 +174,73 @@ verify_base_classes(Object *bases, size_t *size)
         n = seqvar_size(bases);
         for (i = 0; i < n; i++) {
                 Object *obj = tuple_borrowitem_(bases, i);
-                if (!isvar_class(obj)) {
+                if (!isvar_type(obj)) {
                         err_setstr(TypeError,
                                    "base class may not be type '%s'",
                                    typestr(obj));
                         VAR_DECR_REF(bases);
                         return ErrorVar;
                 }
-                (*size) += seqvar_size(obj);
         }
         return bases;
 }
 
 static Object *
-instance_str(Object *instance)
+type_inherit_private_names(Object *bases)
 {
-        Object *name_obj, *ret;
-        const char *name;
+        Object *priv_set = NULL;
+        size_t i, n = seqvar_size(bases);
 
-        ret = instance_call(instance, STRCONST_ID(__str__), NULL, NULL);
-        if (ret && ret != ErrorVar)
-                return ret;
+        for (i = 0; i < n; i++) {
+                Object *base = tuple_borrowitem_(bases, i);
+                Object *base_priv = ((struct type_t *)base)->priv;
+                if (!base_priv)
+                        continue;
 
-        err_clear();
-        name_obj = V2CL(V2INST(instance)->inst_class)->c_name;
-        if (name_obj) {
-                name = string_cstring(name_obj);
-        } else {
-                name = "<anonymous class>";
+                if (!priv_set)
+                        priv_set = setvar_new(NULL);
+                /* FIXME: Clobbering an error! */
+                if (set_extend(priv_set, base_priv) == RES_ERROR)
+                        err_clear();
         }
+        return priv_set;
+}
 
-        return stringvar_from_format("<instance of %s at %p>",
-                                     name, instance);
+static void
+type_reset(Object *type)
+{
+        Object *x;
+        struct type_t *tp = (struct type_t *)type;
+        bug_on(!isvar_type(type));
+
+        /*
+         * Consider the following a bug, because it would only trigger
+         * if VAR_INCR/DECR_REF was being used improperly on a static
+         * type.
+         */
+        bug_on(!(tp->flags & OBF_HEAP));
+
+        var_type_clear_freelist(tp);
+
+        x = tp->bases;
+        tp->bases = NULL;
+        if (x)
+                VAR_DECR_REF(x);
+
+        x = tp->priv;
+        tp->priv = NULL;
+        if (x)
+                VAR_DECR_REF(x);
+
+        x = tp->methods;
+        tp->methods = NULL;
+        if (x)
+                VAR_DECR_REF(x);
+
+        bug_on(!tp->name);
+        efree((char *)tp->name);
+        tp->flags = 0;
+        tp->size = 0;
 }
 
 /**
@@ -249,21 +262,21 @@ instance_getattr(Frame *fr, Object *instance, Object *key)
         inst = V2INST(instance);
         bug_on(!isvar_instance(instance));
         bug_on(!inst->inst_attr);
-        bug_on(!inst->inst_class);
 
-        if (!item_access_permitted(fr, inst->inst_class, key))
+        if (!item_access_permitted(fr, instance->v_type, key))
                 return NULL;
 
         ret = dict_getitem(inst->inst_attr, key);
         if (ret)
                 goto found;
-        ret = class_getitem(fr, inst->inst_class, key);
+        ret = type_getitem(fr, (Object *)(instance->v_type), key);
         if (ret)
                 goto found;
         return NULL;
 
 found:
-        if (isvar_function(ret)) {
+        if (isvar_function(ret) &&
+            !(instance->v_type->flags & OBF_NO_BIND_FUNCTION_ATTRS)) {
                 Object *tmp = ret;
                 ret = methodvar_new(tmp, instance);
                 VAR_DECR_REF(tmp);
@@ -284,20 +297,11 @@ found:
 enum result_t
 instance_setattr(Frame *fr, Object *instance, Object *key, Object *value)
 {
-        if (!item_access_permitted(fr, V2INST(instance)->inst_class, key))
+        if (!item_access_permitted(fr, instance->v_type, key))
                 return RES_ERROR;
 
         Object *dict = V2INST(instance)->inst_attr;
         return dict_setitem(dict, key, value);
-}
-
-Object *
-instance_get_class(Object *instance)
-{
-        Object *ret;
-        bug_on(!isvar_instance(instance));
-        ret = V2INST(instance)->inst_class;
-        return VAR_NEW_REF(ret);
 }
 
 /**
@@ -349,102 +353,20 @@ instance_super_getattr(Object *instance, Object *attribute_name)
         size_t i, n;
 
         bug_on(!isvar_instance(instance));
-        class = V2INST(instance)->inst_class;
-        bases = V2CL(class)->c_bases;
+        class = (Object *)(instance->v_type);
+        bases = V2TP(class)->bases;
         if (!bases)
                 return NULL;
 
         n = seqvar_size(bases);
         for (i = 0; i < n; i++) {
                 Object *super = tuple_borrowitem_(bases, i);
-                Object *attr = class_getitem(NULL, super, attribute_name);
+                Object *attr = type_getitem(NULL, super, attribute_name);
                 if (attr)
                         return attr;
         }
 
         return NULL;
-}
-
-/*
- * FIXME: This is naive.  I want the resolved method and its
- * public/private status to match.  So if a higher-precedence method
- * is public and a lower-precedence method with the same name is private,
- * the resolved public/private status should be public, not private.  But
- * this algorithm below will make it private for all methods of a certain
- * name.  The solution should be to resolve c_priv and c_dict together
- * in the same algorithm.
- */
-static Object *
-inherit_private_names(Object *bases)
-{
-        Object *priv_set = NULL;
-        size_t i, n = seqvar_size(bases);
-
-        for (i = 0; i < n; i++) {
-                Object *base = tuple_borrowitem_(bases, i);
-                Object *base_priv = V2CL(base)->c_priv;
-                if (!base_priv)
-                        continue;
-
-                if (!priv_set)
-                        priv_set = setvar_new(NULL);
-                /*
-                 * FIXME: Clobbering an error! Change policy on
-                 * classvar_new() such that its return value could be
-                 * ErrorVar.
-                 */
-                if (set_extend(priv_set, base_priv) == RES_ERROR)
-                        err_clear();
-        }
-        return priv_set;
-}
-
-/**
- * classvar_new - Create a class
- * @bases: A tuple containing inherited base classes
- * @dict: Dictionary of methods, properties, and data
- * @name: NULL, NullVar, or a string object that names the class.
- * @priv_tup: NULL or a tuple of names of private attributes.
- */
-Object *
-classvar_new(Object *bases, Object *dict, Object *name, Object *priv_tup)
-{
-        Object *ret;
-        struct class_t *class;
-        size_t size;
-        Object *priv_set;
-
-        bug_on(!dict || !isvar_dict(dict));
-        bug_on(priv_tup && !isvar_tuple(priv_tup));
-        bug_on(name && name != NullVar && !isvar_string(name));
-
-        size = seqvar_size(dict);
-        priv_set = NULL;
-        if (bases) {
-                bases = verify_base_classes(bases, &size);
-                if (bases == ErrorVar)
-                        return bases;
-                priv_set = inherit_private_names(bases);
-        }
-
-        if (priv_tup) {
-                if (!priv_set)
-                        priv_set = setvar_new(priv_tup);
-                else
-                        set_extend(priv_set, priv_tup);
-        }
-
-        if (name == NullVar)
-                name = NULL;
-
-        ret = var_new(&ClassType);
-        class = V2CL(ret);
-        class->c_priv = priv_set;
-        class->c_bases = bases;
-        class->c_dict = VAR_NEW_REF(dict);
-        class->c_name = name ? VAR_NEW_REF(name) : NULL;
-        seqvar_set_size(ret, size);
-        return ret;
 }
 
 /**
@@ -462,14 +384,27 @@ Object *
 instancevar_new(Object *class, Object *args,
                 Object *kwargs, bool call_init)
 {
-        Object *init_result;
-        Object *ret = var_new(&InstanceType);
+        Object *init_result, *ret;
+        struct type_t *tp = V2TP(class);
 
         bug_on(args && (!isvar_tuple(args) && !isvar_array(args)));
         bug_on(kwargs && !isvar_dict(kwargs));
-        bug_on(!isvar_class(class));
+        bug_on(!isvar_type(class));
+        bug_on(!(tp->flags & OBF_HEAP));
+        bug_on(tp->size != sizeof(struct instance_t));
 
-        V2INST(ret)->inst_class = VAR_NEW_REF(class);
+        ret = var_new(tp);
+
+        /*
+         * Instances use their class object as v_type.  Keep that heap
+         * type alive for as long as the instance exists.  The matching
+         * decrement cannot run from instance_reset(), because
+         * var_delete__() still needs v->v_type after reset in order to
+         * return the instance storage to the type's freelist.
+         * var_delete__() therefore drops this reference after var_free(v).
+         */
+        VAR_INCR_REF(class);
+
         V2INST(ret)->inst_attr = dictvar_new();
 
         /*
@@ -480,24 +415,23 @@ instancevar_new(Object *class, Object *args,
          * the place to do it.
          */
 
-        if (!call_init)
-                return ret;
-
-        init_result = instance_call(ret, STRCONST_ID(__init__),
-                                    args, kwargs);
-        if (init_result == ErrorVar) {
-                VAR_DECR_REF(ret);
-                return ErrorVar;
-        } else if (init_result != NULL) {
-                VAR_DECR_REF(init_result);
-        } else if ((args && seqvar_size(args) > 0) ||
-                   (kwargs && seqvar_size(kwargs) > 0)) {
-                err_setstr(ArgumentError,
-                        "passing arguments to constructor which does not exist");
-                VAR_DECR_REF(ret);
-                return ErrorVar;
+        if (call_init) {
+                init_result = instance_call(ret, STRCONST_ID(__init__),
+                                            args, kwargs);
+                if (init_result == ErrorVar) {
+                        VAR_DECR_REF(ret);
+                        return ErrorVar;
+                } else if (init_result != NULL) {
+                        VAR_DECR_REF(init_result);
+                } else if ((args && seqvar_size(args) > 0) ||
+                           (kwargs && seqvar_size(kwargs) > 0)) {
+                        err_setstr(ArgumentError,
+                                "passing arguments to constructor which does not exist");
+                        VAR_DECR_REF(ret);
+                        return ErrorVar;
+                }
         }
-        /* else: no args and no constructor, no problem! */
+
         return ret;
 }
 
@@ -509,23 +443,23 @@ Object *
 instance_dir(Object *instance)
 {
         struct instance_t *inst;
-        struct class_t *class;
+        struct type_t *class;
         Object *set, *ret;
 
         inst = V2INST(instance);
-        class = V2CL(inst->inst_class);
+        class = instance->v_type;
 
         set = setvar_new(inst->inst_attr);
-        set_extend(set, class->c_dict);
+        set_extend(set, class->methods);
 
-        if (class->c_bases) {
+        if (class->bases) {
                 size_t i, n;
                 Object *base;
 
-                n = seqvar_size(class->c_bases);
+                n = seqvar_size(class->bases);
                 for (i = 0; i < n; i++) {
-                        base = tuple_borrowitem_(class->c_bases, i);
-                        set_extend(set, V2CL(base)->c_dict);
+                        base = tuple_borrowitem_(class->bases, i);
+                        set_extend(set, V2TP(base)->methods);
                 }
         }
         ret = arrayvar_new(0);
@@ -543,66 +477,125 @@ instance_dir(Object *instance)
 bool
 instance_instanceof(Object *instance, Object *class)
 {
-        bug_on(!isvar_instance(instance) || !isvar_class(class));
-        return class_issubclass(V2INST(instance)->inst_class, class);
+        bug_on(!isvar_instance(instance) || !isvar_type(class));
+        return type_issubclass((Object *)(instance->v_type), class);
 }
 
 /**
- * class_issubclass - Return true if @class is @base or a subclass of
- *                    @base
+ * type_issubclass - Return true if @type is @base or a subclass of
+ *                   @base
  */
 bool
-class_issubclass(Object *class, Object *base)
+type_issubclass(Object *type, Object *base)
 {
         size_t i;
         Object *bases;
 
-        if (class == base)
+        if (type == base)
                 return true;
 
-        bases = V2CL(class)->c_bases;
+        bases = V2TP(type)->bases;
         if (!bases)
                 return false;
         for (i = 0; i < seqvar_size(bases); i++) {
-                if (class_issubclass(tuple_borrowitem_(bases, i), base))
+                if (type_issubclass(tuple_borrowitem_(bases, i), base))
                         return true;
         }
         return false;
 }
 
-struct type_t ClassType = {
+/**
+ * typevar_new_user - Return a new user-defined type
+ * @bases:      Base class, either NULL (if none), a TypeType object
+ *              (if only one base), or a tuple (if multiple bases)
+ * @dict:       Dictionary of class methods.  It may contain data as
+ *              well.
+ * @name:       Class name.  If NULL, name will be set to "<anonymous>".
+ * @priv_tup:   Tuple of names of class methods/data which are private.
+ *
+ * Return:      A new class.  Caller may need to adjust flags on the
+ *              return Value as needed (such as whether to bind functions
+ *              during a call to get an attribute).
+ */
+Object *
+typevar_new_user(Object *bases, Object *dict,
+                 Object *name, Object *priv_tup)
+{
+        Object *ret, *priv_set;
+        struct type_t *tp;
+
+        priv_set = NULL;
+        if (bases) {
+                bases = type_verify_base_classes(bases);
+                if (bases == ErrorVar)
+                        return bases;
+                priv_set = type_inherit_private_names(bases);
+        }
+
+        ret = var_new(&TypeType);
+        tp = V2TP(ret);
+        tp->flags = OBF_HEAP | OBF_GP_INSTANCE;
+        tp->bases = bases;
+        tp->priv = priv_set;
+
+        if (priv_tup) {
+                if (!priv_set)
+                        priv_set = setvar_new(priv_tup);
+                else
+                        set_extend(priv_set, priv_tup);
+        }
+
+        tp->bases = bases;
+        tp->priv = priv_set;
+        tp->str = instance_str;
+        tp->reset = instance_reset;
+        tp->size = sizeof(struct instance_t);
+
+        if (dict)
+                VAR_INCR_REF(dict);
+        else
+                dict = dictvar_new();
+        tp->methods = dict;
+
+        if (name == NullVar)
+                name = NULL;
+        if (name)
+                tp->name = estrdup(string_cstring(name));
+        else
+                tp->name = estrdup("<anonymous>");
+
+        return ret;
+}
+
+/*
+ * FIXME: This is patently WRONG! but some of our internal code is still
+ * trying to use user-type classes with their own internal data (looking
+ * at you, io.c!), so until I fix that, typevar_new_intl() is nearly
+ * identical to typevar_new_user().
+ */
+Object *
+typevar_new_intl(Object *bases, Object *dict, Object *name)
+{
+        Object *ret = typevar_new_user(bases, dict, name, NULL);
+        V2TP(ret)->flags |= OBF_INTERNAL;
+        return ret;
+}
+
+struct type_t TypeType = {
         .flags          = 0,
-        .name           = "class",
+        .name           = "type",
         .opm            = NULL,
         .cbm            = NULL,
         .mpm            = NULL,
         .sqm            = NULL,
-        .size           = sizeof(struct class_t),
+        .size           = sizeof(struct type_t),
         .str            = NULL,
         .cmp            = NULL,
-        .cmpz           = NULL,
-        .cmpeq          = NULL,
-        .reset          = class_reset,
-        .prop_getsets   = NULL,
-        .hash           = NULL,
-        .iter_next      = NULL,
-        .get_iter       = NULL,
-};
-
-struct type_t InstanceType = {
-        .flags          = 0,
-        .name           = "instance",
-        .opm            = NULL,
-        .cbm            = NULL,
-        .mpm            = NULL,
-        .sqm            = NULL,
-        .size           = sizeof(struct instance_t),
-        .str            = instance_str,
-        .cmp            = NULL,
         .cmpeq          = NULL,
         .cmpz           = NULL,
-        .reset          = instance_reset,
+        .reset          = type_reset,
         .prop_getsets   = NULL,
+        .create         = NULL,
         .hash           = NULL,
         .iter_next      = NULL,
         .get_iter       = NULL,

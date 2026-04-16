@@ -40,7 +40,7 @@ struct gbl_err_subsys_t {
 #define exception_instance_validate(exc) \
         (isvar_instance(exc) && instance_instanceof(exc, ErrorVar))
 #define exception_class_validate(exc) \
-        (isvar_class(exc) && class_issubclass(exc, ErrorVar))
+        (isvar_type(exc) && type_issubclass(exc, ErrorVar))
 
 /* this consume references for args if they are Objects */
 static Object *
@@ -371,20 +371,16 @@ static void
 err_print(FILE *fp, Object *exc)
 {
         bool tty;
-        Object *exception_name, *exception_class, *message;
+        Object *message;
         Object *message_key;
-        const char *msg;
+        const char *msg, *exception_name;
 
         if (!exc)
                 return;
 
         bug_on(!exception_instance_validate(exc));
 
-        exception_class = instance_get_class(exc);
-        bug_on(!exception_class || !isvar_class(exception_class));
-
-        exception_name = class_get_name(exception_class);
-        bug_on(!isvar_string(exception_name));
+        exception_name = typestr(exc);
 
         message_key = stringvar_new("message");
         message = instance_getattr(NULL, exc, message_key);
@@ -396,11 +392,9 @@ err_print(FILE *fp, Object *exc)
         tty = !!isatty(fileno(fp));
 
         fprintf(fp, "[EvilCandy] %s%s%s %s\n",
-                tty ? COLOR_RED : "", string_cstring(exception_name),
+                tty ? COLOR_RED : "", exception_name,
                 tty ? COLOR_DEF : "", msg);
 
-        VAR_DECR_REF(exception_class);
-        VAR_DECR_REF(exception_name);
         VAR_DECR_REF(message_key);
         if (message)
                 VAR_DECR_REF(message);

@@ -383,11 +383,8 @@ socket_initialize_private_data(Object *instance,
 static Object *
 socket_create_from(Object *instance, int fd, int domain, int type, int proto)
 {
-        Object *ret, *class;
-
-        class = instance_get_class(instance);
-        ret = instancevar_new(class, NULL, NULL, false);
-        VAR_DECR_REF(class);
+        Object *ret = instancevar_new((Object *)(instance->v_type),
+                                      NULL, NULL, false);
         socket_initialize_private_data(ret, fd, domain, type, proto);
         return ret;
 }
@@ -864,7 +861,7 @@ create_socket_class(void)
                 {NULL, NULL},
         };
         Object *methods = dictvar_from_methods(NULL, sockmethods_inittbl);
-        Object *ret = classvar_new(NULL, methods, NULL, NULL);
+        Object *ret = typevar_new_intl(NULL, methods, NULL);
         VAR_DECR_REF(methods);
         return ret;
 }

@@ -6,15 +6,15 @@
 #include <stdbool.h>
 
 /* types/class.c */
-extern Object *classvar_new(Object *bases, Object *dict,
-                            Object *name, Object *priv);
-extern bool class_issubclass(Object *class, Object *base);
-extern Object *class_get_name(Object *class);
+extern Object *typevar_new_intl(Object *bases, Object *dict,
+                                Object *name);
+extern bool type_issubclass(Object *type, Object *base);
+extern Object *typevar_new_user(Object *bases, Object *dict,
+                                Object *name, Object *priv_tup);
 extern Object *instance_super_getattr(Object *instance,
                                       Object *attribute_name);
 extern Object *instancevar_new(Object *class, Object *args,
                                Object *kwargs, bool call_init);
-extern Object *instance_get_class(Object *instance);
 extern void *instance_get_priv(Object *instance);
 extern void instance_set_priv(Object *instance,
                               void (*cleanup)(void *), void *priv);

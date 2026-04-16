@@ -81,12 +81,28 @@ struct type_prop_t {
 
 /* .flags field in struct type_t */
 enum {
-        OBF_NUMBER      = 0x01,
-        OBF_REAL        = 0x02,
+        OBF_NUMBER              = 0x01,
+        OBF_REAL                = 0x02,
+        /*
+         * XXX REVISIT: Better to make this a positive statement,
+         * but too many built-in types exist before this flag was
+         * created.  And *not* bind is the exception rather than
+         * the rule.  Prefer to have a cleanup session where I go
+         * through and reverse this everywhere.
+         */
+        OBF_NO_BIND_FUNCTION_ATTRS = 0x04,
+
+        OBF_HEAP                = 0x10, /*< allocated on heap */
+        OBF_INTERNAL            = 0x20, /*< internal use */
+        OBF_GP_INSTANCE         = 0x40, /*< see class.c */
 };
 
 /**
  * struct type_t - Used to get info about a typedef
+ * @head:       Embedded struct to make this an object
+ * @bases:      Tuple of base classes (struct type_t's), or NULL if none
+ * @priv:       A set containing names of which methods are private.
+ *              Unused for internal types.
  * @name:       Name of the type
  * @freelist:   Used by var.c for memory management. Statically initialize
  *              this to NULL.
@@ -131,6 +147,7 @@ enum {
  *              write-only properties.  This may be NULL if there are no
  *              built-in properties for the type; if not NULL, the array
  *              must be terminated with an item whose .name is NULL.
+ *              This is for built-in classes only.
  * @create:     May be NULL.  Built-in function callback to create a new
  *              instance. The frame arguments are 0: list containing the
  *              va args, and 1: dictionary containing the keyword args.
@@ -143,8 +160,22 @@ enum {
  *              are initialized in whatever way prepares it for the first
  *              call to .next().  IF THIS FIELD IS NON-NULL, OBJECT HEAD
  *              MUST BE struct seqvar_t!!
+ *
+ * For statically allocated struct type_t's:
+ *    - name must be non-NULL and size must be nonzero.
+ *    - If get_iter is non-NULL, then the type's data struct (typically
+ *      of the form 'struct XXXvar_t') must embed struct seqvar_t
+ *      instead of Object, so seqvar_size() works.
+ *    - var.c configures head, bases, freelist, n_freelist, and methods
+ *      at initialization time
+ * For dynamically allocated struct type_t's:
+ *    - Allocate with typevar_new();
+ *    - Use VAR_DECR_REF()/VAR_INCR_REF() like with any other object
  */
 struct type_t {
+        Object head;
+        Object *bases;
+        Object *priv;
         unsigned int flags;
         const char *name;
         struct var_mem_t *freelist;

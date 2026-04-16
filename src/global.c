@@ -200,7 +200,7 @@ make_base_exception(const char *name)
         VAR_DECR_REF(method_name);
         VAR_DECR_REF(method_func);
 
-        exception = classvar_new(NULL, dict, class_name, NULL);
+        exception = typevar_new_intl(NULL, dict, class_name);
 
         VAR_DECR_REF(class_name);
         VAR_DECR_REF(dict);
@@ -216,7 +216,7 @@ make_exception(const char *name, Object *from)
 
         nameobj = stringvar_new(name);
         dict = dictvar_new();
-        subclass = classvar_new(from, dict, nameobj, NULL);
+        subclass = typevar_new_intl(from, dict, nameobj);
 
         vm_add_global(nameobj, subclass);
 

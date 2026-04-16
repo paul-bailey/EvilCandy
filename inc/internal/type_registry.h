@@ -10,6 +10,7 @@
  * outside of whatever module that uses them.  Otherwise, keep them local
  * to the module so the namespace doesn't get cluttered up.
  */
+extern struct type_t TypeType;
 extern struct type_t ArrayType;
 extern struct type_t TupleType;
 extern struct type_t EmptyType; /* XXX should be NullType */
@@ -27,8 +28,6 @@ extern struct type_t RangeType;
 extern struct type_t UuidptrType;
 extern struct type_t IdType;
 extern struct type_t SetType;
-extern struct type_t InstanceType;
-extern struct type_t ClassType;
 extern struct type_t CellType;
 
 /* iterators */
@@ -78,14 +77,14 @@ static inline bool isvar_property(Object *v)
         { return v->v_type == &PropertyType; }
 static inline bool isvar_set(Object *v)
         { return v->v_type == &SetType; }
-static inline bool isvar_class(Object *o)
-        { return o->v_type == &ClassType; }
 static inline bool isvar_instance(Object *o)
-        { return o->v_type == &InstanceType; }
+        { return !!(o->v_type->flags & OBF_GP_INSTANCE); }
 static inline bool isvar_generator(Object *obj)
         { return obj->v_type == &GeneratorType; }
 static inline bool isvar_cell(Object *obj)
         { return obj->v_type == &CellType; }
+static inline bool isvar_type(Object *obj)
+        { return obj->v_type == &TypeType; }
 
 static inline bool isvar_number(Object *v)
         { return !!(v->v_type->flags & OBF_NUMBER); }

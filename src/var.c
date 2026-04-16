@@ -197,6 +197,8 @@ var_delete__(Object *v)
          * objects to be freed all at once.
          * (Test: Does it cause noticeable program stuttering?)
          */
+        bug_on(!v);
+        struct type_t *type = v->v_type;
         if (var_locked) {
                 struct var_mem_t *vm;
 
@@ -207,6 +209,7 @@ var_delete__(Object *v)
                 bug_on(!v);
                 bug_on(v->v_refcnt != 0);
                 bug_on(!v->v_type);
+                bug_on(isvar_type(v) && !(((struct type_t *)v)->flags & OBF_HEAP));
                 if (v->v_type->reset) {
                         /*
                          * Nudge refcnt back up temporily while callback is
@@ -218,6 +221,10 @@ var_delete__(Object *v)
                 }
 
                 var_free(v);
+
+                /* see parallel VAR_INCR_REF in instancevar_new() */
+                if (!!(type->flags & OBF_HEAP))
+                        VAR_DECR_REF((Object *)type);
         }
 }
 
@@ -227,10 +234,15 @@ var_delete__(Object *v)
  * corner of the interpreter.
  * The major players are forward-declared in typedefs.h and added
  * to VAR_TYPES_TBL[] below in cfile_init_var.
+ *
+ * FIXME: overlapping responsibility between this and src/types.c
  */
 void
 var_initialize_type(struct type_t *tp)
 {
+        ((Object *)tp)->v_type = &TypeType;
+        ((Object *)tp)->v_refcnt = 1;
+
         tp->methods = dictvar_new();
 
         Object *dict = tp->methods;
@@ -276,9 +288,14 @@ var_initialize_type(struct type_t *tp)
                 VAR_DECR_REF(k);
                 VAR_DECR_REF(v);
         }
+
+        /* Just to be sure */
+        tp->flags &= ~OBF_HEAP;
+        tp->flags |= OBF_INTERNAL;
 }
 
 static struct type_t *const VAR_TYPES_TBL[] = {
+        &TypeType,
         &ArrayType,
         &TupleType,
         &EmptyType,
@@ -296,8 +313,6 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &SetType,
         &UuidptrType,
         &IdType,
-        &ClassType,
-        &InstanceType,
         &CellType,
 
         /* the iterators */
@@ -352,6 +367,18 @@ cfile_init_var(void)
 }
 
 void
+var_type_clear_freelist(struct type_t *tp)
+{
+        while (tp->freelist != NULL) {
+                struct var_mem_t *vm = tp->freelist;
+                tp->freelist = vm->list;
+                efree(vm);
+                tp->n_freelist--;
+        }
+        bug_on(tp->n_freelist != 0);
+}
+
+void
 cfile_deinit_var(void)
 {
         int i;
@@ -367,13 +394,7 @@ cfile_deinit_var(void)
          */
         for (i = 0; VAR_TYPES_TBL[i] != NULL; i++) {
                 struct type_t *tp = VAR_TYPES_TBL[i];
-                while (tp->freelist != NULL) {
-                        struct var_mem_t *vm = tp->freelist;
-                        tp->freelist = vm->list;
-                        efree(vm);
-                        tp->n_freelist--;
-                }
-                bug_on(tp->n_freelist != 0);
+                var_type_clear_freelist(tp);
         }
 }
 

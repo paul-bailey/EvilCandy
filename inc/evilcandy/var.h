@@ -157,5 +157,11 @@ extern enum result_t var_traverse(
 extern Object *var_from_format(const char *fmt, ...);
 extern hash_t var_hash(Object *v);
 
+/*
+ * TODO: This would go in an internal/XXXX.h, except I intend
+ * to swap locations of some functionality in var.c and class.c
+ * so that they sit in more appropriate files.
+ */
+extern void var_type_clear_freelist(struct type_t *tp);
 
 #endif /* EVILCANDY_VAR_H */

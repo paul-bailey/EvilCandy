@@ -1456,7 +1456,7 @@ initialize_one_file_class(Object *base, const struct type_method_t *tbl)
 {
         Object *class, *methods;
         methods = dictvar_from_methods(NULL, tbl);
-        class = classvar_new(base, methods, NULL, NULL);
+        class = typevar_new_intl(base, methods, NULL);
         VAR_DECR_REF(methods);
         return class;
 }

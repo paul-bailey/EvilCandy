@@ -769,7 +769,7 @@ do_defclass(Frame *fr, instruction_t ii)
         name = pop(fr);
         dict = pop(fr);
         bases = pop(fr);
-        class = classvar_new(bases, dict, name, priv);
+        class = typevar_new_user(bases, dict, name, priv);
         VAR_DECR_REF(bases);
         VAR_DECR_REF(dict);
         VAR_DECR_REF(name);
@@ -1729,7 +1729,7 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
         Frame *fr;
         Object *res, *owner;
 
-        if (isvar_class(func)) {
+        if (isvar_type(func)) {
                 return instancevar_new(func, args, kwargs, true);
         } else if (isvar_method(func)) {
                 Object *meth = func;

@@ -1,4 +1,13 @@
-/* builtin/io.c - Implementation of the __gbl__.Io built-in object */
+/*
+ * builtin/io.c - Implementation of the __gbl__.Io built-in object
+ *
+ * XXX REVISIT:  There is double-indirection going on, where binary and
+ * text bufferd files call vm_exec_func() on their contained raw-file
+ * handles.  This is because I wanted to make their underlying raw-file
+ * implementation be arbitrary and user-defined.  But so far, that isn't
+ * the case in this library, so we're doing things the slow way basically
+ * for nothing.
+ */
 #include <evilcandy/compiler.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/vm.h>
@@ -333,6 +342,23 @@ do_raw_tell(Frame *fr)
 }
 
 static Object *
+do_raw_fileno(Frame *fr)
+{
+        Object *fo;
+        struct rawfile_t *raw;
+
+        if (vm_getargs(fr, "<*>[!]{!}:fileno", &fo) == RES_ERROR)
+                return ErrorVar;
+
+        raw = (struct rawfile_t *)fo;
+        if (raw->fr_fd < 0) {
+                filerr_closed("fileno");
+                return ErrorVar;
+        }
+        return intvar_new(raw->fr_fd);
+}
+
+static Object *
 do_raw_seek(Frame *fr)
 {
         Object *fo;
@@ -451,11 +477,12 @@ struct binfile_t {
         size_t fb_outbuf_size;
         Object *fb_inbuf;
         size_t fb_inbuf_pos;
-        size_t fb_readable;
-        size_t fb_writable;
-        /* for bookkeeping only */
-        int fb_fd;
 };
+
+#define BINFILE_FILENO(bin_)    (((struct rawfile_t *)(bin_)->fb_raw)->fr_fd)
+#define BINFILE_CLOSED(bin_)    (BINFILE_FILENO(bin_) < 0)
+#define BINFILE_READABLE(bin_)  (((struct rawfile_t *)(bin_)->fb_raw)->fr_readable)
+#define BINFILE_WRITABLE(bin_)  (((struct rawfile_t *)(bin_)->fb_raw)->fr_writable)
 
 WARN_UNUSED_RESULT static int
 bin_flush(struct binfile_t *bin)
@@ -601,12 +628,12 @@ do_bin_read(Frame *fr)
         bug_on(!fo || fo->v_type != &BinFileType);
 
         bin = (struct binfile_t *)fo;
-        if (bin->fb_fd < 0) {
+        if (BINFILE_CLOSED(bin)) {
                 filerr_closed("read");
                 return ErrorVar;
         }
 
-        if (!bin->fb_readable) {
+        if (!BINFILE_READABLE(bin)) {
                 filerr_permit("read", 0);
                 return ErrorVar;
         }
@@ -625,12 +652,12 @@ do_bin_write(Frame *fr)
         bug_on(!fo || fo->v_type != &BinFileType);
 
         bin = (struct binfile_t *)fo;
-        if (bin->fb_fd < 0) {
+        if (BINFILE_CLOSED(bin)) {
                 filerr_closed("write");
                 return ErrorVar;
         }
 
-        if (!bin->fb_writable) {
+        if (!BINFILE_WRITABLE(bin)) {
                 filerr_permit("write", 1);
                 return ErrorVar;
         }
@@ -661,7 +688,7 @@ do_bin_flush(Frame *fr)
         bug_on(!fo || fo->v_type != &BinFileType);
 
         bin = (struct binfile_t *)fo;
-        if (bin->fb_fd < 0) {
+        if (BINFILE_CLOSED(bin)) {
                 filerr_closed("flush");
                 return ErrorVar;
         }
@@ -683,7 +710,7 @@ do_bin_tell(Frame *fr)
         bug_on(!fo || fo->v_type != &BinFileType);
 
         bin = (struct binfile_t *)fo;
-        if (bin->fb_fd < 0) {
+        if (BINFILE_CLOSED(bin)) {
                 filerr_closed("tell");
                 return ErrorVar;
         }
@@ -727,7 +754,7 @@ do_bin_seek(Frame *fr)
         }
 
         bin = (struct binfile_t *)fo;
-        if (bin->fb_fd < 0) {
+        if (BINFILE_CLOSED(bin)) {
                 filerr_closed("seek");
                 return ErrorVar;
         }
@@ -746,6 +773,26 @@ do_bin_seek(Frame *fr)
 }
 
 static Object *
+do_bin_fileno(Frame *fr)
+{
+        Object *fo;
+        struct binfile_t *bin;
+        int fd;
+
+        if (vm_getargs(fr, "<*>[!]{!}:fileno", &fo) == RES_ERROR)
+                return ErrorVar;
+        bug_on(!fo || fo->v_type != &BinFileType);
+
+        bin = (struct binfile_t *)fo;
+        fd = BINFILE_FILENO(bin);
+        if (fd < 0) {
+                filerr_closed("fileno");
+                return ErrorVar;
+        }
+        return intvar_new(fd);
+}
+
+static Object *
 do_bin_close(Frame *fr)
 {
         /*
@@ -760,7 +807,7 @@ do_bin_close(Frame *fr)
         bug_on(!fo || fo->v_type != &BinFileType);
 
         bin = (struct binfile_t *)fo;
-        if (bin->fb_fd < 0) /* not an error */
+        if (BINFILE_CLOSED(bin)) /* not an error */
                 return NULL;
 
         if (bin_flush(bin) < 0) {
@@ -774,7 +821,6 @@ do_bin_close(Frame *fr)
         }
         bin->fb_outbuf_size = 0;
         bin->fb_inbuf_pos = 0;
-        bin->fb_fd = -1;
 
         return file_call_noarg(bin->fb_raw, STRCONST_ID(close));
 }
@@ -818,9 +864,6 @@ open_binary(int fd, struct fileconfig_t *cfg, Object *raw)
         instance = var_new(&BinFileType);
         bin = (struct binfile_t *)instance;
         bin->fb_raw = raw;
-        bin->fb_readable = cfg->readable;
-        bin->fb_writable = cfg->writable;
-        bin->fb_fd = fd;
         return instance;
 }
 
@@ -836,12 +879,15 @@ struct textfile_t {
         Object *ft_buf;
         size_t ft_bufpos;
         struct utf8_state_t ft_utf8_state;
-        bool ft_eof;
-        bool ft_readable;
-        bool ft_writable;
         off_t ft_fdpos;
-        int ft_fd; /*< only used for bookkeepping */
+        /* XXX: ft_eof confusing if seek is used */
+        bool ft_eof;
 };
+
+#define TEXTFILE_FILENO(t_)     (((struct rawfile_t *)((t_)->ft_raw))->fr_fd)
+#define TEXTFILE_CLOSED(t_)     (TEXTFILE_FILENO(t_) < 0)
+#define TEXTFILE_READABLE(t_)   (((struct rawfile_t *)((t_)->ft_raw))->fr_readable)
+#define TEXTFILE_WRITABLE(t_)   (((struct rawfile_t *)((t_)->ft_raw))->fr_writable)
 
 static inline void
 reset_decode_state(struct textfile_t *txt)
@@ -972,11 +1018,11 @@ do_text_read(Frame *fr)
         bug_on(!fo || fo->v_type != &TextFileType);
 
         txt = (struct textfile_t *)fo;
-        if (txt->ft_fd < 0) {
+        if (TEXTFILE_CLOSED(txt)) {
                 filerr_closed("read");
                 return ErrorVar;
         }
-        if (!txt->ft_readable) {
+        if (!TEXTFILE_READABLE(txt)) {
                 filerr_permit("read", 0);
                 return ErrorVar;
         }
@@ -996,12 +1042,12 @@ do_text_readline(Frame *fr)
         bug_on(!fo || fo->v_type != &TextFileType);
 
         txt = (struct textfile_t *)fo;
-        if (txt->ft_fd < 0) {
+        if (TEXTFILE_CLOSED(txt)) {
                 filerr_closed("readline");
                 return ErrorVar;
         }
 
-        if (!txt->ft_readable) {
+        if (!TEXTFILE_READABLE(txt)) {
                 filerr_permit("readline", 0);
                 return ErrorVar;
         }
@@ -1119,6 +1165,24 @@ text_write(struct textfile_t *txt, Object *so)
 }
 
 static Object *
+do_text_tell(Frame *fr)
+{
+        /* TODO: Need byte cookies to make this work. */
+        err_setstr(NotImplementedError,
+                   "tell not implemented yet for this file type");
+        return ErrorVar;
+}
+
+static Object *
+do_text_seek(Frame *fr)
+{
+        /* TODO: Need byte cookies to make this work. */
+        err_setstr(NotImplementedError,
+                   "seek not implemented yet for this file type");
+        return ErrorVar;
+}
+
+static Object *
 do_text_write(Frame *fr)
 {
         ssize_t ret;
@@ -1130,11 +1194,11 @@ do_text_write(Frame *fr)
         bug_on(!fo || fo->v_type != &TextFileType);
 
         txt = (struct textfile_t *)fo;
-        if (txt->ft_fd < 0) {
+        if (TEXTFILE_CLOSED(txt)) {
                 filerr_closed("write");
                 return ErrorVar;
         }
-        if (!txt->ft_writable) {
+        if (!TEXTFILE_WRITABLE(txt)) {
                 filerr_permit("write", 1);
                 return ErrorVar;
         }
@@ -1155,9 +1219,28 @@ do_text_flush(Frame *fr)
 }
 
 static Object *
+do_text_fileno(Frame *fr)
+{
+        Object *fo;
+        struct textfile_t *txt;
+        int fd;
+
+        if (vm_getargs(fr, "<*>[!]{!}:fileno", &fo) == RES_ERROR)
+                return ErrorVar;
+        bug_on(!fo || fo->v_type != &TextFileType);
+
+        txt = (struct textfile_t *)fo;
+        fd = TEXTFILE_FILENO(txt);
+        if (fd < 0) {
+                filerr_closed("fileno");
+                return ErrorVar;
+        }
+        return intvar_new(fd);
+}
+
+static Object *
 do_text_close(Frame *fr)
 {
-        int fd;
         struct textfile_t *txt;
         Object *fo;
 
@@ -1166,12 +1249,7 @@ do_text_close(Frame *fr)
         bug_on(!fo || fo->v_type != &TextFileType);
 
         txt = (struct textfile_t *)fo;
-        /* TODO: If buffer, flush it */
-        fd = txt->ft_fd;
-        txt->ft_fd = -1;
-        if (fd >= 0)
-                close(fd);
-        return NULL;
+        return file_call_noarg(txt->ft_raw, STRCONST_ID(close));
 }
 
 static Object *
@@ -1229,11 +1307,8 @@ open_text(int fd, struct fileconfig_t *cfg, Object *raw, int codec)
         /* FIXME: this should be an argument */
         txt->ft_eol = stringvar_from_ascii("\n");
         txt->ft_raw = raw;
-        txt->ft_fd = fd;
         txt->ft_eof = false;
         txt->ft_fdpos = 0;
-        txt->ft_readable = cfg->readable;
-        txt->ft_writable = cfg->writable;
         return instance;
 }
 
@@ -1695,7 +1770,10 @@ static const struct type_method_t textfile_methods[] = {
         {"readline",   do_text_readline},
         {"flush",      do_text_flush},
         {"write",      do_text_write},
+        {"seek",       do_text_seek},
+        {"tell",       do_text_tell},
         {"close",      do_text_close},
+        {"fileno",     do_text_fileno},
         /*
          * TODO: need seek/tell, it's a lot more complicated
          * than with binary.
@@ -1710,6 +1788,7 @@ static const struct type_method_t binfile_methods[] = {
         {"tell",       do_bin_tell},
         {"seek",       do_bin_seek},
         {"close",      do_bin_close},
+        {"fileno",     do_bin_fileno},
         {NULL, NULL},
 };
 
@@ -1719,6 +1798,7 @@ static const struct type_method_t rawfile_methods[] = {
         {"close",      do_raw_close},
         {"tell",       do_raw_tell},
         {"seek",       do_raw_seek},
+        {"fileno",     do_raw_fileno},
         {NULL, NULL},
 };
 

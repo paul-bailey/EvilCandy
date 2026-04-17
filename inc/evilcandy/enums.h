@@ -127,6 +127,8 @@ enum evc_strconst_t {
         STRCONST_IDX_close,
         STRCONST_IDX___optarg__,
         STRCONST_IDX___kwarg__,
+        STRCONST_IDX_tell,
+        STRCONST_IDX_seek,
 
         /* enum after STRCONST_IDX_ is not same as string */
         STRCONST_IDX_spc,

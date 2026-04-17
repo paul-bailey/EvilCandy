@@ -1,4 +1,5 @@
 /* builtin/io.c - Implementation of the __gbl__.Io built-in object */
+#include <evilcandy/compiler.h>
 #include <evilcandy/debug.h>
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
@@ -104,29 +105,37 @@ file_call(Object *instance, Object *method_name, Object *args)
 }
 
 static Object *
-file_call_1arg(Object *instance, Object *method_name, Object *arg)
+file_call_stack(Object *instance, Object *method_name,
+                Object **argstack, size_t nr_args)
 {
-        Object *stack[1] = { arg };
-        Object *args = arrayvar_from_stack(stack, 1, false);
+        Object *args = arrayvar_from_stack(argstack, nr_args, false);
         Object *result = file_call(instance, method_name, args);
         VAR_DECR_REF(args);
         return result;
 }
 
 static Object *
+file_call_1arg(Object *instance, Object *method_name, Object *arg)
+{
+        return file_call_stack(instance, method_name, &arg, 1);
+}
+
+static Object *
 file_call_1arg_int(Object *instance, Object *method_name, long arg)
 {
-        Object *stack[1] = { intvar_new(arg) };
-        Object *args = arrayvar_from_stack(stack, 1, true);
-        Object *result = file_call(instance, method_name, args);
-        VAR_DECR_REF(args);
+        Object *ival = intvar_new(arg);
+        Object *result = file_call_stack(instance, method_name, &ival, 1);
+        VAR_DECR_REF(ival);
         return result;
 }
 
 static Object *
 file_call_noarg(Object *instance, Object *method_name)
 {
-        return file_call(instance, method_name, NULL);
+        Object *args = arrayvar_new(0);
+        Object *result = file_call(instance, method_name, args);
+        VAR_DECR_REF(args);
+        return result;
 }
 
 
@@ -300,6 +309,60 @@ do_raw_write(Frame *fr)
 }
 
 static Object *
+do_raw_tell(Frame *fr)
+{
+        Object *fo;
+        struct rawfile_t *raw;
+        off_t off;
+
+        if (vm_getargs(fr, "<*>[!]{!}:tell", &fo) == RES_ERROR)
+                return ErrorVar;
+
+        raw = (struct rawfile_t *)fo;
+        if (raw->fr_fd < 0) {
+                filerr_closed("tell");
+                return ErrorVar;
+        }
+
+        off = lseek(raw->fr_fd, (off_t)0, SEEK_CUR);
+        if (off == (off_t)-1) {
+                err_errno("OS lseek call failed");
+                return ErrorVar;
+        }
+        return intvar_new((long long)off);
+}
+
+static Object *
+do_raw_seek(Frame *fr)
+{
+        Object *fo;
+        struct rawfile_t *raw;
+        long long off;
+        int whence;
+
+        whence = 0;
+        if (vm_getargs(fr, "<*>[l|i!]{!}:seek", &fo, &off, &whence)
+            == RES_ERROR) {
+                return ErrorVar;
+        }
+        bug_on(fo->v_type != &RawFileType);
+
+        raw = (struct rawfile_t *)fo;
+        if (raw->fr_fd < 0) {
+                filerr_closed("seek");
+                return ErrorVar;
+        }
+
+        off = lseek(raw->fr_fd, (off_t)off, whence);
+        if (off == (off_t)-1) {
+                err_errno("OS lseek call failed");
+                return ErrorVar;
+        }
+
+        return intvar_new((long long)off);
+}
+
+static Object *
 do_raw_close(Frame *fr)
 {
         int fd;
@@ -394,7 +457,7 @@ struct binfile_t {
         int fb_fd;
 };
 
-static int
+WARN_UNUSED_RESULT static int
 bin_flush(struct binfile_t *bin)
 {
         size_t i, n;
@@ -571,6 +634,16 @@ do_bin_write(Frame *fr)
                 filerr_permit("write", 1);
                 return ErrorVar;
         }
+        /* Invalidate read buffer */
+        if (bin->fb_inbuf) {
+                /*
+                 * FIXME: issue #46: rewind raw fd before dropping
+                 * the read buffer.
+                 */
+                VAR_DECR_REF(bin->fb_inbuf);
+                bin->fb_inbuf = NULL;
+                bin->fb_inbuf_pos = 0;
+        }
         ret = bin_write(bin, bo);
         if (ret < 0)
                 return ErrorVar;
@@ -596,6 +669,80 @@ do_bin_flush(Frame *fr)
         if (bin_flush(bin) < 0)
                 return ErrorVar;
         return NULL;
+}
+
+static Object *
+do_bin_tell(Frame *fr)
+{
+        Object *fo, *offobj;
+        long long off;
+        struct binfile_t *bin;
+
+        if (vm_getargs(fr, "<*>[!]{!}:tell", &fo) == RES_ERROR)
+                return ErrorVar;
+        bug_on(!fo || fo->v_type != &BinFileType);
+
+        bin = (struct binfile_t *)fo;
+        if (bin->fb_fd < 0) {
+                filerr_closed("tell");
+                return ErrorVar;
+        }
+
+        offobj = file_call_noarg(bin->fb_raw, STRCONST_ID(tell));
+        if (offobj == ErrorVar)
+                return ErrorVar;
+        if (bin->fb_outbuf_size == 0 && bin->fb_inbuf_pos == 0)
+                return offobj;
+
+        off = intvar_toll(offobj);
+        VAR_DECR_REF(offobj);
+
+        if (bin->fb_outbuf_size != 0 && bin->fb_inbuf_pos != 0) {
+                bool once = false;
+                if (!once) {
+                        DBUG1("suspected BUG: file read/write buffers are simultaneously valid");
+                        once = true;
+                }
+        }
+
+        if (bin->fb_outbuf_size)
+                off += bin->fb_outbuf_size;
+        if (bin->fb_inbuf)
+                off -= seqvar_size(bin->fb_inbuf) - bin->fb_inbuf_pos;
+        return intvar_new(off);
+}
+
+static Object *
+do_bin_seek(Frame *fr)
+{
+        Object *fo;
+        Object *argstack[2];
+        struct binfile_t *bin;
+        size_t nr_args;
+
+        argstack[1] = NULL;
+        if (vm_getargs(fr, "<*>[<i>|<i>!]{!}:seek", &fo,
+                       &argstack[0], &argstack[1]) == RES_ERROR) {
+                return ErrorVar;
+        }
+
+        bin = (struct binfile_t *)fo;
+        if (bin->fb_fd < 0) {
+                filerr_closed("seek");
+                return ErrorVar;
+        }
+
+        nr_args = argstack[1] ? 2 : 1;
+        if (bin_flush(bin) < 0)
+                return ErrorVar;
+        if (bin->fb_inbuf) {
+                VAR_DECR_REF(bin->fb_inbuf);
+                bin->fb_inbuf = NULL;
+        }
+        bin->fb_inbuf_pos = 0;
+        /* FIXME: issue #45: Account for unread buffer bytes on SEEK_CUR */
+        return file_call_stack(bin->fb_raw, STRCONST_ID(seek),
+                               argstack, nr_args);
 }
 
 static Object *
@@ -1462,9 +1609,25 @@ static const struct type_method_t io_inittbl[] = {
 };
 
 static Object *
-create_io_instance(Frame *fr)
+create_io_module(Frame *fr)
 {
-        return dictvar_from_methods(NULL, io_inittbl, false);
+        Object *dict = dictvar_from_methods(NULL, io_inittbl, false);
+        Object *k, *v;
+
+        k = stringvar_new("SEEK_CUR");
+        v = intvar_new(SEEK_CUR);
+        dict_setitem(dict, k, v);
+        VAR_DECR_REF(k);
+        VAR_DECR_REF(v);
+
+        k = stringvar_new("SEEK_SET");
+        v = intvar_new(SEEK_SET);
+        dict_setitem(dict, k, v);
+        VAR_DECR_REF(k);
+        VAR_DECR_REF(v);
+
+        /* TODO: Add SEEK_END when I can support it */
+        return dict;
 }
 
 static Object *
@@ -1512,8 +1675,7 @@ moduleinit_io(void)
         Object *k, *o;
 
         k = stringvar_from_ascii("_io");
-        o = var_from_format("<xmM>",
-                                    create_io_instance, 0, 0);
+        o = var_from_format("<xmM>", create_io_module, 0, 0);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
@@ -1545,6 +1707,8 @@ static const struct type_method_t binfile_methods[] = {
         {"read",       do_bin_read},
         {"write",      do_bin_write},
         {"flush",      do_bin_flush},
+        {"tell",       do_bin_tell},
+        {"seek",       do_bin_seek},
         {"close",      do_bin_close},
         {NULL, NULL},
 };
@@ -1553,6 +1717,8 @@ static const struct type_method_t rawfile_methods[] = {
         {"read",       do_raw_read},
         {"write",      do_raw_write},
         {"close",      do_raw_close},
+        {"tell",       do_raw_tell},
+        {"seek",       do_raw_seek},
         {NULL, NULL},
 };
 

@@ -315,6 +315,11 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &IdType,
         &CellType,
 
+        /* in builtins/ */
+        &BinFileType,
+        &RawFileType,
+        &TextFileType,
+
         /* the iterators */
         &ArrayIterType,
         &BytesIterType,
@@ -1168,8 +1173,8 @@ var_logical_and(Object *a, Object *b)
 bool
 var_instanceof(Object *instance, Object *class)
 {
-        return isvar_instance(instance) &&
-               instance_instanceof(instance, class);
+        bug_on(!isvar_type(class));
+        return type_issubclass((Object *)(instance->v_type), class);
 }
 
 /**

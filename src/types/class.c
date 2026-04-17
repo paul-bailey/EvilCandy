@@ -477,17 +477,6 @@ instance_dir(Object *instance)
 }
 
 /**
- * instance_instanceof - Return true if @class is a class or base class
- *                       of @instance.
- */
-bool
-instance_instanceof(Object *instance, Object *class)
-{
-        bug_on(!isvar_instance(instance) || !isvar_type(class));
-        return type_issubclass((Object *)(instance->v_type), class);
-}
-
-/**
  * type_issubclass - Return true if @type is @base or a subclass of
  *                   @base
  */

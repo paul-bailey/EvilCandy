@@ -30,6 +30,11 @@ extern struct type_t IdType;
 extern struct type_t SetType;
 extern struct type_t CellType;
 
+/* in builtins/ */
+extern struct type_t BinFileType;
+extern struct type_t RawFileType;
+extern struct type_t TextFileType;
+
 /* iterators */
 extern struct type_t ArrayIterType;
 extern struct type_t BytesIterType;

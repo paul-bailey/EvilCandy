@@ -11,6 +11,7 @@
 #include <evilcandy/types/class.h>
 #include <evilcandy/types/dict.h>
 #include <evilcandy/types/string.h>
+#include <evilcandy/types/tuple.h>
 #include <evilcandy/types/number_types.h>
 #include <internal/codec.h>
 #include <internal/type_registry.h>
@@ -19,10 +20,9 @@
 #include <internal/types/sequential_types.h>
 #include <internal/builtin/io.h>
 #include <internal/init.h>
-/* TODO: remove this include when vm_get_arg is replaced with vm_getargs */
-#include <internal/vm.h>
 #include <lib/utf8.h>
 #include <lib/helpers.h>
+
 #include <fcntl.h> /* open() */
 #include <errno.h>
 #include <unistd.h>
@@ -57,14 +57,6 @@ io_classes_initialized(void)
         return gbl_borrow_builtin_class(GBL_CLASS_IOBASE) != NULL;
 }
 
-static Object *
-io_class(enum gbl_class_idx_t classid)
-{
-        if (!io_classes_initialized())
-                initialize_file_classes();
-        return gbl_borrow_builtin_class(classid);
-}
-
 static void
 filerr(const char *fname, const char *msg)
 {
@@ -87,17 +79,28 @@ filerr_permit(const char *fname, bool iswrite)
         filerr(fname, iswrite ? unwrite : unread);
 }
 
+static void
+filerr_closed(const char *fname)
+{
+        filerr(fname, "file closed");
+}
+
 static Object *
 file_call(Object *instance, Object *method_name, Object *args)
 {
-        Object *result = instance_call(instance, method_name, args, NULL);
-        if (!result) {
-                err_setstr(NotImplementedError,
-                           "%N not implemented for this file",
+        Object *ret;
+        Object *func = var_getattr(NULL, instance, method_name);
+        if (func == ErrorVar)
+                return ErrorVar;
+        if (!isvar_method(func)) {
+                err_setstr(TypeError, "attribute %N is not callable",
                            method_name);
-                result = ErrorVar;
+                VAR_DECR_REF(func);
+                return ErrorVar;
         }
-        return result;
+        ret = vm_exec_func(NULL, func, args, NULL);
+        VAR_DECR_REF(func);
+        return ret;
 }
 
 static Object *
@@ -142,6 +145,7 @@ file_call_noarg(Object *instance, Object *method_name)
  * @fr_read:     Function for internal C code to call to read
  */
 struct rawfile_t {
+        Object base;
         int fr_magic;
         enum file_type_t fr_type;
         int fr_fd;
@@ -154,29 +158,6 @@ struct rawfile_t {
         ssize_t (*fr_write)(struct rawfile_t *self, Object *data);
         Object *(*fr_read)(struct rawfile_t *self, ssize_t size);
 };
-
-static struct rawfile_t *
-rawfile_get_priv(Object *fo, const char *fname, bool check_open)
-{
-        struct rawfile_t *ret;
-
-        bug_on(!isvar_instance(fo));
-        ret = (struct rawfile_t *)instance_get_priv(fo);
-        if (check_open && ret->fr_fd < 0)  {
-                if (fname)
-                        filerr(fname, "file closed");
-                return NULL;
-        }
-        return ret;
-}
-
-static inline struct rawfile_t *
-rawfile_fget_priv(Frame *fr, const char *fname, bool check_open)
-{
-        Object *fo = vm_get_arg(fr, 0);
-        bug_on(!fo || !isvar_instance(fo));
-        return rawfile_get_priv(fo, fname, check_open);
-}
 
 static ssize_t
 raw_read_wrapper(int fd, void *buf, size_t size)
@@ -270,11 +251,18 @@ static Object *
 do_raw_read(Frame *fr)
 {
         long long size = -1LL;
-        struct rawfile_t *raw = rawfile_fget_priv(fr, "read", 1);
-        if (!raw)
+        Object *fo;
+        struct rawfile_t *raw;
+
+        if (vm_getargs(fr, "<*>[|l!]{!}:read", &fo, &size) == RES_ERROR)
                 return ErrorVar;
-        if (vm_getargs(fr, ".[|l!]{!}:read", &size) == RES_ERROR)
+        bug_on(fo->v_type != &RawFileType);
+
+        raw = (struct rawfile_t *)fo;
+        if (raw->fr_fd < 0) {
+                filerr_closed("read");
                 return ErrorVar;
+        }
 
         if (!raw->fr_readable) {
                 filerr_permit("read", 0);
@@ -288,12 +276,19 @@ static Object *
 do_raw_write(Frame *fr)
 {
         ssize_t ret;
-        Object *bo;
-        struct rawfile_t *raw = rawfile_fget_priv(fr, "write", 1);
-        if (!raw)
+        Object *bo, *fo;
+        struct rawfile_t *raw;
+
+        if (vm_getargs(fr, "<*>[<b>!]{!}:write", &fo, &bo) == RES_ERROR)
                 return ErrorVar;
-        if (vm_getargs(fr, ".[<b>!]{!}:write", &bo) == RES_ERROR)
+        bug_on(fo->v_type != &RawFileType);
+
+        raw = (struct rawfile_t *)fo;
+        if (raw->fr_fd < 0) {
+                filerr_closed("write");
                 return ErrorVar;
+        }
+
         if (!raw->fr_writable) {
                 filerr_permit("write", 1);
                 return ErrorVar;
@@ -308,9 +303,14 @@ static Object *
 do_raw_close(Frame *fr)
 {
         int fd;
-        struct rawfile_t *raw = rawfile_fget_priv(fr, "close", 0);
-        if (!raw)
+        Object *fo;
+        struct rawfile_t *raw;
+
+        if (vm_getargs(fr, "<*>[!]{!}:close", &fo) == RES_ERROR)
                 return ErrorVar;
+        bug_on(fo->v_type != &RawFileType);
+
+        raw = (struct rawfile_t *)fo;
 
         fd = raw->fr_fd;
         raw->fr_fd = -1;
@@ -320,13 +320,13 @@ do_raw_close(Frame *fr)
 }
 
 static void
-raw_destructor(void *priv)
+rawfile_reset(Object *rawfile)
 {
         struct rawfile_t *raw;
         int fd;
         char *s;
 
-        raw = (struct rawfile_t *)priv;
+        raw = (struct rawfile_t *)rawfile;
         fd = raw->fr_fd;
         raw->fr_fd = -1;
         if (raw->fr_closefd && fd >= 0)
@@ -341,16 +341,15 @@ raw_destructor(void *priv)
         raw->fr_mode = NULL;
         if (s)
                 efree(s);
-        efree(raw);
 }
 
 static Object *
-raw_str(Frame *fr)
+raw_str(Object *fo)
 {
-        struct rawfile_t *raw = rawfile_fget_priv(fr, NULL, 0);
-        if (!raw)
-                return VAR_NEW_REF(NullVar);
+        struct rawfile_t *raw;
 
+        bug_on(fo->v_type != &RawFileType);
+        raw = (struct rawfile_t *)fo;
         return stringvar_from_format("<file name='%s' mode='%s'>",
                         raw->fr_name ? raw->fr_name : "!", raw->fr_mode);
 }
@@ -359,13 +358,10 @@ static Object *
 open_raw(int fd, struct fileconfig_t *cfg)
 {
         struct rawfile_t *raw;
-        Object *instance, *class;
+        Object *instance;
 
-        class = io_class(GBL_CLASS_RAWFILE);
-        bug_on(!class);
-
-        raw = emalloc(sizeof(*raw));
-        memset(raw, 0, sizeof(*raw));
+        instance = var_new(&RawFileType);
+        raw = (struct rawfile_t *)instance;
         raw->fr_magic    = DICT_MAGIC_FILE;
         raw->fr_type     = cfg->type;
         raw->fr_fd       = fd;
@@ -378,9 +374,6 @@ open_raw(int fd, struct fileconfig_t *cfg)
                 raw->fr_read = raw_read;
         if (cfg->writable)
                 raw->fr_write = raw_write;
-
-        instance = instancevar_new(class, NULL, NULL, false);
-        instance_set_priv(instance, raw_destructor, raw);
         return instance;
 }
 
@@ -389,6 +382,7 @@ open_raw(int fd, struct fileconfig_t *cfg)
  ***********************************************************************/
 
 struct binfile_t {
+        Object base;
         Object *fb_raw;
         Object *fb_outbuf;
         size_t fb_outbuf_size;
@@ -399,19 +393,6 @@ struct binfile_t {
         /* for bookkeeping only */
         int fb_fd;
 };
-
-static struct binfile_t *
-binfile_fget_priv(Frame *fr, const char *fname, bool check_open)
-{
-        Object *fo = vm_get_arg(fr, 0);
-        bug_on(!fo || !isvar_instance(fo));
-        struct binfile_t *bin = instance_get_priv(fo);
-        if (check_open && bin->fb_fd < 0) {
-                filerr(fname, "file closed");
-                return NULL;
-        }
-        return bin;
-}
 
 static int
 bin_flush(struct binfile_t *bin)
@@ -549,11 +530,18 @@ static Object *
 do_bin_read(Frame *fr)
 {
         long long size = -1LL;
-        struct binfile_t *bin = binfile_fget_priv(fr, "read", 1);
-        if (!bin)
+        Object *fo;
+        struct binfile_t *bin;
+
+        if (vm_getargs(fr, "<*>[|l!]{!}:read", &fo, &size) == RES_ERROR)
                 return ErrorVar;
-        if (vm_getargs(fr, ".[|l!]{!}:read", &size) == RES_ERROR)
+        bug_on(!fo || fo->v_type != &BinFileType);
+
+        bin = (struct binfile_t *)fo;
+        if (bin->fb_fd < 0) {
+                filerr_closed("read");
                 return ErrorVar;
+        }
 
         if (!bin->fb_readable) {
                 filerr_permit("read", 0);
@@ -566,12 +554,19 @@ static Object *
 do_bin_write(Frame *fr)
 {
         ssize_t ret;
-        Object *bo;
-        struct binfile_t *bin = binfile_fget_priv(fr, "write", 1);
-        if (!bin)
+        Object *bo, *fo;
+        struct binfile_t *bin;
+
+        if (vm_getargs(fr, "<*>[<b>!]{!}:write", &fo, &bo) == RES_ERROR)
                 return ErrorVar;
-        if (vm_getargs(fr, ".[<b>!]{!}:write", &bo) == RES_ERROR)
+        bug_on(!fo || fo->v_type != &BinFileType);
+
+        bin = (struct binfile_t *)fo;
+        if (bin->fb_fd < 0) {
+                filerr_closed("write");
                 return ErrorVar;
+        }
+
         if (!bin->fb_writable) {
                 filerr_permit("write", 1);
                 return ErrorVar;
@@ -585,9 +580,19 @@ do_bin_write(Frame *fr)
 static Object *
 do_bin_flush(Frame *fr)
 {
-        struct binfile_t *bin = binfile_fget_priv(fr, "flush", 1);
-        if (!bin)
+        Object *fo;
+        struct binfile_t *bin;
+
+        if (vm_getargs(fr, "<*>[!]{!}:flush", &fo) == RES_ERROR)
                 return ErrorVar;
+        bug_on(!fo || fo->v_type != &BinFileType);
+
+        bin = (struct binfile_t *)fo;
+        if (bin->fb_fd < 0) {
+                filerr_closed("flush");
+                return ErrorVar;
+        }
+
         if (bin_flush(bin) < 0)
                 return ErrorVar;
         return NULL;
@@ -600,11 +605,15 @@ do_bin_close(Frame *fr)
          * TODO: Flush write buffer, delete read buffer,
          * then call system close().
          */
-        struct binfile_t *bin = binfile_fget_priv(fr, "close", 0);
-        if (!bin)
-                return ErrorVar;
+        Object *fo;
+        struct binfile_t *bin;
 
-        if (bin->fb_fd < 0)
+        if (vm_getargs(fr, "<*>[!]{!}:close", &fo) == RES_ERROR)
+                return ErrorVar;
+        bug_on(!fo || fo->v_type != &BinFileType);
+
+        bin = (struct binfile_t *)fo;
+        if (bin->fb_fd < 0) /* not an error */
                 return NULL;
 
         if (bin_flush(bin) < 0) {
@@ -624,50 +633,47 @@ do_bin_close(Frame *fr)
 }
 
 static void
-bin_destructor(void *priv)
+binfile_reset(Object *binfile)
 {
-        struct binfile_t *bin = priv;
+        struct binfile_t *bin = (struct binfile_t *)binfile;
         if (bin->fb_raw)
                 VAR_DECR_REF(bin->fb_raw);
         if (bin->fb_inbuf)
                 VAR_DECR_REF(bin->fb_inbuf);
         if (bin->fb_outbuf)
                 VAR_DECR_REF(bin->fb_outbuf);
-        efree(bin);
 }
 
 static Object *
-bin_str(Frame *fr)
+bin_str(Object *fo)
 {
-        struct binfile_t *bin = binfile_fget_priv(fr, NULL, 0);
-        if (!bin)
-                return VAR_NEW_REF(NullVar);
-        struct rawfile_t *raw = rawfile_get_priv(bin->fb_raw, NULL, 0);
+        struct binfile_t *bin;
+        struct rawfile_t *raw;
+
+        bug_on(!fo || fo->v_type != &BinFileType);
+
+        bin = (struct binfile_t *)fo;
+        raw = (struct rawfile_t *)bin->fb_raw;
         if (!raw)
                 return VAR_NEW_REF(NullVar);
 
         return stringvar_from_format("<file name='%s' mode='%s'>",
-                        raw->fr_name ? raw->fr_name : "!", raw->fr_mode);
+                                     raw->fr_name ? raw->fr_name : "!",
+                                     raw->fr_mode);
 }
 
 static Object *
 open_binary(int fd, struct fileconfig_t *cfg, Object *raw)
 {
         struct binfile_t *bin;
-        Object *instance, *class;
+        Object *instance;
 
-        class = io_class(GBL_CLASS_BINFILE);
-        bug_on(!class);
-
-        bin = emalloc(sizeof(*bin));
-        memset(bin, 0, sizeof(*bin));
+        instance = var_new(&BinFileType);
+        bin = (struct binfile_t *)instance;
         bin->fb_raw = raw;
         bin->fb_readable = cfg->readable;
         bin->fb_writable = cfg->writable;
         bin->fb_fd = fd;
-
-        instance = instancevar_new(class, NULL, NULL, false);
-        instance_set_priv(instance, bin_destructor, bin);
         return instance;
 }
 
@@ -676,6 +682,7 @@ open_binary(int fd, struct fileconfig_t *cfg, Object *raw)
  ***********************************************************************/
 
 struct textfile_t {
+        Object base;
         Object *ft_raw;
         int ft_codec;
         Object *ft_eol;
@@ -688,19 +695,6 @@ struct textfile_t {
         off_t ft_fdpos;
         int ft_fd; /*< only used for bookkeepping */
 };
-
-static struct textfile_t *
-txtfile_fget_priv(Frame *fr, const char *fname, bool check_open)
-{
-        Object *fo = vm_get_arg(fr, 0);
-        bug_on(!fo || !isvar_instance(fo));
-        struct textfile_t *txt = instance_get_priv(fo);
-        if (check_open && txt->ft_fd < 0) {
-                filerr(fname, "file closed");
-                return NULL;
-        }
-        return txt;
-}
 
 static inline void
 reset_decode_state(struct textfile_t *txt)
@@ -824,12 +818,17 @@ do_text_read(Frame *fr)
 {
         long long size = -1LL;
         struct textfile_t *txt;
+        Object *fo;
 
-        txt = txtfile_fget_priv(fr, "read", 1);
-        if (!txt)
+        if (vm_getargs(fr, "<*>[|l!]{!}:read", &fo, &size) == RES_ERROR)
                 return ErrorVar;
-        if (vm_getargs(fr, ".[|l!]{!}:read", &size) == RES_ERROR)
+        bug_on(!fo || fo->v_type != &TextFileType);
+
+        txt = (struct textfile_t *)fo;
+        if (txt->ft_fd < 0) {
+                filerr_closed("read");
                 return ErrorVar;
+        }
         if (!txt->ft_readable) {
                 filerr_permit("read", 0);
                 return ErrorVar;
@@ -840,14 +839,20 @@ do_text_read(Frame *fr)
 static Object *
 do_text_readline(Frame *fr)
 {
-        Object *ret = NULL;
+        Object *fo, *ret = NULL;
         ssize_t haveidx = 0;
         size_t seekpos;
         struct textfile_t *txt;
 
-        txt = txtfile_fget_priv(fr, "readline", 1);
-        if (!txt)
+        if (vm_getargs(fr, "<*>[!]{!}:readline", &fo) == RES_ERROR)
                 return ErrorVar;
+        bug_on(!fo || fo->v_type != &TextFileType);
+
+        txt = (struct textfile_t *)fo;
+        if (txt->ft_fd < 0) {
+                filerr_closed("readline");
+                return ErrorVar;
+        }
 
         if (!txt->ft_readable) {
                 filerr_permit("readline", 0);
@@ -970,14 +975,18 @@ static Object *
 do_text_write(Frame *fr)
 {
         ssize_t ret;
-        Object *so;
+        Object *so, *fo;
         struct textfile_t *txt;
 
-        txt = txtfile_fget_priv(fr, "write", 1);
-        if (!txt)
+        if (vm_getargs(fr, "<*>[<s>!]{!}:write", &fo, &so) == RES_ERROR)
                 return ErrorVar;
-        if (vm_getargs(fr, ".[<s>!]{!}:write", &so) == RES_ERROR)
+        bug_on(!fo || fo->v_type != &TextFileType);
+
+        txt = (struct textfile_t *)fo;
+        if (txt->ft_fd < 0) {
+                filerr_closed("write");
                 return ErrorVar;
+        }
         if (!txt->ft_writable) {
                 filerr_permit("write", 1);
                 return ErrorVar;
@@ -1003,11 +1012,13 @@ do_text_close(Frame *fr)
 {
         int fd;
         struct textfile_t *txt;
+        Object *fo;
 
-        txt = txtfile_fget_priv(fr, "close", 0);
-        if (!txt)
+        if (vm_getargs(fr, "<*>[!]{!}:close", &fo) == RES_ERROR)
                 return ErrorVar;
+        bug_on(!fo || fo->v_type != &TextFileType);
 
+        txt = (struct textfile_t *)fo;
         /* TODO: If buffer, flush it */
         fd = txt->ft_fd;
         txt->ft_fd = -1;
@@ -1017,31 +1028,29 @@ do_text_close(Frame *fr)
 }
 
 static Object *
-text_str(Frame *fr)
+text_str(Object *fo)
 {
-        Object *ret;
         struct textfile_t *txt;
         struct rawfile_t *raw;
         char codecbuf[16];
 
-        txt = txtfile_fget_priv(fr, NULL, 0);
-        if (!txt)
-                return VAR_NEW_REF(NullVar);
-        raw = rawfile_get_priv(txt->ft_raw, NULL, 0);
+        bug_on(!fo || fo->v_type != &TextFileType);
+
+        txt = (struct textfile_t *)fo;
+        raw = (struct rawfile_t *)txt->ft_raw;
         if (!raw)
                 return VAR_NEW_REF(NullVar);
 
         codec_str(txt->ft_codec, codecbuf, sizeof(codecbuf));
-        ret = stringvar_from_format("<file name='%s' mode='%s' enc='%s'>",
-                      raw->fr_name ? raw->fr_name : "!",
-                      raw->fr_mode, codecbuf);
-        return ret;
+        return stringvar_from_format("<file name='%s' mode='%s' enc='%s'>",
+                                     raw->fr_name ? raw->fr_name : "!",
+                                     raw->fr_mode, codecbuf);
 }
 
 static void
-text_destructor(void *priv)
+textfile_reset(Object *textfile)
 {
-        struct textfile_t *txt = priv;
+        struct textfile_t *txt = (struct textfile_t *)textfile;
         if (txt) {
                 Object *o;
 
@@ -1057,8 +1066,6 @@ text_destructor(void *priv)
                 txt->ft_eol = NULL;
                 if (o)
                         VAR_DECR_REF(o);
-
-                efree(txt);
         }
 }
 
@@ -1066,13 +1073,10 @@ static Object *
 open_text(int fd, struct fileconfig_t *cfg, Object *raw, int codec)
 {
         struct textfile_t *txt;
-        Object *instance, *class;
+        Object *instance;
 
-        class = io_class(GBL_CLASS_TXTFILE);
-        bug_on(!class);
-
-        txt = emalloc(sizeof(*txt));
-        memset(txt, 0, sizeof(*txt));
+        instance = var_new(&TextFileType);
+        txt = (struct textfile_t *)instance;
 
         txt->ft_codec = codec;
         /* FIXME: this should be an argument */
@@ -1083,9 +1087,6 @@ open_text(int fd, struct fileconfig_t *cfg, Object *raw, int codec)
         txt->ft_fdpos = 0;
         txt->ft_readable = cfg->readable;
         txt->ft_writable = cfg->writable;
-
-        instance = instancevar_new(class, NULL, NULL, false);
-        instance_set_priv(instance, text_destructor, txt);
         return instance;
 }
 
@@ -1111,7 +1112,7 @@ Object *
 evc_file_read(Object *fo, ssize_t size)
 {
         Object *res;
-        res = instance_call(fo, STRCONST_ID(read), NULL, NULL);
+        res = file_call_noarg(fo, STRCONST_ID(read));
         if (!res) {
                 filerr("internal_read",
                        "object is not a file or has no 'read' method");
@@ -1136,13 +1137,10 @@ evc_file_read(Object *fo, ssize_t size)
 ssize_t
 evc_file_write(Object *fo, Object *data)
 {
-        Object *res, *args, *stack[1];
+        Object *res;
         ssize_t ret;
 
-        stack[0] = data;
-        args = arrayvar_from_stack(stack, 1, false);
-        res = instance_call(fo, STRCONST_ID(write), args, NULL);
-        VAR_DECR_REF(args);
+        res = file_call_1arg(fo, STRCONST_ID(write), data);
         if (!res) {
                 filerr("internal_write",
                        "object is not a file or has no 'write' method");
@@ -1495,51 +1493,17 @@ initialize_file_classes(void)
                 {"close", iobase_placeholder},
                 {NULL, NULL},
         };
-        static const struct type_method_t textfile_methods[] = {
-                {"read",       do_text_read},
-                {"readline",   do_text_readline},
-                {"flush",      do_text_flush},
-                {"write",      do_text_write},
-                {"close",      do_text_close},
-                /*
-                 * TODO: need seek/tell, it's a lot more complicated
-                 * than with binary.
-                 */
-                {"__str__",    text_str},
-                {NULL, NULL},
-        };
-        static const struct type_method_t binfile_methods[] = {
-                {"read",       do_bin_read},
-                {"write",      do_bin_write},
-                {"flush",      do_bin_flush},
-                {"close",      do_bin_close},
-                {"__str__",    bin_str},
-                {NULL, NULL},
-        };
-        static const struct type_method_t rawfile_methods[] = {
-                {"read",       do_raw_read},
-                {"write",      do_raw_write},
-                {"close",      do_raw_close},
-                {"__str__",    raw_str},
-                {NULL, NULL},
-        };
-        Object *base, *class;
+        Object *base, *basetup;
 
         base = initialize_one_file_class(NULL, iobase_methods);
         gbl_set_builtin_class(GBL_CLASS_IOBASE, base);
         VAR_DECR_REF(base);
 
-        class = initialize_one_file_class(base, textfile_methods);
-        gbl_set_builtin_class(GBL_CLASS_TXTFILE, class);
-        VAR_DECR_REF(class);
-
-        class = initialize_one_file_class(base, binfile_methods);
-        gbl_set_builtin_class(GBL_CLASS_BINFILE, class);
-        VAR_DECR_REF(class);
-
-        class = initialize_one_file_class(base, rawfile_methods);
-        gbl_set_builtin_class(GBL_CLASS_RAWFILE, class);
-        VAR_DECR_REF(class);
+        basetup = tuplevar_from_stack(&base, 1, false);
+        BinFileType.bases = VAR_NEW_REF(basetup);
+        RawFileType.bases = VAR_NEW_REF(basetup);
+        TextFileType.bases = VAR_NEW_REF(basetup);
+        VAR_DECR_REF(basetup);
 }
 
 void
@@ -1564,4 +1528,55 @@ moduleinit_io(void)
                 initialize_file_classes();
 }
 
+static const struct type_method_t textfile_methods[] = {
+        {"read",       do_text_read},
+        {"readline",   do_text_readline},
+        {"flush",      do_text_flush},
+        {"write",      do_text_write},
+        {"close",      do_text_close},
+        /*
+         * TODO: need seek/tell, it's a lot more complicated
+         * than with binary.
+         */
+        {NULL, NULL},
+};
+
+static const struct type_method_t binfile_methods[] = {
+        {"read",       do_bin_read},
+        {"write",      do_bin_write},
+        {"flush",      do_bin_flush},
+        {"close",      do_bin_close},
+        {NULL, NULL},
+};
+
+static const struct type_method_t rawfile_methods[] = {
+        {"read",       do_raw_read},
+        {"write",      do_raw_write},
+        {"close",      do_raw_close},
+        {NULL, NULL},
+};
+
+struct type_t BinFileType = {
+        .name = "binfile",
+        .cbm = binfile_methods,
+        .reset = binfile_reset,
+        .size = sizeof(struct binfile_t),
+        .str = bin_str,
+};
+
+struct type_t RawFileType = {
+        .name = "rawfile",
+        .cbm = rawfile_methods,
+        .reset = rawfile_reset,
+        .size = sizeof(struct rawfile_t),
+        .str = raw_str,
+};
+
+struct type_t TextFileType = {
+        .name = "textfile",
+        .cbm = textfile_methods,
+        .reset = textfile_reset,
+        .size = sizeof(struct textfile_t),
+        .str = text_str,
+};
 

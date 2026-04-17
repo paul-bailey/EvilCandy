@@ -38,7 +38,7 @@ struct gbl_err_subsys_t {
 #define COLOR(what, str)      COLOR_##what str COLOR_DEF
 
 #define exception_instance_validate(exc) \
-        (isvar_instance(exc) && instance_instanceof(exc, ErrorVar))
+        (isvar_instance(exc) && var_instanceof(exc, ErrorVar))
 #define exception_class_validate(exc) \
         (isvar_type(exc) && type_issubclass(exc, ErrorVar))
 

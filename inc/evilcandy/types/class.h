@@ -24,6 +24,5 @@ extern Object *instance_getattr(Frame *fr, Object *instance, Object *key);
 extern enum result_t instance_setattr(Frame *fr, Object *instance,
                                       Object *key, Object *value);
 extern Object *instance_dir(Object *instance);
-extern bool instance_instanceof(Object *instance, Object *class);
 
 #endif /* EVILCANDY_TYPES_CLASS_H */

@@ -13,8 +13,7 @@
             print(s, end='');
         }
     } catch (e) {
-        let type, msg = e;
-        print('Got a', type, ':', msg);
+        print('Got a', e, ':', e.message);
     }
 })("demos/cat.egq");
 

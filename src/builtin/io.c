@@ -583,6 +583,17 @@ do_bin_write(Frame *fr)
 }
 
 static Object *
+do_bin_flush(Frame *fr)
+{
+        struct binfile_t *bin = binfile_fget_priv(fr, "flush", 1);
+        if (!bin)
+                return ErrorVar;
+        if (bin_flush(bin) < 0)
+                return ErrorVar;
+        return NULL;
+}
+
+static Object *
 do_bin_close(Frame *fr)
 {
         /*
@@ -975,6 +986,16 @@ do_text_write(Frame *fr)
         if (ret < 0)
                 return ErrorVar;
         return intvar_new(ret);
+}
+
+static Object *
+do_text_flush(Frame *fr)
+{
+        Object *self;
+        if (vm_getargs(fr, "<*>[!]{!}:flush", &self) == RES_ERROR)
+                return ErrorVar;
+        /* see fixme in text_write */
+        return NULL;
 }
 
 static Object *
@@ -1477,14 +1498,20 @@ initialize_file_classes(void)
         static const struct type_method_t textfile_methods[] = {
                 {"read",       do_text_read},
                 {"readline",   do_text_readline},
+                {"flush",      do_text_flush},
                 {"write",      do_text_write},
                 {"close",      do_text_close},
+                /*
+                 * TODO: need seek/tell, it's a lot more complicated
+                 * than with binary.
+                 */
                 {"__str__",    text_str},
                 {NULL, NULL},
         };
         static const struct type_method_t binfile_methods[] = {
                 {"read",       do_bin_read},
                 {"write",      do_bin_write},
+                {"flush",      do_bin_flush},
                 {"close",      do_bin_close},
                 {"__str__",    bin_str},
                 {NULL, NULL},

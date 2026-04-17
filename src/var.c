@@ -229,6 +229,17 @@ var_delete__(Object *v)
 }
 
 /*
+ * TODO: Temporary, until I have a more organized scheme
+ * for choosing which classes are made global.
+ */
+static bool
+var_is_module(struct type_t *tp)
+{
+        return tp == &BinFileType || tp == &RawFileType
+               || tp == &TextFileType || tp == &SocketType;
+}
+
+/*
  * Given extern linkage so it can be called for modules that have
  * data types which don't need to be visible outside their little
  * corner of the interpreter.
@@ -280,7 +291,7 @@ var_initialize_type(struct type_t *tp)
                 p++;
         }
 
-        if (tp->create) {
+        if (tp->create && !var_is_module(tp)) {
                 Object *v, *k;
                 k = stringvar_new(tp->name);
                 v = funcvar_new_intl(tp->create, false);
@@ -319,6 +330,7 @@ static struct type_t *const VAR_TYPES_TBL[] = {
         &BinFileType,
         &RawFileType,
         &TextFileType,
+        &SocketType,
 
         /* the iterators */
         &ArrayIterType,

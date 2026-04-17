@@ -92,7 +92,7 @@ struct evc_sockaddr_t {
  * stored as '_priv' in the socket dict.
  */
 struct socketvar_t {
-        int magic;
+        Object head;
         int fd;
         int domain;
         int type;
@@ -133,6 +133,12 @@ static void
 skerr_notimpl(const char *msg, const char *fname)
 {
         skerr(NotImplementedError, msg, fname);
+}
+
+static void
+skerr_closed(const char *fname)
+{
+        skerr(TypeError, "socket closed", fname);
 }
 
 static void
@@ -319,36 +325,12 @@ validate_int(int ival, const int *tbl, const char *argname)
         return RES_ERROR;
 }
 
-/*
- * If @check_open, fail if socket has been previously closed.
- */
-static struct socketvar_t *
-socket_get_priv(Object *skobj, const char *fname, bool check_open)
-{
-        struct socketvar_t *skv;
-
-        skv = (struct socketvar_t *)instance_get_priv(skobj);
-        if (check_open && skv->fd < 0)  {
-                skerr(TypeError, "socket closed", fname);
-                return NULL;
-        }
-        return skv;
-}
-
 static Object *
-socket_str(Frame *fr)
+socket_str(Object *skobj)
 {
-        Object *skobj;
-        struct socketvar_t *skv;
         char buf[256];
 
-        skobj = vm_get_arg(fr, 0);
-        bug_on(!skobj || !isvar_instance(skobj));
-
-        skv = socket_get_priv(skobj, ".str", 0);
-
-        if (!skv)
-                return VAR_NEW_REF(NullVar);
+        bug_on(!skobj || skobj->v_type != &SocketType);
 
         /* TODO: Something fancier than this */
         evc_sprintf(buf, sizeof(buf), "<socket @%p>", (void *)skobj);
@@ -357,36 +339,31 @@ socket_str(Frame *fr)
 
 /* Don't ask what a "destroyer of socks" portends */
 static void
-sock_destructor(void *data)
+socket_reset(Object *skobj)
 {
-        struct socketvar_t *skv = (struct socketvar_t *)data;
+        struct socketvar_t *skv = (struct socketvar_t *)skobj;
         int fd = skv->fd;
         skv->fd = -1;
         if (fd >= 0)
                 close(fd);
-        efree(skv);
 }
 
 static void
-socket_initialize_private_data(Object *instance,
-                int fd, int domain, int type, int protocol)
+socket_initialize_private_data(Object *instance, int fd, int domain,
+                               int type, int protocol)
 {
-        struct socketvar_t *skv = emalloc(sizeof(*skv));
-        skv->magic       = DICT_MAGIC_SOCK;
+        struct socketvar_t *skv = (struct socketvar_t *)instance;
         skv->fd          = fd;
         skv->domain      = domain;
         skv->type        = type;
         skv->proto       = protocol;
         skv->addrlen     = dom2alen(domain);
-
-        instance_set_priv(instance, sock_destructor, skv);
 }
 
 static Object *
 socket_create_from(Object *instance, int fd, int domain, int type, int proto)
 {
-        Object *ret = instancevar_new((Object *)(instance->v_type),
-                                      NULL, NULL, false);
+        Object *ret = var_new(&SocketType);
         socket_initialize_private_data(ret, fd, domain, type, proto);
         return ret;
 }
@@ -401,10 +378,15 @@ do_accept(Frame *fr)
         socklen_t addrlen;
         int newfd;
 
-        skobj = vm_get_arg(fr, 0);
-        skv = socket_get_priv(skobj, "accept", 1);
-        if (!skv)
+        if (vm_getargs(fr, "<*>[!]{!}:accept", &skobj) == RES_ERROR)
                 return ErrorVar;
+        bug_on(skobj->v_type != &SocketType);
+
+        skv = (struct socketvar_t *)skobj;
+        if (skv->fd < 0) {
+                skerr_closed("accept");
+                return ErrorVar;
+        }
 
         memset(&sa, 0, sizeof(sa));
         if ((newfd = accept(skv->fd, &sa.sa, &addrlen)) < 0) {
@@ -456,10 +438,13 @@ do_bind(Frame *fr)
             == RES_ERROR) {
                 return ErrorVar;
         }
+        bug_on(skobj->v_type != &SocketType);
 
-        skv = socket_get_priv(skobj, "bind", 1);
-        if (!skv)
+        skv = (struct socketvar_t *)skobj;
+        if (skv->fd < 0) {
+                skerr_closed("bind");
                 return ErrorVar;
+        }
 
         if (obj2addr(&sa, addrarg, skv->domain, "bind") == RES_ERROR)
                 return ErrorVar;
@@ -498,10 +483,13 @@ do_connect(Frame *fr)
             == RES_ERROR) {
                 return ErrorVar;
         }
+        bug_on(skobj->v_type != &SocketType);
 
-        skv = socket_get_priv(skobj, "connect", 1);
-        if (!skv)
+        skv = (struct socketvar_t *)skobj;
+        if (skv->fd < 0) {
+                skerr_closed("connect");
                 return ErrorVar;
+        }
 
         if (obj2addr(&sa, addrarg, skv->domain, "connect") == RES_ERROR)
                 return ErrorVar;
@@ -532,9 +520,13 @@ do_listen(Frame *fr)
 
         if (vm_getargs(fr, "<*>[i!]{!}", &skobj, &backlog) == RES_ERROR)
                 return ErrorVar;
-        skv = socket_get_priv(skobj, "listen", 1);
-        if (!skv)
+        bug_on(skobj->v_type != &SocketType);
+
+        skv = (struct socketvar_t *)skobj;
+        if (skv->fd < 0) {
+                skerr_closed("listen");
                 return ErrorVar;
+        }
 
         if (listen(skv->fd, backlog) < 0) {
                 skerr_syscall("listen");
@@ -587,10 +579,13 @@ recv_common_(Frame *fr,
                        STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
         }
+        bug_on(skobj->v_type != &SocketType);
 
-        skv = socket_get_priv(skobj, fname, 1);
-        if (!skv)
+        skv = (struct socketvar_t *)skobj;
+        if (skv->fd < 0) {
+                skerr_closed(fname);
                 return ErrorVar;
+        }
 
         if (length < 0LL) {
                 skerr(ValueError, "negative buffer size", fname);
@@ -722,13 +717,15 @@ do_send(Frame *fr)
         msg = NULL;
         flags = 0;
 
-        skobj = vm_get_arg(fr, 0);
-        skv = socket_get_priv(skobj, "send", 1);
-        if (!skv)
-                return ErrorVar;
-
-        if (vm_getargs(fr, ".[<bs>!]{|i}:send", &msg,
+        if (vm_getargs(fr, "<*>[<bs>!]{|i}:send", &skobj, &msg,
                        STRCONST_ID(flags), &flags) == RES_ERROR) {
+                return ErrorVar;
+        }
+        bug_on(skobj->v_type != &SocketType);
+
+        skv = (struct socketvar_t *)skobj;
+        if (skv->fd < 0) {
+                skerr_closed("send");
                 return ErrorVar;
         }
 
@@ -754,18 +751,20 @@ do_sendto(Frame *fr)
         Object *skobj, *msg, *ao;
         int flags;
 
-        skobj = vm_get_arg(fr, 0);
-        skv = socket_get_priv(skobj, "sendto", 1);
-        if (!skv)
-                return ErrorVar;
-
         flags = 0;
         msg = ao = NULL;
-        if (vm_getargs(fr, ".[<bs><*>!]{|i}:sendto", &msg, &ao,
+        if (vm_getargs(fr, "<*>[<bs><*>!]{|i}:sendto", &skobj, &msg, &ao,
                         STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
         }
-        bug_on(!msg || !ao); /* vm_getargs shoulda thrown error */
+        bug_on(skobj->v_type != &SocketType);
+
+        skv = (struct socketvar_t *)skobj;
+        if (skv->fd < 0) {
+                skerr_closed("sendto");
+                return ErrorVar;
+        }
+
         if (obj2addr(&addr, ao, skv->domain, "sendto") == RES_ERROR)
                 return ErrorVar;
 
@@ -782,13 +781,12 @@ do_close(Frame *fr)
         struct socketvar_t *skv;
         Object *skobj, *ret;
 
-        skobj = vm_get_arg(fr, 0);
-        skv = socket_get_priv(skobj, "close", 0);
-        if (!skv)
+        if (vm_getargs(fr, "<*>[!]{!}:close", &skobj) == RES_ERROR)
                 return ErrorVar;
+        bug_on(skobj->v_type != &SocketType);
 
-        /* Be like Python: close may be called more than once. */
-        if (skv->fd < 0)
+        skv = (struct socketvar_t *)skobj;
+        if (skv->fd < 0) /*< already closed */
                 return NULL;
 
         ret = NULL;
@@ -820,8 +818,8 @@ socket_init(Frame *fr)
         Object *instance;
 
         fd = -1;
-        if (vm_getargs(fr, "<*>[iii!]{!}", &instance,
-                       &domain, &type, &protocol) == RES_ERROR) {
+        if (vm_getargs(fr, "[iii!]{!}", &domain, &type, &protocol)
+            == RES_ERROR) {
                 return ErrorVar;
         }
         if (validate_int(domain, VALID_DOMAINS, "domain") == RES_ERROR)
@@ -840,41 +838,16 @@ socket_init(Frame *fr)
                 return ErrorVar;
         }
 
+        instance = var_new(&SocketType);
         socket_initialize_private_data(instance, fd,
                                        domain, type, protocol);
-        return NULL;
+        return instance;
 }
 
 static Object *
-create_socket_class(void)
+create_socket_library(Frame *fr)
 {
-        static const struct type_method_t sockmethods_inittbl[] = {
-                {"accept",   do_accept},
-                {"bind",     do_bind},
-                {"connect",  do_connect},
-                {"listen",   do_listen},
-                {"recv",     do_recv},
-                {"recvfrom", do_recvfrom},
-                {"send",     do_send},
-                {"sendto",   do_sendto},
-                {"close",    do_close},
-                {"__str__",  socket_str},
-                {"__init__", socket_init},
-                /* TODO: [gs]etsockopt and common ioctl wrappers */
-                {NULL, NULL},
-        };
-        Object *methods = dictvar_from_methods(NULL,
-                                               sockmethods_inittbl,
-                                               true);
-        Object *ret = typevar_new_intl(NULL, methods, NULL);
-        VAR_DECR_REF(methods);
-        return ret;
-}
-
-static Object *
-create_socket_instance(Frame *fr)
-{
-        Object *socket_class, *skobj, *enums;
+        Object *skobj, *enums;
 
         skobj = dictvar_new();
         enums = gbl_borrow_mns_dict(MNS_SOCKET);
@@ -927,9 +900,8 @@ create_socket_instance(Frame *fr)
                 gbl_set_mns_dict(MNS_SOCKET, enums);
         }
         dict_copyto(skobj, enums);
-        socket_class = create_socket_class();
-        dict_setitem(skobj, STRCONST_ID(socket), socket_class);
-        VAR_DECR_REF(socket_class);
+        /* Add socket() to library */
+        dict_setitem(skobj, STRCONST_ID(socket), (Object *)(&SocketType));
         return skobj;
 }
 
@@ -938,8 +910,32 @@ moduleinit_socket(void)
 {
         Object *k = stringvar_from_ascii("_socket");
         Object *o = var_from_format("<xmM>",
-                                    create_socket_instance, 0, 0);
+                                    create_socket_library, 0, 0);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
 }
+
+static const struct type_method_t socket_methods[] = {
+        {"accept",   do_accept},
+        {"bind",     do_bind},
+        {"connect",  do_connect},
+        {"listen",   do_listen},
+        {"recv",     do_recv},
+        {"recvfrom", do_recvfrom},
+        {"send",     do_send},
+        {"sendto",   do_sendto},
+        {"close",    do_close},
+        /* TODO: [gs]etsockopt and common ioctl wrappers */
+        {NULL, NULL},
+};
+
+struct type_t SocketType = {
+        .name   = "socket",
+        .str    = socket_str,
+        .cbm    = socket_methods,
+        .size   = sizeof(struct socketvar_t),
+        .reset  = socket_reset,
+        .create = socket_init,
+};
+

@@ -1766,6 +1766,24 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
 
         bound = false;
         if (isvar_type(func)) {
+                struct type_t *tp = (struct type_t *)func;
+                if (tp->create) {
+                        /*
+                         * FIXME: Creating and destroying a function object during
+                         * a function call is non-trivial.  See gh issue #44 for
+                         * proposed solution.
+                         */
+                        Object *new_func = funcvar_new_intl(tp->create, false);
+                        res = vm_exec_func(NULL, new_func, args, kwargs);
+                        VAR_DECR_REF(new_func);
+                        return res;
+
+                }
+                if (!(tp->flags & OBF_HEAP)) {
+                        /* XXX: This may be doable in the future */
+                        err_setstr(TypeError, "object is not callable");
+                        return ErrorVar;
+                }
                 return instancevar_new(func, args, kwargs, true);
         } else if (isvar_method(func)) {
                 Object *meth = func;

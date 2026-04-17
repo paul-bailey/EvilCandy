@@ -14,6 +14,11 @@
  * @name:       arg with same rules as name arg to classvar_new
  *
  * Return: A namespace instantiation.
+ *
+ * This is actually just a wrapper for creating a new instance object,
+ * but one whose function-like attributes are not bound to the owner.
+ * Useful for things like modules, which aren't meant to be thought of
+ * as class instantiations.
  */
 Object *
 namespacevar_new(Object *dict, Object *name)
@@ -34,4 +39,3 @@ namespacevar_new(Object *dict, Object *name)
         VAR_DECR_REF(type);
         return ns;
 }
-

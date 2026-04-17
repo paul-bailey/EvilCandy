@@ -34,6 +34,7 @@ extern struct type_t CellType;
 extern struct type_t BinFileType;
 extern struct type_t RawFileType;
 extern struct type_t TextFileType;
+extern struct type_t SocketType;
 
 /* iterators */
 extern struct type_t ArrayIterType;

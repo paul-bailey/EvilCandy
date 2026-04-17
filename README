@@ -85,11 +85,9 @@ As of April 2026, the following can (roughly) be said about EvilCandy:
 * I have thus far only run this on Darwin and Ubuntu, and compiled it
   with clang and gcc.
 
-* I have not finished making all my final decisions about syntax.
-  Currently it supports ``this``, but I may remove that in favor of
-  Python's first-argument-is-self approach.  I am also considering
-  adding static typing, which will gut out a lot of the language's
-  existing syntax.  That is a very post-alpha issue to resolve.
+* I have not finished making all my final decisions about syntax.  I am
+  considering adding static typing, which will gut out a lot of the
+  language's existing syntax.  That is a very post-alpha issue to resolve.
 
 * It has all the characteristics of a source tree that has been maintained
   by just one person without someone else stress-testing it.  It is loaded
@@ -157,9 +155,8 @@ Here are some major differences...
 * Associative arrays are not class instantiations; they are just pure
   dictionaries.  As with JavaScript, you could combine closures and
   dictionaries in a way that forgoes ``class`` syntax altogether, but
-  you have to be more particular about it, because the ``this`` keyword
-  will only not work properly in them.  ``this`` should only be used
-  with class methods.
+  you have to be more particular about it, because EvilCandy has no
+  ``this`` keyword.
 
 How Fast Is EvilCandy?
 ----------------------

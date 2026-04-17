@@ -17,6 +17,12 @@ src/builtin/.*.swp
 /config.status
 /config.log
 .DS_Store
+/programs/*.log
+/programs/*.trs
+/tests/*.log
+/tests/*.trs
+*.log
+*.trs
 
 /Documentation/_build
 /Documentation/__pycache__

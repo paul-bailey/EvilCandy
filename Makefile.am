@@ -85,6 +85,10 @@ programs_unit_tests_SOURCES = programs/unit_tests.c
 programs_fuzzer_SOURCES = programs/fuzzer.c
 evilcandy_SOURCES = programs/evilcandy.c
 
+# Note: there's also a fuzzer but it's slow!
+TESTS = tests/run-evilcandy-tests.sh \
+        programs/unit_tests
+
 noinst_HEADERS = \
         inc/evilcandy/config.h \
         inc/evilcandy/version.h \
@@ -235,11 +239,13 @@ src/vm_gen.c.h: tools/instructions tools/gen
 EXTRA_DIST = \
         tools/instructions \
         tools/tokens \
+        tests/testsuite.evc \
+        tests/sanity.evc \
+        tests/run-evilcandy-tests.sh \
         source_tree_layout.txt \
         ROADMAP.md \
+        AGENTS.md \
         AUTHORS \
         COPYING \
-        README \
-        etc/thought_bucket.txt
-
+        README
 

@@ -291,7 +291,12 @@ errmsg_from_format(const char *msg, va_list ap)
 static void
 err_vsetstr(Object *exc, const char *msg, va_list ap)
 {
+        static bool err_vsetstr_lock = false;
         Object *new_exc, *msgstr;
+
+        /* XXX: Am I certain that only bad internal code causes this? */
+        bug_on(err_vsetstr_lock);
+        err_vsetstr_lock = true;;
 
         msgstr = errmsg_from_format(msg, ap);
 
@@ -299,6 +304,8 @@ err_vsetstr(Object *exc, const char *msg, va_list ap)
         replace_exception(new_exc);
         VAR_DECR_REF(msgstr);
         VAR_DECR_REF(new_exc);
+
+        err_vsetstr_lock = false;
         /*
          * Do not consume @exc.  It does not come from the user stack.
          * It's a meant-to-be-immortal 'XxxxError' exception value,

@@ -3,6 +3,7 @@
 
 #include <internal/instructions.h>
 #include <evilcandy/vm.h>
+#include <stdbool.h>
 
 struct block_t {
         Object **stack_level;
@@ -66,7 +67,7 @@ extern Object *execute_loop(Frame *fr);
 extern bool vm_program_counter_ended(Frame *fr);
 extern enum result_t vmframe_unpack_args(Frame *fr, int optind,
                                          Object *args, Object *kwargs,
-                                         size_t *nr_args);
+                                         size_t *nr_args, bool bind);
 extern enum result_t vmframe_finish_stack_setup(
                         Frame *fr, struct xptrvar_t *xptr,
                         Object **closures);

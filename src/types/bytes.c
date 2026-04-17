@@ -507,10 +507,7 @@ do_bytes_count(Frame *fr)
         size_t hlen;
         int count = 0;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &BytesType) == RES_ERROR)
-                return ErrorVar;
-        if (vm_getargs(fr, "[<bi>!]{!}", &arg) == RES_ERROR)
+        if (vm_getargs(fr, "<b>[<bi>!]{!}", &self, &arg) == RES_ERROR)
                 return ErrorVar;
 
         haystack = bytes_get_data(self);
@@ -545,10 +542,7 @@ bytes_index_or_find_(Frame *fr, unsigned int flags, const char *fmt)
         void *(*locfn)(const void *, size_t, const void *, size_t);
         int res;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &BytesType) == RES_ERROR)
-                return ErrorVar;
-        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &arg) == RES_ERROR)
                 return ErrorVar;
 
         locfn = !!(flags & BF_RIGHT) ? memrmem : memmem;
@@ -578,7 +572,7 @@ bytes_index_or_find_(Frame *fr, unsigned int flags, const char *fmt)
 }
 
 #define bytes_index_or_find(fr, flg, fname) \
-        bytes_index_or_find_(fr, flg, "[<bi>!]{!}:" fname)
+        bytes_index_or_find_(fr, flg, "<b>[<bi>!]{!}:" fname)
 
 static Object *
 do_bytes_find(Frame *fr)
@@ -611,8 +605,7 @@ bytes_removelr_(Frame *fr, unsigned int flags, const char *fmt)
         const unsigned char *needle, *haystack;
         size_t idx, nlen, hlen;
 
-        self = vm_get_this(fr);
-        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &arg) == RES_ERROR)
                 return ErrorVar;
         haystack = bytes_get_data(self);
         hlen = seqvar_size(self);
@@ -620,18 +613,18 @@ bytes_removelr_(Frame *fr, unsigned int flags, const char *fmt)
         nlen = seqvar_size(arg);
 
         if (nlen > hlen)
-                return VAR_NEW_REF(vm_get_this(fr));
+                return VAR_NEW_REF(self);
 
         idx = !!(flags & BF_RIGHT) ? hlen - nlen : 0;
         if (memcmp(&haystack[idx], needle, nlen) != 0)
-                return VAR_NEW_REF(vm_get_this(fr));
+                return VAR_NEW_REF(self);
 
         if (!(flags & BF_RIGHT))
                 haystack += nlen;
         return bytesvar_newf(haystack, hlen - nlen, BF_COPY);
 }
 #define bytes_removelr(fr, flg, fname) \
-        bytes_removelr_(fr, flg, "[<b>!]{!}:" fname)
+        bytes_removelr_(fr, flg, "<b>[<b>!]{!}:" fname)
 
 static Object *
 do_bytes_removeprefix(Frame *fr)
@@ -654,8 +647,7 @@ bytes_starts_or_ends_with_(Frame *fr, unsigned int flags, const char *fmt)
         const unsigned char *needle, *haystack;
         size_t nlen, hlen, idx;
 
-        self = vm_get_this(fr);
-        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &arg) == RES_ERROR)
                 return ErrorVar;
 
         haystack = bytes_get_data(self);
@@ -670,7 +662,7 @@ bytes_starts_or_ends_with_(Frame *fr, unsigned int flags, const char *fmt)
 }
 
 #define bytes_starts_or_ends_with(fr, flg, fname) \
-        bytes_starts_or_ends_with_(fr, flg, "[<b>!]{!}:" fname)
+        bytes_starts_or_ends_with_(fr, flg, "<b>[<b>!]{!}:" fname)
 
 static Object *
 do_bytes_endswith(Frame *fr)
@@ -694,11 +686,10 @@ do_bytes_join(Frame *fr)
         const unsigned char *joinbuf;
         size_t i, total_size, joinlen, arglen;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &BytesType) == RES_ERROR)
+        if (vm_getargs(fr, "<b>[<[]()>!]{!}:join", &self, &arg)
+            == RES_ERROR) {
                 return ErrorVar;
-        if (vm_getargs(fr, "[<[]()>!]{!}:join", &arg) == RES_ERROR)
-                return ErrorVar;
+        }
 
         joinbuf = bytes_get_data(self);
         joinlen = seqvar_size(self);
@@ -749,8 +740,7 @@ bytes_lrpartition_(Frame *fr, unsigned int flags, const char *fmt)
         const unsigned char *haystack, *needle, *found;
         size_t hlen, nlen;
 
-        self = vm_get_this(fr);
-        if (vm_getargs(fr, fmt, &separg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &separg) == RES_ERROR)
                 return ErrorVar;
 
         haystack = bytes_get_data(self);
@@ -773,7 +763,7 @@ bytes_lrpartition_(Frame *fr, unsigned int flags, const char *fmt)
         VAR_DECR_REF(td[1]);
         VAR_DECR_REF(td[2]);
         if (!found) {
-                td[0] = VAR_NEW_REF(vm_get_this(fr));
+                td[0] = VAR_NEW_REF(self);
                 td[1] = gbl_new_empty_bytes();
                 td[2] = gbl_new_empty_bytes();
         } else {
@@ -795,7 +785,7 @@ bytes_lrpartition_(Frame *fr, unsigned int flags, const char *fmt)
 }
 
 #define bytes_lrpartition(fr, flg, fname) \
-        bytes_lrpartition_(fr, flg, "[<b>!]{!}:" fname)
+        bytes_lrpartition_(fr, flg, "<b>[<b>!]{!}:" fname)
 
 static Object *
 do_bytes_partition(Frame *fr)
@@ -820,9 +810,8 @@ do_bytes_replace(Frame *fr)
         struct buffer_t b;
         /* TODO: count arg */
 
-        self_o = vm_get_this(fr);
-        if (vm_getargs(fr, "[<b><b>!]{!}:replace", &old_o, &new_o)
-            == RES_ERROR) {
+        if (vm_getargs(fr, "<b>[<b><b>!]{!}:replace",
+                       &self_o, &old_o, &new_o) == RES_ERROR) {
                 return ErrorVar;
         }
         self = bytes_get_data(self_o);
@@ -863,12 +852,11 @@ do_bytes_lrjust_(Frame *fr, unsigned int flags, const char *fmt)
 
         bug_on((flags & (BF_CENTER|BF_RIGHT)) == (BF_CENTER|BF_RIGHT));
 
-        self_o = vm_get_this(fr);
+        if (vm_getargs(fr, fmt, &self_o, &newlen) == RES_ERROR)
+                return ErrorVar;
+
         self = bytes_get_data(self_o);
         selflen = seqvar_size(self_o);
-
-        if (vm_getargs(fr, fmt, &newlen) == RES_ERROR)
-                return ErrorVar;
 
         if (newlen < selflen)
                 newlen = selflen;
@@ -896,7 +884,7 @@ do_bytes_lrjust_(Frame *fr, unsigned int flags, const char *fmt)
 }
 
 #define do_bytes_lrjust(fr, flg, fname) \
-        do_bytes_lrjust_(fr, flg, "[z!]{!}:" fname)
+        do_bytes_lrjust_(fr, flg, "<b>[z!]{!}:" fname)
 
 static Object *
 do_bytes_center(Frame *fr)
@@ -930,18 +918,18 @@ bytes_lrsplit(Frame *fr, unsigned int flags)
         bool combine;
         const char *fmt;
 
-        self_o = vm_get_this(fr);
-        self = bytes_get_data(self_o);
-        selflen = seqvar_size(self_o);
-
         combine = false;
         separg = NULL;
         maxsplit = -1;
-        fmt = !!(flags & BF_RIGHT) ? "[!]{|<b>i}:rsplit" : "[!]{|<b>i}:split";
-        if (vm_getargs(fr, fmt, STRCONST_ID(sep), &separg,
-                        STRCONST_ID(maxsplit), &maxsplit) == RES_ERROR) {
+        fmt = !!(flags & BF_RIGHT) ? "<b>[!]{|<b>i}:rsplit" : "<b>[!]{|<b>i}:split";
+        if (vm_getargs(fr, fmt, &self_o, STRCONST_ID(sep), &separg,
+                       STRCONST_ID(maxsplit), &maxsplit) == RES_ERROR) {
                 return ErrorVar;
         }
+
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
+
         if (!separg) {
                 combine = true;
                 separg = bytesvar_new((const unsigned char *)" ", 1);
@@ -1029,13 +1017,12 @@ bytes_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
         const unsigned char *self, *chars;
         size_t selflen, charslen, selflen_save;
 
-        self_o = vm_get_this(fr);
-        self = bytes_get_data(self_o);
-        selflen = seqvar_size(self_o);
         arg = NULL;
-        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self_o, &arg) == RES_ERROR)
                 return ErrorVar;
 
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
         if (arg) {
                 chars = bytes_get_data(arg);
                 charslen = seqvar_size(arg);
@@ -1064,7 +1051,7 @@ bytes_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
         }
 
         if (selflen_save == selflen)
-                return VAR_NEW_REF(vm_get_this(fr));
+                return VAR_NEW_REF(self_o);
 
         if (!selflen)
                 return gbl_new_empty_bytes();
@@ -1073,7 +1060,7 @@ bytes_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
 }
 
 #define bytes_lrstrip(fr, flg, fname) \
-        bytes_lrstrip_(fr, flg, "[|<b>]{!}:" fname)
+        bytes_lrstrip_(fr, flg, "<b>[|<b>]{!}:" fname)
 
 static Object *
 do_bytes_strip(Frame *fr)
@@ -1103,8 +1090,7 @@ do_bytes_capitalize(Frame *fr)
         unsigned char *newbuf, *dst;
         size_t i, selflen;
 
-        self_o = vm_get_this(fr);
-        if (VM_REFUSE_ARGS(fr, "capitalize") == RES_ERROR)
+        if (vm_getargs(fr, "<b>[!]{!}:capitalize", &self_o) == RES_ERROR)
                 return ErrorVar;
         self = bytes_get_data(self_o);
         selflen = seqvar_size(self_o);
@@ -1129,15 +1115,14 @@ do_bytes_expandtabs(Frame *fr)
         size_t i, selflen, newlen;
         struct buffer_t b;
 
-        self_o = vm_get_this(fr);
-        self = bytes_get_data(self_o);
-        selflen = seqvar_size(self_o);
-
         tabsize = 8;
-        if (vm_getargs(fr, "[!]{|i}:expandtabs",
+        if (vm_getargs(fr, "<b>[!]{|i}:expandtabs", &self_o,
                        STRCONST_ID(tabsize), &tabsize) == RES_ERROR) {
                 return ErrorVar;
         }
+
+        self = bytes_get_data(self_o);
+        selflen = seqvar_size(self_o);
 
         if (tabsize < 0)
                 tabsize = 0;
@@ -1170,15 +1155,10 @@ do_bytes_expandtabs(Frame *fr)
 }
 
 static Object *
-bytes_is(Frame *fr, bool (*tst)(unsigned long))
+bytes_is(Object *self, bool (*tst)(unsigned long))
 {
-        Object *self;
         const unsigned char *p8;
         size_t i, len;
-
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &BytesType) == RES_ERROR)
-                return ErrorVar;
 
         if (seqvar_size(self) == 0)
                 return gbl_new_bool(false);
@@ -1192,73 +1172,33 @@ bytes_is(Frame *fr, bool (*tst)(unsigned long))
         return gbl_new_bool(true);
 }
 
-static Object *
-do_bytes_isalnum(Frame *fr)
-{
-        if (VM_REFUSE_ARGS(fr, "isalnum") == RES_ERROR)
-                return ErrorVar;
-        return bytes_is(fr, evc_isalnum);
+#define BYTES_IS_FUNC(name_) \
+static Object * \
+do_bytes_##name_(Frame *fr) \
+{ \
+        Object *self; \
+        if (vm_getargs(fr, "<b>[!]{!}:" #name_, &self) == RES_ERROR) \
+                return ErrorVar; \
+        return bytes_is(self, evc_##name_); \
 }
 
-static Object *
-do_bytes_isalpha(Frame *fr)
-{
-        if (VM_REFUSE_ARGS(fr, "isalpha") == RES_ERROR)
-                return ErrorVar;
-        return bytes_is(fr, evc_isalpha);
-}
-
-static Object *
-do_bytes_isascii(Frame *fr)
-{
-        if (VM_REFUSE_ARGS(fr, "isascii") == RES_ERROR)
-                return ErrorVar;
-        return bytes_is(fr, evc_isascii);
-}
-
-static Object *
-do_bytes_isdigit(Frame *fr)
-{
-        if (VM_REFUSE_ARGS(fr, "isdigit") == RES_ERROR)
-                return ErrorVar;
-        return bytes_is(fr, evc_isdigit);
-}
-
-static Object *
-do_bytes_islower(Frame *fr)
-{
-        if (VM_REFUSE_ARGS(fr, "islower") == RES_ERROR)
-                return ErrorVar;
-        return bytes_is(fr, evc_islower);
-}
-
-static Object *
-do_bytes_isspace(Frame *fr)
-{
-        if (VM_REFUSE_ARGS(fr, "isspace") == RES_ERROR)
-                return ErrorVar;
-        return bytes_is(fr, evc_isspace);
-}
-
-static Object *
-do_bytes_isupper(Frame *fr)
-{
-        if (VM_REFUSE_ARGS(fr, "isupper") == RES_ERROR)
-                return ErrorVar;
-        return bytes_is(fr, evc_isupper);
-}
+BYTES_IS_FUNC(isalnum)
+BYTES_IS_FUNC(isalpha)
+BYTES_IS_FUNC(isascii)
+BYTES_IS_FUNC(isdigit)
+BYTES_IS_FUNC(islower)
+BYTES_IS_FUNC(isupper)
+BYTES_IS_FUNC(isspace)
 
 static Object *
 do_bytes_istitle(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
+        Object *self;
         const unsigned char *p8;
         size_t i, len;
         bool first = true;
 
-        if (arg_type_check(self, &BytesType) == RES_ERROR)
-                return ErrorVar;
-        if (VM_REFUSE_ARGS(fr, "istitle") == RES_ERROR)
+        if (vm_getargs(fr, "<b>[!]{!}:istitle", &self) == RES_ERROR)
                 return ErrorVar;
 
         if (seqvar_size(self) == 0)
@@ -1280,17 +1220,11 @@ do_bytes_istitle(Frame *fr)
 }
 
 static Object *
-bytes_convert_case(Frame *fr, unsigned long (*convert)(unsigned long))
+bytes_convert_case(Object *self, unsigned long (*convert)(unsigned long))
 {
-        Object *self;
         unsigned char *dst;
         const unsigned char *src;
         size_t i, len;
-
-        self = vm_get_this(fr);
-
-        if (arg_type_check(self, &BytesType) == RES_ERROR)
-                return ErrorVar;
 
         src = bytes_get_data(self);
         len = seqvar_size(self);
@@ -1306,25 +1240,28 @@ bytes_convert_case(Frame *fr, unsigned long (*convert)(unsigned long))
 static Object *
 do_bytes_lower(Frame *fr)
 {
-        if (VM_REFUSE_ARGS(fr, "lower") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<b>[!]{!}:lower", &self) == RES_ERROR)
                 return ErrorVar;
-        return bytes_convert_case(fr, evc_tolower);
+        return bytes_convert_case(self, evc_tolower);
 }
 
 static Object *
 do_bytes_swapcase(Frame *fr)
 {
-        if (VM_REFUSE_ARGS(fr, "swapcase") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<b>[!]{!}:swapcase", &self) == RES_ERROR)
                 return ErrorVar;
-        return bytes_convert_case(fr, to_swapcase);
+        return bytes_convert_case(self, to_swapcase);
 }
 
 static Object *
 do_bytes_upper(Frame *fr)
 {
-        if (VM_REFUSE_ARGS(fr, "upper") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<b>[!]{!}:upper", &self) == RES_ERROR)
                 return ErrorVar;
-        return bytes_convert_case(fr, evc_toupper);
+        return bytes_convert_case(self, evc_toupper);
 }
 
 static Object *
@@ -1335,15 +1272,14 @@ do_bytes_splitlines(Frame *fr)
         int keepends;
         Object *ret, *self;
 
-        self = vm_get_this(fr);
-        src = bytes_get_data(self);
-        srclen = seqvar_size(self);
-
         keepends = 0;
-        if (vm_getargs(fr, "[!]{|i}:splitlines",
+        if (vm_getargs(fr, "<b>[!]{|i}:splitlines", &self,
                        STRCONST_ID(keepends), &keepends) == RES_ERROR) {
                 return ErrorVar;
         }
+
+        src = bytes_get_data(self);
+        srclen = seqvar_size(self);
 
         ret = arrayvar_new(0);
         while (srclen) {
@@ -1384,10 +1320,9 @@ do_bytes_title(Frame *fr)
         size_t i, selflen;
         bool first;
 
-        if (VM_REFUSE_ARGS(fr, "title") == RES_ERROR)
+        if (vm_getargs(fr, "<b>[!]{!}:title", &self_o) == RES_ERROR)
                 return ErrorVar;
 
-        self_o = vm_get_this(fr);
         self = bytes_get_data(self_o);
         selflen = seqvar_size(self_o);
         if (!selflen)
@@ -1420,9 +1355,7 @@ do_bytes_zfill(Frame *fr)
         size_t i, selflen, newlen;
         ssize_t nz;
 
-        self_o = vm_get_this(fr);
-
-        if (vm_getargs(fr, "[z!]{!}:zfill", &nz) == RES_ERROR)
+        if (vm_getargs(fr, "<b>[z!]{!}:zfill", &self_o, &nz) == RES_ERROR)
                 return ErrorVar;
 
         self = bytes_get_data(self_o);

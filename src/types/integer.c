@@ -275,8 +275,9 @@ int_bit_length(Frame *fr)
 {
         int count;
         unsigned long long ival;
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &IntType) == RES_ERROR)
+        Object *self;
+
+        if (vm_getargs(fr, "<i>[!]{!}:bit_length", &self) == RES_ERROR)
                 return ErrorVar;
 
         ival = intvar_toll(self);
@@ -294,8 +295,9 @@ int_bit_count(Frame *fr)
 {
         int count;
         unsigned long long ival;
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &IntType) == RES_ERROR)
+        Object *self;
+
+        if (vm_getargs(fr, "<i>[!]{!}:bit_count", &self) == RES_ERROR)
                 return ErrorVar;
 
         ival = intvar_toll(self);
@@ -306,8 +308,9 @@ int_bit_count(Frame *fr)
 static Object *
 int_conjugate(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        bug_on(!self || !isvar_int(self));
+        Object *self;
+        if (vm_getargs(fr, "<i>[!]{!}:conjugate", &self) == RES_ERROR)
+                return ErrorVar;
         return VAR_NEW_REF(self);
 }
 

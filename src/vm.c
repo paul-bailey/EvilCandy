@@ -1526,54 +1526,88 @@ vmframe_finish_stack_setup(Frame *fr, struct xptrvar_t *xptr,
  * @nr_args:    variable to store number of arguments as they appear on
  *              the stack.  (ie. all the optional arguments would appear
  *              as a single argument.)
+ * @bind:       If true, put frame owner on the stack as the first arg.
  *
  * Return: RES_OK or RES_ERROR
  */
 enum result_t
 vmframe_unpack_args(Frame *fr, int optind, Object *args,
-                    Object *kwargs, size_t *nr_args)
+                    Object *kwargs, size_t *nr_args, bool bind)
 {
         size_t i;
+        bug_on(bind && !fr->owner);
         if (!args) {
-                if (optind == 0) {
-                        fr->stack[0] = arrayvar_new(0);
-                        fr->ap = 1;
-                } else {
-                        fr->ap = 0;
-                }
+                fr->ap = 0;
+                if (bind)
+                        fr->stack[fr->ap++] = VAR_NEW_REF(fr->owner);
+                if (optind == 0)
+                        fr->stack[fr->ap++] = arrayvar_new(0);
         } else if (optind >= 0) {
                 bug_on(!isvar_array(args));
-                if (optind > seqvar_size(args)) {
+                /* optind may not be position 0 if that's reserved for owner */
+                if (bind && optind < 1) {
+                        err_setstr(ArgumentError,
+                                   "malformed function header: first argument is owner");
+                        fr->ap = 0;
+                        return RES_ERROR;
+                }
+
+                if (optind > seqvar_size(args) + bind) {
                         err_setstr(ArgumentError,
                                 "expected %ld args but got %ld",
                                 (long)optind, (long)seqvar_size(args));
                         fr->ap = 0;
                         return RES_ERROR;;
                 }
+                fr->stackptr = fr->stack;
 
-                if (optind > 0) {
+                fr->ap = 0;
+                if (bind)
+                        fr->stack[fr->ap++] = VAR_NEW_REF(fr->owner);
+
+                if (optind > fr->ap) {
+                        /*
+                         * Move the fixed positional prefix onto the frame.
+                         * This is functionally similar to:
+                         *
+                         *      for (i = 0; i < optind - fr->ap; i++)
+                         *              push(fr, array_pop(args, 0));
+                         *
+                         * except that we're doing it in one pass.  Avoid
+                         * repeatedly popping index 0 from args during
+                         * function-call setup; the remaining tail stays
+                         * in args as the varargs array.
+                         */
+                        size_t n_cp = optind - fr->ap;
                         Object **data = array_get_data(args);
-                        memcpy(fr->stack, data, optind * sizeof(Object *));
-                        for (i = 0; i < optind; i++)
+                        memcpy(&fr->stack[fr->ap], data,
+                               n_cp * sizeof(Object *));
+                        for (i = fr->ap; i < optind; i++)
                                 VAR_INCR_REF(fr->stack[i]);
-                        array_delete_chunk(args, 0, optind);
+                        array_delete_chunk(args, 0, n_cp);
                 }
 
                 fr->stack[optind] = VAR_NEW_REF(args);
                 fr->ap = optind + 1;
         } else {
                 bug_on(!isvar_array(args));
-                fr->ap = seqvar_size(args);
-                if (!vm_pointers_in_stack(fr->stack, fr->stack + fr->ap)) {
+                size_t n = seqvar_size(args);
+
+                if (!vm_pointers_in_stack(fr->stack,
+                                          fr->stack + n + bind)) {
                         err_setstr(ArgumentError,
                                 "Cannot uppack args: stack would overflow");
                         fr->ap = 0;
                         return RES_ERROR;
                 }
-                for (i = 0; i < fr->ap; i++) {
-                        fr->stack[i] = array_getitem(args, i);
+
+                if (bind)
+                        fr->stack[0] = VAR_NEW_REF(fr->owner);
+                for (i = 0; i < n; i++) {
+                        fr->stack[i + bind] = array_getitem(args, i);
                         bug_on(!fr->stack[i]);
                 }
+                fr->ap = n + bind;
         }
 
         /* Put dict onto the stack at the correct spot */
@@ -1728,7 +1762,9 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
 {
         Frame *fr;
         Object *res, *owner;
+        bool bound;
 
+        bound = false;
         if (isvar_type(func)) {
                 return instancevar_new(func, args, kwargs, true);
         } else if (isvar_method(func)) {
@@ -1739,6 +1775,7 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
                 bug_on(!func);
                 bug_on(!owner);
                 bug_on(!isvar_function(func));
+                bound = true;
         } else {
                 owner = fr_old ? vm_get_this(fr_old) : GlobalObject;
                 /* Keep references balanced here & above part of 'if' */
@@ -1751,7 +1788,7 @@ vm_exec_func(Frame *fr_old, Object *func, Object *args, Object *kwargs)
                 debug_push_location(tfr, tfr->ppii - 1 - tfr->ex->instr);
 
         fr = vmframe_alloc(func, owner, fr_old);
-        res = function_call(fr, fr->func, args, kwargs);
+        res = function_call(fr, fr->func, args, kwargs, bound);
         vmframe_free(fr);
 
         if (tfr && tfr->ex)

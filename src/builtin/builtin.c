@@ -480,7 +480,7 @@ moduleinit_builtin(void)
         const struct codectbl_t *t;
 
         Object *k = stringvar_from_ascii("_builtins");
-        Object *o = dictvar_from_methods(NULL, builtin_inittbl);
+        Object *o = dictvar_from_methods(NULL, builtin_inittbl, false);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);

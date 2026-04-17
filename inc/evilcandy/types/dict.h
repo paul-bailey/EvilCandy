@@ -10,7 +10,8 @@ struct type_method_t;
 /* types/dict.c */
 extern Object *dictvar_new(void);
 extern Object *dictvar_from_methods(Object *parent,
-                        const struct type_method_t *tbl);
+                                    const struct type_method_t *tbl,
+                                    bool bind);
 extern Object *dict_keys(Object *obj, bool sorted);
 extern Object *dict_getitem(Object *o, Object *key);
 extern Object *dict_getitem_cstr(Object *o, const char *cstr_key);

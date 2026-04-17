@@ -29,6 +29,18 @@ struct instance_t {
 #define V2TP(obj_)        ((struct type_t *)(obj_))
 #define V2INST(obj_)      ((struct instance_t *)(obj_))
 
+static Object *
+maybe_bind_function(Object *instance, Object *maybe_function)
+{
+        if (isvar_function(maybe_function) &&
+            !(instance->v_type->flags & OBF_NO_BIND_FUNCTION_ATTRS)) {
+                Object *tmp = maybe_function;
+                maybe_function = methodvar_new(tmp, instance);
+                VAR_DECR_REF(tmp);
+        }
+        return maybe_function;
+}
+
 static bool
 item_access_permitted(Frame *fr, struct type_t *class, Object *key)
 {
@@ -39,7 +51,7 @@ item_access_permitted(Frame *fr, struct type_t *class, Object *key)
                 if (!fr)
                         return false;
                 inst = vm_get_this(fr);
-                if (!isvar_instance(inst)) /*< XXX bug? */
+                if (!inst || !isvar_instance(inst)) /*< XXX bug? */
                         return false;
                 return inst->v_type == class;
         }
@@ -275,13 +287,7 @@ instance_getattr(Frame *fr, Object *instance, Object *key)
         return NULL;
 
 found:
-        if (isvar_function(ret) &&
-            !(instance->v_type->flags & OBF_NO_BIND_FUNCTION_ATTRS)) {
-                Object *tmp = ret;
-                ret = methodvar_new(tmp, instance);
-                VAR_DECR_REF(tmp);
-        }
-        return ret;
+        return maybe_bind_function(instance, ret);
 }
 
 /**
@@ -363,7 +369,7 @@ instance_super_getattr(Object *instance, Object *attribute_name)
                 Object *super = tuple_borrowitem_(bases, i);
                 Object *attr = type_getitem(NULL, super, attribute_name);
                 if (attr)
-                        return attr;
+                        return maybe_bind_function(instance, attr);
         }
 
         return NULL;

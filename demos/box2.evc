@@ -5,7 +5,7 @@
 //      box2.evc: Use an actual class instantiation.
 
 class Box() {
-    .__init__ = (**kwargs) => {
+    .__init__ = (self, **kwargs) => {
         let priv = {
             'padleft':      4,
             'maxwidth':     73,
@@ -28,22 +28,22 @@ class Box() {
             }
         }
         priv['count'] = 0;
-        this.test_borderchar(priv['borderchar']);
-        this.priv = priv;
+        self.test_borderchar(priv['borderchar']);
+        self.priv = priv;
     },
 
-    .borderchar = function(*bc) {
+    .borderchar = function(self, *bc) {
         if (length(bc) == 0)
-            return this.priv['borderchar'];
+            return self.priv['borderchar'];
         else if (length(bc) == 1)
-            this.priv['borderchar'] = this.test_borderchar(bc[0]);
+            self.priv['borderchar'] = self.test_borderchar(bc[0]);
         else
             throw ArgumentError("Expected: borderchar() or borderchar(bc)");
     },
 
-    .count = (() => this.priv['count']),
+    .count = ((self) => self.priv['count']),
 
-    private .test_borderchar = function(c) {
+    private .test_borderchar = function(self, c) {
         if (typeof(c) != 'string')
             throw ArgumentError('borderchar not a string');
         if (length(c) != 1)
@@ -53,9 +53,9 @@ class Box() {
 
     private .priv = null,
 
-    .print = function(longstr, **kw) {
-        let priv = this.priv;
-        let test_borderchar = this.test_borderchar;
+    .print = function(self, longstr, **kw) {
+        let priv = self.priv;
+        let test_borderchar = self.test_borderchar;
         let maxwidth = priv['maxwidth'];
         let borderchar;
         let topbottom;
@@ -63,7 +63,7 @@ class Box() {
 
         borderchar = 'borderchar' in kw
                      ? test_borderchar(kw['borderchar'])
-                     : this.borderchar();
+                     : self.borderchar();
         if (kw has 'width')
             maxwidth = kw['width'];
 

@@ -251,7 +251,7 @@ var_initialize_type(struct type_t *tp)
                 Object *v, *k;
                 enum result_t res;
 
-                v = funcvar_from_lut(t);
+                v = funcvar_from_lut(t, true);
                 k = stringvar_new(t->name);
                 res = dict_setitem_exclusive(dict, k, v);
                 VAR_DECR_REF(k);
@@ -283,7 +283,7 @@ var_initialize_type(struct type_t *tp)
         if (tp->create) {
                 Object *v, *k;
                 k = stringvar_new(tp->name);
-                v = var_from_format("<xMmok>", tp->create, 2, 2, 0, 1);
+                v = funcvar_new_intl(tp->create, false);
                 vm_add_global(k, v);
                 VAR_DECR_REF(k);
                 VAR_DECR_REF(v);

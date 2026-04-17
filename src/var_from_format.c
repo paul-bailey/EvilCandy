@@ -136,6 +136,11 @@ var_make_builtin(const char *fmt, va_list ap, char **endptr)
                         bug_on(!!cb);
                         cb = va_arg(ap, Object *(*)(Frame *));
                         break;
+                /*
+                 * TODO: (gh issue #42) remove these from here and
+                 * anywhere that calls us with <x...>.  Add 'b'
+                 * to serve as the bind arg to funcvar_new_intl()
+                 */
                 case 'm':
                         bug_on(min >= 0);
                         min = va_arg(ap, int);
@@ -160,7 +165,7 @@ var_make_builtin(const char *fmt, va_list ap, char **endptr)
 
         bug_on(!cb);
 
-        func = funcvar_new_intl(cb);
+        func = funcvar_new_intl(cb, false);
 
         bug_on(*fmt != '>');
         *endptr = (char *)fmt+1;

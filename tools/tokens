@@ -68,7 +68,6 @@ RARROW          '=>'
 DELETE          "delete"
 FUNC            "function"
 LET             "let"
-THIS            "this"          atomic_key
 RETURN          "return"
 BREAK           "break"
 CONTINUE        "continue"

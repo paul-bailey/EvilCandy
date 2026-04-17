@@ -5,9 +5,9 @@ class TestException(RuntimeError) {}
 function assertion_exception(self, message) {
     let msgstr = '';
     if (self.name)
-        msgstr += f'{this.name} ';
-    msgstr += f'in file{this.file}: ';
-    msgstr += f'test #{this.test_number}: ';
+        msgstr += f'{self.name} ';
+    msgstr += f'in file{self.file}: ';
+    msgstr += f'test #{self.test_number}: ';
     return TestException(msgstr + message);
 }
 
@@ -41,57 +41,57 @@ function methodcall_throws_exception(obj, method_name, args) {
 }
 
 class Test() {
-    .__init__ = function(**kwargs) {
+    .__init__ = function(self, **kwargs) {
         let opts = {
             'file': sys['breadcrumbs'][-1],
             'name': null,
         } | kwargs;
-        this.file = opts['file'].split(sep='/')[-1];
-        this.name = opts['name'];
-        this.test_number = 1;
+        self.file = opts['file'].split(sep='/')[-1];
+        self.name = opts['name'];
+        self.test_number = 1;
     },
 
-    .assert_true = function(condition) {
-        assert_bool(this, condition, true);
+    .assert_true = function(self, condition) {
+        assert_bool(self, condition, true);
     },
 
-    .assert_false = function(condition) {
-        assert_bool(this, condition, false);
+    .assert_false = function(self, condition) {
+        assert_bool(self, condition, false);
     },
 
-    .assert_exception = function(code) {
+    .assert_exception = function(self, code) {
         if (!code_throws_exception(code))
-            throw assertion_exception(this, f'failed to throw exception');
-        this.test_number++;
+            throw assertion_exception(self, f'failed to throw exception');
+        self.test_number++;
     },
 
-    .assert_no_exception = function(code) {
+    .assert_no_exception = function(self, code) {
         if (code_throws_exception(code))
             throw assertion_exception(
-                            this, f'threw exception');
-        this.test_number++;
+                            self, f'threw exception');
+        self.test_number++;
     },
 
-    .assert_equal = function(a, b) {
+    .assert_equal = function(self, a, b) {
         if (a != b)
-            throw assertion_exception(this, f'{a} not equal to {b}');
-        this.test_number++;
+            throw assertion_exception(self, f'{a} not equal to {b}');
+        self.test_number++;
     },
 
-    .reset = function(**kwargs) {
+    .reset = function(self, **kwargs) {
         if 'name' in kwargs
-            this.name = kwargs['name'];
-        this.test_number = 1;
+            self.name = kwargs['name'];
+        self.test_number = 1;
     },
 
-    .assert_exception_inscope = function(obj, method_name, args) {
+    .assert_exception_inscope = function(self, obj, method_name, args) {
         if (!methodcall_throws_exception(obj, method_name, args))
-            throw assertion_exception(this, f'failed to throw exception');
+            throw assertion_exception(self, f'failed to throw exception');
     },
 
-    .assert_no_exception_inscope = function(obj, method_name, args) {
+    .assert_no_exception_inscope = function(self, obj, method_name, args) {
         if (methodcall_throws_exception(obj, method_name, args))
-            throw assertion_exception(this, f'threw exception');
+            throw assertion_exception(self, f'threw exception');
     },
 }
 

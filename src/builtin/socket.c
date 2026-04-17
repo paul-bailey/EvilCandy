@@ -54,6 +54,8 @@
 #include <internal/types/string.h>
 #include <internal/types/sequential_types.h>
 #include <internal/init.h>
+/* TODO: remove vm_get_arg() call and this include */
+#include <internal/vm.h>
 #include <lib/helpers.h>
 
 #include <errno.h>
@@ -340,7 +342,7 @@ socket_str(Frame *fr)
         struct socketvar_t *skv;
         char buf[256];
 
-        skobj = vm_get_this(fr);
+        skobj = vm_get_arg(fr, 0);
         bug_on(!skobj || !isvar_instance(skobj));
 
         skv = socket_get_priv(skobj, ".str", 0);
@@ -399,7 +401,7 @@ do_accept(Frame *fr)
         socklen_t addrlen;
         int newfd;
 
-        skobj = vm_get_this(fr);
+        skobj = vm_get_arg(fr, 0);
         skv = socket_get_priv(skobj, "accept", 1);
         if (!skv)
                 return ErrorVar;
@@ -450,9 +452,10 @@ do_bind(Frame *fr)
         Object *skobj, *addrarg;
         struct evc_sockaddr_t sa;
 
-        skobj = vm_get_this(fr);
-        if (vm_getargs(fr, "[<*>!]{!}:bind", &addrarg) == RES_ERROR)
+        if (vm_getargs(fr, "<*>[<*>!]{!}:bind", &skobj, &addrarg)
+            == RES_ERROR) {
                 return ErrorVar;
+        }
 
         skv = socket_get_priv(skobj, "bind", 1);
         if (!skv)
@@ -491,9 +494,10 @@ do_connect(Frame *fr)
          * a NULL address argument as "disconnect".  Maybe do the same
          * here?
          */
-        skobj = vm_get_this(fr);
-        if (vm_getargs(fr, "[<*>!]{!}:connect", &addrarg) == RES_ERROR)
+        if (vm_getargs(fr, "<*>[<*>!]{!}:connect", &skobj, &addrarg)
+            == RES_ERROR) {
                 return ErrorVar;
+        }
 
         skv = socket_get_priv(skobj, "connect", 1);
         if (!skv)
@@ -526,8 +530,7 @@ do_listen(Frame *fr)
         Object *skobj;
         int backlog;
 
-        skobj = vm_get_this(fr);
-        if (vm_getargs(fr, "[i!]{!}", &backlog) == RES_ERROR)
+        if (vm_getargs(fr, "<*>[i!]{!}", &skobj, &backlog) == RES_ERROR)
                 return ErrorVar;
         skv = socket_get_priv(skobj, "listen", 1);
         if (!skv)
@@ -580,8 +583,7 @@ recv_common_(Frame *fr,
 
         flags = 0;
         length = 0;
-        skobj = vm_get_this(fr);
-        if (vm_getargs(fr, fmt, &length,
+        if (vm_getargs(fr, fmt, &skobj, &length,
                        STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -611,7 +613,7 @@ recv_common_(Frame *fr,
 
 /* fname must be a literal, not a variable. */
 #define recv_common(fr_, cb_, data_, fname_) \
-        recv_common_(fr_, cb_, data_, "[l!]{|i}:" fname_, fname_)
+        recv_common_(fr_, cb_, data_, "<*>[l!]{|i}:" fname_, fname_)
 
 /*
  * msg = sk.recv(length, [flags=0]);
@@ -720,13 +722,13 @@ do_send(Frame *fr)
         msg = NULL;
         flags = 0;
 
-        skobj = vm_get_this(fr);
+        skobj = vm_get_arg(fr, 0);
         skv = socket_get_priv(skobj, "send", 1);
         if (!skv)
                 return ErrorVar;
 
-        if (vm_getargs(fr, "[<bs>!]{|i}:send", &msg,
-                        STRCONST_ID(flags), &flags) == RES_ERROR) {
+        if (vm_getargs(fr, ".[<bs>!]{|i}:send", &msg,
+                       STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
         }
 
@@ -752,14 +754,14 @@ do_sendto(Frame *fr)
         Object *skobj, *msg, *ao;
         int flags;
 
-        skobj = vm_get_this(fr);
+        skobj = vm_get_arg(fr, 0);
         skv = socket_get_priv(skobj, "sendto", 1);
         if (!skv)
                 return ErrorVar;
 
         flags = 0;
         msg = ao = NULL;
-        if (vm_getargs(fr, "[<bs><*>!]{|i}:sendto", &msg, &ao,
+        if (vm_getargs(fr, ".[<bs><*>!]{|i}:sendto", &msg, &ao,
                         STRCONST_ID(flags), &flags) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -780,7 +782,7 @@ do_close(Frame *fr)
         struct socketvar_t *skv;
         Object *skobj, *ret;
 
-        skobj = vm_get_this(fr);
+        skobj = vm_get_arg(fr, 0);
         skv = socket_get_priv(skobj, "close", 0);
         if (!skv)
                 return ErrorVar;
@@ -818,9 +820,10 @@ socket_init(Frame *fr)
         Object *instance;
 
         fd = -1;
-        instance = vm_get_this(fr);
-        if (vm_getargs(fr, "[iii!]{!}", &domain, &type, &protocol) == RES_ERROR)
+        if (vm_getargs(fr, "<*>[iii!]{!}", &instance,
+                       &domain, &type, &protocol) == RES_ERROR) {
                 return ErrorVar;
+        }
         if (validate_int(domain, VALID_DOMAINS, "domain") == RES_ERROR)
                 return ErrorVar;
         if (validate_int(type, VALID_TYPES, "type") == RES_ERROR)
@@ -860,7 +863,9 @@ create_socket_class(void)
                 /* TODO: [gs]etsockopt and common ioctl wrappers */
                 {NULL, NULL},
         };
-        Object *methods = dictvar_from_methods(NULL, sockmethods_inittbl);
+        Object *methods = dictvar_from_methods(NULL,
+                                               sockmethods_inittbl,
+                                               true);
         Object *ret = typevar_new_intl(NULL, methods, NULL);
         VAR_DECR_REF(methods);
         return ret;

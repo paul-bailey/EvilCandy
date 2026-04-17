@@ -90,12 +90,14 @@ function_argc_check(struct funcvar_t *fh, int argc)
  * @args: Non-keyword args, an array.  This will likely be mutated during
  *      the function call.
  * @kwargs: If non-NULL, a dictionary of caller's keyword arguments
+ * @bind: If true, put owner on the stack as the first arg.
  *
  * Return: The function result, or ErrorVar if there was an error here or
  *      in the function called.
  */
 Object *
-function_call(Frame *fr, Object *func, Object *args, Object *kwargs)
+function_call(Frame *fr, Object *func, Object *args,
+              Object *kwargs, bool bind)
 {
         struct funcvar_t *fh;
         size_t nr_args;
@@ -126,7 +128,7 @@ function_call(Frame *fr, Object *func, Object *args, Object *kwargs)
         /* else, leave kwargs NULL */
 
         if (vmframe_unpack_args(fr, fh->f_optind, args,
-                                kwargs, &nr_args) == RES_ERROR) {
+                                kwargs, &nr_args, bind) == RES_ERROR) {
                 if (kwargs)
                         VAR_DECR_REF(kwargs);
                 return ErrorVar;
@@ -212,30 +214,45 @@ function_get_executable(Object *func)
  *      creating and destroying a return value that won't be used;
  *      the wrapping function will change it to NullVar for
  *      callers that must receive a return value.
- * @minargs: Minimum number of args used by the function
- * @maxargs: Maximum number of args used by the function, or -1 if
- *      number of args is variable
+ * @bind: true if these will be class methods, false if they will be
+ *      unbound functions.
+ *
+ * All built-in functions have one of the following templates:
+ *
+ *      function(*args, **kwargs)
+ *                   Normal namespace functions (@bind is false)
+ *
+ *      function(self, *args, **kwargs)
+ *                   Class methods (@bind is true).
  */
 Object *
-funcvar_new_intl(Object *(*cb)(Frame *))
+funcvar_new_intl(Object *(*cb)(Frame *), bool bind)
 {
         Object *func = funcvar_alloc(FUNC_INTERNAL);
         struct funcvar_t *fh = V2FUNC(func);
         fh->f_cb = cb;
-        fh->f_nargs = 2;
-        fh->f_optind  = 0;
-        fh->f_kwind   = 1;
+        if (bind) {
+                fh->f_nargs = 3;
+                fh->f_optind  = 1;
+                fh->f_kwind   = 2;
+        } else {
+                fh->f_nargs = 2;
+                fh->f_optind  = 0;
+                fh->f_kwind   = 1;
+        }
         return func;
 }
 
 /*
  * funcvar_from_lut - Create a built-in function from an initialization
  *                    table
+ * @tbl: Array of type_method_t structs
+ * @bind: true if these will be class methods, false if not
  */
 Object *
-funcvar_from_lut(const struct type_method_t *tbl)
+funcvar_from_lut(const struct type_method_t *tbl, bool bind)
 {
-        return funcvar_new_intl(tbl->fn);
+        return funcvar_new_intl(tbl->fn, bind);
 }
 
 /**

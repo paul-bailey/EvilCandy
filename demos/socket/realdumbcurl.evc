@@ -8,14 +8,14 @@ let port    = 80;
 let uri     = '/sitemap.xml';
 
 let curl = (class () {
-    .__init__ = function() {
-        this.sk = (() => {
+    .__init__ = function(self) {
+        self.sk = (() => {
             let sock = importfile('socket.evc');
             return sock.socket(sock.AF_INET, sock.SOCK_STREAM, 0);
         })();
     },
-    .get = function(url, *port) {
-        let sk = this.sk;
+    .get = function(self, url, *port) {
+        let sk = self.sk;
         let BUFSIZE = 64 * 1024;
         let host, uri, addr, buf;
 
@@ -54,8 +54,8 @@ let curl = (class () {
         }
         return buf;
     },
-    .close = function() {
-        this.sk.close();
+    .close = function(self) {
+        self.sk.close();
     }
 })();
 

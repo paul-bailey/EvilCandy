@@ -192,8 +192,10 @@ complex_getimag(Object *self)
 static Object *
 do_complex_conjugate(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        bug_on(!self || !isvar_complex(self));
+        Object *self;
+        if (vm_getargs(fr, "<z>[!]{!}:conjugate", &self) == RES_ERROR)
+                return ErrorVar;
+
         complex double c = V2C(self)->c;
         return complexvar_new(creal(c), -cimag(c));
 }

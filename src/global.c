@@ -171,15 +171,15 @@ initialize_global_object(void)
 static Object *
 exception_initcall(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
+        Object *self, *message;
         Object *msgname = stringvar_new("message");
-        Object *message;
         enum result_t res;
 
-        if (vm_getargs(fr, "[<s>!]{!}:__exception_init__", &message)
-                       == RES_ERROR) {
+        if (vm_getargs(fr, "<*>[<s>!]{!}:__exception_init__",
+                       &self, &message) == RES_ERROR) {
                 return ErrorVar;
         }
+        bug_on(!isvar_instance(self));
         res = var_setattr(fr, self, msgname, message);
         VAR_DECR_REF(msgname);
         return res == RES_OK ? NULL : ErrorVar;
@@ -193,7 +193,7 @@ make_base_exception(const char *name)
         class_name = stringvar_new(name);
         /* FIXME: I want to intern this, but we're too early. */
         method_name = stringvar_new("__init__");
-        method_func = funcvar_new_intl(exception_initcall);
+        method_func = funcvar_new_intl(exception_initcall, true);
 
         dict = dictvar_new();
         dict_setitem(dict, method_name, method_func);

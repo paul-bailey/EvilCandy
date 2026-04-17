@@ -150,13 +150,13 @@ function test_classes() {
     let test = Test(name='classes');
 
     class Counter() {
-        .__init__ = function(start) {
-            this.value = start;
+        .__init__ = function(self, start) {
+            self.value = start;
         },
 
-        .increment = function(amount) {
-            this.value += amount;
-            return this.value;
+        .increment = function(self, amount) {
+            self.value += amount;
+            return self.value;
         },
     }
 

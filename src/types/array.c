@@ -22,6 +22,11 @@
 #include <internal/errmsg.h>
 #include <internal/type_registry.h>
 #include <internal/types/sequential_types.h>
+/*
+ * FIXME: replace any vm_get_arg(fr, 0) with something like
+ * vm_get_owner_arg(fr) and remove this include.
+ */
+#include <internal/vm.h>
 
 #include <stdlib.h> /*< XXX for qsort only, will be made manua later */
 #include <string.h>
@@ -785,12 +790,10 @@ do_array_append(Frame *fr)
 {
         Object *self, *arg;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+        if (vm_getargs(fr, "<[]>[<*>!]{!}:append", &self, &arg)
+                       == RES_ERROR) {
                 return ErrorVar;
-
-        if (vm_getargs(fr, "[<*>!]{!}:append", &arg) == RES_ERROR)
-                return ErrorVar;
+        }
 
         array_append(self, arg);
         return NULL;
@@ -800,10 +803,8 @@ do_array_append(Frame *fr)
 static Object *
 do_array_copy(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
-                return ErrorVar;
-        if (VM_REFUSE_ARGS(fr, "copy") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<[]>[!]{!}:copy", &self) == RES_ERROR)
                 return ErrorVar;
         return array_getslice(self, 0, seqvar_size(self), 1);
 }
@@ -827,10 +828,8 @@ array_getprop_length(Object *self)
 static Object *
 do_array_allocated(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
-                return ErrorVar;
-        if (VM_REFUSE_ARGS(fr, "allocated") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<[]>[!]{!}:allocated", &self) == RES_ERROR)
                 return ErrorVar;
         return intvar_new(V2ARR(self)->alloc_size
                           / sizeof(Object *));
@@ -839,10 +838,8 @@ do_array_allocated(Frame *fr)
 static Object *
 do_array_clear(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
-                return ErrorVar;
-        if (VM_REFUSE_ARGS(fr, "clear") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<[]>[!]{!}:clear", &self) == RES_ERROR)
                 return ErrorVar;
         if (array_delete_chunk(self, 0, seqvar_size(self)) != RES_OK)
                 return ErrorVar;
@@ -854,11 +851,10 @@ do_array_extend(Frame *fr)
 {
         Object *arg, *self;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+        if (vm_getargs(fr, "<[]>[<*>!]{!}:extend", &self, &arg)
+            == RES_ERROR) {
                 return ErrorVar;
-        if (vm_getargs(fr, "[<*>!]{!}:extend", &arg) == RES_ERROR)
-                return ErrorVar;
+        }
 
         return array_extend(self, arg) == RES_OK ? NULL : ErrorVar;
 }
@@ -869,12 +865,10 @@ do_array_remove(Frame *fr)
         Object *arg, *self, **data;
         int i, n;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+        if (vm_getargs(fr, "<[]>[<*>!]{!}:remove", &self, &arg)
+            == RES_ERROR) {
                 return ErrorVar;
-
-        if (vm_getargs(fr, "[<*>!]{!}:remove", &arg) == RES_ERROR)
-                return ErrorVar;
+        }
 
         data = array_get_data(self);
         n = seqvar_size(self);
@@ -898,13 +892,11 @@ do_array_pop(Frame *fr)
         Object *ret;
         ssize_t at;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
-                return ErrorVar;
-
         at = 0;
-        if (vm_getargs(fr, "[|z!]{!}:pop", &at) == RES_ERROR)
+        if (vm_getargs(fr, "<[]>[|z!]{!}:pop", &self, &at)
+            == RES_ERROR) {
                 return ErrorVar;
+        }
 
         if (var_index_capi(seqvar_size(self), &at, NULL, ERRH_EXCEPTION)
             == RES_ERROR) {
@@ -929,12 +921,10 @@ do_array_insert(Frame *fr)
         Object *valarg, *self;
         ssize_t at;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+        if (vm_getargs(fr, "<[]>[z<*>!]{!}:insert", &self, &at, &valarg)
+            == RES_ERROR) {
                 return ErrorVar;
-
-        if (vm_getargs(fr, "[z<*>!]{!}:insert", &at, &valarg) == RES_ERROR)
-                return ErrorVar;
+        }
 
         if (at > seqvar_size(self)) {
                 /*
@@ -956,7 +946,7 @@ do_array_index(Frame *fr)
         Object *self, *xarg;
         ssize_t start, stop, i, n;
 
-        self = vm_get_this(fr);
+        self = vm_get_arg(fr, 0);
         if (arg_type_check(self, &ArrayType) == RES_ERROR)
                 return ErrorVar;
 
@@ -964,7 +954,7 @@ do_array_index(Frame *fr)
         start = 0;
         stop = n;
 
-        if (vm_getargs(fr, "[<*>|zz!]:index", &xarg, &start, &stop)
+        if (vm_getargs(fr, ".[<*>|zz!]:index", &xarg, &start, &stop)
             == RES_ERROR) {
                 return ErrorVar;
         }
@@ -999,12 +989,10 @@ do_array_count(Frame *fr)
         Object *self, *xarg, **data;
         int i, n, count;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
+        if (vm_getargs(fr, "<[]>[<*>!]{!}:count", &self, &xarg)
+            == RES_ERROR) {
                 return ErrorVar;
-
-        if (vm_getargs(fr, "[<*>!]{!}:count", &xarg) == RES_ERROR)
-                return ErrorVar;
+        }
 
         n = seqvar_size(self);
         data = array_get_data(self);
@@ -1019,10 +1007,8 @@ do_array_count(Frame *fr)
 static Object *
 do_array_reverse(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &ArrayType) == RES_ERROR)
-                return ErrorVar;
-        if (VM_REFUSE_ARGS(fr, "reverse") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<[]>[!]{!}:reverse", &self) == RES_ERROR)
                 return ErrorVar;
 
         array_reverse(self);
@@ -1042,7 +1028,7 @@ array_create(Frame *fr)
         Object *arg, *ret;
 
         arg = NULL;
-        if (vm_getargs(fr, "[|<*>!]:list", &arg) == RES_ERROR)
+        if (vm_getargs(fr, "[|<*>!]{!}:list", &arg) == RES_ERROR)
                 return ErrorVar;
 
         ret = arrayvar_new(0);

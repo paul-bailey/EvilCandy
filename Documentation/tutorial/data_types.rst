@@ -186,7 +186,6 @@ requiring some special tricks to behave like class instances.
 The latter point bears emphasis.
 **Functions stored in a dictionary are not made into
 that dictionary's class methods.**
-They should not use the keyword ``this``!
 
 A dictionary's literal expression is a comma-delimited sequence
 of key:value pairs, surrounded by curly braces, for example:
@@ -370,11 +369,11 @@ to combine dictionaries, functions, and closures
 to behave like class instances,
 it requires a specific way of instantiating them
 (and, just as with JavaScript, it's quite elegant).
-But either way, you should *never* use the ``this`` keyword
-in a function that is not a method defined
-using ``class`` notation.
-We'll discuss classes—both the real kind and the pseudo kind
-with dictionaries—in a later part of this tutorial.
+But EvilCandy has no ``this`` keyword.
+Class methods take the instantiated object as the first argument
+to their function calls (more on that later), similarly to Python,
+but functions in a dictionaries do not, unless using code
+artificially calls them that way.
 
 Bytes
 -----

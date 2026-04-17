@@ -13,6 +13,8 @@
 #include <internal/uarg.h>
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>
+/* TODO: remove vm_get_arg() call and this include */
+#include <internal/vm.h>
 
 #include <string.h>
 
@@ -263,7 +265,7 @@ do_tuple_index(Frame *fr)
         Object *self, *xarg, **data;
         ssize_t i, n, start, stop;
 
-        self = vm_get_this(fr);
+        self = vm_get_arg(fr, 0);
         if (arg_type_check(self, &TupleType) == RES_ERROR)
                 return ErrorVar;
 
@@ -271,7 +273,7 @@ do_tuple_index(Frame *fr)
         start = 0;
         stop = n;
 
-        if (vm_getargs(fr, "[<*>|zz!]{!}:index", &xarg, &start, &stop)
+        if (vm_getargs(fr, ".[<*>|zz!]{!}:index", &xarg, &start, &stop)
             == RES_ERROR) {
                 return ErrorVar;
         }
@@ -305,12 +307,10 @@ do_tuple_count(Frame *fr)
         Object *self, *xarg, **data;
         int i, n, count;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &TupleType) == RES_ERROR)
+        if (vm_getargs(fr, "<()>[<*>!]{!}:count", &self, &xarg)
+            == RES_ERROR) {
                 return ErrorVar;
-
-        if (vm_getargs(fr, "[<*>!]{!}:count", &xarg) == RES_ERROR)
-                return ErrorVar;
+        }
 
         n = seqvar_size(self);
         data = tuple_get_data(self);

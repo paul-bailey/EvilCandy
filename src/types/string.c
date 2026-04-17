@@ -1244,8 +1244,8 @@ string_printf(Object *self, Object *args, Object *kwargs)
  * *********************************************************************/
 
 /* enough UAPI functions use this argument format */
-#define FMT_1ARG_STRING(fname)  ("[<s>!]{!}:" fname)
-#define FMT_2ARG_STRING(fname)  ("[<s><s>!]{!}:" fname)
+#define FMT_1ARG_STRING(fname)  ("<s>[<s>!]{!}:" fname)
+#define FMT_2ARG_STRING(fname)  ("<s>[<s><s>!]{!}:" fname)
 
 static Object *
 string_getprop_length(Object *self)
@@ -1277,10 +1277,7 @@ string_format_mthd(Frame *fr)
 {
         Object *self, *list;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-        if (vm_getargs(fr, "<[]>{!}", &list) == RES_ERROR)
+        if (vm_getargs(fr, "<s><[]>{!}", &self, &list) == RES_ERROR)
                 return ErrorVar;
 
         return string_format(self, list);
@@ -1294,12 +1291,8 @@ string_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
         size_t srclen, skiplen, width, src_newend, src_newstart;
         struct stringvar_t *vsrc, *vskip;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
         arg = NULL;
-        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &arg) == RES_ERROR)
                 return ErrorVar;
 
         /* no need to produce a reference, we're just borrowing */
@@ -1354,7 +1347,7 @@ string_lrstrip_(Frame *fr, unsigned int flags, const char *fmt)
 }
 
 #define string_lrstrip(fr, flg, fname) \
-        string_lrstrip_(fr, flg, "[|<s>!]{!}:" fname)
+        string_lrstrip_(fr, flg, "<s>[|<s>!]{!}:" fname)
 
 /*
  * lstrip()             no args implies whitespace
@@ -1397,11 +1390,8 @@ string_replace(Frame *fr)
         unsigned char *hsrc, *nsrc;
         ssize_t wr_wid, idx;
 
-        haystack = vm_get_this(fr);
-        if (arg_type_check(haystack, &StringType) == RES_ERROR)
-                return ErrorVar;
-        if (vm_getargs(fr, FMT_2ARG_STRING("replace"), &needle, &repl)
-            == RES_ERROR) {
+        if (vm_getargs(fr, FMT_2ARG_STRING("replace"),
+                       &haystack, &needle, &repl) == RES_ERROR) {
                 return ErrorVar;
         }
 
@@ -1461,11 +1451,7 @@ string_lrjust_(Frame *fr, unsigned int flags, const char *fmt)
 
         bug_on((flags & (SF_CENTER|SF_RIGHT)) == (SF_CENTER|SF_RIGHT));
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        if (vm_getargs(fr, fmt, &newlen) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &newlen) == RES_ERROR)
                 return ErrorVar;
 
         selflen = seqvar_size(self);
@@ -1495,7 +1481,7 @@ string_lrjust_(Frame *fr, unsigned int flags, const char *fmt)
 }
 
 #define string_lrjust(fr, flg, fname) \
-        string_lrjust_(fr, flg, "[z!]{!}:" fname)
+        string_lrjust_(fr, flg, "<s>[z!]{!}:" fname)
 
 /* rjust(amt)   integer arg */
 static Object *
@@ -1530,11 +1516,7 @@ string_join(Frame *fr)
         Object *self, *arg;
         size_t i, n, width;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        if (vm_getargs(fr, "[<*>!]{!}:join", &arg) == RES_ERROR)
+        if (vm_getargs(fr, "<s>[<*>!]{!}:join", &self, &arg) == RES_ERROR)
                 return ErrorVar;
 
         if (!isvar_seq_readable(arg)) {
@@ -1613,8 +1595,7 @@ string_capitalize(Frame *fr)
         long point;
         struct string_writer_t wr;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, "<s>[!]{!}:capitalize", &self) == RES_ERROR)
                 return ErrorVar;
 
         n = seqvar_size(self);
@@ -1641,11 +1622,10 @@ string_count(Frame *fr)
         int count;
         Object *haystack, *needle;
 
-        haystack = vm_get_this(fr);
-        if (arg_type_check(haystack, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, "<s>[<s>!]{!}:count", &haystack, &needle)
+            == RES_ERROR) {
                 return ErrorVar;
-        if (vm_getargs(fr, "[<s>!]{!}:count", &needle) == RES_ERROR)
-                return ErrorVar;
+        }
 
         count = find_or_count(haystack, needle, SF_COUNT);
         return intvar_new(count);
@@ -1657,10 +1637,7 @@ string_starts_or_ends_with_(Frame *fr, unsigned int flags, const char *fmt)
         Object *self, *arg;
         size_t i, n1, n2, start;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &arg) == RES_ERROR)
                 return ErrorVar;
 
         n1 = seqvar_size(self);
@@ -1710,12 +1687,8 @@ string_expandtabs(Frame *fr)
         struct string_writer_t wr;
         size_t n;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
         tabsize = 8;
-        if (vm_getargs(fr, "[!]{|i}:expandtabs",
+        if (vm_getargs(fr, "<s>[!]{|i}:expandtabs", &self,
                         STRCONST_ID(tabsize), &tabsize) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -1765,10 +1738,7 @@ string_index_or_find_(Frame *fr, unsigned int flags, const char *fmt)
         Object *self, *arg;
         ssize_t res;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &arg) == RES_ERROR)
                 return ErrorVar;
         res = find_or_count(self, arg, flags);
         if (res < 0) {
@@ -1816,10 +1786,7 @@ string_lrpartition_(Frame *fr, unsigned int flags, const char *fmt)
         Object *self, *arg, *tup, **td;
         ssize_t idx;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &arg) == RES_ERROR)
                 return ErrorVar;
         if (seqvar_size(arg) == 0) {
                 err_setstr(ValueError, "Separator may not be empty");
@@ -1885,11 +1852,7 @@ string_removelr_(Frame *fr, unsigned int flags, const char *fmt)
         Object *self, *arg;
         size_t idx, pos, start, stop;
 
-        self = vm_get_this(fr);
-
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-        if (vm_getargs(fr, fmt, &arg) == RES_ERROR)
+        if (vm_getargs(fr, fmt, &self, &arg) == RES_ERROR)
                 return ErrorVar;
         if (seqvar_size(arg) > seqvar_size(self))
                 goto return_self;
@@ -1977,16 +1940,13 @@ string_lrsplit(Frame *fr, unsigned int flags)
         size_t startpos, seplen, endpos;
         bool right;
 
-        self = vm_get_this(fr);
-        bug_on(!self || !isvar_string(self));
-
         separg = NULL;
         maxsplit = -1;
         combine = false;
         fmt = !!(flags & SF_RIGHT)
-                ? "[!]{|<s>i}:rsplit"
-                : "[!]{|<s>i}:split";
-        if (vm_getargs(fr, fmt, STRCONST_ID(sep), &separg,
+                ? "<s>[!]{|<s>i}:rsplit"
+                : "<s>[!]{|<s>i}:split";
+        if (vm_getargs(fr, fmt, &self, STRCONST_ID(sep), &separg,
                        STRCONST_ID(maxsplit), &maxsplit) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -2075,10 +2035,7 @@ string_splitlines(Frame *fr)
         int keepends = 0;
         size_t i, j, n;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-        if (vm_getargs(fr, "[!]{|i}:splitlines",
+        if (vm_getargs(fr, "<s>[!]{|i}:splitlines", &self,
                        STRCONST_ID(keepends), &keepends) == RES_ERROR) {
                 return ErrorVar;
         }
@@ -2132,11 +2089,7 @@ string_zfill(Frame *fr)
         struct string_writer_t wr;
         long plusminus;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
-                return ErrorVar;
-
-        if (vm_getargs(fr, "[z!]{!}:zfill", &nz) == RES_ERROR)
+        if (vm_getargs(fr, "<s>[z!]{!}:zfill", &self, &nz) == RES_ERROR)
                 return ErrorVar;
 
         src_size = seqvar_size(self);
@@ -2160,12 +2113,13 @@ string_zfill(Frame *fr)
  *      str.isXXXX() functions and helpers
  */
 
+/* FIXME: should get funcname to use for vm_getargs() */
 static Object *
 string_is1(Frame *fr, bool (*cb)(Object *))
 {
-        Object *ret;
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
+        Object *ret, *self;
+
+        if (vm_getargs(fr, "<s>[!]{!}", &self) == RES_ERROR)
                 return ErrorVar;
 
         if (seqvar_size(self) == 0) {
@@ -2180,8 +2134,9 @@ static Object *
 string_is2(Frame *fr, bool (*tst)(unsigned long c))
 {
         bool bret;
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
+        Object *self;
+
+        if (vm_getargs(fr, "<s>[!]{!}", &self) == RES_ERROR)
                 return ErrorVar;
 
         /* To be overwritten if false */
@@ -2259,9 +2214,10 @@ static Object *string_isalpha(Frame *fr)
 static Object *
 string_isascii_mthd(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
+        Object *self;
         bool ascii;
-        if (arg_type_check(self, &StringType) == RES_ERROR)
+
+        if (vm_getargs(fr, "<s>[!]{!}:isascii", &self) == RES_ERROR)
                 return ErrorVar;
 
         ascii = V2STR(self)->s_ascii;
@@ -2291,8 +2247,7 @@ string_title(Frame *fr)
         size_t i, n;
         struct string_writer_t wr;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, "<s>[!]{!}:title", &self) == RES_ERROR)
                 return ErrorVar;
 
         /* XXX: Do I know that evc_toupper/lower do not change width? */
@@ -2324,8 +2279,7 @@ string_to(Frame *fr, unsigned long (*cb)(unsigned long))
         size_t i, n;
         struct string_writer_t wr;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &StringType) == RES_ERROR)
+        if (vm_getargs(fr, "<s>[!]{!}:title", &self) == RES_ERROR)
                 return ErrorVar;
 
         string_writer_init(&wr, string_width(self));

@@ -233,8 +233,10 @@ calc_float_hash(Object *obj)
 static Object *
 float_conjugate(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        bug_on(!self || !isvar_float(self));
+        Object *self;
+
+        if (vm_getargs(fr, "<f>[!]{!}:conjugate", &self) == RES_ERROR)
+                return ErrorVar;
         return VAR_NEW_REF(self);
 }
 

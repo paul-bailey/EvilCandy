@@ -1,7 +1,7 @@
 class Enum () {
-    .__init__ = function(dict) {
+    .__init__ = function(self, dict) {
         for k, v in dict.items()
-            setattr(this, k, v);
+            setattr(self, k, v);
     }
 }
 return Enum;

@@ -1799,9 +1799,6 @@ assemble_expr5_atomic(struct assemble_t *a)
                 if (assemble_setdef(a) < 0)
                         return -1;
                 break;
-        case OC_THIS:
-                add_instr(a, INSTR_LOAD_LOCAL, IARG_PTR_THIS, 0);
-                break;
         default:
                 err_setstr(SyntaxError, "Unexpected token %s",
                            token_name(a->oc->t));
@@ -2293,19 +2290,6 @@ assemble_primary_elements__(struct assemble_t *a)
 
 /* return 1 if item left on the stack, 0 if not, -1 if error */
 static int
-assemble_this(struct assemble_t *a, unsigned int flags)
-{
-        /*
-         * Cf. assemble_identifier below.
-         * We do not allow
-         *      this = value...
-         */
-        add_instr(a, INSTR_LOAD_LOCAL, IARG_PTR_THIS, 0);
-        return assemble_primary_elements__(a);
-}
-
-/* return 1 if item left on the stack, 0 if not, -1 if error */
-static int
 assemble_identifier(struct assemble_t *a, unsigned int flags)
 {
         struct list_t names;
@@ -2436,7 +2420,11 @@ assemble_delete(struct assemble_t *a, unsigned int flags)
         if (as_lex(a) < 0)
                 return -1;
         if (istok_indirection(a->oc->t)) {
+#if 1
+                if (name->t != OC_IDENTIFIER)
+#else
                 if (name->t != OC_THIS && name->t != OC_IDENTIFIER)
+#endif
                         goto baddelete;
                 if (ainstr_load_symbol(a, pos) < 0)
                         return -1;
@@ -3114,12 +3102,6 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
         case OC_MUL:
         case OC_IDENTIFIER:
                 need_pop = assemble_identifier(a, flags);
-                if (need_pop < 0)
-                        return -1;
-                break;
-        case OC_THIS:
-                /* not a saucy challenge */
-                need_pop = assemble_this(a, flags);
                 if (need_pop < 0)
                         return -1;
                 break;

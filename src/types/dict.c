@@ -644,12 +644,11 @@ err:
 static Object *
 do_dict_delitem(Frame *fr)
 {
-        Object *name;
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &DictType) == RES_ERROR)
+        Object *name, *self;
+        if (vm_getargs(fr, "<{}>[<*>!]{!}:delitem", &self, &name)
+            == RES_ERROR) {
                 return ErrorVar;
-        if (vm_getargs(fr, "[<*>!]{!}:delitem", &name) == RES_ERROR)
-                return ErrorVar;
+        }
         if (dict_setitem(self, name, NULL) != RES_OK)
                 return ErrorVar;
         return NULL;
@@ -661,13 +660,9 @@ do_dict_keys(Frame *fr)
         long long sorted;
         Object *self;
 
-        self = vm_get_this(fr);
-        if (arg_type_check(self, &DictType) == RES_ERROR)
-                return ErrorVar;
-
         sorted = 0ll;
-        if (vm_getargs(fr, "[!]{|l}:keys", STRCONST_ID(sorted), &sorted)
-            == RES_ERROR) {
+        if (vm_getargs(fr, "<{}>[!]{|l}:keys", &self,
+                       STRCONST_ID(sorted), &sorted) == RES_ERROR) {
                 return ErrorVar;
         }
         return dict_keys(self, !!sorted);
@@ -678,10 +673,8 @@ static Object *dict_items(Object *from);
 static Object *
 do_dict_items(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        if (arg_type_check(self, &DictType) == RES_ERROR)
-                return ErrorVar;
-        if (VM_REFUSE_ARGS(fr, "items") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<{}>[!]{!}:items", &self) == RES_ERROR)
                 return ErrorVar;
         return dict_items(self);
 }
@@ -689,16 +682,14 @@ do_dict_items(Frame *fr)
 static Object *
 do_dict_values(Frame *fr)
 {
-        Object *ret;
-        Object *self = vm_get_this(fr);
-        struct dictvar_t *dict = V2D(self);
+        Object *ret, *self;
+        struct dictvar_t *dict;
         int i, j;
 
-        if (arg_type_check(self, &DictType) == RES_ERROR)
-                return ErrorVar;
-        if (VM_REFUSE_ARGS(fr, "values") == RES_ERROR)
+        if (vm_getargs(fr, "<{}>[!]{!}:values", &self) == RES_ERROR)
                 return ErrorVar;
 
+        dict = V2D(self);
         ret = arrayvar_new(seqvar_size(self));
         j = 0;
         for (i = 0; i < dict->d_size; i++) {
@@ -721,14 +712,12 @@ do_dict_values(Frame *fr)
 static Object *
 do_dict_copy(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        Object *ret = dictvar_new();
+        Object *self, *ret;
 
-        if (arg_type_check(self, &DictType) == RES_ERROR)
-                return ErrorVar;
-        if (VM_REFUSE_ARGS(fr, "copy") == RES_ERROR)
+        if (vm_getargs(fr, "<{}>[!]{!}:copy", &self) == RES_ERROR)
                 return ErrorVar;
 
+        ret = dictvar_new();
         if (dict_copyto(ret, self) != RES_OK) {
                 VAR_DECR_REF(ret);
                 return ErrorVar;
@@ -739,9 +728,8 @@ do_dict_copy(Frame *fr)
 static Object *
 do_dict_clear(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        bug_on(!isvar_dict(self));
-        if (VM_REFUSE_ARGS(fr, "clear") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<{}>[!]{!}:clear", &self) == RES_ERROR)
                 return ErrorVar;
         dict_clear(V2D(self));
         return NULL;
@@ -750,10 +738,8 @@ do_dict_clear(Frame *fr)
 static Object *
 do_dict_tonamespace(Frame *fr)
 {
-        Object *self = vm_get_this(fr);
-        bug_on(!isvar_dict(self));
-        /* TODO: allow optional kwarg 'name=NAME' */
-        if (VM_REFUSE_ARGS(fr, "tonamespace") == RES_ERROR)
+        Object *self;
+        if (vm_getargs(fr, "<{}>[!]{!}:tonamespace", &self) == RES_ERROR)
                 return ErrorVar;
         return namespacevar_new(self, NULL);
 }
@@ -1064,13 +1050,15 @@ dictvar_new(void)
  * dictvar_from_methods - Create a dictionary from a methods lookup table
  * @parent: Dictionary to add methods to, or NULL to create a new dictionary
  * @tbl: A methods initialization table.
+ * @bind: True if these are to be bound class methods, false otherwise.
  *
  * Return: @parent, or if it was NULL, a pointer to the new dictionary
  *
  * Used for early-initialization stuff and module initialization.
  */
 Object *
-dictvar_from_methods(Object *parent, const struct type_method_t *tbl)
+dictvar_from_methods(Object *parent,
+                     const struct type_method_t *tbl, bool bind)
 {
         const struct type_method_t *t;
         Object *ret;
@@ -1084,7 +1072,7 @@ dictvar_from_methods(Object *parent, const struct type_method_t *tbl)
 
         for (t = tbl; t->name != NULL; t++) {
                 Object *func, *key;
-                func = funcvar_from_lut(t);
+                func = funcvar_from_lut(t, bind);
                 key = stringvar_new(t->name);
                 dict_setitem(ret, key, func);
                 VAR_DECR_REF(func);

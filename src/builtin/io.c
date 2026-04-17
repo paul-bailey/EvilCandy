@@ -19,6 +19,8 @@
 #include <internal/types/sequential_types.h>
 #include <internal/builtin/io.h>
 #include <internal/init.h>
+/* TODO: remove this include when vm_get_arg is replaced with vm_getargs */
+#include <internal/vm.h>
 #include <lib/utf8.h>
 #include <lib/helpers.h>
 #include <fcntl.h> /* open() */
@@ -171,8 +173,8 @@ rawfile_get_priv(Object *fo, const char *fname, bool check_open)
 static inline struct rawfile_t *
 rawfile_fget_priv(Frame *fr, const char *fname, bool check_open)
 {
-        Object *fo = vm_get_this(fr);
-        bug_on(!isvar_instance(fo));
+        Object *fo = vm_get_arg(fr, 0);
+        bug_on(!fo || !isvar_instance(fo));
         return rawfile_get_priv(fo, fname, check_open);
 }
 
@@ -271,7 +273,7 @@ do_raw_read(Frame *fr)
         struct rawfile_t *raw = rawfile_fget_priv(fr, "read", 1);
         if (!raw)
                 return ErrorVar;
-        if (vm_getargs(fr, "[|l!]{!}:read", &size) == RES_ERROR)
+        if (vm_getargs(fr, ".[|l!]{!}:read", &size) == RES_ERROR)
                 return ErrorVar;
 
         if (!raw->fr_readable) {
@@ -290,7 +292,7 @@ do_raw_write(Frame *fr)
         struct rawfile_t *raw = rawfile_fget_priv(fr, "write", 1);
         if (!raw)
                 return ErrorVar;
-        if (vm_getargs(fr, "[<b>!]{!}:write", &bo) == RES_ERROR)
+        if (vm_getargs(fr, ".[<b>!]{!}:write", &bo) == RES_ERROR)
                 return ErrorVar;
         if (!raw->fr_writable) {
                 filerr_permit("write", 1);
@@ -401,7 +403,8 @@ struct binfile_t {
 static struct binfile_t *
 binfile_fget_priv(Frame *fr, const char *fname, bool check_open)
 {
-        Object *fo = vm_get_this(fr);
+        Object *fo = vm_get_arg(fr, 0);
+        bug_on(!fo || !isvar_instance(fo));
         struct binfile_t *bin = instance_get_priv(fo);
         if (check_open && bin->fb_fd < 0) {
                 filerr(fname, "file closed");
@@ -549,7 +552,7 @@ do_bin_read(Frame *fr)
         struct binfile_t *bin = binfile_fget_priv(fr, "read", 1);
         if (!bin)
                 return ErrorVar;
-        if (vm_getargs(fr, "[|l!]{!}:read", &size) == RES_ERROR)
+        if (vm_getargs(fr, ".[|l!]{!}:read", &size) == RES_ERROR)
                 return ErrorVar;
 
         if (!bin->fb_readable) {
@@ -567,7 +570,7 @@ do_bin_write(Frame *fr)
         struct binfile_t *bin = binfile_fget_priv(fr, "write", 1);
         if (!bin)
                 return ErrorVar;
-        if (vm_getargs(fr, "[<b>!]{!}:write", &bo) == RES_ERROR)
+        if (vm_getargs(fr, ".[<b>!]{!}:write", &bo) == RES_ERROR)
                 return ErrorVar;
         if (!bin->fb_writable) {
                 filerr_permit("write", 1);
@@ -678,7 +681,8 @@ struct textfile_t {
 static struct textfile_t *
 txtfile_fget_priv(Frame *fr, const char *fname, bool check_open)
 {
-        Object *fo = vm_get_this(fr);
+        Object *fo = vm_get_arg(fr, 0);
+        bug_on(!fo || !isvar_instance(fo));
         struct textfile_t *txt = instance_get_priv(fo);
         if (check_open && txt->ft_fd < 0) {
                 filerr(fname, "file closed");
@@ -813,7 +817,7 @@ do_text_read(Frame *fr)
         txt = txtfile_fget_priv(fr, "read", 1);
         if (!txt)
                 return ErrorVar;
-        if (vm_getargs(fr, "[|l!]{!}:read", &size) == RES_ERROR)
+        if (vm_getargs(fr, ".[|l!]{!}:read", &size) == RES_ERROR)
                 return ErrorVar;
         if (!txt->ft_readable) {
                 filerr_permit("read", 0);
@@ -961,7 +965,7 @@ do_text_write(Frame *fr)
         txt = txtfile_fget_priv(fr, "write", 1);
         if (!txt)
                 return ErrorVar;
-        if (vm_getargs(fr, "[<s>!]{!}:write", &so) == RES_ERROR)
+        if (vm_getargs(fr, ".[<s>!]{!}:write", &so) == RES_ERROR)
                 return ErrorVar;
         if (!txt->ft_writable) {
                 filerr_permit("write", 1);
@@ -1441,7 +1445,7 @@ static const struct type_method_t io_inittbl[] = {
 static Object *
 create_io_instance(Frame *fr)
 {
-        return dictvar_from_methods(NULL, io_inittbl);
+        return dictvar_from_methods(NULL, io_inittbl, false);
 }
 
 static Object *
@@ -1455,7 +1459,7 @@ static Object *
 initialize_one_file_class(Object *base, const struct type_method_t *tbl)
 {
         Object *class, *methods;
-        methods = dictvar_from_methods(NULL, tbl);
+        methods = dictvar_from_methods(NULL, tbl, true);
         class = typevar_new_intl(base, methods, NULL);
         VAR_DECR_REF(methods);
         return class;

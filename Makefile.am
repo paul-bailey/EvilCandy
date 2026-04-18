@@ -87,6 +87,7 @@ evilcandy_SOURCES = programs/evilcandy.c
 
 # Note: there's also a fuzzer but it's slow!
 TESTS = tests/run-evilcandy-tests.sh \
+        tests/regress-binfile-seek-buffer.sh \
         programs/unit_tests
 
 noinst_HEADERS = \

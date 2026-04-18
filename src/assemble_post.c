@@ -864,17 +864,11 @@ static size_t
 count_unique_locations(struct token_t *const *loc_tokens,
                        size_t nr_loc_tokens)
 {
-        int line = -1;
         size_t i, count = 0;
         for (i = 0; i < nr_loc_tokens; i++) {
-                int line2;
                 if (loc_tokens[i] == NULL)
                         continue;
-                line2 = loc_tokens[i]->start_line;
-                if (line2 == line)
-                        continue;
                 count++;
-                line = line2;
         }
         return count;
 }
@@ -893,25 +887,21 @@ fill_locations_unpacked(struct token_t *const *loc_tokens,
                         size_t nr_loc_tokens, const short *labels,
                         size_t count)
 {
-        int line = -1;
         size_t i, j = 0;
         struct location_t *loc_buf = emalloc(sizeof(*loc_buf) * count);
         for (i = 0; i < nr_loc_tokens; i++) {
                 struct location_t *loc;
-                int line2;
+                int line;
 
                 if (loc_tokens[i] == NULL)
                         continue;
-                line2 = loc_tokens[i]->start_line;
-                if (line2 == line)
-                        continue;
+                line = loc_tokens[i]->start_line;
 
                 bug_on(j >= count);
                 loc = &loc_buf[j];
 
-                loc->loc_startline = line2;
+                loc->loc_startline = line;
                 loc->loc_instruction = labels[i];
-                line = line2;
                 j++;
         }
         bug_on(j != count);
@@ -934,6 +924,12 @@ fill_locations_packed(const struct location_t *loc_buf,
 
         for (i = 0; i < count; i++) {
                 ssize_t packed;
+
+                if ((i > 0) &&
+                    (loc_buf[i].loc_startline
+                     == loc_buf[i-1].loc_startline)) {
+                        continue;
+                }
 
                 while ((packed = location_pack(&buf[bufidx],
                                                bufsize - bufidx,
@@ -973,10 +969,15 @@ resolve_locations(struct assemble_t *a, struct as_frame_t *fr)
         bug_on(as_frame_nlabel(fr) < nr_loc_tokens);
 
         count = count_unique_locations(loc_tokens, nr_loc_tokens);
-        loc_buf = fill_locations_unpacked(loc_tokens, nr_loc_tokens,
-                                          labels, count);
-        buf = fill_locations_packed(loc_buf, count, &bufidx);
-        efree(loc_buf);
+        if (count) {
+                loc_buf = fill_locations_unpacked(loc_tokens, nr_loc_tokens,
+                                                  labels, count);
+                buf = fill_locations_packed(loc_buf, count, &bufidx);
+                efree(loc_buf);
+        } else {
+                buf = NULL;
+                bufidx = 0;
+        }
 
         fr->af_locations_packed = buf;
         fr->af_locations_packed_size = bufidx;

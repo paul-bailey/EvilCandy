@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
 
 #ifdef HAVE_READLINE
 #include <readline/readline.h>
@@ -99,9 +100,9 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
 ssize_t
 myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
 {
-        if (prompt) {
-                fprintf(stderr, "%s", prompt);
-                fflush(stderr);
+        if (prompt && isatty(fileno(fp))) {
+                fprintf(stdout, "%s", prompt);
+                fflush(stdout);
         }
         return egetline(linep, size, fp);
 }

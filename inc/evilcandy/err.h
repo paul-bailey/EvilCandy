@@ -13,5 +13,7 @@ extern Object *err_get(void);
 extern void err_print_last(FILE *fp);
 extern bool err_occurred(void);
 extern void err_clear(void);
+extern bool exception_has_trace(void);
+extern void exception_add_trace(Object *call_trace);
 
 #endif /* EVC_INC_EVILCANDY_ERR_H */

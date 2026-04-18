@@ -119,6 +119,27 @@ fail(const char *msg, ...)
         _Exit(EXIT_FAILURE);
 }
 
+bool
+exception_has_trace(void)
+{
+        struct gbl_err_subsys_t *err = gbl_get_err_subsys();
+        Object *exc = err->exception_last;
+        bug_on(!exc);
+        return var_hasattr(NULL, exc, STRCONST_ID(call_trace));
+}
+
+void
+exception_add_trace(Object *call_trace)
+{
+        enum result_t res;
+        struct gbl_err_subsys_t *err =gbl_get_err_subsys();
+        Object *exc = err->exception_last;
+        bug_on(!exc);
+        res = var_setattr(NULL, exc, STRCONST_ID(call_trace), call_trace);
+        bug_on(res == RES_ERROR);
+        (void)res;
+}
+
 /* returns updated @msg pointer */
 static const char *
 errmsg_format_arg(struct string_writer_t *wr, const char *msg, va_list ap)
@@ -411,13 +432,20 @@ err_print(FILE *fp, Object *exc)
 void
 err_print_last(FILE *fp)
 {
-        Object *exc;
+        Object *exc, *call_trace;
 
         if(!err_occurred())
                 return;
 
         exc = err_get();
         err_print(fp, exc);
+        call_trace = var_getattr_or_null(NULL, exc,
+                                         STRCONST_ID(call_trace));
+        if (call_trace) {
+                debug_print_trace(call_trace, fp, true);
+                debug_clear_error();
+                VAR_DECR_REF(call_trace);
+        }
         VAR_DECR_REF(exc);
 }
 
@@ -431,6 +459,7 @@ void
 err_clear(void)
 {
         err_clear_subsys(gbl_get_err_subsys());
+        debug_clear_error();
 }
 
 void

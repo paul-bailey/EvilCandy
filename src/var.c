@@ -661,23 +661,31 @@ var_getitem(Object *obj, Object *key)
 Object *
 var_getattr(Frame *frame, Object *obj, Object *key)
 {
-        Object *ret;
-        if (isvar_instance(obj)) {
-                /* User-defined type */
-                ret = instance_getattr(frame, obj, key);
-                if (!ret) {
-                        err_attribute("get", key, obj);
-                        return ErrorVar;
-                }
-                return ret;
-        }
-
-        /* Built-in type */
-        ret = dict_getitem(obj->v_type->methods, key);
+        Object *ret = var_getattr_or_null(frame, obj, key);
         if (!ret) {
                 err_attribute("get", key, obj);
                 return ErrorVar;
         }
+        return ret;
+}
+
+/**
+ * var_getattr_or_null - like var_getattr, but if @key is not found,
+ *                       return NULL and do not raise an exception.
+ */
+Object *
+var_getattr_or_null(Frame *frame, Object *obj, Object *key)
+{
+        Object *ret;
+        if (isvar_instance(obj)) {
+                /* User-defined type */
+                return instance_getattr(frame, obj, key);
+        }
+
+        /* Built-in type */
+        ret = dict_getitem(obj->v_type->methods, key);
+        if (!ret)
+                return NULL;
 
         if (isvar_property(ret)) {
                 Object *tmp = ret;
@@ -690,6 +698,21 @@ var_getattr(Frame *frame, Object *obj, Object *key)
                 VAR_DECR_REF(tmp);
         }
         return ret;
+}
+
+bool
+var_hasattr(Frame *frame, Object *obj, Object *key)
+{
+        if (isvar_instance(obj)) {
+                Object *value = instance_getattr(frame, obj, key);
+                if (value) {
+                        VAR_DECR_REF(value);
+                        return true;
+                }
+                return false;
+
+        }
+        return var_hasitem(obj->v_type->methods, key);
 }
 
 /**

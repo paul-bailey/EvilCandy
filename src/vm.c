@@ -1691,12 +1691,7 @@ execute_loop(Frame *fr)
                         push(fr, exception);
                         fr->ppii = bl->jmpto;
 
-                        /*
-                         * Would be false if the error occurred in this
-                         * function call, true if not.
-                         */
-                        if (debug_has_error())
-                                debug_free_error();
+                        debug_clear_error();
                 }
         }
         /*
@@ -1709,8 +1704,18 @@ execute_loop(Frame *fr)
                 retval = VAR_NEW_REF(NullVar);
 
 out:
-        if (retval == ErrorVar)
-                debug_mark_error(fr, fr->ppii - fr->ex->instr - 1);
+        if (retval == ErrorVar) {
+                Object *call_trace;
+                call_trace = debug_mark_error(
+                                fr, fr->ppii - fr->ex->instr - 1);
+                if (call_trace) {
+                        if (!exception_has_trace())
+                                exception_add_trace(call_trace);
+                        /* XXX bug if error already stored? */
+                        VAR_DECR_REF(call_trace);
+                }
+                /* else, exception was from a deeper-nested call */
+        }
         if (fr->kind == FRAME_GENERATOR &&
             (retval == NULL || retval == ErrorVar)) {
                 vmframe_free(fr);

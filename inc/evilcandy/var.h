@@ -116,16 +116,21 @@ VAR_NEW_REF(Object *v)
 
 extern Object *var_new(struct type_t *type);
 extern void var_initialize_type(struct type_t *tp);
-extern Object *var_getattr(Frame *frame, Object *obj, Object *key);
-extern Object *var_getitem(Object *obj, Object *key);
-extern bool var_hasitem(Object *container, Object *item);
+
 extern enum result_t var_setattr(Frame *frame, Object *obj,
                                  Object *key, Object *value);
-extern enum result_t var_setitem(Object *obj, Object *key, Object *value);
+extern Object *var_getattr(Frame *frame, Object *obj, Object *key);
+extern Object *var_getattr_or_null(Frame *frame, Object *obj, Object *key);
+extern bool var_hasattr(Frame *frame, Object *obj, Object *key);
 static inline enum result_t var_delattr(Frame *frame, Object *obj, Object *key)
         { return var_setattr(frame, obj, key, NULL); }
+
+extern Object *var_getitem(Object *obj, Object *key);
+extern bool var_hasitem(Object *container, Object *item);
+extern enum result_t var_setitem(Object *obj, Object *key, Object *value);
 static inline enum result_t var_delitem(Object *obj, Object *key)
         { return var_setitem(obj, key, NULL); }
+
 extern enum result_t var_compare(Object *a, Object *b, int *result);
 extern bool var_matches(Object *a, Object *b);
 extern enum result_t var_compare_iarg(Object *a, Object *b,

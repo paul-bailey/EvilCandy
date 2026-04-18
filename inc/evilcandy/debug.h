@@ -91,12 +91,11 @@ extern void bug__(const char *, int);
 extern void breakpoint__(const char *file, int line);
 
 /* debug.c */
-extern void debug_print_trace(FILE *fp, bool print_lines);
+extern void debug_print_trace(Object *dbg, FILE *fp, bool print_lines);
 extern void debug_clear_locations(void);
-extern void debug_free_error(void);
-extern bool debug_has_error(void);
+extern void debug_clear_error(void);
 extern void debug_pop_location(void);
 extern void debug_push_location(Frame *fr, size_t instr_offset);
-extern void debug_mark_error(Frame *fr, ssize_t instr_offset);
+extern Object *debug_mark_error(Frame *fr, ssize_t instr_offset);
 
 #endif /* EVILCANDY_DEBUG_H */

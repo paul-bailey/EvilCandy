@@ -264,6 +264,8 @@ type_reset(Object *type)
  * @key: Key to the attribute
  *
  * Return: attribute if found, or NULL.
+ *
+ * This does not raise an error if not found.
  */
 Object *
 instance_getattr(Frame *fr, Object *instance, Object *key)

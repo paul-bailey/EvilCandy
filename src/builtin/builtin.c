@@ -4,6 +4,8 @@
 #include <evilcandy/err.h>
 #include <evilcandy/errmsg.h>
 #include <evilcandy/disassemble.h>
+#include <evilcandy/myreadline.h>
+#include <evilcandy/ewrappers.h>
 #include <evilcandy/hash.h>
 #include <evilcandy/global.h>
 #include <evilcandy/types/array.h>
@@ -116,6 +118,28 @@ do_hash(Frame *fr)
                 return ErrorVar;
         }
         return intvar_new((unsigned long long)hash);
+}
+
+static Object *
+do_input(Frame *fr)
+{
+        Object *reply;
+        const char *prompt;
+        char *line = NULL;
+        size_t size = 0;
+        ssize_t result;
+
+        prompt = NULL;
+        if (vm_getargs(fr, "[|s]{!}:input", &prompt) == RES_ERROR)
+                return ErrorVar;
+
+        if (!prompt)
+                prompt = "";
+        result = myreadline(&line, &size, stdin, prompt);
+        reply = stringvar_new(result > 0 && line ? line : "");
+        if (line)
+                efree(line);
+        return reply;
 }
 
 static Object *
@@ -440,6 +464,7 @@ static const struct type_method_t builtin_inittbl[] = {
         {"eval",   do_eval},
         {"getattr", do_getattr},
         {"hash",   do_hash},
+        {"input",  do_input},
         {"length", do_length},
         {"min",    do_min},
         {"max",    do_max},

@@ -1,3 +1,4 @@
+#!./evilcandy
 /*
  * Two demos, in which I rewrote some Python examples of inheritance in
  * EvilCandy.  The Python originals were produced by Google AI.

@@ -15,6 +15,6 @@
     } catch (e) {
         print('Got a', e, ':', e.message);
     }
-})("demos/cat.egq");
+})("demos/cat.evc");
 
 // : vim: set syntax=javascript :

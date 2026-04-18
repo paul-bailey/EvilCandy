@@ -136,7 +136,19 @@ do_input(Frame *fr)
         if (!prompt)
                 prompt = "";
         result = myreadline(&line, &size, stdin, prompt);
-        reply = stringvar_new(result > 0 && line ? line : "");
+        if (result > 0 && line) {
+                /*
+                 * For tokenizer's sake, myreadline() appends EOL to
+                 * end of line.  We don't want that here.
+                 */
+                if (line[result-1] == '\n') {
+                        result--;
+                        line[result] = '\0';
+                }
+                reply = stringvar_newn(line, result);
+        } else {
+                reply = stringvar_new("");
+        }
         if (line)
                 efree(line);
         return reply;

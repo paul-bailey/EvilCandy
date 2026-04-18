@@ -17,4 +17,11 @@ extern enum result_t location_unpack(const void *buf, size_t size,
 extern ssize_t location_pack(void *buf, size_t size,
                              const struct location_t *loc);
 
+/* these made public so I can unit test them */
+extern long unpack_value(const unsigned char *u8,
+                         size_t size, unsigned char **endptr);
+
+extern ssize_t pack_value(unsigned char *u8, size_t size,
+                          unsigned long value);
+
 #endif /* EVC_EVILCANDY_LOCATIONS_H */

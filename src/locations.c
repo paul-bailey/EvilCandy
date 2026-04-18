@@ -1,3 +1,7 @@
+/*
+ * TODO: (un)pack_value belong in their own module, since they
+ * are so easy to drop into any source tree.
+ */
 #include <evilcandy/debug.h>
 #include <internal/locations.h>
 #include <limits.h>
@@ -9,7 +13,7 @@ enum {
         LOCATION_INSTR_MAX = 32768,
 };
 
-static ssize_t
+ssize_t
 pack_value(unsigned char *u8, size_t size, unsigned long value)
 {
         unsigned char *start = u8;
@@ -34,25 +38,55 @@ pack_value(unsigned char *u8, size_t size, unsigned long value)
         return u8 - start;
 }
 
-static long
+#define UNPACK_SHIFT_MAX ((sizeof(long) * 8) - 7)
+
+/**
+ * unpack_value - Unpack a varint value.
+ * @u8: buffer to unpack from
+ * @size: Size of buffer to unpack from
+ * @endptr: (output) end pointer
+ *
+ * Return: value unpacked, or -1 if @u8 is malformed.
+ *         A negative encoded value is considered malformed.
+ */
+long
 unpack_value(const unsigned char *u8, size_t size, unsigned char **endptr)
 {
         unsigned long ret = 0;
+        unsigned int shift = 0;
+        unsigned char mask;
         const unsigned char *end = &u8[size];
 
-        while (!!(*u8 & 0x80)) {
-                if (u8 >= end)
+        while (u8 < end && !!(*u8 & 0x80)) {
+                if (shift >= UNPACK_SHIFT_MAX)
                         return -1L;
-                ret <<= 7;
-                ret += (*u8 & 0x7fu);
+
+                ret += (unsigned long)(*u8 & 0x7fu) << shift;
+                shift += 7;
                 u8++;
         }
+
         if (u8 >= end)
                 return -1L;
 
-        ret <<= 7;
-        ret += *u8 & 0x7fu;
+        mask = 0x7fu;
+        if (shift >= UNPACK_SHIFT_MAX) {
+                unsigned int exclude = shift - UNPACK_SHIFT_MAX;
+                unsigned int include = 7 - exclude;
+                mask = (1u << include) - 1;
+                /* zero high b7te? */
+                if ((*u8 & mask) == 0)
+                        return -1L;
+                /* excess bytes beyond long */
+                if ((*u8 & ~mask) != 0)
+                        return -1L;
+        }
+
+        ret += (unsigned long)(*u8 & mask) << shift;
         u8++;
+
+        if ((long)ret < 0)
+                return -1L;
 
         *endptr = (unsigned char *)u8;
         return ret;
@@ -111,6 +145,10 @@ location_unpack_one(const unsigned char *buf, size_t size,
  * Return: RES_OK or (likely due to a bug) RES_ERROR.
  *
  * This does not raise an exception.
+ *
+ * Note: Not every instruction has a corresponding location saved.
+ * If there is not a perfectly matching location to @instruction_offset,
+ * the location of the nearest *preceding* instruction will be returned.
  */
 enum result_t
 location_unpack(const void *buf, size_t size, size_t instruction_offset,
@@ -125,8 +163,11 @@ location_unpack(const void *buf, size_t size, size_t instruction_offset,
         for (;;) {
                 unsigned char *endptr;
                 enum result_t res;
+                if (u8 >= end)
+                        goto maybe_err;
                 res = location_unpack_one(u8, end - u8, &endptr, loc);
                 if (res == RES_ERROR) {
+maybe_err:
                         if ((short)backup.loc_instruction < 0)
                                 return RES_ERROR;
                         memcpy(loc, &backup, sizeof(*loc));

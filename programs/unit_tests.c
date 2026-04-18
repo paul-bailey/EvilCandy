@@ -6,6 +6,7 @@
 #include <evilcandy/var.h>
 #include <internal/init.h>
 #include <internal/path.h>
+#include <internal/locations.h>
 
 #include <assert.h>
 #include <sys/wait.h>
@@ -15,6 +16,7 @@
 #include <time.h>
 #include <string.h>
 #include <errno.h>
+#include <limits.h>
 
 /* in child process */
 static void
@@ -223,6 +225,121 @@ test_path(void)
         assert(test_rpip("/a/../../../b/./.c/..c", "/b/.c/..c"));
 }
 
+static void
+test_locations(void)
+{
+        enum { LOC_BUFSIZE = 128 };
+        unsigned char buf[LOC_BUFSIZE];
+        struct location_t loc;
+        ssize_t size, size2;
+        enum result_t res;
+
+        memset(&loc, 0, sizeof(loc));
+        loc.loc_startline = 0;
+        loc.loc_instruction = 0;
+        size = location_pack(buf, sizeof(buf), &loc);
+        /* minimum 1 byte per field */
+        assert(size >= 2);
+        res = location_unpack(buf, size, 0, &loc);
+        assert(res == RES_OK);
+        assert(loc.loc_startline == 0);
+        assert(loc.loc_instruction == 0);
+        res = location_unpack(buf, size, 1, &loc);
+        /* backup would have been used */
+        assert(res == RES_OK);
+        assert(loc.loc_startline == 0);
+        assert(loc.loc_instruction == 0);
+
+        loc.loc_startline = 1;
+        loc.loc_instruction = 1;
+        size2 = location_pack(buf + size, sizeof(buf) - size, &loc);
+        assert(size2 >= 2);
+
+        res = location_unpack(buf, size + size2, 0, &loc);
+        assert(res == RES_OK);
+        assert(loc.loc_startline == 0);
+        assert(loc.loc_instruction == 0);
+        res = location_unpack(buf, size + size2, 1, &loc);
+        assert(res == RES_OK);
+        assert(loc.loc_startline == 1);
+        assert(loc.loc_instruction == 1);
+}
+
+static void
+test_unpack(void)
+{
+        unsigned char buf[20];
+        long result;
+        unsigned char *endptr;
+        ssize_t pack_result, i;
+
+        memset(buf, -1, sizeof(buf));
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == -1L);
+
+        memset(buf, 0, sizeof(buf));
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == 0);
+        assert(endptr == &buf[1]);
+
+        buf[0] = 'a';
+        buf[1] = 'b';
+        endptr = NULL;
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == 'a');
+        assert(endptr > buf && *endptr == 'b');
+
+        memset(buf, 0, sizeof(buf));
+        pack_result = pack_value(buf, sizeof(buf), INT_MAX);
+        assert(pack_result > 0);
+        endptr = NULL;
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == INT_MAX);
+        assert(endptr == &buf[pack_result] && *endptr == 0);
+
+        memset(buf, 0, sizeof(buf));
+        pack_result = pack_value(buf, sizeof(buf), 0);
+        assert(pack_result == 1);
+
+        memset(buf, 0, sizeof(buf));
+        pack_result = pack_value(buf, sizeof(buf), -10L);
+        assert(pack_result > 0);
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == -1L);
+
+        memset(buf, 0, sizeof(buf));
+        pack_result = pack_value(buf, sizeof(buf), LONG_MAX);
+        assert(pack_result > 0);
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == LONG_MAX);
+        assert(endptr == &buf[pack_result]);
+
+        memset(buf, 0, sizeof(buf));
+        /* IE highest-magnitude negative number */
+        pack_result = pack_value(buf, sizeof(buf),
+                                 (unsigned long)LONG_MAX + 1);
+        assert(pack_result > 0);
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == -1);
+
+        for (i = 0; i < 9; i++)
+                buf[i] = 0x80;
+        buf[9] = 0x2;
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == -1);
+        buf[9] = 0;
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == -1);
+
+        buf[10] = 0x80;
+        buf[11] = 0;
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == -1);
+        buf[11] = 4;
+        result = unpack_value(buf, sizeof(buf), &endptr);
+        assert(result == -1);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -231,6 +348,8 @@ main(int argc, char **argv)
 
         initialize_program();
         test_path();
+        test_locations();
+        test_unpack();
         end_program();
 
         return EXIT_SUCCESS;

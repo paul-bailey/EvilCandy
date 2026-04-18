@@ -366,7 +366,7 @@ do_raw_seek(Frame *fr)
         long long off;
         int whence;
 
-        whence = 0;
+        whence = SEEK_SET;
         if (vm_getargs(fr, "<*>[l|i!]{!}:seek", &fo, &off, &whence)
             == RES_ERROR) {
                 return ErrorVar;
@@ -663,10 +663,22 @@ do_bin_write(Frame *fr)
         }
         /* Invalidate read buffer */
         if (bin->fb_inbuf) {
-                /*
-                 * FIXME: issue #46: rewind raw fd before dropping
-                 * the read buffer.
-                 */
+                /* issue #46: rewind raw fd before dropping */
+                size_t unread = seqvar_size(bin->fb_inbuf)
+                                - bin->fb_inbuf_pos;
+
+                if (unread != 0) {
+                        /*
+                         * FIXME: don't call lseek() directly.  Use
+                         * file_call_stack() instead.
+                         */
+                        if (lseek(BINFILE_FILENO(bin),
+                                  -(off_t)unread, SEEK_CUR) < 0) {
+                                err_errno("could not sync for write",
+                                          "write");
+                                return ErrorVar;
+                        }
+                }
                 VAR_DECR_REF(bin->fb_inbuf);
                 bin->fb_inbuf = NULL;
                 bin->fb_inbuf_pos = 0;
@@ -742,14 +754,15 @@ do_bin_tell(Frame *fr)
 static Object *
 do_bin_seek(Frame *fr)
 {
-        Object *fo;
+        Object *fo, *ret;
         Object *argstack[2];
+        long long offs;
         struct binfile_t *bin;
         size_t nr_args;
 
         argstack[1] = NULL;
-        if (vm_getargs(fr, "<*>[<i>|<i>!]{!}:seek", &fo,
-                       &argstack[0], &argstack[1]) == RES_ERROR) {
+        if (vm_getargs(fr, "<*>[l|<i>!]{!}:seek", &fo,
+                       &offs, &argstack[1]) == RES_ERROR) {
                 return ErrorVar;
         }
 
@@ -763,13 +776,22 @@ do_bin_seek(Frame *fr)
         if (bin_flush(bin) < 0)
                 return ErrorVar;
         if (bin->fb_inbuf) {
+                /* issue #45: Account for unread buffer bytes on SEEK_CUR */
+                if (argstack[1] &&
+                    intvar_toll(argstack[1]) == SEEK_CUR) {
+                        offs -= (seqvar_size(bin->fb_inbuf)
+                                 - bin->fb_inbuf_pos);
+                }
                 VAR_DECR_REF(bin->fb_inbuf);
                 bin->fb_inbuf = NULL;
         }
         bin->fb_inbuf_pos = 0;
-        /* FIXME: issue #45: Account for unread buffer bytes on SEEK_CUR */
-        return file_call_stack(bin->fb_raw, STRCONST_ID(seek),
-                               argstack, nr_args);
+        argstack[0] = intvar_new(offs);
+
+        ret = file_call_stack(bin->fb_raw, STRCONST_ID(seek),
+                              argstack, nr_args);
+        VAR_DECR_REF(argstack[0]);
+        return ret;
 }
 
 static Object *

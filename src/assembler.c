@@ -2797,7 +2797,7 @@ assemble_foreach2(struct assemble_t *a, struct list_t *names,
                         add_instr(a, INSTR_UNPACK, 0, needsize);
                 } else {
                         add_instr(a, INSTR_UNPACK_SPECIAL,
-                                0, star << 8 | needsize);
+                                  0, star << 8 | needsize);
                 }
                 list_foreach(p, names) {
                         struct names_t *n = AS_LIST2NAMES(p);

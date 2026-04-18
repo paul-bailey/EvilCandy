@@ -860,6 +860,93 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
         return x;
 }
 
+static size_t
+count_unique_locations(struct token_t *const *loc_tokens,
+                       size_t nr_loc_tokens)
+{
+        int line = -1;
+        size_t i, count = 0;
+        for (i = 0; i < nr_loc_tokens; i++) {
+                int line2;
+                if (loc_tokens[i] == NULL)
+                        continue;
+                line2 = loc_tokens[i]->start_line;
+                if (line2 == line)
+                        continue;
+                count++;
+                line = line2;
+        }
+        return count;
+}
+
+static int
+loc_compar(void *a, void *b)
+{
+        struct location_t *alice = (struct location_t *)a;
+        struct location_t *bob = (struct location_t *)b;
+
+        return (int)alice->loc_instruction - (int)bob->loc_instruction;
+}
+
+static struct location_t *
+fill_locations_unpacked(struct token_t *const *loc_tokens,
+                        size_t nr_loc_tokens, const short *labels,
+                        size_t count)
+{
+        int line = -1;
+        size_t i, j = 0;
+        struct location_t *loc_buf = emalloc(sizeof(*loc_buf) * count);
+        for (i = 0; i < nr_loc_tokens; i++) {
+                struct location_t *loc;
+                int line2;
+
+                if (loc_tokens[i] == NULL)
+                        continue;
+                line2 = loc_tokens[i]->start_line;
+                if (line2 == line)
+                        continue;
+
+                bug_on(j >= count);
+                loc = &loc_buf[j];
+
+                loc->loc_startline = line2;
+                loc->loc_instruction = labels[i];
+                line = line2;
+                j++;
+        }
+        bug_on(j != count);
+
+        qsort(loc_buf, count, sizeof(*loc_buf), loc_compar);
+        return loc_buf;
+}
+
+static unsigned char *
+fill_locations_packed(const struct location_t *loc_buf,
+                      size_t count, size_t *bufidx_out)
+{
+        size_t i;
+        unsigned char *buf;
+        size_t bufsize, bufidx;
+
+        bufsize = 16;
+        bufidx = 0;
+        buf = erealloc(NULL, bufsize);
+
+        for (i = 0; i < count; i++) {
+                ssize_t packed;
+
+                while ((packed = location_pack(&buf[bufidx],
+                                               bufsize - bufidx,
+                                               &loc_buf[i])) < 0) {
+                        bufsize += 16;
+                        buf = erealloc(buf, bufsize);
+                }
+                bufidx += packed;
+        }
+        *bufidx_out = bufidx;
+        return buf;
+}
+
 /*
  * Instruction set is now frozen, so labels won't shift around anymore.
  * This means we can now set our labels in place properly.
@@ -870,9 +957,9 @@ resolve_locations(struct assemble_t *a, struct as_frame_t *fr)
         struct token_t **loc_tokens;
         size_t nr_loc_tokens;
         short *labels;
-        int line;
+        struct location_t *loc_buf;
         unsigned char *buf;
-        size_t i, bufsize, bufidx;
+        size_t bufidx, count;
 
         labels = (short *)fr->af_labels.s;
         loc_tokens = (struct token_t **)(fr->af_locations.s);
@@ -885,33 +972,11 @@ resolve_locations(struct assemble_t *a, struct as_frame_t *fr)
          */
         bug_on(as_frame_nlabel(fr) < nr_loc_tokens);
 
-        line = -1;
-        bufsize = 16;
-        bufidx = 0;
-        buf = erealloc(NULL, bufsize);
-        for (i = 0; i < nr_loc_tokens; i++) {
-                struct location_t loc;
-                ssize_t packed;
-                int line2;
-
-                if (loc_tokens[i] == NULL)
-                        continue;
-                if ((line2 = loc_tokens[i]->start_line) == line)
-                        continue;
-
-                loc.loc_startline = line2;
-                loc.loc_instruction = labels[i];
-
-                while ((packed = location_pack(&buf[bufidx],
-                                               bufsize - bufidx,
-                                               &loc)) < 0) {
-                        bufsize += 16;
-                        buf = erealloc(buf, bufsize);
-                }
-                bufidx += packed;
-
-                line = line2;
-        }
+        count = count_unique_locations(loc_tokens, nr_loc_tokens);
+        loc_buf = fill_locations_unpacked(loc_tokens, nr_loc_tokens,
+                                          labels, count);
+        buf = fill_locations_packed(loc_buf, count, &bufidx);
+        efree(loc_buf);
 
         fr->af_locations_packed = buf;
         fr->af_locations_packed_size = bufidx;

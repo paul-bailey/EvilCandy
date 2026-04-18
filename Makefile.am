@@ -1,7 +1,7 @@
 # Do this instead of check_PROGRAMS, since I do not necessarily
 # want to run this during 'make check'
 .PHONY: tests
-tests: programs/unit_tests programs/fuzzer
+tests: programs/unit_tests programs/fuzzer programs/rtfuzzer
 
 ACLOCAL_AMFLAGS = -I build/m4
 AM_CFLAGS = \
@@ -11,7 +11,7 @@ AM_CFLAGS = \
 AM_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 
 bin_PROGRAMS = evilcandy
-EXTRA_PROGRAMS = programs/unit_tests programs/fuzzer
+EXTRA_PROGRAMS = programs/unit_tests programs/fuzzer programs/rtfuzzer
 check_PROGRAMS = tools/tokgen tools/gen
 
 noinst_LIBRARIES = src/libevilcandy.a
@@ -83,6 +83,7 @@ src_libevilcandy_a_SOURCES = \
 
 programs_unit_tests_SOURCES = programs/unit_tests.c
 programs_fuzzer_SOURCES = programs/fuzzer.c
+programs_rtfuzzer_SOURCES = programs/rtfuzzer.c
 evilcandy_SOURCES = programs/evilcandy.c
 
 # Note: there's also a fuzzer but it's slow!
@@ -184,6 +185,7 @@ endif
 evilcandy_LDADD=$(COMMON_LDADD)
 programs_unit_tests_LDADD=$(COMMON_LDADD)
 programs_fuzzer_LDADD=$(COMMON_LDADD)
+programs_rtfuzzer_LDADD=$(COMMON_LDADD)
 
 evilcandydir=${datadir}/evilcandy
 # well, common except to source code generators
@@ -196,6 +198,7 @@ src_libevilcandy_a_CPPFLAGS=$(COMMON_CPPFLAGS)
 evilcandy_CPPFLAGS=$(COMMON_CPPFLAGS)
 programs_unit_tests_CPPFLAGS=$(COMMON_CPPFLAGS)
 programs_fuzzer_CPPFLAGS=$(COMMON_CPPFLAGS)
+programs_rtfuzzer_CPPFLAGS=$(COMMON_CPPFLAGS)
 
 dist_evilcandy_DATA= \
         lib/enum.evc \
@@ -213,6 +216,7 @@ nodist_COMMON_SOURCES = \
 nodist_evilcandy_SOURCES = $(nodist_COMMON_SOURCES)
 nodist_programs_unit_tests_SOURCES = $(nodist_COMMON_SOURCES)
 nodist_programs_fuzzer_SOURCES = $(nodist_COMMON_SOURCES)
+nodist_programs_rtfuzzer_SOURCES = $(nodist_COMMON_SOURCES)
 
 CLEANFILES = \
         inc/instruction_defs.h \

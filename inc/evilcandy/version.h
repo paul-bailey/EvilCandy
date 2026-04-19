@@ -1,11 +1,8 @@
-/*
- * TODO: Move this -> evilcandy/version.h
- */
 #ifndef EVILCANDY_VERSION_H
 #define EVILCANDY_VERSION_H
 
-#include <evilcandy/config.h>
+#include <evilcandy/build_version.h>
 
-#define EVILCANDY_VERSION PACKAGE_STRING
+#define EVILCANDY_VERSION EVILCANDY_BUILD_VERSION
 
 #endif /* EVILCANDY_VERSION_H */

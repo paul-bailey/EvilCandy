@@ -8,7 +8,6 @@ AM_CFLAGS = \
  -Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -pedantic \
  -Wmissing-prototypes -Wmissing-declarations \
  -Wredundant-decls -Wstrict-prototypes
-AM_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
 
 bin_PROGRAMS = evilcandy
 EXTRA_PROGRAMS = programs/unit_tests programs/fuzzer programs/rtfuzzer
@@ -167,7 +166,23 @@ BUILT_SOURCES= \
         inc/token_gen.h \
         src/disassemble_gen.c.h \
         src/tokutils_gen.c \
-        src/vm_gen.c.h
+        src/vm_gen.c.h \
+        inc/evilcandy/build_version.h
+
+.PHONY: FORCE
+FORCE:
+
+inc/evilcandy/build_version.h: FORCE
+	@version=`cd $(top_srcdir) && git describe --tags --dirty --always 2>/dev/null || echo "$(PACKAGE_VERSION)"`; \
+	echo '#ifndef EVILCANDY_BUILD_VERSION_H' > $@.tmp; \
+	echo '#define EVILCANDY_BUILD_VERSION_H' >> $@.tmp; \
+	echo '#define EVILCANDY_BUILD_VERSION "EvilCandy '"$$version"'"' >> $@.tmp; \
+	echo '#endif' >> $@.tmp; \
+	if test -r $@ && cmp -s $@.tmp $@; then \
+	  rm -f $@.tmp; \
+	else \
+	  mv $@.tmp $@; \
+	fi
 
 .PHONY: headercheck
 headercheck: $(noinst_HEADERS) $(BUILT_SOURCES)
@@ -220,12 +235,18 @@ nodist_programs_unit_tests_SOURCES = $(nodist_COMMON_SOURCES)
 nodist_programs_fuzzer_SOURCES = $(nodist_COMMON_SOURCES)
 nodist_programs_rtfuzzer_SOURCES = $(nodist_COMMON_SOURCES)
 
+programs/evilcandy.$(OBJEXT): inc/evilcandy/build_version.h
+programs/fuzzer.$(OBJEXT): inc/evilcandy/build_version.h
+programs/rtfuzzer.$(OBJEXT): inc/evilcandy/build_version.h
+
 CLEANFILES = \
         inc/instruction_defs.h \
         inc/token_gen.h \
         src/disassemble_gen.c.h \
         src/tokutils_gen.c \
         src/vm_gen.c.h \
+        inc/evilcandy/build_version.h \
+        inc/evilcandy/build_version.h.tmp \
         $(EXTRA_PROGRAMS)
 
 src/disassemble_gen.c.h: tools/instructions tools/gen

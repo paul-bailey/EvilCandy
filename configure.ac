@@ -1,4 +1,4 @@
-m4_define([EVILCANDY_VERSION], m4_esyscmd_s([git describe --tags --dirty --always 2>/dev/null || echo "prealpha-unknown"]))
+.m4_define([EVILCANDY_VERSION]. [main-prealpha.x])
 AC_INIT([EvilCandy], [EVILCANDY_VERSION], [roscidcup@falstaffandme.com])
 AC_CONFIG_AUX_DIR([build])
 AC_CONFIG_MACRO_DIR([build/m4])

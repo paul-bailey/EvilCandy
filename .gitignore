@@ -41,6 +41,7 @@ src/builtin/.*.swp
 /inc/*_gen.h
 /src/*_gen.c
 /inc/instruction_defs.h
+/inc/evilcandy/build_version.h
 
 # Stuff I sometimes want to keep in local copy
 # but not version control

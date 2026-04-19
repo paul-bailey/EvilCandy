@@ -6,10 +6,6 @@
 
 #include <evilcandy/config.h>
 
-#ifdef GIT_VERSION
-# define EVILCANDY_VERSION PACKAGE_STRING "-" GIT_VERSION
-#else
-# define EVILCANDY_VERSION PACKAGE_STRING
-#endif
+#define EVILCANDY_VERSION PACKAGE_STRING
 
 #endif /* EVILCANDY_VERSION_H */

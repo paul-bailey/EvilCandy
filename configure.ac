@@ -1,4 +1,4 @@
-m4_define([EVILCANDY_VERSION], [0.0.1-prealpha])
+m4_define([EVILCANDY_VERSION], m4_esyscmd_s([git describe --tags --dirty --always 2>/dev/null || echo "prealpha-unknown"]))
 AC_INIT([EvilCandy], [EVILCANDY_VERSION], [roscidcup@falstaffandme.com])
 AC_CONFIG_AUX_DIR([build])
 AC_CONFIG_MACRO_DIR([build/m4])
@@ -11,12 +11,6 @@ AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([
  Makefile
 ])
-
-AC_MSG_CHECKING([for git version])
-GIT_VERSION=`git describe --tags --dirty --always 2>/dev/null || echo "unknown"`
-AC_MSG_RESULT([$GIT_VERSION])
-
-AC_SUBST([GIT_VERSION])
 
 have_uuid=no
 AC_CHECK_HEADERS([uuid.h],

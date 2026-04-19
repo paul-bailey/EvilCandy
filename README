@@ -35,12 +35,9 @@ In many ways, it diverges greatly.
 Status
 ======
 
-**UNSTABLE!!**  See disclaimer in COPYING.  As of April 2026, the
-language and its implementation are under rapid development.
-
-The version is currently 0.0.1 (plus some git-version info at the end),
-and I will not bother keeping that up-to-date until the source tree has
-stabilized to a point where versions are meaningful.
+**UNSTABLE!!**  See disclaimer in COPYING.  The language and its
+implementation are under rapid development.  The version in this branch
+is currently prealpha.x.
 
 As of April 2026, the following can (roughly) be said about EvilCandy:
 
@@ -59,25 +56,26 @@ As of April 2026, the following can (roughly) be said about EvilCandy:
   "peek" at the next token, so if you type an "if" statement and do not
   intend to add and "else" statement, you need to type a superfluous
   semicolon to let the parser know to execute it...that kind of quirky.
+  (See issue #48.)
 
 * It can run in disassembly mode, where instead of executing code,
   it will disassemble its compiled input and print it.  Probably not
   useful to anybody but me, as a debugging tool.
 
 * It can load and execute scripts, and have those scripts load and
-  execute scripts.  However, I am not settled on its method for doing
-  so. (See issue #12.)
+  execute scripts.
 
 * I have not yet added in any code for cyclic GC, so there's a hazard
-  of accidentally immortalizing data with cyclic references.
+  of accidentally immortalizing data with cyclic references, for example
+  when inserting a dictionary into itself.
 
-* It has the skeleton of a math and IO library, but these are mainly
-  as they were when I threw them together just to see if something works.
+* It has the skeleton of a math, IO, and socket library, but these are
+  mainly as they were when I threw them together just to see if
+  something works.
 
-* Generators are supported, but so far comprehensions are not.
+* Generators are supported, but comprehension expressions are not.
 
-* It is single-threaded, and it will probably remain that way at least
-  for a while.
+* It is single-threaded.
 
 * It does not support externally-linkable C modules.  Currently all the
   C code has to be compiled into a single binary.
@@ -105,15 +103,18 @@ Why Is It Called EvilCandy?
 ---------------------------
 
 I wanted to call it CandyScript, but I found out that "Candy Script" was
-already the name of a popular typeface--if "popular typeface" is a thing
+already the name of a popular typeface—if "popular typeface" is a thing
 that can exist.  So I settled for EvilCandy.
 
 How Is It Different From JavaScript?
 ------------------------------------
 
 In a nutshell, the resemblance between EvilCandy and JavaScript is mostly
-cosmetic.  The biggest similarity is in the way functions can be pretty
-much declared and defined anywhere.
+cosmetic.  The biggest similarities are (1) statements are delimited by
+braces and semicolons (and more strictly so than in JavaScript), instead
+of line endings; and (2) function definitions are treated as literal
+expressions, so they may be stated just about anywhere, even as arguments
+to other functions.
 
 Here are some major differences...
 
@@ -138,14 +139,13 @@ Here are some major differences...
   example, ``join`` is a string method, not a list method.
 
 * When I get to work on the module library (see Status_) I have no
-  intention of trying to continue making it resemble JavaScript, which
-  seems too heavily tailored for Web browsers to be a good model for
-  EvilCandy.
+  intention of trying to continue making it resemble JavaScript.
 
 * I really like the ``else`` clause to Python's ``for`` loop, so I
-  implemented a ``for`` loop that has an optional ``else`` statement,
-  despite the hazard that comes with not using braces (considering an
-  if-else statement in an un-braced ``for`` statement).
+  implemented a ``for`` loop that has an optional ``nobreak`` statement.
+  I chose ``nobreak`` instead of ``else`` in EvilCandy's case, as a guard
+  against the hazard that comes with not using braces around a ``for``
+  statement which contains an ``if`` statement.
 
 * EvilCandy has nothing to do with the Document Object Model.
 
@@ -199,17 +199,19 @@ on Ubuntu.  I have tried to avoid system-specific functionality, and I
 occasionally compile with ``-std=c17 -pedantic-errors``.  I'm trying
 where possible to avoid gcc-specific extensions, but since clang seems to
 call itself gcc, it's hard to tell if I'm succeeding.  Computers built in
-Obscuresylvania or the 1970s probably will not execute this program
-correctly.  It's hard to not accidentally make assumptions about a system
-when you're the only developer on a project.  So I make no promise that it
-will compile on your system, especially if it is a Windows system.
+Obscuresylvania or the 1970s (or worse, computers running Windows 😊)
+probably will not execute this program correctly.  It's hard to not
+accidentally make assumptions about a system when you're the only developer
+on a project.  So I make no promise that it will compile on your system,
+especially if it is a Windows system.
 
 The Language
 ============
 
-See Documentation, but don't.
-As of March 2026 it is extremely out of date.
-Getting it up-to-date is on the urgent to-do list.
+If you have Sphinx, go to Documentation and run ``make html``.
+If you do not, the restructuredText files in Documentation/tutorial
+should be human-readable enough.  But disregard the Documentation/langref/
+and Documentation/libref/.  These are wildly out of date.
 
 Licence
 =======

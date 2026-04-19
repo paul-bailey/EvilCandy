@@ -33,6 +33,10 @@ struct gbl_token_subsys_t {
         char *s;
         int lineno;
         size_t _slen;
+
+        /* saved array of already-tokenized tokens */
+        size_t ntok;
+        struct buffer_t pgm;
 };
 
 /* Token errors, args to longjmp(state->env) */
@@ -104,12 +108,12 @@ struct token_state_t {
 #define TOKBUF(state_) ((struct token_t **)(state_)->pgm.s)
 #define TOKBUF_SIZE(state_) \
         (buffer_size(&(state_)->pgm) / TOKBUF_WIDTH_)
-#define TOKBUF_PUT(state_, tokp_) \
+#define TOKBUF_PUT_IN(buf_, tokp_) \
 do { \
-        buffer_putd(&(state_)->pgm, &(tokp_), TOKBUF_WIDTH_); \
+        buffer_putd(buf_, &(tokp_), TOKBUF_WIDTH_); \
 } while (0)
-
-static void token_state_free_(struct token_state_t *state, bool free_self);
+#define TOKBUF_PUT(state_, tokp_) \
+        TOKBUF_PUT_IN(&(state_)->pgm, tokp_)
 
 static const char *EVILCANDY_PS1 = "evc> ";
 static const char *EVILCANDY_PS2 = " ... ";
@@ -138,33 +142,10 @@ tok_next_line(struct token_state_t *state)
 
         switch (state->inp) {
         case TKINP_TTY:
-            {
-                struct gbl_token_subsys_t *iatok;
-                iatok = gbl_get_token_subsys();
-                bug_on(!state->fp);
-                if (iatok->line) {
-                        /* XXX: bug if state->line != NULL here? */
-                        if (state->line)
-                                efree(state->line);
-                        state->line   = iatok->line;
-                        state->s      = iatok->s;
-                        state->lineno = iatok->lineno;
-                        state->_slen  = iatok->_slen;
-                        memset(iatok, 0, sizeof(*iatok));
-                        /*
-                         * Don't fall through, we don't want to reset
-                         * state->s
-                         *
-                         * XXX overkill result? everyone's only checking
-                         * if <0, not exact size.
-                         */
-                        return strlen(state->line) - (state->s - state->line);
-                }
                 res = myreadline(&state->line, &state->_slen,
                                  state->fp, state->prompt);
                 state->prompt = EVILCANDY_PS2;
                 break;
-            }
         case TKINP_FILE:
                 res = egetline(&state->line, &state->_slen, state->fp);
                 break;
@@ -875,6 +856,23 @@ token_init_state(struct token_state_t *state, FILE *fp)
                 state->inp = TKINP_STRING;
                 state->prompt = NULL;
         }
+
+        if (state->inp == TKINP_TTY) {
+                struct gbl_token_subsys_t *iatok;
+                iatok = gbl_get_token_subsys();
+                if (iatok->line) {
+                        state->line     = iatok->line;
+                        state->s        = iatok->s;
+                        state->lineno   = iatok->lineno;
+                        state->_slen    = iatok->_slen;
+                }
+                if (iatok->ntok != 0) {
+                        memcpy(&state->pgm, &iatok->pgm,
+                               sizeof(state->pgm));
+                        state->ntok = iatok->ntok;
+                }
+                memset(iatok, 0, sizeof(*iatok));
+        }
 }
 
 /**
@@ -1034,14 +1032,33 @@ skip_free:
         state->s = NULL;
 }
 
+static void
+free_one_token(struct token_t *tok)
+{
+        /* not all tokens have this */
+        if (tok->v)
+                VAR_DECR_REF(tok->v);
+        efree(tok);
+}
+
+static void
+free_token_buffer_struct(struct buffer_t *buf, size_t ntok)
+{
+        size_t i;
+        struct token_t **tok = (struct token_t **)(buf->s);
+        for (i = 0; i < ntok; i++)
+                free_one_token(tok[i]);
+        buffer_free(buf);
+}
+
 /**
  * token_state_free - Destructor for a token state machine
  * @state: A return value of token_state_new()
  *
  * Called when finished parsing a full file.
  */
-static void
-token_state_free_(struct token_state_t *state, bool free_self)
+void
+token_state_free(struct token_state_t *state)
 {
         struct token_t **tokbuf;
         size_t i, n;
@@ -1053,23 +1070,28 @@ token_state_free_(struct token_state_t *state, bool free_self)
         n = TOKBUF_SIZE(state);
         bug_on(n != state->ntok);
         tokbuf = TOKBUF(state);
-        for (i = 0; i < n; i++) {
-                if (tokbuf[i]->v)
-                        VAR_DECR_REF(tokbuf[i]->v);
-                efree(tokbuf[i]);
+        if (state->nexttok < state->ntok && state->inp == TKINP_TTY) {
+                struct gbl_token_subsys_t *iatok;
+
+                iatok = gbl_get_token_subsys();
+                bug_on(iatok->pgm.s);
+
+                buffer_init(&iatok->pgm);
+                for (i = state->nexttok; i < state->ntok; i++)
+                        TOKBUF_PUT_IN(&iatok->pgm, tokbuf[i]);
+                iatok->ntok = state->ntok - state->nexttok;
+
+                /* Only free these ones */
+                n = state->nexttok;
         }
+        for (i = 0; i < n; i++)
+                free_one_token(tokbuf[i]);
         buffer_free(&state->pgm);
 
         if (state->dedup)
                 VAR_DECR_REF(state->dedup);
-        if (free_self)
-                efree(state);
-}
 
-void
-token_state_free(struct token_state_t *state)
-{
-        token_state_free_(state, true);
+        efree(state);
 }
 
 /**
@@ -1090,9 +1112,11 @@ token_state_new(FILE *fp)
          * above functions don't all have to start
          * with "if (state->s == NULL)"
          */
-        if (tok_next_line(state) == -1) {
-                token_state_free(state);
-                return NULL;
+        if (!state->line && !state->ntok) {
+                if (tok_next_line(state) == -1) {
+                        token_state_free(state);
+                        return NULL;
+                }
         }
 
         return state;
@@ -1159,10 +1183,12 @@ void
 token_flush_tty(struct token_state_t *state)
 {
         struct gbl_token_subsys_t *iatok = gbl_get_token_subsys();
-        if (iatok->line) {
+        if (iatok->line)
                 efree(iatok->line);
-                memset(iatok, 0, sizeof(*iatok));
-        }
+        if (iatok->ntok)
+                free_token_buffer_struct(&iatok->pgm, iatok->ntok);
+        memset(iatok, 0, sizeof(*iatok));
+
         if (state && state->line) {
                 /* Not an issue in script mode */
                 if (state->inp != TKINP_TTY)
@@ -1186,5 +1212,7 @@ token_deinit_gbl(struct gbl_token_subsys_t *iatok)
 {
         if (iatok->line)
                 efree(iatok->line);
+        if (iatok->ntok)
+                free_token_buffer_struct(&iatok->pgm, iatok->ntok);
         efree(iatok);
 }

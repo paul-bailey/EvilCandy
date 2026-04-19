@@ -197,7 +197,7 @@ headercheck: $(noinst_HEADERS) $(BUILT_SOURCES)
         done; \
         exit $$failed
 
-COMMON_LDADD=-lm src/libevilcandy.a
+COMMON_LDADD=src/libevilcandy.a -lm
 if WANT_READLINE
 COMMON_LDADD+=-lreadline
 endif

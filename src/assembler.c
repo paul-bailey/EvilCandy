@@ -190,6 +190,23 @@ as_lex(struct assemble_t *a)
         return get_tok(a->prog, &a->oc);
 }
 
+/* Return true if a->oc is an identifier matching @expect */
+static bool
+as_curtok_is_softkey(struct assemble_t *a, const char *expect)
+{
+        const char *s;
+
+        if (!a->oc || a->oc->t != OC_IDENTIFIER)
+                return false;
+        bug_on(!a->oc->v || !isvar_string(a->oc->v));
+        s = string_cstring(a->oc->v);
+
+        /* if this, then tokenizer wouldn't call it an IDENTIFIER */
+        bug_on(strlen(s) != string_nbytes(a->oc->v));
+
+        return strcmp(s, expect) == 0;
+}
+
 static void
 err_ae_expect(struct assemble_t *a, int exp)
 {
@@ -1691,17 +1708,9 @@ static int
 assemble_super_expr(struct assemble_t *a)
 {
         token_pos_t pos = as_savetok(a, NULL);
-        const char *s;
 
-        bug_on(a->oc->t != OC_IDENTIFIER);
-        bug_on(!a->oc->v || !isvar_string(a->oc->v));
-
-        s = string_cstring(a->oc->v);
-        bug_on(strlen(s) != string_nbytes(a->oc->v));
-
-        if (strcmp(s, "super"))
+        if (!as_curtok_is_softkey(a, "super"))
                 return 0;
-
         if (as_lex(a) < 0)
                 return -1;
         if (a->oc->t != OC_LPAR)
@@ -2871,7 +2880,7 @@ assemble_foreach1(struct assemble_t *a, int breakto)
                 goto err_cleanup;
         if (as_lex(a) < 0)
                 goto err_cleanup;
-        if (a->oc->t == OC_ELSE) {
+        if (a->oc->t == OC_NOBREAK) {
                 if (assemble_stmt(a, 0, 0) < 0)
                         goto err_cleanup;
         } else {
@@ -2985,12 +2994,7 @@ assemble_import_stmt(struct assemble_t *a, unsigned int flags)
         if (as_lex(a) < 0)
                 return -1;
 
-        /*
-         * I don't like soft keywords, but if I made a hard keyword out
-         * of "as", programmers will hate me.
-         */
-        if (a->oc->t == OC_IDENTIFIER &&
-            !strcmp(string_cstring(a->oc->v), "as")) {
+        if (as_curtok_is_softkey(a, "as")) {
                 /* import FROM_NAME as TO_NAME */
                 if (as_errlex(a, OC_IDENTIFIER) < 0)
                         return -1;

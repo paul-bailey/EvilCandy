@@ -88,7 +88,7 @@ class Box() {
 
                 str += word;
                 curlen += len;
-            } else if (length(str) > 0) {
+            } nobreak if (length(str) > 0) {
                 na.append(str.strip());
             }
             return na;

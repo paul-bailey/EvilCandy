@@ -1,13 +1,13 @@
 #!./evilcandy
 
-// basically a test of for-else and break
+// basically a test of for-nobreak and break
 let primes_to = function(bound) {
         let pr = [];
         for n in range(2, bound) {
                 for x in range(2, n) {
                         if ((n % x) == 0)
                                 break;
-                } else {
+                } nobreak {
                         pr.append(n);
                 }
         }

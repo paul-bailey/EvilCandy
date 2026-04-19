@@ -242,10 +242,11 @@ The extra semi-colon at the end of the ``for`` loop
 is only needed in interactive mode
 while at the top level of program flow.
 This is because EvilCandy's ``for`` loop
-also uses an optional ``else`` clause,
+also uses an optional else-like clause ``nobreak``
+(see the next example below),
 so the interpreter will hold off execution until it gets
 the next token;
-if it's not ``else``, then the interpreter
+if it's not ``nobreak``, then the interpreter
 will assume it to be the start of the next statement
 and therefore execute the ``for`` loop.
 To force execution before typing the next statement
@@ -258,7 +259,8 @@ the semicolon is not needed.
 
 The following example is a little trivial (why calculate it if you
 already know the answer?),
-but it demonstrates the usefulness of ``else`` in the ``for`` loop:
+but it demonstrates the usefulness of ``nobreak``
+in the ``for`` loop:
 
 .. code-block:: evc-console
 
@@ -274,7 +276,7 @@ but it demonstrates the usefulness of ``else`` in the ``for`` loop:
     ...     // that this 'break' will never occur.
     ...     if (abs(result - 3.14) < 0.0001)
     ...         break;
-    ... } else {
+    ... } nobreak {
     ...     print('not enough iterations');
     ... }
    not enough iterations
@@ -282,30 +284,7 @@ but it demonstrates the usefulness of ``else`` in the ``for`` loop:
 That is, if the program runs through the entire sequence
 (``range(200)`` in this example)
 without stopping the iteration early with ``break``,
-then the body of ``else`` will be executed.
-
-This also illustrates a pitfall to avoid.
-Indentation expresses programmer's *conscience intent*,
-which is not necessarily the actual program flow.
-The interpreter does not care about indentation.
-**Always use braces around** ``for`` **loops**,
-even for bodies containing only a single simple statement.
-Otherwise indentation can be misleading.  Consider the following:
-
-.. code-block::
-   :class: example-bad
-
-   // THIS IS BAD!
-   for x in y
-       if (x)
-           do_this();
-   else
-       do_that();
-
-The ``else`` in this example appears as
-the ``else`` clause of the ``for`` statement,
-but it is actually part of the ``if`` statement.
-
+then the body of ``nobreak`` will be executed.
 
 Functions
 ---------

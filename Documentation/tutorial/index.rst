@@ -30,6 +30,7 @@ not a throrough catalogue of the language's features.
    data_types.rst
    scope.rst
    classes_and_namespaces.rst
+   modules_and_imports.rst
 
 .. [#]
 

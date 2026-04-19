@@ -90,6 +90,7 @@ evilcandy_SOURCES = programs/evilcandy.c
 TESTS = tests/run-evilcandy-tests.sh \
         tests/regress-binfile-seek-buffer.sh \
         tests/regress-gh-issue-11.sh \
+        tests/regress-gh-issue-39-tty.sh \
         programs/unit_tests
 
 noinst_HEADERS = \

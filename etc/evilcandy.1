@@ -1,0 +1,55 @@
+.\" Man page generated from: ./evilcandy --help
+.TH EVILCANDY 1 "2026-04-19" "EvilCandy" "User Commands"
+.SH NAME
+evilcandy \- EvilCandy interpreter
+.SH SYNOPSIS
+.B evilcandy
+.RI [ OPTIONS ]
+.RI [ INFILE ]
+.SH DESCRIPTION
+.B evilcandy
+runs the EvilCandy interpreter.
+.PP
+EvilCandy is an object-oriented programming language.
+.PP
+If no input file is specified,
+.B evilcandy
+can be run as a REPL.  It can also read input from a pipe or run a script
+from a file.
+.SH OPTIONS
+.TP
+.B \-d
+Disassembly mode.
+.TP
+.BI \-c " STRING"
+Interpret
+.I STRING
+instead of a file.
+.TP
+.BI \-e " STRING"
+Same as
+.BR \-c .
+.TP
+.B \-V
+Print version and quit.
+.TP
+.B \-h
+Print help and quit.
+.TP
+.B \-\-version
+Same as
+.BR \-V .
+.TP
+.B \-\-help
+Same as
+.BR \-h .
+.SH EXAMPLES
+.TP
+REPL mode:
+.B evilcandy
+.TP
+Pipe mode:
+.B cat FILE | evilcandy
+.TP
+Script mode:
+.B evilcandy FILE

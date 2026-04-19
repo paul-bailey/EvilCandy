@@ -79,7 +79,7 @@ A class expression has the following minimum form::
 
    class () {}
 
-At the moment it looks the same a function expression except with a
+At the moment it looks the same as a function expression except with a
 different keyword, but as we expand it with methods and base classes, it
 will begin to look very different.
 
@@ -106,14 +106,14 @@ an exception.
 Class Methods
 -------------
 
-The braces ``{}`` at the end of the ``class`` expression follow the
-same syntax as a namespace.  Classes are not namespaces, however, as
-we will soon see.
+Class methods are typically defined within the bracess ``{}`` at the end
+of the ``class`` expression, using the same syntax as a namespace.
 
 Unlike regular functions and functions contained in a namespace, class
 methods must always take at least one argument.  This first argument is
 the instantiation of the class to operate upon.  Python programmers
-should already be familiar with it; by convention they name it ``self``.
+should already be familiar with this format; by convention they name
+the first argument ``self``, and so will this tutorial's examples.
 To JavaScript programmers, this argument is analogous to the keyword
 ``this``, which does not exist in EvilCandy.
 
@@ -124,7 +124,7 @@ method.
 Here is an example of a simple class::
 
   class Animal() {
-      .__init__ = function (self, name) {
+      .__init__ = function(self, name) {
           self.name = name;
       },
 
@@ -133,8 +133,25 @@ Here is an example of a simple class::
       }
   }
 
-You would invoke it by calling the class as if it was a function, but
-passing the arguments that will go to the ``__init__`` function:
+The ``__init__`` function creates a new class attribute ``name``, and
+sets it to the name provided by the argument.  If the argument was
+optional, you could save a default value (or, in some applications, a
+start-up value) along with the methods::
+
+  class Animal() {
+      .name = 'default_name',
+      .__init__ = function(self, *args) {
+          if (length(args) > 0)
+              self.name = args[0];
+          ...
+
+This is safe, because any modifications to an instantiation's
+attributes are saved with the instantiation itself, not the class.
+So ``'default_name'`` is preserved for later instantiations.
+
+You would instantiate this class by calling it as if it was a
+function, passing the arguments that will go to the ``__init__``
+function:
 
 .. code-block:: evc-console
 
@@ -232,7 +249,34 @@ specially only when it appears at the start of an expression and is
 immediately followed by ``().`` and a method name. In other positions,
 ``super`` is still an ordinary identifier.
 
----
+Class Private Fields
+--------------------
 
-:TODO: Dicuss __str__, declaring non-method data in class declaration.
+.. note::
+
+   This feature of EvilCandy is still minimally developed and tested.
+   There are also many corner-cases which have not yet been worked out,
+   so consider this section to be only *mostly* true.
+
+A class's private fields are declared like so::
+
+   class MyClass() {
+       .some_public_method = function (self) {
+           ...
+       },
+       private .some_private_method = function(self) {
+           ...
+       },
+       ...
+   }
+
+When a class method is declared with ``private``, it can be accessed
+only from within methods of the same class.
+This works for other kinds of class data as well.
+
+There is currently no other way to assign privacy.  For example, you
+cannot create a new attribute during an ``__init__`` method and declare
+the attribute as "private".
+
+:TODO: Dicuss __str__, other dunders when they become implemented.
 

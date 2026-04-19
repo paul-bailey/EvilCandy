@@ -3,6 +3,8 @@
 .PHONY: tests
 tests: programs/unit_tests programs/fuzzer programs/rtfuzzer
 
+man_MANS = etc/evilcandy.1
+
 ACLOCAL_AMFLAGS = -I build/m4
 AM_CFLAGS = \
  -Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -pedantic \

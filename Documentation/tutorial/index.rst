@@ -29,6 +29,7 @@ not a throrough catalogue of the language's features.
    program_flow.rst
    data_types.rst
    scope.rst
+   classes_and_namespaces.rst
 
 .. [#]
 

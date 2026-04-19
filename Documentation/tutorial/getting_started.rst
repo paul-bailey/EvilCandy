@@ -224,6 +224,15 @@ Variable names are case-sensitive.
 They must begin with either a letter or an underscore.
 The variable name's remaining characters may be letters,
 numbers, or underscores.
+In this documentation, I will use the term *identifier*
+to mean any text that matches these rules.
+
+One type of identifier should be avoided, except as documented:
+identifiers beginning and ending with double-underscores, like
+``__init__`` or ``__str__``, are reserved for special use.  These are
+commonly referred to as *dunders*.  Do not assume that because your
+chosen dunder name is not documented, that you could use it for a
+variable name; a future version of EvilCandy might reserve it later.
 
 As of 0.1.0, all variable names must be ASCII.
 

@@ -5,12 +5,17 @@
 #include <evilcandy/enums.h>
 #include <stdbool.h>
 
+struct type_t;
+
 /* types/class.c */
 extern Object *typevar_new_intl(Object *bases, Object *dict,
                                 Object *name);
 extern bool type_issubclass(Object *type, Object *base);
 extern Object *typevar_new_user(Object *bases, Object *dict,
                                 Object *name, Object *priv_tup);
+extern void type_init_builtin(Object *type, bool isheap);
+extern Object *type_get_bound_attr(struct type_t *tp,
+                                   Object *obj, Object *key);
 extern Object *instance_super_getattr(Object *instance,
                                       Object *attribute_name);
 extern Object *instancevar_new(Object *class, Object *args,

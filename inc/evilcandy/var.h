@@ -115,7 +115,6 @@ VAR_NEW_REF(Object *v)
 #endif
 
 extern Object *var_new(struct type_t *type);
-extern void var_initialize_type(struct type_t *tp);
 
 extern enum result_t var_setattr(Frame *frame, Object *obj,
                                  Object *key, Object *value);

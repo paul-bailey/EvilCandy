@@ -9,6 +9,8 @@
 #include <evilcandy/err.h>
 #include <evilcandy/types/array.h>
 #include <evilcandy/types/class.h>
+#include <evilcandy/types/function.h>
+#include <evilcandy/types/property.h>
 #include <evilcandy/types/dict.h>
 #include <evilcandy/types/string.h>
 #include <evilcandy/types/method.h>
@@ -479,6 +481,44 @@ instance_dir(Object *instance)
 }
 
 /**
+ * type_get_bound_attr - Get an attribute from a type methods dictionary
+ * @tp: Type
+ * @obj: Owner to get an attribute from
+ * @key: Key to the attribute
+ *
+ * Return: NULL if not found.  Otherwise return the attribute.  If it is
+ *         a function and @tp is configured to bind its methods, then
+ *         a MethodType wrapper will be returned instead of the function.
+ *
+ * This function will not raise an exception if @key is not found.
+ *
+ * FIXME: There's some confusion between this and local type_getitem().
+ * The latter is for user-defined types and this is for built-in types.
+ * This will be unified when I add an MRO at typevar_new-time.  Then only
+ * this function or that one will exist.
+ */
+Object *
+type_get_bound_attr(struct type_t *tp, Object *obj, Object *key)
+{
+        Object *ret = dict_getitem(tp->methods, key);
+        if (!ret)
+                return NULL;
+
+        if (isvar_property(ret)) {
+                Object *tmp = ret;
+                ret = property_get(ret, obj, key);
+                VAR_DECR_REF(tmp);
+                /*
+                 * Do not fall through.  A property should never be a
+                 * class method.
+                 */
+                return ret;
+        }
+
+        return maybe_bind_function(obj, ret);
+}
+
+/**
  * type_issubclass - Return true if @type is @base or a subclass of
  *                   @base
  */
@@ -499,6 +539,93 @@ type_issubclass(Object *type, Object *base)
                         return true;
         }
         return false;
+}
+
+/*
+ * TODO: Temporary, until I have a more organized scheme
+ * for choosing which classes are made global.
+ */
+static bool
+type_is_in_modules(struct type_t *tp)
+{
+        return tp == &BinFileType || tp == &RawFileType
+               || tp == &TextFileType || tp == &SocketType;
+}
+
+/**
+ * type_init_builtin - Initialize a statically allocated
+ *                     built-in type.
+ * @type:       Type object to initialize
+ * @isheap:     True if this was dynamically allocated on the heap;
+ *              false if it was declared static.
+ */
+void
+type_init_builtin(Object *type, bool isheap)
+{
+        /*
+         * XXX REVISIT: Some bug traps in this function assume we're
+         * doing early-init stuff, where only a bug can cause the sort of
+         * malformed @type that would fail `dict_setitem_exclusive`.
+         * In the future, we should reconsider whether this is still true.
+         */
+        struct type_t *tp = V2TP(type);
+
+        tp->methods = dictvar_new();
+
+        Object *dict = tp->methods;
+        const struct type_method_t *t = tp->cbm;
+        if (t) {
+                while (t->name != NULL) {
+                        Object *v, *k;
+                        enum result_t res;
+
+                        v = funcvar_from_lut(t, true);
+                        k = stringvar_new(t->name);
+                        res = dict_setitem_exclusive(dict, k, v);
+                        VAR_DECR_REF(k);
+                        VAR_DECR_REF(v);
+
+                        bug_on(res != RES_OK);
+                        (void)res;
+
+                        t++;
+                }
+        }
+
+        const struct type_prop_t *p = tp->prop_getsets;
+        if (p) {
+                while (p->name != NULL) {
+                        Object *v, *k;
+                        enum result_t res;
+
+                        v = propertyvar_new_intl(p);
+                        k = stringvar_new(p->name);
+                        res = dict_setitem_exclusive(dict, k, v);
+                        VAR_DECR_REF(k);
+                        VAR_DECR_REF(v);
+
+                        bug_on(res != RES_OK);
+                        (void)res;
+
+                        p++;
+                }
+        }
+
+        if (tp->create && !type_is_in_modules(tp)) {
+                Object *v, *k;
+                k = stringvar_new(tp->name);
+                v = funcvar_new_intl(tp->create, false);
+                vm_add_global(k, v);
+                VAR_DECR_REF(k);
+                VAR_DECR_REF(v);
+        }
+
+        /* Just to be sure */
+        if (isheap)
+                tp->flags |= OBF_HEAP;
+        else
+                tp->flags &= ~OBF_HEAP;
+        tp->flags |= OBF_INTERNAL;
 }
 
 /**
@@ -566,9 +693,18 @@ typevar_new_user(Object *bases, Object *dict,
 
 /*
  * FIXME: This is patently WRONG! but some of our internal code is still
- * trying to use user-type classes with their own internal data (looking
- * at you, io.c!), so until I fix that, typevar_new_intl() is nearly
- * identical to typevar_new_user().
+ * trying to use user-type classes with their own internal data, so until
+ * I fix that, typevar_new_intl() is nearly identical to typevar_new_user().
+ *
+ * TODO: for above fixme, the correct prototype should be something like
+ *
+ *      Object *typevar_new_intl(const struct type_t *templ)
+ *
+ * where templ was likely declared on the stack, and whose minimum fields
+ * were filled in the same way a static type is filled in, and then this
+ * function would call var_new(templ), copy its meaningul fields, then
+ * pass the return value through type_init_builtin() before returning it
+ * to the caller.
  */
 Object *
 typevar_new_intl(Object *bases, Object *dict, Object *name)

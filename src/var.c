@@ -229,17 +229,6 @@ var_delete__(Object *v)
 }
 
 /*
- * TODO: Temporary, until I have a more organized scheme
- * for choosing which classes are made global.
- */
-static bool
-var_is_module(struct type_t *tp)
-{
-        return tp == &BinFileType || tp == &RawFileType
-               || tp == &TextFileType || tp == &SocketType;
-}
-
-/*
  * Given extern linkage so it can be called for modules that have
  * data types which don't need to be visible outside their little
  * corner of the interpreter.
@@ -248,61 +237,13 @@ var_is_module(struct type_t *tp)
  *
  * FIXME: overlapping responsibility between this and src/types.c
  */
-void
-var_initialize_type(struct type_t *tp)
+static void
+var_initialize_type(Object *type)
 {
-        ((Object *)tp)->v_type = &TypeType;
-        ((Object *)tp)->v_refcnt = 1;
+        type->v_type = &TypeType;
+        type->v_refcnt = 1;
 
-        tp->methods = dictvar_new();
-
-        Object *dict = tp->methods;
-        const struct type_method_t *t = tp->cbm;
-        if (t) while (t->name != NULL) {
-                Object *v, *k;
-                enum result_t res;
-
-                v = funcvar_from_lut(t, true);
-                k = stringvar_new(t->name);
-                res = dict_setitem_exclusive(dict, k, v);
-                VAR_DECR_REF(k);
-                VAR_DECR_REF(v);
-
-                bug_on(res != RES_OK);
-                (void)res;
-
-                t++;
-        }
-
-        const struct type_prop_t *p = tp->prop_getsets;
-        if (p) while (p->name != NULL) {
-                Object *v, *k;
-                enum result_t res;
-
-                v = propertyvar_new_intl(p);
-                k = stringvar_new(p->name);
-                res = dict_setitem_exclusive(dict, k, v);
-                VAR_DECR_REF(k);
-                VAR_DECR_REF(v);
-
-                bug_on(res != RES_OK);
-                (void)res;
-
-                p++;
-        }
-
-        if (tp->create && !var_is_module(tp)) {
-                Object *v, *k;
-                k = stringvar_new(tp->name);
-                v = funcvar_new_intl(tp->create, false);
-                vm_add_global(k, v);
-                VAR_DECR_REF(k);
-                VAR_DECR_REF(v);
-        }
-
-        /* Just to be sure */
-        tp->flags &= ~OBF_HEAP;
-        tp->flags |= OBF_INTERNAL;
+        type_init_builtin(type, false);
 }
 
 static struct type_t *const VAR_TYPES_TBL[] = {
@@ -373,7 +314,7 @@ cfile_init_var(void)
 {
         int i;
         for (i = 0; VAR_TYPES_TBL[i] != NULL; i++)
-                var_initialize_type(VAR_TYPES_TBL[i]);
+                var_initialize_type((Object *)VAR_TYPES_TBL[i]);
 
 #if DBUG_REPORT_VARS_ON_EXIT
         atexit(var_alloc_tell);
@@ -676,28 +617,9 @@ var_getattr(Frame *frame, Object *obj, Object *key)
 Object *
 var_getattr_or_null(Frame *frame, Object *obj, Object *key)
 {
-        Object *ret;
-        if (isvar_instance(obj)) {
-                /* User-defined type */
+        if (isvar_instance(obj))
                 return instance_getattr(frame, obj, key);
-        }
-
-        /* Built-in type */
-        ret = dict_getitem(obj->v_type->methods, key);
-        if (!ret)
-                return NULL;
-
-        if (isvar_property(ret)) {
-                Object *tmp = ret;
-                ret = property_get(ret, obj, key);
-                VAR_DECR_REF(tmp);
-        } else if (isvar_function(ret) &&
-                   !(ret->v_type->flags & OBF_NO_BIND_FUNCTION_ATTRS)) {
-                Object *tmp = ret;
-                ret = methodvar_new(tmp, obj);
-                VAR_DECR_REF(tmp);
-        }
-        return ret;
+        return type_get_bound_attr(obj->v_type, obj, key);
 }
 
 bool

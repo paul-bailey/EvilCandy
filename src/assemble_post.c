@@ -33,6 +33,7 @@
 #include <internal/op.h>
 #include <internal/types/internal_types.h>
 #include <string.h>
+#include <stdlib.h>
 
 /*
  * Simplification of labels and removal of detected unreachable code is
@@ -874,7 +875,7 @@ count_unique_locations(struct token_t *const *loc_tokens,
 }
 
 static int
-loc_compar(void *a, void *b)
+loc_compar(const void *a, const void *b)
 {
         struct location_t *alice = (struct location_t *)a;
         struct location_t *bob = (struct location_t *)b;

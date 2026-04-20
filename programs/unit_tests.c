@@ -175,18 +175,25 @@ static const char *RUNTIME_ERROR_SNIPPETS[] = {
         NULL
 };
 
-/*
- * XXX: This isn't a unit test per-se, maybe it should go in its own
- * program.
- */
+static const char *RUNTIME_GOOD_SNIPPETS[] = {
+        /*
+         * Regression checks - these had thrown errors when they should
+         * have been okay.
+         */
+        /* non-string keys were not matching properly in dict.c */
+        "let a = {b'abcd': 1}; let b = a[b'abcd'];",
+        NULL
+};
+
 static enum result_t
-test_runtime_error(bool stop_on_failure)
+test_runtime_err_no_err(bool stop_on_failure,
+                        const char **snippets, bool should_pass)
 {
         enum result_t ret = RES_OK;
-        const char **snippets = RUNTIME_ERROR_SNIPPETS;
+        const char **ppsave = snippets;
         while (*snippets != NULL) {
                 enum result_t tres;
-                tres = fork_and_test_snippets(snippets, false, false);
+                tres = fork_and_test_snippets(snippets, should_pass, false);
                 if (tres == RES_ERROR) {
                         ret = tres;
                         if (stop_on_failure)
@@ -199,10 +206,27 @@ test_runtime_error(bool stop_on_failure)
                  * Re-test all in a single context, to see how well we
                  * manage re-executing upon error.
                  */
-                ret = fork_and_test_snippets(RUNTIME_ERROR_SNIPPETS,
-                                             false, true);
+                ret = fork_and_test_snippets(ppsave, should_pass, true);
         }
         return ret;
+}
+
+/*
+ * XXX: This isn't a unit test per-se, maybe it should go in its own
+ * program.
+ */
+static enum result_t
+test_runtime_error(bool stop_on_failure)
+{
+        return test_runtime_err_no_err(stop_on_failure,
+                                       RUNTIME_ERROR_SNIPPETS, false);
+}
+
+static enum result_t
+test_runtime_noerror(bool stop_on_failure)
+{
+        return test_runtime_err_no_err(stop_on_failure,
+                                       RUNTIME_GOOD_SNIPPETS, true);
 }
 
 static bool
@@ -344,6 +368,8 @@ int
 main(int argc, char **argv)
 {
         if (test_runtime_error(true) == RES_ERROR)
+                return EXIT_FAILURE;
+        if (test_runtime_noerror(true) == RES_ERROR)
                 return EXIT_FAILURE;
 
         initialize_program();

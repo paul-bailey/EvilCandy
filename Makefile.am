@@ -161,6 +161,7 @@ noinst_HEADERS = \
         inc/lib/helpers.h \
         inc/lib/list.h \
         inc/lib/utf8.h \
+        src/types/string_include.c.h \
         tools/gen.h
 
 BUILT_SOURCES= \
@@ -175,6 +176,7 @@ BUILT_SOURCES= \
 FORCE:
 
 inc/evilcandy/build_version.h: FORCE
+	$(MKDIR_P) inc/evilcandy
 	@version=`cd $(top_srcdir) && git describe --tags --dirty --always 2>/dev/null || echo "$(PACKAGE_VERSION)"`; \
 	echo '#ifndef EVILCANDY_BUILD_VERSION_H' > $@.tmp; \
 	echo '#define EVILCANDY_BUILD_VERSION_H' >> $@.tmp; \
@@ -209,6 +211,8 @@ programs_rtfuzzer_LDADD=$(COMMON_LDADD)
 evilcandydir=${datadir}/evilcandy
 # well, common except to source code generators
 COMMON_CPPFLAGS=\
+ -I$(top_builddir)/inc \
+ -I$(top_builddir)/src \
  -I$(top_srcdir)/inc \
  -DRCDATADIR=\"$(evilcandydir)\" \
  -Wall
@@ -252,26 +256,32 @@ CLEANFILES = \
         $(EXTRA_PROGRAMS)
 
 src/disassemble_gen.c.h: tools/instructions tools/gen
-	cat tools/instructions | tools/gen dis > $@
+	$(MKDIR_P) src
+	tools/gen dis < $(srcdir)/tools/instructions > $@
 
 inc/instruction_defs.h: tools/instructions tools/gen
-	cat tools/instructions | tools/gen def > $@
+	$(MKDIR_P) inc
+	tools/gen def < $(srcdir)/tools/instructions > $@
 
 inc/token_gen.h: tools/tokens tools/tokgen
-	cat tools/tokens | tools/tokgen enum > $@
+	$(MKDIR_P) inc
+	tools/tokgen enum < $(srcdir)/tools/tokens > $@
 
 src/tokutils_gen.c: tools/tokens tools/tokgen
-	cat tools/tokens | tools/tokgen util > $@
+	$(MKDIR_P) src
+	tools/tokgen util < $(srcdir)/tools/tokens > $@
 
 src/vm_gen.c.h: tools/instructions tools/gen
-	cat tools/instructions | tools/gen jump > $@
+	$(MKDIR_P) src
+	tools/gen jump < $(srcdir)/tools/instructions > $@
 
 EXTRA_DIST = \
         tools/instructions \
         tools/tokens \
         tests/testsuite.evc \
         tests/sanity.evc \
-        tests/run-evilcandy-tests.sh \
+        $(TESTS) \
+        etc/evilcandy.1 \
         source_tree_layout.txt \
         ROADMAP.md \
         AGENTS.md \

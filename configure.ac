@@ -1,4 +1,4 @@
-.m4_define([EVILCANDY_VERSION]. [main-prealpha.x])
+.m4_define([EVILCANDY_VERSION], [main-prealpha.x])
 AC_INIT([EvilCandy], [EVILCANDY_VERSION], [roscidcup@falstaffandme.com])
 AC_CONFIG_AUX_DIR([build])
 AC_CONFIG_MACRO_DIR([build/m4])

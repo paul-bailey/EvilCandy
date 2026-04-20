@@ -167,5 +167,6 @@ extern hash_t var_hash(Object *v);
  * so that they sit in more appropriate files.
  */
 extern void var_type_clear_freelist(struct type_t *tp);
+extern void var_initialize_static(Object *obj, struct type_t *tp);
 
 #endif /* EVILCANDY_VAR_H */

@@ -12,10 +12,13 @@ extern void cfile_deinit_global(void);
 extern void cfile_init_ewrappers(void);
 /* var.c */
 extern void cfile_init_var(void);
-extern void cfile_deinit_var(void);
 /* vm.c */
 extern void cfile_init_vm(void);
 extern void cfile_deinit_vm(void);
+
+/* src/types/registry.c */
+extern void cfile_init_type_registry(void);
+extern void cfile_deinit_type_registry(void);
 
 /* constructors/destructors for built-in modules */
 /* builtin/builtin.c */

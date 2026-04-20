@@ -229,81 +229,15 @@ var_delete__(Object *v)
 }
 
 /*
- * Given extern linkage so it can be called for modules that have
- * data types which don't need to be visible outside their little
- * corner of the interpreter.
- * The major players are forward-declared in typedefs.h and added
- * to VAR_TYPES_TBL[] below in cfile_init_var.
- *
- * FIXME: overlapping responsibility between this and src/types.c
+ * Initialze the Object head of a static variable.
+ * This ought to be a TypeType variable, but we made it more general.
  */
-static void
-var_initialize_type(Object *type)
+void
+var_initialize_static(Object *obj, struct type_t *tp)
 {
-        type->v_type = &TypeType;
-        type->v_refcnt = 1;
-
-        type_init_builtin(type, false);
+        obj->v_type = tp;
+        obj->v_refcnt = 1;
 }
-
-static struct type_t *const VAR_TYPES_TBL[] = {
-        &TypeType,
-        &ArrayType,
-        &TupleType,
-        &EmptyType,
-        &FloatType,
-        &ComplexType,
-        &FunctionType,
-        &MethodType,
-        &IntType,
-        &XptrType,
-        &DictType,
-        &StringType,
-        &BytesType,
-        &PropertyType,
-        &RangeType,
-        &SetType,
-        &UuidptrType,
-        &IdType,
-        &CellType,
-
-        /* in builtins/ */
-        &BinFileType,
-        &RawFileType,
-        &TextFileType,
-        &SocketType,
-
-        /* the iterators */
-        &ArrayIterType,
-        &BytesIterType,
-        &DictIterType,
-        &TupleIterType,
-        &SetIterType,
-        &RangeIterType,
-        &StringIterType,
-
-        /* special extra iters */
-        &DictItemsType,
-        &DictItemsIterType,
-        NULL,
-};
-
-#ifndef NDEBUG
-static void
-var_sanity_check_types_tbl(void)
-{
-        /*
-         * Bug traps call _Exit, not exit, so bug_on() is safe to call
-         * during an atexit() callback.
-         */
-        int i;
-        for (i = 0; VAR_TYPES_TBL[i] != NULL; i++) {
-                struct type_t *tp = VAR_TYPES_TBL[i];
-                bug_on(tp->freelist != NULL);
-                bug_on(tp->n_freelist != 0);
-        }
-}
-#endif /* !NDEBUG */
 
 /*
  * see main.c - this must be after all the typedef code
@@ -312,15 +246,8 @@ var_sanity_check_types_tbl(void)
 void
 cfile_init_var(void)
 {
-        int i;
-        for (i = 0; VAR_TYPES_TBL[i] != NULL; i++)
-                var_initialize_type((Object *)VAR_TYPES_TBL[i]);
-
 #if DBUG_REPORT_VARS_ON_EXIT
         atexit(var_alloc_tell);
-#endif
-#ifndef NDEBUG
-        atexit(var_sanity_check_types_tbl);
 #endif
 }
 
@@ -334,26 +261,6 @@ var_type_clear_freelist(struct type_t *tp)
                 tp->n_freelist--;
         }
         bug_on(tp->n_freelist != 0);
-}
-
-void
-cfile_deinit_var(void)
-{
-        int i;
-        for (i = 0; VAR_TYPES_TBL[i] != NULL; i++) {
-                struct type_t *tp = VAR_TYPES_TBL[i];
-                VAR_DECR_REF(tp->methods);
-                tp->methods = NULL;
-        }
-
-        /*
-         * Do this outside of above pass, since some vars may
-         * get added to freelist on later 'i'
-         */
-        for (i = 0; VAR_TYPES_TBL[i] != NULL; i++) {
-                struct type_t *tp = VAR_TYPES_TBL[i];
-                var_type_clear_freelist(tp);
-        }
 }
 
 /*

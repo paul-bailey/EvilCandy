@@ -80,6 +80,7 @@ src_libevilcandy_a_SOURCES = \
         src/types/set.c \
         src/types/string.c \
         src/types/tuple.c \
+        src/types/registry.c \
         src/types/xptr.c
 
 programs_unit_tests_SOURCES = programs/unit_tests.c
@@ -161,7 +162,6 @@ noinst_HEADERS = \
         inc/lib/helpers.h \
         inc/lib/list.h \
         inc/lib/utf8.h \
-        src/types/string_include.c.h \
         tools/gen.h
 
 BUILT_SOURCES= \
@@ -275,7 +275,11 @@ src/vm_gen.c.h: tools/instructions tools/gen
 	$(MKDIR_P) src
 	tools/gen jump < $(srcdir)/tools/instructions > $@
 
+# FIXME: string_include.c won't have a depfile if placed here,
+# but I can't put it in noinst_HEADERS, because then `make headercheck`
+# will fail.
 EXTRA_DIST = \
+        src/types/string_include.c.h \
         tools/instructions \
         tools/tokens \
         tests/testsuite.evc \

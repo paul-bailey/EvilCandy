@@ -62,7 +62,7 @@ item_access_permitted(Frame *fr, struct type_t *class, Object *key)
 
 /*
  * FIXME: This has a multiple-inheritance diamond problem.  Change this
- * so that cls->c_dict is filled in with methods at classvar_new() time,
+ * so that cls->c_dict is filled in with methods at typevar_new() time,
  * and use a better method to resolve which methods are used from its
  * base classes.
  *
@@ -188,15 +188,42 @@ type_verify_base_classes(Object *bases)
         n = seqvar_size(bases);
         for (i = 0; i < n; i++) {
                 Object *obj = tuple_borrowitem_(bases, i);
+                unsigned flags;
                 if (!isvar_type(obj)) {
                         err_setstr(TypeError,
                                    "base class may not be type '%s'",
                                    typestr(obj));
-                        VAR_DECR_REF(bases);
-                        return ErrorVar;
+                        goto err;
+                }
+
+                flags = ((struct type_t *)obj)->flags;
+                /*
+                 * See gh issue #52.  Until then, forbid inheritance of
+                 * built-in classes.
+                 *
+                 * XXX REVISIT: This works with the ErrorVar exception,
+                 * but it's a little confusing, and in terms of future
+                 * maintainability, a little dangerous.  Unlike most of
+                 * our other built-in types, "ErrorVar" is not a
+                 * statically-allocated TypeType object.  It is created
+                 * through typevar_new_intl() (see global.h).  We just
+                 * happen to know that it has no built-in methods which
+                 * would require a private-data struct, so this is safe
+                 * until we change our minds about that.  This assumes
+                 * that we will finish gh issue #52 (enable inheritance
+                 * of built-in classes) before then.
+                 */
+                if (obj != ErrorVar && !!(flags & OBF_INTERNAL)) {
+                        err_setstr(NotImplementedError,
+                                   "inheritance of built-in types not yet supported");
+                        goto err;
                 }
         }
         return bases;
+
+err:
+        VAR_DECR_REF(bases);
+        return ErrorVar;
 }
 
 static Object *

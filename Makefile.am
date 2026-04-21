@@ -25,7 +25,8 @@ tools_gen_SOURCES = tools/gen.c
 tools_gen_CPPFLAGS = -I$(top_srcdir)/inc
 
 tests_c_libtest_a_SOURCES = \
-        tests/c/strbuf.c
+        tests/c/strbuf.c \
+        tests/c/tap.c
 
 src_libevilcandy_a_SOURCES = \
         src/assembler.c \
@@ -169,6 +170,7 @@ noinst_HEADERS = \
         inc/lib/list.h \
         inc/lib/utf8.h \
         inc/tests/strbuf.h \
+        inc/tests/tap.h \
         tools/gen.h
 
 BUILT_SOURCES= \

@@ -7,6 +7,7 @@
 #include <internal/init.h>
 #include <internal/path.h>
 #include <internal/locations.h>
+#include <tests/tap.h>
 
 #include <assert.h>
 #include <sys/wait.h>
@@ -240,17 +241,20 @@ test_rpip(const char *trypath, const char *expect)
 }
 
 static void
-test_path(void)
+test_path(struct tap_t *tap)
 {
         /* TODO: a bunch more */
-        assert(test_rpip("/../a", "/a"));
-        assert(test_rpip("////a/././b", "/a/b"));
-        assert(test_rpip("/a/b/c", "/a/b/c"));
-        assert(test_rpip("/a/../../../b/./.c/..c", "/b/.c/..c"));
+        tap_test(tap, test_rpip("/../a", "/a"));
+        tap_test(tap, test_rpip("////a/././b", "/a/b"));
+        tap_test(tap, test_rpip("/a/b/c", "/a/b/c"));
+        tap_test(tap, test_rpip("/a/../../../b/./.c/..c", "/b/.c/..c"));
 }
 
+#define RETURN_IF_ERROR(tap_, cond_) \
+        do { if (tap_test(tap_, cond_) == RES_ERROR) return; } while (0)
+
 static void
-test_locations(void)
+test_locations(struct tap_t *tap)
 {
         enum { LOC_BUFSIZE = 128 };
         unsigned char buf[LOC_BUFSIZE];
@@ -263,34 +267,37 @@ test_locations(void)
         loc.loc_instruction = 0;
         size = location_pack(buf, sizeof(buf), &loc);
         /* minimum 1 byte per field */
-        assert(size >= 2);
+        RETURN_IF_ERROR(tap, size >= 2);
+
         res = location_unpack(buf, size, 0, &loc);
-        assert(res == RES_OK);
-        assert(loc.loc_startline == 0);
-        assert(loc.loc_instruction == 0);
+        RETURN_IF_ERROR(tap, res == RES_OK);
+        RETURN_IF_ERROR(tap, loc.loc_startline == 0);
+        RETURN_IF_ERROR(tap, loc.loc_instruction == 0);
+
         res = location_unpack(buf, size, 1, &loc);
         /* backup would have been used */
-        assert(res == RES_OK);
-        assert(loc.loc_startline == 0);
-        assert(loc.loc_instruction == 0);
+        RETURN_IF_ERROR(tap, res == RES_OK);
+        RETURN_IF_ERROR(tap, loc.loc_startline == 0);
+        RETURN_IF_ERROR(tap, loc.loc_instruction == 0);
 
         loc.loc_startline = 1;
         loc.loc_instruction = 1;
         size2 = location_pack(buf + size, sizeof(buf) - size, &loc);
-        assert(size2 >= 2);
+        RETURN_IF_ERROR(tap, size2 >= 2);
 
         res = location_unpack(buf, size + size2, 0, &loc);
-        assert(res == RES_OK);
-        assert(loc.loc_startline == 0);
-        assert(loc.loc_instruction == 0);
+        RETURN_IF_ERROR(tap, res == RES_OK);
+        RETURN_IF_ERROR(tap, loc.loc_startline == 0);
+        RETURN_IF_ERROR(tap, loc.loc_instruction == 0);
+
         res = location_unpack(buf, size + size2, 1, &loc);
-        assert(res == RES_OK);
-        assert(loc.loc_startline == 1);
-        assert(loc.loc_instruction == 1);
+        RETURN_IF_ERROR(tap, res == RES_OK);
+        RETURN_IF_ERROR(tap, loc.loc_startline == 1);
+        RETURN_IF_ERROR(tap, loc.loc_instruction == 1);
 }
 
 static void
-test_unpack(void)
+test_unpack(struct tap_t *tap)
 {
         unsigned char buf[20];
         long result;
@@ -299,85 +306,98 @@ test_unpack(void)
 
         memset(buf, -1, sizeof(buf));
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == -1L);
+        RETURN_IF_ERROR(tap, result == -1L);
 
         memset(buf, 0, sizeof(buf));
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == 0);
-        assert(endptr == &buf[1]);
+        RETURN_IF_ERROR(tap, result == 0);
+        RETURN_IF_ERROR(tap, endptr == &buf[1]);
 
         buf[0] = 'a';
         buf[1] = 'b';
         endptr = NULL;
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == 'a');
-        assert(endptr > buf && *endptr == 'b');
+        RETURN_IF_ERROR(tap, result == 'a');
+        RETURN_IF_ERROR(tap, endptr > buf && *endptr == 'b');
 
         memset(buf, 0, sizeof(buf));
         pack_result = pack_value(buf, sizeof(buf), INT_MAX);
-        assert(pack_result > 0);
+        RETURN_IF_ERROR(tap, pack_result > 0);
         endptr = NULL;
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == INT_MAX);
-        assert(endptr == &buf[pack_result] && *endptr == 0);
+        RETURN_IF_ERROR(tap, result == INT_MAX);
+        RETURN_IF_ERROR(tap, endptr == &buf[pack_result] && *endptr == 0);
 
         memset(buf, 0, sizeof(buf));
         pack_result = pack_value(buf, sizeof(buf), 0);
-        assert(pack_result == 1);
+        RETURN_IF_ERROR(tap, pack_result == 1);
 
         memset(buf, 0, sizeof(buf));
         pack_result = pack_value(buf, sizeof(buf), -10L);
-        assert(pack_result > 0);
+        RETURN_IF_ERROR(tap, pack_result > 0);
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == -1L);
+        RETURN_IF_ERROR(tap, result == -1L);
 
         memset(buf, 0, sizeof(buf));
         pack_result = pack_value(buf, sizeof(buf), LONG_MAX);
-        assert(pack_result > 0);
+        RETURN_IF_ERROR(tap, pack_result > 0);
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == LONG_MAX);
-        assert(endptr == &buf[pack_result]);
+        RETURN_IF_ERROR(tap, result == LONG_MAX);
+        RETURN_IF_ERROR(tap, endptr == &buf[pack_result]);
 
         memset(buf, 0, sizeof(buf));
         /* IE highest-magnitude negative number */
         pack_result = pack_value(buf, sizeof(buf),
                                  (unsigned long)LONG_MAX + 1);
-        assert(pack_result > 0);
+        RETURN_IF_ERROR(tap, pack_result > 0);
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == -1);
+        RETURN_IF_ERROR(tap, result == -1);
 
         for (i = 0; i < 9; i++)
                 buf[i] = 0x80;
         buf[9] = 0x2;
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == -1);
+        RETURN_IF_ERROR(tap, result == -1);
         buf[9] = 0;
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == -1);
+        RETURN_IF_ERROR(tap, result == -1);
 
         buf[10] = 0x80;
         buf[11] = 0;
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == -1);
+        RETURN_IF_ERROR(tap, result == -1);
         buf[11] = 4;
         result = unpack_value(buf, sizeof(buf), &endptr);
-        assert(result == -1);
+        RETURN_IF_ERROR(tap, result == -1);
 }
 
 int
 main(int argc, char **argv)
 {
+        struct tap_t tap;
+
+        /*
+         * TODO: Move these to a different test program, maybe
+         * to rtfuzzer.c, to run before the actual fuzz tests.
+         * We cannot control how a child process prints to stderr
+         * from here, short of overkill redirection, so we can't
+         * guarantee proper TAP output for the whole process.
+         */
         if (test_runtime_error(true) == RES_ERROR)
                 return EXIT_FAILURE;
         if (test_runtime_noerror(true) == RES_ERROR)
                 return EXIT_FAILURE;
 
+        tap_init(&tap, stderr, -1);
+
         initialize_program();
-        test_path();
-        test_locations();
-        test_unpack();
+        test_path(&tap);
+        test_locations(&tap);
+        test_unpack(&tap);
         end_program();
 
-        return EXIT_SUCCESS;
+        tap_end_tests(&tap);
+
+        return tap_nr_error(&tap) == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

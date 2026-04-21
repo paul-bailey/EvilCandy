@@ -20,9 +20,6 @@ extern Object *instance_super_getattr(Object *instance,
                                       Object *attribute_name);
 extern Object *instancevar_new(Object *class, Object *args,
                                Object *kwargs, bool call_init);
-extern void *instance_get_priv(Object *instance);
-extern void instance_set_priv(Object *instance,
-                              void (*cleanup)(void *), void *priv);
 extern Object *instance_call(Object *instance, Object *method_name,
                              Object *args, Object *kwargs);
 extern Object *instance_getattr(Frame *fr, Object *instance, Object *key);

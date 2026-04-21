@@ -29,6 +29,7 @@ src/builtin/.*.swp
 
 # generated programs and libraries
 /src/libevilcandy.a
+/tests/c/libtest.a
 /evilcandy
 /tools/gen
 /tools/tokgen

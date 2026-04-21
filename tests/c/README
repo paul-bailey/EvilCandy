@@ -1,0 +1,6 @@
+tests/c/
+
+Folder containing helper C sources for test code.  If a C source is
+needed by test code but not needed by the EvilCandy program, it
+probably belongs here.
+

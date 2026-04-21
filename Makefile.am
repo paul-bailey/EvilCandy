@@ -15,11 +15,17 @@ bin_PROGRAMS = evilcandy
 EXTRA_PROGRAMS = programs/unit_tests programs/fuzzer programs/rtfuzzer
 check_PROGRAMS = tools/tokgen tools/gen
 
-noinst_LIBRARIES = src/libevilcandy.a
+test_lib = tests/c/libtest.a
+# FIXME: this compiles test_lib for default make, even though it's
+# only needed for `make tests`
+noinst_LIBRARIES = src/libevilcandy.a $(test_lib)
 
 tools_tokgen_SOURCES = tools/tokgen.c tools/genutil.c
 tools_gen_SOURCES = tools/gen.c
 tools_gen_CPPFLAGS = -I$(top_srcdir)/inc
+
+tests_c_libtest_a_SOURCES = \
+        tests/c/strbuf.c
 
 src_libevilcandy_a_SOURCES = \
         src/assembler.c \
@@ -162,6 +168,7 @@ noinst_HEADERS = \
         inc/lib/helpers.h \
         inc/lib/list.h \
         inc/lib/utf8.h \
+        inc/tests/strbuf.h \
         tools/gen.h
 
 BUILT_SOURCES= \
@@ -204,9 +211,9 @@ if WANT_READLINE
 COMMON_LDADD+=-lreadline
 endif
 evilcandy_LDADD=$(COMMON_LDADD)
-programs_unit_tests_LDADD=$(COMMON_LDADD)
-programs_fuzzer_LDADD=$(COMMON_LDADD)
-programs_rtfuzzer_LDADD=$(COMMON_LDADD)
+programs_unit_tests_LDADD=$(test_lib) $(COMMON_LDADD)
+programs_fuzzer_LDADD=$(test_lib) $(COMMON_LDADD)
+programs_rtfuzzer_LDADD=$(test_lib) $(COMMON_LDADD)
 
 evilcandydir=${datadir}/evilcandy
 # well, common except to source code generators
@@ -218,6 +225,7 @@ COMMON_CPPFLAGS=\
  -Wall
 
 src_libevilcandy_a_CPPFLAGS=$(COMMON_CPPFLAGS)
+tests_c_libtest_a_CPPFLAGS=$(COMMON_CPPFLAGS)
 evilcandy_CPPFLAGS=$(COMMON_CPPFLAGS)
 programs_unit_tests_CPPFLAGS=$(COMMON_CPPFLAGS)
 programs_fuzzer_CPPFLAGS=$(COMMON_CPPFLAGS)

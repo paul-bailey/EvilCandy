@@ -6,6 +6,7 @@
 #include <evilcandy/var.h>
 #include <internal/init.h>
 #include <lib/helpers.h>
+#include <tests/strbuf.h>
 
 #include <assert.h>
 #include <sys/wait.h>
@@ -19,31 +20,8 @@
 
 static int fuzzer_verbose = 0;
 
-struct strbuf_t {
-        char *buf;
-        size_t len;
-        size_t cap;
-};
-
 static bool opt_nofork = false;
 static long opt_ntests = 50 * 1000;
-
-static void
-sb_init(struct strbuf_t *sb, char *buffer, size_t cap)
-{
-        sb->buf = buffer;
-        sb->len = 0;
-        sb->cap = cap;
-        sb->buf[0] = '\0';
-}
-
-static void
-sb_append(struct strbuf_t *sb, const char *s)
-{
-        while (*s != '\0' && sb->len + 1 < sb->cap)
-                sb->buf[sb->len++] = *s++;
-        sb->buf[sb->len] = '\0';
-}
 
 static const char *idents[] = {
         "x", "y", "z", "foo", "bar"

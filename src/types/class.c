@@ -368,6 +368,11 @@ instance_super_getattr(Object *instance, Object *attribute_name)
         return NULL;
 }
 
+/*
+ * XXX: So close to making this be local and static, but namespace.c
+ * needs it, to prevent calling an __init__ "method"
+ */
+
 /**
  * instancevar_new - Create a new instance
  * @class:      Class to create an instance of
@@ -530,6 +535,39 @@ type_issubclass(Object *type, Object *base)
         return false;
 }
 
+/**
+ * Whatever @type is, instantiate a new one of it
+ * @args: Arguments to .__init__() (if user) or .create() (if built-in)
+ * @kwargs: Keyword argumens to the instantiation function
+ *
+ * Return: New instantiated object or ErrorVar
+ */
+Object *
+type_instantiate_object(Object *type, Object *args, Object *kwargs)
+{
+        struct type_t *tp = (struct type_t *)type;
+        if (tp->create) {
+                Object *res, *func;
+                /*
+                 * FIXME: Creating and destroying a function object during
+                 * a function call is non-trivial.  We should probably
+                 * have an additional field in struct type_t that's just
+                 * .create() turned into a UAPI function.
+                 */
+                func = funcvar_new_intl(tp->create, false);
+                res = vm_exec_func(NULL, func, args, kwargs);
+                VAR_DECR_REF(func);
+                return res;
+
+        }
+        if (!(tp->flags & OBF_HEAP)) {
+                /* XXX: This may be doable in the future */
+                err_setstr(TypeError, "object is not callable");
+                return ErrorVar;
+        }
+        return instancevar_new(type, args, kwargs, true);
+}
+
 /*
  * TODO: Temporary, until I have a more organized scheme
  * for choosing which classes are made global.
@@ -601,12 +639,13 @@ type_init_builtin(Object *type, bool isheap)
         }
 
         if (tp->create && !type_is_in_modules(tp)) {
-                Object *v, *k;
-                k = stringvar_new(tp->name);
-                v = funcvar_new_intl(tp->create, false);
-                vm_add_global(k, v);
+                /*
+                 * TODO: Intern this name. If called, it will likely be
+                 * with an interned string literal.
+                 */
+                Object *k = stringvar_new(tp->name);
+                vm_add_global(k, (Object *)tp);
                 VAR_DECR_REF(k);
-                VAR_DECR_REF(v);
         }
 
         /* Just to be sure */

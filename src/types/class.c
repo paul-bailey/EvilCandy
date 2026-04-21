@@ -44,9 +44,9 @@ maybe_bind_function(Object *instance, Object *maybe_function)
 static bool
 item_access_permitted(Frame *fr, struct type_t *class, Object *key)
 {
-        if (!V2TP(class)->priv)
+        if (!class->priv)
                 return true;
-        if (set_hasitem(V2TP(class)->priv, key)) {
+        if (set_hasitem(class->priv, key)) {
                 Object *inst;
                 if (!fr)
                         return false;
@@ -59,13 +59,49 @@ item_access_permitted(Frame *fr, struct type_t *class, Object *key)
 }
 
 /*
- * FIXME: This has a multiple-inheritance diamond problem.  Change this
- * so that cls->c_dict is filled in with methods at typevar_new() time,
- * and use a better method to resolve which methods are used from its
- * base classes.
+ * A little different from above.  For writes, we cannot just try
+ * type_getitem() == NULL, because we wouldn't know whether the failure
+ * is due to the item being private or the item being non-existant.
  *
- * fr == NULL means "we definitely do not have private access"
+ * XXX REVISIT: This is TOO SLOW for a setattr() call!
+ * Think of a better way.
  */
+static bool
+item_write_access_permitted(Frame *fr, struct type_t *class, Object *key)
+{
+        size_t i, n;
+        if (!item_access_permitted(fr, class, key))
+                return false;
+        if (var_hasitem(class->methods, key))
+                return true;
+        if (!class->mro)
+                return true;
+        n = seqvar_size(class->mro);
+        for (i = 0; i < n; i++) {
+                Object *base = tuple_borrowitem_(class->mro, i);
+                if (!item_access_permitted(NULL, V2TP(base), key))
+                        return false;
+                if (var_hasitem(V2TP(base)->methods, key))
+                        return true;
+        }
+        return true;
+}
+
+/* get item out of just this class's methods dict */
+static Object *
+type_getitem_shallow(Frame *fr, Object *type, Object *key)
+{
+        struct type_t *tp;
+
+        tp = V2TP(type);
+        if (!tp->methods)
+                return NULL;
+        if (!item_access_permitted(fr, tp, key))
+                return NULL;
+        return dict_getitem(tp->methods, key);
+}
+
+/* fr == NULL means "we definitely do not have private access" */
 static Object *
 type_getitem(Frame *fr, Object *type, Object *key)
 {
@@ -76,30 +112,25 @@ type_getitem(Frame *fr, Object *type, Object *key)
         tp = V2TP(type);
         bug_on(!tp->methods);
 
-        /*
-         * TODO: replace .priv and .methods with a single map,
-         * so we don't have to do a double lookup.
-         */
-        if (!item_access_permitted(fr, V2TP(type), key))
-                return NULL;
-
-        ret = dict_getitem(tp->methods, key);
+        ret = type_getitem_shallow(fr, type, key);
         if (ret)
                 return ret;
 
-        if (!tp->bases)
+        if (!tp->mro)
                 return NULL;
 
-        n = seqvar_size(tp->bases);
+        n = seqvar_size(tp->mro);
         for (i = 0; i < n; i++) {
-                Object *item = tuple_borrowitem_(tp->bases, i);
-                ret = type_getitem(fr, item, key);
-                if (ret)
+                /*
+                 * XXX REVISIT: Setting fr -> NULL to forbid access to
+                 * base class's private data, but is that what we want?
+                 */
+                Object *base = tuple_borrowitem_(tp->mro, i);
+                if ((ret = type_getitem_shallow(NULL, base, key)) != NULL)
                         return ret;
         }
         return NULL;
 }
-
 
 static void
 instance_reset(Object *instance)
@@ -131,15 +162,160 @@ instance_str(Object *instance)
                                      name, instance);
 }
 
-/*
- * NOTE: These look like egregious DRY violations (because they are),
- * but the struct class_t and class_xxx methods above are being phased
- * out.
- */
-static Object *
-type_verify_base_classes(Object *bases)
+static bool
+mro_candidate_appears_in_tail(Object *candidate, Object *sequences)
 {
         size_t i, n;
+        n = seqvar_size(sequences);
+        for (i = 0; i < n; i++) {
+                Object *mro = array_borrowitem(sequences, i);
+                bug_on(!isvar_array(mro));
+                if (array_indexof_from(mro, candidate, 1) >= 1)
+                        return true;
+        }
+        return false;
+}
+
+static void
+mro_pop_candidate(Object *candidate, Object *sequences)
+{
+        /*
+         * XXX low-level knowledge of var_match() behavior for
+         * struct type_t: for classes, "==" and "===" are the same.
+         */
+        size_t i, n;
+        n = seqvar_size(sequences);
+        for (i = 0; i < n; i++) {
+                Object *mro, *item;
+                mro = array_borrowitem(sequences, i);
+                bug_on(!isvar_array(mro));
+                if (seqvar_size(mro) == 0)
+                        continue;
+                item = array_borrowitem(mro, 0);
+                if (item != candidate)
+                        continue;
+                array_delete_chunk(mro, 0, 1);
+        }
+}
+
+/* sequences is an array of arrays of classes */
+static Object *
+mro_merge(Object *sequences)
+{
+        Object *ret = arrayvar_new(0);
+        bool empty;
+
+        bug_on(!isvar_array(sequences));
+        do {
+                empty = true;
+                size_t i, n = seqvar_size(sequences);
+                for (i = 0; i < n; i++) {
+                        Object *candidate, *seq;
+
+                        seq = array_borrowitem(sequences, i);
+                        bug_on(!isvar_array(seq));
+                        if (seqvar_size(seq) == 0)
+                                continue;
+
+                        empty = false;
+                        candidate = array_borrowitem(seq, 0);
+                        bug_on(!isvar_type(candidate));
+                        if (!mro_candidate_appears_in_tail(candidate,
+                                                           sequences)) {
+                                array_append(ret, candidate);
+                                mro_pop_candidate(candidate, sequences);
+                                break;
+                        }
+                }
+
+                /*
+                 * FIXME: during early init, this is a BUG, not an
+                 * "error".  But that early, we have not initialized
+                 * ErrorVar to the correct type, so the bug trap will
+                 * be in err.c, and it will be much more opaque.
+                 */
+                if (!empty && i == n) {
+                        err_setstr(TypeError,
+                                   "inconsistent hierarchy (no valid MRO)");
+                        VAR_DECR_REF(ret);
+                        return ErrorVar;
+                }
+        } while (!empty);
+        return ret;
+}
+
+static Object *
+compute_mro(Object *class)
+{
+        Object *base_mros, *merged, *ret;
+        size_t i, n;
+        struct type_t *tp;
+
+        tp = V2TP(class);
+
+        if (!tp->bases)
+                return arrayvar_from_stack(&class, 1, false);
+
+        base_mros = arrayvar_new(0);
+        n = seqvar_size(tp->bases);
+        for (i = 0; i < n; i++) {
+                Object *base, *mro;
+
+                base = tuple_borrowitem_(tp->bases, i);
+                if (V2TP(base)->mro) {
+                        /* use array, not tuple */
+                        Object *tup = V2TP(base)->mro;
+                        mro = arrayvar_from_stack(tuple_get_data(tup),
+                                                  seqvar_size(tup), false);
+                } else {
+                        mro = compute_mro(base);
+                        if (mro == ErrorVar)
+                                goto err_free_base_mros;
+                }
+                array_append(base_mros, mro);
+                VAR_DECR_REF(mro);
+        }
+
+        {
+                /* Need to convert to an array before appending */
+                Object *base_arr = arrayvar_from_stack(
+                                        tuple_get_data(tp->bases),
+                                        seqvar_size(tp->bases), false);
+                array_append(base_mros, base_arr);
+                VAR_DECR_REF(base_arr);
+        }
+
+        merged = mro_merge(base_mros);
+        if (merged == ErrorVar)
+                goto err_free_base_mros;
+
+        ret = arrayvar_new(0);
+        array_append(ret, class);
+        array_extend(ret, merged);
+        VAR_DECR_REF(merged);
+        VAR_DECR_REF(base_mros);
+        return ret;
+
+err_free_base_mros:
+        VAR_DECR_REF(base_mros);
+        return ErrorVar;
+}
+
+/*
+ * bases_tup will be set to NULL if bases is NULL, a new reference
+ * of bases if bases is a tuple, or a tuple made from bases if
+ * bases is a single TypeType object.
+ *
+ * Return: new mro, NULL if no bases, or ErrorVar
+ */
+static Object *
+type_init_mro(Object *class, Object *bases)
+{
+        size_t i, n;
+        Object *array, *tup;
+        if (!bases)
+                return NULL;
+
         if (isvar_tuple(bases)) {
                 VAR_INCR_REF(bases);
         } else {
@@ -149,64 +325,61 @@ type_verify_base_classes(Object *bases)
 
         n = seqvar_size(bases);
         for (i = 0; i < n; i++) {
-                Object *obj = tuple_borrowitem_(bases, i);
-                unsigned flags;
-                if (!isvar_type(obj)) {
-                        err_setstr(TypeError,
-                                   "base class may not be type '%s'",
-                                   typestr(obj));
-                        goto err;
+                Object *item = tuple_borrowitem(bases, i);
+                if (!isvar_type(item)) {
+                        err_setstr(TypeError, "Malformed base class");
+                        VAR_DECR_REF(bases);
+                        return ErrorVar;
                 }
 
-                flags = ((struct type_t *)obj)->flags;
-                /*
-                 * See gh issue #52.  Until then, forbid inheritance of
-                 * built-in classes.
-                 *
-                 * XXX REVISIT: This works with the ErrorVar exception,
-                 * but it's a little confusing, and in terms of future
-                 * maintainability, a little dangerous.  Unlike most of
-                 * our other built-in types, "ErrorVar" is not a
-                 * statically-allocated TypeType object.  It is created
-                 * through typevar_new_intl() (see global.h).  We just
-                 * happen to know that it has no built-in methods which
-                 * would require a private-data struct, so this is safe
-                 * until we change our minds about that.  This assumes
-                 * that we will finish gh issue #52 (enable inheritance
-                 * of built-in classes) before then.
-                 */
-                if (obj != ErrorVar && !!(flags & OBF_INTERNAL)) {
+                if (!!(V2TP(item)->flags & OBF_INTERNAL)) {
+                        /*
+                         * We need to permit built-in inheritance for
+                         * ErrorVar.  This is safe, however, because it
+                         * is invisible to users.  (We could only reach
+                         * the below continue in the case of early-init
+                         * for our exceptions--see global.c.)
+                         */
+                        if (item == ErrorVar)
+                                continue;
                         err_setstr(NotImplementedError,
-                                   "inheritance of built-in types not yet supported");
-                        goto err;
+                                   "Inheritance of built-in types not yet supported");
+                        VAR_DECR_REF(bases);
+                        return ErrorVar;
                 }
         }
-        return bases;
 
-err:
-        VAR_DECR_REF(bases);
-        return ErrorVar;
-}
+        V2TP(class)->bases = bases;
 
-static Object *
-type_inherit_private_names(Object *bases)
-{
-        Object *priv_set = NULL;
-        size_t i, n = seqvar_size(bases);
-
-        for (i = 0; i < n; i++) {
-                Object *base = tuple_borrowitem_(bases, i);
-                Object *base_priv = ((struct type_t *)base)->priv;
-                if (!base_priv)
-                        continue;
-
-                if (!priv_set)
-                        priv_set = setvar_new(NULL);
-                /* FIXME: Clobbering an error! */
-                if (set_extend(priv_set, base_priv) == RES_ERROR)
-                        err_clear();
+        if ((array = compute_mro(class)) == ErrorVar) {
+                V2TP(class)->bases = NULL;
+                VAR_DECR_REF(bases);
+                return ErrorVar;
         }
-        return priv_set;
+
+        /* compute_mro by necessity leaves self at front */
+        if (array_borrowitem(array, 0) == class) {
+                array_delete_chunk(array, 0, 1);
+                if (seqvar_size(array) == 0) {
+                        /* ??? */
+                        VAR_DECR_REF(array);
+                        return NULL;
+                }
+        }
+
+#ifndef NDEBUG
+        /* sanity check: mro should all be classes now, not arrays */
+        n = seqvar_size(array);
+        for (i = 0; i < n; i++) {
+                Object *item = array_borrowitem(array, i);
+                bug_on(!isvar_type(item));
+        }
+#endif /* NDEBUG */
+
+        tup = tuplevar_from_stack(array_get_data(array),
+                                  seqvar_size(array), false);
+        VAR_DECR_REF(array);
+        return tup;
 }
 
 static void
@@ -240,8 +413,14 @@ type_reset(Object *type)
         if (x)
                 VAR_DECR_REF(x);
 
-        bug_on(!tp->name);
-        efree((char *)tp->name);
+        x = tp->mro;
+        tp->mro = NULL;
+        if (x)
+                VAR_DECR_REF(x);
+
+        if (tp->name)
+                efree((char *)tp->name);
+        tp->name = NULL;
         tp->flags = 0;
         tp->size = 0;
 }
@@ -296,10 +475,12 @@ found:
 enum result_t
 instance_setattr(Frame *fr, Object *instance, Object *key, Object *value)
 {
-        if (!item_access_permitted(fr, instance->v_type, key))
+        Object *dict;
+
+        if (!item_write_access_permitted(fr, instance->v_type, key))
                 return RES_ERROR;
 
-        Object *dict = V2INST(instance)->inst_attr;
+        dict = V2INST(instance)->inst_attr;
         return dict_setitem(dict, key, value);
 }
 
@@ -673,31 +854,28 @@ Object *
 typevar_new_user(Object *bases, Object *dict,
                  Object *name, Object *priv_tup)
 {
-        Object *ret, *priv_set;
+        Object *ret, *priv_set, *mro;
         struct type_t *tp;
-
-        priv_set = NULL;
-        if (bases) {
-                bases = type_verify_base_classes(bases);
-                if (bases == ErrorVar)
-                        return bases;
-                priv_set = type_inherit_private_names(bases);
-        }
 
         ret = var_new(&TypeType);
         tp = V2TP(ret);
-        tp->flags = OBF_HEAP | OBF_GP_INSTANCE;
-        tp->bases = bases;
-        tp->priv = priv_set;
 
-        if (priv_tup) {
-                if (!priv_set)
-                        priv_set = setvar_new(priv_tup);
-                else
-                        set_extend(priv_set, priv_tup);
+        /* do this early in case we have to free */
+        tp->flags = OBF_HEAP | OBF_GP_INSTANCE;
+
+        mro = type_init_mro(ret, bases);
+        if (mro == ErrorVar) {
+                VAR_DECR_REF(ret);
+                return ErrorVar;
         }
 
-        tp->bases = bases;
+        if (priv_tup)
+                priv_set = setvar_new(priv_tup);
+        else
+                priv_set = NULL;
+
+        tp->mro = mro;
+        /* tp->bases set by type_init_mro() */
         tp->priv = priv_set;
         tp->str = instance_str;
         tp->reset = instance_reset;

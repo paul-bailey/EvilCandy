@@ -1,6 +1,6 @@
 // class Test -
 
-class TestException(RuntimeError) {}
+let TestException = RuntimeError;
 
 function assertion_exception(self, message) {
     let msgstr = '';
@@ -94,5 +94,4 @@ class Test() {
             throw assertion_exception(self, f'threw exception');
     },
 }
-
 return Test;

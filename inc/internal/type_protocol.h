@@ -103,6 +103,7 @@ enum {
  * @bases:      Tuple of base classes (struct type_t's), or NULL if none
  * @priv:       A set containing names of which methods are private.
  *              Unused for internal types.
+ * @mro:        Order of @bases for looking up attributes.
  * @name:       Name of the type
  * @freelist:   Used by var.c for memory management. Statically initialize
  *              this to NULL.
@@ -176,6 +177,7 @@ struct type_t {
         Object head;
         Object *bases;
         Object *priv;
+        Object *mro;
         unsigned int flags;
         const char *name;
         struct var_mem_t *freelist;

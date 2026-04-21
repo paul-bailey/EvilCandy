@@ -598,6 +598,13 @@ array_indexof(Object *arr, Object *item)
         return array_indexof_(arr, item, 0, seqvar_size(arr), 0);
 }
 
+ssize_t
+array_indexof_from(Object *arr, Object *item, size_t start)
+{
+        bug_on(!isvar_array(arr));
+        return array_indexof_(arr, item, start, seqvar_size(arr), 0);
+}
+
 /**
  * array_rindexof - Like array_indexof, but from the top going backwards
  */

@@ -21,6 +21,7 @@ extern enum result_t array_delete_chunk(Object *array,
 extern ssize_t array_indexof(Object *arr, Object *item);
 extern ssize_t array_rindexof(Object *arr, Object *item);
 extern ssize_t array_indexof_strict(Object *arr, Object *item);
+extern ssize_t array_indexof_from(Object *arr, Object *item, size_t at);
 extern Object *array_getslice(Object *obj, ssize_t start,
                               ssize_t stop, ssize_t step);
 

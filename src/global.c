@@ -234,6 +234,14 @@ make_exception(const char *name, Object *from)
 void
 cfile_init_global(void)
 {
+        /*
+         * Needed because we need a non-NULL ErrorVar even before it's
+         * even created.
+         */
+        static Object fake_errorvar;
+        var_initialize_static(&fake_errorvar, &TypeType);
+        ErrorVar = &fake_errorvar;
+
         gbl.interned_strings = setvar_new(NULL);
         initialize_string_consts();
         /*

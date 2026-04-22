@@ -1,0 +1,33 @@
+#!/usr/bin/env evilcandy
+
+// Simple demo of using composition instead of inheritance.
+// This is especially important for extending built-in classes.
+
+class MyClass by text () {
+    .__init__ = function(self, text) {
+        self.text = text;
+    },
+
+    .ends_with_underscore = function(self) {
+        return self.endswith('_');
+    },
+
+    .__str__ = function(self) {
+        return self.text;
+    },
+}
+
+function check_underscore(obj) {
+    if (obj.ends_with_underscore()) {
+        print(f"'{obj}' ends with underscore.");
+    } else {
+        print(f"'{obj}' does not end with underscore.");
+    }
+}
+
+let foo = MyClass("foo");
+let bar = MyClass("bar_");
+
+check_underscore(foo);
+check_underscore(bar);
+

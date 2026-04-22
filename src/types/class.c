@@ -382,6 +382,47 @@ type_init_mro(Object *class, Object *bases)
         return tup;
 }
 
+static enum result_t
+type_validate_new_attr(Object *name, void *unused)
+{
+        /*
+         * TODO: This should probably be a registry somewhere,
+         * so I don't end up with a lot of DRY violations.
+         */
+        static const char *valid_dunders[] = {
+                "__init__",
+                "__str__",
+                NULL,
+        };
+        const char **dunder, *s;
+        size_t n;
+
+        (void)unused;
+        if (!isvar_string(name))
+                return RES_OK;
+
+        s = string_cstring(name);
+        n = string_nbytes(name);
+        if (n < 4 || s[0] != '_' || s[1] != '_'
+            || s[n-1] != '_' || s[n-2] != '_') {
+                return RES_OK;
+        }
+
+        /* FIXME: what kind of exception to set? type, name, or key? */
+
+        /* Attribute is a dunder.  Only permit certain kinds */
+        if (strlen(s) != n) {
+                err_setstr(TypeError, "embedded nullchar in dunder");
+                return RES_ERROR;
+        }
+        for (dunder = valid_dunders; *dunder != NULL; dunder++) {
+                if (!strcmp(s, *dunder))
+                        return RES_OK;
+        }
+        err_setstr(TypeError, "unrecodnized dunder %s", s);
+        return RES_ERROR;
+}
+
 static void
 type_reset(Object *type)
 {
@@ -456,6 +497,10 @@ instance_getattr(Frame *fr, Object *instance, Object *key)
         ret = type_getitem(fr, (Object *)(instance->v_type), key);
         if (ret)
                 goto found;
+        /*
+         * TODO: check if instance->v_type at the shallow level
+         * has __getattr__ and try that.
+         */
         return NULL;
 
 found:
@@ -868,23 +913,36 @@ typevar_new_user(Object *bases, Object *dict,
                 VAR_DECR_REF(ret);
                 return ErrorVar;
         }
+        tp->mro = mro;
 
         if (priv_tup)
                 priv_set = setvar_new(priv_tup);
         else
                 priv_set = NULL;
-
-        tp->mro = mro;
-        /* tp->bases set by type_init_mro() */
         tp->priv = priv_set;
+
         tp->str = instance_str;
         tp->reset = instance_reset;
         tp->size = sizeof(struct instance_t);
 
-        if (dict)
+        if (dict) {
+                enum result_t result;
+                /*
+                 * TODO: Use dict_items(), not this, so I can also verify
+                 * proper type for a given dunder.
+                 */
+                result = var_traverse(dict, type_validate_new_attr, NULL,
+                                      name && isvar_string(name)
+                                        ? string_cstring(name) : NULL);
+                if (result == RES_ERROR) {
+                        VAR_DECR_REF(ret);
+                        return ErrorVar;
+                }
+
                 VAR_INCR_REF(dict);
-        else
+        } else {
                 dict = dictvar_new();
+        }
         tp->methods = dict;
 
         if (name == NullVar)

@@ -88,10 +88,8 @@ As of April 2026, the following can (roughly) be said about EvilCandy:
   language's existing syntax.  That is a very post-alpha issue to resolve.
 
 * For now, the cleanest way to inherit a base class is to actually
-  inherit it (which *is* quite clean—see tutorial).  But EvilCandy does
-  not yet have any built-in features like ``delegate *`` to make
-  Composition Over Inheritance pleasant.  Right now the only way to
-  "compose" rather than inherit is via brute-force manual assignment.
+  inherit it.  But EvilCandy also has features to make Composition Over
+  Inheritance more pleasant, using a "by" keyword in a class declaration.
 
 * It has all the characteristics of a source tree that has been maintained
   by just one person without someone else stress-testing it.  It is loaded
@@ -159,7 +157,11 @@ Here are some major differences...
   ``class`` syntax, but no ``this.Prototype.Init`` or whatnot.
 
 * EvilCandy's classes inherit base classes and build up a MRO array
-  rather than use a JavaScript-like ``Prototype`` chain.
+  rather than use a JavaScript-like ``Prototype`` chain.  It also
+  permits a single delegate object per class instance, for programmers
+  who prefer the Composition Over Inheritance approach.  For extending
+  built-in classes, this is necessary, because inheritance is only
+  permitted for user-defined classes.
 
 * Associative arrays are not class instantiations; they are just pure
   dictionaries.  As with JavaScript, you could combine closures and

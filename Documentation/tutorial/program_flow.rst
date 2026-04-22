@@ -73,6 +73,8 @@ If statements may be chained the usual way::
 Evaluating boolean expressions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+:TODO: Here's where to discuss logical operators and, or, not, etc.
+
 Within the parentheses of the above ``if`` statement
 (or the ``while`` statement, for that matter),
 *expr* may be a comparison, e.g. ``a == b``, ``a <= b``,

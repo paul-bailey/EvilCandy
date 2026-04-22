@@ -278,7 +278,100 @@ There is currently no other way to assign privacy.  For example, you
 cannot create a new attribute during an ``__init__`` method and declare
 the attribute as "private".
 
-:TODO: Dicuss __str__, other dunders when they become implemented.
+Class Composition with ``by``
+-----------------------------
 
-:TODO: Discuss ``by`` soft keyword, restrictions on inheriting built-ins
+The current implementation of EvilCandy does not support inheritance
+of built-in types:
+
+.. code-block:: evc-console
+   :class: example-bad
+
+   evc> class MyClass(string) {}
+   [EvilCandy] NotImplementedError Inheritance of built-in types not yet supported
+
+Although this feature may be added in the future, there is a work-around
+in which a class "delegates" to an object of another class (built-in or
+otherwise).  The syntax is::
+
+  class MyClass by name () {}
+  let x = MyClass();
+
+So far this changes nothing.  But if ``x`` contains an attribute matching
+``name``, then failing searches for an attribute in ``x`` will defer to
+``x.name`` before giving up.  Suppose ``x`` wants to extend the built-in
+class ``string``, by adding a function ``isdunder``.  Here's how it will
+look, using more meaningful names::
+
+    class StringExt by text () {
+        .__init__ = function(self, s) {
+            self.text = s;
+        },
+
+        .isdunder = function(self) {
+            return length(self.text) >= 4
+                   and self.startswith('__')
+                   and self.endswith('__');
+        }
+    }
+    print(StringExt('not_dunder').isdunder());
+    print(StringExt('__definitely_dunder__').isdunder());
+
+Class ``StringExt`` does not have a ``startswith`` or ``endswith`` method,
+but if ``s`` is a string, then ``self.text`` does.  The ``by text`` clause
+tells EvilCandy to fall back on ``self.text`` if a method does not exist.
+This also means that all the other methods of the string class, such as
+``capitalize``, ``format``, ``partition``, will appear as attributes of
+instances of ``StringExt``, without ``StringExt`` having to wrap them all.
+
+There are some limitations to this.
+
+#. The "self" being passed to ``startswith`` and ``endswith`` in this
+   example is ``self.text``, not ``self``.  This means that the attributes
+   of the delegating object are not truly attributes of the containing
+   object.  They only *appear* as such.
+
+#. The ``by`` clause is limited to one per class.  You may not delegate
+   to more than one object.
+
+#. ``length`` (currently) cannot operate on a user class, so
+   the above example requires ``length(self.text)``, not ``length(self)``.
+
+#. Since this example involves a built-in type, there is another
+   limitation which does not apply when delegating to user types: built-in
+   types do not check for "dunder methods" to determine how to do things
+   like represent themselves as text.  For a ``StringExt`` class to
+   represent itself in the same manner as ``s``, it could add the
+   following method::
+
+     .__str__ = function(self) { return self.text; },
+
+   although a more honest version might be::
+
+     .__str__ = function(self) { return f'StringExt({self.text})'; },
+
+The key thing to remember is, this is not true inheritance.  It is a
+programming paradigm (really a fad, to be frank) called "composition
+over inheritance".  The ``by`` soft keyword is really just syntactic
+sugar which precludes the need for something like the following
+unmaintainable horribleness:
+
+.. code-block::
+   :class: example-bad
+
+   // If you ever do this you probably deserved to be fired.
+   class StringExt () {
+       .__init__ = function(self, s) {
+           self.text = s;
+       },
+       .partition = function(self, other, *optargs) {
+           return self.text.partition(other, *optargs);
+       },
+       .capitalize = function(self) {
+           return self.text.capitalize()
+       },
+       .format = function(self, *args, **kwargs) {
+       ... /* all the rest */
+   }
+
 

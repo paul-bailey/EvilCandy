@@ -37,8 +37,16 @@ struct gbl_err_subsys_t {
  */
 #define COLOR(what, str)      COLOR_##what str COLOR_DEF
 
-#define exception_instance_validate(exc) \
-        (isvar_instance(exc) && var_instanceof(exc, ErrorVar))
+/*
+ * Don't use var_instanceof().  Users may not inherit from built-in
+ * classes.  This seems too restrictive for exceptions, so allow them
+ * to "compose" with built-ins.  At minimum allow it for exceptions.
+ *
+ * XXX: Exceptions use struct instance_t, not a built-in-class-specific
+ * C struct, so there's really no need not to permit full inheritance
+ * and therefore do a more reliable var_instanceof() check here.
+ */
+#define exception_instance_validate(exc) isvar_instance(exc)
 #define exception_class_validate(exc) \
         (isvar_type(exc) && type_issubclass(exc, ErrorVar))
 
@@ -132,7 +140,7 @@ void
 exception_add_trace(Object *call_trace)
 {
         enum result_t res;
-        struct gbl_err_subsys_t *err =gbl_get_err_subsys();
+        struct gbl_err_subsys_t *err = gbl_get_err_subsys();
         Object *exc = err->exception_last;
         bug_on(!exc);
         res = var_setattr(NULL, exc, STRCONST_ID(call_trace), call_trace);

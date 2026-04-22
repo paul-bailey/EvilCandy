@@ -21,9 +21,14 @@
 #include <internal/types/string.h>
 #include <internal/types/sequential_types.h>
 
+enum {
+        INST_FLAG_GETATTR_LOCK = 0x01,
+};
+
 struct instance_t {
         Object obj_head;
         Object *inst_attr;
+        unsigned int inst_flags;
 };
 
 #define V2TP(obj_)        ((struct type_t *)(obj_))
@@ -459,6 +464,11 @@ type_reset(Object *type)
         if (x)
                 VAR_DECR_REF(x);
 
+        x = tp->delegate_name;
+        tp->delegate_name = NULL;
+        if (x)
+                VAR_DECR_REF(x);
+
         if (tp->name)
                 efree((char *)tp->name);
         tp->name = NULL;
@@ -488,8 +498,12 @@ instance_getattr(Frame *fr, Object *instance, Object *key)
         bug_on(!isvar_instance(instance));
         bug_on(!inst->inst_attr);
 
-        if (!item_access_permitted(fr, instance->v_type, key))
+        if (!!(inst->inst_flags & INST_FLAG_GETATTR_LOCK))
                 return NULL;
+        inst->inst_flags |= INST_FLAG_GETATTR_LOCK;
+
+        if (!item_access_permitted(fr, instance->v_type, key))
+                goto notfound;
 
         ret = dict_getitem(inst->inst_attr, key);
         if (ret)
@@ -497,13 +511,26 @@ instance_getattr(Frame *fr, Object *instance, Object *key)
         ret = type_getitem(fr, (Object *)(instance->v_type), key);
         if (ret)
                 goto found;
-        /*
-         * TODO: check if instance->v_type at the shallow level
-         * has __getattr__ and try that.
-         */
+
+        if (instance->v_type->delegate_name && isvar_instance(instance)) {
+                Object *delegate = dict_getitem(
+                                        V2INST(instance)->inst_attr,
+                                        instance->v_type->delegate_name);
+                if (delegate) {
+                        ret = NULL;
+                        if (delegate != instance)
+                                ret = var_getattr_or_null(fr, delegate, key);
+                        VAR_DECR_REF(delegate);
+                        if (ret)
+                                goto found;
+                }
+        }
+notfound:
+        inst->inst_flags &= ~INST_FLAG_GETATTR_LOCK;
         return NULL;
 
 found:
+        inst->inst_flags &= ~INST_FLAG_GETATTR_LOCK;
         return maybe_bind_function(instance, ret);
 }
 
@@ -890,6 +917,10 @@ type_init_builtin(Object *type, bool isheap)
  *              well.
  * @name:       Class name.  If NULL, name will be set to "<anonymous>".
  * @priv_tup:   Tuple of names of class methods/data which are private.
+ * @delegate_name:
+ *              A string naming which field is used for delegation.
+ *              It will only apply to *this class*, not any of its base
+ *              classes.  NULL if no delegate.
  *
  * Return:      A new class.  Caller may need to adjust flags on the
  *              return Value as needed (such as whether to bind functions
@@ -897,7 +928,8 @@ type_init_builtin(Object *type, bool isheap)
  */
 Object *
 typevar_new_user(Object *bases, Object *dict,
-                 Object *name, Object *priv_tup)
+                 Object *name, Object *priv_tup,
+                 Object *delegate_name)
 {
         Object *ret, *priv_set, *mro;
         struct type_t *tp;
@@ -925,6 +957,12 @@ typevar_new_user(Object *bases, Object *dict,
         tp->reset = instance_reset;
         tp->size = sizeof(struct instance_t);
 
+        if (delegate_name) {
+                bug_on(!isvar_string(delegate_name));
+                VAR_INCR_REF(delegate_name);
+        }
+        tp->delegate_name = delegate_name;
+
         if (dict) {
                 enum result_t result;
                 /*
@@ -945,8 +983,6 @@ typevar_new_user(Object *bases, Object *dict,
         }
         tp->methods = dict;
 
-        if (name == NullVar)
-                name = NULL;
         if (name)
                 tp->name = estrdup(string_cstring(name));
         else
@@ -973,7 +1009,7 @@ typevar_new_user(Object *bases, Object *dict,
 Object *
 typevar_new_intl(Object *bases, Object *dict, Object *name)
 {
-        Object *ret = typevar_new_user(bases, dict, name, NULL);
+        Object *ret = typevar_new_user(bases, dict, name, NULL, NULL);
         V2TP(ret)->flags |= OBF_INTERNAL;
         return ret;
 }

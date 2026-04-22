@@ -280,3 +280,5 @@ the attribute as "private".
 
 :TODO: Dicuss __str__, other dunders when they become implemented.
 
+:TODO: Discuss ``by`` soft keyword, restrictions on inheriting built-ins
+

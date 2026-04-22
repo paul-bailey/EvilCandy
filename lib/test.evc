@@ -1,6 +1,10 @@
 // class Test -
 
-let TestException = RuntimeError;
+class TestException by error () {
+    .__init__ = function(self, message) {
+        self.error = RuntimeError(message);
+    }
+}
 
 function assertion_exception(self, message) {
     let msgstr = '';

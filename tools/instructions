@@ -110,7 +110,11 @@ DEFTUPLE
 # create a set from list on top of stack
 DEFSET
 
-# create a class. stack[-1]=name or NullVar, stack[-2]=dict, stack[-3]=tuple
+# create a class.
+#       stack[-1]=delegate's name or NullVar
+#       stack[-2]=name or NullVar
+#       stack[-3]=dict
+#       stack[-4]=tuple
 DEFCLASS
 # create a namespace. stack[-1]=name or NullVar, stack[-2]=dict
 DEFNS

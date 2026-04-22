@@ -104,6 +104,7 @@ enum {
  * @priv:       A set containing names of which methods are private.
  *              Unused for internal types.
  * @mro:        Order of @bases for looking up attributes.
+ * @delegate_name: Name of object to delegate to if a gettr lookup fails
  * @name:       Name of the type
  * @freelist:   Used by var.c for memory management. Statically initialize
  *              this to NULL.
@@ -178,6 +179,7 @@ struct type_t {
         Object *bases;
         Object *priv;
         Object *mro;
+        Object *delegate_name;
         unsigned int flags;
         const char *name;
         struct var_mem_t *freelist;

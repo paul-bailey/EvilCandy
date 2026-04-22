@@ -1355,9 +1355,9 @@ assemble_setdef(struct assemble_t *a)
 
 /*
  * saw "class", expect:
- *      (base) { dict }
- *      (bases,...) { dict }
- *      () { dict }
+ *      (base) [by name] { ns }
+ *      (bases,...) [by name] { ns }
+ *      () [by name] { ns }
  */
 static int
 assemble_classdef(struct assemble_t *a, struct token_t *name)
@@ -1365,6 +1365,17 @@ assemble_classdef(struct assemble_t *a, struct token_t *name)
         int res, count, priv_count;
         struct list_t priv_list, *p;
         unsigned char arg1;
+        struct token_t *delegate = NULL;
+
+        if (as_lex(a) < 0)
+                return -1;
+        if (as_curtok_is_softkey(a, "by")) {
+                if (as_errlex(a, OC_IDENTIFIER) < 0)
+                        return -1;
+                delegate = a->oc;
+        } else {
+                as_unlex(a);
+        }
         /*
          * Do not just call assemble_expr() twice; enforce 'class'
          * to be followed by at least literal expressions.
@@ -1383,6 +1394,11 @@ assemble_classdef(struct assemble_t *a, struct token_t *name)
 
         if (name)
                 ainstr_load_const(a, name);
+        else
+                ainstr_load_null(a);
+
+        if (delegate)
+                ainstr_load_const(a, delegate);
         else
                 ainstr_load_null(a);
 

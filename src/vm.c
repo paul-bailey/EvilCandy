@@ -760,23 +760,48 @@ do_defns(Frame *fr, instruction_t ii)
 static int
 do_defclass(Frame *fr, instruction_t ii)
 {
-        Object *dict, *bases, *name, *class, *priv;
+        Object *dict, *bases, *name, *class, *priv, *delegate;
 
+        /* XXX REVISIT: why not use the same stack methods as below? */
         if (ii.arg1 == IARG_HAVE_PRIVTUPLE)
                 priv = pop(fr);
         else
                 priv = NULL;
+
+        delegate = pop(fr);
+        bug_on(delegate != NullVar && !isvar_string(delegate));
+        if (delegate == NullVar) {
+                VAR_DECR_REF(delegate);
+                delegate = NULL;
+        }
+
         name = pop(fr);
+        bug_on(name != NullVar && !isvar_string(name));
+        if (name == NullVar) {
+                VAR_DECR_REF(name);
+                name = NULL;
+        }
+
         dict = pop(fr);
+        bug_on(!isvar_dict(dict));
+
         bases = pop(fr);
-        class = typevar_new_user(bases, dict, name, priv);
+        bug_on(!isvar_tuple(bases));
+
+        class = typevar_new_user(bases, dict, name, priv, delegate);
+
         VAR_DECR_REF(bases);
         VAR_DECR_REF(dict);
-        VAR_DECR_REF(name);
+        if (name)
+                VAR_DECR_REF(name);
+        if (delegate)
+                VAR_DECR_REF(delegate);
         if (priv)
                 VAR_DECR_REF(priv);
+
         if (class == ErrorVar)
                 return RES_ERROR;
+
         push(fr, class);
         return RES_OK;
 }

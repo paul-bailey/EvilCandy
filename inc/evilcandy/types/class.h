@@ -12,7 +12,8 @@ extern Object *typevar_new_intl(Object *bases, Object *dict,
                                 Object *name);
 extern bool type_issubclass(Object *type, Object *base);
 extern Object *typevar_new_user(Object *bases, Object *dict,
-                                Object *name, Object *priv_tup);
+                                Object *name, Object *priv_tup,
+                                Object *delegate_name);
 extern Object *type_instantiate_object(Object *type, Object *args,
                                        Object *kwargs);
 extern void type_init_builtin(Object *type, bool isheap);

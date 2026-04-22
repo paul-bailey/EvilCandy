@@ -168,11 +168,8 @@ slot by default.
 Class Inheritance
 -----------------
 
-The parentheses following the ``class`` keyword are actually a tuple
-containing inherited base classes.  The above examples show an empty
-tuple, meaning that they do not inherit any base classes.  This is one
-of those places in EvilCandy code where parentheses are required around
-a tuple.
+The parentheses following the ``class`` keyword contain a tuple of
+inherited base classes.  The above examples do not inherit any classes.
 
 Let's expand on the ``Animal`` example above, by creating some new
 classes which inherit it, ``Dog`` and ``Cat``::

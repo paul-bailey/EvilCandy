@@ -7,69 +7,62 @@ A Script Interpreter and Programming Language
 ---------------------------------------------
 
 :Author: Paul Bailey <roscidcup@falstaffandme.com>
-:Date: April 2025
+:Date: April 2026
 
 About
 =====
 
 **EvilCandy** is a(nother) object-oriented interpreted programming
 language and interpreter.  The language itself is nothing original;
-I cherry-picked some of my favorite syntactic features of Python
-and JavaScript, and put them together in the same language.  That
-may sound strange, like some Frankenstein's monster of a language,
-but I took pains to adapt features that work naturally together.
-I'd say that EvilCandy is JavaScript-like in its syntax and overall
-appearance, as well as its slightly lambda-ish nature, but it is
-Python-like in many of its basic data types, built-in functions, and
-underlying machinery.  The real purpose of the project is in the
-challenge of writing an interpreter and virtual machine, not
+I cherry-picked some of my favorite syntactic features of Python and
+JavaScript, and put them together in the same language.  I'd say that
+EvilCandy is JavaScript-like in its syntax and overall appearance,
+but it is Python-like in many of its basic data types, built-in
+functions, and underlying machinery.  The real purpose of the project
+is the challenge of writing an interpreter and virtual machine, not
 inventing a paradigm-changing language.
 
 But despite being influenced by those languages, it is not either of
 them, nor is it an off-brand version of them, like Octave to MATLAB,
 or a lightweight 'embedded' version, like Cash to jQuery.  EvilCandy
-immitates JavaScript and Python only as a starting point, but its
-continuing development makes no effort to conform to them in any way.
-In many ways, it diverges greatly.
+imitates JavaScript and Python only as a starting point. Its continuing
+development makes no effort to conform to them in any way.  In many ways,
+it diverges greatly.
 
 Status
 ======
 
 **UNSTABLE!!**  See disclaimer in COPYING.  The language and its
-implementation are under rapid development.  The version in this branch
-is currently prealpha.x.
+implementation are under rapid development.  This is the main development
+branch.
 
-As of April 2026, the following can (roughly) be said about EvilCandy:
+Thus far, the following can (roughly) be said about EvilCandy:
 
 * It "works," but it still has elementary bugs that I keep finding and
   tracking down.  (See "issues" tab on GitHub.)
 
-* It parses an input, compiles it into binary code, then executes it
+* It parses input, compiles it into binary code, then executes it
   in a virtual stack machine.  When debug hooks are turned off (which
   in truth it's not ready for), its speed for basic execution is
   comparable to Python, at least on my computer; string and list handling
   is probably much slower, but I haven't rigorously tested that stuff
   yet.
 
-* It can run in interactive mode, although it's a bit quirky; I haven't
-  figured out a good solution to statements where the parser needs to
-  "peek" at the next token, so if you type an "if" statement and do not
-  intend to add and "else" statement, you need to type a superfluous
-  semicolon to let the parser know to execute it...that kind of quirky.
-  (See issue #48.)
+* It can run in interactive mode, although it's a bit quirky (see
+  issue #48).
 
 * It can run in disassembly mode, where instead of executing code,
   it will disassemble its compiled input and print it.  Probably not
   useful to anybody but me, as a debugging tool.
 
 * It can load and execute scripts, and have those scripts load and
-  execute scripts.
+  execute other scripts.
 
 * I have not yet added in any code for cyclic GC, so there's a hazard
   of accidentally immortalizing data with cyclic references, for example
   when inserting a dictionary into itself.
 
-* It has the skeleton of a math, IO, and socket library, but these are
+* It has skeletons of math, IO, and socket libraries, but these are
   mainly as they were when I threw them together just to see if
   something works.
 
@@ -98,7 +91,7 @@ As of April 2026, the following can (roughly) be said about EvilCandy:
   consists of a couple scripts in tests/, some unit tests in
   programs/unit_tests.c and a fuzzer test in programs/fuzzer.c.
 
-So no, EvilCandy is not a ship-able release candidate.
+So no, EvilCandy is not a shippable release candidate.
 
 Some FAQ
 ========
@@ -120,7 +113,7 @@ of line endings; and (2) function definitions are treated as literal
 expressions, so they may be stated just about anywhere, even as arguments
 to other functions.
 
-Here are some major differences...
+Here are some major differences:
 
 * There is no ``var`` keyword.  There are only ``let`` and ``global``.
 
@@ -203,7 +196,7 @@ need to reconfigure with
         autoreconf -i
         ./configure
 
-Then you type ``make`` in the command line.
+Then run ``make`` in the command line.
 
 Be aware that I have only ever compiled this on Darwin and occasionally
 on Ubuntu.  I have tried to avoid system-specific functionality, and I
@@ -213,15 +206,14 @@ call itself gcc, it's hard to tell if I'm succeeding.  Computers built in
 Obscuresylvania or the 1970s (or worse, computers running Windows 😊)
 probably will not execute this program correctly.  It's hard to not
 accidentally make assumptions about a system when you're the only developer
-on a project.  So I make no promise that it will compile on your system,
-especially if it is a Windows system.
+on a project.  So I make no promise that it will compile on your system.
 
 The Language
 ============
 
 If you have Sphinx, go to Documentation and run ``make html``.
-If you do not, the restructuredText files in Documentation/tutorial
-should be human-readable enough.  But disregard the Documentation/langref/
+If you do not, the reStructuredText files in Documentation/tutorial
+should be human-readable enough.  But disregard Documentation/langref/
 and Documentation/libref/.  These are wildly out of date.
 
 Licence

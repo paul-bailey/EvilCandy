@@ -29,14 +29,20 @@ imitates JavaScript and Python only as a starting point. Its continuing
 development makes no effort to conform to them in any way.  In many ways,
 it diverges greatly.
 
+This is the main development branch.
+
 Status
 ======
 
 **UNSTABLE!!**  See disclaimer in COPYING.  The language and its
-implementation are under rapid development.  This is the main development
-branch.
+implementation are under rapid development.
 
-Thus far, the following can (roughly) be said about EvilCandy:
+That said, EvilCandy approaching the end of its pre-alpha phase.  Even
+though the whole project is a hobby rather than a product, I am serious
+about getting it into good shape.  (There's a difference between a
+hobby and a mere pastime after all.)
+
+Thus far, the following can roughly be said about EvilCandy:
 
 * It "works," but it still has elementary bugs that I keep finding and
   tracking down.  (See "issues" tab on GitHub.)

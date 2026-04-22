@@ -786,7 +786,6 @@ do_defclass(Frame *fr, instruction_t ii)
         bug_on(!isvar_dict(dict));
 
         bases = pop(fr);
-        bug_on(!isvar_tuple(bases));
 
         class = typevar_new_user(bases, dict, name, priv, delegate);
 

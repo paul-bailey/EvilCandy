@@ -909,15 +909,12 @@ get_tok(struct token_state_t *state, struct token_t **tok)
          * Otherwise return the next parsed token.
          */
         if (state->nexttok >= state->ntok) {
-                if (state->eof) {
-                        /*
-                         * At EOF and "need" new token.
-                         * Keep returning EOF token
-                         */
-                        bug_on(state->ntok <= 0);
+                if (state->ntok > 0) {
                         cur = tokbuf[state->ntok - 1];
-                        bug_on(cur->t != OC_EOF);
-                        goto done;
+                        if (cur->t == OC_EOF) {
+                                bug_on(!state->eof);
+                                goto done;
+                        }
                 }
                 if (tokenize(state) == RES_ERROR)
                         return RES_ERROR;

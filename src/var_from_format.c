@@ -121,14 +121,12 @@ var_make_builtin(const char *fmt, va_list ap, char **endptr)
 {
         Object *func;
         Object *(*cb)(Frame *) = NULL;
-        int min = -1;
-        int max = -1;
-        int opt = -1;
-        int kw  = -1;
+        int bind = 0;
 
         /*
-         * Expect something like <xmMok>.  x is not optional.  If any of
-         * mMok are not supplied, defaults will be used in their place.
+         * Expect <x> or <xb>.  x if for the function handle, b is an
+         * integer, true to bind on de-reference, false to not bind.
+         * If b is not supplied, false is assumed.
          */
         while (*fmt != '>') {
                 switch (*fmt) {
@@ -136,26 +134,8 @@ var_make_builtin(const char *fmt, va_list ap, char **endptr)
                         bug_on(!!cb);
                         cb = va_arg(ap, Object *(*)(Frame *));
                         break;
-                /*
-                 * TODO: (gh issue #42) remove these from here and
-                 * anywhere that calls us with <x...>.  Add 'b'
-                 * to serve as the bind arg to funcvar_new_intl()
-                 */
-                case 'm':
-                        bug_on(min >= 0);
-                        min = va_arg(ap, int);
-                        break;
-                case 'M':
-                        bug_on(max >= 0);
-                        max = va_arg(ap, int);
-                        break;
-                case 'o':
-                        bug_on(opt >= 0);
-                        opt = va_arg(ap, int);
-                        break;
-                case 'k':
-                        bug_on(kw >= 0);
-                        kw = va_arg(ap, int);
+                case 'b':
+                        bind = va_arg(ap, int);
                         break;
                 default:
                         bug();
@@ -165,7 +145,7 @@ var_make_builtin(const char *fmt, va_list ap, char **endptr)
 
         bug_on(!cb);
 
-        func = funcvar_new_intl(cb, false);
+        func = funcvar_new_intl(cb, bind);
 
         bug_on(*fmt != '>');
         *endptr = (char *)fmt+1;

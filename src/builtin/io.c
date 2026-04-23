@@ -20,6 +20,7 @@
 #include <evilcandy/types/bytes.h>
 #include <evilcandy/types/class.h>
 #include <evilcandy/types/dict.h>
+#include <evilcandy/types/function.h>
 #include <evilcandy/types/string.h>
 #include <evilcandy/types/tuple.h>
 #include <evilcandy/types/number_types.h>
@@ -1772,12 +1773,12 @@ moduleinit_io(void)
         Object *k, *o;
 
         k = stringvar_from_ascii("_io");
-        o = var_from_format("<xmM>", create_io_module, 0, 0);
+        o = funcvar_new_intl(create_io_module, false);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);
 
-        o = var_from_format("<xmMk>", do_open, 3, 3, 2);
+        o = funcvar_new_intl(do_open, false);
         k = stringvar_from_ascii("open");
         vm_add_global(k, o);
         VAR_DECR_REF(k);

@@ -5,6 +5,7 @@
 #include <evilcandy/vm.h>
 #include <evilcandy/global.h>
 #include <evilcandy/types/dict.h>
+#include <evilcandy/types/function.h>
 #include <evilcandy/types/string.h>
 #include <evilcandy/types/number_types.h>
 #include <internal/types/number_types.h>
@@ -166,8 +167,7 @@ void
 moduleinit_math(void)
 {
         Object *k = stringvar_from_ascii("_math");
-        Object *o = var_from_format("<xmM>",
-                                    create_math_instance, 0, 0);
+        Object *o = funcvar_new_intl(create_math_instance, false);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);

@@ -49,6 +49,7 @@
 #include <evilcandy/types/bytes.h>
 #include <evilcandy/types/class.h>
 #include <evilcandy/types/dict.h>
+#include <evilcandy/types/function.h>
 #include <evilcandy/types/string.h>
 #include <evilcandy/types/number_types.h>
 #include <internal/types/string.h>
@@ -909,8 +910,7 @@ void
 moduleinit_socket(void)
 {
         Object *k = stringvar_from_ascii("_socket");
-        Object *o = var_from_format("<xmM>",
-                                    create_socket_library, 0, 0);
+        Object *o = funcvar_new_intl(create_socket_library, false);
         dict_setitem(GlobalObject, k, o);
         VAR_DECR_REF(k);
         VAR_DECR_REF(o);

@@ -1740,7 +1740,7 @@ initialize_one_file_class(Object *base, const struct type_method_t *tbl)
 {
         Object *class, *methods;
         methods = dictvar_from_methods(NULL, tbl, true);
-        class = typevar_new_intl(base, methods, NULL);
+        class = typevar_new_user(base, methods, NULL, NULL, NULL);
         VAR_DECR_REF(methods);
         return class;
 }
@@ -1754,16 +1754,29 @@ initialize_file_classes(void)
                 {"close", iobase_placeholder},
                 {NULL, NULL},
         };
-        Object *base, *basetup;
+        Object *base, *basetup, *mro;
 
         base = initialize_one_file_class(NULL, iobase_methods);
         gbl_set_builtin_class(GBL_CLASS_IOBASE, base);
         VAR_DECR_REF(base);
 
         basetup = tuplevar_from_stack(&base, 1, false);
-        BinFileType.bases = VAR_NEW_REF(basetup);
-        RawFileType.bases = VAR_NEW_REF(basetup);
-        TextFileType.bases = VAR_NEW_REF(basetup);
+        /*
+         * TODO: type_init_mro should just assign mro directly and return
+         * enum result_t instead.
+         */
+        mro = type_init_mro((Object *)&BinFileType, basetup);
+        bug_on(mro == ErrorVar);
+        BinFileType.mro = mro;
+
+        mro = type_init_mro((Object *)&RawFileType, basetup);
+        bug_on(mro == ErrorVar);
+        RawFileType.mro = mro;
+
+        mro = type_init_mro((Object *)&TextFileType, basetup);
+        bug_on(mro == ErrorVar);
+        TextFileType.mro = mro;
+
         VAR_DECR_REF(basetup);
 }
 

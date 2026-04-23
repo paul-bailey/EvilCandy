@@ -31,4 +31,7 @@ extern enum result_t instance_setattr(Frame *fr, Object *instance,
                                       Object *key, Object *value);
 extern Object *instance_dir(Object *instance);
 
+/* TODO: make a header inc/internal/types/class.h and put this in that one. */
+extern Object *type_init_mro(Object *class, Object *bases);
+
 #endif /* EVILCANDY_TYPES_CLASS_H */

@@ -66,10 +66,7 @@ item_access_permitted(Frame *fr, struct type_t *class, Object *key)
         return true;
 }
 
-/*
- * TODO: Delete above and use this for beginning of getattr() as well
- * as setattr().
- */
+/* XXX: Near-total DRY violation with above */
 static bool
 item_write_access_permitted(Frame *fr, struct type_t *class, Object *key)
 {
@@ -308,9 +305,13 @@ err_free_base_mros:
  * of bases if bases is a tuple, or a tuple made from bases if
  * bases is a single TypeType object.
  *
+ * FIXME: This should stay private, but type_init_builtins() doesn't init
+ * mro (since the .base field is not set yet), so some code like the io
+ * module in builtins/ needs to do this late.
+ *
  * Return: new mro, NULL if no bases, or ErrorVar
  */
-static Object *
+Object *
 type_init_mro(Object *class, Object *bases)
 {
         size_t i, n;
@@ -764,14 +765,6 @@ instancevar_new(Object *class, Object *args,
 
         V2INST(ret)->inst_attr = dictvar_new();
 
-        /*
-         * TODO: instance_setattr() never writes to the class dict, so
-         * there's no worry about different instances mangling each
-         * other's data as expressed in the class literal.  But the
-         * bigger problem is, we need to resolve methods, and here is
-         * the place to do it.
-         */
-
         if (call_init) {
                 init_result = instance_call(ret, STRCONST_ID(__init__),
                                             args, kwargs);
@@ -867,17 +860,19 @@ type_get_builtin_attr(struct type_t *tp, Object *obj, Object *key)
 bool
 type_issubclass(Object *type, Object *base)
 {
-        size_t i;
-        Object *bases;
+        size_t i, n;
+        Object *mro;
 
         if (type == base)
                 return true;
 
-        bases = V2TP(type)->bases;
-        if (!bases)
+        mro = V2TP(type)->mro;
+        if (!mro)
                 return false;
-        for (i = 0; i < seqvar_size(bases); i++) {
-                if (type_issubclass(tuple_borrowitem_(bases, i), base))
+
+        n = seqvar_size(mro);
+        for (i = 0; i < n; i++) {
+                if (tuple_borrowitem_(mro, i) == base)
                         return true;
         }
         return false;

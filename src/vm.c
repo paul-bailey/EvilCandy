@@ -339,9 +339,6 @@ assign_complete(Frame *fr, instruction_t ii, Object *from)
                 bug_on(!fr->clo);
                 ppto = fr->clo + ii.arg2;
                 break;
-        case IARG_PTR_THIS:
-                err_setstr(TypeError, "You may not assign `this'");
-                return RES_ERROR;
         default:
                 /*
                  * XXX: bug? could we reach this if user tries to assign
@@ -421,10 +418,6 @@ do_load_local(Frame *fr, instruction_t ii)
         case IARG_PTR_CP:
                 bug_on(!fr->clo);
                 p = fr->clo[ii.arg2];
-                break;
-        case IARG_PTR_THIS:
-                bug_on(!fr || !fr->owner);
-                p = fr->owner;
                 break;
         default:
                 bug();

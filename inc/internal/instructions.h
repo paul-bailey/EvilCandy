@@ -10,7 +10,6 @@
 enum {
         IARG_PTR_FP = 0,
         IARG_PTR_CP,
-        IARG_PTR_THIS   /* ""   "" */
 };
 
 /* CMP arg1 enumerations */

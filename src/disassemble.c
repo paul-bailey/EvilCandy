@@ -31,7 +31,6 @@ static const char *ATTR_NAMES[] = {
 static const char *PTR_NAMES[] = {
         IARGP(FP),
         IARGP(CP),
-        IARGP(THIS)
 };
 
 static const char *POP_NAMES[] = {

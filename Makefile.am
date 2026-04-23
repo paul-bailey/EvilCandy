@@ -285,6 +285,41 @@ src/vm_gen.c.h: tools/instructions tools/gen
 	$(MKDIR_P) src
 	tools/gen jump < $(srcdir)/tools/instructions > $@
 
+evilcandy_demos = \
+        demos/text_adventure.evc \
+        demos/primes.evc \
+        demos/iife.evc \
+        demos/dog_cat.evc \
+        demos/composition.evc \
+        demos/cat.evc \
+        demos/socket/client_tcp.evc \
+        demos/socket/client_udp.evc \
+        demos/socket/server_tcp.evc \
+        demos/socket/server_udp.evc \
+        demos/socket/realdumbcurl.evc \
+        demos/simple_benchmarks/generator.evc \
+        demos/simple_benchmarks/sqrt.egq
+
+evilcandy_docs = \
+        Documentation/Makefile \
+        Documentation/conf.py \
+        Documentation/contents.rst \
+        Documentation/evc_lexer.py \
+        Documentation/make.bat \
+        Documentation/_static/css/custom.css \
+        Documentation/tutorial/classes_and_namespaces.rst \
+        Documentation/tutorial/data_types.rst \
+        Documentation/tutorial/getting_started.rst \
+        Documentation/tutorial/index.rst \
+        Documentation/tutorial/modules_and_imports.rst \
+        Documentation/tutorial/program_flow.rst \
+        Documentation/tutorial/scope.rst \
+        Documentation/langref/data.rst \
+        Documentation/langref/filespec.rst \
+        Documentation/langref/index.rst \
+        Documentation/langref/tokens.rst \
+        Documentation/libref/index.rst
+
 # FIXME: string_include.c won't have a depfile if placed here,
 # but I can't put it in noinst_HEADERS, because then `make headercheck`
 # will fail.
@@ -295,6 +330,8 @@ EXTRA_DIST = \
         tests/testsuite.evc \
         tests/sanity.evc \
         $(TESTS) \
+        $(evilcandy_demos) \
+        $(evilcandy_docs) \
         etc/evilcandy.1 \
         source_tree_layout.txt \
         ROADMAP.md \

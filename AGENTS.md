@@ -61,6 +61,12 @@ don't, then either these scripts or my C code has a bug.
 `source_tree_layout.txt` is a brief description of how I laid out
 this source tree.
 
+Even though this file refers to `inc/evilcandy/` as "Public API headers",
+EvilCandy is in a state of too rapid development for me to actually
+support a stable C API right now.  So do not flag changes to `inc/evilcandy/`
+as a priority issue if the only problem is that the change could break
+compatibility with existing out-of-tree source code.
+
 ## What to do if Makefile or ./configure are not present
 
 The git repository for this source tree does not include the top-level

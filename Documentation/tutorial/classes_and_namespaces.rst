@@ -94,12 +94,25 @@ Classes may be anonymous or named::
 As with functions, the named-class declaration is functionally equivalent
 to the anonymous-class declaration, but for one important difference:
 the named-class declaration also stores the name with the class, making
-named classes far more useful when debugging.
+named classes far more useful.  Named classes could be used with
+``typeof()`` to determine, for example, whether an argument is a valid
+type.  Anonymous classes cannot::
+
+    evc> class ClassA() {}
+    evc> let ClassB = class() {};
+    evc> let a = ClassA();
+    evc> let b = ClassB();
+    evc> typeof(a);
+    'ClassA'
+    evc> typeof(b);
+    '<anonymous>'
 
 Consider it bad programming practice to ever reassign a variable that was
 assigned a class, especially if it was done so using the named-class
 form.  EvilCandy currently permits it, but a future version might throw
 an exception.
+
+:TODO: This will matter less when I implement ``instanceof``, or ``class as NAME() {}``
 
 Class Methods
 -------------

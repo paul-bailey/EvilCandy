@@ -56,6 +56,7 @@ static const char *CMP_NAMES[] = {
         IARG(IN),
         IARG(EQ3),
         IARG(NEQ3),
+        IARG(INSTANCEOF),
 };
 
 static const char *B_IF_ARGNAME[] = {

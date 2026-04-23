@@ -816,6 +816,14 @@ var_compare_iarg(Object *a, Object *b, int iarg, bool *result)
         case IARG_IN:
                 cmp = var_hasitem(b, a);
                 break;
+        case IARG_INSTANCEOF:
+                if (!isvar_type(b)) {
+                        err_setstr(TypeError,
+                                   "instanceof rvalue not a class");
+                        return RES_ERROR;
+                }
+                cmp = var_instanceof(a, b);
+                break;
         default:
                 if (var_compare(a, b, &cmp) == RES_ERROR)
                         return RES_ERROR;

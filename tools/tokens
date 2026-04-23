@@ -95,6 +95,7 @@ YIELD           "yield"
 NAMESPACE       "namespace"
 PRIVATE         "private"
 IMPORT          "import"
+INSTANCEOF      "instanceof"
 EOF
 STRING                          atomic_key
 FSTRING_START

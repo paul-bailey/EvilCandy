@@ -96,7 +96,9 @@ to the anonymous-class declaration, but for one important difference:
 the named-class declaration also stores the name with the class, making
 named classes far more useful.  Named classes could be used with
 ``typeof()`` to determine, for example, whether an argument is a valid
-type.  Anonymous classes cannot::
+type.  Anonymous classes cannot:
+
+.. code-block:: evc-console
 
     evc> class ClassA() {}
     evc> let ClassB = class() {};
@@ -112,7 +114,35 @@ assigned a class, especially if it was done so using the named-class
 form.  EvilCandy currently permits it, but a future version might throw
 an exception.
 
-:TODO: This will matter less when I implement ``instanceof``, or ``class as NAME() {}``
+:TODO: This will matter less when I implement ``class as NAME() {}``
+
+``instanceof``
+~~~~~~~~~~~~~~
+
+The keyword ``instanceof`` is a binary operator which yields a truth value.
+Unlike ``typeof``, the name of the class is not a consideration; instead,
+the name of the variable storing the class is used.  From the same session
+as above, expect:
+
+.. code-block:: evc-console
+
+    evc> b instanceof ClassB;
+    1
+    evc> b instanceof ClassA;
+    0
+
+If the right-hand side of the operator does not evaluate to a class,
+an exception will be thrown:
+
+.. code-block:: evc-console
+
+    evc> 1 instanceof integer;
+    1
+    evc> 1 instanceof 1;
+    [EvilCandy] TypeError instanceof rvalue not a class
+
+The expression ``A instanceof B`` is true if ``A`` is an instance of
+class ``B`` or any subclass of ``B``.
 
 Class Methods
 -------------

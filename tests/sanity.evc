@@ -174,6 +174,9 @@ function test_class() {
         a.x++;
         test.assert_true(b.x == 12);
         test.assert_true(a.x == 13);
+        test.assert_true(a instanceof MyClass);
+        test.assert_false(a instanceof string);
+        test.assert_exception('1 instanceof 1');
     }
 }
 

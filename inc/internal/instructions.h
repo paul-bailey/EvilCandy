@@ -24,6 +24,7 @@ enum {
         IARG_IN,
         IARG_EQ3,
         IARG_NEQ3,
+        IARG_INSTANCEOF,
 };
 
 /* PUSH/POP_BLOCK args */

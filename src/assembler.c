@@ -1987,6 +1987,7 @@ assemble_expr2_binary(struct assemble_t *a)
                 { .tok = OC_GEQ,    .opcode = IARG_GEQ },
                 { .tok = OC_LT,     .opcode = IARG_LT },
                 { .tok = OC_GT,     .opcode = IARG_GT },
+                { .tok = OC_INSTANCEOF, .opcode = IARG_INSTANCEOF },
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t CMP2_TOK2OP[] = {

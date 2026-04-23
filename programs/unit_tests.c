@@ -206,6 +206,14 @@ static const char *RUNTIME_GOOD_SNIPPETS[] = {
          */
         /* non-string keys were not matching properly in dict.c */
         "let a = {b'abcd': 1}; let b = a[b'abcd'];",
+
+        /* an incorrect fix to issue #55 caused these regressions */
+        "if (1) string('1'); else string('2');",
+        "let x, y; if (1) x; else y;",
+        "let x; if (1) x = 1; else x = 2;",
+        "let x = 1; x++;",
+        "let x = 1; x--;",
+
         NULL
 };
 

@@ -3130,8 +3130,14 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                  * so rather than fall through to check below (which
                  * advances token), check it manually here.
                  */
-                need_semi = 0;
-                if (a->oc->t != OC_SEMI) {
+                if (a->oc->t == OC_SEMI) {
+                        need_semi = 0;
+                        if (as_lex(a) < 0)
+                                return -1;
+                } else if (a->oc->t == OC_PLUSPLUS
+                           || a->oc->t == OC_MINUSMINUS) {
+                        need_semi = 1;
+                } else {
                         err_ae_expect(a, OC_SEMI);
                         return -1;
                 }

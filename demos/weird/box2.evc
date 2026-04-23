@@ -130,7 +130,7 @@ box2.print('...And I am box2!  Is my box bigger than box1?');
 
 box1.print('You might be bigger than me, box2, but I have a nicer borderchar');
 
-if (box1.count() != 2 || box2.count() != 1) {
+if (box1.count() != 2 or box2.count() != 1) {
     print(f'box1.count={box1.count}, box2.count={box2.count}');
     throw RuntimeError("something suspicious with the box counts");
 }

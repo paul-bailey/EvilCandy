@@ -2010,12 +2010,10 @@ assemble_expr2_binary(struct assemble_t *a)
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t LOG_AND_TOK2OP[] = {
-                { .tok = OC_ANDAND, .opcode = INSTR_LOGICAL_AND, },
                 { .tok = OC_ANDSTR, .opcode = INSTR_LOGICAL_AND, },
                 { .tok = -1 }
         };
         static const struct token_to_opcode_t LOG_OR_TOK2OP[] = {
-                { .tok = OC_OROR,   .opcode = INSTR_LOGICAL_OR, },
                 { .tok = OC_ORSTR,  .opcode = INSTR_LOGICAL_OR, },
                 { .tok = -1 }
         };

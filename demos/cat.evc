@@ -7,7 +7,7 @@
         let s;
         while true {
             s = f.readline();
-            if (s == null || s == "")
+            if (s == null or s == "")
                 break;
             // each line should have its own nl
             print(s, end='');

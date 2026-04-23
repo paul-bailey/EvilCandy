@@ -45,8 +45,6 @@ MINUSMINUS      '--'            assign
 LSHIFT          '<<'
 RSHIFT          '>>'
 EQEQ            '=='            compare
-ANDAND          '&&'            logical
-OROR            '||'            logical
 LEQ             '<='            compare
 GEQ             '>='            compare
 NEQ             '!='            compare

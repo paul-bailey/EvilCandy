@@ -134,11 +134,11 @@ function look() {
     print('');
     print(room['name']);
     print(room['desc']);
-    if (here == 'gate' && !gate_open)
+    if (here == 'gate' and !gate_open)
         print('The iron gate is locked.');
-    if (here == 'gate' && gate_open)
+    if (here == 'gate' and gate_open)
         print('The iron gate stands open.');
-    if (here == 'pond' && !pond_lit)
+    if (here == 'pond' and !pond_lit)
         print('The pond is too dark to search safely.');
     print_items(room['items']);
     print_exits(room['exits']);
@@ -173,7 +173,7 @@ function take_item(name) {
         print(f'There is no {name} here.');
         return null;
     }
-    if (here == 'pond' && name == 'coin' && !pond_lit) {
+    if (here == 'pond' and name == 'coin' and !pond_lit) {
         print('The coin is below the dark surface. You need more light first.');
         return null;
     }
@@ -206,7 +206,7 @@ function go(direction) {
         return null;
     }
 
-    if (here == 'gate' && direction == 'north' && !gate_open) {
+    if (here == 'gate' and direction == 'north' and !gate_open) {
         print('The iron gate is locked.');
         return null;
     }
@@ -228,7 +228,7 @@ function use_item(name) {
     if (name == 'note') {
         print(item_text['note']);
     } else if (name == 'key') {
-        if (here == 'gate' && !gate_open) {
+        if (here == 'gate' and !gate_open) {
             gate_open = true;
             rooms['gate']['exits']['north'] = 'lobby';
             print('The brass key turns with a brittle click. The gate opens.');
@@ -238,7 +238,7 @@ function use_item(name) {
             print('There is no lock here that wants this key.');
         }
     } else if (name == 'lamp') {
-        if (here == 'pond' && !pond_lit) {
+        if (here == 'pond' and !pond_lit) {
             pond_lit = true;
             print('The lamp glows green. The pond clears enough to search.');
         } else if (here == 'pond') {
@@ -285,15 +285,15 @@ function handle_command(line) {
     if (length(words) > 1)
         noun = words[1];
 
-    if (verb == 'quit' || verb == 'q')
+    if (verb == 'quit' or verb == 'q')
         return false;
-    if (verb == 'look' || verb == 'l')
+    if (verb == 'look' or verb == 'l')
         look();
-    else if (verb == 'help' || verb == '?')
+    else if (verb == 'help' or verb == '?')
         help();
-    else if (verb == 'inventory' || verb == 'inv' || verb == 'i')
+    else if (verb == 'inventory' or verb == 'inv' or verb == 'i')
         show_inventory();
-    else if (verb == 'take' || verb == 'get')
+    else if (verb == 'take' or verb == 'get')
         take_item(noun);
     else if (verb == 'drop')
         drop_item(noun);

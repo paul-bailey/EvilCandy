@@ -136,8 +136,6 @@ a known result before the end of the expression:
 So the ordering of these statements is something to keep in mind when
 speed is a concern.
 
-:TODO: Either discuss ``&&`` and ``||`` or remove support for them.
-
 The ``in`` operator
 ~~~~~~~~~~~~~~~~~~~
 

@@ -64,7 +64,7 @@ Thus far, the following can roughly be said about EvilCandy:
 * It can load and execute scripts, and have those scripts load and
   execute other scripts.
 
-* I have not yet added in any code for cyclic GC, so there's a hazard
+* I have not added any code for cyclic GC yet, so there's a hazard
   of accidentally immortalizing data with cyclic references, for example
   when inserting a dictionary into itself.
 
@@ -79,8 +79,8 @@ Thus far, the following can roughly be said about EvilCandy:
 * It does not support externally-linkable C modules.  Currently all the
   C code has to be compiled into a single binary.
 
-* I have thus far only run this on Darwin and Ubuntu, and compiled it
-  with clang and gcc.
+* I have thus far only run this on Darwin (more specifically, the macOS
+  terminal) and Ubuntu, and compiled it with clang and gcc.
 
 * I have not finished making all my final decisions about syntax.  I am
   considering adding static typing, which will gut out a lot of the
@@ -112,12 +112,12 @@ that can exist.  So I settled for EvilCandy.
 How Is It Different From JavaScript?
 ------------------------------------
 
-In a nutshell, the resemblance between EvilCandy and JavaScript is mostly
-cosmetic.  The biggest similarities are (1) statements are delimited by
-braces and semicolons (and more strictly so than in JavaScript), instead
-of line endings; and (2) function definitions are treated as literal
-expressions, so they may be stated just about anywhere, even as arguments
-to other functions.
+The resemblance between EvilCandy and JavaScript is mostly cosmetic.  The
+biggest similarities are (1) statements are delimited by braces and
+semicolons (and more strictly so than in JavaScript), instead of line
+endings; and (2) function definitions are treated as literal expressions,
+so they may be stated just about anywhere, even as arguments to other
+functions.
 
 Here are some major differences:
 
@@ -184,7 +184,7 @@ lists or strings, large quantities of small variables, things like that.
 Two, the Python-like speed is mostly an illusion. I could only get it
 to run that fast when compiling ``-O3 -DNDEBUG``, which the program is
 not ready for.  With all the debug hooks and bug traps left in, it's
-about a third as fast.
+about a third slower.
 
 And three, EvilCandy is very lightweight.  Things may change when I
 start adding in more features.

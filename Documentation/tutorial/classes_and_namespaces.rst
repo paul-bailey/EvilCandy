@@ -92,11 +92,9 @@ Classes may be anonymous or named::
   class MyClass() {}
 
 As with functions, the named-class declaration is functionally equivalent
-to the anonymous-class declaration insofar as it assigns the class to
-a variable, named ``MyClass`` in this example; but the difference is
-important: the named-class declaration also stores the name with the
-class, making named classes far more useful than anonymous classes when
-debugging.
+to the anonymous-class declaration, but for one important difference:
+the named-class declaration also stores the name with the class, making
+named classes far more useful when debugging.
 
 Consider it bad programming practice to ever reassign a variable that was
 assigned a class, especially if it was done so using the named-class
@@ -146,7 +144,7 @@ start-up value) along with the methods::
           ...
 
 This is safe, because any modifications to an instantiation's
-attributes are saved with the instantiation itself, not the class.
+attributes are saved with the instantiation itself, not with the class.
 So ``'default_name'`` is preserved for later instantiations.
 
 You would instantiate this class by calling it as if it was a

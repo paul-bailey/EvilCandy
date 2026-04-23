@@ -16,7 +16,8 @@ extern Object *typevar_new_user(Object *bases, Object *dict,
                                 Object *delegate_name);
 extern Object *type_instantiate_object(Object *type, Object *args,
                                        Object *kwargs);
-extern void type_init_builtin(Object *type, bool isheap);
+extern void type_init_builtin(Object *type, bool isheap,
+                              bool add_to_globals);
 extern Object *type_get_builtin_attr(struct type_t *tp,
                                      Object *obj, Object *key);
 extern Object *instance_super_getattr(Object *instance,

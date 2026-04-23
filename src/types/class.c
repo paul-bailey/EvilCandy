@@ -916,26 +916,18 @@ type_instantiate_object(Object *type, Object *args, Object *kwargs)
         return instancevar_new(type, args, kwargs, true);
 }
 
-/*
- * TODO: Temporary, until I have a more organized scheme
- * for choosing which classes are made global.
- */
-static bool
-type_is_in_modules(struct type_t *tp)
-{
-        return tp == &BinFileType || tp == &RawFileType
-               || tp == &TextFileType || tp == &SocketType;
-}
-
 /**
  * type_init_builtin - Initialize a statically allocated
  *                     built-in type.
  * @type:       Type object to initialize
  * @isheap:     True if this was dynamically allocated on the heap;
  *              false if it was declared static.
+ * @add_to_globals:
+ *              If true and @type has a .create method, add this type
+ *              to the global namespace.
  */
 void
-type_init_builtin(Object *type, bool isheap)
+type_init_builtin(Object *type, bool isheap, bool add_to_globals)
 {
         /*
          * XXX REVISIT: Some bug traps in this function assume we're
@@ -986,7 +978,7 @@ type_init_builtin(Object *type, bool isheap)
                 }
         }
 
-        if (tp->create && !type_is_in_modules(tp)) {
+        if (tp->create && add_to_globals) {
                 /*
                  * TODO: Intern this name. If called, it will likely be
                  * with an interned string literal.

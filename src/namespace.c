@@ -28,10 +28,6 @@ namespacevar_new(Object *dict, Object *name)
         if (name == NullVar)
                 name = NULL;
 
-        /*
-         * XXX: is there any good reason we shouldn't just return
-         * type instead of its one single instance?
-         */
         type = typevar_new_intl(NULL, dict, name);
         ((struct type_t *)type)->flags
                 |= OBF_NO_BIND_FUNCTION_ATTRS;

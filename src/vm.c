@@ -1133,11 +1133,41 @@ do_getattr_super(Frame *fr, instruction_t ii)
 
         this = fr->owner;
         if (this != vm_get_arg(fr, 0)) {
+                /*
+                 * We are not in a class method.  But we could still be
+                 * in a nested helper function.  Walk the frame tree
+                 * backward until we confirm ourselves to be super-able
+                 * or to be not super-able.
+                 *
+                 * Future change warning!!  We might also be in a free
+                 * function called from the class method.  Since there's
+                 * no way to be certain which case it is, we'll allow it.
+                 * If the user later calls the same function from outside
+                 * a class method, this check will fail and we'll throw
+                 * the exception then.  It's bad practice what they're
+                 * doing.  It's also non-ideal that we have to be so
+                 * dynamic in our enforcement of it, but we simply cannot
+                 * enforce proper super() usage statically until we make
+                 * assembler.c be more static-check capable.
+                 */
+                struct list_t *li;
+                list_foreach_rev(li, &vm.active_frames) {
+                        Frame *fr2 = container_of(li, Frame, alloc_list);
+                        if (fr2 == fr)
+                                continue;
+                        if (fr2->owner != this)
+                                goto cant_super;
+                        if (fr2->owner != vm_get_arg(fr2, 0))
+                                continue;
+                        goto can_super;
+                }
+cant_super:
                 err_setstr(RuntimeError,
                            "super() may only be used in methods");
                 goto done;
         }
 
+can_super:
         if (!isvar_instance(this)) {
                 err_setstr(TypeError,
                         "super() may only be used for instances");

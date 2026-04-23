@@ -8,7 +8,7 @@ Running EvilCandy
 
 EvilCandy runs in two modes: script mode and interactive mode.
 To run EvilCandy in interactive mode,
-simple execute ``evilcandy`` without any command-line arguments.
+simply execute ``evilcandy`` without any command-line arguments.
 To run a script with EvilCandy,
 you must either name it on the command line
 or pass it through EvilCandy as a pipe:
@@ -46,7 +46,7 @@ after a full top-level statement has been typed.
 If a statement returns a value,
 and the value is not the ``null`` object,
 that value will be printed to the standard output.
-To print the value of ``null``, use the ``print`` function.::
+To print the value of ``null``, use the ``print`` function::
 
    evc> 123;
    123
@@ -355,18 +355,17 @@ EvilCandy processes the usual mathematical operators,
 ``*`` for multiplication, ``/`` for division, ``+`` and ``-``
 and so on.
 ``%`` is the modulo (remainder) operator.
-``**`` is the power operator;
-like Python, power is built-in to the language.
+``**`` is the power operator.
 
-EvilCandy also has a number of bitwise operators that
-can be used on integers.
-Do not confuse these *bitwise* operators
-with *logical* operators,
-which are used in truth statements and such.
-Unless you are used to C or assembly
-(or unless you are working with sets,
-which we'll discuss later),
-chances are you are looking for the logical operators.
+EvilCandy also has a number of bitwise operators.
+Do not confuse these with logical operators.
+Unless you are used to C or assembly,
+chances are you are looking for the logical operators,
+which are used in truth statements.
+Bitwise operators, on the other hand,
+perform binary operations on integers.
+(They are also used with sets, which we'll discuss later.)
+
 The bitwise operators are:
 
   | ``^`` for exclusive OR
@@ -382,13 +381,17 @@ The order of operations is very inconsistent
 from one programming language to another,
 so parenthesize any time you are unsure.
 
-All division between integers is floored.
-Any arithmetic between numbers of different types
-will have an answer of a type with higher class priority.
+Division between integers is floored::
+
+   evc> 3 / 2;
+   1
+
+When arithmetic is performed between numbers of different types,
+the result will be the type with a higher class priority.
 These priorities are: complex > float > integer::
 
-   evc> 1 / 2.0;        // answer will be float
-   0.5
+   evc> 3 / 2.0;        // answer will be float
+   1.5
    evc> 3 + (1.0 + 4j); // answer will be complex
    (4+4j)
 
@@ -488,7 +491,7 @@ Strings can be repeated if multiplied by an integer::
 
 Strings can be indexed according to character, starting from index zero.
 Slicing is also possible with strings.
-As with Python, a negative number indexes from the end::
+A negative number indexes from the end::
 
    evc> 'hello world!'[-1];
    '!'
@@ -497,7 +500,7 @@ As with Python, a negative number indexes from the end::
    evc> 'abc'[1];
    'b'
 
-Also like Python, out-of-range indices will result in an exception,
+Out-of-range indices will result in an exception,
 but an out-of-range slice will be handled (kind of) gracefully::
 
    evc> 'abc'[10];
@@ -556,6 +559,7 @@ argument.  You may also delete a list item with the ``delete`` keyword::
 
    evc> let x = [1, 2, 3, 4, 5];
    evc> x.pop(1);
+   2
    evc> x;
    [1, 3, 4, 5]
    evc> x.remove(4);

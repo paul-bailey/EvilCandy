@@ -4,11 +4,6 @@
 EvilCandy tutorial
 ==================
 
-.. admonition:: Update May 2025
-
-   EvilCandy is still unstable, both its implementation and its
-   specification.  This tutorial is mostly true, partly tentative.
-
 To begin with, EvilCandy is syntactically very similar to JavaScript,
 so it helps to know a lot about JavaScript going in to this.  On the
 other hand, EvilCandy's syntax was *inspired* by JavaScript; it does

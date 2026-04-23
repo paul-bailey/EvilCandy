@@ -70,10 +70,8 @@ If statements may be chained the usual way::
    as ``match`` in Python or ``case`` in bash.  Adding it to a later
    version is on the to-do list.
 
-Evaluating boolean expressions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:TODO: Here's where to discuss logical operators and, or, not, etc.
+Evaluating truth expressions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Within the parentheses of the above ``if`` statement
 (or the ``while`` statement, for that matter),
@@ -118,6 +116,41 @@ as "type coercion":
 
       evc> !!'\0\0\0';
       1
+
+Compound truth expressions
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Truth expressions can be combined using the boolean binary operators
+``and`` and ``or``, and the unary operator ``not``.  The exclamation
+mark ``!`` is also available and serves the same purpose as ``not``.
+
+Evaluation may skip a step if a compound boolean expression produces
+a known result before the end of the expression:
+
+* In the case of ``A and B``, if ``A`` evaluates to false, then ``B``
+  will not be evaluated.
+
+* In the case of ``A or B``, if ``A`` evaluates to true, then ``B``
+  will not be evaluate.
+
+So the ordering of these statements is something to keep in mind when
+speed is a concern.
+
+:TODO: Either discuss ``&&`` and ``||`` or remove support for them.
+
+The ``in`` operator
+~~~~~~~~~~~~~~~~~~~
+
+Except in ``for`` loops (which we'll get to in a moment), ``in`` is a
+binary operator which will create a truth expression out of two objects:
+``A in B`` means "B contains A as one of its contents." If B is not an
+iterable type, then the result will be false.  Nor do class
+attributes count as "contents" in this case.
+
+Note that because ``not`` is a unary opertaor and ``in`` is a binary
+operator, the order of operators may run counterintuitive to natural
+English.  Use ``not (A in B)`` instead of ``A not in B``.  The latter
+will produce a syntax error.
 
 "do" statements
 ---------------

@@ -102,7 +102,9 @@ enum {
  * @head:       Embedded struct to make this an object
  * @bases:      Tuple of base classes (struct type_t's), or NULL if none
  * @priv:       A set containing names of which methods are private.
- *              Unused for internal types.
+ *              Unlike .all_priv, this is just for this one type, not its
+ *              bases.  Unused for internal types.
+ * @all_priv:   Set of private names including resolved names from mro.
  * @mro:        Order of @bases for looking up attributes.
  * @delegate_name: Name of object to delegate to if a gettr lookup fails
  * @name:       Name of the type
@@ -178,6 +180,7 @@ struct type_t {
         Object head;
         Object *bases;
         Object *priv;
+        Object *all_priv;
         Object *mro;
         Object *delegate_name;
         unsigned int flags;

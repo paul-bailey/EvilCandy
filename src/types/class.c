@@ -1,6 +1,9 @@
 /*
- * Implementation of ClassType and InstanceType objects.
+ * Implementation of TypeType and InstanceType objects.
  * MethodType objects are in method.c
+ *
+ * Called "class.c" because there used to be a ClassType object
+ * specifically for user-defined types, but I got rid of it.
  */
 #include <evilcandy/vm.h>
 #include <evilcandy/ewrappers.h>
@@ -64,30 +67,24 @@ item_access_permitted(Frame *fr, struct type_t *class, Object *key)
 }
 
 /*
- * A little different from above.  For writes, we cannot just try
- * type_getitem() == NULL, because we wouldn't know whether the failure
- * is due to the item being private or the item being non-existant.
- *
- * XXX REVISIT: This is TOO SLOW for a setattr() call!
- * Think of a better way.
+ * TODO: Delete above and use this for beginning of getattr() as well
+ * as setattr().
  */
 static bool
 item_write_access_permitted(Frame *fr, struct type_t *class, Object *key)
 {
-        size_t i, n;
-        if (!item_access_permitted(fr, class, key))
-                return false;
-        if (var_hasitem(class->methods, key))
+        if (!class->all_priv)
                 return true;
-        if (!class->mro)
-                return true;
-        n = seqvar_size(class->mro);
-        for (i = 0; i < n; i++) {
-                Object *base = tuple_borrowitem_(class->mro, i);
-                if (!item_access_permitted(NULL, V2TP(base), key))
+        if (set_hasitem(class->all_priv, key)) {
+                Object *inst;
+
+                if (!fr || !class->priv || !set_hasitem(class->priv, key))
                         return false;
-                if (var_hasitem(V2TP(base)->methods, key))
-                        return true;
+
+                inst = vm_get_this(fr);
+                if (!inst || !isvar_instance(inst))
+                        return false;
+                return inst->v_type == class;
         }
         return true;
 }
@@ -387,6 +384,104 @@ type_init_mro(Object *class, Object *bases)
         return tup;
 }
 
+struct init_private_t {
+        Object *seen_set;
+        Object *priv_set;
+};
+
+/* var_traverse callback for type_init_private() */
+static enum result_t
+type_add_to_seen(Object *item, void *data)
+{
+        struct init_private_t *ip = (struct init_private_t *)data;
+        if (!set_hasitem(ip->seen_set, item)) {
+                if (set_additem(ip->priv_set, item, NULL) == RES_ERROR)
+                        return RES_ERROR;
+        }
+        return set_additem(ip->seen_set, item, NULL);
+}
+
+/*
+ * tp->methods and tp->mro must already be configured.
+ * This initializes tp->priv and tp->all_priv
+ */
+static enum result_t
+type_init_private(Object *class, Object *priv_tup)
+{
+        struct type_t *tp;
+        size_t i;
+        Object *priv_set, *seen_set;
+        bool any_priv;
+
+        tp = V2TP(class);
+        if (!tp->mro) {
+                /* most cases: no inheritance */
+                tp->priv = priv_tup ? setvar_new(priv_tup) : NULL;
+                tp->all_priv = tp->priv ? VAR_NEW_REF(tp->priv) : NULL;
+                return RES_OK;
+        }
+
+        /*
+         * Pseudo sketch of the following algo:
+         *
+         * seen = empty set
+         * effective_private = empty set
+         *
+         * for cls in [tp] + tp.mro:
+         *     for name in cls.private:
+         *         if name not in seen:
+         *             add name to seen
+         *             add name to effective_private
+         *
+         *     for name in keys(cls.methods):
+         *         if name not in seen:
+         *             add name to seen
+         *
+         * The [tp] part of [tp] + tp.mro is done outside of the
+         * for loop, but it's otherwise the same.
+         */
+        any_priv = false;
+        if (priv_tup) {
+                any_priv = true;
+                tp->priv = setvar_new(priv_tup);
+                priv_set = setvar_new(priv_tup);
+        } else {
+                tp->priv = NULL;
+                priv_set = setvar_new(NULL);
+        }
+        seen_set = setvar_new(tp->methods);
+
+        for (i = 0; i < seqvar_size(tp->mro); i++) {
+                struct type_t *tpbase;
+
+                tpbase = V2TP(tuple_borrowitem_(tp->mro, i));
+                if (tpbase->priv) {
+                        any_priv = true;
+                        struct init_private_t ip = {
+                                .seen_set = seen_set,
+                                .priv_set = priv_set,
+                        };
+                        if (var_traverse(tpbase->priv, type_add_to_seen,
+                                         (void *)&ip, NULL) == RES_ERROR) {
+                                VAR_DECR_REF(priv_set);
+                                VAR_DECR_REF(seen_set);
+                                return RES_ERROR;
+                        }
+                }
+                set_extend(seen_set, tpbase->methods);
+        }
+
+        /* no longer needed */
+        VAR_DECR_REF(seen_set);
+        if (!any_priv) {
+                VAR_DECR_REF(priv_set);
+                priv_set = NULL;
+        }
+        tp->all_priv = priv_set;
+        return RES_OK;
+}
+
+
 static enum result_t
 type_validate_new_attr(Object *name, void *unused)
 {
@@ -451,6 +546,11 @@ type_reset(Object *type)
 
         x = tp->priv;
         tp->priv = NULL;
+        if (x)
+                VAR_DECR_REF(x);
+
+        x = tp->all_priv;
+        tp->all_priv = NULL;
         if (x)
                 VAR_DECR_REF(x);
 
@@ -931,7 +1031,7 @@ typevar_new_user(Object *bases, Object *dict,
                  Object *name, Object *priv_tup,
                  Object *delegate_name)
 {
-        Object *ret, *priv_set, *mro;
+        Object *ret, *mro;
         struct type_t *tp;
 
         ret = var_new(&TypeType);
@@ -946,12 +1046,6 @@ typevar_new_user(Object *bases, Object *dict,
                 return ErrorVar;
         }
         tp->mro = mro;
-
-        if (priv_tup)
-                priv_set = setvar_new(priv_tup);
-        else
-                priv_set = NULL;
-        tp->priv = priv_set;
 
         tp->str = instance_str;
         tp->reset = instance_reset;
@@ -982,6 +1076,11 @@ typevar_new_user(Object *bases, Object *dict,
                 dict = dictvar_new();
         }
         tp->methods = dict;
+
+        if (type_init_private(ret, priv_tup) == RES_ERROR) {
+                VAR_DECR_REF(ret);
+                return ErrorVar;
+        }
 
         if (name)
                 tp->name = estrdup(string_cstring(name));

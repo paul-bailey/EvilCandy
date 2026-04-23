@@ -1747,7 +1747,6 @@ assemble_super_expr(struct assemble_t *a)
          * At this point, we are most likely the soft-keyword super.
          * Overrule any user-defined symbols named "super".
          */
-        add_instr(a, INSTR_LOAD_LOCAL, IARG_PTR_THIS, 0);
         ainstr_load_const(a, a->oc);
         add_instr(a, INSTR_GETATTR_SUPER, 0, 0);
         return 1;

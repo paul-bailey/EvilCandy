@@ -1131,21 +1131,27 @@ do_getattr(Frame *fr, instruction_t ii)
 static int
 do_getattr_super(Frame *fr, instruction_t ii)
 {
-        Object *attr, *key, *obj;
+        Object *attr, *key, *this;
         int ret;
 
         key = pop(fr);
-        obj = pop(fr);
 
         ret = RES_ERROR;
 
-        /* "super" makes no sense for anything else */
-        if (!isvar_instance(obj)) {
+        this = fr->owner;
+        if (this != vm_get_arg(fr, 0)) {
+                err_setstr(RuntimeError,
+                           "super() may only be used in methods");
+                goto done;
+        }
+
+        if (!isvar_instance(this)) {
                 err_setstr(TypeError,
                         "super() may only be used for instances");
                 goto done;
         }
-        attr = instance_super_getattr(obj, key);
+
+        attr = instance_super_getattr(this, key);
         if (!attr) {
                 err_setstr(KeyError,
                            "no super or super has no instance of %N",
@@ -1158,7 +1164,6 @@ do_getattr_super(Frame *fr, instruction_t ii)
 
 done:
         VAR_DECR_REF(key);
-        VAR_DECR_REF(obj);
         return ret;
 }
 

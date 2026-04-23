@@ -828,7 +828,7 @@ instance_dir(Object *instance)
 }
 
 /**
- * type_get_bound_attr - Get an attribute from a type methods dictionary
+ * type_get_builtin_attr - Get an attribute from a type methods dictionary
  * @tp: Type
  * @obj: Owner to get an attribute from
  * @key: Key to the attribute
@@ -838,14 +838,9 @@ instance_dir(Object *instance)
  *         a MethodType wrapper will be returned instead of the function.
  *
  * This function will not raise an exception if @key is not found.
- *
- * FIXME: There's some confusion between this and local type_getitem().
- * The latter is for user-defined types and this is for built-in types.
- * This will be unified when I add an MRO at typevar_new-time.  Then only
- * this function or that one will exist.
  */
 Object *
-type_get_bound_attr(struct type_t *tp, Object *obj, Object *key)
+type_get_builtin_attr(struct type_t *tp, Object *obj, Object *key)
 {
         Object *ret = dict_getitem(tp->methods, key);
         if (!ret)

@@ -526,7 +526,7 @@ var_getattr_or_null(Frame *frame, Object *obj, Object *key)
 {
         if (isvar_instance(obj))
                 return instance_getattr(frame, obj, key);
-        return type_get_bound_attr(obj->v_type, obj, key);
+        return type_get_builtin_attr(obj->v_type, obj, key);
 }
 
 bool

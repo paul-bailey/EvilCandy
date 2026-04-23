@@ -19,9 +19,8 @@
 #include <errno.h>
 #include <limits.h>
 
-/* in child process */
 static void
-runtime_test_one_snippet_in_child(const char *snippet, bool should_pass)
+test_good_snippet_in_child(const char *snippet)
 {
         Object *xptr, *result;
 
@@ -32,21 +31,43 @@ runtime_test_one_snippet_in_child(const char *snippet, bool should_pass)
         result = vm_exec_script(xptr, NULL);
         /* Pass or fail, result should never be NULL */
         assert(result != NULL);
-        if (should_pass) {
-                assert(!err_occurred());
-                assert(result != ErrorVar);
+        assert(!err_occurred());
+        assert(result != ErrorVar);
 
-                VAR_DECR_REF(result);
-        } else {
-                assert(err_occurred());
-                assert(result == ErrorVar);
+        VAR_DECR_REF(result);
+}
 
-                err_clear();
-        }
+static void
+test_bad_rt_snippet_in_child(const char *snippet)
+{
+        Object *xptr, *result;
+
+        xptr = assemble_string(snippet, false);
+        assert(xptr != NULL);
+        assert(xptr != ErrorVar);
+
+        result = vm_exec_script(xptr, NULL);
+        /* Pass or fail, result should never be NULL */
+        assert(result != NULL);
+        assert(err_occurred());
+        assert(result == ErrorVar);
+
+        err_clear();
+}
+
+static void
+test_bad_syntax_snippet_in_child(const char *snippet)
+{
+        Object *xptr = assemble_string(snippet, false);
+        assert(xptr == ErrorVar);
+        assert(err_occurred());
+
+        err_clear();
 }
 
 static enum result_t
-fork_and_test_snippets(const char **snippet, bool should_pass, bool all)
+fork_and_test_snippets(const char **snippet,
+                       void (*cb)(const char *), bool all)
 {
         int status = 0;
         int waited = 0;
@@ -64,13 +85,11 @@ fork_and_test_snippets(const char **snippet, bool should_pass, bool all)
                 initialize_program();
                 if (all) {
                         while (*snippet) {
-                                runtime_test_one_snippet_in_child(
-                                                *snippet, should_pass);
+                                cb(*snippet);
                                 snippet++;
                         }
                 } else {
-                        runtime_test_one_snippet_in_child(*snippet,
-                                                          should_pass);
+                        cb(*snippet);
                 }
                 end_program();
                 exit(EXIT_SUCCESS);
@@ -190,15 +209,22 @@ static const char *RUNTIME_GOOD_SNIPPETS[] = {
         NULL
 };
 
+static const char *SYNTAX_BAD_SNIPPETS[] = {
+        /* regression check gh issue #55 */
+        "string('1') abc;",
+        NULL
+};
+
 static enum result_t
-test_runtime_err_no_err(bool stop_on_failure,
-                        const char **snippets, bool should_pass)
+test_snippets(bool stop_on_failure,
+                        const char **snippets,
+                        void (*cb)(const char *))
 {
         enum result_t ret = RES_OK;
         const char **ppsave = snippets;
         while (*snippets != NULL) {
                 enum result_t tres;
-                tres = fork_and_test_snippets(snippets, should_pass, false);
+                tres = fork_and_test_snippets(snippets, cb, false);
                 if (tres == RES_ERROR) {
                         ret = tres;
                         if (stop_on_failure)
@@ -211,7 +237,7 @@ test_runtime_err_no_err(bool stop_on_failure,
                  * Re-test all in a single context, to see how well we
                  * manage re-executing upon error.
                  */
-                ret = fork_and_test_snippets(ppsave, should_pass, true);
+                ret = fork_and_test_snippets(ppsave, cb, true);
         }
         return ret;
 }
@@ -223,15 +249,25 @@ test_runtime_err_no_err(bool stop_on_failure,
 static enum result_t
 test_runtime_error(bool stop_on_failure)
 {
-        return test_runtime_err_no_err(stop_on_failure,
-                                       RUNTIME_ERROR_SNIPPETS, false);
+        return test_snippets(stop_on_failure,
+                             RUNTIME_ERROR_SNIPPETS,
+                             test_bad_rt_snippet_in_child);
 }
 
 static enum result_t
 test_runtime_noerror(bool stop_on_failure)
 {
-        return test_runtime_err_no_err(stop_on_failure,
-                                       RUNTIME_GOOD_SNIPPETS, true);
+        return test_snippets(stop_on_failure,
+                             RUNTIME_GOOD_SNIPPETS,
+                             test_good_snippet_in_child);
+}
+
+static enum result_t
+test_syntax_error(bool stop_on_failure)
+{
+        return test_snippets(stop_on_failure,
+                             SYNTAX_BAD_SNIPPETS,
+                             test_bad_syntax_snippet_in_child);
 }
 
 static bool
@@ -390,6 +426,8 @@ main(int argc, char **argv)
         if (test_runtime_error(true) == RES_ERROR)
                 return EXIT_FAILURE;
         if (test_runtime_noerror(true) == RES_ERROR)
+                return EXIT_FAILURE;
+        if (test_syntax_error(true) == RES_ERROR)
                 return EXIT_FAILURE;
 
         tap_init(&tap, stderr, -1);

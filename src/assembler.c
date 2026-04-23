@@ -3123,6 +3123,18 @@ assemble_stmt_simple(struct assemble_t *a, unsigned int flags,
                 need_pop = assemble_identifier(a, flags);
                 if (need_pop < 0)
                         return -1;
+                /*
+                 * See gh issue #55.
+                 *
+                 * We need semicolon, but a->oc->t will already be there,
+                 * so rather than fall through to check below (which
+                 * advances token), check it manually here.
+                 */
+                need_semi = 0;
+                if (a->oc->t != OC_SEMI) {
+                        err_ae_expect(a, OC_SEMI);
+                        return -1;
+                }
                 break;
         case OC_SEMI:
                 /* empty statement */

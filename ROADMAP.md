@@ -1,93 +1,178 @@
 ## Pre-Alpha Checklist
 
-### Modules/Functionality
+### Core Language (Must Be Stable)
 
-- [ ] json
-- [ ] regular expressions
-  - need r-string expression type
-- [ ] time/datetime
-- [ ] `sys.argv`
-- [ ] `sys.env` (`.path`, etc)
-- [ ] os/posix
-  - [ ] a way to spawn child processes
-  - [ ] pipe/socketpair/dup/redirection
-  - [ ] chdir/cwd
-  - [ ] path parsing
-- [ ] finish math, io, socket libraries with minimum features
-- [ ] `input()` function
+* [ ] Variables, assignment, and expressions behave correctly
+* [ ] Functions (definition + calls) work reliably
+* [ ] Control flow (`if`, `while`, `for`) is stable
+* [ ] Classes and instances function correctly (basic usage)
+* [ ] Method calls and `self` semantics are consistent
+* [ ] Closures behave correctly (no “nil capture” issues)
 
-### Awkward Things To Solve
+---
 
-- [ ] Define behavior of `dir(SomeClass)` vs `dir(some_instance)`.
-- [ ] Final decision on property types.
-  - must be used in built-ins
-  - maybe too slow and complicated for user-defined types
-- [ ] Final decision on globals
-  - vm.locals already kind of exists as global.
-- [ ] cleaned up `demos` folder
-- [ ] Final word on `for-else` statements
+### Runtime Stability (Critical)
 
-### Internals
+* [ ] Interpreter does **not crash** on malformed input
+* [ ] Interpreter does **not crash** on runtime errors
+* [ ] Deterministic execution (no undefined behavior / corruption)
+* [ ] Stack/frame invariants are enforced (debug assertions OK)
 
-- [ ] binary serializer
-- [ ] user-defined classes have ability to override "dunder" methods
-- plan for automated testing (devOps, CI/CD, or such)
-- [ ] prevent duplicate/cyclic loads
+---
 
-### Check-it-twice stuff
+### Error Handling & Diagnostics
 
-- [ ] Make sure `int` and `size_t` are all properly declared
-      w/r/t dictionary/array-ish objects
+* [ ] Syntax errors report correct location
+* [ ] Runtime errors report useful messages
+* [ ] Stack traces (even minimal) are available
+* [ ] Clear distinction between fatal vs recoverable errors
 
-### Misc
+---
 
-- [ ] tutorial complete and accurate
+### Minimal Standard Library
+
+* [ ] Basic `io` (print/output)
+* [x] `input()` function
+* [ ] Minimal `sys.argv`
+* [ ] Minimal `sys.env` (basic environment access)
+* [ ] Minimal math functionality
+
+---
+
+### Module System
+
+* [x] Basic `import` behavior defined and working
+* [x] Modules execute only once
+* [x] Prevent duplicate/cyclic loads
+
+---
+
+### Object Model (Minimal but Coherent)
+
+* [ ] User-defined classes can override key “dunder” methods
+* [ ] Property behavior defined *well enough for built-ins*
+
+  * [ ] and documented
+* [x] Globals behavior defined (even if temporary design)
+
+---
+
+### Testing & Tooling
+
+* [x] Basic automated test suite exists (C and/or language level)
+* [ ] Tests cover core language features
+* [x] Fuzz testing or randomized input testing (basic)
+* [x] Clean build from fresh checkout works
+
+---
+
+### Correctness / Safety Audits
+
+* [ ] No obvious memory safety issues (no leaks or corruption)
+
+---
+
+### Minimal Documentation
+
+* [ ] README reflects actual current behavior
+* [ ] “Getting started” instructions work
+* [ ] Known limitations are documented
+
+---
 
 ## Post-Alpha
 
-### Modules/features
+### Expanded Standard Library
 
-- make integers have arbitrary width
-- cmath library
-- fill in all the built-in class methods
-- support double-star in function call
-- support comprehensions
-- something like bytearray
-- self-documentation in classes/functions... docstrings
-- support nested unpacking, e.g. `(a(b,c))=x`
+* json module
+* regular expressions
 
-### Awkward Things To Solve
+  * [x] `r-string` type
+* time/datetime
+* full `os/posix` support:
 
-- Change super() so that it's a built-in function returning a class
-  instance.  Do not leave it as a soft keyword.
-- Gracefully handle recursion error; do not abort
-- Add scope tracking/shadowing, rather than let all variables
-  sit on the stack until function leaves.
-- Add ClassType object for each built-in `struct type_t` so that
-  users can do things like `class MyClass(float) {...`
-- Dot-naming duality for dictionaries is awkward.
+  * a way to spawn a child process
+  * pipes/socketpair/dup/redirection
+  * path handling
+  * chdir/cwd
+* socket library expansion
+* cmath library
+* bytearray or equivalent
 
-### Internals
+---
 
-- slots instead of dict lookups
-- interrupt handlers for things like EINTR
+### Language Features
+
+* comprehensions
+* double-star (`**`) in function calls
+* nested unpacking `(a(b,c)) = x`
+* docstrings / self-documentation
+* fill in all built-in class methods
+
+---
+
+### Language Design Decisions (Finalize After Feedback)
+
+* Final property model
+* Final globals model
+* `dir(class)` vs `dir(instance)` behavior
+* `super()` redesign (function vs keyword)
+
+---
+
+### Runtime Improvements
+
+* Graceful recursion limits (no abort)
+* Scope tracking / local variable lifetime (no full-frame retention)
+* ClassType objects for built-ins
+* Prevent EINTR issues (interrupt handling)
+
+---
+
+### Internals & Performance
+
+* Binary serializer (bytecode format)
+* Slots instead of dict lookups
+* VM optimizations
+* Memory layout improvements
+
+---
+
+### Platform & Ecosystem
+
+* Cross-platform support (Linux, Windows)
+* External module/plugin system (C integration)
+* Improved REPL behavior
+
+---
 
 ### Misc
 
-#### Long-Term Goals
+* Clean up demos
+* Complete tutorial
 
-- static typing
-- `switch` or `match` statements
+---
 
-#### Wish List
+## Long-Term Goals
 
-- packing library, sim. to Python `struct`
-- labelled statements
-- parse UnicodeData.txt for Unicode ver. of `ctype.h`
-- matrix/tensor module for AI stuff
-- encryption library hooks for blockchain stuff
+* Static typing (optional or hybrid)
+* `switch` / `match` statements
 
-#### Idea Bucket
+---
 
-- `myclass.func(myinst)` <-> `myinst.func()`
-- register machine instead of stack machine
+## Wish List
+
+* packing library (like Python `struct`)
+* labeled statements
+* Unicode support via UnicodeData.txt
+* matrix/tensor module
+* encryption/blockchain hooks
+* make integers have arbitrary width
+
+---
+
+## Idea Bucket (Uncommitted)
+
+* `myclass.func(myinst)` ↔ `myinst.func()` symmetry
+* register VM instead of stack VM
+

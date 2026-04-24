@@ -1008,13 +1008,9 @@ text_read(struct textfile_t *txt, ssize_t nr_points)
                                             - string_writer_size(&wr);
                         }
                         if (!remaining || at_eof) {
-                                if (remaining >= 0 &&
+                                if (at_eof && remaining != 0 &&
                                     bytes_decoded != datalen) {
-decode_error:
-                                        err_setstr(ValueError,
-                                                   "Cannot decode trailing bytes in file");
-                                        string_writer_destroy(&wr);
-                                        return ErrorVar;
+                                        goto decode_error;
                                 }
                                 return stringvar_from_writer(&wr);
                         }
@@ -1028,7 +1024,11 @@ decode_error:
                 if (at_eof) {
                         if (txt->ft_buf &&
                             txt->ft_bufpos != seqvar_size(txt->ft_buf)) {
-                                goto decode_error;
+decode_error:
+                                err_setstr(ValueError,
+                                           "Cannot decode trailing bytes in file");
+                                string_writer_destroy(&wr);
+                                return ErrorVar;
                         } else {
                                 return stringvar_from_writer(&wr);
                         }

@@ -933,8 +933,18 @@ text_fillbuf(struct textfile_t *txt, const char *fname)
                 buf = NULL;
                 return 0;
         }
+        /*
+         * FIXME: We shouldn't have to concatenate this.  If we use two
+         * buffers and swap places whenever one runs out, we could use a
+         * struct utf8_state_t for UTF-8 encoding, and keep track of
+         * encoding boundaries that way.  Then there would be no slow
+         * concatenation of bytes objects.
+         *
+         * Bonus: write an alternative to string_writer_decode() with a
+         * function that treats an array of bytes like a quasi scatter-
+         * gather list.
+         */
         if (txt->ft_buf) {
-                /* hmm, is there a way to avoid this? */
                 Object *newbuf = buf;
                 Object *oldbuf = txt->ft_buf;
                 if (txt->ft_bufpos) {

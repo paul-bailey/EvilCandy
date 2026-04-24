@@ -125,6 +125,8 @@ static inline enum result_t var_delattr(Frame *frame, Object *obj, Object *key)
         { return var_setattr(frame, obj, key, NULL); }
 
 extern Object *var_getitem(Object *obj, Object *key);
+extern Object *var_getslice(Object *obj, ssize_t start,
+                            ssize_t stop, ssize_t step);
 extern bool var_hasitem(Object *container, Object *item);
 extern enum result_t var_setitem(Object *obj, Object *key, Object *value);
 static inline enum result_t var_delitem(Object *obj, Object *key)

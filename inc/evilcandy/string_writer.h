@@ -21,6 +21,7 @@ struct utf8_state_t {
         char buf[5];
         unsigned long point;
         size_t idx;
+        size_t cookiepos;
 };
 
 /*
@@ -63,12 +64,19 @@ string_writer_size(struct string_writer_t *wr)
         return wr->pos_i;
 }
 
+static inline size_t
+string_writer_cookiepos(struct utf8_state_t *state)
+{
+        return state->cookiepos;
+}
+
 /* types/string.c */
 extern void string_writer_append_strobj(struct string_writer_t *wr,
                                         Object *str);
 extern ssize_t string_writer_decode(struct string_writer_t *wr,
-                                const void *data, size_t n,
-                                int codec, struct utf8_state_t *state);
+                                    const void *data, size_t datalen,
+                                    ssize_t max, int codec,
+                                    struct utf8_state_t *state);
 extern Object *stringvar_from_writer(struct string_writer_t *wr);
 
 

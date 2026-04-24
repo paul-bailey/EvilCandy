@@ -25,6 +25,8 @@
 #include <evilcandy/types/tuple.h>
 #include <evilcandy/types/number_types.h>
 #include <internal/codec.h>
+/* XXX: Need better way to join bytes than include this low-level stuff */
+#include <internal/op.h>
 #include <internal/type_registry.h>
 #include <internal/types/string.h>
 #include <internal/types/number_types.h>
@@ -898,11 +900,8 @@ struct textfile_t {
         Object base;
         Object *ft_raw;
         int ft_codec;
-        Object *ft_eol;
         Object *ft_buf;
         size_t ft_bufpos;
-        struct utf8_state_t ft_utf8_state;
-        off_t ft_fdpos;
         /* XXX: ft_eof confusing if seek is used */
         bool ft_eof;
 };
@@ -912,39 +911,17 @@ struct textfile_t {
 #define TEXTFILE_READABLE(t_)   (((struct rawfile_t *)((t_)->ft_raw))->fr_readable)
 #define TEXTFILE_WRITABLE(t_)   (((struct rawfile_t *)((t_)->ft_raw))->fr_writable)
 
-static inline void
-reset_decode_state(struct textfile_t *txt)
-{
-        memset(&txt->ft_utf8_state, 0, sizeof(txt->ft_utf8_state));
-}
-
-static inline bool
-decode_state_reset(struct textfile_t *txt)
-{
-        return txt->ft_utf8_state.state == UTF8_STATE_ASCII;
-}
-
-static inline ssize_t
-text_decode(struct textfile_t *txt, struct string_writer_t *wr,
-            void *buf, size_t size)
-{
-        return string_writer_decode(wr, buf, size,
-                                    txt->ft_codec, &txt->ft_utf8_state);
-}
-
-/* returns bytes (not Unicode points) read, or -1 if error */
+/* returns #bytes, not Unicode points */
 static ssize_t
-text_readbuf(struct textfile_t *txt, const char *fname)
+text_fillbuf(struct textfile_t *txt, const char *fname)
 {
-        struct string_writer_t wr;
         Object *buf;
-        ssize_t nread, res;
+        ssize_t nread;
 
         if (txt->ft_eof)
                 return 0;
         buf = file_call_1arg_int(txt->ft_raw, STRCONST_ID(read), IO_BUFFER_SIZE);
         if (buf == ErrorVar) {
-                reset_decode_state(txt);
                 return -1;
         }
 
@@ -954,79 +931,117 @@ text_readbuf(struct textfile_t *txt, const char *fname)
                 VAR_DECR_REF(buf);
                 txt->ft_eof = true;
                 buf = NULL;
+                return 0;
         }
-
-        txt->ft_fdpos += nread;
-        string_writer_init(&wr, 1);
         if (txt->ft_buf) {
-                string_writer_append_strobj(&wr, txt->ft_buf);
-                VAR_DECR_REF(txt->ft_buf);
-                txt->ft_buf = NULL;
+                /* hmm, is there a way to avoid this? */
+                Object *newbuf = buf;
+                Object *oldbuf = txt->ft_buf;
+                if (txt->ft_bufpos) {
+                        Object *tmp = oldbuf;
+                        size_t idx = txt->ft_bufpos;
+                        oldbuf = var_getslice(tmp, idx,
+                                              seqvar_size(tmp), 1);
+                        VAR_DECR_REF(tmp);
+                        if (oldbuf == ErrorVar) {
+                                VAR_DECR_REF(newbuf);
+                                return -1;
+                        }
+                }
+                buf = qop_add(oldbuf, newbuf);
+                bug_on(buf == ErrorVar);
+                VAR_DECR_REF(oldbuf);
+                VAR_DECR_REF(newbuf);
         }
-        if (buf) {
-                res = text_decode(txt, &wr, bytes_get_data(buf), nread);
-                VAR_DECR_REF(buf);
-                if (res < 0)
-                        goto decode_err;
-        }
-
-        if (nread < IO_BUFFER_SIZE) {
-                /* end of file on disk, make sure there were no stragglers */
-                res = decode_state_reset(txt) ? 0 : -1;
-                if (res < 0)
-                        goto decode_err;
-        }
-
-        txt->ft_buf = stringvar_from_writer(&wr);
-        return nread;
-
-decode_err:
-        string_writer_destroy(&wr);
-        if (!err_occurred())
-                filerr(fname, "file decoding error");
-        reset_decode_state(txt);
         txt->ft_bufpos = 0;
-        return -1;
+        txt->ft_buf = buf;
+        return nread;
 }
 
-/* size is number of Unicode points, not bytes */
-static Object *
-text_read(struct textfile_t *txt, ssize_t size)
+static void
+text_clearbuf(struct textfile_t *txt)
 {
-        ssize_t nread;
-        Object *ret;
+        if (txt->ft_buf)
+                VAR_DECR_REF(txt->ft_buf);
+        txt->ft_buf = NULL;
+        txt->ft_bufpos = 0;
+}
 
+static Object *
+text_read(struct textfile_t *txt, ssize_t nr_points)
+{
+        ssize_t nread, remaining;
+        struct string_writer_t wr;
+        bool at_eof = false;
+
+        string_writer_init(&wr, 1);
+        remaining = nr_points;
         for (;;) {
                 /* check if entire read amount is in buffer */
-                if (size > 0 && txt->ft_buf) {
-                        size_t n = seqvar_size(txt->ft_buf);
-                        size_t pos = txt->ft_bufpos;
-                        if (n - pos > size) {
-                                txt->ft_bufpos = pos + size;
-                                /* check for special rare case */
-                                if (txt->ft_bufpos == n && pos == 0)
-                                        goto exact_buffer;
-                                return stringvar_from_substr(txt->ft_buf,
-                                                        pos, pos + size);
+                if (remaining != 0 && txt->ft_buf) {
+                        ssize_t bytes_decoded;
+                        const unsigned char *data;
+                        size_t datalen;
+
+                        data = bytes_get_data(txt->ft_buf);
+                        datalen = seqvar_size(txt->ft_buf);
+
+                        bug_on(datalen < txt->ft_bufpos);
+                        data += txt->ft_bufpos;
+                        datalen -= txt->ft_bufpos;
+
+                        bytes_decoded = string_writer_decode(
+                                                &wr, data, datalen,
+                                                remaining,
+                                                txt->ft_codec, NULL);
+
+                        if (bytes_decoded < 0) {
+                                string_writer_destroy(&wr);
+                                return ErrorVar;
+                        }
+                        txt->ft_bufpos += bytes_decoded;
+                        if (txt->ft_bufpos == seqvar_size(txt->ft_buf)) {
+                                text_clearbuf(txt);
+                        }
+                        if (remaining >= 0) {
+                                remaining = nr_points
+                                            - string_writer_size(&wr);
+                        }
+                        if (!remaining || at_eof) {
+                                if (remaining >= 0 &&
+                                    bytes_decoded != datalen) {
+decode_error:
+                                        err_setstr(ValueError,
+                                                   "Cannot decode trailing bytes in file");
+                                        string_writer_destroy(&wr);
+                                        return ErrorVar;
+                                }
+                                return stringvar_from_writer(&wr);
                         }
                 }
 
-                if ((nread = text_readbuf(txt, "read")) < 0)
-                        return ErrorVar;
-
-                if (!nread) {
-                        if (txt->ft_buf)
-                                goto exact_buffer;
-                        else
-                                return VAR_NEW_REF(STRCONST_ID(mpty));
+                /*
+                 * TODO: If still here and first pass of for loop,
+                 * flush output bufs... as soon as we support output
+                 * buffering for text files.
+                 */
+                if (at_eof) {
+                        if (txt->ft_buf &&
+                            txt->ft_bufpos != seqvar_size(txt->ft_buf)) {
+                                goto decode_error;
+                        } else {
+                                return stringvar_from_writer(&wr);
+                        }
                 }
-        }
 
-exact_buffer:
-        ret = txt->ft_buf;
-        txt->ft_bufpos = 0;
-        txt->ft_buf = NULL;
-        return ret;
+                if ((nread = text_fillbuf(txt, "read")) < 0) {
+                        string_writer_destroy(&wr);
+                        return ErrorVar;
+                }
+
+                if (!nread)
+                        at_eof = true;
+        }
 }
 
 static Object *
@@ -1055,10 +1070,10 @@ do_text_read(Frame *fr)
 static Object *
 do_text_readline(Frame *fr)
 {
-        Object *fo, *ret = NULL;
-        ssize_t haveidx = 0;
-        size_t seekpos;
+        Object *fo;
         struct textfile_t *txt;
+        struct string_writer_t wr;
+        bool at_eof = false;
 
         if (vm_getargs(fr, "<*>[!]{!}:readline", &fo) == RES_ERROR)
                 return ErrorVar;
@@ -1075,65 +1090,71 @@ do_text_readline(Frame *fr)
                 return ErrorVar;
         }
 
-        seekpos = txt->ft_bufpos;
+        string_writer_init(&wr, 1);
         while (1) {
+                ssize_t nread;
                 if (txt->ft_buf) {
-                        /*
-                         * XXX: change string_search to also take a startpos,
-                         * and increment that in this loop, so that we don't
-                         * end up repeating search of earlier characters.
-                         */
-                        haveidx = string_search(txt->ft_buf,
-                                                txt->ft_eol, seekpos);
-                        if (haveidx >= 0) {
-                                /* EOL exists in our buffer */
-                                haveidx += seqvar_size(txt->ft_eol);
-                                bug_on(haveidx > seqvar_size(txt->ft_buf));
-                                break;
+                        void *eolpos;
+                        size_t datalen;
+                        ssize_t bytes_decoded;
+                        const unsigned char *data;
+
+                        data = bytes_get_data(txt->ft_buf);
+                        datalen = seqvar_size(txt->ft_buf);
+
+                        bug_on(datalen < txt->ft_bufpos);
+                        data += txt->ft_bufpos;
+                        datalen -= txt->ft_bufpos;
+
+                        eolpos = memchr(data, '\n', datalen);
+                        if (eolpos)
+                                datalen = (unsigned char *)eolpos + 1 - data;
+
+                        bytes_decoded = string_writer_decode(&wr, data,
+                                                             datalen, -1,
+                                                             txt->ft_codec,
+                                                             NULL);
+                        if (bytes_decoded < 0) {
+                                string_writer_destroy(&wr);
+                                return ErrorVar;
                         }
-                        /* Don't re-seek old misses */
-                        seekpos = seqvar_size(txt->ft_buf)
-                                  - seqvar_size(txt->ft_eol);
+                        txt->ft_bufpos += bytes_decoded;
+                        if (txt->ft_bufpos == seqvar_size(txt->ft_buf))
+                                text_clearbuf(txt);
+
+                        if (eolpos || at_eof) {
+                                /*
+                                 * bug if eolpos != NULL, just plain error
+                                 * if not.
+                                 */
+                                if (bytes_decoded != datalen) {
+decode_error:
+                                        err_setstr(ValueError,
+                                                   "Cannot decode trailing bytes in file");
+                                        string_writer_destroy(&wr);
+                                        return ErrorVar;
+                                }
+                                return stringvar_from_writer(&wr);
+                        }
                 }
 
-                if (txt->ft_eof) {
-                        if (txt->ft_buf) {
-                                haveidx = seqvar_size(txt->ft_buf);
-                                break;
+                if (at_eof) {
+                        if (txt->ft_buf &&
+                            txt->ft_bufpos != seqvar_size(txt->ft_buf)) {
+                                goto decode_error;
                         } else {
-                                return VAR_NEW_REF(STRCONST_ID(mpty));
+                                return stringvar_from_writer(&wr);
                         }
-                } else {
-                        text_readbuf(txt, "readline");
                 }
-        }
 
-        /* Return the buffer */
-        bug_on(!txt->ft_buf);
-        bug_on(haveidx != 0 && haveidx <= txt->ft_bufpos);
-        if (txt->ft_bufpos == 0 && haveidx == seqvar_size(txt->ft_buf)) {
-                /*
-                 * Special rare case: we have exactly a line.  No need to
-                 * produce a reference, because we would just consume it
-                 * again right here.
-                 */
-                ret = txt->ft_buf;
-                txt->ft_buf = NULL;
-                txt->ft_bufpos = 0;
-                return ret;
-        }
+                if ((nread = text_fillbuf(txt, "readline")) < 0) {
+                        string_writer_destroy(&wr);
+                        return ErrorVar;
+                }
 
-        bug_on(haveidx > seqvar_size(txt->ft_buf));
-        ret = stringvar_from_substr(txt->ft_buf,
-                                    txt->ft_bufpos, haveidx);
-        txt->ft_bufpos = haveidx;
-        if (txt->ft_bufpos == seqvar_size(txt->ft_buf)) {
-                Object *tmp = txt->ft_buf;
-                txt->ft_buf = NULL;
-                txt->ft_bufpos = 0;
-                VAR_DECR_REF(tmp);
+                if (!nread)
+                        at_eof = true;
         }
-        return ret;
 }
 
 static ssize_t
@@ -1190,16 +1211,39 @@ text_write(struct textfile_t *txt, Object *so)
 static Object *
 do_text_tell(Frame *fr)
 {
-        /* TODO: Need byte cookies to make this work. */
-        err_setstr(NotImplementedError,
-                   "tell not implemented yet for this file type");
-        return ErrorVar;
+        Object *fo, *offobj;
+        long long off;
+        struct textfile_t *txt;
+
+        if (vm_getargs(fr, "<*>[!]{!}:tell", &fo) == RES_ERROR)
+                return ErrorVar;
+        bug_on(!fo || fo->v_type != &TextFileType);
+
+        txt = (struct textfile_t *)fo;
+        if (TEXTFILE_CLOSED(txt)) {
+                filerr_closed("tell");
+                return ErrorVar;
+        }
+        offobj = file_call_noarg(txt->ft_raw, STRCONST_ID(tell));
+        if (offobj == ErrorVar)
+                return ErrorVar;
+        if (!txt->ft_buf)
+                return offobj;
+
+        off = intvar_toll(offobj);
+        VAR_DECR_REF(offobj);
+
+        /*
+         * TODO: when configuring for output buffering,
+         * take that into account as well.
+         */
+        off -= seqvar_size(txt->ft_buf) - txt->ft_bufpos;
+        return intvar_new(off);
 }
 
 static Object *
 do_text_seek(Frame *fr)
 {
-        /* TODO: Need byte cookies to make this work. */
         err_setstr(NotImplementedError,
                    "seek not implemented yet for this file type");
         return ErrorVar;
@@ -1224,6 +1268,25 @@ do_text_write(Frame *fr)
         if (!TEXTFILE_WRITABLE(txt)) {
                 filerr_permit("write", 1);
                 return ErrorVar;
+        }
+
+        /* invalidate read buffer */
+        /*
+         * TODO: When adding output buffering, need to determine
+         * if ft_buf is for reads or writes.
+         */
+        if (txt->ft_buf) {
+                size_t unread = seqvar_size(txt->ft_buf)
+                                  - txt->ft_bufpos;
+                if (unread) {
+                        if (lseek(TEXTFILE_FILENO(txt),
+                                  -(off_t)unread, SEEK_CUR) < 0) {
+                                err_errno("could not sync for write",
+                                          "write");
+                                return ErrorVar;
+                        }
+                }
+                text_clearbuf(txt);
         }
         ret = text_write(txt, so);
         if (ret < 0)
@@ -1309,11 +1372,6 @@ textfile_reset(Object *textfile)
                 txt->ft_buf = NULL;
                 if (o)
                         VAR_DECR_REF(o);
-
-                o = txt->ft_eol;
-                txt->ft_eol = NULL;
-                if (o)
-                        VAR_DECR_REF(o);
         }
 }
 
@@ -1328,10 +1386,8 @@ open_text(int fd, struct fileconfig_t *cfg, Object *raw, int codec)
 
         txt->ft_codec = codec;
         /* FIXME: this should be an argument */
-        txt->ft_eol = stringvar_from_ascii("\n");
         txt->ft_raw = raw;
         txt->ft_eof = false;
-        txt->ft_fdpos = 0;
         return instance;
 }
 

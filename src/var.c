@@ -434,6 +434,21 @@ var_getitem_map(Object *obj, Object *key)
         return ErrorVar;
 }
 
+/*
+ * C-API hook to get a slice.  Do not call unless you really know
+ * what @obj is, or a bug trap may trigger.
+ */
+Object *
+var_getslice(Object *obj, ssize_t start, ssize_t stop, ssize_t step)
+{
+        bug_on(!isvar_seq(obj));
+        bug_on(!obj->v_type->sqm);
+        bug_on(!obj->v_type->sqm->getslice);
+        if (seqvar_size(obj) == 0)
+                return VAR_NEW_REF(obj);
+        return obj->v_type->sqm->getslice(obj, start, stop, step);
+}
+
 static Object *
 var_getitem_seq(Object *obj, Object *key)
 {

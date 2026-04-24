@@ -297,7 +297,7 @@ stringvar_newf(char *cstr, size_t size)
 
         string_writer_init(&wr, 1);
         memset(&utf8_state, 0, sizeof(utf8_state));
-        n = string_writer_decode(&wr, cstr, max, CODEC_UTF8, &utf8_state);
+        n = string_writer_decode(&wr, cstr, max, -1, CODEC_UTF8, &utf8_state);
         /*
          * We're only getting called from internal code which should
          * know not to send us invalid input.
@@ -2689,30 +2689,35 @@ string_create(Frame *fr)
 
 static ssize_t
 string_writer_decode_latin1(struct string_writer_t *wr,
-                            const void *data, size_t n)
+                            const void *data, size_t n, ssize_t max)
 {
         const unsigned char *u8 = data;
-        const unsigned char *end = u8 + n;
+        const unsigned char *end;
 
-        /*
-         * XXX: It would require messy low-level stuff with @wr,
-         * it's way faster to just call emalloc() and memcpy().
-         */
-        while (u8 < end) {
+        if (n > max && max >= 0)
+                n = max;
+        end = u8 + n;
+
+        while (u8 < end && max != 0) {
                 unsigned int c = *u8++;
                 string_writer_append(wr, c);
+                max--;
         }
         return n;
 }
 
 static ssize_t
 string_writer_decode_ascii(struct string_writer_t *wr,
-                           const void *data, size_t n)
+                           const void *data, size_t n, ssize_t max)
 {
         const unsigned char *u8 = data;
-        const unsigned char *end = u8 + n;
+        const unsigned char *end;
 
-        u8 += string_writer_get_ascii(wr, u8, end - u8);
+        if (n > max && max >= 0)
+                n = max;
+        end = u8 + n;
+
+        u8 += string_writer_get_ascii(wr, u8, n);
         if (u8 != end) {
                 err_ord(CODEC_ASCII, u8[0]);
                 return -1;
@@ -2738,13 +2743,13 @@ static inline bool is_continuation(int c) { return c < 0xc0 && c >= 0x80; }
 
 static ssize_t
 string_writer_decode_utf8(struct string_writer_t *wr, const void *data,
-                          size_t n, struct utf8_state_t *state)
+                          size_t n, size_t max, struct utf8_state_t *state)
 {
         static const unsigned long UNICODE_MAXCHR = 0x10ffffu;
         const unsigned char *u8 = data;
         const unsigned char *end = u8 + n;
         unsigned long point = 0;
-        if (state && state->state != UTF8_STATE_ASCII) {
+        if (state && state->state != UTF8_STATE_ASCII && max != 0) {
                 /* This means that calling code is not dealing with it */
                 bug_on(state->state == UTF8_STATE_ERR);
 
@@ -2769,13 +2774,15 @@ string_writer_decode_utf8(struct string_writer_t *wr, const void *data,
                         goto err_ord;
                 string_writer_append(wr, point);
                 memset(state, 0, sizeof(*state));
+                max--;
         }
 
-        while (u8 < end) {
+        while (u8 < end && max != 0) {
                 unsigned int c = *u8;
                 if (c < 128) {
                         /* TODO: aligned version of this */
                         string_writer_append(wr, c);
+                        max--;
                         u8++;
                         continue;
                 }
@@ -2795,6 +2802,7 @@ string_writer_decode_utf8(struct string_writer_t *wr, const void *data,
                         if (point > UNICODE_MAXCHR)
                                 goto err_ord;
                         u8 += 4;
+                        max--;
                         string_writer_append(wr, point);
                 } else if (c >= 0xe0u && c < 0xf0u) {
                         /*
@@ -2819,6 +2827,7 @@ string_writer_decode_utf8(struct string_writer_t *wr, const void *data,
                                 goto err_surrogate;
                         }
                         u8 += 3;
+                        max--;
                         string_writer_append(wr, point);
                 } else if (c >= 0xc0u && c < 0xe0) {
                         if (end - u8 < 2)
@@ -2829,6 +2838,7 @@ string_writer_decode_utf8(struct string_writer_t *wr, const void *data,
                         if (point > UNICODE_MAXCHR)
                                 goto err_ord;
                         u8 += 2;
+                        max--;
                         string_writer_append(wr, point);
                 } else {
                         /* [0x80, 0xc0) are invalid UTF8 */
@@ -2836,7 +2846,8 @@ string_writer_decode_utf8(struct string_writer_t *wr, const void *data,
                 }
         }
 
-        if (u8 != end && state) {
+        if (u8 != end && state && max != 0) {
+                state->cookiepos = end - u8;
                 unsigned int c = *u8++;
                 if (c >= 0xf0u && c < 0xf8u) {
                         state->point = c & 0x07u;
@@ -3217,7 +3228,10 @@ stringvar_from_source(const char *tokenstr, bool imm)
  * @wr:         String writer, which MUST have been initialized before
  *              this call.  This function assumes appends to it.
  * @data:       Data to decode
- * @n:          Size of @data in bytes
+ * @datalen:    Size of @data in bytes
+ * @max:        Maximum number of unicode points to retrieve, or -1 to
+ *              retrieve as much as the input or the buffer size will
+ *              allow.
  * @codec:      A CODEC_xxx enum
  * @state:      If non-NULL, a UTF8 state machine.  This is so multiple
  *              calls to this function can be made on non-contiguous
@@ -3239,18 +3253,20 @@ stringvar_from_source(const char *tokenstr, bool imm)
  */
 ssize_t
 string_writer_decode(struct string_writer_t *wr, const void *data,
-                     size_t n, int codec, struct utf8_state_t *state)
+                     size_t datalen, ssize_t max, int codec,
+                     struct utf8_state_t *state)
 {
         switch (codec) {
         case CODEC_ASCII:
-                return string_writer_decode_ascii(wr, data, n);
+                return string_writer_decode_ascii(wr, data, max, datalen);
         case CODEC_LATIN1:
-                return string_writer_decode_latin1(wr, data, n);
+                return string_writer_decode_latin1(wr, data, max, datalen);
         default:
                 bug();
                 return -1;
         case CODEC_UTF8:
-                return string_writer_decode_utf8(wr, data, n, state);
+                return string_writer_decode_utf8(wr, data,
+                                                 datalen, max, state);
         }
 }
 
@@ -3280,7 +3296,7 @@ stringvar_from_binary(const void *data, size_t n, int encoding)
         memset(&state, 0, sizeof(state));
 
         string_writer_init(&wr, 1);
-        res = string_writer_decode(&wr, data, n, encoding, &state);
+        res = string_writer_decode(&wr, data, n, -1, encoding, &state);
         if (res != n || state.state != UTF8_STATE_ASCII) {
                 /* Do not accept stragglers */
                 if (!err_occurred()) {

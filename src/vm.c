@@ -1681,9 +1681,17 @@ Object *
 execute_loop(Frame *fr)
 {
         Object *retval;
+        bool skip_recursion_decr = false;
 
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
+        static long recursion_counter = 0;
+        if (recursion_counter >= RECURSION_MAX) {
+                err_setstr(RecursionError,
+                           "Functions nested too deeply or too recursive");
+                skip_recursion_decr = true;
+                retval = ErrorVar;
+                goto out;
+        }
+        recursion_counter++;
 
         instruction_t ii;
         while ((ii = *(fr->ppii)++).code != INSTR_END) {
@@ -1772,7 +1780,12 @@ out:
             (retval == NULL || retval == ErrorVar)) {
                 vmframe_free(fr);
         }
-        RECURSION_END_FUNC();
+
+        if (!skip_recursion_decr) {
+                bug_on(recursion_counter <= 0);
+                recursion_counter--;
+        }
+
         return retval;
 }
 

@@ -193,6 +193,9 @@ static const char *RUNTIME_ERROR_SNIPPETS[] = {
         /* rvalue must be a class */
         "'abc' instanceof 1;",
 
+        /* return a recursion error rather than abort or crash */
+        "function x() { x(); }; x();",
+
         /* regression checks - fuzz tests which used to crash */
         "{let bar=bar(y=(38));}",
         "class C by inner () {}; let c = C(); c.inner = c; c.missing;",

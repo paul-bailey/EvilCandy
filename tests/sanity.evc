@@ -4,19 +4,39 @@
 let Test = importfile('../lib/test.evc');
 
 function test_generator() {
-    function get_iterator(stop) {
-        return (start) => {
-            for i in range(start, stop)
-                yield i;
-        };
-    }
-
-    let toten = get_iterator(10);
-
     let test = Test(name='GeneratorTest');
-    test.assert_true(list(toten(4))
-                     == [4, 5, 6, 7, 8, 9]);
-    test.assert_true(list(toten(10)) == []);
+    function test_generator_1() {
+        function get_iterator(stop) {
+            return (start) => {
+                for i in range(start, stop)
+                    yield i;
+            };
+        }
+
+        let toten = get_iterator(10);
+
+        test.assert_true(list(toten(4))
+                         == [4, 5, 6, 7, 8, 9]);
+        test.assert_true(list(toten(10)) == []);
+    }
+    function test_generator_2() {
+        function get_iterator_1() {
+            yield 'a';
+            yield 'b';
+            yield 'c';
+        }
+        function get_iterator_2() {
+            for letter in get_iterator_1() {
+                yield letter;
+            }
+        }
+        test.assert_true(list(get_iterator_1()) == ['a', 'b', 'c']);
+        // See issue #64: .join() won't permit generators right now.
+        // test.assert_true(''.join(get_iterator_2()) == 'abc');
+        test.assert_true(list(get_iterator_2()) == ['a', 'b', 'c']);
+    }
+    test_generator_1();
+    test_generator_2();
 }
 
 function test_string() {

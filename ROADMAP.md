@@ -2,12 +2,12 @@
 
 ### Core Language (Must Be Stable)
 
-* [ ] Variables, assignment, and expressions behave correctly
-* [ ] Functions (definition + calls) work reliably
-* [ ] Control flow (`if`, `while`, `for`) is stable
-* [ ] Classes and instances function correctly (basic usage)
-* [ ] Method calls and `self` semantics are consistent
-* [ ] Closures behave correctly (no “nil capture” issues)
+* [x] Variables, assignment, and expressions behave correctly
+* [x] Functions (definition + calls) work reliably
+* [x] Control flow (`if`, `while`, `for`) is stable
+* [x] Classes and instances function correctly (basic usage)
+* [x] Method calls and `self` semantics are consistent
+* [x] Closures behave correctly (no “nil capture” issues)
 
 ---
 
@@ -22,19 +22,21 @@
 
 ### Error Handling & Diagnostics
 
-* [ ] Syntax errors report correct location
+* [x] Syntax errors report correct location
 * [ ] Runtime errors report useful messages
-* [ ] Stack traces (even minimal) are available
+* [x] Stack traces (even minimal) are available
 * [ ] Clear distinction between fatal vs recoverable errors
+* [ ] Graceful recursion limits (no abort)
 
 ---
 
 ### Minimal Standard Library
 
 * [ ] Basic `io` (print/output)
+
+  * [ ]Prevent EINTR issues (interrupt handling)
 * [x] `input()` function
 * [ ] Minimal `sys.argv`
-* [ ] Minimal `sys.env` (basic environment access)
 * [ ] Minimal math functionality
 
 ---
@@ -89,6 +91,7 @@
 
   * [x] `r-string` type
 * time/datetime
+* Minimal `sys.env` (basic environment access)
 * full `os/posix` support:
 
   * a way to spawn a child process
@@ -122,10 +125,8 @@
 
 ### Runtime Improvements
 
-* Graceful recursion limits (no abort)
 * Scope tracking / local variable lifetime (no full-frame retention)
 * ClassType objects for built-ins
-* Prevent EINTR issues (interrupt handling)
 
 ---
 

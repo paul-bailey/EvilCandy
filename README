@@ -40,7 +40,9 @@ implementation are under rapid development.
 That said, EvilCandy approaching the end of its pre-alpha phase.  Even
 though the whole project is a hobby rather than a product, I am serious
 about getting it into good shape.  (There's a difference between a
-hobby and a mere pastime after all.)
+hobby and a mere pastime after all.)  ROADMAP.md is the big-picture
+to-do list (apart from github issues, which contain the nitpicky
+details).
 
 Thus far, the following can roughly be said about EvilCandy:
 

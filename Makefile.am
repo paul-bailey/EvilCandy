@@ -103,6 +103,12 @@ TESTS = tests/run-evilcandy-tests.sh \
         tests/regress-gh-issue-39-tty.sh \
         programs/unit_tests
 
+# Run this manually
+.PHONY: testclean
+testclean:
+	$(RM) -rf tests/*.log tests/*.trs
+	$(RM) -rf programs/*.log programs/*.trs
+
 noinst_HEADERS = \
         inc/evilcandy/config.h \
         inc/evilcandy/version.h \

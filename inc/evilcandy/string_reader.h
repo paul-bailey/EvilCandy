@@ -1,4 +1,3 @@
-/* Included by evilcandy.h.  Do not include this file directly. */
 #ifndef EVC_STRING_READER_H
 #define EVC_STRING_READER_H
 

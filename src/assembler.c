@@ -2443,11 +2443,7 @@ assemble_delete(struct assemble_t *a, unsigned int flags)
         if (as_lex(a) < 0)
                 return -1;
         if (istok_indirection(a->oc->t)) {
-#if 1
                 if (name->t != OC_IDENTIFIER)
-#else
-                if (name->t != OC_THIS && name->t != OC_IDENTIFIER)
-#endif
                         goto baddelete;
                 if (ainstr_load_symbol(a, pos) < 0)
                         return -1;

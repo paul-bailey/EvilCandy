@@ -1244,9 +1244,41 @@ do_text_tell(Frame *fr)
 static Object *
 do_text_seek(Frame *fr)
 {
-        err_setstr(NotImplementedError,
-                   "seek not implemented yet for this file type");
-        return ErrorVar;
+        Object *fo, *ret;
+        Object *argstack[2];
+        long long offs;
+        struct textfile_t *txt;
+        size_t nr_args;
+
+        argstack[1] = NULL;
+        if (vm_getargs(fr, "<*>[l|<i>!]{!}:seek", &fo,
+                       &offs, &argstack[1]) == RES_ERROR) {
+                return ErrorVar;
+        }
+
+        txt = (struct textfile_t *)fo;
+        if (TEXTFILE_CLOSED(txt)) {
+                filerr_closed("seek");
+                return ErrorVar;
+        }
+
+        nr_args = argstack[1] ? 2 : 1;
+        /* TODO: text_flush when I add bufferred writes */
+
+        if (txt->ft_buf) {
+                if (argstack[1] &&
+                    intvar_toll(argstack[1]) == SEEK_CUR) {
+                        offs -= (seqvar_size(txt->ft_buf)
+                                 - txt->ft_bufpos);
+                }
+                text_clearbuf(txt);
+        }
+        txt->ft_eof = false;
+        argstack[0] = intvar_new(offs);
+        ret = file_call_stack(txt->ft_raw, STRCONST_ID(seek),
+                              argstack, nr_args);
+        VAR_DECR_REF(argstack[0]);
+        return ret;
 }
 
 static Object *

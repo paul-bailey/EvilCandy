@@ -3210,7 +3210,7 @@ eval_only:
 
         /* Throw result away */
         if (need_pop) {
-                if (!a->fp) {
+                if (!a->fp && !!(flags & FE_EVALONLY)) {
                         add_instr(a, INSTR_RETURN_VALUE, 0, 0);
                 } else {
                         add_instr(a, INSTR_POP, pop_arg, 0);

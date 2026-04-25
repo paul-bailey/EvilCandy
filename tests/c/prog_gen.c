@@ -127,6 +127,29 @@ gen_function_call_expression(struct prog_t *prog,
 {
         int i, nr_args;
 
+        /*
+         * FIXME: This is more of an issue with src/assembler.c than
+         * with this program.  The statement:
+         *
+         *      x() == y;
+         *
+         * will cause a syntax error instead of a name-doesn't-exist
+         * runtime error, because src/assembler.c rejects any tokens
+         * after the closing parenthesis that isn't a de-reference
+         * (one of ".[(") or end-of-statement (";").  The statement:
+         *
+         *      (x()) == y;
+         *
+         * will NOT cause a syntax error, because it goes through a
+         * different parsing path; in the former case, assembler.c
+         * assumes a subroutine, while in the latter case, assembler.c
+         * assumes an expression.
+         *
+         * Hence our double-parentheses here.
+         */
+        if (sb_append(&prog->sb, "(") < 0)
+                return -1;
+
         if (insert_existing_name(prog, sym) < 0)
                 return -1;
 
@@ -141,7 +164,7 @@ gen_function_call_expression(struct prog_t *prog,
                 if (gen_expr(prog, sym) < 0)
                         return -1;
         }
-        return sb_append(&prog->sb, ")");
+        return sb_append(&prog->sb, "))");
 }
 
 static int
@@ -167,7 +190,13 @@ static int
 gen_int_expression(struct prog_t *prog)
 {
         char buf[128];
-        int val = rand();
+        /*
+         * Keep this number small. We could end up with something
+         * like "112312333 * [1, 'a', 5.0]", which is fine for stress
+         * tests (it's a valid expression), but it's likely to cause timeouts
+         * during fuzzer tests.
+         */
+        int val = rand() % 50;
         evc_sprintf(buf, sizeof(buf), "%i", val);
         return sb_append(&prog->sb, buf);
 }
@@ -203,7 +232,13 @@ gen_expr(struct prog_t *prog, struct fuzzer_symtab_t *sym)
         case EXPR_TYPE_LIST:
                 return sb_append(&prog->sb, "[1, 'a', 5.0]");
         case EXPR_TYPE_DICT:
-                return sb_append(&prog->sb, "{'a': 1, 1: 'b'}");
+                /*
+                 * The parentheses are because dictionary expressions may
+                 * not begin a full statement, due to syntactic over-
+                 * loading of the OC_LBRACE token. and we don't know here
+                 * if we're at the start of a statement or not.
+                 */
+                return sb_append(&prog->sb, "({'a': 1, 1: 'b'})");
         case EXPR_TYPE_FUNCTION_CALL:
                 return gen_function_call_expression(prog, sym);
         case EXPR_TYPE_FUNCTION_DEF:

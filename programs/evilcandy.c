@@ -134,7 +134,7 @@ er:
         return -1;
 }
 
-static void
+static int
 run_script(const char *filename, FILE *fp, struct options_t *opt)
 {
         Object *ex;
@@ -185,12 +185,14 @@ done:
 done_skip_ex:
         if (retval == ErrorVar) {
                 err_print_last(stderr);
-        } else if (retval) {
-                VAR_DECR_REF(retval);
+                return -1;
         }
+        if (retval)
+                VAR_DECR_REF(retval);
+        return 0;
 }
 
-static void
+static int
 run_tty(struct options_t *opt)
 {
         FILE *dfp = NULL;
@@ -229,12 +231,14 @@ run_tty(struct options_t *opt)
         }
         fprintf(stderr, "\n");
         fflush(stderr);
+        return 0;
 }
 
-static void
+static int
 run_text(const char *text, struct options_t *opt)
 {
         Object *result, *ex;
+        int ret;
 
         /*
          * TODO: support this instead of fail.
@@ -242,55 +246,59 @@ run_text(const char *text, struct options_t *opt)
         if (opt->disassemble) {
                 fprintf(stderr,
                         "Disassembly not supported for -c <text> option\n");
-                return;
+                return -1;
         }
 
         ex = assemble_string(text, false);
         if (ex == ErrorVar) {
                 err_print_last(stderr);
-                return;
+                return -1;
         } else if (!ex) {
-                return;
+                return 0;
         }
         result = vm_exec_script(ex, NULL);
         if (result == ErrorVar) {
                 err_print_last(stderr);
+                ret = -1;
         } else {
                 VAR_DECR_REF(result);
+                ret = 0;
         }
         VAR_DECR_REF(ex);
+        return ret;
 }
 
 int
 main(int argc, char **argv)
 {
         static struct options_t opt;
+        int ret;
         initialize_program();
 
         if (parse_args(argc, argv, &opt) < 0)
-                return -1;
+                return EXIT_FAILURE;
 
         if (opt.program_text) {
-                run_text(opt.program_text, &opt);
+                ret = run_text(opt.program_text, &opt);
         } else if (opt.infile) {
                 FILE *fp = push_path(opt.infile);
                 if (!fp)
                         fail("Could not open '%s'", opt.infile);
-                run_script(opt.infile, fp, &opt);
+                ret = run_script(opt.infile, fp, &opt);
                 pop_path(fp);
         } else if (isatty(fileno(stdin))) {
                 gbl_set_interactive(true);
-                run_tty(&opt);
+                ret = run_tty(&opt);
         } else {
                 /*
                  * in a pipe; parse entire file
                  * but don't push file path.
                  */
-                run_script("<stdin>", stdin, &opt);
+                ret = run_script("<stdin>", stdin, &opt);
         }
 
         end_program();
-        return 0;
+        return ret ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
 

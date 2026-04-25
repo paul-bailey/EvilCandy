@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -137,15 +138,96 @@ fuzz_loop(unsigned int n_tests, unsigned int seed, int verbose)
         return 0;
 }
 
+struct options_t {
+        unsigned long seed;
+        unsigned int verbose;
+        unsigned long nr_tests;
+};
+
+static void
+print_help(FILE *fp)
+{
+        static const char *HELPSTR =
+        "OPTIONS:\n"
+        "    --seed SEED     Select seed.  If this option is not used, a default seed\n"
+        "                    will be used instead.\n"
+        "    -n COUNT        Select number of tests to run.  If this option is not\n"
+        "                    used, a default will be used instead.\n"
+        "    -vN             Set verbosity level, 0-9.  A nonzero verbosity level will\n"
+        "                    print verbose information about the programs being tested.\n"
+        "                    n is zero by default.\n";
+
+        fprintf(fp, "rtfuzzer - real-time fuzzer test for " EVILCANDY_VERSION "\n\n");
+        fprintf(fp, "%s\n", HELPSTR);
+}
+
+static void
+parse_args(int argc, char **argv, struct options_t *opts)
+{
+        int opt;
+        for (opt = 1; opt < argc; opt++) {
+                if (!strcmp(argv[opt], "--seed")) {
+                        char *endptr;
+                        opt++;
+                        if (opt >= argc)
+                                goto err_parse_seed;
+                        errno = 0;
+                        opts->seed = strtoul(argv[opt], &endptr, 0);
+                        if (endptr == argv[opt] || *endptr != '\0' || errno) {
+err_parse_seed:
+                                fprintf(stderr, "Expected: --seed <n>\n");
+                                exit(EXIT_FAILURE);
+                        } else if (opts->seed > INT_MAX) {
+                                fprintf(stderr, "Seed must be int-sized\n");
+                                exit(EXIT_FAILURE);
+                        }
+                } else if (!strcmp(argv[opt], "-n")) {
+                        char *endptr;
+                        opt++;
+                        if (opt >= argc)
+                                goto err_parse_n;
+                        errno = 0;
+                        opts->nr_tests = strtoul(argv[opt], &endptr, 0);
+                        if (endptr == argv[opt] || *endptr != '\0' || errno) {
+err_parse_n:
+                                fprintf(stderr, "Expected: -n <n>\n");
+                                exit(EXIT_FAILURE);
+                        } else if (opts->nr_tests > INT_MAX) {
+                                fprintf(stderr, "number of tests must be int-sized\n");
+                                exit(EXIT_FAILURE);
+                        }
+                } else if (argv[opt][0] == '-' && argv[opt][1] == 'v') {
+                        if (!isdigit(argv[opt][2]) || argv[opt][3] != '\0') {
+                                fprintf(stderr, "Expected -v[0-9]\n");
+                                exit(EXIT_FAILURE);
+                        }
+                        opts->verbose = argv[opt][2] - '0';
+                } else if (!strcmp(argv[opt], "--help")
+                           || !strcmp(argv[opt], "-h")) {
+                        print_help(stdout);
+                        exit(EXIT_SUCCESS);
+                } else {
+                        fprintf(stderr, "invalid option\n");
+                        print_help(stderr);
+                        exit(EXIT_FAILURE);
+                }
+        }
+}
+
 int
 main(int argc, char **argv)
 {
-        /* TODO: make these be command-line options */
-        int seed = 12345;
-        int verbose = 0;
+        struct options_t opts;
 
-        srand(seed);
-        if (fuzz_loop(1000, seed, verbose) < 0)
+        /* defaults */
+        opts.seed = 12345;
+        opts.nr_tests = 1000;
+        opts.verbose = 0;
+
+        parse_args(argc, argv, &opts);
+
+        srand(opts.seed);
+        if (fuzz_loop(opts.nr_tests, opts.seed, opts.verbose) < 0)
                 return EXIT_FAILURE;
         return EXIT_SUCCESS;
 }

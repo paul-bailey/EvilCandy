@@ -240,15 +240,6 @@ run_text(const char *text, struct options_t *opt)
         Object *result, *ex;
         int ret;
 
-        /*
-         * TODO: support this instead of fail.
-         */
-        if (opt->disassemble) {
-                fprintf(stderr,
-                        "Disassembly not supported for -c <text> option\n");
-                return -1;
-        }
-
         ex = assemble_string(text, false);
         if (ex == ErrorVar) {
                 err_print_last(stderr);
@@ -256,6 +247,25 @@ run_text(const char *text, struct options_t *opt)
         } else if (!ex) {
                 return 0;
         }
+
+        if (opt->disassemble) {
+                FILE *dfp;
+                bug_on(!opt->disassemble_only);
+                if (opt->disassemble_outfile) {
+                        dfp = fopen(opt->disassemble_outfile, "w");
+                        if (!dfp) {
+                                perror("Cannot disassemble, failed to open output file");
+                                VAR_DECR_REF(ex);
+                                return -1;
+                        }
+                } else  {
+                        dfp = stdout;
+                }
+                disassemble_lite(dfp, ex);
+                VAR_DECR_REF(ex);
+                return 0;
+        }
+
         result = vm_exec_script(ex, NULL);
         if (result == ErrorVar) {
                 err_print_last(stderr);

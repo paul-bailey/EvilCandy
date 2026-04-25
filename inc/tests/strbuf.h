@@ -10,6 +10,7 @@ struct strbuf_t {
 };
 
 extern void sb_init(struct strbuf_t *sb, char *buffer, size_t cap);
-extern void sb_append(struct strbuf_t *sb, const char *s);
+extern int sb_append(struct strbuf_t *sb, const char *s);
+extern void sb_reset(struct strbuf_t *sb);
 
 #endif /* EVC_INC_TESTS_STRBUF_H */

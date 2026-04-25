@@ -25,6 +25,8 @@ tools_gen_SOURCES = tools/gen.c
 tools_gen_CPPFLAGS = -I$(top_srcdir)/inc
 
 tests_c_libtest_a_SOURCES = \
+        tests/c/fuzzer_symtab.c \
+        tests/c/prog_gen.c \
         tests/c/strbuf.c \
         tests/c/tap.c
 
@@ -176,6 +178,8 @@ noinst_HEADERS = \
         inc/lib/helpers.h \
         inc/lib/list.h \
         inc/lib/utf8.h \
+        inc/tests/fuzzer_symtab.h \
+        inc/tests/prog_gen.h \
         inc/tests/strbuf.h \
         inc/tests/tap.h \
         tools/gen.h

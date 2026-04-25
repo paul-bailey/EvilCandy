@@ -10,6 +10,7 @@
 #include <evilcandy/err.h>
 #include <evilcandy/global.h>
 #include <internal/init.h>
+#include <tests/prog_gen.h>
 
 #include <assert.h>
 #include <ctype.h>
@@ -25,90 +26,6 @@ struct template_program_t {
         const char *name;
         const char *template_text;
 };
-
-static const struct template_program_t TEMPLATES[] = {
-        {
-                .name = "adder",
-                .template_text =
-                        "function add(a, b) {\n"
-                        "  return a + b;\n"
-                        "}\n"
-                        "print(add(@EXPR1, @EXPR2));\n",
-        }, {
-                .name = "dict",
-                .template_text =
-                        "let @IDENTIFIER1 = { 'x': @EXPR1 };\n"
-                        "print(@IDENTIFIER1.@IDENTIFIER2);\n",
-        }
-};
-
-/*
- * DOC: Substitution
- *
- * For a given @xxxxN, N is '1' or '2'.
- * The arrays below are conceptually double-arrays.
- * Row is a don't-care.  Column is determined by `which`.
- * We always want @xxx1 to take from the first column
- * and @xxx2 to take from the second column.
- */
-static const char *
-substitute_expression(unsigned int which)
-{
-        static const char *EXPR_SUBST[8] = {
-                "some_name",                     "1",
-                "f'{some_other_name}'",          "'a'",
-                "{ 'a': 1 }",                    "b'x08'",
-                "function(x) { return x + 1; }", "[]"
-        };
-        bug_on(which > 1);
-        return EXPR_SUBST[2 * (rand() % 4) + which];
-}
-
-static const char *
-substitute_identifier(unsigned int which)
-{
-        static const char *IDENTIFIER_SUBST[6] = {
-                "x", "falstaff",
-                "y", "hal",
-                "z", "poins"
-        };
-
-        bug_on(which > 1);
-        return IDENTIFIER_SUBST[2 * (rand() % 3) + which];
-}
-
-static void
-gen_program(struct buffer_t *b, const char *template)
-{
-        const char *s;
-        int c;
-
-
-        s = template;
-        while ((c = *s++) != '\0') {
-                int n;
-                const char *start, *end;
-                if (c != '@') {
-                        buffer_putc(b, c);
-                        continue;
-                }
-                start = s;
-                while (isupper((int)*s))
-                        s++;
-                end = s;
-                bug_on(*s != '1' && *s != '2');
-                n = *s - '1';
-                s++;
-
-                if (!strncmp(start, "IDENTIFIER", end - start)) {
-                        buffer_puts(b, substitute_identifier(n));
-                } else if (!strncmp(start, "EXPR", end - start)) {
-                        buffer_puts(b, substitute_expression(n));
-                } else {
-                        bug();
-                }
-        }
-}
 
 static void
 run_evilcandy_(const char *program)
@@ -184,35 +101,40 @@ run_evilcandy(const char *program)
         return 0;
 }
 
+#define FUZZERR(...)  do { \
+        fprintf(stderr, "[Evilcandy RT Fuzzer]: "); \
+        fprintf(stderr, __VA_ARGS__); \
+        fprintf(stderr, "\n"); \
+} while (0);
+
 static int
 fuzz_loop(unsigned int n_tests, unsigned int seed, int verbose)
 {
-        struct buffer_t b;
+        char buf[8192];
         unsigned int i;
-        int ret = -1;
-        buffer_init(&b);
-
         for (i = 0; i < n_tests; i++) {
-                size_t tpli = rand() % ARRAY_SIZE(TEMPLATES);
-                buffer_reset(&b);
-                gen_program(&b, TEMPLATES[tpli].template_text);
-                if (verbose)
-                        printf("%s\n", b.s);
+                int result = prog_gen(buf, sizeof(buf), 10);
+                if (result < 0) {
+                        FUZZERR("Fuzzer for " EVILCANDY_VERSION);
+                        FUZZERR("Cannot sufficiently produce tests for seed %u",
+                               seed);
+                        FUZZERR("buffer size %u likely too small",
+                               (int)sizeof(buf));
+                        return -1;
+                }
 
-                if (run_evilcandy(b.s) < 0) {
-                        fprintf(stderr, "[Evilcandy RT Fuzzer]: Fuzzer for " EVILCANDY_VERSION);
-                        fprintf(stderr, "[Evilcandy RT Fuzzer]: Test #%d failed\n", i);
-                        fprintf(stderr, "[Evilcandy RT Fuzzer]: Seed:    %u\n", seed);
-                        fprintf(stderr, "[Evilcandy RT Fuzzer]: Program: %s\n", b.s);
-                        ret = -1;
-                        goto out;
+                if (verbose)
+                        printf("%s\n", buf);
+
+                if (run_evilcandy(buf) < 0) {
+                        FUZZERR("Fuzzer for " EVILCANDY_VERSION);
+                        FUZZERR("Test #%d failed", i);
+                        FUZZERR("Seed:    %u", seed);
+                        FUZZERR("Failed program text below\n---\n%s", buf);
+                        return -1;
                 }
         }
-        ret = 0;
-
-out:
-        buffer_free(&b);
-        return ret;
+        return 0;
 }
 
 int

@@ -3,6 +3,7 @@ AC_INIT([EvilCandy], [EVILCANDY_VERSION], [roscidcup@falstaffandme.com])
 AC_CONFIG_AUX_DIR([build])
 AC_CONFIG_MACRO_DIR([build/m4])
 AC_CONFIG_SRCDIR([src/types/function.c])
+LT_INIT
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 AC_PROG_CC
 AC_PROG_RANLIB

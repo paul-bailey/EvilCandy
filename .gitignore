@@ -1,4 +1,6 @@
 *.o
+*.lo
+*.la
 .*.swp
 src/.*.swp
 src/builtin/.*.swp
@@ -23,6 +25,8 @@ src/builtin/.*.swp
 /tests/*.trs
 *.log
 *.trs
+/libtool
+/src/.libs
 
 /Documentation/_build
 /Documentation/__pycache__

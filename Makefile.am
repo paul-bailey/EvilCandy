@@ -15,22 +15,21 @@ bin_PROGRAMS = evilcandy
 EXTRA_PROGRAMS = programs/unit_tests programs/fuzzer programs/rtfuzzer
 check_PROGRAMS = tools/tokgen tools/gen
 
-test_lib = tests/c/libtest.a
-# FIXME: this compiles test_lib for default make, even though it's
-# only needed for `make tests`
-noinst_LIBRARIES = src/libevilcandy.a $(test_lib)
+test_lib = tests/c/libtest.la
+noinst_LTLIBRARIES = src/libevilcandy.la
+check_LTLIBRARIES = $(test_lib)
 
 tools_tokgen_SOURCES = tools/tokgen.c tools/genutil.c
 tools_gen_SOURCES = tools/gen.c
 tools_gen_CPPFLAGS = -I$(top_srcdir)/inc
 
-tests_c_libtest_a_SOURCES = \
+tests_c_libtest_la_SOURCES = \
         tests/c/fuzzer_symtab.c \
         tests/c/prog_gen.c \
         tests/c/strbuf.c \
         tests/c/tap.c
 
-src_libevilcandy_a_SOURCES = \
+src_libevilcandy_la_SOURCES = \
         src/assembler.c \
         src/assemble_post.c \
         src/buffer.c \
@@ -219,7 +218,7 @@ headercheck: $(noinst_HEADERS) $(BUILT_SOURCES)
         done; \
         exit $$failed
 
-COMMON_LDADD=src/libevilcandy.a -lm
+COMMON_LDADD=src/libevilcandy.la -lm
 if WANT_READLINE
 COMMON_LDADD+=-lreadline
 endif
@@ -237,8 +236,8 @@ COMMON_CPPFLAGS=\
  -DRCDATADIR=\"$(evilcandydir)\" \
  -Wall
 
-src_libevilcandy_a_CPPFLAGS=$(COMMON_CPPFLAGS)
-tests_c_libtest_a_CPPFLAGS=$(COMMON_CPPFLAGS)
+src_libevilcandy_la_CPPFLAGS=$(COMMON_CPPFLAGS)
+tests_c_libtest_la_CPPFLAGS=$(COMMON_CPPFLAGS)
 evilcandy_CPPFLAGS=$(COMMON_CPPFLAGS)
 programs_unit_tests_CPPFLAGS=$(COMMON_CPPFLAGS)
 programs_fuzzer_CPPFLAGS=$(COMMON_CPPFLAGS)
@@ -340,6 +339,7 @@ EXTRA_DIST = \
         tools/tokens \
         tests/testsuite.evc \
         tests/sanity.evc \
+        tests/c/README \
         $(TESTS) \
         $(evilcandy_demos) \
         $(evilcandy_docs) \

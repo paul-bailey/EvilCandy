@@ -40,8 +40,8 @@ struct operator_methods_t {
 
 struct map_methods_t {
         Object *(*getitem)(Object *d, Object *key);
-        int (*setitem)(Object *d,
-                       Object *key, Object *item);
+        enum result_t (*setitem)(Object *d,
+                                 Object *key, Object *item);
         /* @d is this type; @key must be type-checked */
         int (*hasitem)(Object *d, Object *key);
 };

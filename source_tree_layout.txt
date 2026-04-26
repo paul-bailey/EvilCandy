@@ -2,17 +2,20 @@
 
      Top level
         |
-        +------programs/        C files not shared by different programs.
-        |                       programs/evilcandy.c contains the main()
-        |                       for the EvilCandy interpreter. fuzzer.c is
-        |                       for the fuzzer.  Other files are for unit
-        |                       tests.
+        +------programs/        C entry points for programs.
+        |                       programs/evilcandy.c is the entry point
+        |                       for the EvilCandy interpreter.
         |
         +------src/             Core C sources
         |       |
         |       +---builtin/    C accelerators for library modules
         |       |
         |       +---types/      Callbacks and methods for built-in types
+        |
+        +------tests/           Test scripts
+        |       |
+        |       +---c/          C sources needed only by the test programs
+        |                       that are writtten in C.
         |
         +------inc/             Main API headers, included by evilcandy.h
         |       |
@@ -23,19 +26,21 @@
         |       +---internal/   Internal headers
         |       |
         |       +---evilcandy/  Public API headers
+        |       |
+        |       +---tests/      Headers for tests/c/
         |
         +-------lib/            The main library of scripts that user
-        |                       sources can load by default.  These ought
-        |                       to be installed in some place like
+        |                       sources can load by default.  These are
+        |                       typically installed in some place like
         |                       /usr/local/share/EvilCandy/
         |
-        +-------demos/          EvilCandy scripts that test the code,
-        |                       both the stressful kind and the
-        |                       see-if-it-works kind.
+        +-------demos/          EvilCandy scripts that demo the code.
         |
-        +-------tools/          Code generators & such.
+        +-------tools/          Source code generators & such.
         |
-        +-------etc/            Miscellaneous files and programs.
+        +------etc/             Miscellaneous files and programs.
+        |       |
+        |       +- evilcandy.1  man page for evilcandy.
         |
         +-----Documentation/    Documentation, which uses its own Makefile
                                 system (using Sphinx) separately from the

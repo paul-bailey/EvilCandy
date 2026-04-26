@@ -154,6 +154,7 @@ push_path_from(const char *requested_file, const char *refpath, bool script)
                 bcnew = stringvar_new(newpath);
                 array_append(bc, bcnew);
                 VAR_DECR_REF(bcnew);
+                VAR_DECR_REF(bc);
 
                 notdir = find_notdir(newpath);
                 *notdir = '\0';

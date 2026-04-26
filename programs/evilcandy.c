@@ -20,6 +20,7 @@
 struct options_t {
         bool disassemble;
         bool disassemble_only;
+        bool check_only;
         bool disassemble_minimum;
         char *disassemble_outfile;
         char *infile;
@@ -48,6 +49,7 @@ print_help_and_quit(FILE *fp)
                 "        -h              Print this help and quit\n"
                 "        --version       Same as -V\n"
                 "        --help          Same as -h\n"
+                "        --check         Compile but do not execute\n"
                 "\n"
                 "Common usage:\n"
                 "        REPL mode:      evilcandy\n"
@@ -97,6 +99,8 @@ parse_args(int argc, char **argv, struct options_t *opt)
                                         print_version_and_quit();
                                 } else if (!strcmp(s, "help")) {
                                         print_help_and_quit(stdout);
+                                } else if (!strcmp(s, "check")) {
+                                        opt->check_only = true;
                                 } else {
                                         goto er;
                                 }
@@ -122,6 +126,14 @@ parse_args(int argc, char **argv, struct options_t *opt)
         }
         if (opt->infile != NULL && opt->program_text != NULL) {
                 fprintf(stderr, "You may not specify both infile and -c <string>\n");
+                goto er;
+        }
+
+        /* FIXME: isatty() used in multiple places to determine type of input */
+        if (opt->check_only && !opt->infile
+            && !opt->program_text && isatty(fileno(stdin))) {
+                fprintf(stderr,
+                        "--check option unavailable for interactive mode.\n");
                 goto er;
         }
         if (opt->disassemble)
@@ -167,17 +179,23 @@ run_script(const char *filename, FILE *fp, struct options_t *opt)
                 if (dfp != stdout)
                         fclose(dfp);
                 retval = NULL;
-        } else {
-                bug_on(opt->disassemble_only);
-                retval = vm_exec_script(ex, NULL);
-                if (retval == ErrorVar || err_occurred()) {
-                        /* semi bug */
-                        if (!err_occurred())
-                                err_setstr(RuntimeError, "Unreported Error");
-                        if (retval != ErrorVar)
-                                VAR_DECR_REF(retval);
-                        retval = ErrorVar;
-                }
+                goto done;
+        }
+
+        if (opt->check_only) {
+                retval = NULL;
+                goto done;
+        }
+
+        bug_on(opt->disassemble_only);
+        retval = vm_exec_script(ex, NULL);
+        if (retval == ErrorVar || err_occurred()) {
+                /* semi bug */
+                if (!err_occurred())
+                        err_setstr(RuntimeError, "Unreported Error");
+                if (retval != ErrorVar)
+                        VAR_DECR_REF(retval);
+                retval = ErrorVar;
         }
 
 done:
@@ -262,8 +280,13 @@ run_text(const char *text, struct options_t *opt)
                         dfp = stdout;
                 }
                 disassemble_lite(dfp, ex);
-                VAR_DECR_REF(ex);
-                return 0;
+                ret = 0;
+                goto out;
+        }
+
+        if (opt->check_only) {
+                ret = 0;
+                goto out;
         }
 
         result = vm_exec_script(ex, NULL);
@@ -274,6 +297,8 @@ run_text(const char *text, struct options_t *opt)
                 VAR_DECR_REF(result);
                 ret = 0;
         }
+
+out:
         VAR_DECR_REF(ex);
         return ret;
 }

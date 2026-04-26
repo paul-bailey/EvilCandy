@@ -271,7 +271,7 @@ mem_is_ascii(const void *p, size_t size)
         /* XXX: awfully involved, only faster if @size is very long */
         true_end = voidp_add(p, size);
         tlen = (size_t)p;
-        tlen &= ALIGN;
+        tlen &= (ALIGN - 1);
         if (tlen)
                 tlen = ALIGN - tlen;
 
@@ -289,7 +289,7 @@ mem_is_ascii(const void *p, size_t size)
         while (p < tmp_end) {
                 if ((*(unsigned long *)p & ASCIILONG) != 0)
                         return false;
-                voidp_incr(&p);
+                p = voidp_add(p, ALIGN);
         }
 
         while (p < true_end) {

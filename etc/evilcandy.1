@@ -33,6 +33,11 @@ Same as
 .B \-V
 Print version and quit.
 .TP
+.BI \-I " DIR"
+Add an import path.
+If multiple \-I options are used,
+they should be requested in decreasing order of priority.
+.TP
 .B \-h
 Print help and quit.
 .TP
@@ -43,6 +48,9 @@ Same as
 .B \-\-help
 Same as
 .BR \-h .
+.TP
+.B \-\-check
+Compile but do not execute.
 .SH EXAMPLES
 .TP
 REPL mode:

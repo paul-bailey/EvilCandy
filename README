@@ -37,7 +37,7 @@ Status
 **UNSTABLE!!**  See disclaimer in COPYING.  The language and its
 implementation are under rapid development.
 
-That said, EvilCandy approaching the end of its pre-alpha phase.  Even
+That said, EvilCandy is approaching the end of its pre-alpha phase.  Even
 though the whole project is a hobby rather than a product, I am serious
 about getting it into good shape.  (There's a difference between a
 hobby and a mere pastime after all.)  ROADMAP.md is the big-picture
@@ -61,14 +61,16 @@ Thus far, the following can roughly be said about EvilCandy:
 
 * It can run in disassembly mode, where instead of executing code,
   it will disassemble its compiled input and print it.  Probably not
-  useful to anybody but me, as a debugging tool.
+  useful to anybody but me, but it's a handy debugging tool.
 
 * It can load and execute scripts, and have those scripts load and
   execute other scripts.
 
 * I have not added any code for cyclic GC yet, so there's a hazard
-  of accidentally immortalizing data with cyclic references, for example
-  when inserting a dictionary into itself.
+  of accidentally immortalizing data with cyclic references.
+  (demos/class_adventure.evc is an example of a program which does this,
+  leaving behind over two hundred objects which the cleanup doesn't
+  touch.)
 
 * It has skeletons of math, IO, and socket libraries, but these are
   mainly as they were when I threw them together just to see if
@@ -84,9 +86,9 @@ Thus far, the following can roughly be said about EvilCandy:
 * I have thus far only run this on Darwin (more specifically, the macOS
   terminal) and Ubuntu, and compiled it with clang and gcc.
 
-* I have not finished making all my final decisions about syntax.  I am
-  considering adding static typing, which will gut out a lot of the
-  language's existing syntax.  That is a very post-alpha issue to resolve.
+* I have not finalized every decision about syntax.  I am considering
+  adding static typing, which will gut out a lot of the language's
+  existing syntax.  That is a very post-alpha issue to resolve.
 
 * For now, the cleanest way to inherit a base class is to actually
   inherit it.  But EvilCandy also has features to make Composition Over
@@ -127,12 +129,12 @@ Here are some major differences:
 
 * The ``for`` loop resembles Python's for loop rather than JavaScript's
   C-like for loop.  This also means that where speed is a concern, you
-  can avoid the frame-swapping overhead that comes with an array's or
-  dictionary's ``.foreach`` built-in method.
+  can avoid the frame-swapping overhead that comes with the ``.foreach``
+  method that JavaScript builds in to its arrays and dictionaries.
 
 * EvilCandy has a ``range`` data-type like Python, to facilitate using
   the Python-like for-loop for general-purpose do-this-a-million-times
-  iterating.
+  iterating.  It also allows for user-defined generators.
 
 * EvilCandy is very dynamically typed.  However, a recent nighttime visit
   by three ghosts showed me the true spirit of safe programming, so a
@@ -157,18 +159,23 @@ Here are some major differences:
 * EvilCandy is more bare-bones with its native types.  There is a
   ``class`` syntax, but no ``this.Prototype.Init`` or whatnot.
 
-* EvilCandy's classes inherit base classes and build up a MRO array
-  rather than use a JavaScript-like ``Prototype`` chain.  It also
-  permits a single delegate object per class instance, for programmers
-  who prefer the Composition Over Inheritance approach.  For extending
-  built-in classes, this is necessary, because inheritance is only
-  permitted for user-defined classes.
+* EvilCandy's syntax for delegation resembles Kotlin more than
+  JavaScript.  Rather than use a ``Prototype`` chain, an EvilCandy class
+  lets the user pick an attribute name for the delegating object; the
+  choice of attribute name is unchangeable after that, but delegating
+  object itself can be set and changed dynamically during an
+  instantiation's lifetime.
 
-* Associative arrays are not class instantiations; they are just pure
-  dictionaries.  As with JavaScript, you could combine closures and
-  dictionaries in a way that forgoes ``class`` syntax altogether, but
-  you have to be more particular about it, because EvilCandy has no
-  ``this`` keyword.
+* In addition to delegatition, Evilcandy supports full multiple
+  inheritance.  At class-creation time, the base classes are formed into
+  an MRO array.  Unlike with delegation, inheritance of built-in classes
+  is not permitted.
+
+* Associative arrays are not instantiations of user-defined classes;
+  they are just pure dictionaries.  As with JavaScript, you could combine
+  closures and dictionaries in a way that forgoes ``class`` syntax
+  altogether, but you have to be more particular about it, because
+  EvilCandy has no ``this`` keyword.
 
 How Fast Is EvilCandy?
 ----------------------

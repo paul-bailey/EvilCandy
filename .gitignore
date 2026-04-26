@@ -27,6 +27,7 @@ src/builtin/.*.swp
 *.trs
 /libtool
 /src/.libs
+/tests/c/.libs
 
 /Documentation/_build
 /Documentation/__pycache__

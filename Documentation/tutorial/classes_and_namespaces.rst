@@ -245,14 +245,6 @@ protocol.   The ``speak`` methods, on the other hand, are overloaded.
 Inheritance Using ``super()``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. admonition:: Warning
-
-   The ``super()`` description below is correct.  However,
-   while EvilCandy is in pre-alpha, do not make assumptions
-   which base class is being used for "super", in the case of
-   multiple inheritance.  Pre-alpha EvilCandy has not worked
-   out all the method-resolution-order issues yet.
-
 Sometimes, instead of completely overloading an inherited method,
 you want to extend it instead.  Let's look at another example of
 inheritance::
@@ -289,12 +281,6 @@ immediately followed by ``().`` and a method name. In other positions,
 
 Class Private Fields
 --------------------
-
-.. note::
-
-   This feature of EvilCandy is still minimally developed and tested.
-   There are also many corner-cases which have not yet been worked out,
-   so consider this section to be only *mostly* true.
 
 A class's private fields are declared like so::
 

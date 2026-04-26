@@ -70,19 +70,44 @@ cfile_init_type_registry(void)
         }
 }
 
+static void
+type_deinit_builtin_static(struct type_t *tp)
+{
+        if (tp->bases) {
+                VAR_DECR_REF(tp->bases);
+                tp->bases = NULL;
+        }
+        if (tp->priv) {
+                VAR_DECR_REF(tp->priv);
+                tp->priv = NULL;
+        }
+        if (tp->all_priv) {
+                VAR_DECR_REF(tp->all_priv);
+                tp->all_priv = NULL;
+        }
+        if (tp->mro) {
+                VAR_DECR_REF(tp->mro);
+                tp->mro = NULL;
+        }
+        if (tp->delegate_name) {
+                VAR_DECR_REF(tp->delegate_name);
+                tp->delegate_name = NULL;
+        }
+        if (tp->methods) {
+                VAR_DECR_REF(tp->methods);
+                tp->methods = NULL;
+        }
+}
+
 void
 cfile_deinit_type_registry(void)
 {
         struct type_t *const *tbl;
         for (tbl = &VAR_TYPES_TBL[0]; *tbl != NULL; tbl++) {
-                struct type_t *tp = *tbl;
-                VAR_DECR_REF(tp->methods);
-                tp->methods = NULL;
+                type_deinit_builtin_static(*tbl);
         }
         for (tbl = &VAR_HIDDEN_TYPES_TBL[0]; *tbl != NULL; tbl++) {
-                struct type_t *tp = *tbl;
-                VAR_DECR_REF(tp->methods);
-                tp->methods = NULL;
+                type_deinit_builtin_static(*tbl);
         }
 
         /*

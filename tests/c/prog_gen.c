@@ -14,7 +14,9 @@ struct prog_t {
 };
 
 enum {
-        MAX_DEPTH = 5,
+        MAX_DEPTH = 10,
+        NR_ELEM = 5,
+        NR_ARG = 5,
 };
 
 static bool
@@ -60,6 +62,8 @@ insert_new_name(struct prog_t *prog, struct fuzzer_symtab_t *sym)
         return sb_append(&prog->sb, name);
 }
 
+static int gen_key_expression(struct prog_t *prog,
+                              struct fuzzer_symtab_t *sym);
 static int gen_expr(struct prog_t *prog, struct fuzzer_symtab_t *sym);
 static int gen_stmt(struct prog_t *prog, struct fuzzer_symtab_t *sym);
 
@@ -155,7 +159,7 @@ gen_function_call_expression(struct prog_t *prog,
 
         if (sb_append(&prog->sb, "(") < 0)
                 return -1;
-        nr_args = rand() % 3;
+        nr_args = rand() % NR_ARG;
         for (i = 0; i < nr_args; i++) {
                 if (i > 0) {
                         if (sb_append(&prog->sb, ", ") < 0)
@@ -202,6 +206,126 @@ gen_int_expression(struct prog_t *prog)
 }
 
 static int
+gen_array_expression(struct prog_t *prog, struct fuzzer_symtab_t *sym)
+{
+        size_t i, nr_elem;
+        nr_elem = rand() % NR_ELEM;
+        if (sb_append(&prog->sb, "[") < 0)
+                return -1;
+        for (i = 0; i < nr_elem; i++) {
+                if (i > 0) {
+                        if (sb_append(&prog->sb, ", ") < 0)
+                                return -1;
+                }
+                if (gen_expr(prog, sym) < 0)
+                        return -1;
+        }
+        return sb_append(&prog->sb, "]");
+}
+
+static int
+gen_subscript_expression(struct prog_t *prog, struct fuzzer_symtab_t *sym)
+{
+        /*
+         * see fixme in gen_function_call_expression.  The parentheses
+         * here are for roughly the same reason.
+         */
+        if (sb_append(&prog->sb, "(") < 0)
+                return -1;
+        if (insert_existing_name(prog, sym) < 0)
+                return -1;
+        if (sb_append(&prog->sb, "[") < 0)
+                return -1;
+        if (gen_key_expression(prog, sym) < 0)
+                return -1;
+        return sb_append(&prog->sb, "])");
+}
+
+static int
+gen_keyed_tuple_expression(struct prog_t *prog, struct fuzzer_symtab_t *sym)
+{
+        size_t i, nr_elem;
+
+        nr_elem = rand() % NR_ELEM;
+        if (sb_append(&prog->sb, "(") < 0)
+                return -1;
+        for (i = 0; i < nr_elem; i++) {
+                if (i > 0) {
+                        if (sb_append(&prog->sb, ", ") < 0)
+                                return -1;
+                }
+                if (gen_key_expression(prog, sym) < 0)
+                        return -1;
+        }
+
+        if (i == 1) {
+                if (sb_append(&prog->sb, ",") < 0)
+                        return -1;
+        }
+        return sb_append(&prog->sb, ")");
+}
+
+static int
+gen_key_expression(struct prog_t *prog, struct fuzzer_symtab_t *sym)
+{
+        enum {
+                KEY_TYPE_INT = 0,
+                KEY_TYPE_BYTES,
+                KEY_TYPE_STRING,
+                KEY_TYPE_TUPLE,
+                NR_KEY_TYPES,
+        };
+
+        if (should_inject_fault(prog))
+                return gen_expr(prog, sym);
+
+        switch (rand() % NR_KEY_TYPES) {
+        case KEY_TYPE_INT:
+                return gen_int_expression(prog);
+        case KEY_TYPE_BYTES:
+                return sb_append(&prog->sb, "b'abc'");
+        case KEY_TYPE_STRING:
+                return sb_append(&prog->sb, "'abc'");
+        case KEY_TYPE_TUPLE:
+                return gen_keyed_tuple_expression(prog, sym);
+        default:
+                assert(false);
+                return -1;
+        }
+}
+
+static int
+gen_dict_expression(struct prog_t *prog, struct fuzzer_symtab_t *sym)
+{
+        size_t i, nr_elem;
+
+        nr_elem = rand() % NR_ELEM;
+        /*
+         * The parentheses are because dictionary expressions may
+         * not begin a full statement, due to syntactic over-
+         * loading of the OC_LBRACE token. and we don't know here
+         * if we're at the start of a statement or not.
+         */
+        if (sb_append(&prog->sb, "({") < 0)
+                return -1;
+
+        for (i = 0; i < nr_elem; i++) {
+                if (i > 0) {
+                        if (sb_append(&prog->sb, ", ") < 0)
+                                return -1;
+                }
+                if (gen_key_expression(prog, sym) < 0)
+                        return -1;
+                if (sb_append(&prog->sb, ": ") < 0)
+                        return -1;
+                if (gen_expr(prog, sym) < 0)
+                        return -1;
+        }
+
+        return sb_append(&prog->sb, "})");
+}
+
+static int
 gen_expr(struct prog_t *prog, struct fuzzer_symtab_t *sym)
 {
         enum {
@@ -214,6 +338,7 @@ gen_expr(struct prog_t *prog, struct fuzzer_symtab_t *sym)
                 EXPR_TYPE_FUNCTION_DEF,
                 EXPR_TYPE_NAME,
                 EXPR_TYPE_BINARY_OP,
+                EXPR_TYPE_SUBSCRIPT,
                 NR_EXPR_TYPES,
         };
 
@@ -224,21 +349,10 @@ gen_expr(struct prog_t *prog, struct fuzzer_symtab_t *sym)
                 return sb_append(&prog->sb, "'abc'");
         case EXPR_TYPE_NIL:
                 return sb_append(&prog->sb, "null");
-        /*
-         * TODO: replace these with recursive calls to gen_expr,
-         * maybe a hashable-limited version of gen_expr for the
-         * dictionary keys
-         */
         case EXPR_TYPE_LIST:
-                return sb_append(&prog->sb, "[1, 'a', 5.0]");
+                return gen_array_expression(prog, sym);
         case EXPR_TYPE_DICT:
-                /*
-                 * The parentheses are because dictionary expressions may
-                 * not begin a full statement, due to syntactic over-
-                 * loading of the OC_LBRACE token. and we don't know here
-                 * if we're at the start of a statement or not.
-                 */
-                return sb_append(&prog->sb, "({'a': 1, 1: 'b'})");
+                return gen_dict_expression(prog, sym);
         case EXPR_TYPE_FUNCTION_CALL:
                 return gen_function_call_expression(prog, sym);
         case EXPR_TYPE_FUNCTION_DEF:
@@ -247,6 +361,8 @@ gen_expr(struct prog_t *prog, struct fuzzer_symtab_t *sym)
                 return insert_existing_name(prog, sym);
         case EXPR_TYPE_BINARY_OP:
                 return gen_binop_expression(prog, sym);
+        case EXPR_TYPE_SUBSCRIPT:
+                return gen_subscript_expression(prog, sym);
         default:
                 assert(0);
                 return -1;
@@ -263,7 +379,7 @@ end_statement(struct prog_t *prog)
 static int
 gen_function_call(struct prog_t *prog, struct fuzzer_symtab_t *sym)
 {
-        unsigned int i, nargs = rand() % 3;
+        unsigned int i, nargs = rand() % NR_ARG;
 
         if (insert_existing_name(prog, sym) < 0)
                 return -1;

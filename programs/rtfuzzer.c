@@ -111,7 +111,7 @@ run_evilcandy(const char *program)
 static int
 fuzz_loop(unsigned int n_tests, unsigned int seed, int verbose)
 {
-        char buf[8192];
+        char buf[32768];
         unsigned int i;
         for (i = 0; i < n_tests; i++) {
                 int result = prog_gen(buf, sizeof(buf), 10);

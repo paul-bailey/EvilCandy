@@ -75,20 +75,29 @@ depth, so that nested imports can be relative to the directory of the
 imported script rather than from the current working directory.
 
 
-``sys['breadcrumbs']`` should never be touched.  Removing the original
-fields of ``sys['import_path']`` is also strongly discouraged.  If
-you must edit the import path by adding a directory, use the list
-``insert`` and ``append`` methods.  But this is still hazardous,
-especially if you want to remove the additions later.  If the purpose is
-just to import a specific module in an unusual directory, there is a
-much better way...
+``sys['breadcrumbs']`` and ``sys['import_path']`` should never be touched.
+If you need to add a directory to the import path, use the ``-I PATH``
+option from the command-line.  Multiple ``-I`` options may be used on the
+same command line.  The ultimate order of ``sys['import_path']`` will be:
+
++-----+-------------------------------------------------------+
+| 1   | ``.`` or directory of import currently being executed |
++-----+-------------------------------------------------------+
+| 2   | First directory added with ``-I`` option              |
++-----+-------------------------------------------------------+
+| …   | …                                                     |
++-----+-------------------------------------------------------+
+| n-1 | Last directory added with ``-I`` option               |
++-----+-------------------------------------------------------+
+| n   | Library installation directory                        |
++-----+-------------------------------------------------------+
 
 The ``importfile()`` Function
 -----------------------------
 
-Rather than manipulating ``sys['import_path']``, a user can instead use
-the built-in ``importfile()`` function, which takes a string as its
-parameter::
+Since cases may arrise where the ``-I`` option could be too cumbersome or
+awkward, a user can instead call the built-in ``importfile()`` function,
+which imports a file by a path name::
 
    let my_module = importfile('../my_module.evc');
 

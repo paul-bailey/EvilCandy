@@ -177,6 +177,45 @@ path_is_absolute(const char *path)
         return path[0] == SEP;
 }
 
+/* Currently always returns RES_OK */
+enum result_t
+path_insert(const char *path)
+{
+        Object *pathobj, *import_paths;
+        char *fullpath;
+        if (!path_is_absolute(path)) {
+                Object *cwd;
+                const char *cwds;
+                size_t len;
+
+                cwd = gbl_cwd();
+                bug_on(!isvar_string(cwd));
+                cwds = string_cstring(cwd);
+                len = strlen(path) + 2 + strlen(cwds);
+                fullpath = emalloc(len);
+                evc_sprintf(fullpath, len, "%s/%s", cwds, path);
+        } else {
+                fullpath = estrdup(path);
+        }
+
+        reduce_pathname_in_place(fullpath);
+        pathobj = stringvar_new(fullpath);
+        efree(fullpath);
+
+        /*
+         * keep the following order:
+         *  0         '.' or directory of current import
+         *  1...n-2   paths inserted with -I command-line option
+         *  n-1       path determined by rcdatadir
+         */
+        import_paths = sys_getitem(STRCONST_ID(import_path));
+        array_insert_chunk(import_paths, 1, &pathobj, 1);
+
+        VAR_DECR_REF(pathobj);
+        VAR_DECR_REF(import_paths);
+        return RES_OK;
+}
+
 /**
  * @requested_file: Name of import file as written in "import" command.
  */

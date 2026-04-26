@@ -17,6 +17,12 @@
 #include <unistd.h>
 #include <errno.h>
 
+/*
+ * What madman would ever put this many path options on the same
+ * command line?
+ */
+enum { MAX_ADDPATH = 100 };
+
 struct options_t {
         bool disassemble;
         bool disassemble_only;
@@ -25,6 +31,8 @@ struct options_t {
         char *disassemble_outfile;
         char *infile;
         char *program_text;
+        char *addpath[MAX_ADDPATH];
+        size_t nr_addpath;
 };
 
 static void
@@ -46,10 +54,14 @@ print_help_and_quit(FILE *fp)
                 "        -c STRING       Interpret STRING instead of a file\n"
                 "        -e STRING       same as -c\n"
                 "        -V              Print version and quit\n"
+                "        -I path         Add an import path\n"
                 "        -h              Print this help and quit\n"
                 "        --version       Same as -V\n"
                 "        --help          Same as -h\n"
                 "        --check         Compile but do not execute\n"
+                "\n"
+                "Options with arguments require a space between the option\n"
+                "and the argument.\n"
                 "\n"
                 "Common usage:\n"
                 "        REPL mode:      evilcandy\n"
@@ -87,6 +99,15 @@ parse_args(int argc, char **argv, struct options_t *opt)
                         case 'D':
                                 opt->disassemble = true;
                                 opt->disassemble_minimum = true;
+                                break;
+                        case 'I':
+                                argi++;
+                                if (argi == argc)
+                                        goto er;
+                                if (opt->nr_addpath >= MAX_ADDPATH)
+                                        goto err_too_many_paths;
+                                opt->addpath[opt->nr_addpath] = argv[argi];
+                                opt->nr_addpath++;
                                 break;
                         case '-':
                                 if (!strcmp(s, "disassemble-to")) {
@@ -139,6 +160,12 @@ parse_args(int argc, char **argv, struct options_t *opt)
         if (opt->disassemble)
                 opt->disassemble_only = true;
         return 0;
+
+err_too_many_paths:
+        fprintf(stderr,
+                "You may add at most %d paths from the command line",
+                MAX_ADDPATH);
+        goto er;
 
 er:
         fprintf(stderr, "Invalid Option\n");
@@ -303,6 +330,23 @@ out:
         return ret;
 }
 
+static void
+insert_opt_paths(struct options_t *opt)
+{
+        ssize_t i;
+        if (!opt->nr_addpath)
+                return;
+        /*
+         * See where implemented.  Doing this in reverse actually
+         * ensures an earlier -I option gets higher priority than
+         * a later -I option.
+         */
+        for (i = opt->nr_addpath - 1; i >= 0; i--) {
+                if (path_insert(opt->addpath[i]) == RES_ERROR)
+                        fail("Could not insert path %s", opt->addpath[i]);
+        }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -310,18 +354,26 @@ main(int argc, char **argv)
         int ret;
         initialize_program();
 
+        memset(&opt, 0, sizeof(opt));
         if (parse_args(argc, argv, &opt) < 0)
                 return EXIT_FAILURE;
 
         if (opt.program_text) {
+                insert_opt_paths(&opt);
                 ret = run_text(opt.program_text, &opt);
         } else if (opt.infile) {
                 FILE *fp = push_path(opt.infile);
                 if (!fp)
                         fail("Could not open '%s'", opt.infile);
+                /*
+                 * Do this after push_path() above. -I does not apply to
+                 * the top-level script named on the command line.
+                 */
+                insert_opt_paths(&opt);
                 ret = run_script(opt.infile, fp, &opt);
                 pop_path(fp);
         } else if (isatty(fileno(stdin))) {
+                insert_opt_paths(&opt);
                 gbl_set_interactive(true);
                 ret = run_tty(&opt);
         } else {
@@ -329,6 +381,7 @@ main(int argc, char **argv)
                  * in a pipe; parse entire file
                  * but don't push file path.
                  */
+                insert_opt_paths(&opt);
                 ret = run_script("<stdin>", stdin, &opt);
         }
 

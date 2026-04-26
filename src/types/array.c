@@ -126,9 +126,6 @@ array_reverse(Object *array)
         }
 }
 
-static enum result_t array_insert_chunk(Object *array, int at,
-                                      Object **children, size_t n_items);
-
 static enum result_t
 array_extend_one_item(Object *item, void *data)
 {
@@ -156,7 +153,7 @@ array_extend(Object *array, Object *seq)
                             (void *)array, "extend");
 }
 
-static enum result_t
+enum result_t
 array_insert_chunk(Object *array, int at,
                    Object **children, size_t n_items)
 {

@@ -16,8 +16,15 @@ extern enum result_t array_append(Object *array, Object *child);
 extern enum result_t array_extend(Object *array, Object *seq);
 extern void array_reverse(Object *array);
 extern Object *array_borrowitem(Object *array, size_t idx);
+/*
+ * FIXME: make these static and replace with something less error-prone,
+ * like array_delitem(arr, idx) and array_insertitem(arr, idx, val).
+ * Only internal array code ever needs to insert more than one item.
+ */
 extern enum result_t array_delete_chunk(Object *array,
                                         size_t at, size_t n_items);
+enum result_t array_insert_chunk(Object *array, int at,
+                                 Object **children, size_t n_items);
 extern ssize_t array_indexof(Object *arr, Object *item);
 extern ssize_t array_rindexof(Object *arr, Object *item);
 extern ssize_t array_indexof_strict(Object *arr, Object *item);

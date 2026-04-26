@@ -47,6 +47,7 @@ static struct vm_t {
         Object **stack_end;
         struct list_t active_frames;
         struct list_t free_frames;
+        int nr_free_frames;
 } vm = { 0 };
 
 #define PUSH_(fr, v) \
@@ -133,14 +134,16 @@ err:
  *
  *      When returning from one function it will probably not be long
  *      before we call another one.  It makes no sense to keep on calling
- *      malloc and free for our frame structs.  Instead we never free the
- *      old frame; we add it to an inactive-frames list, to be repurposed
- *      on the next function call.  We only need to call malloc whenever
- *      we exceed our previous max of how deeply nested our function calls
- *      have been.  The total number of allocated frames will never exceed
- *      RECURSION_MAX, and they will rarely even exceed a small handful,
- *      even in long-running scripts.
+ *      malloc and free for our frame structs.  Instead of freeing the
+ *      old frame, we add it to an inactive-frames list, to be repurposed
+ *      on the next function call.  We only free it if the number of
+ *      frames exceeds the threshold MAX_FREE_FRAMES.  This way, we only
+ *      end up calling malloc when the free-frames list is empty, which
+ *      usually will only occur when we exceed our previous record of how
+ *      deeply nested our function calls are for this session.
  */
+
+enum { MAX_FREE_FRAMES = 100 };
 
 static Frame *
 vmframe_get_or_alloc(void)
@@ -151,12 +154,27 @@ vmframe_get_or_alloc(void)
                 ret = ecalloc(sizeof(*ret));
                 list_init(&ret->alloc_list);
         } else {
+                bug_on(vm.nr_free_frames == 0);
+                vm.nr_free_frames--;
+
                 ret = container_of(li, Frame, alloc_list);
                 list_remove(li);
                 memset(ret, 0, sizeof(*ret));
                 list_init(&ret->alloc_list);
         }
         return ret;
+}
+
+/* fr was cleaned up, now decide whether to free or add to list */
+static void
+vmframe_free__(Frame *fr)
+{
+        if (vm.nr_free_frames >= MAX_FREE_FRAMES) {
+                efree(fr);
+        } else {
+                list_add_tail(&fr->alloc_list, &vm.free_frames);
+                vm.nr_free_frames++;
+        }
 }
 
 /*
@@ -251,7 +269,7 @@ vmframe_free(Frame *fr)
                         VAR_DECR_REF(fr->owner);
                 if (fr->func)
                         VAR_DECR_REF(fr->func);
-                list_add_tail(&fr->alloc_list, &vm.free_frames);
+                vmframe_free__(fr);
         }
         var_unlock();
 }
@@ -2076,6 +2094,7 @@ cfile_deinit_vm(void)
                 list_remove(li);
                 efree(fr);
         }
+        vm.nr_free_frames = 0;
         vm.globals = NULL;
         vm.stack = vm.stack_end = NULL;
 }

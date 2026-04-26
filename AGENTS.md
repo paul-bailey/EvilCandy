@@ -80,25 +80,20 @@ autoreconf -i
 
 ## Test programs
 
-Build tests using `make tests` for the following:
+The `make tests` target builds the following:
 
-* `programs/unit_tests`
-* `programs/fuzzer`
+* `programs/unit_tests`: A suite of hard-coded tests.
+* `programs/fuzzer`: Fuzzer for code that should pass tokenizer but fail syntax.
+* `programs/rtfuzzer`: Fuzzer for code that should pass syntax but fail runtime.
 
-Before running `programs/fuzzer`, keep in mind two things:
+Before running `programs/fuzzer` or `programs/rtfuzzer`, keep in mind
+that these are very slow, since they fork to a child process for every
+iteration of the fuzz test.  You can reduce the number of iterations
+with the `-n COUNT` option.  (Both fuzzers also have a `--help` option.)
+A count of only a thousand will last a few seconds.
 
-1. If you run it without any arguments, it will be very slow, since
-   it forks to a child process for every iteration of the fuzz test.
-2. If you run it using the `--nofork` option, it will be much faster,
-   but if there was an error, you might not get a full printout of the
-   test; you would have to take note of the seed (printed on stderr
-   before the tests run) and rerun it without `--nofork` but with
-   `--seed N` (where `N` is the seed where the failure ran) in order
-   to see what the error was.
-
-Other tests include the EvilCandy scripts in `tests`.  Run those by
-building `evilcandy` the normal way (just `make`), and run, for example,
-`evilcandy tests/testsuite.evc`.
+The other tests—`programs/unit_tests` and the scripts in `tests/`—can be
+run with `make check`.
 
 ## Memory management in this source tree
 

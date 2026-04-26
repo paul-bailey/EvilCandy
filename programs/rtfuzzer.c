@@ -221,7 +221,7 @@ main(int argc, char **argv)
 
         /* defaults */
         opts.seed = 12345;
-        opts.nr_tests = 1000;
+        opts.nr_tests = 50 * 1000;
         opts.verbose = 0;
 
         parse_args(argc, argv, &opts);

@@ -162,11 +162,11 @@ Here are some major differences:
 * EvilCandy's syntax for delegation resembles Kotlin more than
   JavaScript.  Rather than use a ``Prototype`` chain, an EvilCandy class
   lets the user pick an attribute name for the delegating object; the
-  choice of attribute name is unchangeable after that, but delegating
+  choice of attribute name is unchangeable after that, but the delegating
   object itself can be set and changed dynamically during an
   instantiation's lifetime.
 
-* In addition to delegatition, Evilcandy supports full multiple
+* In addition to delegation, Evilcandy supports full multiple
   inheritance.  At class-creation time, the base classes are formed into
   an MRO array.  Unlike with delegation, inheritance of built-in classes
   is not permitted.

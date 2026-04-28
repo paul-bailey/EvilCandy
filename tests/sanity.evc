@@ -184,7 +184,7 @@ function test_class() {
         test.assert_true(x.x == 12);
     }
 
-    /* make sure instance B does not change instance A data */
+    // make sure instance B does not change instance A data
     {
         class MyClass() {
             .x = 12,
@@ -197,6 +197,43 @@ function test_class() {
         test.assert_true(a instanceof MyClass);
         test.assert_false(a instanceof string);
         test.assert_exception('1 instanceof 1');
+    }
+
+    // check behavior of instanceof with inheritance and delegation
+    {
+        class A() { .x = (self) => 1 }
+        class B(A) {}
+        class C by notx () {
+            .__init__ = function(self) {
+                self.notx = A();
+            }
+        }
+
+        let b = B();
+        let c = C();
+
+        test.assert_true(b instanceof A);
+        test.assert_false(c instanceof A);
+        test.assert_true(typeof(b) == 'B');
+        test.assert_true(typeof(c) == 'C');
+        test.assert_true(b.x() == 1);
+        test.assert_true(c.x() == 1);
+
+        // dynamic changing of delegate
+        c.notx = 'some_string';
+        test.assert_true(c.startswith('some'));
+    }
+
+    // TODO: This is temporary; we may add support for inheriting
+    // built-in types in the future.
+    {
+        let exc = null;
+        try {
+            class A(string) {}
+        } catch (e) {
+            exc = e;
+        }
+        test.assert_true(exc instanceof NotImplementedError);
     }
 }
 

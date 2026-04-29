@@ -250,10 +250,18 @@ function test_class() {
             }
         }
 
+        class C by a () {
+            .__init__ = function(self) {
+                self.a = A();
+            }
+        }
+
         let exc;
         let a = A();
         let b = B();
+        let c = C();
 
+        // .get_x called as a method of A(), so no exception.
         exc = false;
         try {
             let x = a.get_x();
@@ -261,6 +269,28 @@ function test_class() {
             exc = true;
         }
         test.assert_false(exc);
+
+        // Throw an exception for inherited .get_x()
+        // TODO: Bad policy. See gh issue #68.  This might change.
+        exc = false;
+        try {
+            let x = b.get_x();
+        } catch (e) {
+            exc = true;
+        }
+        test.assert_true(exc);
+
+        // c.get_x() is really c.a.get_x(), so expect no exception
+        exc = false;
+        try {
+            let x = c.get_x();
+        } catch (e) {
+            exc = true;
+        }
+        test.assert_false(exc);
+
+        // All remaining dereference .x from this function (not a method
+        // of A, so throw exception.
 
         exc = false;
         try {
@@ -280,11 +310,11 @@ function test_class() {
 
         exc = false;
         try {
-            let x = b.get_x;
+            let x = c.x;
         } catch (e) {
             exc = true;
         }
-        test.assert_false(exc);
+        test.assert_true(exc);
     }
 }
 

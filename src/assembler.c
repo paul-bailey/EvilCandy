@@ -2643,7 +2643,6 @@ assemble_try(struct assemble_t *a)
         ainstr_pop_block(a, IARG_TRY);
         add_instr(a, INSTR_B, 0, finally);
 
-
         if (as_errlex(a, OC_CATCH) < 0)
                 return -1;
         if (as_set_label(a, catch) < 0)

@@ -2640,9 +2640,9 @@ assemble_try(struct assemble_t *a)
         /* block of the try { ... } statement */
         if (assemble_stmt(a, 0, 0) < 0)
                 return -1;
+        ainstr_pop_block(a, IARG_TRY);
         add_instr(a, INSTR_B, 0, finally);
 
-        ainstr_pop_block(a, IARG_TRY);
 
         if (as_errlex(a, OC_CATCH) < 0)
                 return -1;

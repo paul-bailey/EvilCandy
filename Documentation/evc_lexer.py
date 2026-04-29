@@ -13,7 +13,7 @@ class EvilCandyLexer(RegexLexer):
             (r'/\*.*?\*/', token.Comment.Multiline),
             (r'#.*$', token.Comment.Single),
             (r'//.*$', token.Comment.Single),
-            (r'(instanceof|namespace|and|or|not|function|private|import|class|for|let|global|if|else|while|return|in|nobreak)\b',
+            (r'(instanceof|namespace|and|or|not|function|private|import|class|for|do|let|global|if|else|while|return|in|nobreak)\b',
              token.Keyword),
             (r'(as|by)\b', token.Keyword.Soft),
             (r'"[^"]*"', token.String),

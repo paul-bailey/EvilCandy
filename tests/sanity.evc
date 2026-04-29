@@ -235,6 +235,57 @@ function test_class() {
         }
         test.assert_true(exc instanceof NotImplementedError);
     }
+
+    // check behavior of 'private'
+    {
+        class A() {
+            private .x = 1,
+            .get_x = function(self) {
+                return self.x;
+            }
+        }
+        class B(A) {
+            .b_get_x = function(self) {
+                return self.x;
+            }
+        }
+
+        let exc;
+        let a = A();
+        let b = B();
+
+        exc = false;
+        try {
+            let x = a.get_x();
+        } catch (e) {
+            exc = true;
+        }
+        test.assert_false(exc);
+
+        exc = false;
+        try {
+            let x = a.x;
+        } catch (e) {
+            exc = true;
+        }
+        test.assert_true(exc);
+
+        exc = false;
+        try {
+            let x = b.x;
+        } catch (e) {
+            exc = true;
+        }
+        test.assert_true(exc);
+
+        exc = false;
+        try {
+            let x = b.get_x;
+        } catch (e) {
+            exc = true;
+        }
+        test.assert_false(exc);
+    }
 }
 
 let tests = [

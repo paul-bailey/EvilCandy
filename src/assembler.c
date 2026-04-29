@@ -2657,12 +2657,17 @@ assemble_try(struct assemble_t *a)
         excpos = as_savetok(a, &exctok);
         if (as_errlex(a, OC_RPAR) < 0)
                 return -1;
+        /* See issue #66: Put exception name in a child scope */
+        if (ainstr_push_block(a, IARG_BLOCK, 0) < 0)
+                return -1;
         if (as_add_local(a, exctok->v) < 0)
                 return -1;
         if (ainstr_assign_symbol(a, excpos) < 0)
                 return -1;
         if (assemble_stmt(a, 0, 0) < 0)
                 return -1;
+        ainstr_pop_block(a, IARG_BLOCK);
+
         if (as_lex(a) < 0)
                 return -1;
 

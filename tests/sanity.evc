@@ -289,6 +289,16 @@ function test_class() {
         }
         test.assert_false(exc);
 
+        // Do not allow access through .b_get_x(), which is not a method
+        // of A()
+        exc = false;
+        try {
+            let x = b.b_get_x();
+        } catch (e) {
+            exc = true;
+        }
+        test.assert_true(exc);
+
         // All remaining dereference .x from this function (not a method
         // of A, so throw exception.
 

@@ -15,6 +15,13 @@
 #define THISDIR "./"
 #define THISDIR_LEN 2
 
+/* FIXME: Need a Windows version of this */
+static bool
+path_is_absolute(const char *path)
+{
+        return path[0] == SEP;
+}
+
 /*
  * Find the non-directory file name in path name.
  * @path must be absolute
@@ -38,6 +45,26 @@ find_notdir(const char *path)
         return res;
 }
 
+static char *
+pathcat(const char *requested_file, const char *refpath)
+{
+        if (path_is_absolute(requested_file)) {
+                bug_on(refpath != NULL);
+                return estrdup(requested_file);
+        }
+
+        char *newpath;
+        size_t pathlen;
+
+        bug_on(!refpath);
+        bug_on(!path_is_absolute(refpath));
+        pathlen = strlen(requested_file) + strlen(refpath) + 2;
+        newpath = emalloc(pathlen);
+        evc_sprintf(newpath, pathlen, "%s%c%s",
+                    refpath, SEP, requested_file);
+        return newpath;
+}
+
 /*
  * If @refpath is NULL, use absolute path
  * @script is true if @refpath is the path of the current script
@@ -56,20 +83,8 @@ push_path_from(const char *requested_file, const char *refpath, bool script)
          *    anyway.  import should not be an iterative step if speed
          *    is a concern.
          */
-        char *newpath;
-        FILE *fp;
-        size_t pathlen;
-
-        bug_on(!refpath && requested_file[0] != SEP);
-
-        if (!refpath)
-                refpath = "";
-        pathlen = strlen(requested_file) + strlen(refpath) + 2;
-        newpath = emalloc(pathlen);
-        evc_sprintf(newpath, pathlen, "%s/%s", refpath, requested_file);
-        bug_on(newpath[0] != SEP);
-
-        fp = fopen(newpath, "r");
+        char *newpath = pathcat(requested_file, refpath);
+        FILE *fp = fopen(newpath, "r");
         if (fp) {
                 /* TODO: Check that @fp is not a directory. */
                 Object *bc, *bcnew;
@@ -96,13 +111,6 @@ push_path_from(const char *requested_file, const char *refpath, bool script)
         return fp;
 }
 
-/* FIXME: Obviously this does not work on Windows */
-static bool
-path_is_absolute(const char *path)
-{
-        return path[0] == SEP;
-}
-
 /* Currently always returns RES_OK */
 enum result_t
 path_insert(const char *path)
@@ -112,14 +120,11 @@ path_insert(const char *path)
         if (!path_is_absolute(path)) {
                 Object *cwd;
                 const char *cwds;
-                size_t len;
 
                 cwd = gbl_cwd();
                 bug_on(!isvar_string(cwd));
                 cwds = string_cstring(cwd);
-                len = strlen(path) + 2 + strlen(cwds);
-                fullpath = emalloc(len);
-                evc_sprintf(fullpath, len, "%s/%s", cwds, path);
+                fullpath = pathcat(path, cwds);
         } else {
                 fullpath = estrdup(path);
         }
@@ -220,8 +225,7 @@ pop_path(FILE *fp)
                 array_setitem(import_path, 0, gbl_cwd());
         } else {
                 Object *prev, *new_importdir;
-                const char *prevstr;
-                char *notdir;
+                const char *prevstr, *notdir;
 
                 /*
                  * seqvar_size needs to be called again, because

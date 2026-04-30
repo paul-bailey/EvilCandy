@@ -39,78 +39,6 @@ find_notdir(const char *path)
 }
 
 /*
- * TODO: Replace reduce_pathname_in_place() with the library call
- *       realpath().
- */
-/*
- * Reduce an absolute path name to its smallest representation, ie get
- * rid of all the superfluous "./" and "../"
- *
- * FIXME: This is naive.  push_path changes current IMPORT directory,
- * not the current WORKING directory, so there's no chdir or such.
- * This does not crawl through the directory tree the way the OS might
- * (cf namei() in Unix and old versions of Linux); it just reduces all
- * the ".." and "." to make a minimally-expressed absolute path.  This
- * means that a path request like "/a/b/c/../d" might succeed even if
- * the 'c' directory does not exist.
- *
- * XXX: does it matter anymore? File is closed by the time it's being
- * executed.  Recursion is still possible without the breadcrumbs check,
- * but a larger amount of it can be tolerated.
- */
-void
-reduce_pathname_in_place(char *path)
-{
-        char *head, *tail;
-
-        bug_on(path[0] != SEP);
-
-        /*
-         * Some redundancies ("." and "..") may reveal others ("//"),
-         * so if anything changes, this loop will iterate additional
-         * times until it stops changing @path.
-         */
-        do {
-                tail = head = path;
-                while (*head != '\0') {
-                        bug_on(head[0] != SEP);
-                        while (head[1] == SEP)
-                                head++;
-                        *tail++ = *head++;
-                        if (!strncmp(head, THISDIR, THISDIR_LEN)) {
-                                head++;
-                        } else if (!strncmp(head, BACKDIR, BACKDIR_LEN)) {
-                                /*
-                                 * Undo last directory copy.
-                                 *
-                                 * Don't make a scene if there are too
-                                 * many of these. "ls -a /" reveals a
-                                 * directory named ".." even though it's
-                                 * from the top level, so treat "/../"
-                                 * the same as "/".
-                                 */
-                                head += 2;
-                                --tail;
-
-                                while (*tail == SEP && tail > path)
-                                        tail--;
-                                while (*tail != SEP && tail > path)
-                                        tail--;
-                                bug_on(*tail != SEP && tail != path);
-                        } else while (*head != SEP && *head != '\0') {
-                                *tail++ = *head++;
-                        }
-                }
-                *tail = '\0';
-        } while (tail != head);
-
-        if (tail == path) {
-                *tail++ = SEP;
-                *tail = '\0';
-        }
-}
-
-/*
  * If @refpath is NULL, use absolute path
  * @script is true if @refpath is the path of the current script
  */
@@ -146,8 +74,6 @@ push_path_from(const char *requested_file, const char *refpath, bool script)
                 /* TODO: Check that @fp is not a directory. */
                 Object *bc, *bcnew;
                 char *notdir;
-
-                reduce_pathname_in_place(newpath);
 
                 bc = sys_getitem(STRCONST_ID(breadcrumbs));
                 bug_on(!bc || bc == ErrorVar || !isvar_array(bc));
@@ -198,7 +124,6 @@ path_insert(const char *path)
                 fullpath = estrdup(path);
         }
 
-        reduce_pathname_in_place(fullpath);
         pathobj = stringvar_new(fullpath);
         efree(fullpath);
 

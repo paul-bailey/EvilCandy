@@ -284,26 +284,6 @@ test_syntax_error(bool stop_on_failure)
                              test_bad_syntax_snippet_in_child);
 }
 
-static bool
-test_rpip(const char *trypath, const char *expect)
-{
-        char path[1000];
-        bug_on(strlen(trypath) > sizeof(path)-1);
-        strcpy(path, trypath);
-        reduce_pathname_in_place(path);
-        return !strcmp(path, expect);
-}
-
-static void
-test_path(struct tap_t *tap)
-{
-        /* TODO: a bunch more */
-        tap_test(tap, test_rpip("/../a", "/a"));
-        tap_test(tap, test_rpip("////a/././b", "/a/b"));
-        tap_test(tap, test_rpip("/a/b/c", "/a/b/c"));
-        tap_test(tap, test_rpip("/a/../../../b/./.c/..c", "/b/.c/..c"));
-}
-
 #define RETURN_IF_ERROR(tap_, cond_) \
         do { if (tap_test(tap_, cond_) == RES_ERROR) return; } while (0)
 
@@ -447,7 +427,6 @@ main(int argc, char **argv)
         tap_init(&tap, stderr, -1);
 
         initialize_program();
-        test_path(&tap);
         test_locations(&tap);
         test_unpack(&tap);
         end_program();

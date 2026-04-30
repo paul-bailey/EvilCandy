@@ -310,5 +310,6 @@ pop_path(FILE *fp)
         }
         VAR_DECR_REF(import_path);
         VAR_DECR_REF(bc);
+        fclose(fp);
 }
 

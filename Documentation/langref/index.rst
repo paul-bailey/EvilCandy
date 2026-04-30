@@ -3,11 +3,10 @@
 EvilCandy Reference
 ===================
 
-.. admonition:: Update May 2025
+.. admonition:: In-Progress Notice
 
    This document specifies a language whose implementation and specification
-   are both under development and may change.
-   Consider this to be a preliminary draft.
+   are both under development and may change.  Consider this to be a preliminary draft.
 
 This document details the syntax, semantics, and other brass tacks of
 EvilCandy.  For a tutorial, see :ref:`tutorial_index`.
@@ -28,15 +27,11 @@ through the corner cases of the language.
 This document concerns the language itself, not the library.
 For that, see :ref:`libref_index`.
 
-.. toctree::
-   :numbered:
-
-   filespec.rst
-   tokens.rst
-   data.rst
-
-
-..
+.. .. toctree::
+..    :numbered:
+..   filespec.rst
+..   tokens.rst
+..   data.rst
 ..   conventions.rst
 ..   filespec.rst
 ..   tokens.rst

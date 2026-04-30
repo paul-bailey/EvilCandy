@@ -16,14 +16,17 @@
 /**
  * myreadline - Read line from input with readline or editline interface
  * @linep:      Pointer to variable to store result.
- * @sizecap:    Pointer to variable to store allocated size of line.
- *              (This is a convenient fiction; @sizecap will either be
- *              strlen(*linep) or zero.)
+ * @size:       Pointer to variable to store allocated size of line.
+ *              (This is a convenient fiction; @size will be at least
+ *              large enough to fit *linep.)
  * @fp:         Input stream.  There's no reason I can think of why this
  *              is not stdin and not a TTY.
  * @prompt:     Prompt to print for this line.
  *
  * Return: Number of characters retrieved, or -1 if EOF or error.
+ *
+ * Note: If not returning EOF, the line will include '\n' at the end,
+ * which is different from some readline() implementations.
  */
 ssize_t
 myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
@@ -80,7 +83,7 @@ myreadline(char **linep, size_t *size, FILE *fp, const char *prompt)
                  */
                 free(new_line);
 
-                /* +1 becase we needed to add our own '\n' */
+                /* +1 because we needed to add our own '\n' */
                 return n + 1;
         } else {
                 if (*linep) {

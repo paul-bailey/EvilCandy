@@ -209,6 +209,11 @@ path_insert(const char *path)
          *  n-1       path determined by rcdatadir
          */
         import_paths = sys_getitem(STRCONST_ID(import_path));
+        /*
+         * Bug, not error.  This is early, before user could have
+         * manipulated sys.import_path[].
+         */
+        bug_on(!import_paths || !isvar_array(import_paths));
         array_insert_chunk(import_paths, 1, &pathobj, 1);
 
         VAR_DECR_REF(pathobj);

@@ -2,7 +2,8 @@
 #include <evilcandy/errmsg.h>
 #include <evilcandy/global.h>
 #include <evilcandy/iterator.h>
-#include <internal/type_registry.h>
+#include <evilcandy/var.h>
+#include <internal/type_protocol.h>
 
 /**
  * iterator_foreach - Perform an action on each member of an iterator.

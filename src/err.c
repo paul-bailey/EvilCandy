@@ -8,6 +8,7 @@
 #include <evilcandy/types/string.h>
 #include <internal/err.h>
 #include <internal/token.h>
+#include <internal/global.h>
 #include <internal/types/string.h>
 #include <lib/helpers.h>
 
@@ -16,9 +17,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <ctype.h>
-
-/* FIXME: Replace this with gbl accessor functions */
-#include <internal/global.h>
 
 #define CSI "\033["
 #define COLOR_RED CSI "31m"

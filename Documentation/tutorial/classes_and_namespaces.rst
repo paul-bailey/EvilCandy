@@ -120,6 +120,9 @@ an exception.
 ~~~~~~~~~~~~~~
 
 The keyword ``instanceof`` is a binary operator which yields a truth value.
+The expression ``A instanceof B`` is true if ``A`` is an instance of
+class ``B`` or any subclass of ``B``.
+
 Unlike ``typeof``, the name of the class is not a consideration; instead,
 the name of the variable storing the class is used.  From the same session
 as above, expect:
@@ -140,9 +143,6 @@ an exception will be thrown:
     1
     evc> 1 instanceof 1;
     [EvilCandy] TypeError instanceof rvalue not a class
-
-The expression ``A instanceof B`` is true if ``A`` is an instance of
-class ``B`` or any subclass of ``B``.
 
 Class Methods
 -------------

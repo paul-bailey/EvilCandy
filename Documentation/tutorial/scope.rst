@@ -123,7 +123,8 @@ Resetting a Variable
 --------------------
 
 The keyword ``delete`` cannot delete variables the way it can delete a
-dictionary or list item.  It can, however, "reset" the variable by
+dictionary or list item.  The variable's name will remain visible until
+program flow leaves scope.  ``delete`` can, however, "reset" the variable by
 replacing it with ``null``.  This may be useful if you are to remain in
 scope for a while but no longer need a certain variable, whose data could
 be quite large at times::

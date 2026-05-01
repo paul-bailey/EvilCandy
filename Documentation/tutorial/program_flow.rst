@@ -244,7 +244,7 @@ in *sequence* for every iteration).
 
 For *sequence* to be an arbitrary iterator,
 acting as the ``i`` in the Leibniz example above,
-EvilCandy has a ``range`` object, which is nearly identical to Python's.
+EvilCandy has a ``range`` object, which is very similar to Python's.
 It is created with the ``range`` function which takes one to three arguments:
 
         | ``range(start_value, stop_value, step_size)``
@@ -325,8 +325,7 @@ Functions
 Function Basics
 ~~~~~~~~~~~~~~~
 
-Unless we are discussing some egg-headed CS concept of a function,
-the most succinct definition of a function is in K&R:
+The most succinct description of a function comes from K&R:
 "A function provides a convenient way to encapsulate some computation,
 which can then be used without worrying about its implementation" [#]_ [#]_.
 
@@ -364,9 +363,16 @@ argument list.  The non-anonymous way to express a function is::
         .....
    }
 
-...in which case the semicolon is not needed at the end.  When declaring
-a function in this way, the symbol name is *always* a local variable.
-To make a function name be global, you have one of two choices::
+...in which case the semicolon is not needed at the end.
+The named-function syntax is functionally equivalent to the anonymous
+version, except for one slight improvement in that the function name
+is saved with its debug meta-data, to provide more useful information in
+error messages or disassemblies.
+
+When using named-function syntax, the name is *always* assigned to either
+a local variable or (in the interactive case) session variable, *never*
+a global variable.  To make a function name be global, you have one of
+two choices::
 
    // choice 1: anonymous function assigned to global variable
    global leibniz = function(n) {
@@ -379,9 +385,9 @@ To make a function name be global, you have one of two choices::
    }
    global leibniz = leibniz
 
-For this example, I've chosen an argument ``n`` to determine
-how many iterations of the algorithm to use.  Clearly the
-more iterations the more accurate the result:
+For the Leibniz example, I've chosen an argument ``n`` to determine
+how many iterations of the algorithm to use.  Clearly, the more
+iterations the more accurate the result:
 
 .. code-block:: evc-console
 
@@ -392,8 +398,7 @@ more iterations the more accurate the result:
    evc> leibniz(1000000);
    3.1415921535897242
 
-Unlike JavaScript, the number of arguments to a function
-is strictly enforced:
+The number of arguments to a function is strictly enforced:
 
 .. code-block:: evc-console
 
@@ -746,8 +751,11 @@ Notes
 
 .. [#]
 
-   I would replace "computation" with "computation OR execution",
-   since the word "function" has also become interchangeable with "subroutine".
+   I would replace "computation" with "computation OR execution", since
+   the word "function" has also become interchangeable with "subroutine".
+   Nevertheless, engineers and programmers should not get too academic
+   about these things.  Programming paradigms and preening terms (like
+   "clean code") are too theoretical to be helpful in the real world.
 
 .. [#]
 

@@ -1,6 +1,7 @@
 #include <evilcandy/debug.h>
 #include <evilcandy/hash.h>
 #include <internal/type_registry.h>
+#include <math.h>
 
 /* 64-bit version */
 #define FNV_PRIME      0x00000100000001B3LL
@@ -55,7 +56,8 @@ hash_t
 double_hash(double d)
 {
         double ival;
-        if (modf(d, &ival) == 0.0)
+
+        if (isfinite(d) && modf(d, &ival) == 0.0)
                 return good_hash((hash_t)ival);
         /*
          * XXX: lots of zeros in bitmap of d, we need a better hash

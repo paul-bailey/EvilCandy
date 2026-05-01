@@ -15,7 +15,7 @@ fnv_hash(const void *ptr, size_t size)
 {
         const unsigned char *s = (unsigned char *)ptr;
         const unsigned char *end = s + size;
-        hash_t hash = FNV_PRIME;
+        hash_t hash = FNV_OFFSET;
 
         /* FIXME: config.h should wrap 32-bit vs 64-bit hash algos */
         bug_on(sizeof(hash_t) != 8);
@@ -26,7 +26,7 @@ fnv_hash(const void *ptr, size_t size)
          */
         while (s < end) {
                 unsigned int c = *s++;
-                hash = (hash * FNV_OFFSET) ^ c;
+                hash = (hash ^ c) * FNV_PRIME;
         }
 
         return good_hash(hash);

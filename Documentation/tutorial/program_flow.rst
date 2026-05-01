@@ -120,9 +120,10 @@ as "type coercion":
 Compound truth expressions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Truth expressions can be combined using the boolean binary operators
-``and`` and ``or``, and the unary operator ``not``.  The exclamation
-mark ``!`` is also available and serves the same purpose as ``not``.
+Truth expressions can be combined using the logical binary operators
+``and`` and ``or``, and the boolean unary operator ``not``.  The
+exclamation mark ``!`` is also available and serves the same purpose
+as ``not``.
 
 Evaluation may skip a step if a compound boolean expression produces
 a known result before the end of the expression:
@@ -131,10 +132,24 @@ a known result before the end of the expression:
   will not be evaluated.
 
 * In the case of ``A or B``, if ``A`` evaluates to true, then ``B``
-  will not be evaluate.
+  will not be evaluated.
 
 So the ordering of these statements is something to keep in mind when
 speed is a concern.
+
+.. note::
+
+    Unlike ``not``, ``and`` and ``or`` are logical operators, *not*
+    boolean operators.  They short circuit and return one of their
+    operatands, not necessarily zero or one. Use an explicit comparison
+    or boolean conversion when a canonical boolean value is required.
+
+    .. code-block:: evc-console
+
+        evc> 99 or 1;
+        99
+        evc> !!(99 or 1);
+        1
 
 The ``in`` operator
 ~~~~~~~~~~~~~~~~~~~

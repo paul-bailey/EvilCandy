@@ -159,6 +159,13 @@ function test_eval() {
 function test_randos() {
     let test = Test(name='randos');
     test.assert_true('_builtins' in __gbl__);
+
+    // gh issue 69
+    test.assert_true(eval('(0 or 1) + 2') == 3);
+    test.assert_true(eval('(5 or 1) + 2') == 7);
+    test.assert_true(eval('(0 and 1) + 2') == 2);
+    test.assert_true(eval('(5 and 1) + 2') == 3);
+
 }
 
 function test_class() {

@@ -45,6 +45,29 @@
  */
 #define TRY_SIMPLIFY_LABELS 1
 
+enum {
+        STACK_NLABEL = 32,
+        STACK_NINSTR = 128
+};
+
+static bool
+region_has_inner_entry(const instruction_t *instr,
+                       const char *jump_targets,
+                       const instruction_t *low,
+                       const instruction_t *high)
+{
+        size_t lowi, highi, i;
+
+        lowi = low - instr;
+        highi = high - instr;
+
+        for (i = lowi + 1; i <= highi; i++) {
+                if (jump_targets[i])
+                        return true;
+        }
+        return false;
+}
+
 /*
  * If we simplified some operations on consts, then some .rodata may no
  * longer be necessary.  If so, this garbage collects that and adjust
@@ -443,7 +466,7 @@ remove_trivial_jumps(struct assemble_t *a, struct as_frame_t *fr)
 {
         bool reduced;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
-        short *labels = (short *)fr->af_labels.s;
+        const short *labels = (short *)fr->af_labels.s;
         instruction_t *ip, *iplast;
 
         reduced = false;
@@ -483,7 +506,8 @@ remove_trivial_jumps(struct assemble_t *a, struct as_frame_t *fr)
 }
 
 static bool
-simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr)
+simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr,
+                        const char *jump_targets)
 {
         bool reduced;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
@@ -510,6 +534,11 @@ simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr)
 
                 bug_on(ip >= &idata[as_frame_ninstr(fr)]);
                 if (ip2->code != INSTR_LOAD_CONST) {
+                        if (region_has_inner_entry(idata, jump_targets,
+                                                   ip, ip2)) {
+                                ip = ip2;
+                                continue;
+                        }
                         result = try_unaryop(left, ip2);
                         ip3 = ip2;
                 } else {
@@ -518,6 +547,12 @@ simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr)
                         ip3 = next_instr(ip2);
                         if (ip3->code == INSTR_END)
                                 break;
+
+                        if (region_has_inner_entry(idata, jump_targets,
+                                                   ip, ip3)) {
+                                ip = ip3;
+                                continue;
+                        }
 
                         right = rodata[ip2->arg2];
                         result = try_binop(left, right, ip3);
@@ -557,7 +592,7 @@ simplify_const_operands(struct assemble_t *a, struct as_frame_t *fr)
  * loaded is the already-existing tuple in rodata.
  */
 static bool
-simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
+simplify_tuples(struct assemble_t *a, struct as_frame_t *fr, char *jump_targets)
 {
         bool reduced;
         instruction_t *idata = (instruction_t *)fr->af_instr.s;
@@ -587,7 +622,8 @@ simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
                                 break;
                 }
 
-                if (i == n && iptail && iptail->code == INSTR_LOAD_CONST) {
+                if (i == n && iptail && iptail->code == INSTR_LOAD_CONST &&
+                    !region_has_inner_entry(idata, jump_targets, iptail, ip)) {
                         /* Tuple of all consts */
                         /* TODO: local stack if n is small */
                         Object **stack, *tup;
@@ -617,11 +653,6 @@ simplify_tuples(struct assemble_t *a, struct as_frame_t *fr)
         }
         return reduced;
 }
-
-enum {
-        STACK_NLABEL = 32,
-        STACK_NINSTR = 128
-};
 
 /*
  * helper to remove_unreachable_code - Traverse both paths of
@@ -692,6 +723,79 @@ remove_unreachable_code(struct assemble_t *a, struct as_frame_t *fr)
         return reduced;
 }
 
+/* jump_targets must be big enough to fit number of instructions */
+static void
+fill_jump_targets(struct as_frame_t *fr, char *jump_targets)
+{
+        size_t i, nr_instr = as_frame_ninstr(fr);
+        const instruction_t *instrs = (instruction_t *)fr->af_instr.s;
+        const short *labels = (short *)fr->af_labels.s;
+
+        memset(jump_targets, 0, nr_instr);
+        for (i = 0; i < nr_instr; i++) {
+                if (instr_uses_jump(instrs[i])) {
+                        short label = labels[instrs[i].arg2];
+                        jump_targets[label] = 1;
+                }
+        }
+}
+
+static void
+optimize_instructions_in_frame(struct assemble_t *a,
+                               struct as_frame_t *fr)
+{
+        char jump_targets_stack[STACK_NINSTR];
+        char *jump_targets;
+        bool reduced, reduced_once;
+
+        if (as_frame_ninstr(fr) <= sizeof(jump_targets_stack))
+                jump_targets = jump_targets_stack;
+        else
+                jump_targets = emalloc(as_frame_ninstr(fr));
+
+        reduced_once = false;
+        do {
+                reduced = false;
+                if (remove_save_flags(a, fr))
+                        reduced = true;
+                if (reduced)
+                        reduced_once = true;
+        } while (reduced);
+
+        fill_jump_targets(fr, jump_targets);
+
+        do {
+                reduced = false;
+                if (simplify_const_operands(a, fr, jump_targets))
+                        reduced = true;
+                if (TRY_SIMPLIFY_LABELS) {
+                        if (simplify_conditional_jumps(a, fr)) {
+                                /* XXX: necessary? */
+                                fill_jump_targets(fr, jump_targets);
+                                reduced = true;
+                        }
+                        if (remove_trivial_jumps(a, fr))
+                                reduced = true;
+                        if (remove_unreachable_code(a, fr))
+                                reduced = true;
+                }
+                if (simplify_tuples(a, fr, jump_targets))
+                        reduced = true;
+                if (reduced) {
+                        fill_jump_targets(fr, jump_targets);
+                        reduced_once = true;
+                }
+        } while (reduced);
+
+        if (reduced_once) {
+                remove_nop_instructions(a, fr);
+                remove_unused_rodata(fr);
+        }
+
+        if (jump_targets != jump_targets_stack)
+                efree(jump_targets);
+}
+
 /*
  * Optimize out any instruction or group of instructions that can be
  * reduced due to them operating on known consts.
@@ -704,38 +808,7 @@ optimize_instructions(struct assemble_t *a)
         struct list_t *li;
         list_foreach(li, &a->finished_frames) {
                 struct as_frame_t *fr = list2frame(li);
-                bool reduced, reduced_once;
-                reduced_once = false;
-                do {
-                        reduced = false;
-                        if (remove_save_flags(a, fr))
-                                reduced = true;
-                        if (reduced)
-                                reduced_once = true;
-                } while (reduced);
-
-                do {
-                        reduced = false;
-                        if (simplify_const_operands(a, fr))
-                                reduced = true;
-                        if (TRY_SIMPLIFY_LABELS) {
-                                if (simplify_conditional_jumps(a, fr))
-                                        reduced = true;
-                                if (remove_trivial_jumps(a, fr))
-                                        reduced = true;
-                                if (remove_unreachable_code(a, fr))
-                                        reduced = true;
-                        }
-                        if (simplify_tuples(a, fr))
-                                reduced = true;
-                        if (reduced)
-                                reduced_once = true;
-                } while (reduced);
-
-                if (reduced_once) {
-                        remove_nop_instructions(a, fr);
-                        remove_unused_rodata(fr);
-                }
+                optimize_instructions_in_frame(a, fr);
         }
 }
 

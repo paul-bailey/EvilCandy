@@ -132,11 +132,11 @@ extern void assemble_frame_set_label(struct as_frame_t *fr,
                                      int jmp, unsigned long val);
 
 /* assemble_post.c */
-extern struct xptrvar_t *assemble_post(struct assemble_t *a);
-extern struct xptrvar_t *assemble_frame_to_xptr(struct assemble_t *a,
+extern Object *assemble_post(struct assemble_t *a);
+extern Object *assemble_frame_to_xptr(struct assemble_t *a,
                                                 struct as_frame_t *fr);
 
 /* reassemble.c */
-extern struct xptrvar_t *reassemble(struct assemble_t *a);
+extern Object *reassemble(struct assemble_t *a);
 
 #endif /* EVC_INC_INTERNAL_ASSEMBLE_H */

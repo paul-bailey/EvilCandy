@@ -147,7 +147,6 @@ noinst_HEADERS = \
         inc/evilcandy/types/tuple.h \
         inc/internal/instructions.h \
         inc/internal/instruction_name.h \
-        inc/internal/recursion.h \
         inc/internal/codec.h \
         inc/internal/cwd.h \
         inc/internal/err.h \

@@ -440,7 +440,7 @@ err_clean_tokstate:
  * Called from assemble() when it detects that the file is a disassembly
  * instead of a regular source file.
  */
-struct xptrvar_t *
+Object *
 reassemble(struct assemble_t *a)
 {
         struct reassemble_t ra;
@@ -480,7 +480,7 @@ reassemble(struct assemble_t *a)
         if (nread <= 0) {
                 err_setstr(SystemError,
                            "(possible bug) end of disassembly before first instruction");
-                return NULL;
+                return ErrorVar;
         }
 
         if (check_version(&ra, ra.s) < 0)
@@ -555,6 +555,6 @@ err_noend:
 e_free_state:
         if (ra.line)
                 efree(ra.line);
-        return NULL;
+        return ErrorVar;
 }
 

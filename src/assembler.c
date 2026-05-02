@@ -43,7 +43,6 @@
 #include <evilcandy/types/dict.h>
 #include <evilcandy/types/tuple.h>
 #include <evilcandy/types/number_types.h>
-#include <internal/recursion.h>
 #include <internal/type_registry.h>
 #include <internal/token.h>
 #include <internal/assemble.h>
@@ -3232,8 +3231,6 @@ eval_only:
         return 0;
 }
 
-RECURSION_DECLARE(as_recursion);
-
 /*
  * assemble_stmt - Parser for the top-level statement
  * @flags: FE_xxxx flags
@@ -3248,12 +3245,18 @@ RECURSION_DECLARE(as_recursion);
 static int
 assemble_stmt(struct assemble_t *a, unsigned int flags, int continueto)
 {
+        static long recursion = 0;
         int ret;
 
-        RECURSION_DEFAULT_START(as_recursion);
-        ret = assemble_stmt_simple(a, flags, continueto);
-        RECURSION_END(as_recursion);
+        if (recursion >= RECURSION_MAX) {
+                err_setstr(RecursionError, "Recursion limit reached");
+                return -1;
+        }
+        recursion++;
 
+        ret = assemble_stmt_simple(a, flags, continueto);
+
+        recursion--;
         return ret;
 }
 
@@ -3366,8 +3369,6 @@ free_assembler(struct assemble_t *a)
 static Object *
 assemble_next(struct assemble_t *a, bool toeof, unsigned int flags)
 {
-        struct xptrvar_t *ex;
-
         if (a->oc && a->oc->t == OC_EOF)
                 return NULL;
 
@@ -3385,8 +3386,7 @@ assemble_next(struct assemble_t *a, bool toeof, unsigned int flags)
         list_remove(&a->fr->list);
         list_add_front(&a->fr->list, &a->finished_frames);
 
-        ex = assemble_post(a);
-        return (Object *)ex;
+        return assemble_post(a);
 }
 
 /* **********************************************************************
@@ -3556,15 +3556,10 @@ assemble(const char *filename, FILE *fp, Object *localdict)
         }
         firsttok = a->oc->t;
         as_unlex(a);
-        if (toeof && firsttok == OC_PER) {
-                ret = (Object *)reassemble(a);
-                if (!ret) {
-                        /* reassemble can only succeed or fail */
-                        ret = ErrorVar;
-                }
-        } else {
+        if (toeof && firsttok == OC_PER)
+                ret = reassemble(a);
+        else
                 ret = assemble_next(a, toeof, localdict ? FE_TOP : 0);
-        }
         CLOCK_REPORT();
 
         bug_on(ret != ErrorVar && err_occurred());

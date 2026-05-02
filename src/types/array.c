@@ -17,7 +17,6 @@
 #include <evilcandy/err.h>
 #include <evilcandy/ewrappers.h>
 #include <evilcandy/global.h>
-#include <internal/recursion.h>
 #include <internal/uarg.h>
 #include <internal/errmsg.h>
 #include <internal/type_registry.h>
@@ -645,6 +644,7 @@ array_reset(Object *a)
 static enum result_t
 array_cmp(Object *a, Object *b, int *res)
 {
+        static long recursion = 0;
         int i, n;
         enum result_t status;
         Object **aitems, **bitems;
@@ -666,8 +666,11 @@ array_cmp(Object *a, Object *b, int *res)
 
         bug_on(!aitems || !bitems);
 
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
+        if (recursion >= RECURSION_MAX) {
+                err_setstr(RecursionError, "Recurion limit reached");
+                return RES_ERROR;
+        }
+        recursion++;
 
         status = RES_OK;
         for (i = 0; i < n; i++) {
@@ -676,7 +679,7 @@ array_cmp(Object *a, Object *b, int *res)
                         break;
         }
 
-        RECURSION_END_FUNC();
+        recursion--;
 
         if (status == RES_OK && i == n)
                 *res = seqvar_size(a) - seqvar_size(b);
@@ -687,6 +690,8 @@ array_cmp(Object *a, Object *b, int *res)
 static bool
 array_cmpeq(Object *a, Object *b)
 {
+        static long recursion = 0;
+
         size_t i, n;
         bool res;
         Object **aitems, **bitems;
@@ -703,8 +708,11 @@ array_cmpeq(Object *a, Object *b)
         bug_on(!aitems || !bitems);
 
         res = true;
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
+
+        /* XXX: see gh issue 76, same issue as tuple_cmpeq(). */
+        if (recursion >= RECURSION_MAX)
+                return false;
+        recursion++;
 
         for (i = 0; i < n; i++) {
                 if (!var_matches(aitems[i], bitems[i])) {
@@ -713,8 +721,7 @@ array_cmpeq(Object *a, Object *b)
                 }
         }
 
-        RECURSION_END_FUNC();
-
+        recursion--;
         return res;
 }
 

@@ -20,7 +20,6 @@
 #include <evilcandy/types/array.h>
 #include <evilcandy/types/tuple.h>
 #include <evilcandy/types/number_types.h>
-#include <internal/recursion.h>
 #include <internal/type_registry.h>
 #include <internal/types/xptr.h>
 #include <internal/assemble.h>
@@ -870,10 +869,12 @@ func_label_to_frame(struct assemble_t *a, long long funcno)
  * @fr: Entry-level assembly frame.  This function will recursively call
  *      itself to create all the descendant XptrType objects.
  */
-struct xptrvar_t *
+Object *
 assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
 {
-        struct xptrvar_t *x;
+        static long recursion;
+
+        Object *x;
         Object **rodata;
         int i, n_rodata;
 
@@ -889,8 +890,11 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
          * ...but we'd be reckless to assume it, so add this inexpensive
          * recursion guard anyway.
          */
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
+        if (recursion >= RECURSION_MAX) {
+                err_setstr(RecursionError, "Recursion limit reached");
+                return ErrorVar;
+        }
+        recursion++;
 
         n_rodata = as_frame_nconst(fr);
         rodata = as_frame_rodata(fr);
@@ -906,7 +910,17 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
                 child = func_label_to_frame(a, idval);
                 bug_on(!child || child == fr);
                 VAR_DECR_REF(rodata[i]);
-                rodata[i] = (Object *)assemble_frame_to_xptr(a, child);
+                rodata[i] = assemble_frame_to_xptr(a, child);
+                if (rodata[i] == ErrorVar) {
+                        /*
+                         * Setting to NullVar so we have something non-NULL
+                         * to decrement reference on when parent object is
+                         * cleaned up.
+                         */
+                        rodata[i] = VAR_NEW_REF(NullVar);
+                        x = ErrorVar;
+                        goto out;
+                }
         }
 
         do {
@@ -921,11 +935,11 @@ assemble_frame_to_xptr(struct assemble_t *a, struct as_frame_t *fr)
                 cfg.funcname    = fr->af_funcname;
                 cfg.locations   = fr->af_locations_packed;
                 cfg.locations_size = fr->af_locations_packed_size;
-                x = (struct xptrvar_t *)xptrvar_new(&cfg);
+                x = xptrvar_new(&cfg);
         } while (0);
 
-        RECURSION_END_FUNC();
-
+out:
+        recursion--;
         return x;
 }
 
@@ -1064,7 +1078,7 @@ resolve_locations(struct assemble_t *a, struct as_frame_t *fr)
  * 4. Convert it all into a tree of XptrType objects, with the entry
  *    point at the top.
  */
-struct xptrvar_t *
+Object *
 assemble_post(struct assemble_t *a)
 {
         struct list_t *li;
@@ -1087,8 +1101,8 @@ assemble_post(struct assemble_t *a)
          * See as_frame_pop().
          * First child of finished_frames is also our entry point.
          */
-        return assemble_frame_to_xptr(a,
-                                list2frame(a->finished_frames.next));
+        return assemble_frame_to_xptr(
+                        a, list2frame(a->finished_frames.next));
 }
 
 

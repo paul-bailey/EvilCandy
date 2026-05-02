@@ -9,7 +9,6 @@
 #include <evilcandy/err.h>
 #include <evilcandy/types/tuple.h>
 #include <evilcandy/types/number_types.h>
-#include <internal/recursion.h>
 #include <internal/uarg.h>
 #include <internal/types/sequential_types.h>
 #include <internal/type_registry.h>
@@ -27,12 +26,18 @@
 static Object *
 tuple_str(Object *t)
 {
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
-
+        static long recursion = 0;
         Object *ret;
-        size_t i, n = seqvar_size(t);
+        size_t i, n;
         struct string_writer_t wr;
+
+        if (recursion >= RECURSION_MAX) {
+                err_setstr(RecursionError, "Recursion limit reached");
+                return ErrorVar;
+        }
+        recursion++;
+
+        n = seqvar_size(t);
         string_writer_init(&wr, 1);
         string_writer_append(&wr, '(');
 
@@ -58,14 +63,14 @@ tuple_str(Object *t)
         string_writer_append(&wr, ')');
         ret = stringvar_from_writer(&wr);
 
-        RECURSION_END_FUNC();
-
+        recursion--;
         return ret;
 }
 
 static bool
 tuple_cmpeq(Object *a, Object *b)
 {
+        static long recursion = 0;
         bool res;
         Object **aitems, **bitems;
         size_t i, n;
@@ -79,8 +84,14 @@ tuple_cmpeq(Object *a, Object *b)
         aitems = tuple_get_data(a);
         bitems = tuple_get_data(b);
 
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
+        /*
+         * XXX: See gh issue #75.  This is an error, but .cmpeq is not
+         * allowed to return an error.  That needs to be fixed a layer
+         * up, after which we need to also fix it here.
+         */
+        if (recursion >= RECURSION_MAX)
+                return false;
+        recursion++;
 
         res = true;
         for (i = 0; i < n; i++) {
@@ -89,20 +100,23 @@ tuple_cmpeq(Object *a, Object *b)
                         break;
         }
 
-        RECURSION_END_FUNC();
-
+        recursion--;
         return res;
 }
 
 static enum result_t
 tuple_cmp(Object *a, Object *b, int *result)
 {
+        static long recursion = 0;
         ssize_t i, n;
         enum result_t status;
         Object **aitems, **bitems;
 
-        RECURSION_DECLARE_FUNC();
-        RECURSION_START_FUNC(RECURSION_MAX);
+        if (recursion >= RECURSION_MAX) {
+                err_setstr(RecursionError, "Recursion limit reached");
+                return RES_ERROR;
+        }
+        recursion++;
 
         aitems = tuple_get_data(a);
         bitems = tuple_get_data(b);
@@ -125,8 +139,7 @@ tuple_cmp(Object *a, Object *b, int *result)
         if (i == n && status == RES_OK)
                 *result = seqvar_size(a) - seqvar_size(b);
 
-        RECURSION_END_FUNC();
-
+        recursion--;
         return status;
 }
 

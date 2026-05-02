@@ -1,6 +1,7 @@
 #ifndef EVC_INC_INTERNAL_PATH_H
 #define EVC_INC_INTERNAL_PATH_H
 
+#include <evilcandy/enums.h>
 #include <stdio.h>
 
 /* path.c */

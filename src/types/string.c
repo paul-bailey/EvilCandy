@@ -1505,86 +1505,105 @@ string_center(Frame *fr)
 
 #undef string_lrjust
 
-/*
- * XXX REVISIT: replace with iter_xxx() API,
- * allows for more variable types as input.
- */
-static Object *
-string_join(Frame *fr)
-{
+/* data sent to string_join_one via var_traverse() */
+struct string_join_t {
         struct string_writer_t wr;
-        Object *self, *arg;
-        size_t i, n, width;
+        Object *self;
+        size_t idx;
+};
 
-        if (vm_getargs(fr, "<s>[<*>!]{!}:join", &self, &arg) == RES_ERROR)
-                return ErrorVar;
+/*  var_traverse() callback helper to string_join_iterable() */
+static enum result_t
+string_join_one(Object *item, void *data)
+{
+        struct string_join_t *join = (struct string_join_t *)data;
+        /*
+         * XXX policy decision: Throw this error below, or call
+         * var_str() for any non-string element in iterable.  The former
+         * is more Python-like while the latter is more JavaScript-like.
+         */
+        if (!isvar_string(item)) {
+                err_setstr(TypeError,
+                           "expected string in sequence but found %s",
+                           typestr(item));
+                return RES_ERROR;
+        }
+        if (join->idx > 0 && seqvar_size(join->self) > 0)
+                string_writer_append_strobj(&join->wr, join->self);
+        string_writer_append_strobj(&join->wr, item);
+        join->idx++;
+        return RES_OK;
+}
 
-        if (!isvar_seq_readable(arg)) {
-                err_setstr(ArgumentError, "Expected: sequential object");
+/* default string().join() method, takes iterable object */
+static Object *
+string_join_iterable(Object *self, Object *other)
+{
+        struct string_join_t data;
+
+        string_writer_init(&data.wr, string_width(self));
+        data.self = self;
+        data.idx = 0;
+
+        if (var_traverse(other, string_join_one,
+                         (void *)&data, "join") == RES_ERROR) {
+                string_writer_destroy(&data.wr);
                 return ErrorVar;
         }
+        return stringvar_from_writer(&data.wr);
+}
 
-        if ((n = seqvar_size(arg)) == 0)
+/*
+ * 'string().join()' but the iterable is another string.  In this case,
+ * avoid using var_traverse(), since that would create and destroy a
+ * string object for each character.
+ */
+static Object *
+string_join_string(Object *self, Object *other)
+{
+        size_t i, n, width;
+        struct string_writer_t wr;
+
+        /* some_string.join('') ... pointless call, but allow it. */
+        n = seqvar_size(other);
+        if (!n)
                 return VAR_NEW_REF(STRCONST_ID(mpty));
 
-        if (n == 1)
-                return seqvar_getitem(arg, 0);
+        /* Result is arg with nothing between its letters */
+        if (n == 1 || seqvar_size(self) == 0)
+                return VAR_NEW_REF(other);
 
         if (n > 2)
                 width = string_width(self);
         else
                 width = 1;
-        if (!isvar_string(arg)) {
-                bool have_joinstr = seqvar_size(self) > 0;
-                for (i = 0; i < n; i++) {
-                        Object *elem = seqvar_getitem(arg, i);
-                        size_t twid;
-                        bug_on(!elem);
-                        if (!isvar_string(elem)) {
-                                VAR_DECR_REF(elem);
-                                err_setstr(TypeError,
-                                        "Expected string type in sequence but found %s",
-                                        typestr(elem));
-                                return ErrorVar;
-                        }
-                        twid = string_width(elem);
-                        if (width < twid)
-                                width = twid;
-                        VAR_DECR_REF(elem);
-                }
-                string_writer_init(&wr, width);
-                for (i = 0; i < n; i++) {
-                        Object *elem = seqvar_getitem(arg, i);
-                        bug_on(!elem || !isvar_string(elem));
-                        if (i > 0 && have_joinstr)
-                                string_writer_append_strobj(&wr, self);
-                        string_writer_append_strobj(&wr, elem);
-                        VAR_DECR_REF(elem);
-                }
-        } else {
-                /*
-                 * For strings, the above method would add the overhead
-                 * of creating/destroying a string object for each
-                 * seqvar_getitem() call, so do a manual version here.
-                 */
+        if (width < string_width(other))
+                width = string_width(other);
 
-                /* Result is arg with nothing between its letters */
-                if (seqvar_size(self) == 0)
-                        return VAR_NEW_REF(arg);
-
-                if (width < string_width(arg))
-                        width = string_width(arg);
-                string_writer_init(&wr, width);
-                for (i = 0; i < n; i++) {
-                        long point = string_getidx(arg, i);
-                        bug_on(point < 0L);
-                        if (i > 0)
-                                string_writer_append_strobj(&wr, self);
-                        string_writer_append(&wr, point);
-                }
+        string_writer_init(&wr, width);
+        for (i = 0; i < n; i++) {
+                long point = string_getidx(other, i);
+                bug_on(point < 0L);
+                if (i > 0)
+                        string_writer_append_strobj(&wr, self);
+                string_writer_append(&wr, point);
         }
-
         return stringvar_from_writer(&wr);
+}
+
+/* implements `string().join()`, e.g. `"\n".join(["line 1", "line 2"])` */
+static Object *
+string_join(Frame *fr)
+{
+        Object *self, *arg;
+
+        if (vm_getargs(fr, "<s>[<*>!]{!}:join", &self, &arg) == RES_ERROR)
+                return ErrorVar;
+
+        if (isvar_string(arg))
+                return string_join_string(self, arg);
+
+        return string_join_iterable(self, arg);
 }
 
 static Object *

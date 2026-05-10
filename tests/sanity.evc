@@ -31,8 +31,7 @@ function test_generator() {
             }
         }
         test.assert_true(list(get_iterator_1()) == ['a', 'b', 'c']);
-        // See issue #64: .join() won't permit generators right now.
-        // test.assert_true(''.join(get_iterator_2()) == 'abc');
+        test.assert_true(''.join(get_iterator_2()) == 'abc');
         test.assert_true(list(get_iterator_2()) == ['a', 'b', 'c']);
     }
     test_generator_1();

@@ -1023,8 +1023,11 @@ do_defdict_k(Frame *fr, instruction_t ii)
         for (i = 0; i < n; i++) {
                 Object *k = keys[i];
                 Object *v = vals[i];
-                if (dict_setitem(d, k, v) != RES_OK) {
-                        bug_on(!err_occurred());
+                if (dict_setitem_exclusive(d, k, v) != RES_OK) {
+                        if (!err_occurred()) {
+                                err_setstr(KeyError,
+                                           "duplicate keyword %N", k);
+                        }
                         while (i < n) {
                                 VAR_DECR_REF(vals[i]);
                                 i++;
@@ -1039,6 +1042,8 @@ do_defdict_k(Frame *fr, instruction_t ii)
         fr->stackptr -= n;
         if (res == RES_OK)
                 push(fr, d);
+        else
+                VAR_DECR_REF(d);
         return res;
 }
 

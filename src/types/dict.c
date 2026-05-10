@@ -1129,7 +1129,9 @@ dict_getitem_cstr(Object *o, const char *cstr_key)
  *
  * This does not touch the type's built-in-method attributes.
  *
- * Return: RES_OK or RES_ERROR.
+ * Return: RES_OK or RES_ERROR.  RES_ERROR may be due to @key being
+ * unhashable (in which an exception will be thrown), or @attr being
+ * NULL and @key not existing (in which an exception will not be thrown).
  */
 enum result_t
 dict_setitem(Object *dict, Object *key, Object *attr)
@@ -1138,9 +1140,15 @@ dict_setitem(Object *dict, Object *key, Object *attr)
 }
 
 /*
- * like dict_setitem, but throw error if @key already exists.
- * Used by the symbol table to prevent duplicate declarations.
+ * like dict_setitem, but return RES_ERROR if @key already exists.
+ * Used by the VM global dict to prevent duplicate declarations, and
+ * also when building keyword dictionaries for function calls.
+ *
  * @attr may not be NULL this time.
+ *
+ * An exception will be thrown if @key is unhashable.  If the return
+ * is RES_ERROR and no exception is thrown, then the error was due to
+ * @key already existing.
  */
 enum result_t
 dict_setitem_exclusive(Object *dict,
@@ -1150,9 +1158,14 @@ dict_setitem_exclusive(Object *dict,
 }
 
 /*
- * like dict_setitem, but throw error if @key does not exist.
- * Used by the symbol table to change global variable values.
+ * like dict_setitem, but return RES_ERROR if @key does not exist.
+ * Used by the VM global dict to change global variable values.
+ *
  * @attr may not be NULL.
+ *
+ * An exception will be thrown if @key is unhashable.  If the return
+ * is RES_ERROR and no exception is thrown, then the error was due to
+ * @key not existing yet.
  */
 enum result_t
 dict_setitem_replace(Object *dict,

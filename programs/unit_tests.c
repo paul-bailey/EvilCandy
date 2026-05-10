@@ -164,13 +164,11 @@ static const char *RUNTIME_ERROR_SNIPPETS[] = {
         "throw 'not an exception';",
 
         /*
-         * TODO: EvilCandy doesn't yet catch this kind of keyword misuse;
-         * Remove the "#if 0" when I add code to do that.
+         * TODO: when gh issue #63 is finished, add something like
+         *      "(function(a='a') {})(unkown_kw=1);"
          */
-#if 0
-        "print(unknown_kw=1);",
         "(function(**kw) {} )(a=1, a=2);",
-#endif
+
         /* argument and call errors */
         "length();",
         "length(1, 2);",

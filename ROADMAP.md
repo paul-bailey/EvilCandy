@@ -26,7 +26,7 @@
 * [ ] Runtime errors report useful messages
 * [x] Stack traces (even minimal) are available
 * [ ] Clear distinction between fatal vs recoverable errors
-* [ ] Graceful recursion limits (no abort)
+* [x] Graceful recursion limits (no abort)
 
 ---
 

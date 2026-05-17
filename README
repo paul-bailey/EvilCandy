@@ -12,7 +12,7 @@ A Script Interpreter and Programming Language
 About
 =====
 
-**EvilCandy** is a(nother) object-oriented interpreted programming
+**EvilCandy** is a(nother) object-oriented programming
 language and interpreter.  The language itself is nothing original;
 I cherry-picked some of my favorite syntactic features of Python and
 JavaScript, and put them together in the same language.  I'd say that

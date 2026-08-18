@@ -226,6 +226,10 @@ on a project.  So I make no promise that it will compile on your system.
 The Language
 ============
 
+Online documentation of the latest commit to this tree is at
+https://paul-bailey.github.io/EvilCandy.
+
+The online documentation is built from the Documentation subdirectory.
 If you have Sphinx, go to Documentation and run ``make html``.
 If you do not, the reStructuredText files in Documentation/tutorial
 should be human-readable enough.  But disregard Documentation/langref/
